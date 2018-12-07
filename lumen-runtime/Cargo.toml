@@ -19,10 +19,20 @@ lazy_static = "1.2"
 internment = "0.3.6"
 crossbeam = "0.5"
 libc = "0.2"
-rand = "0.6"
 bindgen = "0.43"
-xorshift = "0.1"
 erl_dist = "0.1"
+
+[target.'cfg(unix)'.dependencies]
+rand = "0.6"
+xorshift = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+rand = "0.6"
+xorshift = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+rand = { version = "0.6", features = ["wasm-bindgen"] }
+xorshift = "0.1"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen = "0.2.28"

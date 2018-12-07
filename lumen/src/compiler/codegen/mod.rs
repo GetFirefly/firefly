@@ -2,6 +2,7 @@
 pub mod macros;
 
 mod llvm;
+mod linker;
 
 use std::path::Path;
 
@@ -13,6 +14,7 @@ pub use self::llvm::OutputType;
 #[derive(Debug)]
 pub enum CodeGenError {
     ValidationError(String),
+    LinkerError(String),
     LLVMError(String),
 }
 impl CodeGenError {
@@ -29,6 +31,7 @@ impl std::fmt::Display for CodeGenError {
         match *self {
             ValidationError(ref e) => write!(f, "invalid codegen input: {}", e),
             LLVMError(ref e) => write!(f, "LLVM failed: {}", e),
+            LinkerError(ref e) => write!(f, "Linker failed: {}", e)
         }
     }
 }
@@ -38,6 +41,7 @@ impl std::error::Error for CodeGenError {
         match *self {
             ValidationError(ref e) => e,
             LLVMError(ref e) => e,
+            LinkerError(ref e) => e
         }
     }
 }

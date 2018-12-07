@@ -51,6 +51,16 @@ impl std::convert::From<LLVMCodeGenOptLevel> for Optimization {
         }
     }
 }
+impl std::convert::Into<u32> for Optimization {
+    fn into(self) -> u32 {
+        match self {
+            Optimization::None => 0,
+            Optimization::Less => 1,
+            Optimization::Default => 2,
+            Optimization::Aggressive => 3,
+        }
+    }
+}
 impl std::convert::Into<LLVMCodeGenOptLevel> for Optimization {
     fn into(self) -> LLVMCodeGenOptLevel {
         match self {

@@ -44,11 +44,13 @@ an excellent LLVM version manager called `llvmenv` which you can use to make thi
 
     cargo install --version 0.1.13 llvmenv
 
-Finally, you will need to install the version of LLVM currently used by the project, which as of 
+Finally, you will need to install the version of LLVM currently used by the project, which as of
 this writing is 7.0.0:
 
     llvmenv init
     llvmenv build-entry 7.0.0
+    export LLVENV_RUST_BINDING=1
+    source <(llvmenv zsh)
 
 **NOTE:** Building LLVM the first time will take a long time, so grab a coffee, smoke 'em if you got 'em, etc.
 
@@ -113,11 +115,11 @@ The primary motivation for Lumen is to compile BEAM-based applications (i.e., wr
 Erlang, LFE, Alpaca, etc.) to WebAssembly modules, enabling use of those languages for frontend
 applications as well as backend services. The official BEAM implementation is not compatible with
 existing techniques for targeting WebAssembly, namely by compiling a C/C++ program via Emscripten,
-at least at the time of this writing. 
+at least at the time of this writing.
 
-There are a variety of reasons for this, but an additional problem is that running the VM in 
-WebAssembly to interpret bytecode incurs a not-insignificant overhead (BEAM bytecode gets interpreted 
-by the BEAM VM, which is executed as WASM, which is interpreted/compiled by the browsers WebAssembly 
+There are a variety of reasons for this, but an additional problem is that running the VM in
+WebAssembly to interpret bytecode incurs a not-insignificant overhead (BEAM bytecode gets interpreted
+by the BEAM VM, which is executed as WASM, which is interpreted/compiled by the browsers WebAssembly
 engine). This also implies a requirement that every BEAM module gets delivered to the client
 somehow, is able to be loaded by the VM, etc. These are problems that don't have easy solutions,
 even if the BEAM VM could be directly compiled to WASM.

@@ -1,3 +1,4 @@
+use llvm_sys::prelude::LLVMBool;
 use llvm_sys::target_machine::{LLVMCodeGenFileType, LLVMCodeGenOptLevel};
 
 /// Represents the type of output to generate
@@ -57,6 +58,29 @@ impl std::convert::Into<LLVMCodeGenOptLevel> for Optimization {
             Optimization::Less => LLVMCodeGenOptLevel::LLVMCodeGenLevelLess,
             Optimization::Default => LLVMCodeGenOptLevel::LLVMCodeGenLevelDefault,
             Optimization::Aggressive => LLVMCodeGenOptLevel::LLVMCodeGenLevelAggressive,
+        }
+    }
+}
+
+
+pub enum Bool {
+    True,
+    False
+}
+impl std::convert::From<LLVMBool> for Bool {
+    fn from(b: LLVMBool) -> Bool {
+        if (b as i32) == 0 {
+            Bool::True
+        } else {
+            Bool::False
+        }
+    }
+}
+impl std::convert::Into<LLVMBool> for Bool {
+    fn into(self) -> LLVMBool {
+        match self {
+            Bool::True => (0 as LLVMBool),
+            Bool::False => (1 as LLVMBool),
         }
     }
 }

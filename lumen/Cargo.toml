@@ -1,0 +1,19 @@
+[package]
+name = "lumen"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+readme = "README.md"
+publish = false
+edition = "2018"
+
+[dependencies]
+clap = "2.32.0"
+codemap = "0.1"
+codemap-diagnostic = "0.1"
+byteorder = "1.2"
+libflate = "0.1"
+num = "0.1"
+trackable = "0.2"
+glob = "0.2"
+libc = "0.2"
+llvm-sys = "70"

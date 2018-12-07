@@ -1,0 +1,28 @@
+[package]
+name = "lumen_runtime"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+publish = false
+edition = "2018"
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+clap = "2.32.0"
+signal-hook = "0.1"
+bus = "2.0"
+xdg = "2.1"
+log = "0.4"
+colored = "1.6"
+lazy_static = "1.2"
+internment = "0.3.6"
+crossbeam = "0.5"
+libc = "0.2"
+rand = "0.6"
+bindgen = "0.43"
+xorshift = "0.1"
+erl_dist = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen = "0.2.28"

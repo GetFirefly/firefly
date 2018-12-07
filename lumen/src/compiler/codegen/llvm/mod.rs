@@ -4,6 +4,7 @@ mod enums;
 mod memory_buffer;
 mod target;
 
+use std::ffi::CString;
 use std::sync::{Once, ONCE_INIT};
 
 use llvm_sys::core::*;
@@ -61,6 +62,114 @@ fn severity_to_diagnostic_level(severity: LLVMDiagnosticSeverity) -> Level {
         LLVMDiagnosticSeverity::LLVMDSWarning => Level::Warning,
         LLVMDiagnosticSeverity::LLVMDSRemark => Level::Help,
         LLVMDiagnosticSeverity::LLVMDSNote => Level::Note,
+    }
+}
+
+pub struct Module {
+    name: String,
+    m: LLVMModuleRef,
+}
+impl Module {
+    pub fn new(name: &str, m: LLVMModuleRef) -> Module {
+        Module { name: name.to_string(), m }
+    }
+
+    pub fn parse(context: &Context, name: &str, ir: &str) -> Result<Module, CodeGenError> {
+        // First, create an LLVM memory buffer to hold the IR
+        let len = ir.len();
+        let ir = CString::new(ir).expect("generated IR is an invalid C string");
+        let buf = unsafe { LLVMCreateMemoryBufferWithMemoryRange(ir.as_ptr(), len, c_str!(name), 0) };
+        if buf.is_null() {
+            return Err(CodeGenError::LLVMError("could not create LLVM memory buffer to parse IR".to_string()));
+        }
+        // Then, parse the IR from the memory buffer
+        let module: *mut LLVMModuleRef = std::ptr::null_mut();
+        let err: *mut *mut libc::c_char = std::ptr::null_mut();
+        unsafe {
+            let result = llvm_sys::ir_reader::LLVMParseIRInContext(context.ctx, buf, module, err);
+            if result != 0 {
+                let err = c_str_to_str!(*err);
+                return Err(CodeGenError::LLVMError(String::from(err)));
+            }
+            Ok(Module::new(name, *module))
+        }
+    }
+
+    pub fn optimize(&self, level: Optimization) {
+        unsafe {
+            use llvm_sys::transforms::pass_manager_builder::*;
+
+            // Per clang and rustc, we want to use both kinds.
+            let fpm = LLVMCreateFunctionPassManagerForModule(self.m);
+            let mpm = LLVMCreatePassManager();
+
+            // Populate the pass managers with passes
+            let pmb = LLVMPassManagerBuilderCreate();
+            LLVMPassManagerBuilderSetOptLevel(pmb, level.into());
+
+            // Magic threshold from Clang for -O2
+            LLVMPassManagerBuilderUseInlinerWithThreshold(pmb, 225);
+            LLVMPassManagerBuilderPopulateModulePassManager(pmb, mpm);
+            LLVMPassManagerBuilderPopulateFunctionPassManager(pmb, fpm);
+            LLVMPassManagerBuilderDispose(pmb);
+
+            // Iterate over functions, running the FPM over each
+            LLVMInitializeFunctionPassManager(fpm);
+            let mut func = LLVMGetFirstFunction(self.m);
+            while func != std::ptr::null_mut() {
+                LLVMRunFunctionPassManager(fpm, func);
+                func = LLVMGetNextFunction(func);
+            }
+
+            LLVMFinalizeFunctionPassManager(fpm);
+
+            // Run the MPM over the module
+            LLVMRunPassManager(mpm, self.m);
+
+            // Clean up managers
+            LLVMDisposePassManager(fpm);
+            LLVMDisposePassManager(mpm);
+        }
+    }
+
+    /// Perform LTO on the current module
+    pub fn link_time_optimize(&self, _level: Optimization) {
+        let internalize = Bool::True;
+        let inline = Bool::True;
+
+        unsafe {
+            use llvm_sys::transforms::pass_manager_builder::*;
+
+            let pm = LLVMCreatePassManager();
+            let pmb = LLVMPassManagerBuilderCreate();
+            LLVMPassManagerBuilderPopulateLTOPassManager(pmb, pm, internalize.into(), inline.into());
+            LLVMPassManagerBuilderDispose(pmb);
+
+            LLVMRunPassManager(pm, self.m);
+            LLVMDisposePassManager(pm);
+        }
+    }
+
+    /// Links 'other' into 'self', destroys the module referenced by 'other'
+    pub fn link(&self, other: Module) {
+        use llvm_sys::linker::LLVMLinkModules2;
+
+        unsafe { LLVMLinkModules2(self.m, other.m) };
+    }
+
+    /// Checks the validity of the current module
+    pub fn verify(&self) -> Result<(), CodeGenError> {
+        use llvm_sys::analysis::*;
+
+        let mut err: *mut libc::c_char = std::ptr::null_mut();
+        let result = unsafe {
+            LLVMVerifyModule(self.m, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut err)
+        };
+        if result != 0 {
+            let err = c_str_to_str!(err);
+            return Err(CodeGenError::LLVMError(String::from(err)));
+        }
+        Ok(())
     }
 }
 

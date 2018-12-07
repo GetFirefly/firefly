@@ -11,7 +11,7 @@ impl std::fmt::Display for OutputType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
             OutputType::IR => f.write_str("ll"),
-            OutputType::Assembly => f.write_str("s"),
+            OutputType::Assembly => f.write_str("S"),
             OutputType::Object => f.write_str("o"),
         }
     }

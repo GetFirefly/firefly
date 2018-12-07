@@ -42,7 +42,7 @@ You will also need to install the `wasm-bindgen` command-line tools:
 Now that Rust is setup and ready to go, you will also need LLVM for building the compiler. There is
 an excellent LLVM version manager called `llvmenv` which you can use to make this super easy:
 
-    cargo install llvmenv
+    cargo install --version 0.1.13 llvmenv
 
 Finally, you will need to install the version of LLVM currently used by the project, which as of 
 this writing is 7.0.0:

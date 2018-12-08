@@ -420,6 +420,7 @@ name = "lumen"
 version = "0.1.0"
 dependencies = [
  "byteorder 1.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cc 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "codemap 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "codemap-diagnostic 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",

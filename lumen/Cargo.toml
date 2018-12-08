@@ -5,6 +5,7 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 readme = "README.md"
 publish = false
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
 clap = "2.32.0"
@@ -18,3 +19,6 @@ glob = "0.2"
 libc = "0.2"
 llvm-sys = "70"
 tempfile = "3.0.5"
+
+[build-dependencies]
+cc = "1.0.25"

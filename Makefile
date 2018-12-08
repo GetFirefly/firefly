@@ -24,7 +24,7 @@ format: ## Format all
 	cargo fmt
 
 compiler: ## Build just the compiler
-	LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo build -p $(NAME)
+	LLVM_CONFIG=$(LLVM_SYS_70_PREFIX)/bin/llvm-config LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo build -p $(NAME)
 
 compiler-test: ## Test just the compiler
 	LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo test -p $(NAME)
@@ -41,6 +41,9 @@ compiler-fix:
 runtime: ## Build just the runtime
 	cargo build -p $(NAME)_runtime
 
+runtime-ir:
+	cargo build -p $(NAME)_runtime
+
 runtime-test: ## Test just the runtime
 	cargo test -p $(NAME)_runtime
 
@@ -53,7 +56,20 @@ runtime-clippy:
 runtime-fix:
 	cargo clippy -p $(NAME)_runtime
 
+runtime-clean:
+	cargo clean -p $(NAME)_runtime
+
 clean: ## Clean all
 	cargo clean
 
 rebuild: clean build ## Rebuild all
+
+example: example/test
+
+example/test: target/debug/liblumen_runtime.a example/test.o
+	ld -framework Security -lc -lm -o example/test target/debug/liblumen_runtime.a example/test.o
+
+example/test.o:
+	llc -filetype=obj -o=example/test.o example/test.ll
+
+target/debug/liblumen_runtime.a: runtime

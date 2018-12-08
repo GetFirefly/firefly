@@ -14,6 +14,7 @@ pub type BootScript = Vec<BootInstruction>;
 //TODO: Needs to be Term
 pub type BootInstruction = String;
 
+#[derive(Debug)]
 pub enum Command {
     Run,
     Shell,
@@ -51,6 +52,7 @@ impl std::error::Error for ConfigError {
     }
 }
 
+#[derive(Debug)]
 pub struct Config {
     pub config: AppConfig,
     pub boot: Option<BootScript>,
@@ -65,30 +67,35 @@ impl Config {
     pub fn from_argv(app: String, version: String, argv: Vec<String>) -> ConfigResult<Config> {
         let matches = App::new(app)
             .version(version.as_str())
-            .setting(AppSettings::NoBinaryName)
             .setting(AppSettings::TrailingVarArg)
             .arg(Arg::with_name("args_file")
+                     .long("args_file")
                      .help("Provide a path to a vm.args file containing VM configuration")
                      .takes_value(true)
                      .multiple(true)
                      .number_of_values(1))
             .arg(Arg::with_name("config")
+                     .long("config")
                      .help("Provide a path to a sys.config file containing application configuration")
                      .takes_value(true)
                      .multiple(true)
                      .number_of_values(1))
             .arg(Arg::with_name("boot")
+                     .long("boot")
                      .help("Provide a path to a .boot or .script file which defines how to boot the system")
                      .takes_value(true))
             .arg(Arg::with_name("debug")
+                     .long("debug")
                      .help("Enable debug output from the runtime"))
             .arg(Arg::with_name("name")
+                     .long("name")
                      .global(true)
                      .help("The secret cookie to use in distributed mode\n\
                             If one is not provided, one will be generated for you in ~/.erlang.cookie")
                      .takes_value(true)
                      .validator(is_valid_node_name))
             .arg(Arg::with_name("cookie")
+                     .long("cookie")
                      .global(true)
                      .help("The secret cookie to use in distributed mode")
                      .takes_value(true)
@@ -101,6 +108,7 @@ impl Config {
                 SubCommand::with_name("shell")
                     .about("Starts a new interactive shell, but does not start the system")
                     .arg(Arg::with_name("remote")
+                            .long("remote")
                             .help("Connects a remote shell to the specified host")
                             .takes_value(true)
                             .validator(is_valid_node_name)))

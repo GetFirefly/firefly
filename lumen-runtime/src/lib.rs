@@ -1,59 +1,56 @@
 mod config;
 mod logging;
 mod system;
-
-use std::ffi::CStr;
+#[macro_use] mod support;
 
 use self::config::Config;
 use self::logging::Logger;
 use self::system::break_handler;
 
 use bus::Bus;
-use internment::Intern;
 use log::Level;
-
-extern "C" {
-    static APP_NAME: *const libc::c_char;
-    static APP_VERSION: *const libc::c_char;
-}
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
-pub fn start() {
-    main(Vec::new());
+pub fn start(name: &str, version: &str) {
+    main(name, version, std::env::args().collect());
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 #[no_mangle]
-pub extern "C" fn start() {
-    main(Vec::new());
+pub extern "C" fn start(name: *const libc::c_char, version: *const libc::c_char) -> i32 {
+    let name = c_str_to_str!(name);
+    let version = c_str_to_str!(version);
+    main(name, version, std::env::args().collect());
+    0
 }
 
-pub fn main(argv: Vec<String>) {
+/// The main entry point for the runtime, it is invoked by the platform-specific shims found above
+pub fn main(name: &str, version: &str, argv: Vec<String>) {
     // Load configuration
-    let app_name = unsafe { CStr::from_ptr(APP_NAME).to_string_lossy().into_owned() };
-    let app_version = unsafe { CStr::from_ptr(APP_VERSION).to_string_lossy().into_owned() };
-    let _config = Config::from_argv(app_name, app_version, argv).expect("Could not load config!");
+    let _config = Config::from_argv(name.to_string(), version.to_string(), argv)
+        .expect("Could not load config!");
 
-    // Initialize break handler
-    let bus: Bus<break_handler::Signal> = Bus::new(1);
-    //Get reader
-    //let rx1 = bus.add_rx();
-    //Read event: rx1.try_recv() = Result<Signal, mpsc::TryRecvError>
-    break_handler::init(bus).expect("Unexpected failure initializing signal handling");
+    // This bus is used to receive signals across threads in the system
+    let mut bus: Bus<break_handler::Signal> = Bus::new(1);
+    // Each thread needs a reader
+    let mut rx1 = bus.add_rx();
+    // Initialize the break handler with the bus, which will broadcast on it
+    break_handler::init(bus);
 
     // Start logger
     Logger::init(Level::Info).expect("Unexpected failure initializing logger");
 
-    //TODO: initialize atom table
-    //To create/lookup: let sym = Intern::new(a)
-    for a in vec!["atom"] {
-        Intern::new(a);
+    // TEMP: Blocking loop which waits for user input
+    loop {
+        match rx1.recv() {
+            Ok(_) => {
+                break;
+            },
+            Err(e) => {
+                println!("{}", e);
+                break;
+            }
+        }
     }
-
-    //TODO: initiaiize ETS
-    //TODO: initialize scheduler
-    //TODO: start other scheduler threads (if needed)
-    //TODO: enter scheduler loop, start init process, enter via otp_ring0
-    //TODO: we're now shutting down, clean up, exit
 }

@@ -1,10 +1,11 @@
-use std::sync::mpsc;
 use std::thread;
 
 use bus::Bus;
 
 #[derive(Clone)]
 pub enum Signal {
+    Unknown,
+    INT,
     TERM,
     QUIT,
     HUP,
@@ -13,7 +14,22 @@ pub enum Signal {
     USR1,
     USR2,
     CHLD,
-    STOP,
+}
+impl std::convert::From<usize> for Signal {
+    fn from(sig: usize) -> Signal {
+        match sig as libc::c_int {
+            signal_hook::SIGINT => Signal::INT,
+            signal_hook::SIGTERM => Signal::TERM,
+            signal_hook::SIGQUIT => Signal::QUIT,
+            signal_hook::SIGHUP => Signal::HUP,
+            signal_hook::SIGABRT => Signal::ABRT,
+            signal_hook::SIGALRM => Signal::ALRM,
+            signal_hook::SIGUSR1 => Signal::USR1,
+            signal_hook::SIGUSR2 => Signal::USR2,
+            signal_hook::SIGCHLD => Signal::CHLD,
+            _ => Signal::Unknown
+        }
+    }
 }
 
 // Signal handling doesn't apply to WebAssembly
@@ -24,37 +40,29 @@ pub fn init(mut bus: Bus<Signal>) -> Result<bool, std::io::Error> {
 
 // But should everywhere else
 #[cfg(not(target_arch = "wasm32"))]
-pub fn init(mut bus: Bus<Signal>) -> Result<bool, std::io::Error> {
-    use signal_hook::*;
-
-    // Fan-in for dispatcher
-    let (tx, rx) = mpsc::sync_channel(10);
-    // Dispatcher thread which relays signals to receivers
+pub fn init(mut bus: Bus<Signal>) {
     thread::spawn(move || {
-        for signal in rx.iter() {
-            bus.broadcast(signal);
+        use signal_hook::iterator::Signals;
+
+        let signals = Signals::new(&[
+            signal_hook::SIGINT,
+            signal_hook::SIGTERM,
+            signal_hook::SIGQUIT,
+            signal_hook::SIGHUP,
+            signal_hook::SIGABRT,
+            signal_hook::SIGALRM,
+            signal_hook::SIGUSR1,
+            signal_hook::SIGUSR2,
+            signal_hook::SIGCHLD
+        ]).expect("could not bind signal handlers");
+
+        for signal in signals.forever() {
+            match Signal::from(signal as usize) {
+                Signal::Unknown =>
+                    (),
+                sig =>
+                    bus.broadcast(sig)
+            }
         }
     });
-    // Signal mapping from library to internal enum
-    let signals = vec![
-        (SIGTERM, Signal::TERM),
-        (SIGQUIT, Signal::QUIT),
-        (SIGHUP, Signal::HUP),
-        (SIGABRT, Signal::ABRT),
-        (SIGALRM, Signal::ALRM),
-        (SIGUSR1, Signal::USR1),
-        (SIGUSR2, Signal::USR2),
-        (SIGCHLD, Signal::CHLD),
-        (SIGSTOP, Signal::STOP),
-    ];
-    // For each pair, register a handler which sends the signal to the dispatcher
-    for (hook, signal) in signals {
-        let stx = tx.clone();
-        unsafe {
-            signal_hook::register(hook, move || {
-                stx.send(signal.clone()).unwrap_or_default();
-            })?;
-        }
-    }
-    Ok(true)
 }

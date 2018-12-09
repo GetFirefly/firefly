@@ -21,6 +21,7 @@ crossbeam = "0.5"
 libc = "0.2"
 bindgen = "0.43"
 erl_dist = "0.1"
+lumen_macros = { path = "../lumen-macros" }
 
 [target.'cfg(unix)'.dependencies]
 rand = "0.6"

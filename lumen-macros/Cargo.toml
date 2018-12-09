@@ -1,0 +1,13 @@
+[package]
+name = "lumen_macros"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "0.6"
+syn = { version = "0.15", features = ["full" ] }
+proc-macro2 = { version = "0.4.24", features = ["nightly"] }

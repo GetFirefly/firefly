@@ -3,4 +3,5 @@
 members = [
   "lumen",
   "lumen-runtime",
+  "lumen-macros"
 ]

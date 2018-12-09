@@ -1,7 +1,10 @@
+#![feature(custom_attribute)]
+
 mod config;
 mod logging;
 mod system;
 #[macro_use] mod support;
+#[macro_use] mod types;
 
 use self::config::Config;
 use self::logging::Logger;

@@ -5,6 +5,10 @@
 //! - [BEAM File Format](http://beam-wisdoms.clau.se/en/latest/indepth-beam-file.html)
 //! - [`beam_lib`](http://erlang.org/doc/man/beam_lib.html)
 //!
+//! # Alternative Implementations
+//!
+//! - [`org.elixir_lang.beam.chunk.Chunk` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Chunk.java) in Java.
+//!
 mod aux;
 
 use std::io::Cursor;
@@ -107,6 +111,10 @@ impl Chunk for RawChunk {
     fn id(&self) -> &Id {
         &self.id
     }
+
+    /// ## Alternative Implementations
+    ///
+    /// - [`org.elixir_lang.beam.chunk.Chunk.from` in IntelliJ ELixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Chunk.java#L34-L52) in Kotlin
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -115,6 +123,7 @@ impl Chunk for RawChunk {
         reader.read_to_end(&mut buf)?;
         Ok(RawChunk { id: *id, data: buf })
     }
+
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.data)?;
         Ok(())
@@ -122,6 +131,10 @@ impl Chunk for RawChunk {
 }
 
 /// A representation of the `"Atom"` and `"AtU8"` chunks.
+///
+/// ## Alternative Implementations
+///
+/// * [`org.elixir_lang.beam.chunk.Atoms` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Atoms.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct AtomChunk {
     /// Whether or not this Atom chunk contains UTF-8 atoms
@@ -137,6 +150,10 @@ impl Chunk for AtomChunk {
             b"Atom"
         }
     }
+
+    /// ## Alternative Implementations
+    ///
+    /// - [`org.elixir_lang.beam.chunk.Atoms.Companion.from` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Atoms.kt#L24-L49) in Kotlin
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -178,7 +195,18 @@ impl Chunk for AtomChunk {
     }
 }
 
-/// A representation of the `"Code"` chunk.
+/// The `"Code"` chunk holds the actual byte code operation for the BEAM file, but it cannot be
+/// completely decoded without other chunks, which it references:
+///
+/// - [AtomChunk](AtomChunk) for the module name and direct atom usage.
+/// - [ImpTChunk](ImpTChunk) to convert the import index to MFA for external calls.
+/// - "Line" chunk for `file:line` information for stacktraces that are set with the `line` operation.
+/// - [LitTChunk](LitTChunk) for literal (constant) references used as arguments to operations.
+/// - [StrTChunk](StrTChunk) for strings from the string pool used in `bs_*` operations.
+///
+/// ## Alternative Implementations
+/// - [`org.elixir_lang.beam.chunk.Code` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Code.kt) in Kotlin
+/// - [`org.elixir_lang.beam.chunk.code.Operation#assembly` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/code/Operation.kt#L23-L164) in Kotlin for an example of how to disassemble the individual byte code operations back to BEAM Assembly.
 #[derive(Debug, PartialEq, Eq)]
 pub struct CodeChunk {
     /// Length of the information fields before code.
@@ -203,6 +231,10 @@ impl Chunk for CodeChunk {
     fn id(&self) -> &Id {
         b"Code"
     }
+
+    /// ## Alternative Implementations
+    /// - [`org.elixir_lang.beam.chunk.Code.Companion.from` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Code.kt#L171-L216) in Kotlin
+    ///   NOTE: This implementation decodes the operations as it loads the data instead of storing it as raw bytes.
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -230,7 +262,14 @@ impl Chunk for CodeChunk {
     }
 }
 
-/// A representation of the `"StrT"` chunk.
+/// The `"StrT"` chunk is a string pool, which is 1 continuous binary UTF8 string.  The offsets into
+/// and the length of the strings used in the [CodeChunk](CodeChunk) are encoded in the individual
+/// operations, not this chunk, so that substrings can be freely used.  Think of the
+/// [CodeChunk](CodeChunk) as containing the `&str` while this chunk contains the actual
+/// `'static str`.
+///
+/// ## Alternative Implementations
+/// - [`org.elixir_lang.beam.chunk.Strings` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Strings.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct StrTChunk {
     /// Concatenated strings.
@@ -240,6 +279,9 @@ impl Chunk for StrTChunk {
     fn id(&self) -> &Id {
         b"StrT"
     }
+
+    /// ## Alternative Implementations
+    /// - [`org.elixir_lang.beam.chunk.Strings.Companion.from`](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Strings.kt#L9) in Kotlin
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -249,13 +291,24 @@ impl Chunk for StrTChunk {
         reader.read_to_end(&mut buf)?;
         Ok(StrTChunk { strings: buf })
     }
+
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_all(&self.strings)?;
         Ok(())
     }
 }
 
-/// A representation of the `"ImpT"` chunk.
+/// A table of MFA triplets being called in [CodeChunk](CodeChunk):
+///
+/// 1. Index of module atom in [AtomChunk](AtomChunk)
+/// 2. Index of function atom in [AtomChunk](AtomChunk)
+/// 3. Arity
+///
+/// `call_ext*` operations  only need have an index into this table as 1 operand instead of 3
+/// operands for the MFA.
+///
+/// ## Alternative Implementations
+/// - [`org.elixir_lang.beam.chunk.Imports` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Imports.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImpTChunk {
     /// The list of imported functions.
@@ -265,6 +318,9 @@ impl Chunk for ImpTChunk {
     fn id(&self) -> &Id {
         b"ImpT"
     }
+
+    /// ## Alternative Implementations
+    /// - [`org.elixir_lang.beam.chunk.Imports.Companion.from`](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Imports.kt#L14-L32)
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -292,7 +348,18 @@ impl Chunk for ImpTChunk {
     }
 }
 
-/// A representation of the `"ExpT"` chunk.
+/// A table of the FA pairs and their corresponding label in [CodeChunk](CodeChunk)
+/// 1. Index of function atom in [AtomChunk](AtomChunk)
+/// 2. Arity
+/// 3. Label
+///
+/// This functions as a jump table so the `ImpT` entries from a caller can map imports directly to
+/// labels in the [CodeChunk](CodeChunk).
+///
+/// The format is the same as [LocTChunk](LocTChunk).
+///
+/// ## Alternative Implementations
+/// - [`org.elixir_lang.beam.chunk.CallDefinitions` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/CallDefinitions.java) in Java
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExpTChunk {
     /// The list of exported functions.
@@ -302,6 +369,9 @@ impl Chunk for ExpTChunk {
     fn id(&self) -> &Id {
         b"ExpT"
     }
+
+    /// ## Alternative Implementations
+    /// - [`org.elixir_lang.beam.chunk.CallDefinitions.from(Chunk, Chunk.TypeID.EXPT, Atoms)`](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/CallDefinitions.java#L52-L76) in Java
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -318,6 +388,7 @@ impl Chunk for ExpTChunk {
         }
         Ok(ExpTChunk { exports: exports })
     }
+
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_u32::<BigEndian>(self.exports.len() as u32)?;
         for export in &self.exports {
@@ -329,7 +400,12 @@ impl Chunk for ExpTChunk {
     }
 }
 
-/// A representation of the `"LitT"` chunk.
+/// The `"LitT"` chunk is a little weird - its data is ZLib compressed External Term Format -
+/// not the compact term-encoding used in [CodeChunk](CodeChunk) - the normal format from
+/// `term_to_binary`.
+///
+/// ## Alternative Implementations
+/// - [`org.elixir_lang.beam.chunk.Literals` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Literals.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct LitTChunk {
     /// The list of literal terms.
@@ -342,6 +418,10 @@ impl Chunk for LitTChunk {
     fn id(&self) -> &Id {
         b"LitT"
     }
+
+    /// ## Alternative Implementations
+    /// - [`org.elixir_lang.bream.chunk.Literals.Companion.from`](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Literals.kt#L20-L46) in Kotlin
+    ///   NOTE: This implementation converts the raw bytes to JInterface objects
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -360,6 +440,7 @@ impl Chunk for LitTChunk {
         }
         Ok(LitTChunk { literals: literals })
     }
+
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
         let uncompressed_size = self
             .literals
@@ -378,7 +459,18 @@ impl Chunk for LitTChunk {
     }
 }
 
-/// A representation of the `"LocT"` chunk.
+/// A table of the FA pairs and their corresponding label in [CodeChunk](CodeChunk)
+/// 1. Index of function atom in [AtomChunk](AtomChunk)
+/// 2. Arity
+/// 3. Label
+///
+/// This functions as a jump table so that local calls only need a single index into this table as 1
+/// operand instead of 2 operands for function and arity.
+///
+/// The format is the same as [ExpTChunk](ExpTChunk).
+///
+/// ## Alternative Implementations
+/// - [`org.elixir_lang.beam.chunk.CallDefinitions` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/CallDefinitions.java) in Java
 #[derive(Debug, PartialEq, Eq)]
 pub struct LocTChunk {
     /// The list of local functions.
@@ -388,6 +480,9 @@ impl Chunk for LocTChunk {
     fn id(&self) -> &Id {
         b"LocT"
     }
+
+    /// ## Alternative Implementations
+    /// - [`org.elixir_lang.beam.chunk.CallDefinitions.from(Chunk, Chunk.TypeID.LOCT, Atoms)`](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/CallDefinitions.java#L52-L76) in Java
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -415,7 +510,20 @@ impl Chunk for LocTChunk {
     }
 }
 
-/// A representation of the `"FunT"` chunk.
+/// Anonymous functions aren't a separate construct in [CodeChunk](CodeChunk).  In the bytecode,
+/// anonymous functions are just functions with extra arguments for the closure environment
+/// variables.
+///
+/// The `"FunT"` chunk is a table:
+/// 1. Index of function atom in [AtomChunk](AtomChunk) - Anonymous have static names in the `.beam` format!
+/// 2. Arity
+/// 3. Label in the [CodeChunk](CodeChunk)
+/// 4. Index
+/// 5. Free Variable Count that needs to be passed in from caller
+/// 6. Old Unique - a number that _was_ used to uniquely identify the anonymous function
+///
+/// ## Alternative Implementations
+/// - [`org.elixir_lang.beam.chunk.Functions` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Functions.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct FunTChunk {
     /// The list of anonymous functions.
@@ -460,7 +568,12 @@ impl Chunk for FunTChunk {
     }
 }
 
-/// A representation of the `"Attr"` chunk.
+/// Registered module attributes.
+///
+/// In Erlang, module attributes are registed by default, but in Elixir, only those declared with
+/// [`Module.register_attribute(module, attribute, persist: true)`](https://hexdocs.pm/elixir/Module.html#register_attribute/3)
+/// will appear in this chunk.
+///
 #[derive(Debug, PartialEq, Eq)]
 pub struct AttrChunk {
     /// The attributes of a module (i.e., BEAM file).
@@ -490,7 +603,8 @@ impl Chunk for AttrChunk {
     }
 }
 
-/// A representation of the `"CInf"` chunk.
+/// The `"CInf"` chunk is the Compilation Information for the Erlang or Erlang Core compiler. Even
+/// Elixir modules have it because Elixir code passes through this part of the Erlang Core compiler.
 #[derive(Debug, PartialEq, Eq)]
 pub struct CInfChunk {
     /// The compile information of a module (i.e., BEAM file).
@@ -521,6 +635,12 @@ impl Chunk for CInfChunk {
 }
 
 /// A representation of the `"Abst"` chunk.
+///
+/// The `"Abst"` code chunk used be required, but since the introduction of `"Dbgi"` chunk, now only
+/// the `"Dbgi"` chunk needs to be present with the `"Abst"` being produced on demand by the backend
+/// module named in the `"Dbgi"`.  This means if `"Abst"` is necessary, it may be required to run
+/// the Erlang module that ships with Elixir to convert its `"Dbgi"` quoted format to Erlang's
+/// old `"Abst"` format.
 #[derive(Debug, PartialEq, Eq)]
 pub struct AbstChunk {
     /// The abstract code of a module (i.e., BEAM file).
@@ -573,6 +693,9 @@ impl Chunk for DbgiChunk {
     fn id(&self) -> &Id {
         b"Dbgi"
     }
+
+    /// ## Alternative Implementations
+    /// - [`org.elixir_lang.beam.chunk.debug_info` namespace in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/tree/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/debug_info) handles all current variants, both Erlang and Elixir and invalid forms thereof.
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,

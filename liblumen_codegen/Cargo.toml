@@ -1,15 +1,19 @@
 [package]
-name = "lumen"
+name = "liblumen_codegen"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-readme = "README.md"
-publish = false
 edition = "2018"
+publish = false
+
+build = "build.rs"
 
 [dependencies]
-clap = "2.32.0"
-human-panic = "1.0"
+llvm-sys = "70"
+libc = "0.2"
 failure = "0.1"
+tempfile = "3.0"
 liblumen_diagnostics = { path = "../liblumen_diagnostics" }
 liblumen_syntax = { path = "../liblumen_syntax" }
-liblumen_compiler = { path = "../liblumen_compiler" }
+
+[build-dependencies]
+cc = "1.0.25"

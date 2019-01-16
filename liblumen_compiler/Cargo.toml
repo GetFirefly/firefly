@@ -1,0 +1,16 @@
+[package]
+name = "liblumen_compiler"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+walkdir = "2.2"
+failure = "0.1"
+liblumen_diagnostics = { path = "../liblumen_diagnostics" }
+liblumen_common = { path = "../liblumen_common" }
+liblumen_syntax = { path = "../liblumen_syntax" }
+liblumen_beam = { path = "../liblumen_beam" }
+liblumen_core = { path = "../liblumen_core" }
+liblumen_codegen = { path = "../liblumen_codegen" }

@@ -1,0 +1,27 @@
+[package]
+name = "liblumen_syntax"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+readme = "README.md"
+publish = false
+edition = "2018"
+
+build = "build.rs"
+
+[dependencies]
+liblumen_arena = { path = "../liblumen_arena" }
+liblumen_diagnostics = { path = "../liblumen_diagnostics" }
+rustc-hash = "1.0"
+lalrpop-util = "0.16"
+num = "0.1"
+glob = "0.2"
+termcolor = "0.3"
+failure = "0.1"
+itertools = "0.8"
+lazy_static = "1.2"
+
+[dev-dependencies]
+pretty_assertions = "0.5"
+
+[build-dependencies]
+lalrpop = "0.16"

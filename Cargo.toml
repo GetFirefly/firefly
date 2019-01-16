@@ -3,4 +3,12 @@
 members = [
   "lumen",
   "lumen-runtime",
+  "liblumen_arena",
+  "liblumen_common",
+  "liblumen_diagnostics",
+  "liblumen_syntax",
+  "liblumen_core",
+  "liblumen_beam",
+  "liblumen_compiler",
+  "liblumen_codegen",
 ]

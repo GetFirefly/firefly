@@ -1,0 +1,562 @@
+//-*- mode: rust -*-
+use num::BigInt;
+use liblumen_diagnostics::{ByteSpan, ByteIndex};
+
+use super::ParseError;
+use super::ast::*;
+use crate::lexer::{symbols, Token, Symbol, Ident};
+use crate::preprocessor::PreprocessorError;
+
+grammar(errs: &mut Vec<ParseError>);
+
+// A bunch of macros.
+
+Semi<T>: Vec<T> = {
+    <v:(<T> ";")*> <e:T> => {
+        let mut v = v;
+        v.push(e);
+        v
+    }
+};
+
+// Comma-delimited with minimum zero elements.
+Comma<T>: Vec<T> = {
+    <v:(<T> ",")*> <e:T> => {
+        let mut v = v;
+        v.push(e);
+        v
+    }
+};
+
+pub Module: Module = {
+    <l:@L> "COMMENT"* "-" <attr:atom> "(" <name:atom>  ")" "." "COMMENT"* <body:ModuleBody?> <r:@R> => {
+        let body = match body {
+            None => Vec::new(),
+            Some(body) => body,
+        };
+        if attr.name != symbols::Module {
+            panic!("invalid -module attribute, expected `module`, got `{:?}`", attr.name)
+        }
+        Module::new(ByteSpan::new(l, r), name, body)
+    }
+};
+
+ModuleBody: Vec<TopLevel> = TopLevel+;
+
+TopLevel: TopLevel = {
+    <FunctionDefinition> => TopLevel::Function(<>),
+};
+
+// Top-level Functions
+
+FunctionDefinition: Function = {
+    <l:@L> <clauses:Semi<FunctionHead>> "." <r:@R> => {
+        Function::new(errs, span!(l, r), clauses)
+    }
+};
+
+FunctionHead: FunctionClause = {
+    <l:@L> <a:atom> "(" ")" <g:Guards?> "->" <body:Comma<Expr>> <r:@R> => {
+        FunctionClause::new(span!(l, r), Some(a), Vec::new(), g, body)
+    },
+    <l:@L> <a:atom> "(" <params:Comma<Pattern>> ")" <g:Guards?> "->" <body:Comma<Expr>> <r:@R> => {
+        FunctionClause::new(span!(l, r), Some(a), params, g, body)
+    }
+};
+
+FunctionClause: FunctionClause = {
+    <l:@L> <a:atom?> "(" ")" <g:Guards?> "->" <body:Comma<Expr>> <r:@R> => {
+        FunctionClause::new(span!(l, r), a, Vec::new(), g, body)
+    },
+    <l:@L> <a:atom?> "(" <params:Comma<Pattern>> ")" <g:Guards?> "->" <body:Comma<Expr>> <r:@R> => {
+        FunctionClause::new(span!(l, r), a, params, g, body)
+    }
+};
+
+Guards: Vec<Guard> = "when" <Semi<Guard>>;
+
+Guard: Guard = <l:@L> <conditions:Comma<Expr>> <r:@R>
+    => Guard { span: span!(l, r), conditions };
+
+// Pattern Matching
+
+Pattern: Pattern = {
+    <l:@L> <lhs:Pattern200> "=" <rhs:Pattern> <r:@R>
+        => Pattern::Match(span!(l, r), Box::new(lhs), Box::new(rhs)),
+    Pattern200
+};
+
+Pattern200: Pattern = {
+    <l:@L> <lhs:Pattern300> <op:CompOp> <rhs:Pattern300> <r:@R>
+        => Pattern::BinaryExpr(span!(l, r), Box::new(lhs), op, Box::new(rhs)),
+    Pattern300
+};
+
+Pattern300: Pattern = {
+    <l:@L> <lhs:Pattern400> <op:ListOp> <rhs:Pattern300> <r:@R>
+        => Pattern::BinaryExpr(span!(l, r), Box::new(lhs), op, Box::new(rhs)),
+    Pattern400
+};
+
+Pattern400: Pattern = {
+    <l:@L> <lhs:Pattern400> <op:AddOp> <rhs:Pattern500> <r:@R>
+        => Pattern::BinaryExpr(span!(l, r), Box::new(lhs), op, Box::new(rhs)),
+    Pattern500
+};
+
+Pattern500: Pattern = {
+    <l:@L> <lhs:Pattern500> <op:MultOp> <rhs:Pattern600> <r:@R>
+        => Pattern::BinaryExpr(span!(l, r), Box::new(lhs), op, Box::new(rhs)),
+    Pattern600
+};
+
+Pattern600: Pattern = {
+    <l:@L> <op:PrefixOp> <rhs:Pattern700> <r:@R>
+        => Pattern::UnaryExpr(span!(l, r), op, Box::new(rhs)),
+    MapPattern,
+    Pattern700
+};
+
+Pattern700: Pattern = {
+    RecordPattern,
+    PatternMax
+};
+
+PatternMax: Pattern = {
+    <i:Ident> => Pattern::Var(i),
+    <a:Atomic> => {
+        match a {
+            Expr::Literal(literal) => Pattern::Literal(literal),
+            _ => panic!("internal error: expected Expr::Literal here")
+        }
+    },
+    ListPattern,
+    //<b:Binary> => Pattern::BitPattern(b),
+    <t:Tuple> => match t {
+        Expr::Tuple(span, elements) => Pattern::Tuple(span, elements),
+        _ => panic!("internal error: expected Expr::Tuple here")
+    },
+    "(" <Pattern> ")"
+};
+
+ListPattern: Pattern = {
+    <l:@L> "[" "]" <r:@R> => Pattern::Nil(span!(l, r)),
+    <l:@L> "[" <head:Pattern> <tail:TailPattern> <r:@R> => Pattern::Cons(span!(l, r), Box::new(head), Box::new(tail))
+};
+
+TailPattern: Pattern = {
+    <l:@L> "]" <r:@R>
+        => Pattern::Nil(span!(l, r)),
+    "|" <Pattern> "]",
+    <l:@L> "," <head:Pattern> <tail:TailPattern> <r:@R>
+        => Pattern::Cons(span!(l, r), Box::new(head), Box::new(tail))
+};
+
+MapPattern: Pattern = {
+    <l:@L> "#" <fields:MapTuplePattern> <r:@R>
+        => Pattern::Map(span!(l, r), None, fields),
+    <l:@L> <lhs:PatternMax> "#" <fields:MapTuplePattern> <r:@R>
+        => Pattern::Map(span!(l, r), Some(Box::new(lhs)), fields),
+    <l:@L> <lhs:MapPattern> "#" <fields:MapTuplePattern> <r:@R>
+        => Pattern::Map(span!(l, r), Some(Box::new(lhs)), fields),
+};
+
+MapTuplePattern: Vec<MapFieldPattern> = {
+    "{" "}" => Vec::new(),
+    "{" <Comma<MapFieldPattern>> "}"
+};
+
+MapFieldPattern: MapFieldPattern = {
+    MapFieldAssocPattern,
+    MapFieldExactPattern
+};
+MapFieldAssocPattern: MapFieldPattern = {
+    <l:@L> <key:MapKeyPattern> "=>" <value:Pattern> <r:@R> => MapFieldPattern::Assoc { span: span!(l, r), key, value }
+};
+MapFieldExactPattern: MapFieldPattern = {
+    <l:@L> <key:MapKeyPattern> ":=" <value:Pattern> <r:@R> => MapFieldPattern::Exact { span: span!(l, r), key, value }
+};
+
+MapKeyPattern: Pattern = Pattern;
+
+RecordPattern: Pattern = {
+    <l:@L> "#" <name:atom> "." <field:atom> <r:@R>
+        => Pattern::RecordIndex(span!(l, r), name, field),
+    <l:@L> "#" <name:atom> <fields:RecordTuplePattern> <r:@R>
+        => Pattern::Record(span!(l, r), name, fields),
+};
+
+RecordTuplePattern: Vec<RecordFieldPattern> = {
+    "{" "}" => Vec::new(),
+    "{" <Comma<RecordFieldPattern>> "}"
+};
+
+RecordFieldPattern: RecordFieldPattern = {
+    <l:@L> <name:Ident> "=" <value:Pattern> <r:@R>
+        => RecordFieldPattern::Dynamic { span: span!(l, r), name: Pattern::Var(name), value: Some(value) },
+    <l:@L> <name:atom> "=" <value:Pattern> <r:@R>
+        => RecordFieldPattern::Static { span: span!(l, r), name: Pattern::Literal(Literal::Atom(name)), value: Some(value) }
+};
+
+// Expressions
+
+pub Expr: Expr = {
+    <l:@L> "catch" <e:Expr> <r:@R> => Expr::Catch(span!(l, r), Box::new(e)),
+    Expr100,
+}
+
+Expr100: Expr = {
+    // We would like to use Pattern200 here, but this leads to an ambiguity conflict
+    // between non-terminals which are same in structure but different type, e.g. Tuple/TuplePattern,
+    // so we just need to be aware that Expr::Match is really a pattern expression
+    <l:@L> <lhs:Expr150> "=" <rhs:Expr100> <r:@R>
+        => Expr::Match(span!(l, r), Box::new(lhs), Box::new(rhs)),
+    <l:@L> <lhs:Expr150> "!" <rhs:Expr100> <r:@R>
+        => Expr::BinaryExpr { span: span!(l, r), lhs: Box::new(lhs), op: BinaryOp::Send, rhs: Box::new(rhs) },
+    Expr150
+};
+
+Expr150: Expr = {
+    <l:@L> <lhs:Expr160> "orelse" <rhs:Expr150> <r:@R>
+        => Expr::BinaryExpr { span: span!(l, r), lhs: Box::new(lhs), op: BinaryOp::OrElse, rhs: Box::new(rhs) },
+    Expr160
+};
+
+Expr160: Expr = {
+    <l:@L> <lhs:Expr200> "andalso" <rhs:Expr160> <r:@R>
+        => Expr::BinaryExpr { span: span!(l, r), lhs: Box::new(lhs), op: BinaryOp::AndAlso, rhs: Box::new(rhs) },
+    Expr200
+};
+
+Expr200: Expr = {
+    <l:@L> <lhs:Expr300> <op:CompOp> <rhs:Expr300> <r:@R>
+        => Expr::BinaryExpr { span: span!(l, r), lhs: Box::new(lhs), op, rhs: Box::new(rhs) },
+    Expr300
+};
+
+Expr300: Expr = {
+    <l:@L> <lhs:Expr400> <op:ListOp> <rhs:Expr300> <r:@R>
+        => Expr::BinaryExpr { span: span!(l, r), lhs: Box::new(lhs), op, rhs: Box::new(rhs) },
+    Expr400
+};
+
+Expr400: Expr = {
+    <l:@L> <lhs:Expr400> <op:AddOp> <rhs:Expr500> <r:@R>
+        => Expr::BinaryExpr { span: span!(l, r), lhs: Box::new(lhs), op, rhs: Box::new(rhs) },
+    Expr500
+};
+
+Expr500: Expr = {
+    <l:@L> <lhs:Expr500> <op:MultOp> <rhs:Expr600> <r:@R>
+        => Expr::BinaryExpr { span: span!(l, r), lhs: Box::new(lhs), op, rhs: Box::new(rhs) },
+    Expr600
+};
+
+Expr600: Expr = {
+    <l:@L> <op:PrefixOp> <rhs:Expr700> <r:@R>
+        => Expr::UnaryExpr { span: span!(l, r), op, rhs: Box::new(rhs) },
+    // MapExpr
+    Expr700
+};
+
+Expr700: Expr = {
+    Apply,
+    // RecordExpr
+    Expr800
+};
+
+Expr800: Expr = {
+    <l:@L> <lhs:ExprMax> ":" <rhs:ExprMax> <r:@R>
+        => Expr::Remote { span: span!(l, r), module: Box::new(lhs), function: Box::new(rhs) },
+    ExprMax
+};
+
+ExprMax: Expr = {
+    <i:Ident> => Expr::Var(i),
+    Atomic,
+    Tuple,
+    List,
+    "(" <Expr> ")",
+    <l:@L> "begin" <body:Comma<Expr>> "end" <r:@R>
+        => Expr::Begin(span!(l, r), body),
+    If,
+    Case,
+    Receive,
+    Try,
+};
+
+If: Expr = {
+    <l:@L> "if" <clauses:Semi<IfClause>> "end" <r:@R>
+        => Expr::If(span!(l, r), clauses)
+};
+IfClause: IfClause = {
+    <l:@L> <conditions:Comma<Expr>> "->" <body:Comma<Expr>> <r:@R>
+        => IfClause(span!(l, r), conditions, body)
+};
+
+Case: Expr = {
+    <l:@L> "case" <input:Expr> "of" <clauses:Semi<Clause>> "end" <r:@R>
+        => Expr::Case(span!(l, r), Box::new(input), clauses)
+};
+
+Receive: Expr = {
+    <l:@L> "receive" <after:After> "end" <r:@R>
+        => Expr::Receive { span: span!(l, r), clauses: None, after: Some(after) },
+    <l:@L> "receive" <clauses:Semi<Clause>> <after:After?> "end" <r:@R>
+        => Expr::Receive { span: span!(l, r), clauses: Some(clauses), after }
+};
+
+After: Timeout = {
+    <l:@L> "after" <timeout:Expr> "->" <body:Comma<Expr>> <r:@R>
+        => Timeout(span!(l, r), Box::new(timeout), body)
+};
+
+Try: Expr = {
+    <l:@L> "try" <exprs:Comma<Expr>> "of" <clauses:Semi<Clause>> <catch:TryCatch>
+        => Expr::Try { span: span!(l, catch.2), exprs: Some(exprs), clauses: Some(clauses), catch_clauses: catch.0, after: catch.1 },
+    <l:@L> "try" <exprs:Comma<Expr>> <catch:TryCatch>
+        => Expr::Try { span: span!(l, catch.2), exprs: None, clauses: None, catch_clauses: catch.0, after: catch.1 }
+};
+
+TryCatch: (Option<Vec<TryClause>>, Option<Vec<Expr>>, ByteIndex) = {
+    "catch" <clauses:Semi<TryClause>> "end" <r:@R>
+        => (Some(clauses), None, r),
+    "catch" <clauses:Semi<TryClause>> "after" <body:Comma<Expr>> "end" <r:@R>
+        => (Some(clauses), Some(body), r),
+    "after" <body:Comma<Expr>> "end" <r:@R>
+        => (None, Some(body), r)
+};
+
+TryClause: TryClause = {
+    <l:@L> <error:Pattern> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
+        => TryClause { span: span!(l, r), kind: Ident::from_str("throw"), error, guard, trace: Ident::from_str("_"), body },
+    <l:@L> <kind:atom_or_var> ":" <error:Pattern> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
+        => TryClause { span: span!(l, r), kind, error, guard, trace: Ident::from_str("_"), body },
+    <l:@L> <kind:atom_or_var> ":" <error:Pattern> ":" <trace:Ident> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
+        => TryClause { span: span!(l, r), kind, error, guard, trace, body },
+};
+
+Clause: Clause = {
+    <l:@L> <pattern:Pattern> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
+        => Clause { span: span!(l, r), pattern, guard, body }
+};
+
+Apply: Expr = {
+    <l:@L> <lhs:Expr800> "(" ")" <r:@R>
+        => Expr::Apply { span: span!(l, r), lhs: Box::new(lhs), args: Vec::new()  },
+    <l:@L> <lhs:Expr800> "(" <args:Comma<Expr>> ")" <r:@R>
+        => Expr::Apply { span: span!(l, r), lhs: Box::new(lhs), args }
+};
+
+Tuple: Expr = {
+    <l:@L> "{" "}" <r:@R>
+        => Expr::Tuple(span!(l, r), Vec::new()),
+    <l:@L> "{" <elements:Comma<Expr>> "}" <r:@R>
+        => Expr::Tuple(span!(l, r), elements)
+};
+
+List: Expr = {
+    <l:@L> "[" "]" <r:@R> => Expr::Nil(span!(l, r)),
+    <l:@L> "[" <head:Expr> <tail:Tail> <r:@R> => Expr::Cons(span!(l, r), Box::new(head), Box::new(tail))
+};
+
+Tail: Expr = {
+    <l:@L> "]" <r:@R>
+        => Expr::Nil(span!(l, r)),
+    "|" <Expr> "]",
+    <l:@L> "," <head:Expr> <tail:Tail> <r:@R>
+        => Expr::Cons(span!(l, r), Box::new(head), Box::new(tail))
+};
+
+MapTuple: Vec<MapField> = {
+    "{" "}" => Vec::new(),
+    "{" <Comma<MapField>> "}"
+};
+
+MapField: MapField = {
+    MapFieldAssoc,
+    MapFieldExact
+};
+MapFieldAssoc: MapField = {
+    <l:@L> <key:MapKey> "=>" <value:Expr> <r:@R> => MapField::Assoc { span: span!(l, r), key, value }
+};
+MapFieldExact: MapField = {
+    <l:@L> <key:MapKey> ":=" <value:Expr> <r:@R> => MapField::Exact { span: span!(l, r), key, value }
+};
+
+MapKey: Expr = Expr;
+
+RecordTuple: Vec<RecordField> = {
+    "{" "}" => Vec::new(),
+    "{" <Comma<RecordField>> "}"
+};
+
+RecordField: RecordField = {
+    <l:@L> <name:Ident> "=" <value:Expr> <r:@R>
+        => RecordField::Dynamic { span: span!(l, r), name: Expr::Var(name), value: Some(value), ty: None },
+    <l:@L> <name:atom> "=" <value:Expr> <r:@R>
+        => RecordField::Static { span: span!(l, r), name: Expr::Literal(Literal::Atom(name)), value: Some(value), ty: None }
+};
+
+Atomic: Expr = {
+    <l:@L> <c:char> <r:@R> => Expr::Literal(Literal::Char(span!(l, r), c)),
+    <Integer> => Expr::Literal(<>),
+    <l:@L> <f:float> <r:@R> => Expr::Literal(Literal::Float(span!(l, r), f)),
+    <atom> => Expr::Literal(Literal::Atom(<>)),
+    <l:@L> <s:string> <r:@R> => {
+        Expr::Literal(Literal::String(Ident::new(s, span!(l, r))))
+    }
+};
+
+#[inline]
+atom_or_var: Ident = {
+    atom,
+    Ident,
+};
+
+#[inline]
+atom: Ident = <l:@L> <a:"atom"> <r:@R>
+    => Ident::new(a, span!(l, r));
+
+#[inline]
+Ident: Ident = <l:@L> <i:ident> <r:@R>
+    => Ident::new(i, span!(l, r));
+
+#[inline]
+Integer: Literal = {
+    <l:@L> <i:int> <r:@R> => Literal::Integer(span!(l, r), i),
+    <l:@L> <i:bigint> <r:@R> => Literal::BigInteger(span!(l, r), i)
+};
+
+#[inline]
+ident_or_integer: Expr = {
+    <i:Ident> => Expr::Var(i),
+    <i:Integer> => Expr::Literal(i)
+}
+
+PrefixOp: UnaryOp = {
+    "+" => UnaryOp::Plus,
+    "-" => UnaryOp::Minus,
+    "bnot" => UnaryOp::Bnot,
+    "not" => UnaryOp::Not,
+};
+
+MultOp: BinaryOp = {
+    "/" => BinaryOp::Divide,
+    "*" => BinaryOp::Multiply,
+    "div" => BinaryOp::Div,
+    "rem" => BinaryOp::Rem,
+    "band" => BinaryOp::Band,
+    "and" => BinaryOp::And,
+};
+
+AddOp: BinaryOp = {
+    "+" => BinaryOp::Add,
+    "-" => BinaryOp::Sub,
+    "bor" => BinaryOp::Bor,
+    "bxor" => BinaryOp::Bxor,
+    "bsl" => BinaryOp::Bsl,
+    "bsr" => BinaryOp::Bsr,
+    "or" => BinaryOp::Or,
+    "xor" => BinaryOp::Xor,
+};
+
+ListOp: BinaryOp = {
+    "++" => BinaryOp::Append,
+    "--" => BinaryOp::Remove,
+};
+
+CompOp: BinaryOp = {
+    "==" => BinaryOp::Equal,
+    "/=" => BinaryOp::NotEqual,
+    "=<" => BinaryOp::Lte,
+    "<" => BinaryOp::Lt,
+    ">=" => BinaryOp::Gte,
+    ">" => BinaryOp::Gt,
+    "=:=" => BinaryOp::StrictEqual,
+    "=/=" => BinaryOp::StrictNotEqual
+};
+
+extern {
+    type Location = ByteIndex;
+    type Error = PreprocessorError;
+
+    enum Token {
+        // Docs
+        "COMMENT" => Token::Comment,
+        // Literals
+        char => Token::Char(<char>),
+        int => Token::Integer(<i64>),
+        bigint => Token::BigInteger(<BigInt>),
+        float => Token::Float(<f64>),
+        "atom" => Token::Atom(<Symbol>),
+        string => Token::String(<Symbol>),
+        ident => Token::Ident(<Symbol>),
+        // Keywords and Symbols
+        "(" => Token::LParen,
+        ")" => Token::RParen,
+        "," => Token::Comma,
+        "->" => Token::RightStab,
+        "{" => Token::LBrace,
+        "}" => Token::RBrace,
+        "[" => Token::LBracket,
+        "]" => Token::RBracket,
+        "|" => Token::Bar,
+        "||" => Token::BarBar,
+        "<-" => Token::LeftStab,
+        ";" => Token::Semicolon,
+        ":" => Token::Colon,
+        "#" => Token::Pound,
+        "." => Token::Dot,
+        "after" => Token::After,
+        "begin" => Token::Begin,
+        "case" => Token::Case,
+        "try" => Token::Try,
+        "catch" => Token::Catch,
+        "end" => Token::End,
+        "fun" => Token::Fun,
+        "if" => Token::If,
+        "of" => Token::Of,
+        "receive" => Token::Receive,
+        "when" => Token::When,
+        "andalso" => Token::AndAlso,
+        "orelse" => Token::OrElse,
+        "bnot" => Token::Bnot,
+        "not" => Token::Not,
+        "*" => Token::Star,
+        "/" => Token::Slash,
+        "div" => Token::Div,
+        "rem" => Token::Rem,
+        "band" => Token::Band,
+        "and" => Token::And,
+        "+" => Token::Plus,
+        "-" => Token::Minus,
+        "bor" => Token::Bor,
+        "bxor" => Token::Bxor,
+        "bsl" => Token::Bsl,
+        "bsr" => Token::Bsr,
+        "or" => Token::Or,
+        "xor" => Token::Xor,
+        "++" => Token::PlusPlus,
+        "--" => Token::MinusMinus,
+        "==" => Token::IsEqual,
+        "/=" => Token::IsNotEqual,
+        "=<" => Token::IsLessThanOrEqual,
+        "<" => Token::IsLessThan,
+        ">=" => Token::IsGreaterThanOrEqual,
+        ">" => Token::IsGreaterThan,
+        "=:=" => Token::IsExactlyEqual,
+        "=/=" => Token::IsExactlyNotEqual,
+        "<=" => Token::LeftArrow,
+        "=>" => Token::RightArrow,
+        ":=" => Token::ColonEqual,
+        "<<" => Token::BinaryStart,
+        ">>" => Token::BinaryEnd,
+        "!" => Token::Bang,
+        "=" => Token::Equals,
+        "::" => Token::ColonColon,
+        ".." => Token::DotDot,
+        "..." => Token::DotDotDot,
+        "?" => Token::Question,
+    }
+}

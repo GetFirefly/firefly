@@ -1,15 +1,11 @@
 [package]
-name = "lumen"
+name = "liblumen_core"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
-readme = "README.md"
 publish = false
 edition = "2018"
 
 [dependencies]
-clap = "2.32.0"
-human-panic = "1.0"
 failure = "0.1"
-liblumen_diagnostics = { path = "../liblumen_diagnostics" }
+liblumen_common = { path = "../liblumen_common" }
 liblumen_syntax = { path = "../liblumen_syntax" }
-liblumen_compiler = { path = "../liblumen_compiler" }

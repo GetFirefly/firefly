@@ -2,7 +2,6 @@
 
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
-LLVM_SYS_70_PREFIX := ~/.local/share/llvmenv/7.0.0
 
 help:
 	@echo "$(NAME):$(VERSION)"
@@ -23,20 +22,17 @@ clippy: ## Lint all
 format: ## Format all
 	cargo fmt
 
+lumen: ## Build the Lumen executable
+	cargo build -p lumen
+
+lumen-check:
+	cargo check -p lumen
+
 compiler: ## Build just the compiler
-	LLVM_CONFIG=$(LLVM_SYS_70_PREFIX)/bin/llvm-config LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo build -p $(NAME)
+	cargo build -p liblumen_compiler
 
-compiler-test: ## Test just the compiler
-	LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo test -p $(NAME)
-
-compiler-check: ## Check just the compiler
-	LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo check -p $(NAME)
-
-compiler-clippy:
-	LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo clippy -p $(NAME)
-
-compiler-fix:
-	LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo fix --edition -p $(NAME)
+compiler-check:
+	cargo check -p liblumen_compiler
 
 runtime: ## Build just the runtime
 	cargo build -p $(NAME)_runtime

@@ -2,6 +2,7 @@ mod directive;
 mod macros;
 mod errors;
 mod preprocessor;
+mod evaluator;
 mod token_stream;
 mod token_reader;
 

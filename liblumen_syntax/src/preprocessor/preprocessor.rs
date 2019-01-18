@@ -3,12 +3,13 @@ use std::sync::{Arc, Mutex};
 use std::collections::{HashMap, BTreeMap, VecDeque};
 use std::path::PathBuf;
 
+use failure::{format_err, Error};
 use termcolor::ColorChoice;
 
-use liblumen_diagnostics::{CodeMap, ByteIndex, Diagnostic, Label};
+use liblumen_diagnostics::{CodeMap, ByteIndex, ByteSpan, Diagnostic, Label};
 use liblumen_diagnostics::{Emitter, StandardStreamEmitter};
 
-use crate::lexer::{symbols, Symbol, LexicalToken, Token, IdentToken};
+use crate::lexer::{symbols, Symbol, Lexed, LexicalToken, Token, IdentToken};
 use crate::lexer::{Lexer, Source};
 use crate::parser::ParseConfig;
 
@@ -61,6 +62,24 @@ impl<R, S> Preprocessor<R>
 where
     R: TokenReader<Source = S>,
 {
+    fn clone_with(&self, tokens: VecDeque<Lexed>) -> Preprocessor<TokenBufferReader> {
+        let codemap = self.codemap.clone();
+        let reader = TokenBufferReader::new(codemap.clone(), tokens);
+        Preprocessor {
+            codemap,
+            reader,
+            can_directive_start: false,
+            directives: BTreeMap::new(),
+            code_paths: self.code_paths.clone(),
+            branches: Vec::new(),
+            macros: self.macros.clone(),
+            macro_calls: BTreeMap::new(),
+            expanded_tokens: VecDeque::new(),
+            warnings_as_errors: self.warnings_as_errors,
+            no_warn: self.no_warn,
+        }
+    }
+
     fn ignore(&self) -> bool {
         self.branches.iter().any(|b| !b.entered)
     }
@@ -169,8 +188,8 @@ where
             MacroDef::Boolean(true) => Ok(vec![LexicalToken(ByteIndex(0), Token::Atom(symbols::True), ByteIndex(0))].into()),
             MacroDef::Boolean(false) => Ok(VecDeque::new()),
             MacroDef::Static(ref def) => {
-                let arity = def.variables.as_ref().map(|v| v.len()).unwrap();
-                let argc = call.args.as_ref().map(|a| a.len()).unwrap();
+                let arity = def.variables.as_ref().map(|v| v.len()).unwrap_or(0);
+                let argc = call.args.as_ref().map(|a| a.len()).unwrap_or(0);
                 if arity != argc {
                     let err = format!("expected {} arguments at call site, but given {}", arity, argc);
                     return Err(PreprocessorError::BadMacroCall(call, definition.clone(), err));
@@ -275,6 +294,10 @@ where
                 let entered = self.macros.contains_key(&d.name());
                 self.branches.push(Branch::new(entered));
             }
+            Directive::If(ref d) => {
+                let entered = self.eval_conditional(d.span(), d.condition.clone())?;
+                self.branches.push(Branch::new(entered));
+            }
             Directive::Ifndef(ref d) => {
                 let entered = !self.macros.contains_key(&d.name());
                 self.branches.push(Branch::new(entered));
@@ -282,7 +305,22 @@ where
             Directive::Else(_) => {
                 match self.branches.last_mut() {
                     None => return Err(PreprocessorError::OrphanedElse(directive)),
-                    Some(branch) => branch.switch_to_else_branch()?
+                    Some(branch) => {
+                        match branch.switch_to_else_branch() {
+                            Err(_) => return Err(PreprocessorError::OrphanedElse(directive)),
+                            Ok(_) => ()
+                        };
+                    }
+                }
+            }
+            Directive::Elif(ref d) => {
+                // Treat this like -endif followed by -if(Cond)
+                match self.branches.pop() {
+                    None => return Err(PreprocessorError::OrphanedElse(directive)),
+                    Some(_) => {
+                        let entered = self.eval_conditional(d.span(), d.condition.clone())?;
+                        self.branches.push(Branch::new(entered));
+                    }
                 }
             }
             Directive::Endif(_) => {
@@ -317,6 +355,30 @@ where
         }
         Ok(Some(directive))
     }
+
+    fn eval_conditional(&self, span: ByteSpan, condition: VecDeque<Lexed>) -> Result<bool> {
+        use crate::lexer::{symbols, Ident};
+        use crate::parser::Parse;
+        use crate::parser::ast::{Literal, Expr};
+        use crate::preprocessor::evaluator;
+
+        let pp = self.clone_with(condition);
+        let result = <Expr as Parse<Expr>>::parse_tokens(pp);
+        match result {
+            Ok(expr) => {
+                match evaluator::eval(expr)? {
+                    Expr::Literal(Literal::Atom(Ident { ref name, .. })) if *name == symbols::True => Ok(true),
+                    Expr::Literal(Literal::Atom(Ident { ref name, .. })) if *name == symbols::False => Ok(false),
+                    _other => {
+                        return Err(PreprocessorError::InvalidConditional(span))
+                    },
+                }
+            }
+            Err(errs) => {
+                return Err(PreprocessorError::ParseError(span, errs))
+            }
+        }
+    }
 }
 
 impl<R, S> Iterator for Preprocessor<R>
@@ -346,8 +408,10 @@ impl Branch {
             entered,
         }
     }
-    pub fn switch_to_else_branch(&mut self) -> Result<()> {
-        assert!(self.then_branch);
+    pub fn switch_to_else_branch(&mut self) -> std::result::Result<(), Error> {
+        if !self.then_branch {
+            return Err(format_err!("orphaned else"));
+        }
         self.then_branch = false;
         self.entered = !self.entered;
         Ok(())

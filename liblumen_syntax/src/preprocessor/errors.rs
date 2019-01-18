@@ -1,12 +1,14 @@
 use std;
 
 use glob;
-use failure::Fail;
+use failure::{Fail, Error};
 use itertools::Itertools;
 use liblumen_diagnostics::{ByteSpan, Diagnostic, Label};
 
 use crate::lexer::{LexicalToken, LexicalError, TokenConvertError};
 use crate::lexer::SourceError;
+
+use crate::parser::ParserError;
 
 use super::directive::Directive;
 use super::macros::{Stringify, MacroCall, MacroDef};
@@ -19,8 +21,20 @@ pub enum PreprocessorError {
     #[fail(display = "{}", _0)]
     Source(#[fail(cause)] SourceError),
 
+    #[fail(display = "unable to parse constant expression")]
+    ParseError(ByteSpan, Vec<ParserError>),
+
     #[fail(display = "{}", _1)]
     CompilerError(Option<ByteSpan>, String),
+
+    #[fail(display = "invalid constant expression found in preprocessor directive")]
+    InvalidConstExpression(ByteSpan),
+
+    #[fail(display = "invalid conditional expression")]
+    InvalidConditional(ByteSpan),
+
+    #[fail(display = "call to builtin function failed")]
+    BuiltinFailed(ByteSpan, #[fail(cause)] Error),
 
     #[fail(display = "found orphaned '-end.' directive")]
     OrphanedEnd(Directive),
@@ -56,7 +70,11 @@ impl PreprocessorError {
     pub fn span(&self) -> Option<ByteSpan> {
         match *self {
             PreprocessorError::Lexical(ref err) => Some(err.span()),
+            PreprocessorError::ParseError(ref span, _) => Some(span.clone()),
             PreprocessorError::CompilerError(Some(ref span), _) => Some(span.clone()),
+            PreprocessorError::InvalidConstExpression(ref span) => Some(span.clone()),
+            PreprocessorError::InvalidConditional(ref span) => Some(span.clone()),
+            PreprocessorError::BuiltinFailed(ref span, _) => Some(span.clone()),
             PreprocessorError::OrphanedEnd(ref dir) => Some(dir.span()),
             PreprocessorError::OrphanedElse(ref dir) => Some(dir.span()),
             PreprocessorError::UndefinedStringifyMacro(ref m) => Some(m.span()),
@@ -75,15 +93,38 @@ impl PreprocessorError {
             PreprocessorError::Diagnostic(ref d) => d.clone(),
             PreprocessorError::Lexical(ref err) => err.to_diagnostic(),
             PreprocessorError::Source(ref err) => err.to_diagnostic(),
-            PreprocessorError::CompilerError(Some(_), _) => {
+            PreprocessorError::ParseError(_, ref errs) => {
+                let mut d = Diagnostic::new_error(msg)
+                    .with_label(Label::new_primary(span.unwrap())
+                        .with_message("invalid constant expression"));
+                for err in errs.iter() {
+                    let err = err.to_diagnostic();
+                    for label in err.labels {
+                        d = d.with_label(label);
+                    }
+                }
+                d
+            }
+            PreprocessorError::CompilerError(Some(_), _) =>
                 Diagnostic::new_error("found error directive")
                     .with_label(Label::new_primary(span.unwrap())
-                                .with_message(msg))
-            }
+                        .with_message(msg)),
+            PreprocessorError::InvalidConstExpression(_) =>
+                Diagnostic::new_error(msg)
+                    .with_label(Label::new_primary(span.unwrap())
+                        .with_message("expected valid constant expression (example: `?OTP_VERSION >= 21`)")),
+            PreprocessorError::InvalidConditional(_) =>
+                Diagnostic::new_error(msg)
+                    .with_label(Label::new_primary(span.unwrap())
+                        .with_message("expected 'true', 'false', or an expression which can be evaluated to 'true' or 'false'")),
+            PreprocessorError::BuiltinFailed(_, ref cause) =>
+                Diagnostic::new_error(msg)
+                    .with_label(Label::new_primary(span.unwrap())
+                        .with_message(cause.to_string())),
             PreprocessorError::BadMacroCall(_, MacroDef::String(_), ref reason) =>
                 Diagnostic::new_error(msg)
                     .with_label(Label::new_primary(span.unwrap())
-                                .with_message(reason.to_owned())),
+                        .with_message(reason.to_owned())),
             PreprocessorError::BadMacroCall(_, ref def, ref reason) => {
                 let d = Diagnostic::new_error(msg)
                             .with_label(Label::new_primary(span.unwrap())

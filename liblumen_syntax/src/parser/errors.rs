@@ -5,7 +5,7 @@ use liblumen_diagnostics::{ByteSpan, ByteIndex, Diagnostic, Label};
 
 use crate::lexer::{Token, SourceError};
 use crate::preprocessor::PreprocessorError;
-use super::ast::FunctionName;
+use super::ast::{FunctionName, FunctionClause};
 
 pub type ParseError = lalrpop_util::ParseError<ByteIndex, Token, ParserError>;
 
@@ -37,6 +37,9 @@ pub enum ParserError {
 
     #[fail(display = "unexpected function clause for {}, while parsing {}", found, expected)]
     UnexpectedFunctionClause { found: FunctionName, expected: FunctionName },
+
+    #[fail(display = "mismatched function clauses")]
+    MismatchedFunctionClause { found: FunctionClause, expected: FunctionClause },
 
 }
 impl From<ParseError> for ParserError {
@@ -78,6 +81,7 @@ impl ParserError {
             ParserError::UnrecognizedToken { ref span, .. } => Some(span.clone()),
             ParserError::ExtraToken { ref span, .. } => Some(span.clone()),
             ParserError::UnexpectedFunctionClause { ref found, .. } => Some(found.span()),
+            ParserError::MismatchedFunctionClause { ref found, .. } => Some(found.span()),
             _ => None,
         }
     }
@@ -97,18 +101,32 @@ impl ParserError {
             ParserError::UnrecognizedToken { ref expected, .. } =>
                 Diagnostic::new_error(format!("expected: {}", expected.join(", ")))
                     .with_label(Label::new_primary(span.unwrap()).with_message(msg)),
-            ParserError::UnexpectedFunctionClause { ref found, ref expected } => {
-                if found.function != expected.function {
+            ParserError::MismatchedFunctionClause { found: FunctionClause::Named { .. }, expected: FunctionClause::Unnamed { span: ref expected_span, .. } } => {
+                Diagnostic::new_error(msg)
+                    .with_label(Label::new_primary(span.unwrap())
+                        .with_message("this clause is named, but was expected to be unnamed"))
+                    .with_label(Label::new_secondary(expected_span.clone())
+                        .with_message("this clause is unnamed"))
+            }
+            ParserError::MismatchedFunctionClause { found: FunctionClause::Unnamed { .. }, expected: FunctionClause::Named { span: ref expected_span, .. } } => {
+                Diagnostic::new_error(msg)
+                    .with_label(Label::new_primary(span.unwrap())
+                        .with_message("this clause is unnamed, but was expected to be named"))
+                    .with_label(Label::new_secondary(expected_span.clone())
+                        .with_message("this clause is named"))
+            }
+            ParserError::UnexpectedFunctionClause { found: FunctionName::Resolved { function: ref name, .. }, expected: FunctionName::Resolved { span: ref expected_span, function: ref expected_name, .. } } => {
+                if name != expected_name {
                     Diagnostic::new_error(msg)
                         .with_label(Label::new_primary(span.unwrap())
                             .with_message("this clause has a different name than expected, perhaps you are missing a '.' in the previous clause?"))
-                        .with_label(Label::new_secondary(expected.span())
+                        .with_label(Label::new_secondary(expected_span.clone())
                             .with_message("expected a clause with the same name and arity as this clause"))
                 } else {
                     Diagnostic::new_error(msg)
                         .with_label(Label::new_primary(span.unwrap())
                             .with_message("this clause has a different arity than expected, perhaps you are missing a '.' in the previous clause?"))
-                        .with_label(Label::new_secondary(expected.span())
+                        .with_label(Label::new_secondary(expected_span.clone())
                             .with_message("expected a clause with the same name and arity as this clause"))
                 }
             }

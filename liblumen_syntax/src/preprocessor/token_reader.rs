@@ -117,8 +117,11 @@ impl TokenReader for TokenBufferReader {
     }
 
     fn read_token(&mut self) -> Result<LexicalToken> {
-        let token = self.try_read_token()?;
-        Ok(token.unwrap())
+        if let Some(token) = self.try_read_token()? {
+            Ok(token)
+        } else {
+            Err(PreprocessorError::UnexpectedEOF)
+        }
     }
 
     fn unread_token(&mut self, token: LexicalToken) {

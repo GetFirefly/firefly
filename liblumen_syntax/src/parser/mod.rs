@@ -7,7 +7,7 @@ macro_rules! span {
 #[cfg_attr(rustfmt, rustfmt_skip)]
 #[allow(unknown_lints)]
 #[allow(clippy)]
-mod grammar {
+pub(crate) mod grammar {
     // During the build step, `build.rs` will output the generated parser to `OUT_DIR` to avoid
     // adding it to the source directory, so we just directly include the generated parser here.
     //
@@ -168,15 +168,13 @@ fn to_parse_result<T>(mut errs: Vec<ParseError>, result: Result<T, ParseError>) 
 
 #[cfg(test)]
 mod test {
-    use termcolor::ColorChoice;
-
     use pretty_assertions::assert_eq;
 
     use super::*;
     use super::ast::*;
 
     use liblumen_diagnostics::{ByteSpan, ByteIndex};
-    use liblumen_diagnostics::{Emitter, StandardStreamEmitter};
+    use liblumen_diagnostics::{Emitter, StandardStreamEmitter, ColorChoice};
 
     use crate::preprocessor::PreprocessorError;
     use crate::lexer::{Ident, Symbol};
@@ -252,9 +250,9 @@ foo([], Acc) -> Acc;
 foo([H|T], Acc) -> foo(T, [H|Acc]).
 ");
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
+        clauses.push(FunctionClause::Named {
             span: span_usize!(16, 35),
-            name: Some(ident!("foo", 16, 19)),
+            name: ident!("foo", 16, 19),
             params: vec![
                 Pattern::Nil(span_usize!(20, 22)),
                 Pattern::Var(ident!("Acc", 24, 27))
@@ -264,9 +262,9 @@ foo([H|T], Acc) -> foo(T, [H|Acc]).
                 Expr::Var(ident!("Acc", 32, 35))
             ]
         });
-        clauses.push(FunctionClause {
+        clauses.push(FunctionClause::Named {
             span: span_usize!(37, 71),
-            name: Some(ident!("foo", 37, 40)),
+            name: ident!("foo", 37, 40),
             params: vec![
                 Pattern::Cons(span_usize!(41, 46),
                     Box::new(Pattern::Var(ident!("H", 42, 43))),
@@ -291,7 +289,7 @@ foo([H|T], Acc) -> foo(T, [H|Acc]).
             ]
         });
         let mut functions = Vec::new();
-        functions.push(Function {
+        functions.push(Function::Named {
             span: span_usize!(16, 72),
             name: ident!("foo", 16, 19),
             arity: 2,
@@ -323,9 +321,9 @@ unless(Value) ->
 
 ");
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
+        clauses.push(FunctionClause::Named {
             span: span_usize!(16, 41),
-            name: Some(ident!("unless", 16, 22)),
+            name: ident!("unless", 16, 22),
             params: vec![
                 Pattern::Literal(Literal::Atom(ident!("false", 23, 28)))
             ],
@@ -334,9 +332,9 @@ unless(Value) ->
                 Expr::Literal(Literal::Atom(ident!("true", 37, 41)))
             ]
         });
-        clauses.push(FunctionClause {
+        clauses.push(FunctionClause::Named {
             span: span_usize!(43, 68),
-            name: Some(ident!("unless", 43, 49)),
+            name: ident!("unless", 43, 49),
             params: vec![
                 Pattern::Literal(Literal::Atom(ident!("true", 50, 54)))
             ],
@@ -345,9 +343,9 @@ unless(Value) ->
                 Expr::Literal(Literal::Atom(ident!("false", 63, 68)))
             ]
         });
-        clauses.push(FunctionClause {
+        clauses.push(FunctionClause::Named {
             span: span_usize!(70, 174),
-            name: Some(ident!("unless", 70, 76)),
+            name: ident!("unless", 70, 76),
             params: vec![
                 Pattern::Var(ident!("Value", 77, 82)),
             ],
@@ -386,7 +384,7 @@ unless(Value) ->
             ]
         });
         let mut functions = Vec::new();
-        functions.push(Function {
+        functions.push(Function::Named {
             span: span_usize!(16, 175),
             name: ident!("unless", 16, 22),
             arity: 1,
@@ -415,9 +413,9 @@ typeof(Value) ->
 
 ");
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
+        clauses.push(FunctionClause::Named {
             span: span_usize!(16, 153),
-            name: Some(ident!("typeof", 16, 22)),
+            name: ident!("typeof", 16, 22),
             params: vec![
                 Pattern::Var(ident!("Value", 23, 28)),
             ],
@@ -473,7 +471,7 @@ typeof(Value) ->
             ]
         });
         let mut functions = Vec::new();
-        functions.push(Function {
+        functions.push(Function::Named {
             span: span_usize!(16, 154),
             name: ident!("typeof", 16, 22),
             arity: 1,
@@ -505,9 +503,9 @@ loop(State, Timeout) ->
     end.
 ");
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
+        clauses.push(FunctionClause::Named {
             span: span_usize!(16, 285),
-            name: Some(ident!("loop", 16, 20)),
+            name: ident!("loop", 16, 20),
             params: vec![
                 Pattern::Var(ident!("State", 21, 26)),
                 Pattern::Var(ident!("Timeout", 28, 35))
@@ -586,7 +584,7 @@ loop(State, Timeout) ->
             ]
         });
         let mut functions = Vec::new();
-        functions.push(Function {
+        functions.push(Function::Named {
             span: span_usize!(16, 286),
             name: ident!("loop", 16, 20),
             arity: 2,
@@ -605,6 +603,7 @@ loop(State, Timeout) ->
     parser_test!(parse_preprocessor_if, {
         let result: Module = parse("-module(foo).
 -define(TEST, true).
+-define(OTP_VERSION, 21).
 
 -ifdef(TEST).
 env() ->
@@ -613,26 +612,55 @@ env() ->
 env() ->
     release.
 -endif.
+
+-if(?OTP_VERSION > 21).
+system_version() ->
+    future.
+-elif(?OTP_VERSION == 21).
+system_version() ->
+    ?OTP_VERSION.
+-else.
+system_version() ->
+    old.
+-endif.
 ");
+        let mut functions = Vec::new();
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
-            span: span_usize!(51, 68),
-            name: Some(ident!("env", 51, 54)),
+        clauses.push(FunctionClause::Named {
+            span: span_usize!(77, 94),
+            name: ident!("env", 77, 80),
             params: vec![],
             guard: None,
             body: vec![
-                Expr::Literal(Literal::Atom(ident!("test", 64, 68)))
+                Expr::Literal(Literal::Atom(ident!("test", 90, 94)))
             ]
         });
-        let mut functions = Vec::new();
-        functions.push(Function {
-            span: span_usize!(51, 69),
-            name: ident!("env", 51, 54),
+        let env_fun = Function::Named {
+            span: span_usize!(77, 95),
+            name: ident!("env", 77, 80),
             arity: 0,
             clauses
+        };
+        functions.push(env_fun);
+        let mut clauses = Vec::new();
+        clauses.push(FunctionClause::Named {
+            span: span_usize!(59, 217),
+            name: ident!("system_version", 217, 231),
+            params: vec![],
+            guard: None,
+            body: vec![
+                Expr::Literal(Literal::Integer(span_usize!(57, 59), 21))
+            ]
         });
+        let system_version_fun = Function::Named {
+            span: span_usize!(217, 254),
+            name: ident!("system_version", 217, 231),
+            arity: 0,
+            clauses,
+        };
+        functions.push(system_version_fun);
         let expected = Module {
-            span: span_usize!(1, 69),
+            span: span_usize!(1, 254),
             name: ident!("foo", 9, 12),
             attributes: Vec::new(),
             records: Vec::new(),
@@ -675,9 +703,9 @@ example(File) ->
     end.
 ");
         let mut clauses = Vec::new();
-        clauses.push(FunctionClause {
+        clauses.push(FunctionClause::Named {
             span: span_usize!(16, 275),
-            name: Some(ident!("example", 16, 23)),
+            name: ident!("example", 16, 23),
             params: vec![
                 Pattern::Var(ident!("File", 24, 28)),
             ],
@@ -711,7 +739,7 @@ example(File) ->
                     catch_clauses: Some(vec![
                         TryClause {
                             span: span_usize!(126, 190),
-                            kind: ident!("error", 126, 131),
+                            kind: Name::Atom(ident!("error", 126, 131)),
                             error: Pattern::Tuple(span_usize!(132, 143), vec![
                                 Expr::Var(ident!("Mod", 133, 136)),
                                 Expr::Var(ident!("Code", 138, 142)),
@@ -735,7 +763,7 @@ example(File) ->
                         },
                         TryClause {
                             span: span_usize!(200, 237),
-                            kind: ident!("throw", 0, 0),
+                            kind: Name::Atom(ident!("throw", 0, 0)),
                             error: Pattern::Var(ident!("Reason", 200, 206)),
                             trace: ident!("_", 0, 0),
                             guard: None,
@@ -758,7 +786,7 @@ example(File) ->
             ]
         });
         let mut functions = Vec::new();
-        functions.push(Function {
+        functions.push(Function::Named {
             span: span_usize!(16, 276),
             name: ident!("example", 16, 23),
             arity: 1,
@@ -774,6 +802,4 @@ example(File) ->
         assert_eq!(result, expected);
     });
 
-    // TODO: Add support for:
-    // Map/Record expressions, and any other unimplemented constructs
 }

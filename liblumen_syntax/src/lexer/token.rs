@@ -3,7 +3,7 @@ use std::mem;
 use std::convert::TryFrom;
 use std::hash::{Hash, Hasher};
 
-use num::BigInt;
+use rug::Integer;
 
 use liblumen_diagnostics::{ByteSpan, ByteIndex};
 
@@ -77,14 +77,20 @@ impl TryFrom<LexicalToken> for AtomToken {
     type Error = TokenConvertError;
 
     fn try_from(t: LexicalToken) -> TokenConvertResult<AtomToken> {
-        if let LexicalToken(start, tok @ Token::Atom(_), end) = t {
-            return Ok(AtomToken(start, tok, end));
+        use super::symbol::symbols;
+
+        match t {
+            LexicalToken(start, tok @ Token::Atom(_), end) =>
+                return Ok(AtomToken(start, tok, end)),
+            LexicalToken(start, Token::If, end) =>
+                return Ok(AtomToken(start, Token::Atom(symbols::If), end)),
+            t =>
+                Err(TokenConvertError {
+                    span: t.span(),
+                    token: t.token(),
+                    expected: TokenType::Atom,
+                })
         }
-        Err(TokenConvertError {
-            span: t.span(),
-            token: t.token(),
-            expected: TokenType::Atom,
-        })
     }
 }
 impl Into<LexicalToken> for AtomToken {
@@ -232,7 +238,7 @@ pub enum Token {
     // Literals
     Char(char),
     Integer(i64),
-    BigInteger(BigInt),
+    BigInteger(Integer),
     Float(f64),
     Atom(Symbol),
     String(Symbol),

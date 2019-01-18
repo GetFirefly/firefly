@@ -1,5 +1,5 @@
 //-*- mode: rust -*-
-use num::BigInt;
+use rug::Integer;
 use liblumen_diagnostics::{ByteSpan, ByteIndex};
 
 use super::ParseError;
@@ -28,6 +28,15 @@ Comma<T>: Vec<T> = {
     }
 };
 
+// Comma-delimited with minimum zero elements.
+Dash<T>: Vec<T> = {
+    <v:(<T> "-")*> <e:T> => {
+        let mut v = v;
+        v.push(e);
+        v
+    }
+};
+
 pub Module: Module = {
     <l:@L> "COMMENT"* "-" <attr:atom> "(" <name:atom>  ")" "." "COMMENT"* <body:ModuleBody?> <r:@R> => {
         let body = match body {
@@ -45,6 +54,8 @@ ModuleBody: Vec<TopLevel> = TopLevel+;
 
 TopLevel: TopLevel = {
     <FunctionDefinition> => TopLevel::Function(<>),
+    // TODO: RecordDefinition
+    // TODO: AttributeDefinition
 };
 
 // Top-level Functions
@@ -131,7 +142,10 @@ PatternMax: Pattern = {
         }
     },
     ListPattern,
-    //<b:Binary> => Pattern::BitPattern(b),
+    <b:Binary> => match b {
+        Expr::Binary(span, elements) => Pattern::Binary(span, elements),
+        _ => panic!("internal error: expected Expr::Binary here")
+    },
     <t:Tuple> => match t {
         Expr::Tuple(span, elements) => Pattern::Tuple(span, elements),
         _ => panic!("internal error: expected Expr::Tuple here")
@@ -192,10 +206,8 @@ RecordTuplePattern: Vec<RecordFieldPattern> = {
 };
 
 RecordFieldPattern: RecordFieldPattern = {
-    <l:@L> <name:Ident> "=" <value:Pattern> <r:@R>
-        => RecordFieldPattern::Dynamic { span: span!(l, r), name: Pattern::Var(name), value: Some(value) },
-    <l:@L> <name:atom> "=" <value:Pattern> <r:@R>
-        => RecordFieldPattern::Static { span: span!(l, r), name: Pattern::Literal(Literal::Atom(name)), value: Some(value) }
+    <l:@L> <name:atom_or_var> "=" <value:Pattern> <r:@R>
+        => RecordFieldPattern { span: span!(l, r), name, value: Some(value) },
 };
 
 // Expressions
@@ -255,13 +267,13 @@ Expr500: Expr = {
 Expr600: Expr = {
     <l:@L> <op:PrefixOp> <rhs:Expr700> <r:@R>
         => Expr::UnaryExpr { span: span!(l, r), op, rhs: Box::new(rhs) },
-    // MapExpr
+    MapExpr,
     Expr700
 };
 
 Expr700: Expr = {
     Apply,
-    // RecordExpr
+    RecordExpr,
     Expr800
 };
 
@@ -276,6 +288,9 @@ ExprMax: Expr = {
     Atomic,
     Tuple,
     List,
+    Binary,
+    ListComprehension,
+    BinaryComprehension,
     "(" <Expr> ")",
     <l:@L> "begin" <body:Comma<Expr>> "end" <r:@R>
         => Expr::Begin(span!(l, r), body),
@@ -283,6 +298,16 @@ ExprMax: Expr = {
     Case,
     Receive,
     Try,
+    Fun,
+};
+
+Fun: Expr = {
+    <l:@L> "fun" <function:atom> "/" <arity:arity> <r:@R> =>
+        Expr::FunctionName(FunctionName::Resolved { span: span!(l, r), module: None, function, arity: Some(arity) }),
+    <l:@L> "fun" <module:atom_or_var> ":" <function:atom_or_var> "/" <arity:arity> <r:@R> =>
+        Expr::FunctionName(FunctionName::detect(span!(l, r), Some(module), function, arity)),
+    <l:@L> "fun" <clauses:Semi<FunctionHead>> "end" <r:@R> =>
+        Expr::Fun(Function::new(errs, span!(l, r), clauses)),
 };
 
 If: Expr = {
@@ -329,7 +354,7 @@ TryCatch: (Option<Vec<TryClause>>, Option<Vec<Expr>>, ByteIndex) = {
 
 TryClause: TryClause = {
     <l:@L> <error:Pattern> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
-        => TryClause { span: span!(l, r), kind: Ident::from_str("throw"), error, guard, trace: Ident::from_str("_"), body },
+        => TryClause { span: span!(l, r), kind: Name::Atom(Ident::from_str("throw")), error, guard, trace: Ident::from_str("_"), body },
     <l:@L> <kind:atom_or_var> ":" <error:Pattern> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
         => TryClause { span: span!(l, r), kind, error, guard, trace: Ident::from_str("_"), body },
     <l:@L> <kind:atom_or_var> ":" <error:Pattern> ":" <trace:Ident> <guard:Guards?> "->" <body:Comma<Expr>> <r:@R>
@@ -346,6 +371,57 @@ Apply: Expr = {
         => Expr::Apply { span: span!(l, r), lhs: Box::new(lhs), args: Vec::new()  },
     <l:@L> <lhs:Expr800> "(" <args:Comma<Expr>> ")" <r:@R>
         => Expr::Apply { span: span!(l, r), lhs: Box::new(lhs), args }
+};
+
+ListComprehension: Expr = {
+    <l:@L> "[" <output:Expr> "||" <lc_exprs:Comma<ComprehensionExpr>> "]" <r:@R>
+        => Expr::ListComprehension(span!(l, r), Box::new(output), lc_exprs),
+};
+
+BinaryComprehension: Expr = {
+    <l:@L> "<<" <output:ExprMax> "||" <lc_exprs:Comma<ComprehensionExpr>> ">>" <r:@R>
+        => Expr::BinaryComprehension(span!(l, r), Box::new(output), lc_exprs),
+};
+
+ComprehensionExpr: Expr = {
+    <l:@L> <lhs:Binary> "<=" <rhs:Expr> <r:@R>
+        => Expr::BinaryGenerator(span!(l, r), Box::new(lhs), Box::new(rhs)),
+    <l:@L> <lhs:Expr> "<-" <rhs:Expr> <r:@R>
+        => Expr::Generator(span!(l, r), Box::new(lhs), Box::new(rhs)),
+    Expr,
+};
+
+Binary: Expr = {
+    <l:@L> "<<" ">>" <r:@R>
+        => Expr::Binary(span!(l, r), Vec::new()),
+    <l:@L> "<<" <elements:Comma<BinaryElement>> ">>" <r:@R>
+        => Expr::Binary(span!(l, r), elements),
+};
+
+BinaryElement: BinaryElement = {
+    <l:@L> <be:BitExpr> <bs:BitSize?> <bt:BitTypeList?> <r:@R>
+        => BinaryElement { span: span!(l, r), bit_expr: be, bit_size: bs, bit_type: bt },
+};
+
+BitExpr: Expr = {
+    <l:@L> <op:PrefixOp> <rhs:ExprMax> <r:@R>
+        => Expr::UnaryExpr { span: span!(l, r), op, rhs: Box::new(rhs) },
+    ExprMax,
+};
+
+BitSize: Expr = {
+    ":" <ExprMax>,
+};
+
+BitTypeList: Vec<BitType> = {
+    "/" <bts:Dash<BitType>> => bts,
+};
+
+BitType: BitType = {
+    <l:@L> <ty:atom> ":" <i:int> <r:@R>
+        => BitType::Sized(span!(l, r), ty, i),
+    <l:@L> <ty:atom> <r:@R>
+        => BitType::Name(span!(l, r), ty)
 };
 
 Tuple: Expr = {
@@ -368,6 +444,15 @@ Tail: Expr = {
         => Expr::Cons(span!(l, r), Box::new(head), Box::new(tail))
 };
 
+MapExpr: Expr = {
+    <l:@L> "#" <fields:MapTuple> <r:@R>
+        => Expr::Map(span!(l, r), None, fields),
+    <l:@L> <lhs:ExprMax> "#" <fields:MapTuple> <r:@R>
+        => Expr::Map(span!(l, r), Some(Box::new(lhs)), fields),
+    <l:@L> <lhs:MapExpr> "#" <fields:MapTuple> <r:@R>
+        => Expr::Map(span!(l, r), Some(Box::new(lhs)), fields),
+};
+
 MapTuple: Vec<MapField> = {
     "{" "}" => Vec::new(),
     "{" <Comma<MapField>> "}"
@@ -386,16 +471,31 @@ MapFieldExact: MapField = {
 
 MapKey: Expr = Expr;
 
+RecordExpr: Expr = {
+    <l:@L> "#" <name:atom> "." <field:atom> <r:@R>
+        => Expr::RecordIndex(span!(l, r), name, field),
+    <l:@L> "#" <name:atom> <fields:RecordTuple> <r:@R>
+        => Expr::Record(span!(l, r), name, fields),
+
+    <l:@L> <lhs:ExprMax> "#" <name:atom> "." <field:atom> <r:@R>
+        => Expr::RecordAccess(span!(l, r), Box::new(lhs), name, field),
+    <l:@L> <lhs:ExprMax> "#" <name:atom> <fields:RecordTuple> <r:@R>
+        => Expr::RecordUpdate(span!(l, r), Box::new(lhs), name, fields),
+
+    <l:@L> <lhs:RecordExpr> "#" <name:atom> "." <field:atom> <r:@R>
+        => Expr::RecordAccess(span!(l, r), Box::new(lhs), name, field),
+    <l:@L> <lhs:RecordExpr> "#" <name:atom> <fields:RecordTuple> <r:@R>
+        => Expr::RecordUpdate(span!(l, r), Box::new(lhs), name, fields),
+};
+
 RecordTuple: Vec<RecordField> = {
     "{" "}" => Vec::new(),
     "{" <Comma<RecordField>> "}"
 };
 
 RecordField: RecordField = {
-    <l:@L> <name:Ident> "=" <value:Expr> <r:@R>
-        => RecordField::Dynamic { span: span!(l, r), name: Expr::Var(name), value: Some(value), ty: None },
-    <l:@L> <name:atom> "=" <value:Expr> <r:@R>
-        => RecordField::Static { span: span!(l, r), name: Expr::Literal(Literal::Atom(name)), value: Some(value), ty: None }
+    <l:@L> <name:atom_or_var> "=" <value:Expr> <r:@R>
+        => RecordField { span: span!(l, r), name, value: Some(value), ty: None },
 };
 
 Atomic: Expr = {
@@ -409,9 +509,9 @@ Atomic: Expr = {
 };
 
 #[inline]
-atom_or_var: Ident = {
-    atom,
-    Ident,
+atom_or_var: Name = {
+    <a:atom> => Name::Atom(a),
+    <i:Ident> => Name::Var(i),
 };
 
 #[inline]
@@ -427,6 +527,9 @@ Integer: Literal = {
     <l:@L> <i:int> <r:@R> => Literal::Integer(span!(l, r), i),
     <l:@L> <i:bigint> <r:@R> => Literal::BigInteger(span!(l, r), i)
 };
+
+#[inline]
+arity: usize = <i:int> => i as usize;
 
 #[inline]
 ident_or_integer: Expr = {
@@ -487,7 +590,7 @@ extern {
         // Literals
         char => Token::Char(<char>),
         int => Token::Integer(<i64>),
-        bigint => Token::BigInteger(<BigInt>),
+        bigint => Token::BigInteger(<Integer>),
         float => Token::Float(<f64>),
         "atom" => Token::Atom(<Symbol>),
         string => Token::String(<Symbol>),

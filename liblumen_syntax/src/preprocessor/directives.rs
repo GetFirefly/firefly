@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf, Component};
 use glob::glob;
 use liblumen_diagnostics::ByteSpan;
 
-use crate::lexer::{symbols, LexicalToken, Token, Symbol};
+use crate::lexer::{symbols, Lexed, LexicalToken, Token, Symbol};
 use crate::lexer::{AtomToken, StringToken, SymbolToken};
 use crate::util;
 
@@ -380,6 +380,126 @@ impl ReadFrom for Undef {
             _dot: reader.read_expected(&Token::Dot)?,
         })
     }
+}
+
+/// `if` directive.
+///
+/// See [9.5 Flow Control in Macros][flow_control] for detailed information.
+///
+/// [flow_control]: http://erlang.org/doc/reference_manual/macros.html#id85859
+#[derive(Debug, Clone)]
+pub struct If {
+    pub _hyphen: SymbolToken,
+    pub _if: AtomToken,
+    pub _open_paren: SymbolToken,
+    pub condition: VecDeque<Lexed>,
+    pub _close_paren: SymbolToken,
+    pub _dot: SymbolToken,
+}
+impl If {
+    pub fn span(&self) -> ByteSpan {
+        let start = self._hyphen.0;
+        let end = self._dot.2;
+        ByteSpan::new(start, end)
+    }
+}
+impl fmt::Display for If {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "-if({:?}).", self.condition)
+    }
+}
+impl ReadFrom for If {
+    fn read_from<R, S>(reader: &mut R) -> Result<Self>
+    where
+        R: TokenReader<Source = S>,
+    {
+        Ok(If {
+            _hyphen: reader.read_expected(&Token::Minus)?,
+            _if: reader.read_expected(&symbols::If)?,
+            _open_paren: reader.read_expected(&Token::LParen)?,
+            condition: read_condition(reader)?,
+            _close_paren: reader.read_expected(&Token::RParen)?,
+            _dot: reader.read_expected(&Token::Dot)?,
+        })
+    }
+}
+
+/// `elif` directive.
+///
+/// See [9.5 Flow Control in Macros][flow_control] for detailed information.
+///
+/// [flow_control]: http://erlang.org/doc/reference_manual/macros.html#id85859
+#[derive(Debug, Clone)]
+pub struct Elif {
+    pub _hyphen: SymbolToken,
+    pub _elif: AtomToken,
+    pub _open_paren: SymbolToken,
+    pub condition: VecDeque<Lexed>,
+    pub _close_paren: SymbolToken,
+    pub _dot: SymbolToken,
+}
+impl Elif {
+    pub fn span(&self) -> ByteSpan {
+        let start = self._hyphen.0;
+        let end = self._dot.2;
+        ByteSpan::new(start, end)
+    }
+}
+impl fmt::Display for Elif {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "-elif({:?}).", self.condition)
+    }
+}
+impl ReadFrom for Elif {
+    fn read_from<R, S>(reader: &mut R) -> Result<Self>
+    where
+        R: TokenReader<Source = S>,
+    {
+        Ok(Elif {
+            _hyphen: reader.read_expected(&Token::Minus)?,
+            _elif: reader.read_expected(&symbols::Elif)?,
+            _open_paren: reader.read_expected(&Token::LParen)?,
+            condition: read_condition(reader)?,
+            _close_paren: reader.read_expected(&Token::RParen)?,
+            _dot: reader.read_expected(&Token::Dot)?,
+        })
+    }
+}
+
+fn read_condition<R, S>(reader: &mut R) -> Result<VecDeque<Lexed>>
+where
+    R: TokenReader<Source = S>,
+{
+    let mut open = 0;
+    let mut condition = VecDeque::new();
+
+    loop {
+        match reader.try_read_token()? {
+            None =>
+                return Err(PreprocessorError::UnexpectedEOF),
+            Some(token) => {
+                match token {
+                    LexicalToken(_, Token::LParen, _) => {
+                        open = open + 1;
+                        condition.push_back(Ok(token));
+                    }
+                    LexicalToken(_, Token::RParen, _) if open == 0 => {
+                        reader.unread_token(token);
+                        break;
+                    },
+                    LexicalToken(_, Token::RParen, _) => {
+                        open = open - 1;
+                        condition.push_back(Ok(token));
+                    }
+                    _ => {
+                        condition.push_back(Ok(token));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(condition)
 }
 
 /// `ifdef` directive.

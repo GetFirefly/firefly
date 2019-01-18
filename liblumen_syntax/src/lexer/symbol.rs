@@ -84,7 +84,7 @@ impl Ident {
 
 impl PartialEq for Ident {
     fn eq(&self, rhs: &Self) -> bool {
-        self.name == rhs.name && self.span == rhs.span
+        self.name == rhs.name
     }
 }
 
@@ -327,7 +327,7 @@ macro_rules! declare_atoms {(
         /// Used *only* for testing that the declared atoms have no gaps
         /// NOTE: The length must be static, so it must be changed when new
         /// declared keywords are added to the list
-        pub(super) static DECLARED: [(Symbol, &'static str); 44] = [$(($konst, $string),)*];
+        pub(super) static DECLARED: [(Symbol, &'static str); 45] = [$(($konst, $string),)*];
     }
 
     impl Interner {
@@ -386,12 +386,13 @@ declare_atoms! {
     (36, Ifdef,        "ifdef")
     (37, Ifndef,       "ifndef")
     (38, Else,         "else")
-    (39, Endif,        "endif")
-    (40, Error,        "error")
-    (41, Warning,      "warning")
+    (39, Elif,         "elif")
+    (40, Endif,        "endif")
+    (41, Error,        "error")
+    (42, Warning,      "warning")
     // Common words
-    (42, True,         "true")
-    (43, False,        "false")
+    (43, True,         "true")
+    (44, False,        "false")
 }
 
 impl Symbol {

@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::error::Error;
 
-use num::bigint::{BigInt, Sign};
+use rug::Integer;
 
 use liblumen_diagnostics::{ByteSpan, ByteIndex, ByteOffset};
 
@@ -679,7 +679,7 @@ where
     }
 }
 
-// Converts the string literal into either a `i64` or `BigInt`, preferring `i64`.
+// Converts the string literal into either a `i64` or arbitrary precision integer, preferring `i64`.
 //
 // This function panics if the literal is unparseable due to being invalid for the given radix,
 // or containing non-ASCII digits.
@@ -687,23 +687,8 @@ fn to_integer_literal(literal: &str, radix: u32) -> Token {
     if let Ok(i) = i64::from_str_radix(literal, radix) {
         return Token::Integer(i);
     }
-    let sign = match literal[0..1].as_ref() {
-        "-" => Sign::Minus,
-        "+" => Sign::Plus,
-        _ => Sign::NoSign
-    };
-    let bytes = literal.as_bytes();
-    let bi = to_bigint_literal(sign, bytes, radix);
+    let bi = Integer::from_str_radix(literal, radix as i32).unwrap();
     Token::BigInteger(bi)
-}
-
-#[cfg(target_endian = "little")]
-fn to_bigint_literal(sign: Sign, bytes: &[u8], radix: u32) -> BigInt {
-    BigInt::from_radix_le(sign, &bytes, radix).unwrap()
-}
-#[cfg(target_endian = "big")]
-fn to_bigint_literal(sign: Sign, bytes: &[u8], radix: u32) -> BigInt {
-    BigInt::from_radix_be(sign, &bytes, radix).unwrap()
 }
 
 #[cfg(test)]

@@ -8,4 +8,5 @@ edition = "2018"
 [dependencies]
 failure = "0.1"
 liblumen_common = { path = "../liblumen_common" }
+liblumen_diagnostics = { path = "../liblumen_diagnostics" }
 liblumen_syntax = { path = "../liblumen_syntax" }

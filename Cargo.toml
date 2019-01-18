@@ -2,7 +2,7 @@
 
 members = [
   "lumen",
-  "lumen-runtime",
+  "lumen_runtime",
   "liblumen_arena",
   "liblumen_common",
   "liblumen_diagnostics",

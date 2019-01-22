@@ -700,14 +700,6 @@ impl PartialEq for TypeGuard {
 }
 
 #[derive(Debug, Clone)]
-pub struct MapPairType(ByteSpan, Type, Type);
-impl PartialEq for MapPairType {
-    fn eq(&self, other: &MapPairType) -> bool {
-        (self.1 == other.1) && (self.2 == other.2)
-    }
-}
-
-#[derive(Debug, Clone)]
 pub enum Literal {
     Atom(Ident),
     String(Ident),

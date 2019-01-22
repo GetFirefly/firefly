@@ -1,16 +1,24 @@
 //-*- mode: rust -*-
 use rug::Integer;
-use liblumen_diagnostics::{ByteSpan, ByteIndex};
+use liblumen_diagnostics::{ByteSpan, ByteIndex, Diagnostic, Label};
+
+use crate::lexer::{Token, Symbol, Ident};
+use crate::preprocessor::PreprocessorError;
 
 use super::ParseError;
 use super::ast::*;
-use crate::lexer::{symbols, Token, Symbol, Ident};
-use crate::preprocessor::PreprocessorError;
 
 grammar(errs: &mut Vec<ParseError>);
 
-// A bunch of macros.
+// The following are _not_ non-terminals, but macros
+// which can be identified by the generic type parameter,
+//
+// Currently all of the macros expect the name of the corresponding
+// non-terminal to have a type of the same name, a macro can
+// be written to handle differing non-terminal/type combinations by
+// adding a second type parameter used only in the type signature
 
+// Semicolon-delimited with at least one element
 Semi<T>: Vec<T> = {
     <v:(<T> ";")*> <e:T> => {
         let mut v = v;
@@ -19,7 +27,7 @@ Semi<T>: Vec<T> = {
     }
 };
 
-// Comma-delimited with minimum zero elements.
+// Comma-delimited with at least one element
 Comma<T>: Vec<T> = {
     <v:(<T> ",")*> <e:T> => {
         let mut v = v;
@@ -28,7 +36,12 @@ Comma<T>: Vec<T> = {
     }
 };
 
-// Comma-delimited with minimum zero elements.
+// Comma-delimited with zero or more elements
+CommaOpt<T>: Vec<T> = {
+    <v:(<T> ",")*> => v,
+};
+
+// Dash-delimited with at least one element
 Dash<T>: Vec<T> = {
     <v:(<T> "-")*> <e:T> => {
         let mut v = v;
@@ -38,14 +51,11 @@ Dash<T>: Vec<T> = {
 };
 
 pub Module: Module = {
-    <l:@L> "COMMENT"* "-" <attr:atom> "(" <name:atom>  ")" "." "COMMENT"* <body:ModuleBody?> <r:@R> => {
+    <l:@L> "COMMENT"* "-" "module" "(" <name:atom>  ")" "." "COMMENT"* <body:ModuleBody?> <r:@R> => {
         let body = match body {
             None => Vec::new(),
             Some(body) => body,
         };
-        if attr.name != symbols::Module {
-            panic!("invalid -module attribute, expected `module`, got `{:?}`", attr.name)
-        }
         Module::new(ByteSpan::new(l, r), name, body)
     }
 };
@@ -54,16 +64,14 @@ ModuleBody: Vec<TopLevel> = TopLevel+;
 
 TopLevel: TopLevel = {
     <FunctionDefinition> => TopLevel::Function(<>),
-    // TODO: RecordDefinition
-    // TODO: AttributeDefinition
+    AttributeDefinition,
 };
 
 // Top-level Functions
 
 FunctionDefinition: Function = {
-    <l:@L> <clauses:Semi<FunctionHead>> "." <r:@R> => {
-        Function::new(errs, span!(l, r), clauses)
-    }
+    <l:@L> <clauses:Semi<FunctionHead>> "." <r:@R>
+        => Function::new(errs, span!(l, r), clauses),
 };
 
 FunctionHead: FunctionClause = {
@@ -88,6 +96,212 @@ Guards: Vec<Guard> = "when" <Semi<Guard>>;
 
 Guard: Guard = <l:@L> <conditions:Comma<Expr>> <r:@R>
     => Guard { span: span!(l, r), conditions };
+
+
+FunctionName: FunctionName = {
+    <l:@L> <function:atom> "/" <arity:arity> <r:@R> =>
+        FunctionName::Resolved { span: span!(l, r), module: None, function, arity: Some(arity) },
+};
+
+// Attributes
+
+AttributeDefinition: TopLevel = {
+    <l:@L> "-" "record" "(" <name:atom> "," <fields:TypedRecordFields> ")" "." <r:@R>
+        => TopLevel::Record(Record { span: span!(l, r), name, fields }),
+    <l:@L> "-" "vsn" "(" <vsn:Atomic> ")" "." <r:@R>
+        => TopLevel::Attribute(Attribute::Vsn { span: span!(l, r), vsn }),
+    <l:@L> "-" "compile" "(" <opts:Atomic> ")" "." <r:@R>
+        => TopLevel::Attribute(Attribute::Compile { span: span!(l, r), opts }),
+    <l:@L> "-" "import" "(" <module:atom> "," "[" <imports:Comma<FunctionName>> "]" ")" "." <r:@R>
+        => TopLevel::Attribute(Attribute::Import { span: span!(l, r), module, imports }),
+    <l:@L> "-" "export" "(" "[" <exports:Comma<FunctionName>> "]" ")" "." <r:@R>
+        => TopLevel::Attribute(Attribute::Export { span: span!(l, r), exports }),
+    <l:@L> "-" "export_type" "(" "[" <exports:Comma<FunctionName>> "]" ")" "." <r:@R>
+        => TopLevel::Attribute(Attribute::ExportType { span: span!(l, r), exports }),
+    <l:@L> "-" "type" <def:TypeDef> <r:@R>
+        => TopLevel::Attribute(Attribute::type_def(span!(l, r), false, def)),
+    <l:@L> "-" "opaque" <def:TypeDef> <r:@R>
+        => TopLevel::Attribute(Attribute::type_def(span!(l, r), true, def)),
+    <l:@L> "-" "spec" <spec:TypeSpec> <r:@R>
+        => TopLevel::Attribute(Attribute::type_spec(span!(l, r), spec)),
+    <l:@L> "-" "callback" <spec:TypeSpec> <r:@R>
+        => TopLevel::Attribute(Attribute::callback(span!(l, r), spec)),
+    <l:@L> "-" <name:atom> "(" <value:Expr> ")" "." <r:@R>
+        => TopLevel::Attribute(Attribute::Custom { span: span!(l, r), name, value }),
+};
+
+TypedRecordFields: Vec<RecordField> = {
+    "{" "}" => Vec::new(),
+    "{" <Comma<TypedRecordField>> "}"
+};
+
+TypedRecordField: RecordField = {
+    <l:@L> <name:atom> <value:("=" <Expr>)?> <ty:("::" <TopType100>)?> <r:@R>
+        => RecordField { span: span!(l, r), name: Name::Atom(name), value, ty },
+};
+
+// Type Specifications
+
+TypeDef: TypeDefinition = {
+    "(" <TypeDef100> ")" => (<>),
+    TypeDef100,
+};
+
+TypeDef100: TypeDefinition = {
+    <name:atom> "(" <params:CommaOpt<Ident>> ")" "::" <ty:TopType100> "."
+        => TypeDefinition { name, params, ty },
+};
+
+TypeSpec: TypeSpec = {
+    "(" <module:(<Ident> ":")?> <function:Ident> <sigs:Semi<TypeSig>> ")" "."
+        => TypeSpec { module, function, sigs },
+    <module:(<Ident> ":")?> <function:Ident> <sigs:Semi<TypeSig>> "."
+        => TypeSpec { module, function, sigs },
+};
+
+TypeSig: TypeSig = {
+    <l:@L> "(" ")" "->" <ret:TopType100> <guards:("when" <Comma<TypeGuard>>)?> <r:@R>
+        => TypeSig { sig: FunType::Fun { span: span!(l, r), params: Vec::new(), ret: Box::new(ret) }, guards },
+    <l:@L> "(" <params:Comma<TopType>> ")" "->" <ret:TopType100> <guards:("when" <Comma<TypeGuard>>)?> <r:@R>
+        => TypeSig { sig: FunType::Fun { span: span!(l, r), params, ret: Box::new(ret) }, guards },
+};
+
+TypeGuard: TypeGuard = {
+    // is_subtype is not supported >OTP 19, but is allowed for backwards compatibility
+    <l:@L> <name:atom> "(" <var:Ident> "," <ty:TopType> ")" <r:@R> =>? {
+        match name.name.as_str().get() {
+            "is_subtype" =>
+                Ok(TypeGuard { span: span!(l, r), var, ty }),
+            name => {
+                Err(lalrpop_util::ParseError::User {
+                    error: PreprocessorError::Diagnostic(
+                        Diagnostic::new_error("invalid type constraint")
+                            .with_label(Label::new_primary(span!(l, r))
+                                .with_message(format!("expected constraint in the form `Name :: Type`")))
+                    )
+                })
+            }
+        }
+    },
+    <l:@L> <var:Ident> "::" <ty:TopType100> <r:@R>
+        => TypeGuard { span: span!(l, r), var, ty },
+};
+
+TopType: Type = {
+    <l:@L> <name:Ident> "::" <ty:TopType100> <r:@R>
+        => Type::Annotated { span: span!(l, r), name, ty: Box::new(ty)  },
+    TopType100,
+};
+
+TopType100: Type = {
+    <l:@L> <lhs:Type200> "|" <rhs:TopType100> <r:@R>
+        => Type::union(span!(l, r), lhs, rhs),
+    Type200,
+};
+
+Type200: Type = {
+    <l:@L> <lhs:Type300> ".." <rhs:Type300> <r:@R>
+        => Type::Range { span: span!(l, r), start: Box::new(lhs), end: Box::new(rhs) },
+    Type300,
+};
+
+Type300: Type = {
+    <l:@L> <lhs:Type300> <op:TypeAddOp> <rhs:Type400> <r:@R>
+        => Type::BinaryOp { span: span!(l, r), lhs: Box::new(lhs), op, rhs: Box::new(rhs) },
+    Type400,
+};
+
+Type400: Type = {
+    <l:@L> <lhs:Type400> <op:TypeMultOp> <rhs:Type500> <r:@R>
+        => Type::BinaryOp { span: span!(l, r), lhs: Box::new(lhs), op, rhs: Box::new(rhs) },
+    Type500,
+};
+
+Type500: Type = {
+    <l:@L> <op:TypeUnaryOp> <rhs:Type600> <r:@R>
+        => Type::UnaryOp { span: span!(l, r), op, rhs: Box::new(rhs) },
+    Type600,
+};
+
+Type600: Type = {
+    <l:@L> <fun:atom> "(" ")" <r:@R>
+        => Type::Generic { span: span!(l, r), fun, params: Vec::new() },
+    <l:@L> <fun:atom> "(" <params:Comma<TopType>> ")" <r:@R>
+        => Type::Generic { span: span!(l, r), fun, params },
+    Type700,
+};
+
+Type700: Type = {
+    <l:@L> <module:atom> ":" <fun:atom> "(" ")" <r:@R>
+        => Type::Remote { span: span!(l, r), module, fun, args: Vec::new() },
+    <l:@L> <module:atom> ":" <fun:atom> "(" <args:Comma<TopType>> ")" <r:@R>
+        => Type::Remote { span: span!(l, r), module, fun, args },
+    TypeMax,
+};
+
+TypeMax: Type = {
+    "(" <ty:TopType> ")"
+        => ty,
+    <l:@L> "[" "]" <r:@R>
+        => Type::Nil(span!(l, r)),
+    <l:@L> "[" <lt:TopType> "]" <r:@R>
+        => Type::List(span!(l, r), Box::new(lt)),
+    <l:@L> "[" <lt:TopType> "," "..." "]" <r:@R>
+        => Type::NonEmptyList(span!(l, r), Box::new(lt)),
+    <l:@L> "{" "}" <r:@R>
+        => Type::Tuple(span!(l, r), Vec::new()),
+    <l:@L> "{" <et:Comma<TopType>> "}" <r:@R>
+        => Type::Tuple(span!(l, r), et),
+    <l:@L> "#" "{"  "}" <r:@R>
+        => Type::Map(span!(l, r), Vec::new()),
+    <l:@L> "#" "{" <ft:Comma<MapFieldType>> "}" <r:@R>
+        => Type::Map(span!(l, r), ft),
+    <l:@L> "#" <record:atom> "{" "}" <r:@R>
+        => Type::Record(span!(l, r), record, Vec::new()),
+    <l:@L> "#" <record:atom> "{" <ft:Comma<RecordFieldType>> "}" <r:@R>
+        => Type::Record(span!(l, r), record, ft),
+    BinaryType,
+    <name:atom_or_var>
+        => Type::Name(name),
+    <l:@L> <i:int> <r:@R>
+        => Type::Integer(span!(l, r), i),
+    <l:@L> <c:char> <r:@R>
+        => Type::Char(span!(l, r), c),
+    <FunType>
+        => Type::Fun(<>),
+};
+
+BinaryType: Type = {
+    <l:@L> "<<" ">>" <r:@R>
+        => Type::Binary(span!(l, r), 0, 0),
+    <l:@L> "<<" ident ":" <m:int> ">>" <r:@R>
+        => Type::Binary(span!(l, r), m, 0),
+    <l:@L> "<<" ident ":" ident "*" <n:int> ">>" <r:@R>
+        => Type::Binary(span!(l, r), 0, n),
+    <l:@L> "<<" ident ":" <m:int> "," ident ":" ident "*" <n:int> ">>" <r:@R>
+        => Type::Binary(span!(l, r), m, n),
+};
+
+FunType: FunType = {
+    <l:@L> "fun" "(" "..." ")" <r:@R>
+        => FunType::Any(span!(l, r)),
+    <l:@L> "fun" "(" "(" ")" "->" <ret:TopType> ")" <r:@R>
+        => FunType::Fun { span: span!(l, r), params: Vec::new(), ret: Box::new(ret) },
+    <l:@L> "fun" "(" "(" <params:Comma<TopType>> ")" "->" <ret:TopType> ")" <r:@R>
+        => FunType::Fun { span: span!(l, r), params, ret: Box::new(ret) },
+};
+
+MapFieldType: Type = {
+    <l:@L> <key:TopType100> "=>" <val:TopType100> <r:@R>
+        => Type::KeyValuePair(span!(l, r), Box::new(key), Box::new(val)),
+    <l:@L> <key:TopType100> ":=" <val:TopType100> <r:@R>
+        => Type::KeyValuePair(span!(l, r), Box::new(key), Box::new(val)),
+};
+
+RecordFieldType: Type = {
+    <l:@L> <key:atom> "::" <val:TopType100> <r:@R>
+        => Type::Field(span!(l, r), key, Box::new(val)),
+};
 
 // Pattern Matching
 
@@ -306,8 +520,8 @@ Fun: Expr = {
         Expr::FunctionName(FunctionName::Resolved { span: span!(l, r), module: None, function, arity: Some(arity) }),
     <l:@L> "fun" <module:atom_or_var> ":" <function:atom_or_var> "/" <arity:arity> <r:@R> =>
         Expr::FunctionName(FunctionName::detect(span!(l, r), Some(module), function, arity)),
-    <l:@L> "fun" <clauses:Semi<FunctionHead>> "end" <r:@R> =>
-        Expr::Fun(Function::new(errs, span!(l, r), clauses)),
+    <l:@L> "fun" <clauses:Semi<FunctionHead>> "end" <r:@R>
+        => Expr::Fun(Function::new(errs, span!(l, r), clauses)),
 };
 
 If: Expr = {
@@ -564,6 +778,28 @@ AddOp: BinaryOp = {
     "xor" => BinaryOp::Xor,
 };
 
+TypeMultOp: BinaryOp = {
+    "*" => BinaryOp::Multiply,
+    "div" => BinaryOp::Div,
+    "rem" => BinaryOp::Rem,
+    "band" => BinaryOp::Band,
+};
+
+TypeAddOp: BinaryOp = {
+    "+" => BinaryOp::Add,
+    "-" => BinaryOp::Sub,
+    "bor" => BinaryOp::Bor,
+    "bxor" => BinaryOp::Bxor,
+    "bsl" => BinaryOp::Bsl,
+    "bsr" => BinaryOp::Bsr,
+};
+
+TypeUnaryOp: UnaryOp = {
+    "+" => UnaryOp::Plus,
+    "-" => UnaryOp::Minus,
+    "bnot" => UnaryOp::Bnot,
+};
+
 ListOp: BinaryOp = {
     "++" => BinaryOp::Append,
     "--" => BinaryOp::Remove,
@@ -622,6 +858,19 @@ extern {
         "of" => Token::Of,
         "receive" => Token::Receive,
         "when" => Token::When,
+        "record" => Token::Record,
+        "spec" => Token::Spec,
+        "callback" => Token::Callback,
+        "import" => Token::Import,
+        "export" => Token::Export,
+        "export_type" => Token::ExportType,
+        "module" => Token::Module,
+        "compile" => Token::Compile,
+        "vsn" => Token::Vsn,
+        "on_load" => Token::OnLoad,
+        "behaviour" => Token::Behaviour,
+        "type" => Token::Type,
+        "opaque" => Token::Opaque,
         "andalso" => Token::AndAlso,
         "orelse" => Token::OrElse,
         "bnot" => Token::Bnot,

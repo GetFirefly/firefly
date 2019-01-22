@@ -3,14 +3,17 @@ use std::cmp::Ordering;
 
 use rug::Integer;
 
-use liblumen_diagnostics::{ByteSpan, Diagnostic, Label};
+use liblumen_diagnostics::{ByteSpan, ByteIndex};
 
-use crate::lexer::{Ident, Symbol};
+use crate::lexer::{Ident, Symbol, Token};
+use crate::preprocessor::PreprocessorError;
 use super::{ParseError, ParserError};
 
 macro_rules! to_lalrpop_err (
     ($error:expr) => (lalrpop_util::ParseError::User { error: $error })
 );
+
+pub type TryParseResult<T> = Result<T, lalrpop_util::ParseError<ByteIndex, Token, PreprocessorError>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Name {
@@ -231,19 +234,39 @@ impl Module {
 #[derive(Debug, Clone)]
 pub enum Attribute {
     // Types
-    Type(Type),
-    Opaque(Type),
-    ImportType { span: ByteSpan, module: Ident, types: Vec<FunctionName> },
-    Spec { span: ByteSpan, name: Ident, sig: Vec<TypeSig> },
+    Type { span: ByteSpan, name: Ident, params: Vec<Ident>, ty: Type, opaque: bool },
+    ExportType { span: ByteSpan, exports: Vec<FunctionName> },
+    Spec { span: ByteSpan, name: Ident, sigs: Vec<TypeSig> },
     // Builtins
     Export { span: ByteSpan, exports: Vec<FunctionName> },
-    Import { span: ByteSpan, imports: Vec<FunctionName> },
-    //Compile { span: ByteSpan, opts: Vec<Expr> },
+    Import { span: ByteSpan, module: Ident, imports: Vec<FunctionName> },
+    Compile { span: ByteSpan, opts: Expr },
     Vsn { span: ByteSpan, vsn: Expr },
     OnLoad { span: ByteSpan, fun: FunctionName },
-    Callback { span: ByteSpan, module: Option<Ident>, fun: Ident, sig: Vec<TypeSig> },
+    Callback { span: ByteSpan, module: Option<Ident>, fun: Ident, sigs: Vec<TypeSig> },
     // User-defined attributes
     Custom { span: ByteSpan, name: Ident, value: Expr }
+}
+impl Attribute {
+    pub fn type_def(span: ByteSpan, opaque: bool, def: TypeDefinition) -> Self {
+        let name = def.name;
+        let params = def.params;
+        let ty = def.ty;
+        Attribute::Type { span, opaque, name, params, ty }
+    }
+
+    pub fn type_spec(span: ByteSpan, spec: TypeSpec) -> Self {
+        let name = spec.function;
+        let sigs = spec.sigs;
+        Attribute::Spec { span, name, sigs }
+    }
+
+    pub fn callback(span: ByteSpan, spec: TypeSpec) -> Self {
+        let module = spec.module;
+        let fun = spec.function;
+        let sigs = spec.sigs;
+        Attribute::Callback { span, module, fun, sigs }
+    }
 }
 impl PartialEq for Attribute {
     fn eq(&self, other: &Attribute) -> bool {
@@ -254,18 +277,17 @@ impl PartialEq for Attribute {
         }
 
         match (self, other) {
-            (&Attribute::Type(ref x), &Attribute::Type(ref y)) =>
-                x == y,
-            (&Attribute::Opaque(ref x), &Attribute::Opaque(ref y)) =>
-                x == y,
-            (&Attribute::ImportType { module: ref xm, types: ref xt, .. },
-             &Attribute::ImportType { module: ref ym, types: ref yt, .. }) =>
-                (xm == ym) && (xt == yt),
-            (&Attribute::Spec { name: ref xname, sig: ref xsig, .. },
-             &Attribute::Spec { name: ref yname, sig: ref ysig, .. }) =>
+            (&Attribute::Type { name: ref x1, params: ref x2, ty: ref x3, opaque: x4, .. },
+             &Attribute::Type { name: ref y1, params: ref y2, ty: ref y3, opaque: y4, .. }) =>
+                (x1 == y1) && (x2 == y2) && (x3 == y3) && (x4 == y4),
+            (&Attribute::Spec { name: ref xname, sigs: ref xsig, .. },
+             &Attribute::Spec { name: ref yname, sigs: ref ysig, .. }) =>
                 (xname == yname) && (xsig == ysig),
             (&Attribute::Export { exports: ref x, .. },
              &Attribute::Export { exports: ref y, .. }) =>
+                x == y,
+            (&Attribute::ExportType { exports: ref x, .. },
+             &Attribute::ExportType { exports: ref y, .. }) =>
                 x == y,
             (&Attribute::Import { imports: ref x, .. },
              &Attribute::Import { imports: ref y, .. }) =>
@@ -276,8 +298,8 @@ impl PartialEq for Attribute {
             (&Attribute::OnLoad { fun: ref x, .. },
              &Attribute::OnLoad { fun: ref y, .. }) =>
                 x == y,
-            (&Attribute::Callback { module: ref xm, fun: ref xf, sig: ref xsig, .. },
-             &Attribute::Callback { module: ref ym, fun: ref yf, sig: ref ysig, .. }) =>
+            (&Attribute::Callback { module: ref xm, fun: ref xf, sigs: ref xsig, .. },
+             &Attribute::Callback { module: ref ym, fun: ref yf, sigs: ref ysig, .. }) =>
                 (xm == ym) && (xf == yf) && (xsig == ysig),
             (&Attribute::Custom { name: ref xname, value: ref xval, .. },
              &Attribute::Custom { name: ref yname, value: ref yval, .. }) =>
@@ -288,42 +310,18 @@ impl PartialEq for Attribute {
         }
     }
 }
-impl Attribute {
-    pub fn new(span: ByteSpan, ident: Ident, values: Vec<Expr>) -> Result<Attribute, ParseError> {
-        let arity = values.len();
-        match ident.name.as_str().get() {
-            "vsn" if arity == 1 => {
-                Ok(Attribute::Vsn { span, vsn: values[0].clone() })
-            }
-            "vsn" => {
-                Err(to_lalrpop_err!(ParserError::Diagnostic(
-                    Diagnostic::new_warning("invalid 'vsn' attribute")
-                        .with_label(Label::new_primary(span)
-                            .with_message(format!("expected one argument, but got {}", arity)))
-                )))
-            }
-            "on_load" if arity == 1 => {
-                let value = values[0].clone();
-                if let Expr::FunctionName(fun) = value {
-                    return Ok(Attribute::OnLoad { span, fun });
-                }
-                Err(to_lalrpop_err!(ParserError::Diagnostic(
-                    Diagnostic::new_error("invalid 'on_load' attribute")
-                        .with_label(Label::new_primary(span)
-                            .with_message(format!("expected function name, got {:?}", value)))
-                )))
-            }
-            "on_load" => {
-                Err(to_lalrpop_err!(ParserError::Diagnostic(
-                    Diagnostic::new_error("invalid 'on_load' attribute")
-                        .with_label(Label::new_primary(span)
-                            .with_message(format!("expected one argument, got {}", arity)))
-                )))
-            }
-            _ => {
-                unimplemented!()
-            }
-        }
+
+#[derive(Debug, Clone)]
+pub struct TypeDefinition {
+    pub name: Ident,
+    pub params: Vec<Ident>,
+    pub ty: Type,
+}
+impl PartialEq for TypeDefinition {
+    fn eq(&self, other: &TypeDefinition) -> bool {
+        self.name == other.name &&
+        self.params == other.params &&
+        self.ty == other.ty
     }
 }
 
@@ -331,22 +329,42 @@ impl Attribute {
 pub enum Type {
     Name(Name),
     Annotated { span: ByteSpan, name: Ident, ty: Box<Type> },
-    Union { span: ByteSpan, lhs: Box<Type>, rhs: Box<Type> },
+    Union { span: ByteSpan, types: Vec<Type> },
     Range { span: ByteSpan, start: Box<Type>, end: Box<Type> },
     BinaryOp { span: ByteSpan, lhs: Box<Type>, op: BinaryOp, rhs: Box<Type> },
-    UnaryOp { span: ByteSpan, op: BinaryOp, rhs: Box<Type> },
-    Generic { span: ByteSpan, name: Ident, params: Vec<Ident>, ty: Box<Type> },
-    Remote { span: ByteSpan, module: Ident, fun: Ident, args: Vec<Ident> },
+    UnaryOp { span: ByteSpan, op: UnaryOp, rhs: Box<Type> },
+    Generic { span: ByteSpan, fun: Ident, params: Vec<Type> },
+    Remote { span: ByteSpan, module: Ident, fun: Ident, args: Vec<Type> },
     Nil(ByteSpan),
     List(ByteSpan, Box<Type>),
     NonEmptyList(ByteSpan, Box<Type>),
-    Map(ByteSpan, Vec<MapPairType>),
+    Map(ByteSpan, Vec<Type>),
     Tuple(ByteSpan, Vec<Type>),
-    Record { span: ByteSpan, name: Ident, fields: Vec<(ByteSpan, Ident, Type)> },
-    Binary { span: ByteSpan, head: Box<Type>, tail: Box<Type> },
+    Record(ByteSpan, Ident, Vec<Type>),
+    Binary(ByteSpan, i64, i64),
     Integer(ByteSpan, i64),
     Char(ByteSpan, char),
     Fun(FunType),
+    KeyValuePair(ByteSpan, Box<Type>, Box<Type>),
+    Field(ByteSpan, Ident, Box<Type>),
+}
+impl Type {
+    pub fn union(span: ByteSpan, lhs: Type, rhs: Type) -> Self {
+        let mut types = match lhs {
+            Type::Union { types, .. } =>
+                types,
+            ty =>
+                vec![ty]
+        };
+        let mut rest = match rhs {
+            Type::Union { types, .. } =>
+                types,
+            ty =>
+                vec![ty]
+        };
+        types.append(&mut rest);
+        Type::Union { span, types }
+    }
 }
 impl PartialEq for Type {
     fn eq(&self, other: &Type) -> bool {
@@ -360,9 +378,8 @@ impl PartialEq for Type {
             (&Type::Annotated { name: ref x1, ty: ref x2, .. },
              &Type::Annotated { name: ref y1, ty: ref y2, .. }) =>
                 (x1 == y1) && (x2 == y2),
-            (&Type::Union { lhs: ref x1, rhs: ref x2, .. },
-             &Type::Union { lhs: ref y1, rhs: ref y2, .. }) =>
-                (x1 == y1) && (x2 == y2),
+            (&Type::Union { types: ref types1, .. }, &Type::Union { types: ref types2, .. }) =>
+                types1 == types2,
             (&Type::Range { start: ref x1, end: ref x2, .. },
              &Type::Range { start: ref y1, end: ref y2, .. }) =>
                 (x1 == y1) && (x2 == y2),
@@ -372,9 +389,9 @@ impl PartialEq for Type {
             (&Type::UnaryOp { op: ref x1, rhs: ref x2, .. },
              &Type::UnaryOp { op: ref y1, rhs: ref y2, .. }) =>
                 (x1 == y1) && (x2 == y2),
-            (&Type::Generic { name: ref x1, params: ref x2, ty: ref x3, .. },
-             &Type::Generic { name: ref y1, params: ref y2, ty: ref y3, .. }) =>
-                (x1 == y1) && (x2 == y2) && (x3 == y3),
+            (&Type::Generic { fun: ref x1, params: ref x2, .. },
+             &Type::Generic { fun: ref y1, params: ref y2, .. }) =>
+                (x1 == y1) && (x2 == y2),
             (&Type::Remote { module: ref x1, fun: ref x2, args: ref x3, .. },
              &Type::Remote { module: ref y1, fun: ref y2, args: ref y3, .. }) =>
                 (x1 == y1) && (x2 == y2) && (x3 == y3),
@@ -388,28 +405,38 @@ impl PartialEq for Type {
                 x == y,
             (&Type::Tuple(_, ref x), &Type::Tuple(_, ref y)) =>
                 x == y,
-            (&Type::Record { name: ref x1, fields: ref x2, .. },
-             &Type::Record { name: ref y1, fields: ref y2, .. }) =>
+            (&Type::Record(_, ref x1, ref x2), &Type::Record(_, ref y1, ref y2)) =>
                 (x1 == y1) && (x2 == y2),
-            (&Type::Binary { head: ref x1, tail: ref x2, .. },
-             &Type::Binary { head: ref y1, tail: ref y2, .. }) =>
-                (x1 == y1) && (x2 == y2),
+            (&Type::Binary(_, m1, n1), &Type::Binary(_, m2, n2)) =>
+                (m1 == m2) && (n1 == n2),
             (&Type::Integer(_, x), &Type::Integer(_, y)) =>
                 x == y,
             (&Type::Char(_, x), &Type::Char(_, y)) =>
                 x == y,
             (&Type::Fun(ref x), &Type::Fun(ref y)) =>
                 x == y,
+            (&Type::KeyValuePair(_, ref x1, ref x2), &Type::KeyValuePair(_, ref y1, ref y2)) =>
+                (x1 == y1) && (x2 == y2),
+            (&Type::Field(_, ref x1, ref x2), &Type::Field(_, ref y1, ref y2)) =>
+                (x1 == y1) && (x2 == y2),
             _ =>
                 false,
         }
     }
 }
 
+
+#[derive(Debug, Clone)]
+pub struct TypeSpec {
+    pub module: Option<Ident>,
+    pub function: Ident,
+    pub sigs: Vec<TypeSig>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeSig {
-    sig: FunType,
-    constraints: Vec<TypeGuard>
+    pub sig: FunType,
+    pub guards: Option<Vec<TypeGuard>>,
 }
 
 #[derive(Debug, Clone)]
@@ -432,20 +459,14 @@ impl PartialEq for FunType {
 }
 
 #[derive(Debug, Clone)]
-pub enum TypeGuard {
-    SubType(ByteSpan, Ident, Vec<Ident>),
-    Constraint(ByteSpan, Ident, Type)
+pub struct TypeGuard {
+    pub span: ByteSpan,
+    pub var: Ident,
+    pub ty: Type,
 }
 impl PartialEq for TypeGuard {
     fn eq(&self, other: &TypeGuard) -> bool {
-        match (self, other) {
-            (&TypeGuard::SubType(_, ref x1, ref x2), &TypeGuard::SubType(_, ref y1, ref y2)) =>
-                (x1 == y1) && (x2 == y2),
-            (&TypeGuard::Constraint(_, ref x1, ref x2), &TypeGuard::Constraint(_, ref y1, ref y2)) =>
-                (x1 == y1) && (x2 == y2),
-            _ =>
-                false,
-        }
+        self.var == other.var && self.ty == other.ty
     }
 }
 
@@ -465,6 +486,18 @@ pub enum Literal {
     Integer(ByteSpan, i64),
     BigInteger(ByteSpan, Integer),
     Float(ByteSpan, f64),
+}
+impl Literal {
+    pub fn span(&self) -> ByteSpan {
+        match self {
+            &Literal::Atom(Ident { ref span, .. }) => span.clone(),
+            &Literal::String(Ident { ref span, .. }) => span.clone(),
+            &Literal::Char(ref span, _) => span.clone(),
+            &Literal::Integer(ref span, _) => span.clone(),
+            &Literal::BigInteger(ref span, _) => span.clone(),
+            &Literal::Float(ref span, _) => span.clone(),
+        }
+    }
 }
 impl PartialEq for Literal {
     fn eq(&self, other: &Literal) -> bool {
@@ -659,6 +692,13 @@ impl PartialEq for Function {
     }
 }
 impl Function {
+    pub fn span(&self) -> ByteSpan {
+        match self {
+            &Function::Named { ref span, .. } => span.clone(),
+            &Function::Unnamed { ref span, .. } => span.clone(),
+        }
+    }
+
     pub fn new(errs: &mut Vec<ParseError>, span: ByteSpan, clauses: Vec<FunctionClause>) -> Self {
         debug_assert!(clauses.len() > 0);
         let (head, rest) = clauses.split_first().expect("internal error: expected function to contain at least one clause");
@@ -821,6 +861,40 @@ pub enum Expr {
     Receive { span: ByteSpan, clauses: Option<Vec<Clause>>, after: Option<Timeout> },
     Try { span: ByteSpan, exprs: Option<Vec<Expr>>, clauses: Option<Vec<Clause>>, catch_clauses: Option<Vec<TryClause>>, after: Option<Vec<Expr>> },
     Fun(Function),
+}
+impl Expr {
+    pub fn span(&self) -> ByteSpan {
+        match self {
+            &Expr::Var(Ident { ref span, .. }) => span.clone(),
+            &Expr::Literal(ref lit) => lit.span(),
+            &Expr::FunctionName(ref name) => name.span(),
+            &Expr::Nil(ref span) => span.clone(),
+            &Expr::Cons(ref span, _, _) => span.clone(),
+            &Expr::Tuple(ref span, _) => span.clone(),
+            &Expr::Map(ref span, _, _) => span.clone(),
+            &Expr::Binary(ref span, _) => span.clone(),
+            &Expr::RecordAccess(ref span, _, _, _) => span.clone(),
+            &Expr::RecordIndex(ref span, _, _) => span.clone(),
+            &Expr::RecordUpdate(ref span, _, _, _) => span.clone(),
+            &Expr::Record(ref span, _, _) => span.clone(),
+            &Expr::Begin(ref span, _, ) => span.clone(),
+            &Expr::Apply { ref span, .. } => span.clone(),
+            &Expr::Remote { ref span, .. } => span.clone(),
+            &Expr::ListComprehension(ref span, _, _) => span.clone(),
+            &Expr::BinaryComprehension(ref span, _, _) => span.clone(),
+            &Expr::Generator(ref span, _, _) => span.clone(),
+            &Expr::BinaryGenerator(ref span, _, _) => span.clone(),
+            &Expr::BinaryExpr { ref span, .. } => span.clone(),
+            &Expr::UnaryExpr { ref span, .. } => span.clone(),
+            &Expr::Match(ref span, _, _) => span.clone(),
+            &Expr::If(ref span, _) => span.clone(),
+            &Expr::Catch(ref span, _) => span.clone(),
+            &Expr::Case(ref span, _, _) => span.clone(),
+            &Expr::Receive { ref span, .. } => span.clone(),
+            &Expr::Try { ref span, .. } => span.clone(),
+            &Expr::Fun(ref fun) => fun.span(),
+        }
+    }
 }
 impl PartialEq for Expr {
     fn eq(&self, other: &Expr) -> bool {

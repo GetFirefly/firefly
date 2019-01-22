@@ -327,7 +327,7 @@ macro_rules! declare_atoms {(
         /// Used *only* for testing that the declared atoms have no gaps
         /// NOTE: The length must be static, so it must be changed when new
         /// declared keywords are added to the list
-        pub(super) static DECLARED: [(Symbol, &'static str); 45] = [$(($konst, $string),)*];
+        pub(super) static DECLARED: [(Symbol, &'static str); 47] = [$(($konst, $string),)*];
     }
 
     impl Interner {
@@ -379,20 +379,22 @@ declare_atoms! {
     (29, Compile,      "compile")
     (30, Vsn,          "vsn")
     (31, OnLoad,       "on_load")
-    (32, Include,      "include")
-    (33, IncludeLib,   "include_lib")
-    (34, Define,       "define")
-    (35, Undef,        "undef")
-    (36, Ifdef,        "ifdef")
-    (37, Ifndef,       "ifndef")
-    (38, Else,         "else")
-    (39, Elif,         "elif")
-    (40, Endif,        "endif")
-    (41, Error,        "error")
-    (42, Warning,      "warning")
+    (32, Spec,         "spec")
+    (33, Callback,     "callback")
+    (33, Include,      "include")
+    (34, IncludeLib,   "include_lib")
+    (35, Define,       "define")
+    (36, Undef,        "undef")
+    (37, Ifdef,        "ifdef")
+    (38, Ifndef,       "ifndef")
+    (39, Else,         "else")
+    (40, Elif,         "elif")
+    (41, Endif,        "endif")
+    (42, Error,        "error")
+    (43, Warning,      "warning")
     // Common words
-    (43, True,         "true")
-    (44, False,        "false")
+    (44, True,         "true")
+    (45, False,        "false")
 }
 
 impl Symbol {

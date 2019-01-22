@@ -58,7 +58,7 @@ impl fmt::Display for TokenType {
 }
 
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub struct AtomToken(ByteIndex, Token, ByteIndex);
+pub struct AtomToken(pub ByteIndex, pub Token, pub ByteIndex);
 impl AtomToken {
     pub fn token(&self) -> Token {
         self.1.clone()
@@ -259,6 +259,7 @@ pub enum Token {
     Colon,
     Pound,
     Dot,
+    // Keywords
     After,
     Begin,
     Case,
@@ -270,6 +271,21 @@ pub enum Token {
     Of,
     Receive,
     When,
+    // Attributes
+    Record,
+    Spec,
+    Callback,
+    Import,
+    Export,
+    ExportType,
+    Module,
+    Compile,
+    Vsn,
+    OnLoad,
+    Behaviour,
+    Type,
+    Opaque,
+    // Operators
     AndAlso,
     OrElse,
     Bnot,
@@ -452,6 +468,19 @@ impl fmt::Display for Token {
             Token::Of => write!(f, "of"),
             Token::Receive => write!(f, "receive"),
             Token::When => write!(f, "when"),
+            Token::Record => write!(f, "record"),
+            Token::Spec => write!(f, "spec"),
+            Token::Callback => write!(f, "callback"),
+            Token::Import => write!(f, "import"),
+            Token::Export => write!(f, "export"),
+            Token::ExportType => write!(f, "export_type"),
+            Token::Module => write!(f, "module"),
+            Token::Compile => write!(f, "compile"),
+            Token::Vsn => write!(f, "vsn"),
+            Token::OnLoad => write!(f, "on_load"),
+            Token::Behaviour => write!(f, "behaviour"),
+            Token::Type => write!(f, "type"),
+            Token::Opaque => write!(f, "opaque"),
             Token::AndAlso => write!(f, "andalso"),
             Token::OrElse => write!(f, "orelse"),
             Token::Bnot => write!(f, "bnot"),

@@ -2,7 +2,7 @@ use std::fmt;
 
 use liblumen_diagnostics::ByteSpan;
 
-use crate::lexer::{Token, AtomToken, SymbolToken};
+use crate::lexer::{Token, AtomToken, SymbolToken, LexicalToken};
 
 use super::Result;
 
@@ -83,10 +83,75 @@ impl ReadFrom for Directive {
             return Ok(None);
         };
 
-        reader.unread_token(name.clone().into());
-        reader.unread_token(_hyphen.into());
+        let name_sym = name.symbol().as_str().get();
+        // Replace atoms with more concrete tokens for special attributes,
+        // but otherwise do nothing else with them
+        match name_sym {
+            "compile" => {
+                reader.unread_token(LexicalToken(name.0, Token::Record, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "record" => {
+                reader.unread_token(LexicalToken(name.0, Token::Record, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "spec" => {
+                reader.unread_token(LexicalToken(name.0, Token::Spec, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "callback" => {
+                reader.unread_token(LexicalToken(name.0, Token::Callback, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "import" => {
+                reader.unread_token(LexicalToken(name.0, Token::Import, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "export" => {
+                reader.unread_token(LexicalToken(name.0, Token::Export, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "export_type" => {
+                reader.unread_token(LexicalToken(name.0, Token::ExportType, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "vsn" => {
+                reader.unread_token(LexicalToken(name.0, Token::Vsn, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "on_load" => {
+                reader.unread_token(LexicalToken(name.0, Token::OnLoad, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "behaviour" => {
+                reader.unread_token(LexicalToken(name.0, Token::Behaviour, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "type" => {
+                reader.unread_token(LexicalToken(name.0, Token::Type, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            _ => {
+                reader.unread_token(name.clone().into());
+                reader.unread_token(_hyphen.into());
+            }
+        }
+
         match name.symbol().as_str().get() {
+            // -module(name) is treated as equivalent to -define(?MODULE, name)
             "module" => reader.read().map(Directive::Module).map(Some),
+            // Actual preprocessor directives
             "include" => reader.read().map(Directive::Include).map(Some),
             "include_lib" => reader.read().map(Directive::IncludeLib).map(Some),
             "define" => reader.read().map(Directive::Define).map(Some),

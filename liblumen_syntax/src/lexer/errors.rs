@@ -2,7 +2,7 @@ use std::hash::{Hash, Hasher};
 
 use failure::Fail;
 
-use liblumen_diagnostics::{ByteSpan, ByteIndex, Diagnostic, Label};
+use liblumen_diagnostics::{ByteIndex, ByteSpan, Diagnostic, Label};
 
 use super::token::{Token, TokenType};
 
@@ -37,8 +37,8 @@ impl Hash for LexicalError {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let id = match *self {
             LexicalError::InvalidFloat { .. } => 0,
-            LexicalError::InvalidRadix { .. }=> 1,
-            LexicalError::UnclosedString { .. }=> 2,
+            LexicalError::InvalidRadix { .. } => 1,
+            LexicalError::UnclosedString { .. } => 2,
             LexicalError::UnclosedAtom { .. } => 3,
             LexicalError::InvalidEscape { .. } => 4,
             LexicalError::UnexpectedCharacter { .. } => 5,
@@ -64,26 +64,22 @@ impl LexicalError {
         let span = self.span();
         let msg = self.to_string();
         match *self {
-            LexicalError::InvalidFloat{..} =>
-                Diagnostic::new_error("invalid float literal")
-                    .with_label(Label::new_primary(span).with_message(msg)),
-            LexicalError::InvalidRadix{..} =>
+            LexicalError::InvalidFloat { .. } => Diagnostic::new_error("invalid float literal")
+                .with_label(Label::new_primary(span).with_message(msg)),
+            LexicalError::InvalidRadix { .. } => {
                 Diagnostic::new_error("invalid radix value for integer literal")
-                    .with_label(Label::new_primary(span).with_message(msg)),
-            LexicalError::InvalidEscape{..} =>
-                Diagnostic::new_error("invalid escape sequence")
-                    .with_label(Label::new_primary(span).with_message(msg)),
-            LexicalError::UnexpectedCharacter{..} =>
-                Diagnostic::new_error("unexpected character")
-                    .with_label(Label::new_primary(span).with_message(msg)),
-            _ => {
-                Diagnostic::new_error(msg)
-                    .with_label(Label::new_primary(span))
+                    .with_label(Label::new_primary(span).with_message(msg))
             }
+            LexicalError::InvalidEscape { .. } => Diagnostic::new_error("invalid escape sequence")
+                .with_label(Label::new_primary(span).with_message(msg)),
+            LexicalError::UnexpectedCharacter { .. } => {
+                Diagnostic::new_error("unexpected character")
+                    .with_label(Label::new_primary(span).with_message(msg))
+            }
+            _ => Diagnostic::new_error(msg).with_label(Label::new_primary(span)),
         }
     }
 }
-
 
 /// Produced when converting from LexicalToken to {Atom,Ident,String,Symbol}Token
 #[derive(Fail, Debug, Clone)]

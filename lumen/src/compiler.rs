@@ -1,15 +1,15 @@
-use std::convert::From;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::convert::From;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use clap::{value_t, ArgMatches};
 use failure::{format_err, Error};
 
 use liblumen_compiler::{Compiler, CompilerMode, CompilerSettings, Verbosity};
-use liblumen_diagnostics::{CodeMap, FileName, ColorChoice};
-use liblumen_syntax::{Symbol, MacroDef, Scanner, Lexer, FileMapSource};
+use liblumen_diagnostics::{CodeMap, ColorChoice, FileName};
+use liblumen_syntax::{FileMapSource, Lexer, MacroDef, Scanner, Symbol};
 
 /// Dispatches command-line arguments to the compiler backend
 pub fn dispatch<'a>(args: &'a ArgMatches) -> Result<(), Error> {
@@ -57,14 +57,20 @@ fn configure<'a>(args: &'a ArgMatches) -> Result<CompilerSettings, Error> {
     })
 }
 
-fn parse_defines<'a>(codemap: Arc<Mutex<CodeMap>>, values: Vec<&'a str>) -> Result<HashMap<Symbol, MacroDef>, Error> {
+fn parse_defines<'a>(
+    codemap: Arc<Mutex<CodeMap>>,
+    values: Vec<&'a str>,
+) -> Result<HashMap<Symbol, MacroDef>, Error> {
     let mut result = HashMap::new();
     for value in values.iter() {
         let parts: Vec<_> = value.split('=').collect();
         let name = unsafe { parts.get_unchecked(0) };
         // Validate that macro name is a valid bare atom or identifier
         if !name.starts_with(|c: char| c.is_ascii_alphabetic() && !(c == '_')) {
-            return Err(format_err!("invalid macro definition `{}`, macro names must begin with [A-Za-z_]", value));
+            return Err(format_err!(
+                "invalid macro definition `{}`, macro names must begin with [A-Za-z_]",
+                value
+            ));
         }
         if name.contains(|c: char| (c.is_ascii_alphanumeric() || c == '_' || c == '@') == false) {
             return Err(format_err!("invalid macro definition `{}`, macro names must be a valid unquoted atom or identifier", value));
@@ -74,12 +80,13 @@ fn parse_defines<'a>(codemap: Arc<Mutex<CodeMap>>, values: Vec<&'a str>) -> Resu
         match num_parts {
             1 => {
                 result.insert(Symbol::intern(name), MacroDef::Boolean(true));
-            },
+            }
             _ => {
                 // Lex the input string so we can provide syntax errors
                 let src = parts[1..].join("=");
                 let filemap = {
-                    codemap.lock()
+                    codemap
+                        .lock()
                         .unwrap()
                         .add_filemap(FileName::Virtual(Cow::Borrowed("nofile")), src)
                 };

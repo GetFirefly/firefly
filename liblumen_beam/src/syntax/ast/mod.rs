@@ -38,7 +38,7 @@ impl AST {
         let code = AbstractCode::from_beam_file(beam_file)?;
         let forms = code.to_forms()?;
         Ok(AST {
-            module: ast::ModuleDecl { forms: forms },
+            module: ast::ModuleDecl { forms },
         })
     }
 }

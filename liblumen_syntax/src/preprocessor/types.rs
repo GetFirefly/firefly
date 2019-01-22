@@ -4,11 +4,11 @@ use std::mem;
 
 use liblumen_diagnostics::ByteSpan;
 
-use crate::lexer::{LexicalToken, Token, Symbol};
 use crate::lexer::{AtomToken, IdentToken, SymbolToken};
+use crate::lexer::{LexicalToken, Symbol, Token};
 
-use super::{Result, PreprocessorError};
-use super::token_reader::{TokenReader, ReadFrom};
+use super::token_reader::{ReadFrom, TokenReader};
+use super::{PreprocessorError, Result};
 
 /// The list of tokens that can be used as a macro name.
 #[derive(Debug, Clone)]
@@ -20,29 +20,23 @@ impl MacroName {
     /// Returns the value of this token.
     pub fn value(&self) -> Token {
         match *self {
-            MacroName::Atom(ref token) =>
-                token.token(),
-            MacroName::Variable(ref token) =>
-                token.token(),
+            MacroName::Atom(ref token) => token.token(),
+            MacroName::Variable(ref token) => token.token(),
         }
     }
 
     /// Returns the original textual representation of this token.
     pub fn symbol(&self) -> Symbol {
         match *self {
-            MacroName::Atom(ref token) =>
-                token.symbol(),
-            MacroName::Variable(ref token) =>
-                token.symbol(),
+            MacroName::Atom(ref token) => token.symbol(),
+            MacroName::Variable(ref token) => token.symbol(),
         }
     }
 
     pub fn span(&self) -> ByteSpan {
         match *self {
-            MacroName::Atom(ref token) =>
-                token.span(),
-            MacroName::Variable(ref token) =>
-                token.span()
+            MacroName::Atom(ref token) => token.span(),
+            MacroName::Variable(ref token) => token.span(),
         }
     }
 }
@@ -202,11 +196,11 @@ impl ReadFrom for MacroArg {
                         Ok(None)
                     } else {
                         Ok(Some(MacroArg { tokens: arg }))
-                    }
+                    };
                 }
                 Token::Comma if stack.is_empty() => {
                     if arg.len() == 0 {
-                        return Err(PreprocessorError::UnexpectedToken(token.clone(), vec![]))
+                        return Err(PreprocessorError::UnexpectedToken(token.clone(), vec![]));
                     }
                     reader.unread_token(token.clone().into());
                     return Ok(Some(MacroArg { tokens: arg }));
@@ -227,11 +221,14 @@ impl ReadFrom for MacroArg {
                         Token::RParen,
                         Token::RBrace,
                         Token::RBracket,
-                        Token::BinaryEnd
-                    ].iter().map(|t| t.to_string()).collect();
+                        Token::BinaryEnd,
+                    ]
+                    .iter()
+                    .map(|t| t.to_string())
+                    .collect();
                     return Err(PreprocessorError::UnexpectedToken(token.clone(), expected));
                 }
-                _ => ()
+                _ => (),
             }
             arg.push(token.clone());
         }
@@ -253,7 +250,9 @@ impl<T: fmt::Display> fmt::Display for Tail<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Tail::Nil => Ok(()),
-            Tail::Cons { ref head, ref tail, .. } => write!(f, ",{}{}", head, tail),
+            Tail::Cons {
+                ref head, ref tail, ..
+            } => write!(f, ",{}{}", head, tail),
         }
     }
 }
@@ -331,13 +330,15 @@ impl<'a, T: 'a> Iterator for ListIterInner<'a, T> {
                 *self = ListIterInner::Tail(tail);
                 Some(head)
             }
-            ListIterInner::Tail(&Tail::Cons { ref head, ref tail, .. }) => {
+            ListIterInner::Tail(&Tail::Cons {
+                ref head, ref tail, ..
+            }) => {
                 *self = ListIterInner::Tail(tail);
                 Some(head)
             }
-            ListIterInner::List(&List::Nil) |
-            ListIterInner::Tail(&Tail::Nil) |
-            ListIterInner::End => None,
+            ListIterInner::List(&List::Nil)
+            | ListIterInner::Tail(&Tail::Nil)
+            | ListIterInner::End => None,
         }
     }
 }

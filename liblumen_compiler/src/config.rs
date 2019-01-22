@@ -1,13 +1,13 @@
-use std::str::FromStr;
-use std::convert::Into;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::convert::Into;
 use std::path::PathBuf;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use failure::{format_err, Error};
 
 use liblumen_diagnostics::{CodeMap, ColorChoice};
-use liblumen_syntax::{Symbol, MacroDef, ParseConfig};
+use liblumen_syntax::{MacroDef, ParseConfig, Symbol};
 
 /// Determines which type of compilation to perform,
 /// either parsing modules from BEAM files, or by
@@ -15,7 +15,7 @@ use liblumen_syntax::{Symbol, MacroDef, ParseConfig};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub enum CompilerMode {
     BEAM,
-    Erlang
+    Erlang,
 }
 impl FromStr for CompilerMode {
     type Err = Error;
@@ -24,7 +24,7 @@ impl FromStr for CompilerMode {
         match s {
             "beam" => Ok(CompilerMode::BEAM),
             "erl" => Ok(CompilerMode::Erlang),
-            _ => Err(format_err!("invalid file type {}", s))
+            _ => Err(format_err!("invalid file type {}", s)),
         }
     }
 }

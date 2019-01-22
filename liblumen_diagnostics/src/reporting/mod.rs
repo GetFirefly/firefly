@@ -1,14 +1,14 @@
+use std::cmp::Ordering;
 use std::fmt;
 use std::str::FromStr;
-use std::cmp::Ordering;
 
-pub use termcolor::{Color, ColorSpec, ColorChoice};
+pub use termcolor::{Color, ColorChoice, ColorSpec};
 
 mod diagnostic;
 pub mod emitter;
 
 pub use self::diagnostic::{Diagnostic, Label, LabelStyle};
-pub use self::emitter::{Emitter, StandardStreamEmitter, NullEmitter};
+pub use self::emitter::{Emitter, NullEmitter, StandardStreamEmitter};
 
 /// A severity level for diagnostic messages
 ///

@@ -1,22 +1,22 @@
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::convert::TryFrom;
-use std::sync::{Arc, Mutex};
-use std::collections::{HashMap, BTreeMap, VecDeque};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use failure::{format_err, Error};
 use termcolor::ColorChoice;
 
-use liblumen_diagnostics::{CodeMap, ByteIndex, ByteSpan, Diagnostic, Label};
+use liblumen_diagnostics::{ByteIndex, ByteSpan, CodeMap, Diagnostic, Label};
 use liblumen_diagnostics::{Emitter, StandardStreamEmitter};
 
-use crate::lexer::{symbols, Symbol, Lexed, LexicalToken, Token, IdentToken};
+use crate::lexer::{symbols, IdentToken, Lexed, LexicalToken, Symbol, Token};
 use crate::lexer::{Lexer, Source};
 use crate::parser::ParseConfig;
 
-use super::{Result, Preprocessed, PreprocessorError};
-use super::{Directive, MacroCall, MacroDef};
 use super::macros::Stringify;
-use super::token_reader::{TokenReader, TokenStreamReader, TokenBufferReader};
+use super::token_reader::{TokenBufferReader, TokenReader, TokenStreamReader};
+use super::{Directive, MacroCall, MacroDef};
+use super::{Preprocessed, PreprocessorError, Result};
 
 pub struct Preprocessor<Reader: TokenReader> {
     codemap: Arc<Mutex<CodeMap>>,
@@ -95,7 +95,8 @@ where
                         // We need to expand this directive back to a token stream for the parser
                         self.expanded_tokens = d.expand();
                         // Otherwise treat it like other directives
-                        self.directives.insert(d.span().start(), Directive::Module(d));
+                        self.directives
+                            .insert(d.span().start(), Directive::Module(d));
                         continue;
                     }
                     Some(d) => {
@@ -143,20 +144,26 @@ where
                 let span = call.span();
                 let current = span.start();
                 let filename = {
-                    self.codemap.lock()
+                    self.codemap
+                        .lock()
                         .unwrap()
                         .find_file(current)
                         .unwrap()
                         .name()
                         .clone()
                 };
-                LexicalToken(current, Token::String(Symbol::intern(&filename.to_string())), span.end())
+                LexicalToken(
+                    current,
+                    Token::String(Symbol::intern(&filename.to_string())),
+                    span.end(),
+                )
             }
             "LINE" => {
                 let span = call.span();
                 let current = span.start();
                 let line = {
-                    self.codemap.lock()
+                    self.codemap
+                        .lock()
                         .unwrap()
                         .find_file(current)
                         .unwrap()
@@ -171,8 +178,7 @@ where
                 let current = span.start();
                 LexicalToken(current, Token::Atom(Symbol::intern("Lumen")), span.end())
             }
-            _ =>
-                return Ok(None),
+            _ => return Ok(None),
         };
         Ok(Some(expanded))
     }
@@ -180,28 +186,47 @@ where
     fn expand_userdefined_macro(&self, call: MacroCall) -> Result<VecDeque<LexicalToken>> {
         let definition = match self.macros.get(&call.name()) {
             None => return Err(PreprocessorError::UndefinedMacro(call)),
-            Some(def) => def
+            Some(def) => def,
         };
         match *definition {
             MacroDef::Dynamic(ref replacement) => Ok(replacement.clone().into()),
-            MacroDef::String(ref s) => Ok(vec![LexicalToken(ByteIndex(0), Token::String(s.clone()), ByteIndex(0))].into()),
-            MacroDef::Boolean(true) => Ok(vec![LexicalToken(ByteIndex(0), Token::Atom(symbols::True), ByteIndex(0))].into()),
+            MacroDef::String(ref s) => Ok(vec![LexicalToken(
+                ByteIndex(0),
+                Token::String(s.clone()),
+                ByteIndex(0),
+            )]
+            .into()),
+            MacroDef::Boolean(true) => Ok(vec![LexicalToken(
+                ByteIndex(0),
+                Token::Atom(symbols::True),
+                ByteIndex(0),
+            )]
+            .into()),
             MacroDef::Boolean(false) => Ok(VecDeque::new()),
             MacroDef::Static(ref def) => {
                 let arity = def.variables.as_ref().map(|v| v.len()).unwrap_or(0);
                 let argc = call.args.as_ref().map(|a| a.len()).unwrap_or(0);
                 if arity != argc {
-                    let err = format!("expected {} arguments at call site, but given {}", arity, argc);
-                    return Err(PreprocessorError::BadMacroCall(call, definition.clone(), err));
+                    let err = format!(
+                        "expected {} arguments at call site, but given {}",
+                        arity, argc
+                    );
+                    return Err(PreprocessorError::BadMacroCall(
+                        call,
+                        definition.clone(),
+                        err,
+                    ));
                 }
                 let bindings = def
                     .variables
                     .as_ref()
                     .iter()
                     .flat_map(|i| i.iter().map(|v| v.symbol()))
-                    .zip(call.args.iter().flat_map(
-                        |i| i.iter().map(|a| &a.tokens[..]),
-                    ))
+                    .zip(
+                        call.args
+                            .iter()
+                            .flat_map(|i| i.iter().map(|a| &a.tokens[..])),
+                    )
                     .collect::<HashMap<_, _>>();
                 let expanded = self.expand_replacement(bindings, &def.replacement)?;
                 Ok(expanded)
@@ -215,9 +240,7 @@ where
         replacement: &[LexicalToken],
     ) -> Result<VecDeque<LexicalToken>> {
         let mut expanded = VecDeque::new();
-        let replacement_tokens: VecDeque<_> = replacement.iter()
-            .map(|t| Ok(t.clone()))
-            .collect();
+        let replacement_tokens: VecDeque<_> = replacement.iter().map(|t| Ok(t.clone())).collect();
         let mut reader = TokenBufferReader::new(self.codemap.clone(), replacement_tokens);
 
         loop {
@@ -229,7 +252,7 @@ where
             } else if let Some(stringify) = reader.try_read::<Stringify>()? {
                 let tokens = match bindings.get(&stringify.name.symbol()) {
                     None => return Err(PreprocessorError::UndefinedStringifyMacro(stringify)),
-                    Some(tokens) => tokens
+                    Some(tokens) => tokens,
                 };
                 let string = tokens.iter().map(|t| t.to_string()).collect::<String>();
                 let span = tokens[0].span();
@@ -239,16 +262,15 @@ where
                 expanded.push_back(token.into());
             } else if let Some(token) = reader.try_read_token()? {
                 match IdentToken::try_from(token.clone()) {
-                    Ok(ident) =>
-                        match bindings.get(&ident.symbol()) {
-                            Some(value) => {
-                                let nested = self.expand_replacement(HashMap::new(), value)?;
-                                expanded.extend(nested);
-                                continue;
-                            },
-                            None => ()
-                        },
-                    Err(_) => ()
+                    Ok(ident) => match bindings.get(&ident.symbol()) {
+                        Some(value) => {
+                            let nested = self.expand_replacement(HashMap::new(), value)?;
+                            expanded.extend(nested);
+                            continue;
+                        }
+                        None => (),
+                    },
+                    Err(_) => (),
                 }
                 expanded.push_back(token);
             } else {
@@ -267,11 +289,9 @@ where
 
         let ignore = self.ignore();
         match directive {
-            Directive::Module(ref d)  => {
-                self.macros.insert(
-                    symbols::Module,
-                    MacroDef::String(d.name.symbol())
-                );
+            Directive::Module(ref d) => {
+                self.macros
+                    .insert(symbols::Module, MacroDef::String(d.name.symbol()));
             }
             Directive::Include(ref d) if !ignore => {
                 let path = d.include();
@@ -282,10 +302,8 @@ where
                 self.reader.inject_include(path)?;
             }
             Directive::Define(ref d) if !ignore => {
-                self.macros.insert(
-                    d.name.symbol(),
-                    MacroDef::Static(d.clone()),
-                );
+                self.macros
+                    .insert(d.name.symbol(), MacroDef::Static(d.clone()));
             }
             Directive::Undef(ref d) if !ignore => {
                 self.macros.remove(&d.name());
@@ -302,17 +320,15 @@ where
                 let entered = !self.macros.contains_key(&d.name());
                 self.branches.push(Branch::new(entered));
             }
-            Directive::Else(_) => {
-                match self.branches.last_mut() {
-                    None => return Err(PreprocessorError::OrphanedElse(directive)),
-                    Some(branch) => {
-                        match branch.switch_to_else_branch() {
-                            Err(_) => return Err(PreprocessorError::OrphanedElse(directive)),
-                            Ok(_) => ()
-                        };
-                    }
+            Directive::Else(_) => match self.branches.last_mut() {
+                None => return Err(PreprocessorError::OrphanedElse(directive)),
+                Some(branch) => {
+                    match branch.switch_to_else_branch() {
+                        Err(_) => return Err(PreprocessorError::OrphanedElse(directive)),
+                        Ok(_) => (),
+                    };
                 }
-            }
+            },
             Directive::Elif(ref d) => {
                 // Treat this like -endif followed by -if(Cond)
                 match self.branches.pop() {
@@ -323,12 +339,10 @@ where
                     }
                 }
             }
-            Directive::Endif(_) => {
-                match self.branches.pop() {
-                    None => return Err(PreprocessorError::OrphanedEnd(directive)),
-                    Some(_) => ()
-                }
-            }
+            Directive::Endif(_) => match self.branches.pop() {
+                None => return Err(PreprocessorError::OrphanedEnd(directive)),
+                Some(_) => (),
+            },
             Directive::Error(ref d) if !ignore => {
                 let span = d.span();
                 let err = d.message.symbol().as_str().get().to_string();
@@ -347,8 +361,8 @@ where
                 let warn = d.message.symbol().as_str().get();
                 let diag = Diagnostic::new_warning("found warning directive")
                     .with_label(Label::new_primary(span).with_message(warn));
-                let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-                    .set_codemap(self.codemap.clone());
+                let emitter =
+                    StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(self.codemap.clone());
                 emitter.diagnostic(&diag).unwrap();
             }
             _ => {}
@@ -358,25 +372,23 @@ where
 
     fn eval_conditional(&self, span: ByteSpan, condition: VecDeque<Lexed>) -> Result<bool> {
         use crate::lexer::{symbols, Ident};
+        use crate::parser::ast::{Expr, Literal};
         use crate::parser::Parse;
-        use crate::parser::ast::{Literal, Expr};
         use crate::preprocessor::evaluator;
 
         let pp = self.clone_with(condition);
         let result = <Expr as Parse<Expr>>::parse_tokens(pp);
         match result {
-            Ok(expr) => {
-                match evaluator::eval(expr)? {
-                    Expr::Literal(Literal::Atom(Ident { ref name, .. })) if *name == symbols::True => Ok(true),
-                    Expr::Literal(Literal::Atom(Ident { ref name, .. })) if *name == symbols::False => Ok(false),
-                    _other => {
-                        return Err(PreprocessorError::InvalidConditional(span))
-                    },
+            Ok(expr) => match evaluator::eval(expr)? {
+                Expr::Literal(Literal::Atom(Ident { ref name, .. })) if *name == symbols::True => {
+                    Ok(true)
                 }
-            }
-            Err(errs) => {
-                return Err(PreprocessorError::ParseError(span, errs))
-            }
+                Expr::Literal(Literal::Atom(Ident { ref name, .. })) if *name == symbols::False => {
+                    Ok(false)
+                }
+                _other => return Err(PreprocessorError::InvalidConditional(span)),
+            },
+            Err(errs) => return Err(PreprocessorError::ParseError(span, errs)),
         }
     }
 }

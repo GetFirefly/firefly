@@ -2,18 +2,18 @@
 //! allows bidirectional lookup; i.e., given a value, one can easily find the
 //! type, and vice versa.
 #![allow(unused)]
-use std::fmt;
-use std::str;
-use std::cmp::{PartialEq, Ordering, PartialOrd, Ord};
-use std::hash::{Hash, Hasher};
-use std::sync::{Arc, RwLock};
 use std::cell::RefCell;
+use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
+use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::str;
+use std::sync::{Arc, RwLock};
 
 use lazy_static::lazy_static;
 use rustc_hash::FxHashMap;
 
 use liblumen_arena::DroplessArena;
-use liblumen_diagnostics::{DUMMY_SPAN, ByteSpan};
+use liblumen_diagnostics::{ByteSpan, DUMMY_SPAN};
 
 lazy_static! {
     /// A globally accessible symbol table
@@ -32,7 +32,7 @@ impl SymbolTable {
         }
     }
 }
-unsafe impl Sync for SymbolTable {  }
+unsafe impl Sync for SymbolTable {}
 
 #[derive(Copy, Clone, Eq)]
 pub struct Ident {
@@ -138,9 +138,7 @@ impl SymbolIndex {
         // max` is true (in which case we get the index 0).
         // It will also fail at runtime, of course, but in a
         // kind of wacky way.
-        let _ = ["out of range value used"][
-            !(n <= Self::MAX_AS_U32) as usize
-        ];
+        let _ = ["out of range value used"][!(n <= Self::MAX_AS_U32) as usize];
 
         SymbolIndex(n)
     }
@@ -186,14 +184,14 @@ impl Symbol {
     pub fn as_str(self) -> LocalInternedString {
         with_interner(|interner| unsafe {
             LocalInternedString {
-                string: ::std::mem::transmute::<&str, &str>(interner.get(self))
+                string: ::std::mem::transmute::<&str, &str>(interner.get(self)),
             }
         })
     }
 
     pub fn as_interned_str(self) -> InternedString {
         with_interner(|interner| InternedString {
-            symbol: interner.interned(self)
+            symbol: interner.interned(self),
         })
     }
 
@@ -225,7 +223,7 @@ impl fmt::Display for Symbol {
     }
 }
 
-impl<T: ::std::ops::Deref<Target=str>> PartialEq<T> for Symbol {
+impl<T: ::std::ops::Deref<Target = str>> PartialEq<T> for Symbol {
     fn eq(&self, other: &T) -> bool {
         self.as_str() == other.deref()
     }
@@ -268,14 +266,11 @@ impl Interner {
 
         // `from_utf8_unchecked` is safe since we just allocated a `&str` which is known to be
         // UTF-8.
-        let string: &str = unsafe {
-            str::from_utf8_unchecked(self.arena.alloc_slice(string.as_bytes()))
-        };
+        let string: &str =
+            unsafe { str::from_utf8_unchecked(self.arena.alloc_slice(string.as_bytes())) };
         // It is safe to extend the arena allocation to `'static` because we only access
         // these while the arena is still alive.
-        let string: &'static str =  unsafe {
-            &*(string as *const str)
-        };
+        let string: &'static str = unsafe { &*(string as *const str) };
         self.strings.push(string);
         self.names.insert(string, name);
         name
@@ -431,16 +426,22 @@ impl Ident {
 // If an interner exists, return it. Otherwise, prepare a fresh one.
 #[inline]
 fn with_interner<T, F: FnOnce(&mut Interner) -> T>(f: F) -> T {
-    let mut r = SYMBOL_TABLE.interner.write().expect("unable to acquire write lock for symbol table");
+    let mut r = SYMBOL_TABLE
+        .interner
+        .write()
+        .expect("unable to acquire write lock for symbol table");
     f(&mut *r)
     //GLOBALS.with(|globals| {
-        //f(&mut *globals.symbol_interner.lock().expect("symbol interner lock was held"))
+    //f(&mut *globals.symbol_interner.lock().expect("symbol interner lock was held"))
     //})
 }
 
 #[inline]
 fn with_read_only_interner<T, F: FnOnce(&Interner) -> T>(f: F) -> T {
-    let r = SYMBOL_TABLE.interner.read().expect("unable to acquire read lock for symbol table");
+    let r = SYMBOL_TABLE
+        .interner
+        .read()
+        .expect("unable to acquire read lock for symbol table");
     f(&*r)
 }
 
@@ -455,7 +456,7 @@ pub struct LocalInternedString {
 impl LocalInternedString {
     pub fn as_interned_str(self) -> InternedString {
         InternedString {
-            symbol: Symbol::intern(self.string)
+            symbol: Symbol::intern(self.string),
         }
     }
 
@@ -466,7 +467,7 @@ impl LocalInternedString {
 
 impl<U: ?Sized> ::std::convert::AsRef<U> for LocalInternedString
 where
-    str: ::std::convert::AsRef<U>
+    str: ::std::convert::AsRef<U>,
 {
     fn as_ref(&self) -> &U {
         self.string.as_ref()
@@ -508,7 +509,9 @@ impl !Sync for LocalInternedString {}
 
 impl ::std::ops::Deref for LocalInternedString {
     type Target = str;
-    fn deref(&self) -> &str { self.string }
+    fn deref(&self) -> &str {
+        self.string
+    }
 }
 
 impl fmt::Debug for LocalInternedString {
@@ -531,9 +534,7 @@ pub struct InternedString {
 
 impl InternedString {
     pub fn with<F: FnOnce(&str) -> R, R>(self, f: F) -> R {
-        let str = with_interner(|interner| {
-            interner.get(self.symbol) as *const str
-        });
+        let str = with_interner(|interner| interner.get(self.symbol) as *const str);
         // This is safe because the interner keeps string alive until it is dropped.
         // We can access it because we know the interner is still alive since we use a
         // scoped thread local to access it, and it was alive at the beginning of this scope

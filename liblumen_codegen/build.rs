@@ -1,7 +1,7 @@
 extern crate cc;
 
 use std::env;
-use std::path::{Path,PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 fn main() {
@@ -20,7 +20,9 @@ fn main() {
         return;
     }
 
-    let home = env::var_os("HOME").map(PathBuf::from).expect("HOME was not set");
+    let home = env::var_os("HOME")
+        .map(PathBuf::from)
+        .expect("HOME was not set");
     let target = env::var("TARGET").expect("TARGET was not set");
     let host = env::var("HOST").expect("HOST was not set");
     let is_crossed = target != host;
@@ -41,7 +43,9 @@ fn main() {
     let llvm_config = env::var_os("LLVM_CONFIG")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            Path::new(&llvm_prefix).join("bin/llvm-config").to_path_buf()
+            Path::new(&llvm_prefix)
+                .join("bin/llvm-config")
+                .to_path_buf()
         });
 
     println!("cargo:rerun-if-changed={}", llvm_config.display());
@@ -65,19 +69,18 @@ fn main() {
     }
 
     rerun_if_changed_anything_in_dir(Path::new("c_src"));
-    build.file("c_src/LLDWrapper.cpp")
-         .include(llvm_include)
-         .include(lld_include)
-         .cpp(true)
-         .cpp_link_stdlib(None)
-         .compile("liblumen_lld");
+    build
+        .file("c_src/LLDWrapper.cpp")
+        .include(llvm_include)
+        .include(lld_include)
+        .cpp(true)
+        .cpp_link_stdlib(None)
+        .compile("liblumen_lld");
 
     // LLD specific flags, needed in order to use lld functions via FFI
     //println!("cargo:rustc-link-lib=static=lldConfig");
     //println!("cargo:rustc-link-lib=static=lldELF");
 }
-
-
 
 pub fn output(cmd: &mut Command) -> String {
     let output = match cmd.stderr(Stdio::inherit()).output() {
@@ -98,7 +101,8 @@ pub fn output(cmd: &mut Command) -> String {
 }
 
 pub fn rerun_if_changed_anything_in_dir(dir: &Path) {
-    let mut stack = dir.read_dir()
+    let mut stack = dir
+        .read_dir()
         .unwrap()
         .map(|e| e.unwrap())
         .filter(|e| &*e.file_name() != ".git")

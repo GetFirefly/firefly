@@ -3,13 +3,12 @@ use liblumen_diagnostics::{ByteIndex, ByteSpan};
 use super::source::Source;
 
 /// An implementation of `Scanner` for general use
-pub struct Scanner<S>
-{
+pub struct Scanner<S> {
     source: S,
     current: (ByteIndex, char),
     pending: (ByteIndex, char),
     start: ByteIndex,
-    end: ByteIndex
+    end: ByteIndex,
 }
 impl<S> Scanner<S>
 where
@@ -39,7 +38,7 @@ where
         self.current = self.pending;
         self.pending = match self.source.read() {
             None => (self.end, '\0'),
-            Some(ic) => ic
+            Some(ic) => ic,
         };
     }
 
@@ -51,19 +50,25 @@ where
     }
 
     #[inline]
-    pub fn peek(&self) -> (ByteIndex, char) { self.pending }
+    pub fn peek(&self) -> (ByteIndex, char) {
+        self.pending
+    }
 
     #[inline]
     pub fn peek_next(&mut self) -> (ByteIndex, char) {
         match self.source.peek() {
             None => (self.end, '\0'),
-            Some((pos, c)) => (pos, c)
+            Some((pos, c)) => (pos, c),
         }
     }
 
     #[inline]
-    pub fn read(&self) -> (ByteIndex, char) { self.current }
+    pub fn read(&self) -> (ByteIndex, char) {
+        self.current
+    }
 
     #[inline]
-    pub fn slice(&self, span: ByteSpan) -> &str { self.source.slice(span) }
+    pub fn slice(&self, span: ByteSpan) -> &str {
+        self.source.slice(span)
+    }
 }

@@ -75,7 +75,8 @@ impl<I: Index> Span<I> {
         }
     }
 
-    /// Create a new span from this one by shrinking the front of the span, i.e. increasing it by some offset
+    /// Create a new span from this one by shrinking the front of the span, i.e. increasing it by
+    /// some offset
     #[inline]
     pub fn shrink_front(self, shift: I::Offset) -> Span<I> {
         Span::new(self.start() + shift, self.end())
@@ -93,9 +94,18 @@ impl<I: Index> Span<I> {
     /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
     ///
     /// let span = Span::new(ByteIndex(3), ByteIndex(6));
-    /// assert_eq!(span.with_start(ByteIndex(2)), Span::new(ByteIndex(2), ByteIndex(6)));
-    /// assert_eq!(span.with_start(ByteIndex(5)), Span::new(ByteIndex(5), ByteIndex(6)));
-    /// assert_eq!(span.with_start(ByteIndex(7)), Span::new(ByteIndex(6), ByteIndex(7)));
+    /// assert_eq!(
+    ///     span.with_start(ByteIndex(2)),
+    ///     Span::new(ByteIndex(2), ByteIndex(6))
+    /// );
+    /// assert_eq!(
+    ///     span.with_start(ByteIndex(5)),
+    ///     Span::new(ByteIndex(5), ByteIndex(6))
+    /// );
+    /// assert_eq!(
+    ///     span.with_start(ByteIndex(7)),
+    ///     Span::new(ByteIndex(6), ByteIndex(7))
+    /// );
     /// ```
     #[inline]
     pub fn with_start(self, start: I) -> Span<I> {
@@ -108,9 +118,18 @@ impl<I: Index> Span<I> {
     /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
     ///
     /// let span = Span::new(ByteIndex(3), ByteIndex(6));
-    /// assert_eq!(span.with_end(ByteIndex(7)), Span::new(ByteIndex(3), ByteIndex(7)));
-    /// assert_eq!(span.with_end(ByteIndex(5)), Span::new(ByteIndex(3), ByteIndex(5)));
-    /// assert_eq!(span.with_end(ByteIndex(2)), Span::new(ByteIndex(2), ByteIndex(3)));
+    /// assert_eq!(
+    ///     span.with_end(ByteIndex(7)),
+    ///     Span::new(ByteIndex(3), ByteIndex(7))
+    /// );
+    /// assert_eq!(
+    ///     span.with_end(ByteIndex(5)),
+    ///     Span::new(ByteIndex(3), ByteIndex(5))
+    /// );
+    /// assert_eq!(
+    ///     span.with_end(ByteIndex(2)),
+    ///     Span::new(ByteIndex(2), ByteIndex(3))
+    /// );
     /// ```
     #[inline]
     pub fn with_end(self, end: I) -> Span<I> {
@@ -263,4 +282,7 @@ impl<I: fmt::Display> fmt::Display for Span<I> {
 /// A span of byte indices
 pub type ByteSpan = Span<ByteIndex>;
 
-pub const DUMMY_SPAN: Span<ByteIndex> = Span { start: ByteIndex(0), end: ByteIndex(0) };
+pub const DUMMY_SPAN: Span<ByteIndex> = Span {
+    start: ByteIndex(0),
+    end: ByteIndex(0),
+};

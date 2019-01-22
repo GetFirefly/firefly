@@ -23,20 +23,13 @@ pub enum DecodeError {
     IO(#[fail(cause)] std::io::Error),
 
     #[fail(display = "unsupported version '{}'", version)]
-    UnsupportedVersion {
-        version: u8,
-    },
+    UnsupportedVersion { version: u8 },
 
     #[fail(display = "unknown tag: '{}'", tag)]
-    UnknownTag {
-        tag: u8,
-    },
+    UnknownTag { tag: u8 },
 
     #[fail(display = "unexpected type! {} is not a {}", value, expected)]
-    UnexpectedType {
-        value: Term,
-        expected: String,
-    },
+    UnexpectedType { value: Term, expected: String },
 
     #[fail(display = "{} is out of range {:?}", value, range)]
     OutOfRange {
@@ -115,14 +108,14 @@ pub struct Decoder<R> {
 impl<R: std::io::Read> Decoder<R> {
     pub fn new(reader: R) -> Self {
         Decoder {
-            reader: reader,
+            reader,
             buf: Vec::new(),
         }
     }
     pub fn decode(mut self) -> DecodeResult {
         let version = self.reader.read_u8()?;
         if version != VERSION {
-            return Err(DecodeError::UnsupportedVersion { version: version });
+            return Err(DecodeError::UnsupportedVersion { version });
         }
         let tag = self.reader.read_u8()?;
         match tag {
@@ -163,7 +156,7 @@ impl<R: std::io::Read> Decoder<R> {
             FUN_EXT => self.decode_fun_ext(),
             ATOM_UTF8_EXT => self.decode_atom_utf8_ext(),
             SMALL_ATOM_UTF8_EXT => self.decode_small_atom_utf8_ext(),
-            _ => Err(DecodeError::UnknownTag { tag: tag }),
+            _ => Err(DecodeError::UnknownTag { tag }),
         }
     }
     fn decode_compressed_term(&mut self) -> DecodeResult {
@@ -246,7 +239,7 @@ impl<R: std::io::Read> Decoder<R> {
     fn decode_pid_ext(&mut self) -> DecodeResult {
         let node = self.decode_term().and_then(aux::term_into_atom)?;
         Ok(Term::from(Pid {
-            node: node,
+            node,
             id: self.reader.read_u32::<BigEndian>()?,
             serial: self.reader.read_u32::<BigEndian>()?,
             creation: self.reader.read_u8()?,
@@ -260,7 +253,7 @@ impl<R: std::io::Read> Decoder<R> {
             })
         })?;
         Ok(Term::from(Port {
-            node: node,
+            node,
             id: self.reader.read_u32::<BigEndian>()?,
             creation: self.reader.read_u8()?,
         }))
@@ -268,7 +261,7 @@ impl<R: std::io::Read> Decoder<R> {
     fn decode_reference_ext(&mut self) -> DecodeResult {
         let node = self.decode_term().and_then(aux::term_into_atom)?;
         Ok(Term::from(Reference {
-            node: node,
+            node,
             id: vec![self.reader.read_u32::<BigEndian>()?],
             creation: self.reader.read_u8()?,
         }))
@@ -281,11 +274,7 @@ impl<R: std::io::Read> Decoder<R> {
         for _ in 0..id_count {
             id.push(self.reader.read_u32::<BigEndian>()?);
         }
-        Ok(Term::from(Reference {
-            node: node,
-            id: id,
-            creation: creation,
-        }))
+        Ok(Term::from(Reference { node, id, creation }))
     }
     fn decode_export_ext(&mut self) -> DecodeResult {
         let module = self.decode_term().and_then(aux::term_into_atom)?;
@@ -294,9 +283,9 @@ impl<R: std::io::Read> Decoder<R> {
             .decode_term()
             .and_then(|t| aux::term_into_ranged_integer(t, 0..0xFF))? as u8;
         Ok(Term::from(ExternalFun {
-            module: module,
-            function: function,
-            arity: arity,
+            module,
+            function,
+            arity,
         }))
     }
     fn decode_fun_ext(&mut self) -> DecodeResult {
@@ -310,8 +299,8 @@ impl<R: std::io::Read> Decoder<R> {
             vars.push(self.decode_term()?);
         }
         Ok(Term::from(InternalFun::Old {
-            module: module,
-            pid: pid,
+            module,
+            pid,
             free_vars: vars,
             index: index.value,
             uniq: uniq.value,
@@ -333,12 +322,12 @@ impl<R: std::io::Read> Decoder<R> {
             vars.push(self.decode_term()?);
         }
         Ok(Term::from(InternalFun::New {
-            module: module,
-            arity: arity,
-            pid: pid,
+            module,
+            arity,
+            pid,
             free_vars: vars,
-            index: index,
-            uniq: uniq,
+            index,
+            uniq,
             old_index: old_index.value,
             old_uniq: old_uniq.value,
         }))
@@ -372,7 +361,7 @@ impl<R: std::io::Read> Decoder<R> {
         self.buf.resize(count, 0);
         self.reader.read_exact(&mut self.buf)?;
         let value = BigInt::from_bytes_le(aux::byte_to_sign(sign)?, &self.buf);
-        Ok(Term::from(BigInteger { value: value }))
+        Ok(Term::from(BigInteger { value }))
     }
     fn decode_large_big_ext(&mut self) -> DecodeResult {
         let count = self.reader.read_u32::<BigEndian>()? as usize;
@@ -380,21 +369,21 @@ impl<R: std::io::Read> Decoder<R> {
         self.buf.resize(count, 0);
         self.reader.read_exact(&mut self.buf)?;
         let value = BigInt::from_bytes_le(aux::byte_to_sign(sign)?, &self.buf);
-        Ok(Term::from(BigInteger { value: value }))
+        Ok(Term::from(BigInteger { value }))
     }
     fn decode_atom_ext(&mut self) -> DecodeResult {
         let len = self.reader.read_u16::<BigEndian>()?;
         self.buf.resize(len as usize, 0);
         self.reader.read_exact(&mut self.buf)?;
         let name = aux::latin1_bytes_to_string(&self.buf)?;
-        Ok(Term::from(Atom { name: name }))
+        Ok(Term::from(Atom { name }))
     }
     fn decode_small_atom_ext(&mut self) -> DecodeResult {
         let len = self.reader.read_u8()?;
         self.buf.resize(len as usize, 0);
         self.reader.read_exact(&mut self.buf)?;
         let name = aux::latin1_bytes_to_string(&self.buf)?;
-        Ok(Term::from(Atom { name: name }))
+        Ok(Term::from(Atom { name }))
     }
     fn decode_atom_utf8_ext(&mut self) -> DecodeResult {
         let len = self.reader.read_u16::<BigEndian>()?;
@@ -419,7 +408,7 @@ pub struct Encoder<W> {
 }
 impl<W: std::io::Write> Encoder<W> {
     pub fn new(writer: W) -> Self {
-        Encoder { writer: writer }
+        Encoder { writer }
     }
     pub fn encode(mut self, term: &Term) -> EncodeResult {
         self.writer.write_u8(VERSION)?;

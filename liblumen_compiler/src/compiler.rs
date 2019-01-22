@@ -1,23 +1,23 @@
-use std::path::{Path, PathBuf};
-use std::fmt::Display;
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use failure::{format_err, Error};
 
-use liblumen_diagnostics::{Emitter, NullEmitter, StandardStreamEmitter, ColorSpec};
+use liblumen_diagnostics::emitter::{cyan, green, green_bold, white, yellow, yellow_bold};
+use liblumen_diagnostics::{ColorSpec, Emitter, NullEmitter, StandardStreamEmitter};
 use liblumen_diagnostics::{Diagnostic, Severity};
-use liblumen_diagnostics::emitter::{green, green_bold, yellow, yellow_bold, white, cyan};
 
 use liblumen_syntax::ast::Module;
 use liblumen_syntax::{Parser, Symbol};
 
+use liblumen_codegen as codegen;
 use liblumen_common as common;
 use liblumen_core as core;
-use liblumen_codegen as codegen;
 
+use super::config::{CompilerMode, CompilerSettings, Verbosity};
 use super::errors::CompilerError;
-use super::config::{CompilerSettings, CompilerMode, Verbosity};
 
 /// The result produced by compiler functions
 pub type CompileResult = Result<(), Error>;
@@ -28,7 +28,10 @@ pub struct CompilationInfo {
 }
 impl CompilationInfo {
     pub fn new() -> Self {
-        CompilationInfo { num_modules: 0, compilation_time: 0 }
+        CompilationInfo {
+            num_modules: 0,
+            compilation_time: 0,
+        }
     }
 }
 
@@ -44,7 +47,7 @@ impl Compiler {
             v => Arc::new(
                 StandardStreamEmitter::new(config.color)
                     .set_codemap(config.codemap.clone())
-                    .set_min_severity(verbosity_to_severity(v))
+                    .set_min_severity(verbosity_to_severity(v)),
             ),
         };
         let info = CompilationInfo::new();
@@ -66,7 +69,13 @@ impl Compiler {
         //let info = codegen::run(&config, modules, codegen::OutputType::IR)?;
 
         self.write_info(green_bold(), "Compilation successful!\n");
-        self.write_info(green(), format!("Compiled {} modules in {}", self.info.num_modules, self.info.compilation_time));
+        self.write_info(
+            green(),
+            format!(
+                "Compiled {} modules in {}",
+                self.info.num_modules, self.info.compilation_time
+            ),
+        );
 
         Ok(())
     }
@@ -84,7 +93,8 @@ impl Compiler {
         };
 
         fn is_hidden(entry: &DirEntry) -> bool {
-            entry.file_name()
+            entry
+                .file_name()
                 .to_str()
                 .map(|s| s.starts_with("."))
                 .unwrap_or(false)
@@ -123,33 +133,43 @@ impl Compiler {
 
     // Compiles a BEAM file to a Module
     fn parse_beam(&self, _file: &Path) -> Result<Module, Error> {
-        Err(format_err!("Currently, compiler support for BEAM files is unimplemented"))
+        Err(format_err!(
+            "Currently, compiler support for BEAM files is unimplemented"
+        ))
     }
 
     // Compiles a .erl file to Erlang AST
     fn parse_erl(&self, parser: &mut Parser, file: &Path) -> Result<Module, Error> {
         match parser.parse_file::<&Path, Module>(file) {
-            Ok(module) =>
-                Ok(module),
-            Err(errs) =>
-                Err(CompilerError::Parser { codemap: self.config.codemap.clone(), errs }.into())
+            Ok(module) => Ok(module),
+            Err(errs) => Err(CompilerError::Parser {
+                codemap: self.config.codemap.clone(),
+                errs,
+            }
+            .into()),
         }
     }
 
     #[inline]
     fn write_warning<M: Display>(&self, color: ColorSpec, message: M) {
-        self.emitter.warn(Some(color), &message.to_string()).unwrap();
+        self.emitter
+            .warn(Some(color), &message.to_string())
+            .unwrap();
     }
 
     #[inline]
     fn write_info<M: Display>(&self, color: ColorSpec, message: M) {
-        self.emitter.emit(Some(color), &message.to_string()).unwrap();
+        self.emitter
+            .emit(Some(color), &message.to_string())
+            .unwrap();
     }
 
     #[allow(unused)]
     #[inline]
     fn write_debug<M: Display>(&self, color: ColorSpec, message: M) {
-        self.emitter.debug(Some(color), &message.to_string()).unwrap();
+        self.emitter
+            .debug(Some(color), &message.to_string())
+            .unwrap();
     }
 }
 impl common::compiler::Compiler for Compiler {

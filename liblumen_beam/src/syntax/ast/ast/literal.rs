@@ -14,10 +14,7 @@ pub struct Integer {
 impl_node!(Integer);
 impl Integer {
     pub fn new(line: LineNum, value: BigUint) -> Self {
-        Integer {
-            line: line,
-            value: value,
-        }
+        Integer { line, value }
     }
     pub fn to_u64(&self) -> Option<u64> {
         self.value.to_u64()
@@ -32,10 +29,7 @@ pub struct Char {
 impl_node!(Char);
 impl Char {
     pub fn new(line: LineNum, value: char) -> Self {
-        Char {
-            line: line,
-            value: value,
-        }
+        Char { line, value }
     }
 }
 
@@ -47,10 +41,7 @@ pub struct Float {
 impl_node!(Float);
 impl Float {
     pub fn new(line: LineNum, value: f64) -> Self {
-        Float {
-            line: line,
-            value: value,
-        }
+        Float { line, value }
     }
 }
 
@@ -62,10 +53,7 @@ pub struct Str {
 impl_node!(Str);
 impl Str {
     pub fn new(line: LineNum, value: String) -> Self {
-        Str {
-            line: line,
-            value: value,
-        }
+        Str { line, value }
     }
 }
 
@@ -77,9 +65,6 @@ pub struct Atom {
 impl_node!(Atom);
 impl Atom {
     pub fn new(line: LineNum, value: String) -> Self {
-        Atom {
-            line: line,
-            value: value,
-        }
+        Atom { line, value }
     }
 }

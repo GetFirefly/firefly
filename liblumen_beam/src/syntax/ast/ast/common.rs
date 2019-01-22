@@ -10,11 +10,7 @@ pub struct Match<L, R> {
 impl_node!(Match<T,U>);
 impl<L, R> Match<L, R> {
     pub fn new(line: LineNum, left: L, right: R) -> Self {
-        Match {
-            line: line,
-            left: left,
-            right: right,
-        }
+        Match { line, left, right }
     }
 }
 
@@ -26,10 +22,7 @@ pub struct Tuple<T> {
 impl_node!(Tuple<T>);
 impl<T> Tuple<T> {
     pub fn new(line: LineNum, elements: Vec<T>) -> Self {
-        Tuple {
-            line: line,
-            elements: elements,
-        }
+        Tuple { line, elements }
     }
 }
 
@@ -40,7 +33,7 @@ pub struct Nil {
 impl_node!(Nil);
 impl Nil {
     pub fn new(line: LineNum) -> Self {
-        Nil { line: line }
+        Nil { line }
     }
 }
 
@@ -53,11 +46,7 @@ pub struct Cons<T> {
 impl_node!(Cons<T>);
 impl<T> Cons<T> {
     pub fn new(line: LineNum, head: T, tail: T) -> Self {
-        Cons {
-            line: line,
-            head: head,
-            tail: tail,
-        }
+        Cons { line, head, tail }
     }
 }
 
@@ -69,10 +58,7 @@ pub struct Binary<T> {
 impl_node!(Binary<T>);
 impl<T> Binary<T> {
     pub fn new(line: LineNum, elements: Vec<BinElement<T>>) -> Self {
-        Binary {
-            line: line,
-            elements: elements,
-        }
+        Binary { line, elements }
     }
 }
 
@@ -87,8 +73,8 @@ impl_node!(BinElement<T>);
 impl<T> BinElement<T> {
     pub fn new(line: LineNum, element: T) -> Self {
         BinElement {
-            line: line,
-            element: element,
+            line,
+            element,
             size: None,
             tsl: None,
         }
@@ -110,10 +96,7 @@ pub struct BinElementTypeSpec {
 }
 impl BinElementTypeSpec {
     pub fn new(name: String, value: Option<u64>) -> Self {
-        BinElementTypeSpec {
-            name: name,
-            value: value,
-        }
+        BinElementTypeSpec { name, value }
     }
 }
 
@@ -127,9 +110,9 @@ impl_node!(UnaryOp<T>);
 impl<T> UnaryOp<T> {
     pub fn new(line: LineNum, operator: String, operand: T) -> Self {
         UnaryOp {
-            line: line,
-            operator: operator,
-            operand: operand,
+            line,
+            operator,
+            operand,
         }
     }
 }
@@ -145,10 +128,10 @@ impl_node!(BinaryOp<T>);
 impl<T> BinaryOp<T> {
     pub fn new(line: LineNum, operator: String, left_operand: T, right_operand: T) -> Self {
         BinaryOp {
-            line: line,
-            operator: operator,
-            left_operand: left_operand,
-            right_operand: right_operand,
+            line,
+            operator,
+            left_operand,
+            right_operand,
         }
     }
 }
@@ -164,10 +147,10 @@ impl_node!(Record<T>);
 impl<T> Record<T> {
     pub fn new(line: LineNum, name: String, fields: Vec<RecordField<T>>) -> Self {
         Record {
-            line: line,
+            line,
             base: None,
-            name: name,
-            fields: fields,
+            name,
+            fields,
         }
     }
     pub fn base(mut self, base: expr::Expression) -> Self {
@@ -185,11 +168,7 @@ pub struct RecordField<T> {
 impl_node!(RecordField<T>);
 impl<T> RecordField<T> {
     pub fn new(line: LineNum, name: Option<String>, value: T) -> Self {
-        RecordField {
-            line: line,
-            name: name,
-            value: value,
-        }
+        RecordField { line, name, value }
     }
 }
 
@@ -204,9 +183,9 @@ impl_node!(RecordIndex<T>);
 impl<T> RecordIndex<T> {
     pub fn new(line: LineNum, record: String, field: String) -> Self {
         RecordIndex {
-            line: line,
-            record: record,
-            field: field,
+            line,
+            record,
+            field,
             base: None,
         }
     }
@@ -226,9 +205,9 @@ impl_node!(Map<T>);
 impl<T> Map<T> {
     pub fn new(line: LineNum, pairs: Vec<MapPair<T>>) -> Self {
         Map {
-            line: line,
+            line,
             base: None,
-            pairs: pairs,
+            pairs,
         }
     }
     pub fn base(mut self, base: expr::Expression) -> Self {
@@ -248,10 +227,10 @@ impl_node!(MapPair<T>);
 impl<T> MapPair<T> {
     pub fn new(line: LineNum, is_assoc: bool, key: T, value: T) -> Self {
         MapPair {
-            line: line,
-            is_assoc: is_assoc,
-            key: key,
-            value: value,
+            line,
+            is_assoc,
+            key,
+            value,
         }
     }
 }
@@ -266,9 +245,9 @@ impl_node!(LocalCall<T>);
 impl<T> LocalCall<T> {
     pub fn new(line: LineNum, function: T, args: Vec<T>) -> Self {
         LocalCall {
-            line: line,
-            function: function,
-            args: args,
+            line,
+            function,
+            args,
         }
     }
 }
@@ -284,10 +263,10 @@ impl_node!(RemoteCall<T>);
 impl<T> RemoteCall<T> {
     pub fn new(line: LineNum, module: T, function: T, args: Vec<T>) -> Self {
         RemoteCall {
-            line: line,
-            module: module,
-            function: function,
-            args: args,
+            line,
+            module,
+            function,
+            args,
         }
     }
 }
@@ -302,9 +281,9 @@ impl_node!(InternalFun);
 impl InternalFun {
     pub fn new(line: LineNum, function: String, arity: Arity) -> Self {
         InternalFun {
-            line: line,
-            function: function,
-            arity: arity,
+            line,
+            function,
+            arity,
         }
     }
 }
@@ -325,10 +304,10 @@ impl ExternalFun {
         arity: expr::Expression,
     ) -> Self {
         ExternalFun {
-            line: line,
-            module: module,
-            function: function,
-            arity: arity,
+            line,
+            module,
+            function,
+            arity,
         }
     }
 }
@@ -341,10 +320,7 @@ pub struct Var {
 impl_node!(Var);
 impl Var {
     pub fn new(line: LineNum, name: String) -> Self {
-        Var {
-            line: line,
-            name: name,
-        }
+        Var { line, name }
     }
     pub fn is_anonymous(&self) -> bool {
         self.name == "_"

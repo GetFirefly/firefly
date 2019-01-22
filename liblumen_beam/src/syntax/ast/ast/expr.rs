@@ -126,10 +126,7 @@ pub struct Catch {
 impl_node!(Catch);
 impl Catch {
     pub fn new(line: LineNum, expr: Expression) -> Self {
-        Catch {
-            line: line,
-            expr: expr,
-        }
+        Catch { line, expr }
     }
 }
 
@@ -141,10 +138,7 @@ pub struct If {
 impl_node!(If);
 impl If {
     pub fn new(line: LineNum, clauses: Vec<clause::Clause>) -> Self {
-        If {
-            line: line,
-            clauses: clauses,
-        }
+        If { line, clauses }
     }
 }
 
@@ -158,9 +152,9 @@ impl_node!(Case);
 impl Case {
     pub fn new(line: LineNum, expr: Expression, clauses: Vec<clause::Clause>) -> Self {
         Case {
-            line: line,
-            expr: expr,
-            clauses: clauses,
+            line,
+            expr,
+            clauses,
         }
     }
 }
@@ -183,11 +177,11 @@ impl Try {
         after: Vec<Expression>,
     ) -> Self {
         Try {
-            line: line,
-            body: body,
-            case_clauses: case_clauses,
-            catch_clauses: catch_clauses,
-            after: after,
+            line,
+            body,
+            case_clauses,
+            catch_clauses,
+            after,
         }
     }
 }
@@ -203,8 +197,8 @@ impl_node!(Receive);
 impl Receive {
     pub fn new(line: LineNum, clauses: Vec<clause::Clause>) -> Self {
         Receive {
-            line: line,
-            clauses: clauses,
+            line,
+            clauses,
             timeout: None,
             after: Vec::new(),
         }
@@ -227,10 +221,7 @@ pub struct Block {
 impl_node!(Block);
 impl Block {
     pub fn new(line: LineNum, body: Vec<Expression>) -> Self {
-        Block {
-            line: line,
-            body: body,
-        }
+        Block { line, body }
     }
 }
 
@@ -245,10 +236,10 @@ impl_node!(Comprehension);
 impl Comprehension {
     pub fn new(line: LineNum, is_list: bool, expr: Expression, qualifiers: Vec<Qualifier>) -> Self {
         Comprehension {
-            line: line,
-            is_list: is_list,
-            expr: expr,
-            qualifiers: qualifiers,
+            line,
+            is_list,
+            expr,
+            qualifiers,
         }
     }
 }
@@ -270,9 +261,9 @@ impl_node!(Generator);
 impl Generator {
     pub fn new(line: LineNum, pattern: pat::Pattern, expr: Expression) -> Self {
         Generator {
-            line: line,
-            pattern: pattern,
-            expr: expr,
+            line,
+            pattern,
+            expr,
         }
     }
 }
@@ -287,9 +278,9 @@ impl_node!(AnonymousFun);
 impl AnonymousFun {
     pub fn new(line: LineNum, clauses: Vec<clause::Clause>) -> Self {
         AnonymousFun {
-            line: line,
+            line,
             name: None,
-            clauses: clauses,
+            clauses,
         }
     }
     pub fn name(mut self, name: String) -> Self {

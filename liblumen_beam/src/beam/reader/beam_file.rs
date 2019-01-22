@@ -13,11 +13,14 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 /// A BEAM File
 ///
 /// ```
-/// use reader::BeamFile;
 /// use reader::chunk::{Chunk, RawChunk};
+/// use reader::BeamFile;
 ///
 /// let beam = BeamFile::<RawChunk>::from_file("tests/testdata/test.beam").unwrap();
-/// assert_eq!(b"Atom", beam.chunks().iter().nth(0).map(|c| c.id()).unwrap());
+/// assert_eq!(
+///     b"Atom",
+///     beam.chunks().iter().nth(0).map(|c| c.id()).unwrap()
+/// );
 /// ```
 #[derive(Debug)]
 pub struct BeamFile<C> {
@@ -29,10 +32,7 @@ impl<C: Chunk> BeamFile<C> {
     pub fn new() -> BeamFile<C> {
         let chunks: HashMap<Id, C> = HashMap::new();
         let order: Vec<Id> = Vec::new();
-        BeamFile {
-            chunks: chunks,
-            order: order,
-        }
+        BeamFile { chunks, order }
     }
     /// Adds a chunk to the BEAM file
     pub fn push_chunk(&mut self, chunk: C) {
@@ -64,7 +64,7 @@ impl<C: Chunk> BeamFile<C> {
     ///         Some(StandardChunk::Atom(AtomChunk { atoms: _, is_unicode: false })) =>
     ///           {}
     ///         other =>
-    ///           assert!(false, "assertion failed: expected Some(AtomChunk {{ atoms: _, is_unicode: false }}), got: {:?}", other)
+    ///           assert!(false, "assertion failed: got:{:?}", other)
     ///     }
     ///
     /// ## Alternative Implementations
@@ -121,10 +121,7 @@ impl<C: Chunk> BeamFile<C> {
             order.push(*c.id());
             chunks.insert(*c.id(), c);
         }
-        Ok(BeamFile {
-            chunks: chunks,
-            order: order,
-        })
+        Ok(BeamFile { chunks, order })
     }
 
     pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
@@ -153,7 +150,7 @@ impl Header {
     fn new(payload_size: u32) -> Self {
         Header {
             magic_number: *b"FOR1",
-            payload_size: payload_size,
+            payload_size,
             type_id: *b"BEAM",
         }
     }

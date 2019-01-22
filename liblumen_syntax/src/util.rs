@@ -1,6 +1,6 @@
+use crate::lexer::SourceError;
 use std::env;
 use std::path::{Path, PathBuf};
-use crate::lexer::SourceError;
 
 pub fn substitute_path_variables<P: AsRef<Path>>(path: P) -> Result<PathBuf, SourceError> {
     let mut new = PathBuf::new();
@@ -13,8 +13,9 @@ pub fn substitute_path_variables<P: AsRef<Path>>(path: P) -> Result<PathBuf, Sou
                         new.push(c);
                         continue;
                     }
-                    Err(e) =>
-                        return Err(SourceError::InvalidEnvironmentVariable(e, var.to_owned())),
+                    Err(e) => {
+                        return Err(SourceError::InvalidEnvironmentVariable(e, var.to_owned()));
+                    }
                 }
             }
         }

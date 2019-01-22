@@ -1,29 +1,50 @@
-use std::str::FromStr;
 use std::error::Error;
+use std::str::FromStr;
 
 use rug::Integer;
 
-use liblumen_diagnostics::{ByteSpan, ByteIndex, ByteOffset};
+use liblumen_diagnostics::{ByteIndex, ByteOffset, ByteSpan};
 
-use super::source::Source;
-use super::scanner::Scanner;
 use super::errors::LexicalError;
+use super::scanner::Scanner;
+use super::source::Source;
 use super::token::*;
 use super::{Lexed, Symbol};
 
 macro_rules! pop {
-    ($lex:ident) => ({ $lex.skip(); });
-    ($lex:ident, $code:expr) => ({ $lex.skip(); $code })
+    ($lex:ident) => {{
+        $lex.skip();
+    }};
+    ($lex:ident, $code:expr) => {{
+        $lex.skip();
+        $code
+    }};
 }
 
 macro_rules! pop2 {
-    ($lex:ident) => ({ $lex.skip(); $lex.skip(); });
-    ($lex:ident, $code:expr) => ({ $lex.skip(); $lex.skip(); $code })
+    ($lex:ident) => {{
+        $lex.skip();
+        $lex.skip();
+    }};
+    ($lex:ident, $code:expr) => {{
+        $lex.skip();
+        $lex.skip();
+        $code
+    }};
 }
 
 macro_rules! pop3 {
-    ($lex:ident) => ({ $lex.skip(); $lex.skip(); $lex.skip() });
-    ($lex:ident, $code:expr) => ({ $lex.skip(); $lex.skip(); $lex.skip(); $code })
+    ($lex:ident) => {{
+        $lex.skip();
+        $lex.skip();
+        $lex.skip()
+    }};
+    ($lex:ident, $code:expr) => {{
+        $lex.skip();
+        $lex.skip();
+        $lex.skip();
+        $code
+    }};
 }
 
 /// The lexer that is used to perform lexical analysis on the Erlang grammar. The lexer implements
@@ -35,9 +56,9 @@ macro_rules! pop3 {
 /// to get tokens even if a lexical error occurs. The lexer will attempt to recover from an error
 /// by injecting tokens it expects.
 ///
-/// If an error is unrecoverable, the lexer will continue to produce tokens, but there is no guarantee
-/// that parsing them will produce meaningful results, it is primarily to assist in gathering as
-/// many errors as possible.
+/// If an error is unrecoverable, the lexer will continue to produce tokens, but there is no
+/// guarantee that parsing them will produce meaningful results, it is primarily to assist in
+/// gathering as many errors as possible.
 pub struct Lexer<S> {
     /// The scanner produces a sequence of chars + location, and can be controlled
     /// The location produces is a ByteIndex
@@ -89,7 +110,11 @@ where
         let result = if let Token::Error(err) = token {
             Some(Err(err))
         } else {
-            Some(Ok(LexicalToken(self.token_start.clone(), token, self.token_end.clone())))
+            Some(Ok(LexicalToken(
+                self.token_start.clone(),
+                token,
+                self.token_end.clone(),
+            )))
         };
 
         self.advance();
@@ -112,7 +137,7 @@ where
 
             if c == '\0' {
                 self.eof = true;
-                return
+                return;
             }
 
             if c.is_whitespace() {
@@ -220,57 +245,49 @@ where
             ')' => pop!(self, Token::RParen),
             '{' => pop!(self, Token::LBrace),
             '}' => pop!(self, Token::RBrace),
-            '?' => {
-                match self.peek() {
-                    '?' => pop2!(self, Token::DoubleQuestion),
-                    _ => pop!(self, Token::Question)
-                }
+            '?' => match self.peek() {
+                '?' => pop2!(self, Token::DoubleQuestion),
+                _ => pop!(self, Token::Question),
             },
-            '-' => {
-                match self.peek() {
-                    '-' => pop2!(self, Token::MinusMinus),
-                    '>' => pop2!(self, Token::RightStab),
-                    n if n.is_digit(10) => self.lex_number(),
-                    _ => pop!(self, Token::Minus)
-                }
-            }
+            '-' => match self.peek() {
+                '-' => pop2!(self, Token::MinusMinus),
+                '>' => pop2!(self, Token::RightStab),
+                n if n.is_digit(10) => self.lex_number(),
+                _ => pop!(self, Token::Minus),
+            },
             '$' => {
                 self.skip();
                 let c = self.pop();
                 if c == '\\' {
                     return match self.lex_escape_sequence() {
-                        Ok(Token::Char(c)) =>
-                            Token::Char(c),
-                        Ok(Token::Integer(i)) => {
-                            match std::char::from_u32(i as u32) {
-                                Some(c) => Token::Char(c),
-                                None => Token::Error(LexicalError::InvalidEscape { span: self.span(), reason: format!("the integer value '{}' is not a valid char", i) })
-                            }
-                        }
-                        Ok(Token::BigInteger(i)) =>
-                            Token::Error(LexicalError::InvalidEscape { span: self.span(), reason: format!("the integer value '{}' is not a valid char", i) }),
-                        Ok(_) =>
-                            panic!("internal error: unhandled escape sequence in lexer"),
-                        Err(e) =>
-                            Token::Error(e),
+                        Ok(Token::Char(c)) => Token::Char(c),
+                        Ok(Token::Integer(i)) => match std::char::from_u32(i as u32) {
+                            Some(c) => Token::Char(c),
+                            None => Token::Error(LexicalError::InvalidEscape {
+                                span: self.span(),
+                                reason: format!("the integer value '{}' is not a valid char", i),
+                            }),
+                        },
+                        Ok(Token::BigInteger(i)) => Token::Error(LexicalError::InvalidEscape {
+                            span: self.span(),
+                            reason: format!("the integer value '{}' is not a valid char", i),
+                        }),
+                        Ok(_) => panic!("internal error: unhandled escape sequence in lexer"),
+                        Err(e) => Token::Error(e),
                     };
                 }
                 Token::Char(c)
             }
             '"' => self.lex_string(),
-            '\'' => {
-                match self.lex_string() {
-                    Token::String(s) => Token::Atom(s),
-                    other => other
-                }
-            }
-            ':' => {
-                match self.peek() {
-                    '=' => pop2!(self, Token::ColonEqual),
-                    ':' => pop2!(self, Token::ColonColon),
-                    _ => pop!(self, Token::Colon)
-                }
-            }
+            '\'' => match self.lex_string() {
+                Token::String(s) => Token::Atom(s),
+                other => other,
+            },
+            ':' => match self.peek() {
+                '=' => pop2!(self, Token::ColonEqual),
+                ':' => pop2!(self, Token::ColonColon),
+                _ => pop!(self, Token::Colon),
+            },
             '+' => {
                 if self.peek() == '+' {
                     pop2!(self, Token::PlusPlus)
@@ -285,35 +302,32 @@ where
                     pop!(self, Token::Slash)
                 }
             }
-            '=' => {
-                match self.peek() {
-                    '=' => pop2!(self, Token::IsEqual),
-                    '>' => pop2!(self, Token::RightArrow),
-                    '/' => {
-                        if self.peek_next() == '=' {
-                            pop3!(self, Token::IsExactlyNotEqual)
-                        } else {
-                            Token::Error(LexicalError::UnexpectedCharacter { start: self.span().start(), found: self.peek_next() })
-                        }
+            '=' => match self.peek() {
+                '=' => pop2!(self, Token::IsEqual),
+                '>' => pop2!(self, Token::RightArrow),
+                '/' => {
+                    if self.peek_next() == '=' {
+                        pop3!(self, Token::IsExactlyNotEqual)
+                    } else {
+                        Token::Error(LexicalError::UnexpectedCharacter {
+                            start: self.span().start(),
+                            found: self.peek_next(),
+                        })
                     }
-                    _ => pop!(self, Token::Equals)
                 }
-            }
-            '<' => {
-                match self.peek() {
-                    '<' => pop2!(self, Token::BinaryStart),
-                    '-' => pop2!(self, Token::LeftStab),
-                    '=' => pop2!(self, Token::LeftArrow),
-                    _ => pop!(self, Token::IsLessThan)
-                }
-            }
-            '>' => {
-                match self.peek() {
-                    '>' => pop2!(self, Token::BinaryEnd),
-                    '=' => pop2!(self, Token::IsGreaterThanOrEqual),
-                    _ => pop!(self, Token::IsGreaterThan)
-                }
-            }
+                _ => pop!(self, Token::Equals),
+            },
+            '<' => match self.peek() {
+                '<' => pop2!(self, Token::BinaryStart),
+                '-' => pop2!(self, Token::LeftStab),
+                '=' => pop2!(self, Token::LeftArrow),
+                _ => pop!(self, Token::IsLessThan),
+            },
+            '>' => match self.peek() {
+                '>' => pop2!(self, Token::BinaryEnd),
+                '=' => pop2!(self, Token::IsGreaterThanOrEqual),
+                _ => pop!(self, Token::IsGreaterThan),
+            },
             '|' => {
                 if self.peek() == '|' {
                     pop2!(self, Token::BarBar)
@@ -341,12 +355,13 @@ where
                 }
                 return match self.lex_escape_sequence() {
                     Ok(t) => t,
-                    Err(e) => Token::Error(e)
-                }
+                    Err(e) => Token::Error(e),
+                };
             }
-            c => {
-                Token::Error(LexicalError::UnexpectedCharacter { start: self.span().start(), found: c })
-            }
+            c => Token::Error(LexicalError::UnexpectedCharacter {
+                start: self.span().start(),
+                found: c,
+            }),
         }
     }
 
@@ -374,7 +389,8 @@ where
             return Token::Comment;
         }
 
-        // If no '%', then we should check for an Edoc tag, first skip all whitespace and advance the token start
+        // If no '%', then we should check for an Edoc tag, first skip all whitespace and advance
+        // the token start
         self.skip_whitespace();
 
         // See if this is an Edoc tag
@@ -467,7 +483,10 @@ where
                         num.push(self.pop());
                         return Ok(to_integer_literal(&num, 16));
                     } else {
-                        return Err(LexicalError::InvalidEscape { span: self.span(), reason: "invalid hex escape, expected hex digit".to_string() });
+                        return Err(LexicalError::InvalidEscape {
+                            span: self.span(),
+                            reason: "invalid hex escape, expected hex digit".to_string(),
+                        });
                     }
                 } else if c == '{' {
                     self.skip();
@@ -478,17 +497,30 @@ where
                     if self.read() == '}' {
                         self.skip();
                         if num.len() == 0 {
-                            return Err(LexicalError::InvalidEscape { span: self.span(), reason: "invalid hex escape, must be at least one digit".to_string() });
+                            return Err(LexicalError::InvalidEscape {
+                                span: self.span(),
+                                reason: "invalid hex escape, must be at least one digit"
+                                    .to_string(),
+                            });
                         }
                         return Ok(to_integer_literal(&num, 16));
                     } else {
-                        Err(LexicalError::InvalidEscape { span: self.span(), reason: "invalid hex escape, no closing '}'".to_string() })
+                        Err(LexicalError::InvalidEscape {
+                            span: self.span(),
+                            reason: "invalid hex escape, no closing '}'".to_string(),
+                        })
                     }
                 } else {
-                    Err(LexicalError::InvalidEscape { span: self.span(), reason: "invalid hex escape, expected hex digit or '{'".to_string() })
+                    Err(LexicalError::InvalidEscape {
+                        span: self.span(),
+                        reason: "invalid hex escape, expected hex digit or '{'".to_string(),
+                    })
                 }
             }
-            _ => Err(LexicalError::InvalidEscape { span: self.span(), reason: "invalid escape, unrecognized sequence".to_string() })
+            _ => Err(LexicalError::InvalidEscape {
+                span: self.span(),
+                reason: "invalid escape, unrecognized sequence".to_string(),
+            }),
         }
     }
 
@@ -498,20 +530,19 @@ where
         debug_assert!(quote == '"' || quote == '\'');
         loop {
             match self.read() {
-                '\\' => {
-                    match self.lex_escape_sequence() {
-                        Ok(_c) => (),
-                        Err(err) => return Token::Error(err)
-                    }
-                }
+                '\\' => match self.lex_escape_sequence() {
+                    Ok(_c) => (),
+                    Err(err) => return Token::Error(err),
+                },
                 '\0' if quote == '"' => {
-                    return Token::Error(LexicalError::UnclosedString { span: self.span() })
+                    return Token::Error(LexicalError::UnclosedString { span: self.span() });
                 }
                 '\0' if quote == '\'' => {
-                    return Token::Error(LexicalError::UnclosedAtom { span: self.span() })
+                    return Token::Error(LexicalError::UnclosedAtom { span: self.span() });
                 }
                 c if c == quote => {
-                    let symbol = Symbol::intern(self.slice_span(self.span().shrink_front(ByteOffset(1))));
+                    let symbol =
+                        Symbol::intern(self.slice_span(self.span().shrink_front(ByteOffset(1))));
                     let token = Token::String(symbol);
                     self.skip();
                     return token;
@@ -535,7 +566,7 @@ where
                 '@' => self.skip(),
                 '0'...'9' => self.skip(),
                 c if c.is_alphabetic() => self.skip(),
-                _ => break
+                _ => break,
             }
         }
         Token::Ident(Symbol::intern(self.slice()))
@@ -552,7 +583,7 @@ where
                 '@' => self.skip(),
                 '0'...'9' => self.skip(),
                 c if c.is_alphabetic() => self.skip(),
-                _ => break
+                _ => break,
             }
         }
         Token::from_bare_atom(self.slice())
@@ -596,7 +627,12 @@ where
             // Parse in the given radix
             let radix = match num[1..].parse::<u32>() {
                 Ok(r) => r,
-                Err(e) => return Token::Error(LexicalError::InvalidRadix { span: self.span(), reason: e.description().to_string() })
+                Err(e) => {
+                    return Token::Error(LexicalError::InvalidRadix {
+                        span: self.span(),
+                        reason: e.description().to_string(),
+                    });
+                }
             };
             if radix >= 2 && radix <= 32 {
                 c = self.read();
@@ -606,15 +642,21 @@ where
                         num.push('-');
                     }
                     num.push(self.pop());
-                    while self.read().is_digit(radix)  {
+                    while self.read().is_digit(radix) {
                         num.push(self.pop());
                     }
                     return to_integer_literal(&num, radix);
                 } else {
-                    Token::Error(LexicalError::UnexpectedCharacter { start: self.span().start(), found: c })
+                    Token::Error(LexicalError::UnexpectedCharacter {
+                        start: self.span().start(),
+                        found: c,
+                    })
                 }
             } else {
-                Token::Error(LexicalError::InvalidRadix { span: self.span(), reason: "invalid radix (must be in 2..32)".to_string() })
+                Token::Error(LexicalError::InvalidRadix {
+                    span: self.span(),
+                    reason: "invalid radix (must be in 2..32)".to_string(),
+                })
             }
         } else {
             to_integer_literal(&num, 10)
@@ -655,7 +697,10 @@ where
 
                 return self.to_float_literal(num);
             }
-            return Token::Error(LexicalError::InvalidFloat { span: self.span(), reason: "expected digits after scientific notation".to_string() });
+            return Token::Error(LexicalError::InvalidFloat {
+                span: self.span(),
+                reason: "expected digits after scientific notation".to_string(),
+            });
         }
         self.to_float_literal(num)
     }
@@ -663,7 +708,10 @@ where
     fn to_float_literal(&self, num: String) -> Token {
         match f64::from_str(&num) {
             Ok(f) => Token::Float(f),
-            Err(e) => Token::Error(LexicalError::InvalidFloat { span: self.span(), reason: e.description().to_string() })
+            Err(e) => Token::Error(LexicalError::InvalidFloat {
+                span: self.span(),
+                reason: e.description().to_string(),
+            }),
         }
     }
 }
@@ -693,16 +741,18 @@ fn to_integer_literal(literal: &str, radix: u32) -> Token {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
     use std::borrow::Cow;
+    use std::sync::Arc;
 
-    use liblumen_diagnostics::{FileName, FileMap, ByteIndex, ByteSpan};
+    use liblumen_diagnostics::{ByteIndex, ByteSpan, FileMap, FileName};
     use pretty_assertions::assert_eq;
 
     use crate::lexer::*;
 
     macro_rules! symbol {
-        ($sym:expr) => (Symbol::intern($sym));
+        ($sym:expr) => {
+            Symbol::intern($sym)
+        };
     }
 
     macro_rules! assert_lex(
@@ -724,7 +774,6 @@ mod test {
             assert_eq!(results, $expected);
         })
     );
-
 
     #[test]
     fn lex_symbols() {
@@ -769,12 +818,27 @@ mod test {
 
     #[test]
     fn lex_identifier_or_atom() {
-        assert_lex!("_identifier", vec![Ok((1, Token::Ident(symbol!("_identifier")), 12))]);
-        assert_lex!("_Identifier", vec![Ok((1, Token::Ident(symbol!("_Identifier")), 12))]);
-        assert_lex!("identifier", vec![Ok((1, Token::Atom(symbol!("identifier")), 11))]);
-        assert_lex!("Identifier", vec![Ok((1, Token::Ident(symbol!("Identifier")), 11))]);
+        assert_lex!(
+            "_identifier",
+            vec![Ok((1, Token::Ident(symbol!("_identifier")), 12))]
+        );
+        assert_lex!(
+            "_Identifier",
+            vec![Ok((1, Token::Ident(symbol!("_Identifier")), 12))]
+        );
+        assert_lex!(
+            "identifier",
+            vec![Ok((1, Token::Atom(symbol!("identifier")), 11))]
+        );
+        assert_lex!(
+            "Identifier",
+            vec![Ok((1, Token::Ident(symbol!("Identifier")), 11))]
+        );
         assert_lex!("z0123", vec![Ok((1, Token::Atom(symbol!("z0123")), 6))]);
-        assert_lex!("i_d@e_t0123", vec![Ok((1, Token::Atom(symbol!("i_d@e_t0123")), 12))]);
+        assert_lex!(
+            "i_d@e_t0123",
+            vec![Ok((1, Token::Atom(symbol!("i_d@e_t0123")), 12))]
+        );
     }
 
     #[test]
@@ -796,23 +860,32 @@ mod test {
         assert_lex!(r#"\0624"#, vec![Ok((1, Token::Integer(0o624), 6))]);
 
         // Octal integer literal followed by non-octal digits.
-        assert_lex!(r#"\008"#, vec![Ok((1, Token::Integer(0), 4)), Ok((4, Token::Integer(8), 5))]);
-        assert_lex!(r#"\01238"#, vec![Ok((1, Token::Integer(0o123), 6)), Ok((6, Token::Integer(8), 7))]);
+        assert_lex!(
+            r#"\008"#,
+            vec![Ok((1, Token::Integer(0), 4)), Ok((4, Token::Integer(8), 5))]
+        );
+        assert_lex!(
+            r#"\01238"#,
+            vec![
+                Ok((1, Token::Integer(0o123), 6)),
+                Ok((6, Token::Integer(8), 7))
+            ]
+        );
     }
 
     #[test]
     fn lex_string() {
-        assert_lex!(r#""this is a string""#, vec![
-            Ok((
-                1,
-                Token::String(symbol!("this is a string")),
-                19,
-            ))
-        ]);
+        assert_lex!(
+            r#""this is a string""#,
+            vec![Ok((1, Token::String(symbol!("this is a string")), 19,))]
+        );
 
-        assert_lex!(r#""this is a string"#, vec![
-            Err(LexicalError::UnclosedString { span: ByteSpan::new(ByteIndex(1), ByteIndex(18)) })
-        ]);
+        assert_lex!(
+            r#""this is a string"#,
+            vec![Err(LexicalError::UnclosedString {
+                span: ByteSpan::new(ByteIndex(1), ByteIndex(18))
+            })]
+        );
     }
 
     #[test]

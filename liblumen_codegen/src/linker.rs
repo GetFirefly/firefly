@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use std::path::{Path,PathBuf};
 use std::fs::OpenOptions;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use tempfile::NamedTempFile;
@@ -15,8 +15,7 @@ pub fn link(obj: &Path, out: &Path) -> Result<(), CodeGenError> {
     ld(obj, temp_out.path())?;
     // Create a new file to hold final output
     let mut oo = OpenOptions::new();
-    oo.create(true)
-      .write(true);
+    oo.create(true).write(true);
     // Make executable on *NIX
     if cfg!(unix) {
         use std::os::unix::fs::OpenOptionsExt;
@@ -29,18 +28,14 @@ pub fn link(obj: &Path, out: &Path) -> Result<(), CodeGenError> {
             // Finally, copy the linked executable to its final destination
             match std::io::copy(&mut temp_out, &mut out) {
                 Err(err) => Err(CodeGenError::LinkerError(err.to_string())),
-                Ok(_) => Ok(())
+                Ok(_) => Ok(()),
             }
         }
     }
 }
 
 fn ld(obj: &Path, out: &Path) -> Result<(), CodeGenError> {
-    let result = Command::new("ld")
-        .arg("-o")
-        .arg(out)
-        .arg(obj)
-        .output();
+    let result = Command::new("ld").arg("-o").arg(out).arg(obj).output();
     match result {
         Err(e) => {
             let msg = format!("Failed to execute linker: {}", e.to_string());
@@ -49,17 +44,16 @@ fn ld(obj: &Path, out: &Path) -> Result<(), CodeGenError> {
         Ok(ref output) => {
             if output.status.success() {
                 if cfg!(unix) {
-                    let _ = Command::new("chown")
-                        .arg("+x")
-                        .arg(out)
-                        .status()
-                        .ok();
+                    let _ = Command::new("chown").arg("+x").arg(out).status().ok();
                 }
                 Ok(())
             } else {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                let msg = format!("Linker failed (status {}):\n{}\n{}", output.status, stdout, stderr);
+                let msg = format!(
+                    "Linker failed (status {}):\n{}\n{}",
+                    output.status, stdout, stderr
+                );
                 Err(CodeGenError::LinkerError(msg.to_string()))
             }
         }

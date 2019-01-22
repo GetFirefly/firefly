@@ -8,7 +8,8 @@
 #![feature(nll)]
 
 extern crate alloc;
-#[cfg(test)] extern crate test;
+#[cfg(test)]
+extern crate test;
 
 mod arena;
 

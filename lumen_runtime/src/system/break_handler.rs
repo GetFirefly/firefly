@@ -27,7 +27,7 @@ impl std::convert::From<usize> for Signal {
             signal_hook::SIGUSR1 => Signal::USR1,
             signal_hook::SIGUSR2 => Signal::USR2,
             signal_hook::SIGCHLD => Signal::CHLD,
-            _ => Signal::Unknown
+            _ => Signal::Unknown,
         }
     }
 }
@@ -53,15 +53,14 @@ pub fn init(mut bus: Bus<Signal>) {
             signal_hook::SIGALRM,
             signal_hook::SIGUSR1,
             signal_hook::SIGUSR2,
-            signal_hook::SIGCHLD
-        ]).expect("could not bind signal handlers");
+            signal_hook::SIGCHLD,
+        ])
+        .expect("could not bind signal handlers");
 
         for signal in signals.forever() {
             match Signal::from(signal as usize) {
-                Signal::Unknown =>
-                    (),
-                sig =>
-                    bus.broadcast(sig)
+                Signal::Unknown => (),
+                sig => bus.broadcast(sig),
             }
         }
     });

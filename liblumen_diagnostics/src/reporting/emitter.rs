@@ -1,10 +1,10 @@
-use std::io;
 use std::fmt::{self, Display};
+use std::io;
 use std::sync::{Arc, Mutex};
 
-use termcolor::{Color, ColorSpec, WriteColor, ColorChoice, StandardStream};
-use unicode_width::UnicodeWidthStr;
 use failure::Error;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use unicode_width::UnicodeWidthStr;
 
 use crate::diagnostics::CodeMap;
 
@@ -110,10 +110,8 @@ impl Emitter for StandardStreamEmitter {
             let mut handle = self.stdout.lock();
 
             match self.codemap {
-                None =>
-                    write_unlabeled_diagnostic(&mut handle, diagnostic)?,
-                Some(ref codemap) =>
-                    write_labeled_diagnostic(&mut handle, codemap, diagnostic)?
+                None => write_unlabeled_diagnostic(&mut handle, diagnostic)?,
+                Some(ref codemap) => write_labeled_diagnostic(&mut handle, codemap, diagnostic)?,
             };
         }
         Ok(())
@@ -198,7 +196,11 @@ where
     Ok(())
 }
 
-fn write_labeled_diagnostic<W>(mut writer: W, codemap: &Arc<Mutex<CodeMap>>, diagnostic: &Diagnostic) -> io::Result<()>
+fn write_labeled_diagnostic<W>(
+    mut writer: W,
+    codemap: &Arc<Mutex<CodeMap>>,
+    diagnostic: &Diagnostic,
+) -> io::Result<()>
 where
     W: WriteColor,
 {
@@ -238,7 +240,7 @@ where
                 if let Some(ref message) = label.message {
                     writeln!(writer, "- {}", message)?
                 }
-            },
+            }
             Some(file) => {
                 let (line, column) = file.location(label.span.start()).expect("location");
                 writeln!(
@@ -312,29 +314,38 @@ where
                         writer.set_color(&label_color)?;
                         writeln!(writer, " {}", label)?;
                         writer.reset()?;
-                    },
+                    }
                 }
-            },
+            }
         }
     }
     Ok(())
 }
 
+#[inline]
+pub fn green() -> ColorSpec {
+    color(Color::Green)
+}
 
 #[inline]
-pub fn green() -> ColorSpec { color(Color::Green) }
+pub fn green_bold() -> ColorSpec {
+    color_bold(Color::Green)
+}
 
 #[inline]
-pub fn green_bold() -> ColorSpec{ color_bold(Color::Green)}
+pub fn yellow() -> ColorSpec {
+    color(Color::Yellow)
+}
 
 #[inline]
-pub fn yellow() -> ColorSpec { color(Color::Yellow) }
+pub fn yellow_bold() -> ColorSpec {
+    color_bold(Color::Yellow)
+}
 
 #[inline]
-pub fn yellow_bold() -> ColorSpec { color_bold(Color::Yellow) }
-
-#[inline]
-pub fn white() -> ColorSpec { color_bold(Color::White) }
+pub fn white() -> ColorSpec {
+    color_bold(Color::White)
+}
 
 #[inline]
 pub fn cyan() -> ColorSpec {

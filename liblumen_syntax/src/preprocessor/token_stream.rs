@@ -12,7 +12,11 @@ where
     S: Source,
 {
     pub fn new(current: Lexer<S>) -> Self {
-        TokenStream { eof: false, current, streams: VecDeque::new() }
+        TokenStream {
+            eof: false,
+            current,
+            streams: VecDeque::new(),
+        }
     }
 
     pub fn include(&mut self, next: Lexer<S>) {
@@ -40,7 +44,7 @@ where
             None => {
                 self.eof = true;
                 return None;
-            },
+            }
             Some(next) => {
                 self.current = next;
                 return self.next();

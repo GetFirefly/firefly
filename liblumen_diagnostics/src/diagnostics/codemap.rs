@@ -31,9 +31,14 @@ impl CodeMap {
 
     /// Adds a filemap to the codemap with the given name and source item
     pub fn add_filemap<S>(&mut self, name: FileName, src: S) -> Arc<FileMap>
-    where S: AsRef<str>,
+    where
+        S: AsRef<str>,
     {
-        let file = Arc::new(FileMap::with_index(name, src.as_ref().to_owned(), self.next_start_index()));
+        let file = Arc::new(FileMap::with_index(
+            name,
+            src.as_ref().to_owned(),
+            self.next_start_index(),
+        ));
         self.files.push(file.clone());
         file
     }
@@ -100,7 +105,7 @@ impl CodeMap {
                             Arc::new(FileMap::with_index(file.name().clone(), src, start_index));
                         self.files.insert(j, new_file.clone());
                         new_file
-                    },
+                    }
                     None => self.add_filemap(file.name().clone(), src),
                 }
             }
@@ -153,9 +158,15 @@ mod tests {
     fn update() {
         let mut code_map = CodeMap::new();
 
-        let a_span = code_map.add_filemap_from_string("a".into(), "a".into()).span();
-        let b_span = code_map.add_filemap_from_string("b".into(), "b".into()).span();
-        let c_span = code_map.add_filemap_from_string("c".into(), "c".into()).span();
+        let a_span = code_map
+            .add_filemap_from_string("a".into(), "a".into())
+            .span();
+        let b_span = code_map
+            .add_filemap_from_string("b".into(), "b".into())
+            .span();
+        let c_span = code_map
+            .add_filemap_from_string("c".into(), "c".into())
+            .span();
 
         code_map.update(a_span.start(), "aa".into()).unwrap();
         check_maps(&code_map, &[(3, "b", "b"), (5, "c", "c"), (7, "a", "aa")]);

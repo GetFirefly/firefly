@@ -1,17 +1,17 @@
 mod directive;
-mod macros;
 mod errors;
-mod preprocessor;
 mod evaluator;
-mod token_stream;
+mod macros;
+mod preprocessor;
 mod token_reader;
+mod token_stream;
 
 pub mod directives;
 pub mod types;
 
 pub use self::directive::Directive;
-pub use self::macros::{MacroCall, MacroDef};
 pub use self::errors::PreprocessorError;
+pub use self::macros::{MacroCall, MacroDef};
 pub use self::preprocessor::Preprocessor;
 
 use liblumen_diagnostics::ByteIndex;

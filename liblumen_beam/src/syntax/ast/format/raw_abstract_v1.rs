@@ -48,7 +48,7 @@ impl AbstractCode {
             .find(|c| c.id() == b"Abst")
             .ok_or(FromBeamError::NoDebugInfo)?;
         let code = etf::Term::decode(std::io::Cursor::new(&chunk.data))?;
-        Ok(AbstractCode { code: code })
+        Ok(AbstractCode { code })
     }
     pub fn to_forms(&self) -> FromBeamResult<Vec<form::Form>> {
         let (_, forms) = self

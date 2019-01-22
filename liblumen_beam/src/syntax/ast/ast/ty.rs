@@ -93,11 +93,7 @@ pub struct UserType {
 impl_node!(UserType);
 impl UserType {
     pub fn new(line: LineNum, name: String, args: Vec<Type>) -> Self {
-        UserType {
-            line: line,
-            name: name,
-            args: args,
-        }
+        UserType { line, name, args }
     }
 }
 
@@ -109,10 +105,7 @@ pub struct Union {
 impl_node!(Union);
 impl Union {
     pub fn new(line: LineNum, types: Vec<Type>) -> Self {
-        Union {
-            line: line,
-            types: types,
-        }
+        Union { line, types }
     }
 }
 
@@ -123,7 +116,7 @@ pub struct AnyTuple {
 impl_node!(AnyTuple);
 impl AnyTuple {
     pub fn new(line: LineNum) -> Self {
-        AnyTuple { line: line }
+        AnyTuple { line }
     }
 }
 
@@ -135,10 +128,7 @@ pub struct Tuple {
 impl_node!(Tuple);
 impl Tuple {
     pub fn new(line: LineNum, elements: Vec<Type>) -> Self {
-        Tuple {
-            line: line,
-            elements: elements,
-        }
+        Tuple { line, elements }
     }
 }
 
@@ -153,10 +143,10 @@ impl_node!(RemoteType);
 impl RemoteType {
     pub fn new(line: LineNum, module: String, function: String, args: Vec<Type>) -> Self {
         RemoteType {
-            line: line,
-            module: module,
-            function: function,
-            args: args,
+            line,
+            module,
+            function,
+            args,
         }
     }
 }
@@ -170,11 +160,7 @@ pub struct Record {
 impl_node!(Record);
 impl Record {
     pub fn new(line: LineNum, name: String, fields: Vec<RecordField>) -> Self {
-        Record {
-            line: line,
-            name: name,
-            fields: fields,
-        }
+        Record { line, name, fields }
     }
 }
 
@@ -187,11 +173,7 @@ pub struct RecordField {
 impl_node!(RecordField);
 impl RecordField {
     pub fn new(line: LineNum, name: String, ty: Type) -> Self {
-        RecordField {
-            line: line,
-            name: name,
-            ty: ty,
-        }
+        RecordField { line, name, ty }
     }
 }
 
@@ -204,11 +186,7 @@ pub struct BuiltInType {
 impl_node!(BuiltInType);
 impl BuiltInType {
     pub fn new(line: LineNum, name: String, args: Vec<Type>) -> Self {
-        BuiltInType {
-            line: line,
-            name: name,
-            args: args,
-        }
+        BuiltInType { line, name, args }
     }
 }
 
@@ -220,10 +198,7 @@ pub struct Map {
 impl_node!(Map);
 impl Map {
     pub fn new(line: LineNum, pairs: Vec<MapPair>) -> Self {
-        Map {
-            line: line,
-            pairs: pairs,
-        }
+        Map { line, pairs }
     }
 }
 
@@ -236,11 +211,7 @@ pub struct MapPair {
 impl_node!(MapPair);
 impl MapPair {
     pub fn new(line: LineNum, key: Type, value: Type) -> Self {
-        MapPair {
-            line: line,
-            key: key,
-            value: value,
-        }
+        MapPair { line, key, value }
     }
 }
 
@@ -253,11 +224,7 @@ pub struct Annotated {
 impl_node!(Annotated);
 impl Annotated {
     pub fn new(line: LineNum, name: common::Var, ty: Type) -> Self {
-        Annotated {
-            line: line,
-            name: name,
-            ty: ty,
-        }
+        Annotated { line, name, ty }
     }
 }
 
@@ -271,9 +238,9 @@ impl_node!(BitString);
 impl BitString {
     pub fn new(line: LineNum, bytes: u64, tail_bits: u64) -> Self {
         BitString {
-            line: line,
-            bytes: bytes,
-            tail_bits: tail_bits,
+            line,
+            bytes,
+            tail_bits,
         }
     }
 }
@@ -287,7 +254,7 @@ impl_node!(AnyFun);
 impl AnyFun {
     pub fn new(line: LineNum) -> Self {
         AnyFun {
-            line: line,
+            line,
             return_type: None,
         }
     }
@@ -308,9 +275,9 @@ impl_node!(Fun);
 impl Fun {
     pub fn new(line: LineNum, args: Vec<Type>, return_type: Type) -> Self {
         Fun {
-            line: line,
-            args: args,
-            return_type: return_type,
+            line,
+            args,
+            return_type,
             constraints: Vec::new(),
         }
     }
@@ -329,11 +296,7 @@ pub struct Constraint {
 impl_node!(Constraint);
 impl Constraint {
     pub fn new(line: LineNum, var: common::Var, subtype: Type) -> Self {
-        Constraint {
-            line: line,
-            var: var,
-            subtype: subtype,
-        }
+        Constraint { line, var, subtype }
     }
 }
 
@@ -346,10 +309,6 @@ pub struct Range {
 impl_node!(Range);
 impl Range {
     pub fn new(line: LineNum, low: Type, high: Type) -> Self {
-        Range {
-            line: line,
-            low: low,
-            high: high,
-        }
+        Range { line, low, high }
     }
 }

@@ -181,7 +181,7 @@ impl Chunk for AtomChunk {
         }
         Ok(AtomChunk {
             is_unicode: unicode,
-            atoms: atoms,
+            atoms,
         })
     }
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
@@ -335,7 +335,7 @@ impl Chunk for ImpTChunk {
                 arity: reader.read_u32::<BigEndian>()?,
             });
         }
-        Ok(ImpTChunk { imports: imports })
+        Ok(ImpTChunk { imports })
     }
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_u32::<BigEndian>(self.imports.len() as u32)?;
@@ -386,7 +386,7 @@ impl Chunk for ExpTChunk {
                 label: reader.read_u32::<BigEndian>()?,
             });
         }
-        Ok(ExpTChunk { exports: exports })
+        Ok(ExpTChunk { exports })
     }
 
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
@@ -438,7 +438,7 @@ impl Chunk for LitTChunk {
             decoder.read_exact(&mut buf)?;
             literals.push(buf);
         }
-        Ok(LitTChunk { literals: literals })
+        Ok(LitTChunk { literals })
     }
 
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
@@ -497,7 +497,7 @@ impl Chunk for LocTChunk {
                 label: reader.read_u32::<BigEndian>()?,
             });
         }
-        Ok(LocTChunk { locals: locals })
+        Ok(LocTChunk { locals })
     }
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_u32::<BigEndian>(self.locals.len() as u32)?;
@@ -550,9 +550,7 @@ impl Chunk for FunTChunk {
                 old_uniq: reader.read_u32::<BigEndian>()?,
             });
         }
-        Ok(FunTChunk {
-            functions: functions,
-        })
+        Ok(FunTChunk { functions })
     }
     fn encode_data<W: Write>(&self, mut writer: W) -> Result<()> {
         writer.write_u32::<BigEndian>(self.functions.len() as u32)?;
@@ -739,7 +737,6 @@ pub struct DocsChunk {
     ///         doc_content :: map(binary(), binary()) | none | hidden,
     ///         doc_element :: {{kind :: atom(), function :: atom(), arity}, Anno, signature, doc_content(), Metadata}
     /// ```
-    ///
     pub term: parts::ExternalTermFormatBinary,
 }
 impl Chunk for DocsChunk {
@@ -764,11 +761,14 @@ impl Chunk for DocsChunk {
 /// A representation of commonly used chunk.
 ///
 /// ```
-/// use beam_file::BeamFile;
 /// use beam_file::chunk::{Chunk, StandardChunk};
+/// use beam_file::BeamFile;
 ///
 /// let beam = BeamFile::<StandardChunk>::from_file("tests/testdata/test.beam").unwrap();
-/// assert_eq!(b"Atom", beam.chunks().iter().nth(0).map(|c| c.id()).unwrap());
+/// assert_eq!(
+///     b"Atom",
+///     beam.chunks().iter().nth(0).map(|c| c.id()).unwrap()
+/// );
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub enum StandardChunk {

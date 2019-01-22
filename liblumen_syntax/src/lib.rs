@@ -5,11 +5,11 @@
 #![feature(box_syntax)]
 #![feature(core_intrinsics)]
 
-mod util;
 mod lexer;
-mod preprocessor;
 mod parser;
+mod preprocessor;
+mod util;
 
 pub use self::lexer::*;
-pub use self::preprocessor::*;
 pub use self::parser::*;
+pub use self::preprocessor::*;

@@ -19,7 +19,7 @@ pub trait Pattern<'a>: Debug + Clone {
         Self: 'static,
     {
         Unmatch {
-            input: input,
+            input,
             pattern: Box::new(self.clone()),
             cause: None,
         }

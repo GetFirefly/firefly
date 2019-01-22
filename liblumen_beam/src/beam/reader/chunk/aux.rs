@@ -12,7 +12,7 @@ impl Header {
     pub fn new(chunk_id: &Id, data_size: u32) -> Self {
         Header {
             chunk_id: *chunk_id,
-            data_size: data_size,
+            data_size,
         }
     }
     /// Alternative Implementations

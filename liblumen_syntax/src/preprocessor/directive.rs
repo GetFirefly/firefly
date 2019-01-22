@@ -2,12 +2,12 @@ use std::fmt;
 
 use liblumen_diagnostics::ByteSpan;
 
-use crate::lexer::{Token, AtomToken, SymbolToken, LexicalToken};
+use crate::lexer::{AtomToken, LexicalToken, SymbolToken, Token};
 
 use super::Result;
 
 use super::directives;
-use super::token_reader::{TokenReader, ReadFrom};
+use super::token_reader::{ReadFrom, TokenReader};
 
 /// Macro directive
 #[derive(Debug, Clone)]
@@ -69,12 +69,11 @@ impl ReadFrom for Directive {
     where
         R: TokenReader<Source = S>,
     {
-        let _hyphen: SymbolToken =
-            if let Some(_hyphen) = reader.try_read_expected(&Token::Minus)? {
-                _hyphen
-            } else {
-                return Ok(None);
-            };
+        let _hyphen: SymbolToken = if let Some(_hyphen) = reader.try_read_expected(&Token::Minus)? {
+            _hyphen
+        } else {
+            return Ok(None);
+        };
 
         let name: AtomToken = if let Some(name) = reader.try_read()? {
             name
@@ -164,7 +163,7 @@ impl ReadFrom for Directive {
             "endif" => reader.read().map(Directive::Endif).map(Some),
             "error" => reader.read().map(Directive::Error).map(Some),
             "warning" => reader.read().map(Directive::Warning).map(Some),
-            _ => Ok(None)
+            _ => Ok(None),
         }
     }
 }

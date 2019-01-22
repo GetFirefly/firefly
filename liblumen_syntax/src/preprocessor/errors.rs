@@ -1,17 +1,17 @@
 use std;
 
+use failure::{Error, Fail};
 use glob;
-use failure::{Fail, Error};
 use itertools::Itertools;
 use liblumen_diagnostics::{ByteSpan, Diagnostic, Label};
 
-use crate::lexer::{LexicalToken, LexicalError, TokenConvertError};
 use crate::lexer::SourceError;
+use crate::lexer::{LexicalError, LexicalToken, TokenConvertError};
 
 use crate::parser::ParserError;
 
 use super::directive::Directive;
-use super::macros::{Stringify, MacroCall, MacroDef};
+use super::macros::{MacroCall, MacroDef, Stringify};
 
 #[derive(Fail, Debug)]
 pub enum PreprocessorError {
@@ -64,7 +64,7 @@ pub enum PreprocessorError {
     UnexpectedToken(LexicalToken, Vec<String>),
 
     #[fail(display = "unexpected eof")]
-    UnexpectedEOF
+    UnexpectedEOF,
 }
 impl PreprocessorError {
     pub fn span(&self) -> Option<ByteSpan> {
@@ -82,7 +82,7 @@ impl PreprocessorError {
             PreprocessorError::BadMacroCall(ref call, _, _) => Some(call.span()),
             PreprocessorError::InvalidTokenType(ref t, _) => Some(t.span()),
             PreprocessorError::UnexpectedToken(ref t, _) => Some(t.span()),
-            _ => None
+            _ => None,
         }
     }
 

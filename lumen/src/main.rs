@@ -2,12 +2,12 @@ mod compiler;
 
 use std::process;
 
-use failure::Error;
 use clap::{crate_description, crate_name, crate_version};
 use clap::{App, Arg, SubCommand};
+use failure::Error;
 
-use liblumen_diagnostics::{Emitter, StandardStreamEmitter, ColorChoice};
 use liblumen_compiler::CompilerError;
+use liblumen_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
 
 fn main() {
     human_panic::setup_panic!();
@@ -56,7 +56,7 @@ fn main() {
                         .short("o")
                         .long("output")
                         .value_name("DIR")
-                        .default_value_os(output_dir.as_os_str())
+                        .default_value_os(output_dir.as_os_str()),
                 )
                 .arg(
                     Arg::with_name("define")
@@ -65,24 +65,24 @@ fn main() {
                         .long("define")
                         .value_name("NAME")
                         .takes_value(true)
-                        .multiple(true)
+                        .multiple(true),
                 )
                 .arg(
                     Arg::with_name("warnings-as-errors")
                         .help("Causes the compiler to treat all warnings as errors")
-                        .long("warnings-as-errors")
+                        .long("warnings-as-errors"),
                 )
                 .arg(
                     Arg::with_name("no-warnings")
                         .help("Disable warnings")
                         .long("no-warnings")
-                        .conflicts_with("warnings-as-errors")
+                        .conflicts_with("warnings-as-errors"),
                 )
                 .arg(
                     Arg::with_name("verbose")
                         .help("Set verbosity level")
                         .short("v")
-                        .multiple(true)
+                        .multiple(true),
                 )
                 .arg(
                     Arg::with_name("append-path")
@@ -91,7 +91,7 @@ fn main() {
                         .long("append-path")
                         .value_name("PATH")
                         .takes_value(true)
-                        .multiple(true)
+                        .multiple(true),
                 )
                 .arg(
                     Arg::with_name("prepend-path")
@@ -100,7 +100,7 @@ fn main() {
                         .long("prepend-path")
                         .value_name("PATH")
                         .takes_value(true)
-                        .multiple(true)
+                        .multiple(true),
                 ),
         )
         .get_matches();
@@ -118,9 +118,11 @@ fn main() {
                 Ok(CompilerError::Parser { codemap, errs }) => {
                     let emitter = emitter.set_codemap(codemap);
                     for err in errs.iter() {
-                        emitter.diagnostic(&err.to_diagnostic()).expect("stdout failed");
+                        emitter
+                            .diagnostic(&err.to_diagnostic())
+                            .expect("stdout failed");
                     }
-                },
+                }
                 Ok(err) => {
                     emitter.error(err.into()).unwrap();
                 }

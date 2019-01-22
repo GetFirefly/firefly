@@ -2,13 +2,13 @@ use std::fmt;
 
 use liblumen_diagnostics::ByteSpan;
 
-use crate::lexer::{LexicalToken, Token, Symbol};
-use crate::lexer::{SymbolToken, IdentToken};
+use crate::lexer::{IdentToken, SymbolToken};
+use crate::lexer::{LexicalToken, Symbol, Token};
 
-use super::Result;
 use super::directives::Define;
-use super::token_reader::{TokenReader, ReadFrom};
-use super::types::{MacroName, MacroArgs};
+use super::token_reader::{ReadFrom, TokenReader};
+use super::types::{MacroArgs, MacroName};
+use super::Result;
 
 /// Macro Definition.
 #[derive(Debug, Clone)]
@@ -40,7 +40,8 @@ pub struct MacroCall {
 impl MacroCall {
     pub fn span(&self) -> ByteSpan {
         let start = self._question.0;
-        let end = self.args
+        let end = self
+            .args
             .as_ref()
             .map(|a| a.span().end())
             .unwrap_or_else(|| self.name.span().end());

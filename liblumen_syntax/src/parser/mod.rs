@@ -1,7 +1,11 @@
 /// Used in the grammar for easy span creation
 macro_rules! span {
-    ($l:expr, $r:expr) => (ByteSpan::new($l, $r));
-    ($i:expr) => (ByteSpan::new($i, $i))
+    ($l:expr, $r:expr) => {
+        ByteSpan::new($l, $r)
+    };
+    ($i:expr) => {
+        ByteSpan::new($i, $i)
+    };
 }
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -22,18 +26,17 @@ pub(crate) mod grammar {
 
 pub mod ast;
 mod errors;
-/// Contains the visitor trait needed to traverse the AST and helper walk functions.
-//pub mod visitor;
-
-use std::sync::{Arc, Mutex};
-use std::path::{Path, PathBuf};
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
+/// Contains the visitor trait needed to traverse the AST and helper walk functions.
+//pub mod visitor;
+use std::sync::{Arc, Mutex};
 
 use liblumen_diagnostics::{CodeMap, FileName};
 
-use crate::lexer::{Lexer, Scanner, Source, FileMapSource, Symbol};
-use crate::preprocessor::{Preprocessor, Preprocessed, MacroDef};
+use crate::lexer::{FileMapSource, Lexer, Scanner, Source, Symbol};
+use crate::preprocessor::{MacroDef, Preprocessed, Preprocessor};
 
 pub use self::errors::*;
 
@@ -45,9 +48,7 @@ pub struct Parser {
 }
 impl Parser {
     pub fn new(config: ParseConfig) -> Parser {
-        Parser {
-            config,
-        }
+        Parser { config }
     }
 
     pub fn parse_string<S, T>(&self, source: S) -> ParseResult<T>
@@ -56,9 +57,10 @@ impl Parser {
         T: Parse,
     {
         let filemap = {
-            self.config.codemap.lock()
-                .unwrap()
-                .add_filemap(FileName::Virtual(Cow::Borrowed("nofile")), source.as_ref().to_owned())
+            self.config.codemap.lock().unwrap().add_filemap(
+                FileName::Virtual(Cow::Borrowed("nofile")),
+                source.as_ref().to_owned(),
+            )
         };
         <T as Parse<T>>::parse(&self.config, FileMapSource::new(filemap))
     }
@@ -69,10 +71,8 @@ impl Parser {
         T: Parse,
     {
         match FileMapSource::from_path(self.config.codemap.clone(), path) {
-            Err(err) =>
-                return Err(vec![err.into()]),
-            Ok(source) =>
-                <T as Parse<T>>::parse(&self.config, source)
+            Err(err) => return Err(vec![err.into()]),
+            Ok(source) => <T as Parse<T>>::parse(&self.config, source),
         }
     }
 }
@@ -149,7 +149,6 @@ impl Parse for ast::Expr {
     }
 }
 
-
 fn to_parse_result<T>(mut errs: Vec<ParseError>, result: Result<T, ParseError>) -> ParseResult<T> {
     match result {
         Ok(ast) => {
@@ -165,29 +164,38 @@ fn to_parse_result<T>(mut errs: Vec<ParseError>, result: Result<T, ParseError>) 
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use pretty_assertions::assert_eq;
 
-    use super::*;
     use super::ast::*;
+    use super::*;
 
-    use liblumen_diagnostics::{ByteSpan, ByteIndex};
-    use liblumen_diagnostics::{Emitter, StandardStreamEmitter, ColorChoice};
+    use liblumen_diagnostics::{ByteIndex, ByteSpan};
+    use liblumen_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
 
-    use crate::preprocessor::PreprocessorError;
     use crate::lexer::{Ident, Symbol};
+    use crate::preprocessor::PreprocessorError;
 
     macro_rules! span_usize {
-        ($l:expr, $r:expr) => (ByteSpan::new(ByteIndex($l), ByteIndex($r)));
-        ($i:expr) => (ByteSpan::new(ByteIndex($i), ByteIndex($i)));
+        ($l:expr, $r:expr) => {
+            ByteSpan::new(ByteIndex($l), ByteIndex($r))
+        };
+        ($i:expr) => {
+            ByteSpan::new(ByteIndex($i), ByteIndex($i))
+        };
     }
 
     macro_rules! ident {
-        ($sym:expr) => (Ident::new(Symbol::intern($sym), span_usize!(1, 1)));
-        ($sym:expr, $l:expr) => (Ident::new(Symbol::intern($sym), span_usize!($l, $l)));
-        ($sym:expr, $l:expr, $r:expr) => (Ident::new(Symbol::intern($sym), span_usize!($l, $r)));
+        ($sym:expr) => {
+            Ident::new(Symbol::intern($sym), span_usize!(1, 1))
+        };
+        ($sym:expr, $l:expr) => {
+            Ident::new(Symbol::intern($sym), span_usize!($l, $l))
+        };
+        ($sym:expr, $l:expr, $r:expr) => {
+            Ident::new(Symbol::intern($sym), span_usize!($l, $r))
+        };
     }
 
     fn parse<T>(input: &'static str) -> T
@@ -198,7 +206,7 @@ mod test {
         let parser = Parser::new(config);
         let errs = match parser.parse_string::<&'static str, T>(input) {
             Ok(ast) => return ast,
-            Err(errs) => errs
+            Err(errs) => errs,
         };
         let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
             .set_codemap(parser.config.codemap.clone());
@@ -220,7 +228,6 @@ mod test {
         }
     }
 
-
     macro_rules! parser_test {
         ($name:ident, $blk:block) => {
             #[test]
@@ -228,7 +235,7 @@ mod test {
                 // TODO: Clean this up, no longer need these macros
                 $blk
             }
-        }
+        };
     }
 
     parser_test!(parse_empty_module, {
@@ -244,56 +251,55 @@ mod test {
     });
 
     parser_test!(parse_module_with_multi_clause_function, {
-        let result: Module = parse("-module(foo).
+        let result: Module = parse(
+            "-module(foo).
 
 foo([], Acc) -> Acc;
 foo([H|T], Acc) -> foo(T, [H|Acc]).
-");
+",
+        );
         let mut clauses = Vec::new();
         clauses.push(FunctionClause::Named {
             span: span_usize!(16, 35),
             name: ident!("foo", 16, 19),
             params: vec![
                 Pattern::Nil(span_usize!(20, 22)),
-                Pattern::Var(ident!("Acc", 24, 27))
+                Pattern::Var(ident!("Acc", 24, 27)),
             ],
             guard: None,
-            body: vec![
-                Expr::Var(ident!("Acc", 32, 35))
-            ]
+            body: vec![Expr::Var(ident!("Acc", 32, 35))],
         });
         clauses.push(FunctionClause::Named {
             span: span_usize!(37, 71),
             name: ident!("foo", 37, 40),
             params: vec![
-                Pattern::Cons(span_usize!(41, 46),
+                Pattern::Cons(
+                    span_usize!(41, 46),
                     Box::new(Pattern::Var(ident!("H", 42, 43))),
-                    Box::new(Pattern::Var(ident!("T", 44, 45)))
+                    Box::new(Pattern::Var(ident!("T", 44, 45))),
                 ),
-                Pattern::Var(ident!("Acc", 48, 51))
+                Pattern::Var(ident!("Acc", 48, 51)),
             ],
             guard: None,
-            body: vec![
-                Expr::Apply{
-                    span: span_usize!(56, 71),
-                    lhs: Box::new(Expr::Literal(Literal::Atom(ident!("foo", 56, 59)))),
-                    args: vec![
-                        Expr::Var(ident!("T", 60, 61)),
-                        Expr::Cons(
-                            span_usize!(63, 70),
-                            Box::new(Expr::Var(ident!("H", 64, 65))),
-                            Box::new(Expr::Var(ident!("Acc", 66, 69)))
-                        )
-                    ]
-                }
-            ]
+            body: vec![Expr::Apply {
+                span: span_usize!(56, 71),
+                lhs: Box::new(Expr::Literal(Literal::Atom(ident!("foo", 56, 59)))),
+                args: vec![
+                    Expr::Var(ident!("T", 60, 61)),
+                    Expr::Cons(
+                        span_usize!(63, 70),
+                        Box::new(Expr::Var(ident!("H", 64, 65))),
+                        Box::new(Expr::Var(ident!("Acc", 66, 69))),
+                    ),
+                ],
+            }],
         });
         let mut functions = Vec::new();
         functions.push(Function::Named {
             span: span_usize!(16, 72),
             name: ident!("foo", 16, 19),
             arity: 2,
-            clauses
+            clauses,
         });
         let expected = Module {
             span: span_usize!(1, 72),
@@ -306,7 +312,8 @@ foo([H|T], Acc) -> foo(T, [H|Acc]).
     });
 
     parser_test!(parse_if_expressions, {
-        let result: Module = parse("-module(foo).
+        let result: Module = parse(
+            "-module(foo).
 
 unless(false) ->
     true;
@@ -319,76 +326,63 @@ unless(Value) ->
         else -> true
     end.
 
-");
+",
+        );
         let mut clauses = Vec::new();
         clauses.push(FunctionClause::Named {
             span: span_usize!(16, 41),
             name: ident!("unless", 16, 22),
-            params: vec![
-                Pattern::Literal(Literal::Atom(ident!("false", 23, 28)))
-            ],
+            params: vec![Pattern::Literal(Literal::Atom(ident!("false", 23, 28)))],
             guard: None,
-            body: vec![
-                Expr::Literal(Literal::Atom(ident!("true", 37, 41)))
-            ]
+            body: vec![Expr::Literal(Literal::Atom(ident!("true", 37, 41)))],
         });
         clauses.push(FunctionClause::Named {
             span: span_usize!(43, 68),
             name: ident!("unless", 43, 49),
-            params: vec![
-                Pattern::Literal(Literal::Atom(ident!("true", 50, 54)))
-            ],
+            params: vec![Pattern::Literal(Literal::Atom(ident!("true", 50, 54)))],
             guard: None,
-            body: vec![
-                Expr::Literal(Literal::Atom(ident!("false", 63, 68)))
-            ]
+            body: vec![Expr::Literal(Literal::Atom(ident!("false", 63, 68)))],
         });
         clauses.push(FunctionClause::Named {
             span: span_usize!(70, 174),
             name: ident!("unless", 70, 76),
-            params: vec![
-                Pattern::Var(ident!("Value", 77, 82)),
-            ],
+            params: vec![Pattern::Var(ident!("Value", 77, 82))],
             guard: None,
-            body: vec![
-                Expr::If(span_usize!(91, 174), vec![
+            body: vec![Expr::If(
+                span_usize!(91, 174),
+                vec![
                     IfClause(
                         span_usize!(102, 120),
-                        vec![
-                            Expr::BinaryExpr {
-                                span: span_usize!(102, 112),
-                                lhs: Box::new(Expr::Var(ident!("Value", 102, 107))),
-                                op: BinaryOp::Equal,
-                                rhs: Box::new(Expr::Literal(Literal::Integer(span_usize!(111, 112), 0))),
-                            }
-                        ],
-                        vec![
-                            Expr::Literal(Literal::Atom(ident!("true", 116, 120))),
-                        ]
+                        vec![Expr::BinaryExpr {
+                            span: span_usize!(102, 112),
+                            lhs: Box::new(Expr::Var(ident!("Value", 102, 107))),
+                            op: BinaryOp::Equal,
+                            rhs: Box::new(Expr::Literal(Literal::Integer(
+                                span_usize!(111, 112),
+                                0,
+                            ))),
+                        }],
+                        vec![Expr::Literal(Literal::Atom(ident!("true", 116, 120)))],
                     ),
                     IfClause(
                         span_usize!(130, 144),
                         vec![Expr::Var(ident!("Value", 130, 135))],
-                        vec![
-                            Expr::Literal(Literal::Atom(ident!("false", 139, 144))),
-                        ]
+                        vec![Expr::Literal(Literal::Atom(ident!("false", 139, 144)))],
                     ),
                     IfClause(
                         span_usize!(154, 166),
                         vec![Expr::Literal(Literal::Atom(ident!("else", 154, 158)))],
-                        vec![
-                            Expr::Literal(Literal::Atom(ident!("true", 162, 166))),
-                        ]
-                    )
-                ])
-            ]
+                        vec![Expr::Literal(Literal::Atom(ident!("true", 162, 166)))],
+                    ),
+                ],
+            )],
         });
         let mut functions = Vec::new();
         functions.push(Function::Named {
             span: span_usize!(16, 175),
             name: ident!("unless", 16, 22),
             arity: 1,
-            clauses
+            clauses,
         });
         let expected = Module {
             span: span_usize!(1, 175),
@@ -401,7 +395,8 @@ unless(Value) ->
     });
 
     parser_test!(parse_case_expressions, {
-        let result: Module = parse("-module(foo).
+        let result: Module = parse(
+            "-module(foo).
 
 typeof(Value) ->
     case Value of
@@ -411,71 +406,66 @@ typeof(Value) ->
         _ -> other
     end.
 
-");
+",
+        );
         let mut clauses = Vec::new();
         clauses.push(FunctionClause::Named {
             span: span_usize!(16, 153),
             name: ident!("typeof", 16, 22),
-            params: vec![
-                Pattern::Var(ident!("Value", 23, 28)),
-            ],
+            params: vec![Pattern::Var(ident!("Value", 23, 28))],
             guard: None,
-            body: vec![
-                Expr::Case(
-                    span_usize!(37, 153),
-                    Box::new(Expr::Var(ident!("Value", 42, 47))),
-                    vec![
-                        Clause {
-                            span: span_usize!(59, 68),
-                            pattern: Pattern::Nil(span_usize!(59, 61)),
-                            guard: None,
-                            body: vec![Expr::Literal(Literal::Atom(ident!("nil", 65, 68)))],
-                        },
-                        Clause {
-                            span: span_usize!(78, 91),
-                            pattern: Pattern::Cons(
-                                span_usize!(78, 83),
-                                Box::new(Pattern::Var(ident!("_", 79, 80))),
-                                Box::new(Pattern::Var(ident!("_", 81, 82))),
-                            ),
-                            guard: None,
-                            body: vec![Expr::Literal(Literal::Atom(ident!("list", 87, 91)))],
-                        },
-                        Clause {
-                            span: span_usize!(101, 125),
-                            pattern: Pattern::Var(ident!("N", 101, 102)),
-                            guard: Some(vec![
-                                Guard {
-                                    span: span_usize!(108, 120),
-                                    conditions: vec![
-                                        Expr::Apply {
-                                            span: span_usize!(108, 120),
-                                            lhs: Box::new(Expr::Literal(Literal::Atom(ident!("is_number", 108, 117)))),
-                                            args: vec![
-                                                Expr::Var(ident!("N", 118, 119)),
-                                            ]
-                                        }
-                                    ]
-                                }
-                            ]),
-                            body: vec![Expr::Var(ident!("N", 124, 125))],
-                        },
-                        Clause {
-                            span: span_usize!(135, 145),
-                            pattern: Pattern::Var(ident!("_", 135, 136)),
-                            guard: None,
-                            body: vec![Expr::Literal(Literal::Atom(ident!("other", 140, 145)))],
-                        }
-                    ]
-                )
-            ]
+            body: vec![Expr::Case(
+                span_usize!(37, 153),
+                Box::new(Expr::Var(ident!("Value", 42, 47))),
+                vec![
+                    Clause {
+                        span: span_usize!(59, 68),
+                        pattern: Pattern::Nil(span_usize!(59, 61)),
+                        guard: None,
+                        body: vec![Expr::Literal(Literal::Atom(ident!("nil", 65, 68)))],
+                    },
+                    Clause {
+                        span: span_usize!(78, 91),
+                        pattern: Pattern::Cons(
+                            span_usize!(78, 83),
+                            Box::new(Pattern::Var(ident!("_", 79, 80))),
+                            Box::new(Pattern::Var(ident!("_", 81, 82))),
+                        ),
+                        guard: None,
+                        body: vec![Expr::Literal(Literal::Atom(ident!("list", 87, 91)))],
+                    },
+                    Clause {
+                        span: span_usize!(101, 125),
+                        pattern: Pattern::Var(ident!("N", 101, 102)),
+                        guard: Some(vec![Guard {
+                            span: span_usize!(108, 120),
+                            conditions: vec![Expr::Apply {
+                                span: span_usize!(108, 120),
+                                lhs: Box::new(Expr::Literal(Literal::Atom(ident!(
+                                    "is_number",
+                                    108,
+                                    117
+                                )))),
+                                args: vec![Expr::Var(ident!("N", 118, 119))],
+                            }],
+                        }]),
+                        body: vec![Expr::Var(ident!("N", 124, 125))],
+                    },
+                    Clause {
+                        span: span_usize!(135, 145),
+                        pattern: Pattern::Var(ident!("_", 135, 136)),
+                        guard: None,
+                        body: vec![Expr::Literal(Literal::Atom(ident!("other", 140, 145)))],
+                    },
+                ],
+            )],
         });
         let mut functions = Vec::new();
         functions.push(Function::Named {
             span: span_usize!(16, 154),
             name: ident!("typeof", 16, 22),
             arity: 1,
-            clauses
+            clauses,
         });
         let expected = Module {
             span: span_usize!(1, 154),
@@ -488,7 +478,8 @@ typeof(Value) ->
     });
 
     parser_test!(parse_receive_expressions, {
-        let result: Module = parse("-module(foo).
+        let result: Module = parse(
+            "-module(foo).
 
 loop(State, Timeout) ->
     receive
@@ -501,94 +492,110 @@ loop(State, Timeout) ->
         Timeout ->
             timeout
     end.
-");
+",
+        );
         let mut clauses = Vec::new();
         clauses.push(FunctionClause::Named {
             span: span_usize!(16, 285),
             name: ident!("loop", 16, 20),
             params: vec![
                 Pattern::Var(ident!("State", 21, 26)),
-                Pattern::Var(ident!("Timeout", 28, 35))
+                Pattern::Var(ident!("Timeout", 28, 35)),
             ],
             guard: None,
-            body: vec![
-                Expr::Receive {
-                    span: span_usize!(44, 285),
-                    clauses: Some(vec![
-                        Clause {
-                            span: span_usize!(60, 147),
-                            pattern: Pattern::Tuple(span_usize!(60, 78), vec![
+            body: vec![Expr::Receive {
+                span: span_usize!(44, 285),
+                clauses: Some(vec![
+                    Clause {
+                        span: span_usize!(60, 147),
+                        pattern: Pattern::Tuple(
+                            span_usize!(60, 78),
+                            vec![
                                 Expr::Var(ident!("From", 61, 65)),
-                                Expr::Tuple(span_usize!(67, 77), vec![
-                                    Expr::Var(ident!("Ref", 68, 71)),
-                                    Expr::Var(ident!("Msg", 73, 76)),
-                                ])
-                            ]),
-                            guard: None,
-                            body: vec![
-                                Expr::BinaryExpr {
-                                    span: span_usize!(94, 110),
-                                    lhs: Box::new(Expr::Var(ident!("From", 94, 98))),
-                                    op: BinaryOp::Send,
-                                    rhs: Box::new(Expr::Tuple(span_usize!(101, 110), vec![
+                                Expr::Tuple(
+                                    span_usize!(67, 77),
+                                    vec![
+                                        Expr::Var(ident!("Ref", 68, 71)),
+                                        Expr::Var(ident!("Msg", 73, 76)),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        guard: None,
+                        body: vec![
+                            Expr::BinaryExpr {
+                                span: span_usize!(94, 110),
+                                lhs: Box::new(Expr::Var(ident!("From", 94, 98))),
+                                op: BinaryOp::Send,
+                                rhs: Box::new(Expr::Tuple(
+                                    span_usize!(101, 110),
+                                    vec![
                                         Expr::Var(ident!("Ref", 102, 105)),
                                         Expr::Literal(Literal::Atom(ident!("ok", 107, 109))),
-                                    ]))
-                                },
-                                Expr::Apply {
-                                    span: span_usize!(124, 147),
-                                    lhs: Box::new(Expr::Literal(Literal::Atom(ident!("handle_info", 124, 135)))),
-                                    args: vec![
-                                        Expr::Var(ident!("Msg", 136, 139)),
-                                        Expr::Var(ident!("State", 141, 146)),
-                                    ]
-                                }
-                            ]
-                        },
-                        Clause {
-                            span: span_usize!(157, 228),
-                            pattern: Pattern::Var(ident!("_", 157, 158)),
-                            guard: None,
-                            body: vec![
-                                Expr::Apply {
-                                    span: span_usize!(174, 228),
-                                    lhs: Box::new(Expr::Literal(Literal::Atom(ident!("exit", 174, 178)))),
-                                    args: vec![
-                                        Expr::Apply {
-                                            span: span_usize!(179, 227),
-                                            lhs: Box::new(Expr::Remote {
-                                                span: span_usize!(179, 192),
-                                                module: Box::new(Expr::Literal(Literal::Atom(ident!("io_lib", 179, 185)))),
-                                                function: Box::new(Expr::Literal(Literal::Atom(ident!("format", 186, 192)))),
-                                            }),
-                                            args: vec![
-                                                Expr::Literal(Literal::String(ident!("unexpected message: ~p~n", 193, 219))),
-                                                Expr::Cons(
-                                                    span_usize!(221, 226),
-                                                    Box::new(Expr::Var(ident!("Msg", 222, 225))),
-                                                    Box::new(Expr::Nil(span_usize!(225, 226)))
-                                                )
-                                            ]
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]),
-                    after: Some(Timeout(
-                        span_usize!(233, 277),
-                        Box::new(Expr::Var(ident!("Timeout", 247, 254))),
-                        vec![Expr::Literal(Literal::Atom(ident!("timeout", 270, 277)))]
-                    ))
-                }
-            ]
+                                    ],
+                                )),
+                            },
+                            Expr::Apply {
+                                span: span_usize!(124, 147),
+                                lhs: Box::new(Expr::Literal(Literal::Atom(ident!(
+                                    "handle_info",
+                                    124,
+                                    135
+                                )))),
+                                args: vec![
+                                    Expr::Var(ident!("Msg", 136, 139)),
+                                    Expr::Var(ident!("State", 141, 146)),
+                                ],
+                            },
+                        ],
+                    },
+                    Clause {
+                        span: span_usize!(157, 228),
+                        pattern: Pattern::Var(ident!("_", 157, 158)),
+                        guard: None,
+                        body: vec![Expr::Apply {
+                            span: span_usize!(174, 228),
+                            lhs: Box::new(Expr::Literal(Literal::Atom(ident!("exit", 174, 178)))),
+                            args: vec![Expr::Apply {
+                                span: span_usize!(179, 227),
+                                lhs: Box::new(Expr::Remote {
+                                    span: span_usize!(179, 192),
+                                    module: Box::new(Expr::Literal(Literal::Atom(ident!(
+                                        "io_lib", 179, 185
+                                    )))),
+                                    function: Box::new(Expr::Literal(Literal::Atom(ident!(
+                                        "format", 186, 192
+                                    )))),
+                                }),
+                                args: vec![
+                                    Expr::Literal(Literal::String(ident!(
+                                        "unexpected message: ~p~n",
+                                        193,
+                                        219
+                                    ))),
+                                    Expr::Cons(
+                                        span_usize!(221, 226),
+                                        Box::new(Expr::Var(ident!("Msg", 222, 225))),
+                                        Box::new(Expr::Nil(span_usize!(225, 226))),
+                                    ),
+                                ],
+                            }],
+                        }],
+                    },
+                ]),
+                after: Some(Timeout(
+                    span_usize!(233, 277),
+                    Box::new(Expr::Var(ident!("Timeout", 247, 254))),
+                    vec![Expr::Literal(Literal::Atom(ident!("timeout", 270, 277)))],
+                )),
+            }],
         });
         let mut functions = Vec::new();
         functions.push(Function::Named {
             span: span_usize!(16, 286),
             name: ident!("loop", 16, 20),
             arity: 2,
-            clauses
+            clauses,
         });
         let expected = Module {
             span: span_usize!(1, 286),
@@ -601,7 +608,8 @@ loop(State, Timeout) ->
     });
 
     parser_test!(parse_preprocessor_if, {
-        let result: Module = parse("-module(foo).
+        let result: Module = parse(
+            "-module(foo).
 -define(TEST, true).
 -define(OTP_VERSION, 21).
 
@@ -623,7 +631,8 @@ system_version() ->
 system_version() ->
     old.
 -endif.
-");
+",
+        );
         let mut functions = Vec::new();
         let mut clauses = Vec::new();
         clauses.push(FunctionClause::Named {
@@ -631,15 +640,13 @@ system_version() ->
             name: ident!("env", 77, 80),
             params: vec![],
             guard: None,
-            body: vec![
-                Expr::Literal(Literal::Atom(ident!("test", 90, 94)))
-            ]
+            body: vec![Expr::Literal(Literal::Atom(ident!("test", 90, 94)))],
         });
         let env_fun = Function::Named {
             span: span_usize!(77, 95),
             name: ident!("env", 77, 80),
             arity: 0,
-            clauses
+            clauses,
         };
         functions.push(env_fun);
         let mut clauses = Vec::new();
@@ -648,9 +655,7 @@ system_version() ->
             name: ident!("system_version", 217, 231),
             params: vec![],
             guard: None,
-            body: vec![
-                Expr::Literal(Literal::Integer(span_usize!(57, 59), 21))
-            ]
+            body: vec![Expr::Literal(Literal::Integer(span_usize!(57, 59), 21))],
         });
         let system_version_fun = Function::Named {
             span: span_usize!(217, 254),
@@ -675,19 +680,25 @@ system_version() ->
         // a writer everywhere. You can change this for testing by
         // going to the Preprocessor and finding the line where we handle
         // the warning directive and toggle the config flag
-        let mut errs = parse_fail::<Module>("-module(foo).
+        let mut errs = parse_fail::<Module>(
+            "-module(foo).
 -warning(\"this is a compiler warning\").
 -error(\"this is a compiler error\").
-");
+",
+        );
         match errs.pop() {
             Some(ParserError::Preprocessor(PreprocessorError::CompilerError(_, _))) => (),
-            Some(err) => panic!("expected compiler error, but got a different error instead: {:?}", err),
+            Some(err) => panic!(
+                "expected compiler error, but got a different error instead: {:?}",
+                err
+            ),
             None => panic!("expected compiler error, but didn't get any errors!"),
         }
     });
 
     parser_test!(parse_try, {
-        let result: Module = parse("-module(foo).
+        let result: Module = parse(
+            "-module(foo).
 
 example(File) ->
     try read(File) of
@@ -701,96 +712,100 @@ example(File) ->
     after
         close(File)
     end.
-");
+",
+        );
         let mut clauses = Vec::new();
         clauses.push(FunctionClause::Named {
             span: span_usize!(16, 275),
             name: ident!("example", 16, 23),
-            params: vec![
-                Pattern::Var(ident!("File", 24, 28)),
-            ],
+            params: vec![Pattern::Var(ident!("File", 24, 28))],
             guard: None,
-            body: vec![
-                Expr::Try {
-                    span: span_usize!(37, 275),
-                    exprs: Some(vec![
-                        Expr::Apply {
-                            span: span_usize!(41, 51),
-                            lhs: Box::new(Expr::Literal(Literal::Atom(ident!("read", 41, 45)))),
-                            args: vec![ Expr::Var(ident!("File", 46, 50)) ]
-                        },
-                    ]),
-                    clauses: Some(vec![
-                        Clause {
-                            span: span_usize!(63, 107),
-                            pattern: Pattern::Tuple(span_usize!(63, 77), vec![
-                                Expr::Literal(Literal::Atom(ident!("ok", 64, 66))),
-                                Expr::Var(ident!("Contents", 68, 76)),
-                            ]),
-                            guard: None,
-                            body: vec![
-                                Expr::Tuple(span_usize!(93, 107), vec![
-                                    Expr::Literal(Literal::Atom(ident!("ok", 94, 96))),
-                                    Expr::Var(ident!("Contents", 98, 106)),
-                                ]),
-                            ]
-                        },
-                    ]),
-                    catch_clauses: Some(vec![
-                        TryClause {
-                            span: span_usize!(126, 190),
-                            kind: Name::Atom(ident!("error", 126, 131)),
-                            error: Pattern::Tuple(span_usize!(132, 143), vec![
+            body: vec![Expr::Try {
+                span: span_usize!(37, 275),
+                exprs: Some(vec![Expr::Apply {
+                    span: span_usize!(41, 51),
+                    lhs: Box::new(Expr::Literal(Literal::Atom(ident!("read", 41, 45)))),
+                    args: vec![Expr::Var(ident!("File", 46, 50))],
+                }]),
+                clauses: Some(vec![Clause {
+                    span: span_usize!(63, 107),
+                    pattern: Pattern::Tuple(
+                        span_usize!(63, 77),
+                        vec![
+                            Expr::Literal(Literal::Atom(ident!("ok", 64, 66))),
+                            Expr::Var(ident!("Contents", 68, 76)),
+                        ],
+                    ),
+                    guard: None,
+                    body: vec![Expr::Tuple(
+                        span_usize!(93, 107),
+                        vec![
+                            Expr::Literal(Literal::Atom(ident!("ok", 94, 96))),
+                            Expr::Var(ident!("Contents", 98, 106)),
+                        ],
+                    )],
+                }]),
+                catch_clauses: Some(vec![
+                    TryClause {
+                        span: span_usize!(126, 190),
+                        kind: Name::Atom(ident!("error", 126, 131)),
+                        error: Pattern::Tuple(
+                            span_usize!(132, 143),
+                            vec![
                                 Expr::Var(ident!("Mod", 133, 136)),
                                 Expr::Var(ident!("Code", 138, 142)),
-                            ]),
-                            trace: ident!("_", 0, 0),
-                            guard: None,
-                            body: vec![
-                                Expr::Tuple(span_usize!(159, 190), vec![
-                                    Expr::Literal(Literal::Atom(ident!("error", 160, 165))),
-                                    Expr::Apply {
-                                        span: span_usize!(167, 189),
-                                        lhs: Box::new(Expr::Remote {
-                                            span: span_usize!(167, 183),
-                                            module: Box::new(Expr::Var(ident!("Mod", 167, 170))),
-                                            function: Box::new(Expr::Literal(Literal::Atom(ident!("format_error", 171, 183)))),
-                                        }),
-                                        args: vec![ Expr::Var(ident!("Code", 184, 188)) ],
-                                    }
-                                ])
-                            ]
-                        },
-                        TryClause {
-                            span: span_usize!(200, 237),
-                            kind: Name::Atom(ident!("throw", 0, 0)),
-                            error: Pattern::Var(ident!("Reason", 200, 206)),
-                            trace: ident!("_", 0, 0),
-                            guard: None,
-                            body: vec![
-                                Expr::Tuple(span_usize!(222, 237), vec![
-                                    Expr::Literal(Literal::Atom(ident!("error", 223, 228))),
-                                    Expr::Var(ident!("Reason", 230, 236)),
-                                ])
-                            ]
-                        }
-                    ]),
-                    after: Some(vec![
-                        Expr::Apply {
-                            span: span_usize!(256, 267),
-                            lhs: Box::new(Expr::Literal(Literal::Atom(ident!("close", 256, 261)))),
-                            args: vec![ Expr::Var(ident!("File", 262, 266)) ],
-                        }
-                    ])
-                }
-            ]
+                            ],
+                        ),
+                        trace: ident!("_", 0, 0),
+                        guard: None,
+                        body: vec![Expr::Tuple(
+                            span_usize!(159, 190),
+                            vec![
+                                Expr::Literal(Literal::Atom(ident!("error", 160, 165))),
+                                Expr::Apply {
+                                    span: span_usize!(167, 189),
+                                    lhs: Box::new(Expr::Remote {
+                                        span: span_usize!(167, 183),
+                                        module: Box::new(Expr::Var(ident!("Mod", 167, 170))),
+                                        function: Box::new(Expr::Literal(Literal::Atom(ident!(
+                                            "format_error",
+                                            171,
+                                            183
+                                        )))),
+                                    }),
+                                    args: vec![Expr::Var(ident!("Code", 184, 188))],
+                                },
+                            ],
+                        )],
+                    },
+                    TryClause {
+                        span: span_usize!(200, 237),
+                        kind: Name::Atom(ident!("throw", 0, 0)),
+                        error: Pattern::Var(ident!("Reason", 200, 206)),
+                        trace: ident!("_", 0, 0),
+                        guard: None,
+                        body: vec![Expr::Tuple(
+                            span_usize!(222, 237),
+                            vec![
+                                Expr::Literal(Literal::Atom(ident!("error", 223, 228))),
+                                Expr::Var(ident!("Reason", 230, 236)),
+                            ],
+                        )],
+                    },
+                ]),
+                after: Some(vec![Expr::Apply {
+                    span: span_usize!(256, 267),
+                    lhs: Box::new(Expr::Literal(Literal::Atom(ident!("close", 256, 261)))),
+                    args: vec![Expr::Var(ident!("File", 262, 266))],
+                }]),
+            }],
         });
         let mut functions = Vec::new();
         functions.push(Function::Named {
             span: span_usize!(16, 276),
             name: ident!("example", 16, 23),
             arity: 1,
-            clauses
+            clauses,
         });
         let expected = Module {
             span: span_usize!(1, 276),

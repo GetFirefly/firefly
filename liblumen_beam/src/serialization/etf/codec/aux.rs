@@ -29,10 +29,7 @@ pub fn term_into_ranged_integer(t: Term, range: Range<i32>) -> Result<i32, Decod
         if range.start <= n && n <= range.end {
             Ok(n)
         } else {
-            Err(DecodeError::OutOfRange {
-                value: n,
-                range: range,
-            })
+            Err(DecodeError::OutOfRange { value: n, range })
         }
     })
 }

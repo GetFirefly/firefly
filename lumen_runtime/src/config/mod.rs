@@ -140,7 +140,7 @@ impl Config {
             debug: matches.is_present("debug"),
             name: matches.value_of("name").map(|v| v.to_string()),
             cookie: matches.value_of("cookie").map(|v| v.to_string()),
-            command: command,
+            command,
             extra: extra.iter().map(|v| v.to_string()).collect(),
         })
     }

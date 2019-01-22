@@ -1,7 +1,8 @@
 mod config;
 mod logging;
 mod system;
-#[macro_use] mod support;
+#[macro_use]
+mod support;
 
 use self::config::Config;
 use self::logging::Logger;
@@ -46,7 +47,7 @@ pub fn main(name: &str, version: &str, argv: Vec<String>) {
         match rx1.recv() {
             Ok(_) => {
                 break;
-            },
+            }
             Err(e) => {
                 println!("{}", e);
                 break;

@@ -22,9 +22,7 @@ pub struct OrGuard {
 }
 impl OrGuard {
     pub fn new(and_guards: Vec<Guard>) -> Self {
-        OrGuard {
-            and_guards: and_guards,
-        }
+        OrGuard { and_guards }
     }
 }
 

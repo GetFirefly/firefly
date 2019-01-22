@@ -1,5 +1,5 @@
-use std::path::Path;
 use std::ffi::{CString, OsStr};
+use std::path::Path;
 
 use crate::llvm::enums::Optimization;
 
@@ -11,7 +11,7 @@ pub enum LinkerFlavor {
     Coff,
     MingW,
     MachO,
-    Wasm
+    Wasm,
 }
 impl LinkerFlavor {
     pub fn get() -> LinkerFlavor {
@@ -36,7 +36,7 @@ impl Default for LinkerFlavor {
 
 #[derive(Debug)]
 pub enum LinkerError {
-    LinkingFailed
+    LinkingFailed,
 }
 
 #[derive(Debug)]
@@ -46,17 +46,30 @@ pub struct Linker {
 }
 impl Linker {
     pub fn new() -> Self {
-        Linker { flavor: LinkerFlavor::default(), args: vec![to_cstring("lld")] }
+        Linker {
+            flavor: LinkerFlavor::default(),
+            args: vec![to_cstring("lld")],
+        }
     }
 
     pub fn link(&self) -> Result<(), LinkerError> {
         let args = self.args().iter().map(|s| s.as_ptr()).collect::<Vec<_>>();
         let result = match self.flavor {
-            LinkerFlavor::Elf => unsafe { ffi::lumen_lld_elf_link(args.as_ptr(), args.len() as u32) },
-            LinkerFlavor::Coff => unsafe { ffi::lumen_lld_coff_link(args.as_ptr(), args.len() as u32) },
-            LinkerFlavor::MingW => unsafe { ffi::lumen_lld_mingw_link(args.as_ptr(), args.len() as u32) },
-            LinkerFlavor::MachO => unsafe { ffi::lumen_lld_mach_o_link(args.as_ptr(), args.len() as u32) },
-            LinkerFlavor::Wasm => unsafe { ffi::lumen_lld_wasm_link(args.as_ptr(), args.len() as u32) },
+            LinkerFlavor::Elf => unsafe {
+                ffi::lumen_lld_elf_link(args.as_ptr(), args.len() as u32)
+            },
+            LinkerFlavor::Coff => unsafe {
+                ffi::lumen_lld_coff_link(args.as_ptr(), args.len() as u32)
+            },
+            LinkerFlavor::MingW => unsafe {
+                ffi::lumen_lld_mingw_link(args.as_ptr(), args.len() as u32)
+            },
+            LinkerFlavor::MachO => unsafe {
+                ffi::lumen_lld_mach_o_link(args.as_ptr(), args.len() as u32)
+            },
+            LinkerFlavor::Wasm => unsafe {
+                ffi::lumen_lld_wasm_link(args.as_ptr(), args.len() as u32)
+            },
         };
         if result {
             Ok(())
@@ -66,14 +79,17 @@ impl Linker {
     }
 
     pub fn cmd_like_arg<S>(&mut self, arg: S)
-        where S: AsRef<OsStr>
+    where
+        S: AsRef<OsStr>,
     {
-        self.args.push(to_cstring(&arg.as_ref().to_string_lossy().to_owned()));
+        self.args
+            .push(to_cstring(&arg.as_ref().to_string_lossy().to_owned()));
     }
 
     #[allow(unused)]
     pub fn cmd_like_args<S>(&mut self, args: &[S])
-        where S: AsRef<OsStr>
+    where
+        S: AsRef<OsStr>,
     {
         for arg in args {
             self.cmd_like_arg(arg);
@@ -122,7 +138,7 @@ impl Linker {
             Optimization::None => 0,
             Optimization::Less => 1,
             Optimization::Default => 2,
-            Optimization::Aggressive => 3
+            Optimization::Aggressive => 3,
         };
         self.args.push(to_cstring(&format!("-lto-O{}", o)))
     }

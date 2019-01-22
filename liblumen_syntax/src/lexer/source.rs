@@ -1,18 +1,19 @@
+use std::char;
 use std::env;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::char;
 
 use failure::Fail;
 
 use crate::util;
-use liblumen_diagnostics::{ByteIndex, ByteOffset, ByteSpan, CodeMap, FileMap, FileName, Diagnostic};
+use liblumen_diagnostics::{
+    ByteIndex, ByteOffset, ByteSpan, CodeMap, Diagnostic, FileMap, FileName,
+};
 
 pub type SourceResult<T> = std::result::Result<T, SourceError>;
 
 pub trait Source: Sized {
-    fn from_path<P: AsRef<Path>>(codemap: Arc<Mutex<CodeMap>>, path: P)
-        -> SourceResult<Self>;
+    fn from_path<P: AsRef<Path>>(codemap: Arc<Mutex<CodeMap>>, path: P) -> SourceResult<Self>;
 
     fn read(&mut self) -> Option<(ByteIndex, char)>;
 
@@ -32,7 +33,7 @@ pub enum SourceError {
     InvalidPath(String),
 
     #[fail(display = "invalid environment variable '{}'", _1)]
-    InvalidEnvironmentVariable(std::env::VarError, String)
+    InvalidEnvironmentVariable(std::env::VarError, String),
 }
 impl std::convert::From<std::io::Error> for SourceError {
     fn from(err: std::io::Error) -> SourceError {
@@ -42,14 +43,20 @@ impl std::convert::From<std::io::Error> for SourceError {
 impl SourceError {
     pub fn to_diagnostic(&self) -> Diagnostic {
         match self {
-            SourceError::IO(ref err) =>
-                Diagnostic::new_error(err.to_string()),
-            SourceError::InvalidPath(ref reason) =>
-                Diagnostic::new_error(format!("invalid path: {}", reason)),
-            SourceError::InvalidEnvironmentVariable(env::VarError::NotPresent, ref var) =>
-                Diagnostic::new_error(format!("invalid environment variable '{}': not defined", var)),
-            SourceError::InvalidEnvironmentVariable(_, ref var) =>
-                Diagnostic::new_error(format!("invalid environment variable '{}': contains invalid unicode data", var)),
+            SourceError::IO(ref err) => Diagnostic::new_error(err.to_string()),
+            SourceError::InvalidPath(ref reason) => {
+                Diagnostic::new_error(format!("invalid path: {}", reason))
+            }
+            SourceError::InvalidEnvironmentVariable(env::VarError::NotPresent, ref var) => {
+                Diagnostic::new_error(format!(
+                    "invalid environment variable '{}': not defined",
+                    var
+                ))
+            }
+            SourceError::InvalidEnvironmentVariable(_, ref var) => Diagnostic::new_error(format!(
+                "invalid environment variable '{}': contains invalid unicode data",
+                var
+            )),
         }
     }
 }
@@ -97,7 +104,7 @@ impl FileMapSource {
                     self.eof = true;
                     return None;
                 }
-                result => result
+                result => result,
             }
         };
 
@@ -127,7 +134,7 @@ impl FileMapSource {
         let x = *bytes.get_unchecked(pos);
         if x < 128 {
             self.pos = pos + 1;
-            return Some((start, char::from_u32_unchecked(x as u32)))
+            return Some((start, char::from_u32_unchecked(x as u32)));
         }
 
         // Multibyte case follows
@@ -179,22 +186,25 @@ impl FileMapSource {
     /// The first byte is special, only want bottom 5 bits for width 2, 4 bits
     /// for width 3, and 3 bits for width 4.
     #[inline]
-    fn utf8_first_byte(byte: u8, width: u32) -> u32 { (byte & (0x7F >> width)) as u32 }
+    fn utf8_first_byte(byte: u8, width: u32) -> u32 {
+        (byte & (0x7F >> width)) as u32
+    }
 
     /// Returns the value of `ch` updated with continuation byte `byte`.
     #[inline]
-    fn utf8_acc_cont_byte(ch: u32, byte: u8) -> u32 { (ch << 6) | (byte & Self::CONT_MASK) as u32 }
+    fn utf8_acc_cont_byte(ch: u32, byte: u8) -> u32 {
+        (ch << 6) | (byte & Self::CONT_MASK) as u32
+    }
 
     /// Mask of the value bits of a continuation byte.
     const CONT_MASK: u8 = 0b0011_1111;
 }
 impl Source for FileMapSource {
-    fn from_path<P: AsRef<Path>>(codemap: Arc<Mutex<CodeMap>>, path: P)
-        -> SourceResult<Self>
-    {
+    fn from_path<P: AsRef<Path>>(codemap: Arc<Mutex<CodeMap>>, path: P) -> SourceResult<Self> {
         let path = util::substitute_path_variables(path)?;
         let filemap = {
-            codemap.lock()
+            codemap
+                .lock()
                 .unwrap()
                 .add_filemap_from_disk(FileName::real(path))?
         };
@@ -232,11 +242,11 @@ impl Iterator for FileMapSource {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
     use std::borrow::Cow;
+    use std::sync::Arc;
 
+    use liblumen_diagnostics::{ByteIndex, FileMap, FileName};
     use pretty_assertions::assert_eq;
-    use liblumen_diagnostics::{FileMap, FileName, ByteIndex};
 
     use super::*;
 
@@ -252,9 +262,7 @@ mod test {
 
     #[test]
     fn file_source() {
-        let expected = vec![
-            'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '!'
-        ];
+        let expected = vec!['h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '!'];
 
         let chars = read_all_chars("hello world!");
 

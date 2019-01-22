@@ -1,13 +1,13 @@
-use std::fmt;
-use std::mem;
 use std::convert::TryFrom;
+use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::mem;
 
 use rug::Integer;
 
-use liblumen_diagnostics::{ByteSpan, ByteIndex};
+use liblumen_diagnostics::{ByteIndex, ByteSpan};
 
-use super::{LexicalError, TokenConvertResult, TokenConvertError, Symbol};
+use super::{LexicalError, Symbol, TokenConvertError, TokenConvertResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LexicalToken(pub ByteIndex, pub Token, pub ByteIndex);
@@ -44,7 +44,7 @@ pub enum TokenType {
     Atom,
     Ident,
     String,
-    Symbol
+    Symbol,
 }
 impl fmt::Display for TokenType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -69,7 +69,7 @@ impl AtomToken {
     pub fn symbol(&self) -> Symbol {
         match self.token() {
             Token::Atom(a) => a,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -80,16 +80,15 @@ impl TryFrom<LexicalToken> for AtomToken {
         use super::symbol::symbols;
 
         match t {
-            LexicalToken(start, tok @ Token::Atom(_), end) =>
-                return Ok(AtomToken(start, tok, end)),
-            LexicalToken(start, Token::If, end) =>
-                return Ok(AtomToken(start, Token::Atom(symbols::If), end)),
-            t =>
-                Err(TokenConvertError {
-                    span: t.span(),
-                    token: t.token(),
-                    expected: TokenType::Atom,
-                })
+            LexicalToken(start, tok @ Token::Atom(_), end) => return Ok(AtomToken(start, tok, end)),
+            LexicalToken(start, Token::If, end) => {
+                return Ok(AtomToken(start, Token::Atom(symbols::If), end));
+            }
+            t => Err(TokenConvertError {
+                span: t.span(),
+                token: t.token(),
+                expected: TokenType::Atom,
+            }),
         }
     }
 }
@@ -116,7 +115,7 @@ impl IdentToken {
     pub fn symbol(&self) -> Symbol {
         match self.token() {
             Token::Ident(a) => a,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -157,7 +156,7 @@ impl StringToken {
     pub fn symbol(&self) -> Symbol {
         match self.token() {
             Token::String(a) => a,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -204,13 +203,12 @@ impl TryFrom<LexicalToken> for SymbolToken {
             LexicalToken(_, Token::Atom(_), _) => (),
             LexicalToken(_, Token::Ident(_), _) => (),
             LexicalToken(_, Token::String(_), _) => (),
-            LexicalToken(start, token, end) =>
-                return Ok(SymbolToken(start, token, end))
+            LexicalToken(start, token, end) => return Ok(SymbolToken(start, token, end)),
         }
         Err(TokenConvertError {
             span: t.span(),
             token: t.token(),
-            expected: TokenType::Symbol
+            expected: TokenType::Symbol,
         })
     }
 }
@@ -344,36 +342,42 @@ pub enum Token {
 impl PartialEq for Token {
     fn eq(&self, other: &Token) -> bool {
         match *self {
-            Token::Char(c) =>
+            Token::Char(c) => {
                 if let Token::Char(c2) = other {
                     return c == *c2;
-                },
-            Token::Integer(i) =>
+                }
+            }
+            Token::Integer(i) => {
                 if let Token::Integer(i2) = other {
                     return i == *i2;
-                },
-            Token::Float(n) =>
+                }
+            }
+            Token::Float(n) => {
                 if let Token::Float(n2) = other {
                     return n == *n2;
-                },
-            Token::Error(_) =>
+                }
+            }
+            Token::Error(_) => {
                 if let Token::Error(_) = other {
                     return true;
-                },
-            Token::Atom(ref a) =>
+                }
+            }
+            Token::Atom(ref a) => {
                 if let Token::Atom(a2) = other {
                     return *a == *a2;
-                },
-            Token::Ident(ref i) =>
+                }
+            }
+            Token::Ident(ref i) => {
                 if let Token::Ident(i2) = other {
                     return *i == *i2;
-                },
-            Token::String(ref s) =>
+                }
+            }
+            Token::String(ref s) => {
                 if let Token::String(s2) = other {
                     return *s == *s2;
-                },
-            _ =>
-                return mem::discriminant(self) == mem::discriminant(other)
+                }
+            }
+            _ => return mem::discriminant(self) == mem::discriminant(other),
         }
         return false;
     }
@@ -422,7 +426,7 @@ impl Token {
             "bsr" => Token::Bsr,
             "or" => Token::Or,
             "xor" => Token::Xor,
-            _ => Token::Atom(Symbol::intern(atom))
+            _ => Token::Atom(Symbol::intern(atom)),
         }
     }
 }

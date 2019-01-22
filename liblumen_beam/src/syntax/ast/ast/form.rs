@@ -65,7 +65,7 @@ pub struct Eof {
 impl_node!(Eof);
 impl Eof {
     pub fn new(line: LineNum) -> Self {
-        Eof { line: line }
+        Eof { line }
     }
 }
 
@@ -77,10 +77,7 @@ pub struct ModuleAttr {
 impl_node!(ModuleAttr);
 impl ModuleAttr {
     pub fn new(line: LineNum, name: String) -> Self {
-        ModuleAttr {
-            line: line,
-            name: name,
-        }
+        ModuleAttr { line, name }
     }
 }
 
@@ -94,8 +91,8 @@ impl_node!(BehaviourAttr);
 impl BehaviourAttr {
     pub fn new(line: LineNum, name: String) -> Self {
         BehaviourAttr {
-            line: line,
-            name: name,
+            line,
+            name,
             is_british: true,
         }
     }
@@ -113,10 +110,7 @@ pub struct ExportAttr {
 impl_node!(ExportAttr);
 impl ExportAttr {
     pub fn new(line: LineNum, funs: Vec<Export>) -> Self {
-        ExportAttr {
-            line: line,
-            funs: funs,
-        }
+        ExportAttr { line, funs }
     }
 }
 
@@ -129,11 +123,7 @@ pub struct ImportAttr {
 impl_node!(ImportAttr);
 impl ImportAttr {
     pub fn new(line: LineNum, module: String, funs: Vec<Import>) -> Self {
-        ImportAttr {
-            line: line,
-            module: module,
-            funs: funs,
-        }
+        ImportAttr { line, module, funs }
     }
 }
 
@@ -145,10 +135,7 @@ pub struct ExportTypeAttr {
 impl_node!(ExportTypeAttr);
 impl ExportTypeAttr {
     pub fn new(line: LineNum, types: Vec<ExportType>) -> Self {
-        ExportTypeAttr {
-            line: line,
-            types: types,
-        }
+        ExportTypeAttr { line, types }
     }
 }
 
@@ -160,10 +147,7 @@ pub struct CompileOptionsAttr {
 impl_node!(CompileOptionsAttr);
 impl CompileOptionsAttr {
     pub fn new(line: LineNum, options: etf::Term) -> Self {
-        CompileOptionsAttr {
-            line: line,
-            options: options,
-        }
+        CompileOptionsAttr { line, options }
     }
 }
 
@@ -177,9 +161,9 @@ impl_node!(FileAttr);
 impl FileAttr {
     pub fn new(line: LineNum, original_file: String, original_line: LineNum) -> Self {
         FileAttr {
-            line: line,
-            original_file: original_file,
-            original_line: original_line,
+            line,
+            original_file,
+            original_line,
         }
     }
 }
@@ -193,11 +177,7 @@ pub struct RecordDecl {
 impl_node!(RecordDecl);
 impl RecordDecl {
     pub fn new(line: LineNum, name: String, fields: Vec<RecordFieldDecl>) -> Self {
-        RecordDecl {
-            line: line,
-            name: name,
-            fields: fields,
-        }
+        RecordDecl { line, name, fields }
     }
 }
 
@@ -213,10 +193,10 @@ impl_node!(TypeDecl);
 impl TypeDecl {
     pub fn new(line: LineNum, name: String, vars: Vec<common::Var>, ty: ty::Type) -> Self {
         TypeDecl {
-            line: line,
-            name: name,
-            vars: vars,
-            ty: ty,
+            line,
+            name,
+            vars,
+            ty,
             is_opaque: false,
         }
     }
@@ -238,10 +218,10 @@ impl_node!(FunSpec);
 impl FunSpec {
     pub fn new(line: LineNum, name: String, types: Vec<ty::Fun>) -> Self {
         FunSpec {
-            line: line,
+            line,
             module: None,
-            name: name,
-            types: types,
+            name,
+            types,
             is_callback: false,
         }
     }
@@ -264,11 +244,7 @@ pub struct WildAttr {
 impl_node!(WildAttr);
 impl WildAttr {
     pub fn new(line: LineNum, name: String, value: etf::Term) -> Self {
-        WildAttr {
-            line: line,
-            name: name,
-            value: value,
-        }
+        WildAttr { line, name, value }
     }
 }
 
@@ -282,9 +258,9 @@ impl_node!(FunDecl);
 impl FunDecl {
     pub fn new(line: LineNum, name: String, clauses: Vec<clause::Clause>) -> Self {
         FunDecl {
-            line: line,
-            name: name,
-            clauses: clauses,
+            line,
+            name,
+            clauses,
         }
     }
 }
@@ -300,8 +276,8 @@ impl_node!(RecordFieldDecl);
 impl RecordFieldDecl {
     pub fn new(line: LineNum, name: String) -> Self {
         RecordFieldDecl {
-            line: line,
-            name: name,
+            line,
+            name,
             ty: ty::Type::any(line),
             default_value: expr::Expression::atom(line, "undefined".to_string()),
         }
@@ -323,10 +299,7 @@ pub struct Export {
 }
 impl Export {
     pub fn new(fun: String, arity: Arity) -> Self {
-        Export {
-            fun: fun,
-            arity: arity,
-        }
+        Export { fun, arity }
     }
 }
 
@@ -337,10 +310,7 @@ pub struct Import {
 }
 impl Import {
     pub fn new(fun: String, arity: Arity) -> Self {
-        Import {
-            fun: fun,
-            arity: arity,
-        }
+        Import { fun, arity }
     }
 }
 
@@ -351,9 +321,6 @@ pub struct ExportType {
 }
 impl ExportType {
     pub fn new(typ: String, arity: Arity) -> Self {
-        ExportType {
-            typ: typ,
-            arity: arity,
-        }
+        ExportType { typ, arity }
     }
 }

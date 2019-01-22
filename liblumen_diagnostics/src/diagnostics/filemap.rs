@@ -6,7 +6,9 @@ use std::{fmt, io};
 
 use failure::Fail;
 
-use super::index::{ByteIndex, ByteOffset, ColumnIndex, LineIndex, LineOffset, RawIndex, RawOffset};
+use super::index::{
+    ByteIndex, ByteOffset, ColumnIndex, LineIndex, LineOffset, RawIndex, RawOffset,
+};
 use super::span::ByteSpan;
 
 use unicode_width::UnicodeWidthChar;
@@ -92,16 +94,13 @@ impl FileName {
         FileName::Virtual(name.into())
     }
 
-
     pub fn to_string(&self) -> String {
         match *self {
-            FileName::Real(ref path) =>
-                match path.to_str() {
-                    None => path.to_string_lossy().into_owned(),
-                    Some(s) => s.to_owned(),
-                },
-            FileName::Virtual(ref s) =>
-                s.clone().into_owned()
+            FileName::Real(ref path) => match path.to_str() {
+                None => path.to_string_lossy().into_owned(),
+                Some(s) => s.to_owned(),
+            },
+            FileName::Virtual(ref s) => s.clone().into_owned(),
         }
     }
 }
@@ -123,9 +122,15 @@ pub enum LineIndexError {
 
 #[derive(Debug, Fail, PartialEq)]
 pub enum ByteIndexError {
-    #[fail(display = "Byte index out of bounds - given: {}, span: {}", given, span)]
+    #[fail(
+        display = "Byte index out of bounds - given: {}, span: {}",
+        given, span
+    )]
     OutOfBounds { given: ByteIndex, span: ByteSpan },
-    #[fail(display = "Byte index points within a character boundary - given: {}", given)]
+    #[fail(
+        display = "Byte index points within a character boundary - given: {}",
+        given
+    )]
     InvalidCharBoundary { given: ByteIndex },
 }
 
@@ -134,7 +139,10 @@ pub enum LocationError {
     #[fail(display = "Line out of bounds - given: {:?}, max: {:?}", given, max)]
     LineOutOfBounds { given: LineIndex, max: LineIndex },
     #[fail(display = "Column out of bounds - given: {:?}, max: {:?}", given, max)]
-    ColumnOutOfBounds { given: ColumnIndex, max: ColumnIndex },
+    ColumnOutOfBounds {
+        given: ColumnIndex,
+        max: ColumnIndex,
+    },
 }
 
 #[derive(Debug, Fail, PartialEq)]
@@ -172,8 +180,8 @@ impl FileMap {
 
     /// Construct a new, standalone filemap.
     ///
-    /// This can be useful for tests that consist of a single source file. Production code should however
-    /// use `CodeMap::add_filemap` or `CodeMap::add_filemap_from_disk` instead.
+    /// This can be useful for tests that consist of a single source file. Production code should
+    /// however use `CodeMap::add_filemap` or `CodeMap::add_filemap_from_disk` instead.
     pub fn new<S: AsRef<str>>(name: FileName, src: S) -> FileMap {
         FileMap::with_index(name, src, ByteIndex(1))
     }
@@ -297,11 +305,10 @@ impl FileMap {
         for c in line_slice[..byte_col.to_usize()].chars() {
             match c.width() {
                 None => continue,
-                Some(w) => column_i = column_i + w
+                Some(w) => column_i = column_i + w,
             }
         }
-        let column_index =
-            ColumnIndex(column_i as RawIndex);
+        let column_index = ColumnIndex(column_i as RawIndex);
 
         Ok((line_index, column_index))
     }
@@ -350,9 +357,9 @@ impl FileMap {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::diagnostics::codemap::CodeMap;
     use pretty_assertions::assert_eq;
+    use std::sync::Arc;
 
     use super::*;
 

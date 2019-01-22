@@ -1,11 +1,11 @@
 #[macro_use]
 pub mod macros;
 
+mod linker;
 mod lld;
 mod llvm;
-mod linker;
 
-use failure::{Fail, Error};
+use failure::{Error, Fail};
 
 use liblumen_syntax::ast::Module;
 

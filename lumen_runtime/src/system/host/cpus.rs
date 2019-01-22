@@ -20,7 +20,6 @@ pub fn num_physical() -> usize {
     get_num_physical_cpus()
 }
 
-
 /// Returns the number of available CPUs of the current system.
 ///
 /// This function will get the number of logical cores. Sometimes this is different from the number
@@ -41,7 +40,7 @@ pub fn num_total() -> usize {
     get_num_cpus()
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "windows", target_os="macos")))]
+#[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
 #[inline]
 fn get_num_physical_cpus() -> usize {
     // Not implemented on this host, fall back
@@ -52,7 +51,7 @@ fn get_num_physical_cpus() -> usize {
 fn get_num_physical_cpus() -> usize {
     match get_num_physical_cpus_windows() {
         Some(num) => num,
-        None => get_num_cpus()
+        None => get_num_cpus(),
     }
 }
 
@@ -60,8 +59,8 @@ fn get_num_physical_cpus() -> usize {
 fn get_num_physical_cpus_windows() -> Option<usize> {
     // Inspired by https://msdn.microsoft.com/en-us/library/ms683194
 
-    use std::ptr;
     use std::mem;
+    use std::ptr;
 
     #[allow(non_upper_case_globals)]
     const RelationProcessorCore: u32 = 0;
@@ -71,13 +70,13 @@ fn get_num_physical_cpus_windows() -> Option<usize> {
     struct SYSTEM_LOGICAL_PROCESSOR_INFORMATION {
         mask: usize,
         relationship: u32,
-        _unused: [u64; 2]
+        _unused: [u64; 2],
     }
 
     extern "system" {
         fn GetLogicalProcessorInformation(
             info: *mut SYSTEM_LOGICAL_PROCESSOR_INFORMATION,
-            length: &mut u32
+            length: &mut u32,
         ) -> u32;
     }
 
@@ -133,14 +132,14 @@ fn get_num_physical_cpus_windows() -> Option<usize> {
 
 #[cfg(target_os = "linux")]
 fn get_num_physical_cpus() -> usize {
-    use std::io::BufReader;
-    use std::io::BufRead;
-    use std::fs::File;
     use std::collections::HashSet;
+    use std::fs::File;
+    use std::io::BufRead;
+    use std::io::BufReader;
 
     let file = match File::open("/proc/cpuinfo") {
         Ok(val) => val,
-        Err(_) => {return get_num_cpus()},
+        Err(_) => return get_num_cpus(),
     };
     let reader = BufReader::new(file);
     let mut set = HashSet::new();
@@ -150,17 +149,17 @@ fn get_num_physical_cpus() -> usize {
     for line in reader.lines().filter_map(|result| result.ok()) {
         let parts: Vec<&str> = line.split(':').map(|s| s.trim()).collect();
         if parts.len() != 2 {
-            continue
+            continue;
         }
         if parts[0] == "core id" || parts[0] == "physical id" {
             let value = match parts[1].trim().parse() {
-              Ok(val) => val,
-              Err(_) => break,
+                Ok(val) => val,
+                Err(_) => break,
             };
             match parts[0] {
-                "core id"     => coreid = value,
+                "core id" => coreid = value,
                 "physical id" => physid = value,
-                _ => {},
+                _ => {}
             }
             chgcount += 1;
         }
@@ -170,7 +169,11 @@ fn get_num_physical_cpus() -> usize {
         }
     }
     let count = set.len();
-    if count == 0 { get_num_cpus() } else { count }
+    if count == 0 {
+        get_num_cpus()
+    } else {
+        count
+    }
 }
 
 #[cfg(windows)]
@@ -201,10 +204,12 @@ fn get_num_cpus() -> usize {
     }
 }
 
-#[cfg(any(target_os = "freebsd",
-          target_os = "dragonfly",
-          target_os = "bitrig",
-          target_os = "netbsd"))]
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "bitrig",
+    target_os = "netbsd"
+))]
 fn get_num_cpus() -> usize {
     let mut cpus: libc::c_uint = 0;
     let mut cpus_size = std::mem::size_of_val(&cpus);
@@ -215,12 +220,14 @@ fn get_num_cpus() -> usize {
     if cpus < 1 {
         let mut mib = [libc::CTL_HW, libc::HW_NCPU, 0, 0];
         unsafe {
-            libc::sysctl(mib.as_mut_ptr(),
-                         2,
-                         &mut cpus as *mut _ as *mut _,
-                         &mut cpus_size as *mut _ as *mut _,
-                         0 as *mut _,
-                         0);
+            libc::sysctl(
+                mib.as_mut_ptr(),
+                2,
+                &mut cpus as *mut _ as *mut _,
+                &mut cpus_size as *mut _ as *mut _,
+                0 as *mut _,
+                0,
+            );
         }
         if cpus < 1 {
             cpus = 1;
@@ -236,19 +243,20 @@ fn get_num_cpus() -> usize {
     let mut mib = [libc::CTL_HW, libc::HW_NCPU, 0, 0];
 
     unsafe {
-        libc::sysctl(mib.as_mut_ptr(),
-                     2,
-                     &mut cpus as *mut _ as *mut _,
-                     &mut cpus_size as *mut _ as *mut _,
-                     0 as *mut _,
-                     0);
+        libc::sysctl(
+            mib.as_mut_ptr(),
+            2,
+            &mut cpus as *mut _ as *mut _,
+            &mut cpus_size as *mut _ as *mut _,
+            0 as *mut _,
+            0,
+        );
     }
     if cpus < 1 {
         cpus = 1;
     }
     cpus as usize
 }
-
 
 #[cfg(target_os = "macos")]
 fn get_num_physical_cpus() -> usize {
@@ -258,15 +266,17 @@ fn get_num_physical_cpus() -> usize {
     let mut cpus: i32 = 0;
     let mut cpus_size = std::mem::size_of_val(&cpus);
 
-    let sysctl_name = CStr::from_bytes_with_nul(b"hw.physicalcpu\0")
-        .expect("byte literal is missing NUL");
+    let sysctl_name =
+        CStr::from_bytes_with_nul(b"hw.physicalcpu\0").expect("byte literal is missing NUL");
 
     unsafe {
-        if 0 != libc::sysctlbyname(sysctl_name.as_ptr(),
-                                   &mut cpus as *mut _ as *mut _,
-                                   &mut cpus_size as *mut _ as *mut _,
-                                   ptr::null_mut(),
-                                   0) {
+        if 0 != libc::sysctlbyname(
+            sysctl_name.as_ptr(),
+            &mut cpus as *mut _ as *mut _,
+            &mut cpus_size as *mut _ as *mut _,
+            ptr::null_mut(),
+            0,
+        ) {
             return get_num_cpus();
         }
     }
@@ -275,8 +285,9 @@ fn get_num_physical_cpus() -> usize {
 
 #[cfg(target_os = "linux")]
 fn get_num_cpus() -> usize {
-    let mut set:  libc::cpu_set_t = unsafe { std::mem::zeroed() };
-    if unsafe { libc::sched_getaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &mut set) } == 0 {
+    let mut set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+    if unsafe { libc::sched_getaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &mut set) } == 0
+    {
         let mut count: u32 = 0;
         for i in 0..libc::CPU_SETSIZE as usize {
             if unsafe { libc::CPU_ISSET(i, &set) } {
@@ -300,8 +311,8 @@ fn get_num_cpus() -> usize {
     target_os = "ios",
     target_os = "android",
     target_os = "solaris",
-    target_os = "fuchsia")
-)]
+    target_os = "fuchsia"
+))]
 fn get_num_cpus() -> usize {
     // On ARM targets, processors could be turned off to save power.
     // Use `_SC_NPROCESSORS_CONF` to get the real number.

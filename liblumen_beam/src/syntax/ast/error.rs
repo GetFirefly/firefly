@@ -1,5 +1,5 @@
-use std::fmt::{self, Display};
 use std::convert::From;
+use std::fmt::{self, Display};
 
 use failure::Fail;
 

@@ -12,7 +12,7 @@ use llvm_sys::prelude::*;
 use llvm_sys::target::*;
 use llvm_sys::*;
 
-use liblumen_diagnostics::{Diagnostic, Severity, Emitter, StandardStreamEmitter, ColorChoice};
+use liblumen_diagnostics::{ColorChoice, Diagnostic, Emitter, Severity, StandardStreamEmitter};
 
 use super::CodeGenError;
 
@@ -71,16 +71,22 @@ pub struct Module {
 }
 impl Module {
     pub fn new(name: &str, m: LLVMModuleRef) -> Module {
-        Module { name: name.to_string(), m }
+        Module {
+            name: name.to_string(),
+            m,
+        }
     }
 
     pub fn parse(context: &Context, name: &str, ir: &str) -> Result<Module, CodeGenError> {
         // First, create an LLVM memory buffer to hold the IR
         let len = ir.len();
         let ir = CString::new(ir).expect("generated IR is an invalid C string");
-        let buf = unsafe { LLVMCreateMemoryBufferWithMemoryRange(ir.as_ptr(), len, c_str!(name), 0) };
+        let buf =
+            unsafe { LLVMCreateMemoryBufferWithMemoryRange(ir.as_ptr(), len, c_str!(name), 0) };
         if buf.is_null() {
-            return Err(CodeGenError::LLVMError("could not create LLVM memory buffer to parse IR".to_string()));
+            return Err(CodeGenError::LLVMError(
+                "could not create LLVM memory buffer to parse IR".to_string(),
+            ));
         }
         // Then, parse the IR from the memory buffer
         let module: *mut LLVMModuleRef = std::ptr::null_mut();
@@ -142,7 +148,12 @@ impl Module {
 
             let pm = LLVMCreatePassManager();
             let pmb = LLVMPassManagerBuilderCreate();
-            LLVMPassManagerBuilderPopulateLTOPassManager(pmb, pm, internalize.into(), inline.into());
+            LLVMPassManagerBuilderPopulateLTOPassManager(
+                pmb,
+                pm,
+                internalize.into(),
+                inline.into(),
+            );
             LLVMPassManagerBuilderDispose(pmb);
 
             LLVMRunPassManager(pm, self.m);
@@ -163,7 +174,11 @@ impl Module {
 
         let mut err: *mut libc::c_char = std::ptr::null_mut();
         let result = unsafe {
-            LLVMVerifyModule(self.m, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut err)
+            LLVMVerifyModule(
+                self.m,
+                LLVMVerifierFailureAction::LLVMReturnStatusAction,
+                &mut err,
+            )
         };
         if result != 0 {
             let err = c_str_to_str!(err);

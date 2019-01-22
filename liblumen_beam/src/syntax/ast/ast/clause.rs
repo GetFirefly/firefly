@@ -21,10 +21,10 @@ impl Clause {
         body: Vec<expr::Expression>,
     ) -> Self {
         Clause {
-            line: line,
-            patterns: patterns,
-            guards: guards,
-            body: body,
+            line,
+            patterns,
+            guards,
+            body,
         }
     }
 }

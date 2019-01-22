@@ -1,25 +1,25 @@
+use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
-use std::sync::{Arc, Mutex};
-use std::collections::{VecDeque, HashMap};
 use std::fmt::Display;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 use liblumen_diagnostics::CodeMap;
 
-use crate::lexer::{Lexed, LexicalToken, Lexer, Token, Symbol};
 use crate::lexer::{AtomToken, SymbolToken, TokenConvertError};
-use crate::lexer::{Scanner, Source, FileMapSource};
+use crate::lexer::{FileMapSource, Scanner, Source};
+use crate::lexer::{Lexed, Lexer, LexicalToken, Symbol, Token};
 
-use super::{Result, PreprocessorError, MacroDef, MacroCall};
 use super::macros::NoArgsMacroCall;
 use super::token_stream::TokenStream;
+use super::{MacroCall, MacroDef, PreprocessorError, Result};
 
 pub trait TokenReader: Sized {
     type Source;
 
     fn new(codemap: Arc<Mutex<CodeMap>>, tokens: Self::Source) -> Self;
 
-    fn inject_include<P>(&mut self, path: P)  -> Result<()>
+    fn inject_include<P>(&mut self, path: P) -> Result<()>
     where
         P: AsRef<Path>;
 
@@ -31,7 +31,10 @@ pub trait TokenReader: Sized {
         V::try_read_from(self)
     }
 
-    fn try_read_macro_call(&mut self, macros: &HashMap<Symbol, MacroDef>) -> Result<Option<MacroCall>> {
+    fn try_read_macro_call(
+        &mut self,
+        macros: &HashMap<Symbol, MacroDef>,
+    ) -> Result<Option<MacroCall>> {
         if let Some(call) = self.try_read::<NoArgsMacroCall>()? {
             let span = call.span();
             let start = span.start();
@@ -40,10 +43,9 @@ pub trait TokenReader: Sized {
                 name: call.name,
                 args: None,
             };
-            if macros.get(&call.name()).map_or(
-                false,
-                |m| m.has_variables(),
-            )
+            if macros
+                .get(&call.name())
+                .map_or(false, |m| m.has_variables())
             {
                 call.args = Some(self.read()?);
             }
@@ -86,13 +88,13 @@ impl TokenReader for TokenBufferReader {
     fn new(codemap: Arc<Mutex<CodeMap>>, tokens: Self::Source) -> Self {
         TokenBufferReader {
             codemap: codemap.clone(),
-            tokens: tokens,
+            tokens,
             unread: VecDeque::new(),
         }
     }
 
     // Adds tokens from the provided path
-    fn inject_include<P>(&mut self, path: P)  -> Result<()>
+    fn inject_include<P>(&mut self, path: P) -> Result<()>
     where
         P: AsRef<Path>,
     {
@@ -150,7 +152,7 @@ where
     }
 
     // Adds tokens from the provided path
-    fn inject_include<P>(&mut self, path: P)  -> Result<()>
+    fn inject_include<P>(&mut self, path: P) -> Result<()>
     where
         P: AsRef<Path>,
     {
@@ -198,21 +200,19 @@ pub trait ReadFrom: Sized {
     where
         R: TokenReader<Source = S>,
     {
-        Self::read_from(reader).map(Some).or_else(|e| {
-            match e {
-                PreprocessorError::UnexpectedToken(token, _) => {
-                    reader.unread_token(token.clone());
-                    return Ok(None);
-                }
-                PreprocessorError::InvalidTokenType(token, _) => {
-                    reader.unread_token(token.clone());
-                    return Ok(None);
-                }
-                PreprocessorError::UnexpectedEOF => {
-                    return Ok(None);
-                }
-                _ => Err(e)
+        Self::read_from(reader).map(Some).or_else(|e| match e {
+            PreprocessorError::UnexpectedToken(token, _) => {
+                reader.unread_token(token.clone());
+                return Ok(None);
             }
+            PreprocessorError::InvalidTokenType(token, _) => {
+                reader.unread_token(token.clone());
+                return Ok(None);
+            }
+            PreprocessorError::UnexpectedEOF => {
+                return Ok(None);
+            }
+            _ => Err(e),
         })
     }
 
@@ -222,22 +222,25 @@ pub trait ReadFrom: Sized {
         Self: Expect + Into<LexicalToken>,
     {
         Self::read_from(reader)
-            .map_err(|err| {
-                match err {
-                    PreprocessorError::UnexpectedToken(token, _) =>
-                        PreprocessorError::UnexpectedToken(token, vec![expected.to_string()]),
-                    PreprocessorError::InvalidTokenType(token, _) =>
-                        PreprocessorError::InvalidTokenType(token, expected.to_string()),
-                    _ =>
-                        err
+            .map_err(|err| match err {
+                PreprocessorError::UnexpectedToken(token, _) => {
+                    PreprocessorError::UnexpectedToken(token, vec![expected.to_string()])
                 }
-            }).and_then(|token| {
-            if token.expect(expected) {
-                Ok(token)
-            } else {
-                Err(PreprocessorError::UnexpectedToken(token.into(), vec![expected.to_string()]))
-            }
-        })
+                PreprocessorError::InvalidTokenType(token, _) => {
+                    PreprocessorError::InvalidTokenType(token, expected.to_string())
+                }
+                _ => err,
+            })
+            .and_then(|token| {
+                if token.expect(expected) {
+                    Ok(token)
+                } else {
+                    Err(PreprocessorError::UnexpectedToken(
+                        token.into(),
+                        vec![expected.to_string()],
+                    ))
+                }
+            })
     }
 
     fn try_read_expected<R, S>(reader: &mut R, expected: &Self::Value) -> Result<Option<Self>>
@@ -246,11 +249,13 @@ pub trait ReadFrom: Sized {
         Self: Expect + Into<LexicalToken>,
     {
         Self::try_read_from(reader).map(|token| {
-            token.and_then(|token| if token.expect(expected) {
-                Some(token)
-            } else {
-                reader.unread_token(token.into());
-                None
+            token.and_then(|token| {
+                if token.expect(expected) {
+                    Some(token)
+                } else {
+                    reader.unread_token(token.into());
+                    None
+                }
             })
         })
     }
@@ -259,15 +264,14 @@ pub trait ReadFrom: Sized {
 /// Default implementation for all TryFrom<LexicalToken> supporting types
 impl<T> ReadFrom for T
 where
-    T: TryFrom<LexicalToken, Error = TokenConvertError>
+    T: TryFrom<LexicalToken, Error = TokenConvertError>,
 {
     fn read_from<R, S>(reader: &mut R) -> Result<Self>
     where
         R: TokenReader<Source = S>,
     {
         let token = reader.read_token()?;
-        Self::try_from(token)
-            .map_err(PreprocessorError::from)
+        Self::try_from(token).map_err(PreprocessorError::from)
     }
 }
 

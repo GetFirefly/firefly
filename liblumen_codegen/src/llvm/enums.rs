@@ -72,10 +72,9 @@ impl std::convert::Into<LLVMCodeGenOptLevel> for Optimization {
     }
 }
 
-
 pub enum Bool {
     True,
-    False
+    False,
 }
 impl std::convert::From<LLVMBool> for Bool {
     fn from(b: LLVMBool) -> Bool {

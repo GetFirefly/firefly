@@ -1,7 +1,7 @@
-mod errors;
-mod config;
 mod compiler;
+mod config;
+mod errors;
 
-pub use self::errors::CompilerError;
-pub use self::config::*;
 pub use self::compiler::*;
+pub use self::config::*;
+pub use self::errors::CompilerError;

@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use failure::Fail;
 
-use liblumen_syntax::ParserError;
 use liblumen_diagnostics::CodeMap;
+use liblumen_syntax::ParserError;
 
 use liblumen_beam::FromBeamError;
 
@@ -17,7 +17,10 @@ pub enum CompilerError {
     IO(#[fail(cause)] std::io::Error),
 
     #[fail(display = "parsing failed")]
-    Parser { codemap: Arc<Mutex<CodeMap>>, errs: Vec<ParserError> },
+    Parser {
+        codemap: Arc<Mutex<CodeMap>>,
+        errs: Vec<ParserError>,
+    },
 
     #[fail(display = "invalid beam source")]
     FromBeam(#[fail(cause)] FromBeamError),

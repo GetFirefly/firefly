@@ -1,17 +1,17 @@
-use std::fmt;
 use std::collections::VecDeque;
-use std::path::{Path, PathBuf, Component};
+use std::fmt;
+use std::path::{Component, Path, PathBuf};
 
 use glob::glob;
 use liblumen_diagnostics::ByteSpan;
 
-use crate::lexer::{symbols, Lexed, LexicalToken, Token, Symbol};
+use crate::lexer::{symbols, Lexed, LexicalToken, Symbol, Token};
 use crate::lexer::{AtomToken, StringToken, SymbolToken};
 use crate::util;
 
-use super::{Result, PreprocessorError};
-use super::token_reader::{TokenReader, ReadFrom};
+use super::token_reader::{ReadFrom, TokenReader};
 use super::types::{MacroName, MacroVariables};
+use super::{PreprocessorError, Result};
 
 /// `module` directive.
 ///
@@ -40,7 +40,8 @@ impl Module {
             self.name.clone().into(),
             self._close_paren.clone().into(),
             self._dot.clone().into(),
-        ].into()
+        ]
+        .into()
     }
 }
 impl fmt::Display for Module {
@@ -129,13 +130,15 @@ impl IncludeLib {
     pub fn include_lib(&self, code_paths: &VecDeque<PathBuf>) -> Result<PathBuf> {
         let mut path = match util::substitute_path_variables(self.path.symbol().as_str().get()) {
             Ok(path) => path,
-            Err(err) => return Err(err.into())
+            Err(err) => return Err(err.into()),
         };
 
         let temp_path = path.clone();
         let mut components = temp_path.components();
         if let Some(Component::Normal(app_name)) = components.next() {
-            let app_name = app_name.to_str().expect("internal error: expected app name here");
+            let app_name = app_name
+                .to_str()
+                .expect("internal error: expected app name here");
             let pattern = format!("{}-*", app_name);
             'root: for root in code_paths.iter() {
                 let pattern = root.join(&pattern);
@@ -475,27 +478,24 @@ where
 
     loop {
         match reader.try_read_token()? {
-            None =>
-                return Err(PreprocessorError::UnexpectedEOF),
-            Some(token) => {
-                match token {
-                    LexicalToken(_, Token::LParen, _) => {
-                        open = open + 1;
-                        condition.push_back(Ok(token));
-                    }
-                    LexicalToken(_, Token::RParen, _) if open == 0 => {
-                        reader.unread_token(token);
-                        break;
-                    },
-                    LexicalToken(_, Token::RParen, _) => {
-                        open = open - 1;
-                        condition.push_back(Ok(token));
-                    }
-                    _ => {
-                        condition.push_back(Ok(token));
-                    }
+            None => return Err(PreprocessorError::UnexpectedEOF),
+            Some(token) => match token {
+                LexicalToken(_, Token::LParen, _) => {
+                    open = open + 1;
+                    condition.push_back(Ok(token));
                 }
-            }
+                LexicalToken(_, Token::RParen, _) if open == 0 => {
+                    reader.unread_token(token);
+                    break;
+                }
+                LexicalToken(_, Token::RParen, _) => {
+                    open = open - 1;
+                    condition.push_back(Ok(token));
+                }
+                _ => {
+                    condition.push_back(Ok(token));
+                }
+            },
         }
     }
 
@@ -622,10 +622,9 @@ impl fmt::Display for Define {
             f,
             "-define({}{}, {}).",
             self.name,
-            self.variables.as_ref().map_or(
-                "".to_string(),
-                |v| v.to_string(),
-            ),
+            self.variables
+                .as_ref()
+                .map_or("".to_string(), |v| v.to_string(),),
             self.replacement
                 .iter()
                 .map(|t| t.to_string())
@@ -642,12 +641,13 @@ impl ReadFrom for Define {
         let _define = reader.read_expected(&symbols::Define)?;
         let _open_paren = reader.read_expected(&Token::LParen)?;
         let name = reader.read()?;
-        let variables = if let Some(token) = reader.try_read_expected::<SymbolToken>(&Token::LParen)? {
-            reader.unread_token(token.into());
-            Some(reader.read()?)
-        } else {
-            None
-        };
+        let variables =
+            if let Some(token) = reader.try_read_expected::<SymbolToken>(&Token::LParen)? {
+                reader.unread_token(token.into());
+                Some(reader.read()?)
+            } else {
+                None
+            };
         let _comma = reader.read_expected(&Token::Comma)?;
 
         let mut replacement = Vec::new();
@@ -669,10 +669,10 @@ impl ReadFrom for Define {
                 replacement.push(_close_paren.into());
             } else {
                 match reader.read_token()? {
-                    token @ LexicalToken(_, Token::Dot, _) =>
-                        return Err(PreprocessorError::UnexpectedToken(token, Vec::new())),
-                    token =>
-                        replacement.push(token)
+                    token @ LexicalToken(_, Token::Dot, _) => {
+                        return Err(PreprocessorError::UnexpectedToken(token, Vec::new()));
+                    }
+                    token => replacement.push(token),
                 }
             }
         }

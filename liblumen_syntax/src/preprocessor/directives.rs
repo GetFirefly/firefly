@@ -33,9 +33,10 @@ impl Module {
     }
 
     pub fn expand(&self) -> VecDeque<LexicalToken> {
+        let mod_span = self._module.span();
         vec![
             self._hyphen.clone().into(),
-            self._module.clone().into(),
+            LexicalToken(mod_span.start(), Token::Module, mod_span.end()),
             self._open_paren.clone().into(),
             self.name.clone().into(),
             self._close_paren.clone().into(),

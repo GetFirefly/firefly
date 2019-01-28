@@ -53,7 +53,7 @@ impl Verbosity {
 
 /// This structure holds all top-level compiler options
 /// and configuration; it is passed through all phases
-/// of compilation, including parsing.
+/// of compilation
 #[derive(Debug, Clone)]
 pub struct CompilerSettings {
     pub mode: CompilerMode,

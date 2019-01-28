@@ -82,6 +82,12 @@ impl Ident {
     }
 }
 
+impl PartialOrd for Ident {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.name.partial_cmp(&other.name)
+    }
+}
+
 impl PartialEq for Ident {
     fn eq(&self, rhs: &Self) -> bool {
         self.name == rhs.name
@@ -91,7 +97,6 @@ impl PartialEq for Ident {
 impl Hash for Ident {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
-        self.span.hash(state);
     }
 }
 
@@ -212,7 +217,7 @@ impl fmt::Debug for Symbol {
         if is_gensymed {
             write!(f, "{}({:?})", self, self.0)
         } else {
-            write!(f, "{}", self)
+            write!(f, "{}({:?})", self, self.0)
         }
     }
 }
@@ -322,7 +327,7 @@ macro_rules! declare_atoms {(
         /// Used *only* for testing that the declared atoms have no gaps
         /// NOTE: The length must be static, so it must be changed when new
         /// declared keywords are added to the list
-        pub(super) static DECLARED: [(Symbol, &'static str); 47] = [$(($konst, $string),)*];
+        pub(super) static DECLARED: [(Symbol, &'static str); 55] = [$(($konst, $string),)*];
     }
 
     impl Interner {
@@ -374,22 +379,30 @@ declare_atoms! {
     (29, Compile,      "compile")
     (30, Vsn,          "vsn")
     (31, OnLoad,       "on_load")
-    (32, Spec,         "spec")
-    (33, Callback,     "callback")
-    (33, Include,      "include")
-    (34, IncludeLib,   "include_lib")
-    (35, Define,       "define")
-    (36, Undef,        "undef")
-    (37, Ifdef,        "ifdef")
-    (38, Ifndef,       "ifndef")
-    (39, Else,         "else")
-    (40, Elif,         "elif")
-    (41, Endif,        "endif")
-    (42, Error,        "error")
-    (43, Warning,      "warning")
+    (32, Behaviour,    "behaviour")
+    (33, Spec,         "spec")
+    (34, Callback,     "callback")
+    (35, Include,      "include")
+    (36, IncludeLib,   "include_lib")
+    (37, Define,       "define")
+    (38, Undef,        "undef")
+    (39, Ifdef,        "ifdef")
+    (40, Ifndef,       "ifndef")
+    (41, Else,         "else")
+    (42, Elif,         "elif")
+    (43, Endif,        "endif")
+    (44, Error,        "error")
+    (45, Warning,      "warning")
     // Common words
-    (44, True,         "true")
-    (45, False,        "false")
+    (46, True,         "true")
+    (47, False,        "false")
+    (48, ModuleInfo,   "module_info")
+    (49, RecordInfo,   "record_info")
+    (50, BehaviourInfo,"behaviour_info")
+    (51, Exports,      "exports")
+    (52, Attributes,   "attributes")
+    (53, Native,       "native")
+    (54, Deprecated,   "deprecated")
 }
 
 impl Symbol {

@@ -33,36 +33,46 @@ pub fn eval(expr: Expr) -> Result<Expr, PreprocessorError> {
         Expr::Literal(_) => expr,
         Expr::Nil(_) => expr,
         Expr::FunctionName(_) => expr,
-        Expr::RecordIndex(_, _, _) => expr,
+        Expr::RecordIndex(_) => expr,
 
         // Recursively evaluate subexpressions
-        Expr::Cons(span, box head, box tail) => {
-            Expr::Cons(span, Box::new(eval(head)?), Box::new(eval(tail)?))
+        Expr::Cons(Cons { span, box head, box tail }) => {
+            Expr::Cons(Cons { span, head: Box::new(eval(head)?), tail: Box::new(eval(tail)?) })
         }
-        Expr::Tuple(span, elements) => Expr::Tuple(span, eval_list(elements)?),
-        Expr::Map(span, Some(box lhs), fields) => {
-            Expr::Map(span, Some(Box::new(eval(lhs)?)), eval_map(fields)?)
+        Expr::Tuple(Tuple { span, elements }) => {
+            Expr::Tuple(Tuple { span, elements: eval_list(elements)? })
         }
-        Expr::Map(span, None, fields) => Expr::Map(span, None, eval_map(fields)?),
-        Expr::Binary(span, elements) => Expr::Binary(span, eval_bin_elements(elements)?),
-        Expr::RecordAccess(span, box lhs, name, field) => {
-            Expr::RecordAccess(span, Box::new(eval(lhs)?), name, field)
+        Expr::Map(Map { span, fields }) => {
+            Expr::Map(Map { span, fields: eval_map(fields)? })
         }
-        Expr::RecordUpdate(span, box lhs, name, fields) => {
-            Expr::RecordUpdate(span, Box::new(eval(lhs)?), name, eval_record(fields)?)
+        Expr::MapUpdate(MapUpdate { span, map: box map, updates }) => {
+            Expr::MapUpdate(MapUpdate { span, map: Box::new(eval(map)?), updates: eval_map(updates)? })
         }
-        Expr::Record(span, name, fields) => Expr::Record(span, name, eval_record(fields)?),
-        Expr::Begin(span, _) => {
+        Expr::MapProjection(MapProjection { span, map: box map, fields }) => {
+            Expr::MapProjection(MapProjection { span, map: Box::new(eval(map)?), fields: eval_map(fields)? })
+        }
+        Expr::Binary(Binary { span, elements }) => {
+            Expr::Binary(Binary { span, elements: eval_bin_elements(elements)? })
+        }
+        Expr::Record(Record { span, name, fields }) => {
+            Expr::Record(Record { span, name, fields: eval_record(fields)? })
+        }
+        Expr::RecordAccess(RecordAccess { span, box record, name, field }) => {
+            Expr::RecordAccess(RecordAccess { span, record: Box::new(eval(record)?), name, field })
+        }
+        Expr::RecordUpdate(RecordUpdate { span, box record, name, updates }) => {
+            Expr::RecordUpdate(RecordUpdate { span, record: Box::new(eval(record)?), name, updates: eval_record(updates)? })
+        }
+        Expr::Begin(Begin { span, .. }) => {
             return Err(PreprocessorError::InvalidConstExpression(span));
         }
-        Expr::Apply {
+        Expr::Apply(Apply {
             span,
-            box lhs,
+            box callee,
             args,
-        } => {
+        }) => {
             let args = eval_list(args)?;
-            let lhs = eval(lhs)?;
-            match lhs {
+            match eval(callee)? {
                 Expr::Literal(Literal::Atom(Ident { ref name, .. })) => match builtin(*name) {
                     None => {
                         return Err(PreprocessorError::InvalidConstExpression(span));
@@ -75,42 +85,22 @@ pub fn eval(expr: Expr) -> Result<Expr, PreprocessorError> {
                 _ => return Err(PreprocessorError::InvalidConstExpression(span)),
             }
         }
-        Expr::BinaryExpr {
+        Expr::BinaryExpr(BinaryExpr {
             span,
             box lhs,
             op,
             box rhs,
-        } => {
+        }) => {
             let lhs = eval(lhs)?;
             let rhs = eval(rhs)?;
             return eval_binary_op(span, lhs, op, rhs);
         }
-        Expr::UnaryExpr { span, op, box rhs } => {
-            let rhs = eval(rhs)?;
-            return eval_unary_op(span, op, rhs);
+        Expr::UnaryExpr(UnaryExpr { span, op, box operand }) => {
+            let operand = eval(operand)?;
+            return eval_unary_op(span, op, operand);
         }
-        Expr::Remote { span, .. } => return Err(PreprocessorError::InvalidConstExpression(span)),
-        Expr::ListComprehension(span, _, _) => {
-            return Err(PreprocessorError::InvalidConstExpression(span));
-        }
-        Expr::BinaryComprehension(span, _, _) => {
-            return Err(PreprocessorError::InvalidConstExpression(span));
-        }
-        Expr::Generator(span, _, _) => return Err(PreprocessorError::InvalidConstExpression(span)),
-        Expr::BinaryGenerator(span, _, _) => {
-            return Err(PreprocessorError::InvalidConstExpression(span));
-        }
-        Expr::Match(span, _, _) => return Err(PreprocessorError::InvalidConstExpression(span)),
-        Expr::If(span, _) => return Err(PreprocessorError::InvalidConstExpression(span)),
-        Expr::Catch(span, _) => return Err(PreprocessorError::InvalidConstExpression(span)),
-        Expr::Case(span, _, _) => return Err(PreprocessorError::InvalidConstExpression(span)),
-        Expr::Receive { span, .. } => return Err(PreprocessorError::InvalidConstExpression(span)),
-        Expr::Try { span, .. } => return Err(PreprocessorError::InvalidConstExpression(span)),
-        Expr::Fun(Function::Named { span, .. }) => {
-            return Err(PreprocessorError::InvalidConstExpression(span));
-        }
-        Expr::Fun(Function::Unnamed { span, .. }) => {
-            return Err(PreprocessorError::InvalidConstExpression(span));
+        expr => {
+            return Err(PreprocessorError::InvalidConstExpression(expr.span()));
         }
     };
 

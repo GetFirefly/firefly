@@ -4,6 +4,7 @@
 #![feature(box_patterns)]
 #![feature(box_syntax)]
 #![feature(core_intrinsics)]
+#![feature(map_get_key_value)]
 
 mod lexer;
 mod parser;

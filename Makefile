@@ -2,6 +2,7 @@
 
 NAME ?= lumen
 VERSION ?= `grep 'version' lumen/Cargo.toml | sed -e 's/ //g' -e 's/version=//' -e 's/[",]//g'`
+LLVM_SYS_70_PREFIX=`llvmenv prefix`
 
 help:
 	@echo "$(NAME):$(VERSION)"
@@ -14,7 +15,7 @@ build: ## Build all
 	cargo build
 
 check: ## Check all
-	cargo check
+	LLVM_SYS_70_PREFIX=$(LLVM_SYS_70_PREFIX) cargo check
 
 clippy: ## Lint all
 	cargo clippy

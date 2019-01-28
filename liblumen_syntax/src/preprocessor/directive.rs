@@ -106,6 +106,11 @@ impl ReadFrom for Directive {
                 reader.unread_token(_hyphen.into());
                 return Ok(None);
             }
+            "optional_callback" => {
+                reader.unread_token(LexicalToken(name.0, Token::OptionalCallback, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
             "import" => {
                 reader.unread_token(LexicalToken(name.0, Token::Import, name.2));
                 reader.unread_token(_hyphen.into());
@@ -133,6 +138,11 @@ impl ReadFrom for Directive {
             }
             "behaviour" => {
                 reader.unread_token(LexicalToken(name.0, Token::Behaviour, name.2));
+                reader.unread_token(_hyphen.into());
+                return Ok(None);
+            }
+            "deprecated" => {
+                reader.unread_token(LexicalToken(name.0, Token::Deprecated, name.2));
                 reader.unread_token(_hyphen.into());
                 return Ok(None);
             }

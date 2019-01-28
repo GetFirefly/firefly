@@ -16,8 +16,9 @@ use liblumen_codegen as codegen;
 use liblumen_common as common;
 use liblumen_core as core;
 
-use super::config::{CompilerMode, CompilerSettings, Verbosity};
-use super::errors::CompilerError;
+pub use super::config::{CompilerMode, CompilerSettings, Verbosity};
+pub use super::errors::CompilerError;
+use super::lint;
 
 /// The result produced by compiler functions
 pub type CompileResult = Result<(), Error>;
@@ -63,6 +64,11 @@ impl Compiler {
         codegen::initialize();
 
         let modules = self.parse_modules()?;
+        // Perform initial verification of parsed modules
+        for (_name, module) in modules.iter() {
+            lint::module(self, module)?;
+        }
+        // Lower from parse tree to Core IR
         let _modules = core::transform(self, modules)?;
         //let modules = semantic_analysis::analyze(&config, core)?;
         //let modules = cps::transform(&config, modules)?;
@@ -120,10 +126,12 @@ impl Compiler {
             let entry = entry.unwrap();
             let file = entry.path();
 
-            let module = match self.config.mode {
+            let mut module = match self.config.mode {
                 CompilerMode::BEAM => self.parse_beam(file)?,
                 CompilerMode::Erlang => self.parse_erl(&mut parser, file)?,
             };
+
+            self.apply_compiler_settings(&mut module);
 
             modules.insert(module.name.name.clone(), module);
         }
@@ -148,6 +156,15 @@ impl Compiler {
             }
             .into()),
         }
+    }
+
+    fn apply_compiler_settings(&self, module: &mut Module) {
+        module.compile.as_mut().and_then(|mut co| {
+            co.warnings_as_errors = self.config.warnings_as_errors;
+            co.no_warn = self.config.no_warn;
+
+            Some(co)
+        });
     }
 
     #[inline]

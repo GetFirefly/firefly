@@ -1,7 +1,9 @@
-#![allow(missing_docs)]
+///! Immutable/mutable visitors for Erlang AST
 
 /// Converts AST to a pretty printed source string.
 pub mod pretty_print;
+
+use std::collections::HashSet;
 
 use super::ast::*;
 
@@ -15,972 +17,654 @@ macro_rules! make_visitor {
 
             /// This is the initial function used to start traversing the AST. By default, this
             /// will simply recursively walk down the AST without performing any meaningful action.
-            fn visit(&mut self, definitions: &'ast $($mutability)* [Definition]) {
-                for definition in definitions {
-                    self.visit_definition(definition);
-                }
+            fn visit(&mut self, module: &'ast $($mutability)* Module) {
+                self.walk_module(module);
             }
 
-            fn visit_argument(&mut self, argument: &'ast $($mutability)* Argument) {
-                self.walk_argument(argument);
+            fn visit_imports(&mut self, _imports: &'ast $($mutability)* HashSet<ResolvedFunctionName>) {}
+            fn visit_exports(&mut self, _exports: &'ast $($mutability)* HashSet<ResolvedFunctionName>) {}
+            fn visit_exported_types(&mut self, _exported_types: &'ast $($mutability)* HashSet<ResolvedFunctionName>) {}
+            fn visit_behaviours(&mut self, _behaviours: &'ast $($mutability)* HashSet<Ident>) {}
+
+            fn visit_type_def(&mut self, type_def: &'ast $($mutability)* TypeDef) {
+                self.walk_type_def(type_def);
             }
 
-            fn visit_argument_list_extended_attribute(
-                &mut self,
-                ex: &'ast $($mutability)* ArgumentListExtendedAttribute)
-            {
-                self.walk_argument_list_extended_attribute(ex);
+            fn visit_record(&mut self, record: &'ast $($mutability)* Record) {
+                self.walk_record(record);
             }
 
-            fn visit_attribute(&mut self, attribute: &'ast $($mutability)* Attribute) {
-                self.walk_attribute(attribute);
+            fn visit_record_field(&mut self, field: &'ast $($mutability)* RecordField) {
+                self.walk_record_field(field);
             }
 
             fn visit_callback(&mut self, callback: &'ast $($mutability)* Callback) {
                 self.walk_callback(callback);
             }
 
-            fn visit_callback_interface(
-                &mut self,
-                callback_interface: &'ast $($mutability)* CallbackInterface)
-            {
-                self.walk_callback_interface(callback_interface);
+            fn visit_callback_signature(&mut self, sig: &'ast $($mutability)* TypeSig) {
+                self.walk_sig(sig);
             }
 
-            fn visit_const(&mut self, const_: &'ast $($mutability)* Const) {
-                self.walk_const(const_);
+            fn visit_spec(&mut self, spec: &'ast $($mutability)* TypeSpec) {
+                self.walk_spec(spec);
             }
 
-            fn visit_const_type(&mut self, const_type: &'ast $($mutability)* ConstType) {
-                self.walk_const_type(const_type);
+            fn visit_spec_signature(&mut self, sig: &'ast $($mutability)* TypeSig) {
+                self.walk_sig(sig);
             }
 
-            fn visit_const_value(&mut self, _const_value: &'ast $($mutability)* ConstValue) {}
-
-            fn visit_default_value(&mut self, default_value: &'ast $($mutability)* DefaultValue) {
-                self.walk_default_value(default_value);
+            fn visit_attribute(&mut self, attribute: &'ast $($mutability)* UserAttribute) {
+                self.walk_attribute(attribute);
             }
 
-            fn visit_definition(&mut self, definition: &'ast $($mutability)* Definition) {
-                self.walk_definition(definition);
+            fn visit_function(&mut self, function: &'ast $($mutability)* NamedFunction) {
+                self.walk_function(function);
             }
 
-            fn visit_dictionary(&mut self, dictionary: &'ast $($mutability)* Dictionary) {
-                self.walk_dictionary(dictionary);
+            fn visit_function_clause(&mut self, clause: &'ast $($mutability)* FunctionClause) {
+                self.walk_function_clause(clause);
             }
 
-            fn visit_dictionary_member(&mut self,
-                                       dictionary_member: &'ast $($mutability)* DictionaryMember) {
-                self.walk_dictionary_member(dictionary_member);
+            fn visit_guard(&mut self, guard: &'ast $($mutability)* Guard) {
+                self.walk_guard(guard);
             }
 
-            fn visit_enum(&mut self, enum_: &'ast $($mutability)* Enum) {
-                self.walk_enum(enum_);
+            fn visit_type(&mut self, spec: &'ast $($mutability)* Type) {
+                self.walk_type(spec);
             }
 
-            fn visit_explicit_stringifier_operation(
-                &mut self,
-                op: &'ast $($mutability)* ExplicitStringifierOperation)
-            {
-                self.walk_explicit_stringifier_operation(op);
+            fn visit_type_guard(&mut self, guard: &'ast $($mutability)* TypeGuard) {
+                self.walk_type_guard(guard);
             }
 
-            fn visit_extended_attribute(&mut self,
-                                        ex: &'ast $($mutability)* ExtendedAttribute) {
-                self.walk_extended_attribute(ex);
+            fn visit_expression(&mut self, expr: &'ast $($mutability)* Expr) {
+                match expr {
+                    &$($mutability)* Expr::Var(ref $($mutability)* expr) => self.visit_identifier(expr),
+                    &$($mutability)* Expr::Literal(ref $($mutability)* expr) => self.visit_literal(expr),
+                    &$($mutability)* Expr::FunctionName(ref $($mutability)* expr) => self.visit_function_name(expr),
+                    &$($mutability)* Expr::Nil(ref $($mutability)* expr) => self.visit_nil(expr),
+                    &$($mutability)* Expr::Cons(ref $($mutability)* expr) => self.visit_cons(expr),
+                    &$($mutability)* Expr::Tuple(ref $($mutability)* expr) => self.visit_tuple(expr),
+                    &$($mutability)* Expr::Map(ref $($mutability)* expr) => self.visit_map(expr),
+                    &$($mutability)* Expr::MapUpdate(ref $($mutability)* expr) => self.visit_map_update(expr),
+                    &$($mutability)* Expr::MapProjection(ref $($mutability)* expr) => self.visit_map_projection(expr),
+                    &$($mutability)* Expr::Binary(ref $($mutability)* expr) => self.visit_binary(expr),
+                    &$($mutability)* Expr::Record(ref $($mutability)* expr) => self.visit_record(expr),
+                    &$($mutability)* Expr::RecordAccess(ref $($mutability)* expr) => self.visit_record_access(expr),
+                    &$($mutability)* Expr::RecordIndex(ref $($mutability)* expr) => self.visit_record_index(expr),
+                    &$($mutability)* Expr::RecordUpdate(ref $($mutability)* expr) => self.visit_record_update(expr),
+                    &$($mutability)* Expr::ListComprehension(ref $($mutability)* expr) => self.visit_list_comprehension(expr),
+                    &$($mutability)* Expr::BinaryComprehension(ref $($mutability)* expr) => self.visit_binary_comprehension(expr),
+                    &$($mutability)* Expr::Generator(ref $($mutability)* expr) => self.visit_generator(expr),
+                    &$($mutability)* Expr::BinaryGenerator(ref $($mutability)* expr) => self.visit_binary_generator(expr),
+                    &$($mutability)* Expr::Begin(ref $($mutability)* expr) => self.visit_begin(expr),
+                    &$($mutability)* Expr::Apply(ref $($mutability)* expr) => self.visit_apply(expr),
+                    &$($mutability)* Expr::Remote(ref $($mutability)* expr) => self.visit_remote(expr),
+                    &$($mutability)* Expr::BinaryExpr(ref $($mutability)* expr) => self.visit_binary_expr(expr),
+                    &$($mutability)* Expr::UnaryExpr(ref $($mutability)* expr) => self.visit_unary_expr(expr),
+                    &$($mutability)* Expr::Match(ref $($mutability)* expr) => self.visit_match(expr),
+                    &$($mutability)* Expr::If(ref $($mutability)* expr) => self.visit_if(expr),
+                    &$($mutability)* Expr::Catch(ref $($mutability)* expr) => self.visit_catch(expr),
+                    &$($mutability)* Expr::Case(ref $($mutability)* expr) => self.visit_case(expr),
+                    &$($mutability)* Expr::Receive(ref $($mutability)* expr) => self.visit_receive(expr),
+                    &$($mutability)* Expr::Try(ref $($mutability)* expr) => self.visit_try(expr),
+                    &$($mutability)* Expr::Fun(ref $($mutability)* expr) => self.visit_fun(expr),
+                }
             }
 
-            fn visit_identifier(&mut self, _identifier: &'ast $($mutability)* str) {}
-
-            fn visit_identifier_extended_attribute(
-                &mut self,
-                ex: &'ast $($mutability)* IdentifierExtendedAttribute)
-            {
-                self.walk_identifier_extended_attribute(ex);
+            fn visit_name(&mut self, name: &'ast $($mutability)* Name) {
+                if let &$($mutability)* Name::Var(ref $($mutability)* var) = name {
+                    self.visit_identifier(var);
+                }
             }
 
-            fn visit_identifier_list_extended_attribute(
-                &mut self,
-                ex: &'ast $($mutability)* IdentifierListExtendedAttribute)
-            {
-                self.walk_identifier_list_extended_attribute(ex);
+            fn visit_identifier(&mut self, _identifier: &'ast $($mutability)* Ident) {}
+
+            fn visit_symbol(&mut self, _symbol: &'ast $($mutability)* Symbol) {}
+
+            fn visit_literal(&mut self, _literal: &'ast $($mutability)* Literal) {}
+
+            fn visit_function_name(&mut self, name: &'ast $($mutability)* FunctionName) {
+                self.walk_function_name(name);
             }
 
-            fn visit_implicit_stringifier_operation(
-                &mut self,
-                op: &'ast $($mutability)* ImplicitStringifierOperation)
-            {
-                self.walk_implicit_stringifier_operation(op);
+            fn visit_resolved_function_name(&mut self, _name: &'ast $($mutability)* ResolvedFunctionName) {}
+
+            fn visit_partially_resolved_function_name(&mut self, _name: &'ast $($mutability)* PartiallyResolvedFunctionName) {}
+
+            fn visit_unresolved_function_name(&mut self, name: &'ast $($mutability)* UnresolvedFunctionName) {
+                self.walk_unresolved_function_name(name);
             }
 
-            fn visit_implements(&mut self, implements: &'ast $($mutability)* Implements) {
-                self.walk_implements(implements);
+            fn visit_nil(&mut self, _nil: &'ast $($mutability)* Nil) {}
+
+            fn visit_cons(&mut self, cons: &'ast $($mutability)* Cons) {
+                self.walk_cons(cons);
             }
 
-            fn visit_includes(&mut self, includes: &'ast $($mutability)* Includes) {
-                self.walk_includes(includes);
+            fn visit_tuple(&mut self, tuple: &'ast $($mutability)* Tuple) {
+                self.walk_tuple(tuple);
             }
 
-            fn visit_interface(&mut self, interface: &'ast $($mutability)* Interface) {
-                self.walk_interface(interface);
+            fn visit_map(&mut self, map: &'ast $($mutability)* Map) {
+                self.walk_map(map);
             }
 
-            fn visit_interface_member(&mut self,
-                                      interface_member: &'ast $($mutability)* InterfaceMember) {
-                self.walk_interface_member(interface_member);
+            fn visit_map_field(&mut self, field: &'ast $($mutability)* MapField) {
+                self.walk_map_field(field);
             }
 
-            fn visit_iterable(&mut self, iterable: &'ast $($mutability)* Iterable) {
-                self.walk_iterable(iterable);
+            fn visit_map_update(&mut self, map: &'ast $($mutability)* MapUpdate) {
+                self.walk_map_update(map);
             }
 
-            fn visit_maplike(&mut self, maplike: &'ast $($mutability)* Maplike) {
-                self.walk_maplike(maplike);
+            fn visit_map_projection(&mut self, map: &'ast $($mutability)* MapProjection) {
+                self.walk_map_projection(map);
             }
 
-            fn visit_mixin(&mut self, mixin: &'ast $($mutability)* Mixin) {
-                self.walk_mixin(mixin);
+            fn visit_binary(&mut self, binary: &'ast $($mutability)* Binary) {
+                self.walk_binary(binary);
             }
 
-            fn visit_mixin_member(&mut self, mixin_member: &'ast $($mutability)* MixinMember) {
-                self.walk_mixin_member(mixin_member);
+            fn visit_binary_element(&mut self, element: &'ast $($mutability)* BinaryElement) {
+                self.walk_binary_element(element);
             }
 
-            fn visit_named_argument_list_extended_attribute(
-                &mut self,
-                ex: &'ast $($mutability)* NamedArgumentListExtendedAttribute)
-            {
-                self.walk_named_argument_list_extended_attribute(ex);
+            fn visit_bit_type(&mut self, _ty: &'ast $($mutability)* BitType) {}
+
+            fn visit_record_access(&mut self, ra: &'ast $($mutability)* RecordAccess) {
+                self.walk_record_access(ra);
             }
 
-            fn visit_namespace(&mut self, namespace: &'ast $($mutability)* Namespace) {
-                self.walk_namespace(namespace);
+            fn visit_record_index(&mut self, _ri: &'ast $($mutability)* RecordIndex) {}
+
+            fn visit_record_update(&mut self, ru: &'ast $($mutability)* RecordUpdate) {
+                self.walk_record_update(ru);
             }
 
-            fn visit_namespace_member(&mut self,
-                                      namespace_member: &'ast $($mutability)* NamespaceMember) {
-                self.walk_namespace_member(namespace_member);
+            fn visit_list_comprehension(&mut self, lc: &'ast $($mutability)* ListComprehension) {
+                self.walk_list_comprehension(lc);
             }
 
-            fn visit_non_partial_dictionary(
-                &mut self,
-                dictionary: &'ast $($mutability)* NonPartialDictionary)
-            {
-                self.walk_non_partial_dictionary(dictionary);
+            fn visit_binary_comprehension(&mut self, bc: &'ast $($mutability)* BinaryComprehension) {
+                self.walk_binary_comprehension(bc);
             }
 
-            fn visit_non_partial_interface(&mut self,
-                                           interface: &'ast $($mutability)* NonPartialInterface) {
-                self.walk_non_partial_interface(interface);
+            fn visit_generator(&mut self, generator: &'ast $($mutability)* Generator) {
+                self.walk_generator(generator);
             }
 
-            fn visit_non_partial_mixin(&mut self,
-                                       mixin: &'ast $($mutability)* NonPartialMixin) {
-                self.walk_non_partial_mixin(mixin);
+            fn visit_binary_generator(&mut self, generator: &'ast $($mutability)* BinaryGenerator) {
+                self.walk_binary_generator(generator);
             }
 
-            fn visit_non_partial_namespace(&mut self,
-                                           namespace: &'ast $($mutability)* NonPartialNamespace) {
-                self.walk_non_partial_namespace(namespace);
+            fn visit_begin(&mut self, begin: &'ast $($mutability)* Begin) {
+                self.walk_begin(begin);
             }
 
-            fn visit_operation(&mut self, operation: &'ast $($mutability)* Operation) {
-                self.walk_operation(operation);
+            fn visit_apply(&mut self, apply: &'ast $($mutability)* Apply) {
+                self.walk_apply(apply);
             }
 
-            fn visit_other(&mut self, other: &'ast $($mutability)* Other) {
-                self.walk_other(other);
+            fn visit_remote(&mut self, remote: &'ast $($mutability)* Remote) {
+                self.walk_remote(remote);
             }
 
-            fn visit_other_extended_attribute(&mut self,
-                                              ex: &'ast $($mutability)* OtherExtendedAttribute) {
-                self.walk_other_extended_attribute(ex);
+            fn visit_binary_expr(&mut self, expr: &'ast $($mutability)* BinaryExpr) {
+                self.walk_binary_expr(expr);
             }
 
-            fn visit_partial_dictionary(&mut self,
-                                        dictionary: &'ast $($mutability)* PartialDictionary) {
-                self.walk_partial_dictionary(dictionary);
+            fn visit_unary_expr(&mut self, expr: &'ast $($mutability)* UnaryExpr) {
+                self.walk_unary_expr(expr);
             }
 
-            fn visit_partial_interface(&mut self,
-                                       interface: &'ast $($mutability)* PartialInterface) {
-                self.walk_partial_interface(interface);
+            fn visit_match(&mut self, expr: &'ast $($mutability)* Match) {
+                self.walk_match(expr);
             }
 
-            fn visit_partial_mixin(&mut self,
-                                   mixin: &'ast $($mutability)* PartialMixin) {
-                self.walk_partial_mixin(mixin);
+            fn visit_if(&mut self, expr: &'ast $($mutability)* If) {
+                self.walk_if(expr);
             }
 
-            fn visit_partial_namespace(&mut self,
-                                       namespace: &'ast $($mutability)* PartialNamespace) {
-                self.walk_partial_namespace(namespace);
+            fn visit_if_clause(&mut self, expr: &'ast $($mutability)* IfClause) {
+                self.walk_if_clause(expr);
             }
 
-            fn visit_regular_attribute(&mut self,
-                                       regular_attribute: &'ast $($mutability)* RegularAttribute) {
-                self.walk_regular_attribute(regular_attribute);
+            fn visit_catch(&mut self, expr: &'ast $($mutability)* Catch) {
+                self.walk_catch(expr);
             }
 
-            fn visit_regular_operation(&mut self,
-                                       regular_operation: &'ast $($mutability)* RegularOperation) {
-                self.walk_regular_operation(regular_operation);
+            fn visit_case(&mut self, expr: &'ast $($mutability)* Case) {
+                self.walk_case(expr);
             }
 
-            fn visit_return_type(&mut self, return_type: &'ast $($mutability)* ReturnType) {
-                self.walk_return_type(return_type);
+            fn visit_receive(&mut self, expr: &'ast $($mutability)* Receive) {
+                self.walk_receive(expr);
             }
 
-            fn visit_setlike(&mut self, setlike: &'ast $($mutability)* Setlike) {
-                self.walk_setlike(setlike);
+            fn visit_after(&mut self, expr: &'ast $($mutability)* After) {
+                self.walk_after(expr);
             }
 
-            fn visit_special(&mut self, _special: &'ast $($mutability)* Special) {}
-
-            fn visit_special_operation(&mut self,
-                                       special_operation: &'ast $($mutability)* SpecialOperation) {
-                self.walk_special_operation(special_operation);
+            fn visit_try(&mut self, expr: &'ast $($mutability)* Try) {
+                self.walk_try(expr);
             }
 
-            fn visit_static_attribute(&mut self,
-                                      static_attribute: &'ast $($mutability)* StaticAttribute) {
-                self.walk_static_attribute(static_attribute);
+            fn visit_try_clause(&mut self, expr: &'ast $($mutability)* TryClause) {
+                self.walk_try_clause(expr);
             }
 
-            fn visit_static_operation(&mut self,
-                                      static_operation: &'ast $($mutability)* StaticOperation) {
-                self.walk_static_operation(static_operation);
+            fn visit_clause(&mut self, expr: &'ast $($mutability)* Clause) {
+                self.walk_clause(expr);
             }
 
-            fn visit_string_type(&mut self, _string_type: &'ast $($mutability)* StringType) {}
-
-            fn visit_stringifier_attribute(&mut self,
-                                           attribute: &'ast $($mutability)* StringifierAttribute) {
-                self.walk_stringifier_attribute(attribute);
+            fn visit_fun(&mut self, expr: &'ast $($mutability)* Function) {
+                self.walk_fun(expr);
             }
 
-            fn visit_stringifier_operation(&mut self,
-                                           operation: &'ast $($mutability)* StringifierOperation) {
-                self.walk_stringifier_operation(operation);
+            fn visit_lambda(&mut self, expr: &'ast $($mutability)* Lambda) {
+                self.walk_lambda(expr);
             }
 
-            fn visit_type(&mut self, type_: &'ast $($mutability)* Type) {
-                self.walk_type(type_);
-            }
-
-            fn visit_type_kind(&mut self, type_kind: &'ast $($mutability)* TypeKind) {
-                self.walk_type_kind(type_kind);
-            }
-
-            fn visit_typedef(&mut self, typedef: &'ast $($mutability)* Typedef) {
-                self.walk_typedef(typedef);
+            fn visit_named_lambda(&mut self, expr: &'ast $($mutability)* NamedFunction) {
+                self.walk_named_lambda(expr);
             }
 
             // The `walk` functions are not meant to be overridden.
 
-            fn walk_argument(&mut self, argument: &'ast $($mutability)* Argument) {
-                for extended_attribute in &$($mutability)* argument.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
+            fn walk_module(&mut self, module: &'ast $($mutability)* Module) {
+                self.visit_imports(&$($mutability)* module.imports);
+
+                self.visit_exports(&$($mutability)* module.exports);
+
+                for (_, type_def) in &$($mutability)* module.types {
+                    self.visit_type_def(type_def);
                 }
 
-                self.visit_type(&$($mutability)* argument.type_);
-                self.visit_identifier(&$($mutability)* argument.name);
+                self.visit_exported_types(&$($mutability)* module.exported_types);
 
-                if let Some(ref $($mutability)* default_value) = argument.default {
-                    self.visit_default_value(default_value);
+                self.visit_behaviours(&$($mutability)* module.behaviours);
+
+                for (_, callback) in &$($mutability)* module.callbacks {
+                    self.visit_callback(callback);
+                }
+
+                for (_, record) in &$($mutability)* module.records {
+                    self.visit_record(record);
+                }
+
+                for (_, attribute) in &$($mutability)* module.attributes {
+                    self.visit_attribute(attribute);
+                }
+
+                for (_, function) in &$($mutability)* module.functions {
+                    self.visit_function(function);
                 }
             }
 
-            fn walk_argument_list_extended_attribute(
-                &mut self,
-                ex: &'ast $($mutability)* ArgumentListExtendedAttribute)
-            {
-                self.visit_identifier(&$($mutability)* ex.name);
+            fn walk_type_def(&mut self, type_def: &'ast $($mutability)* TypeDef) {
+                self.visit_type(&$($mutability)* type_def.ty);
+            }
 
-                for argument in &$($mutability)* ex.arguments {
-                    self.visit_argument(argument);
+            fn walk_record(&mut self, record: &'ast $($mutability)* Record) {
+                for field in &$($mutability)* record.fields {
+                    self.visit_record_field(field);
                 }
             }
 
-            fn walk_attribute(&mut self, attribute: &'ast $($mutability)* Attribute) {
-                match *attribute {
-                    Attribute::Regular(ref $($mutability)* attribute) => {
-                        self.visit_regular_attribute(attribute);
-                    }
-                    Attribute::Static(ref $($mutability)* attribute) => {
-                        self.visit_static_attribute(attribute);
-                    }
-                    Attribute::Stringifier(ref $($mutability)* attribute) => {
-                        self.visit_stringifier_attribute(attribute);
-                    }
+            fn walk_record_field(&mut self, field: &'ast $($mutability)* RecordField) {
+                self.visit_name(&$($mutability)* field.name);
+                if let Some(ref $($mutability)* expr) = field.value {
+                    self.visit_expression(expr);
+                }
+                if let Some(ref $($mutability)* ty) = field.ty {
+                    self.visit_type(ty);
                 }
             }
 
             fn walk_callback(&mut self, callback: &'ast $($mutability)* Callback) {
-                for extended_attribute in &$($mutability)* callback.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* callback.name);
-                self.visit_return_type(&$($mutability)* callback.return_type);
-
-                for argument in &$($mutability)* callback.arguments {
-                    self.visit_argument(argument);
+                for sig in &$($mutability)* callback.sigs {
+                    self.visit_callback_signature(sig);
                 }
             }
 
-            fn walk_callback_interface(&mut self,
-                                       callback_interface: &'ast $($mutability)* CallbackInterface)
-            {
-                for extended_attribute in &$($mutability)* callback_interface.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* callback_interface.name);
-
-                if let Some(ref $($mutability)* inherits) = callback_interface.inherits {
-                    self.visit_identifier(inherits);
-                }
-
-                for member in &$($mutability)* callback_interface.members {
-                    self.visit_interface_member(member);
+            fn walk_spec(&mut self, spec: &'ast $($mutability)* TypeSpec) {
+                for sig in &$($mutability)* spec.sigs {
+                    self.visit_spec_signature(sig);
                 }
             }
 
-            fn walk_const(&mut self, const_: &'ast $($mutability)* Const) {
-                for extended_attribute in &$($mutability)* const_.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
+            fn walk_sig(&mut self, sig: &'ast $($mutability)* TypeSig) {
+                for param in &$($mutability)* sig.params {
+                    self.visit_type(param);
                 }
 
-                self.visit_const_type(&$($mutability)* const_.type_);
-                self.visit_identifier(&$($mutability)* const_.name);
-                self.visit_const_value(&$($mutability)* const_.value);
-            }
+                self.visit_type(&$($mutability)* sig.ret);
 
-            fn walk_const_type(&mut self, const_type: &'ast $($mutability)* ConstType) {
-                if let ConstType::Identifier(ref $($mutability)* identifier) = *const_type {
-                    self.visit_identifier(identifier);
-                }
-            }
-
-            fn walk_default_value(&mut self, default_value: &'ast $($mutability)* DefaultValue) {
-                if let DefaultValue::ConstValue(ref $($mutability)* const_value) = *default_value {
-                    self.visit_const_value(const_value);
-                }
-            }
-
-            fn walk_definition(&mut self, definition: &'ast $($mutability)* Definition) {
-                match *definition {
-                    Definition::Callback(ref $($mutability)* callback) => {
-                        self.visit_callback(callback);
-                    }
-                    Definition::Dictionary(ref $($mutability)* dictionary) => {
-                        self.visit_dictionary(dictionary);
-                    }
-                    Definition::Enum(ref $($mutability)* enum_) => {
-                        self.visit_enum(enum_);
-                    }
-                    Definition::Implements(ref $($mutability)* implements) => {
-                        self.visit_implements(implements);
-                    }
-                    Definition::Includes(ref $($mutability)* includes) => {
-                        self.visit_includes(includes);
-                    }
-                    Definition::Interface(ref $($mutability)* interface) => {
-                        self.visit_interface(interface);
-                    }
-                    Definition::Mixin(ref $($mutability)* mixin) => {
-                        self.visit_mixin(mixin);
-                    }
-                    Definition::Namespace(ref $($mutability)* namespace) => {
-                        self.visit_namespace(namespace);
-                    }
-                    Definition::Typedef(ref $($mutability)* typedef) => {
-                        self.visit_typedef(typedef);
-                    }
-                }
-            }
-
-            fn walk_dictionary(&mut self, dictionary: &'ast $($mutability)* Dictionary) {
-                match *dictionary {
-                    Dictionary::NonPartial(ref $($mutability)* dictionary) => {
-                        self.visit_non_partial_dictionary(dictionary);
-                    }
-                    Dictionary::Partial(ref $($mutability)* dictionary) => {
-                        self.visit_partial_dictionary(dictionary);
-                    }
-                }
-            }
-
-            fn walk_dictionary_member(&mut self,
-                                      dictionary_member: &'ast $($mutability)* DictionaryMember)
-            {
-                for extended_attribute in &$($mutability)* dictionary_member.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_type(&$($mutability)* dictionary_member.type_);
-                self.visit_identifier(&$($mutability)* dictionary_member.name);
-
-                if let Some(ref $($mutability)* default_value) = dictionary_member.default {
-                    self.visit_default_value(default_value);
-                }
-            }
-
-            fn walk_enum(&mut self, enum_: &'ast $($mutability)* Enum) {
-                for extended_attribute in &$($mutability)* enum_.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* enum_.name);
-            }
-
-            fn walk_explicit_stringifier_operation(
-                &mut self,
-                op: &'ast $($mutability)* ExplicitStringifierOperation)
-            {
-                for extended_attribute in &$($mutability)* op.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_return_type(&$($mutability)* op.return_type);
-
-                if let Some(ref $($mutability)* name) = op.name {
-                    self.visit_identifier(name);
-                }
-
-                for argument in &$($mutability)* op.arguments {
-                    self.visit_argument(argument);
-                }
-            }
-
-            fn walk_extended_attribute(&mut self,
-                                       ex: &'ast $($mutability)* ExtendedAttribute)
-            {
-                use ast::ExtendedAttribute::*;
-
-                match *ex {
-                    ArgumentList(ref $($mutability)* extended_attribute) => {
-                        self.visit_argument_list_extended_attribute(extended_attribute);
-                    }
-                    Identifier(ref $($mutability)* extended_attribute) => {
-                        self.visit_identifier_extended_attribute(extended_attribute);
-                    }
-                    IdentifierList(ref $($mutability)* extended_attribute) => {
-                        self.visit_identifier_list_extended_attribute(extended_attribute);
-                    }
-                    NamedArgumentList(ref $($mutability)* extended_attribute) => {
-                        self.visit_named_argument_list_extended_attribute(extended_attribute);
-                    }
-                    NoArguments(ref $($mutability)* extended_attribute) => {
-                        self.visit_other(extended_attribute);
-                    }
-                }
-            }
-
-            fn walk_identifier_extended_attribute(
-                &mut self,
-                ex: &'ast $($mutability)* IdentifierExtendedAttribute)
-            {
-                self.visit_identifier(&$($mutability)* ex.lhs);
-                self.visit_other(&$($mutability)* ex.rhs);
-            }
-
-            fn walk_identifier_list_extended_attribute(
-                &mut self,
-                ex: &'ast $($mutability)* IdentifierListExtendedAttribute)
-            {
-                self.visit_identifier(&$($mutability)* ex.lhs);
-
-                for identifier in &$($mutability)* ex.rhs {
-                    self.visit_identifier(identifier);
-                }
-            }
-
-            fn walk_implicit_stringifier_operation(
-                &mut self,
-                op: &'ast $($mutability)* ImplicitStringifierOperation)
-            {
-                for extended_attribute in &$($mutability)* op.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-            }
-
-            fn walk_implements(&mut self, implements: &'ast $($mutability)* Implements) {
-                for extended_attribute in &$($mutability)* implements.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* implements.implementer);
-                self.visit_identifier(&$($mutability)* implements.implementee);
-            }
-
-            fn walk_includes(&mut self, includes: &'ast $($mutability)* Includes) {
-                for extended_attribute in &$($mutability)* includes.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* includes.includer);
-                self.visit_identifier(&$($mutability)* includes.includee);
-            }
-
-            fn walk_interface(&mut self, interface: &'ast $($mutability)* Interface) {
-                match *interface {
-                    Interface::Callback(ref $($mutability)* interface) => {
-                        self.visit_callback_interface(interface);
-                    }
-                    Interface::NonPartial(ref $($mutability)* interface) => {
-                        self.visit_non_partial_interface(interface);
-                    }
-                    Interface::Partial(ref $($mutability)* interface) => {
-                        self.visit_partial_interface(interface);
-                    }
-                }
-            }
-
-            fn walk_interface_member(&mut self,
-                                     interface_member: &'ast $($mutability)* InterfaceMember) {
-                match *interface_member {
-                    InterfaceMember::Attribute(ref $($mutability)* member) => {
-                        self.visit_attribute(member);
-                    }
-                    InterfaceMember::Const(ref $($mutability)* member) => {
-                        self.visit_const(member);
-                    }
-                    InterfaceMember::Iterable(ref $($mutability)* member) => {
-                        self.visit_iterable(member);
-                    }
-                    InterfaceMember::Maplike(ref $($mutability)* member) => {
-                        self.visit_maplike(member);
-                    }
-                    InterfaceMember::Operation(ref $($mutability)* member) => {
-                        self.visit_operation(member);
-                    }
-                    InterfaceMember::Setlike(ref $($mutability)* member) => {
-                        self.visit_setlike(member);
-                    }
-                }
-            }
-
-            fn walk_iterable(&mut self, iterable: &'ast $($mutability)* Iterable) {
-                for extended_attribute in &$($mutability)* iterable.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                if let Some(ref $($mutability)* key_type) = iterable.key_type {
-                    self.visit_type(key_type);
-                }
-
-                self.visit_type(&$($mutability)* iterable.value_type);
-            }
-
-            fn walk_maplike(&mut self, maplike: &'ast $($mutability)* Maplike) {
-                for extended_attribute in &$($mutability)* maplike.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_type(&$($mutability)* maplike.key_type);
-                self.visit_type(&$($mutability)* maplike.value_type);
-            }
-
-            fn walk_mixin(&mut self, mixin: &'ast $($mutability)* Mixin) {
-                match *mixin {
-                    Mixin::NonPartial(ref $($mutability)* mixin) => {
-                        self.visit_non_partial_mixin(mixin);
-                    }
-                    Mixin::Partial(ref $($mutability)* mixin) => {
-                        self.visit_partial_mixin(mixin);
-                    }
-                }
-            }
-
-            fn walk_mixin_member(&mut self, mixin_member: &'ast $($mutability)* MixinMember) {
-                match *mixin_member {
-                    MixinMember::Attribute(ref $($mutability)* member) => {
-                        self.visit_attribute(member);
-                    }
-                    MixinMember::Const(ref $($mutability)* member) => {
-                        self.visit_const(member);
-                    }
-                    MixinMember::Operation(ref $($mutability)* member) => {
-                        self.visit_operation(member);
-                    }
-                }
-            }
-
-            fn walk_named_argument_list_extended_attribute(
-                &mut self,
-                ex: &'ast $($mutability)* NamedArgumentListExtendedAttribute)
-            {
-                self.visit_identifier(&$($mutability)* ex.lhs_name);
-                self.visit_identifier(&$($mutability)* ex.rhs_name);
-
-                for argument in &$($mutability)* ex.rhs_arguments {
-                    self.visit_argument(argument);
-                }
-            }
-
-            fn walk_namespace(&mut self, namespace: &'ast $($mutability)* Namespace) {
-                match *namespace {
-                    Namespace::NonPartial(ref $($mutability)* namespace) => {
-                        self.visit_non_partial_namespace(namespace);
-                    }
-                    Namespace::Partial(ref $($mutability)* namespace) => {
-                        self.visit_partial_namespace(namespace);
-                    }
-                }
-            }
-
-            fn walk_namespace_member(&mut self,
-                                     namespace_member: &'ast $($mutability)* NamespaceMember) {
-                match *namespace_member {
-                    NamespaceMember::Attribute(ref $($mutability)* member) => {
-                        self.visit_attribute(member);
-                    }
-                    NamespaceMember::Operation(ref $($mutability)* member) => {
-                        self.visit_operation(member);
-                    }
-                }
-            }
-
-            fn walk_non_partial_dictionary(
-                &mut self,
-                dictionary: &'ast $($mutability)* NonPartialDictionary)
-            {
-                for extended_attribute in &$($mutability)* dictionary.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* dictionary.name);
-
-                if let Some(ref $($mutability)* inherits) = dictionary.inherits {
-                    self.visit_identifier(inherits);
-                }
-
-                for member in &$($mutability)* dictionary.members {
-                    self.visit_dictionary_member(member);
-                }
-            }
-
-            fn walk_non_partial_interface(
-                &mut self,
-                interface: &'ast $($mutability)* NonPartialInterface)
-            {
-                for extended_attribute in &$($mutability)* interface.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* interface.name);
-
-                if let Some(ref $($mutability)* inherits) = interface.inherits {
-                    self.visit_identifier(inherits);
-                }
-
-                for member in &$($mutability)* interface.members {
-                    self.visit_interface_member(member);
-                }
-            }
-
-            fn walk_non_partial_mixin( &mut self, mixin: &'ast $($mutability)* NonPartialMixin)
-            {
-                for extended_attribute in &$($mutability)* mixin.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* mixin.name);
-
-                for member in &$($mutability)* mixin.members {
-                    self.visit_mixin_member(member);
-                }
-            }
-
-            fn walk_non_partial_namespace(
-                &mut self,
-                namespace: &'ast $($mutability)* NonPartialNamespace)
-            {
-                for extended_attribute in &$($mutability)* namespace.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* namespace.name);
-
-                for member in &$($mutability)* namespace.members {
-                    self.visit_namespace_member(member);
-                }
-            }
-
-            fn walk_operation(&mut self, operation: &'ast $($mutability)* Operation) {
-                match *operation {
-                    Operation::Regular(ref $($mutability)* operation) => {
-                        self.visit_regular_operation(operation);
-                    }
-                    Operation::Special(ref $($mutability)* operation) => {
-                        self.visit_special_operation(operation);
-                    }
-                    Operation::Static(ref $($mutability)* operation) => {
-                        self.visit_static_operation(operation);
-                    }
-                    Operation::Stringifier(ref $($mutability)* operation) => {
-                        self.visit_stringifier_operation(operation);
-                    }
-                }
-            }
-
-            fn walk_other(&mut self, other: &'ast $($mutability)* Other) {
-                if let Other::Identifier(ref $($mutability)* identifier) = *other {
-                    self.visit_identifier(identifier);
-                }
-            }
-
-            fn walk_other_extended_attribute(&mut self,
-                                             ex: &'ast $($mutability)* OtherExtendedAttribute)
-            {
-                match *ex {
-                    OtherExtendedAttribute::Nested {
-                        ref $($mutability)* inner,
-                        ref $($mutability)* rest,
-                        ..
-                    } => {
-                        if let Some(ref $($mutability)* inner) = *inner {
-                            self.visit_extended_attribute(inner);
-                        }
-
-                        if let Some(ref $($mutability)* rest) = *rest {
-                            self.visit_extended_attribute(rest);
-                        }
-                    }
-                    OtherExtendedAttribute::Other {
-                        ref $($mutability)* other,
-                        ref $($mutability)* rest,
-                        ..
-                    } => {
-                        if let Some(ref $($mutability)* other) = *other {
-                            self.visit_other(other);
-                        }
-
-                        if let Some(ref $($mutability)* rest) = *rest {
-                            self.visit_extended_attribute(rest);
+                match sig.guards {
+                    None => (),
+                    Some(ref $($mutability)* guards) => {
+                        for guard in guards {
+                            self.visit_type_guard(guard);
                         }
                     }
                 }
             }
 
-            fn walk_partial_dictionary(&mut self,
-                                       partial_dictionary: &'ast $($mutability)* PartialDictionary)
-            {
-                for extended_attribute in &$($mutability)* partial_dictionary.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
+            fn walk_attribute(&mut self, attribute: &'ast $($mutability)* UserAttribute) {
+                self.visit_expression(&$($mutability)* attribute.value);
+            }
+
+            fn walk_function(&mut self, function: &'ast $($mutability)* NamedFunction) {
+                for clause in &$($mutability)* function.clauses {
+                    self.visit_function_clause(clause);
                 }
-
-                self.visit_identifier(&$($mutability)* partial_dictionary.name);
-
-                for member in &$($mutability)* partial_dictionary.members {
-                    self.visit_dictionary_member(member);
+                match function.spec {
+                    None => (),
+                    Some(ref $($mutability)* spec) => self.visit_spec(spec)
                 }
             }
 
-            fn walk_partial_interface(&mut self,
-                                      partial_interface: &'ast $($mutability)* PartialInterface)
-            {
-                for extended_attribute in &$($mutability)* partial_interface.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
+            fn walk_function_clause(&mut self, clause: &'ast $($mutability)* FunctionClause) {
+                for param in &$($mutability)* clause.params {
+                    self.visit_expression(param);
                 }
 
-                self.visit_identifier(&$($mutability)* partial_interface.name);
-
-                for member in &$($mutability)* partial_interface.members {
-                    self.visit_interface_member(member);
-                }
-            }
-
-            fn walk_partial_mixin(&mut self, partial_mixin: &'ast $($mutability)* PartialMixin)
-            {
-                for extended_attribute in &$($mutability)* partial_mixin.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* partial_mixin.name);
-
-                for member in &$($mutability)* partial_mixin.members {
-                    self.visit_mixin_member(member);
-                }
-            }
-
-            fn walk_partial_namespace(&mut self,
-                                      partial_namespace: &'ast $($mutability)* PartialNamespace)
-            {
-                for extended_attribute in &$($mutability)* partial_namespace.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_identifier(&$($mutability)* partial_namespace.name);
-
-                for member in &$($mutability)* partial_namespace.members {
-                    self.visit_namespace_member(member);
-                }
-            }
-
-            fn walk_regular_attribute(&mut self,
-                                      regular_attribute: &'ast $($mutability)* RegularAttribute)
-            {
-                for extended_attribute in &$($mutability)* regular_attribute.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_type(&$($mutability)* regular_attribute.type_);
-                self.visit_identifier(&$($mutability)* regular_attribute.name);
-            }
-
-            fn walk_regular_operation(&mut self,
-                                      regular_operation: &'ast $($mutability)* RegularOperation)
-            {
-                for extended_attribute in &$($mutability)* regular_operation.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_return_type(&$($mutability)* regular_operation.return_type);
-
-                if let Some(ref $($mutability)* name) = regular_operation.name {
-                    self.visit_identifier(name);
-                }
-
-                for argument in &$($mutability)* regular_operation.arguments {
-                    self.visit_argument(argument);
-                }
-            }
-
-            fn walk_return_type(&mut self, return_type: &'ast $($mutability)* ReturnType) {
-                if let ReturnType::NonVoid(ref $($mutability)* type_) = *return_type {
-                    self.visit_type(type_);
-                }
-            }
-
-            fn walk_setlike(&mut self, setlike: &'ast $($mutability)* Setlike) {
-                for extended_attribute in &$($mutability)* setlike.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_type(&$($mutability)* setlike.type_);
-            }
-
-            fn walk_special_operation(&mut self,
-                                      special_operation: &'ast $($mutability)* SpecialOperation)
-            {
-                for extended_attribute in &$($mutability)* special_operation.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                for special_keyword in &$($mutability)* special_operation.special_keywords {
-                    self.visit_special(special_keyword);
-                }
-
-                self.visit_return_type(&$($mutability)* special_operation.return_type);
-
-                if let Some(ref $($mutability)* name) = special_operation.name {
-                    self.visit_identifier(name);
-                }
-
-                for argument in &$($mutability)* special_operation.arguments {
-                    self.visit_argument(argument);
-                }
-            }
-
-            fn walk_static_attribute(&mut self,
-                                     static_attribute: &'ast $($mutability)* StaticAttribute)
-            {
-                for extended_attribute in &$($mutability)* static_attribute.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_type(&$($mutability)* static_attribute.type_);
-                self.visit_identifier(&$($mutability)* static_attribute.name);
-            }
-
-            fn walk_static_operation(&mut self,
-                                     static_operation: &'ast $($mutability)* StaticOperation)
-            {
-                for extended_attribute in &$($mutability)* static_operation.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_return_type(&$($mutability)* static_operation.return_type);
-
-                if let Some(ref $($mutability)* name) = static_operation.name {
-                    self.visit_identifier(name);
-                }
-
-                for argument in &$($mutability)* static_operation.arguments {
-                    self.visit_argument(argument);
-                }
-            }
-
-            fn walk_stringifier_attribute(
-                &mut self,
-                attribute: &'ast $($mutability)* StringifierAttribute)
-            {
-                for extended_attribute in &$($mutability)* attribute.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_type(&$($mutability)* attribute.type_);
-                self.visit_identifier(&$($mutability)* attribute.name);
-            }
-
-            fn walk_stringifier_operation(
-                &mut self,
-                stringifier_operation: &'ast $($mutability)* StringifierOperation)
-            {
-                match *stringifier_operation {
-                    StringifierOperation::Explicit(ref $($mutability)* operation) => {
-                        self.visit_explicit_stringifier_operation(operation);
-                    }
-                    StringifierOperation::Implicit(ref $($mutability)* operation) => {
-                        self.visit_implicit_stringifier_operation(operation);
-                    }
-                }
-            }
-
-            fn walk_type(&mut self, type_: &'ast $($mutability)* Type) {
-                for extended_attribute in &$($mutability)* type_.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
-                }
-
-                self.visit_type_kind(&$($mutability)* type_.kind);
-            }
-
-            fn walk_type_kind(&mut self, type_kind: &'ast $($mutability)* TypeKind) {
-                match *type_kind {
-                    TypeKind::FrozenArray(ref $($mutability)* type_) => {
-                        self.visit_type(type_);
-                    }
-                    TypeKind::Identifier(ref $($mutability)* identifier) => {
-                        self.visit_identifier(identifier);
-                    }
-                    TypeKind::Promise(ref $($mutability)* return_type) => {
-                        self.visit_return_type(return_type);
-                    }
-                    TypeKind::Record(_, ref $($mutability)* type_) => {
-                        self.visit_type(type_);
-                    }
-                    TypeKind::Sequence(ref $($mutability)* type_) => {
-                        self.visit_type(type_);
-                    }
-                    TypeKind::Union(ref $($mutability)* types) => {
-                        for type_ in types {
-                            self.visit_type(type_);
+                match clause.guard {
+                    None => (),
+                    Some(ref $($mutability)* guards) => {
+                        for guard in guards {
+                            self.visit_guard(guard);
                         }
                     }
-                    _ => (),
+                }
+
+                for expr in &$($mutability)* clause.body {
+                    self.visit_expression(expr);
                 }
             }
 
-            fn walk_typedef(&mut self, typedef: &'ast $($mutability)* Typedef) {
-                for extended_attribute in &$($mutability)* typedef.extended_attributes {
-                    self.visit_extended_attribute(extended_attribute);
+            fn walk_guard(&mut self, guard: &'ast $($mutability)* Guard) {
+                for condition in &$($mutability)* guard.conditions {
+                    self.visit_expression(condition);
+                }
+            }
+
+            fn walk_type(&mut self, _ty: &'ast $($mutability)* Type) {}
+
+            fn walk_type_guard(&mut self, guard: &'ast $($mutability)* TypeGuard) {
+                self.visit_identifier(&$($mutability)* guard.var);
+                self.visit_type(&$($mutability)* guard.ty);
+            }
+
+
+            fn walk_function_name(&mut self, name: &'ast $($mutability)* FunctionName) {
+                match name {
+                    &$($mutability)* FunctionName::Resolved(ref $($mutability)* name) => {
+                        self.visit_resolved_function_name(name)
+                    }
+                    &$($mutability)* FunctionName::PartiallyResolved(ref $($mutability)* name) => {
+                        self.visit_partially_resolved_function_name(name)
+                    }
+                    &$($mutability)* FunctionName::Unresolved(ref $($mutability)* name) => {
+                        self.visit_unresolved_function_name(name)
+                    }
+                }
+            }
+
+            fn walk_unresolved_function_name(&mut self, name: &'ast $($mutability)* UnresolvedFunctionName) {
+                if let Some(ref $($mutability)* m) = name.module {
+                    self.visit_name(m);
                 }
 
-                self.visit_type(&$($mutability)* typedef.type_);
-                self.visit_identifier(&$($mutability)* typedef.name);
+                self.visit_name(&$($mutability)* name.function);
+            }
+
+            fn walk_cons(&mut self, cons: &'ast $($mutability)* Cons) {
+                self.visit_expression(&$($mutability)* cons.head);
+                self.visit_expression(&$($mutability)* cons.tail);
+            }
+
+            fn walk_tuple(&mut self, tuple: &'ast $($mutability)* Tuple) {
+                for element in &$($mutability)* tuple.elements {
+                    self.visit_expression(element);
+                }
+            }
+
+            fn walk_map(&mut self, map: &'ast $($mutability)* Map) {
+                for field in &$($mutability)* map.fields {
+                    self.visit_map_field(field);
+                }
+            }
+
+            fn walk_map_field(&mut self, field: &'ast $($mutability)* MapField) {
+                match field {
+                    &$($mutability)* MapField::Assoc { ref $($mutability)* key, ref $($mutability)* value, .. } => {
+                        self.visit_expression(key);
+                        self.visit_expression(value);
+                    }
+                    &$($mutability)* MapField::Exact { ref $($mutability)* key, ref $($mutability)* value, .. } => {
+                        self.visit_expression(key);
+                        self.visit_expression(value);
+                    }
+                }
+            }
+
+            fn walk_map_update(&mut self, map: &'ast $($mutability)* MapUpdate) {
+                self.visit_expression(&$($mutability)* map.map);
+
+                for update in &$($mutability)* map.updates {
+                    self.visit_map_field(update);
+                }
+            }
+
+            fn walk_map_projection(&mut self, map: &'ast $($mutability)* MapProjection) {
+                self.visit_expression(&$($mutability)* map.map);
+
+                for field in &$($mutability)* map.fields {
+                    self.visit_map_field(field);
+                }
+            }
+
+            fn walk_binary(&mut self, bin: &'ast $($mutability)* Binary) {
+                for element in &$($mutability)* bin.elements {
+                    self.visit_binary_element(element);
+                }
+            }
+
+            fn walk_binary_element(&mut self, element: &'ast $($mutability)* BinaryElement) {
+                self.visit_expression(&$($mutability)* element.bit_expr);
+
+                if let Some(ref $($mutability)* expr) = element.bit_size {
+                    self.visit_expression(expr);
+                }
+
+                if let Some(ref $($mutability)* types) = element.bit_type {
+                    for ty in types {
+                        self.visit_bit_type(ty);
+                    }
+                }
+            }
+
+            fn walk_record_access(&mut self, ra: &'ast $($mutability)* RecordAccess) {
+                self.visit_expression(&$($mutability)* ra.record);
+            }
+
+            fn walk_record_update(&mut self, ru: &'ast $($mutability)* RecordUpdate) {
+                self.visit_expression(&$($mutability)* ru.record);
+                for update in &$($mutability)* ru.updates {
+                    self.visit_record_field(update);
+                }
+            }
+
+            fn walk_list_comprehension(&mut self, lc: &'ast $($mutability)* ListComprehension) {
+                self.visit_expression(&$($mutability)* lc.body);
+                for qualifier in &$($mutability)* lc.qualifiers {
+                    self.visit_expression(qualifier);
+                }
+            }
+
+            fn walk_binary_comprehension(&mut self, bc: &'ast $($mutability)* BinaryComprehension) {
+                self.visit_expression(&$($mutability)* bc.body);
+                for qualifier in &$($mutability)* bc.qualifiers {
+                    self.visit_expression(qualifier);
+                }
+            }
+
+            fn walk_generator(&mut self, generator: &'ast $($mutability)* Generator) {
+                self.visit_expression(&$($mutability)* generator.pattern);
+                self.visit_expression(&$($mutability)* generator.expr);
+            }
+
+            fn walk_binary_generator(&mut self, generator: &'ast $($mutability)* BinaryGenerator) {
+                self.visit_expression(&$($mutability)* generator.pattern);
+                self.visit_expression(&$($mutability)* generator.expr);
+            }
+
+            fn walk_begin(&mut self, begin: &'ast $($mutability)* Begin) {
+                for expr in &$($mutability)* begin.body {
+                    self.visit_expression(expr);
+                }
+            }
+
+            fn walk_apply(&mut self, apply: &'ast $($mutability)* Apply) {
+                self.visit_expression(&$($mutability)* apply.callee);
+                for arg in &$($mutability)* apply.args {
+                    self.visit_expression(arg);
+                }
+            }
+
+            fn walk_remote(&mut self, remote: &'ast $($mutability)* Remote) {
+                self.visit_expression(&$($mutability)* remote.module);
+                self.visit_expression(&$($mutability)* remote.function);
+            }
+
+            fn walk_binary_expr(&mut self, expr: &'ast $($mutability)* BinaryExpr) {
+                self.visit_expression(&$($mutability)* expr.lhs);
+                self.visit_expression(&$($mutability)* expr.rhs);
+            }
+
+            fn walk_unary_expr(&mut self, expr: &'ast $($mutability)* UnaryExpr) {
+                self.visit_expression(&$($mutability)* expr.operand);
+            }
+
+            fn walk_match(&mut self, expr: &'ast $($mutability)* Match) {
+                self.visit_expression(&$($mutability)* expr.pattern);
+                self.visit_expression(&$($mutability)* expr.expr);
+            }
+
+            fn walk_if(&mut self, expr: &'ast $($mutability)* If) {
+                for clause in &$($mutability)* expr.clauses {
+                    self.visit_if_clause(clause);
+                }
+            }
+
+            fn walk_if_clause(&mut self, clause: &'ast $($mutability)* IfClause) {
+                for condition in &$($mutability)* clause.conditions {
+                    self.visit_expression(condition);
+                }
+                for expr in &$($mutability)* clause.body {
+                    self.visit_expression(expr);
+                }
+            }
+
+            fn walk_catch(&mut self, expr: &'ast $($mutability)* Catch) {
+                self.visit_expression(&$($mutability)* expr.expr);
+            }
+
+            fn walk_case(&mut self, case: &'ast $($mutability)* Case) {
+                self.visit_expression(&$($mutability)* case.expr);
+
+                for clause in &$($mutability)* case.clauses {
+                    self.visit_clause(clause);
+                }
+            }
+
+            fn walk_receive(&mut self, receive: &'ast $($mutability)* Receive) {
+                if let Some(ref $($mutability)* clauses) = receive.clauses {
+                    for clause in clauses {
+                        self.visit_clause(clause);
+                    }
+                }
+                if let Some(ref $($mutability)* after) = receive.after {
+                    self.visit_after(after);
+                }
+            }
+
+            fn walk_after(&mut self, after: &'ast $($mutability)* After) {
+                self.visit_expression(&$($mutability)* after.timeout);
+                for expr in &$($mutability)* after.body {
+                    self.visit_expression(expr);
+                }
+            }
+
+            fn walk_try(&mut self, try_expr: &'ast $($mutability)* Try) {
+                if let Some(ref $($mutability)* exprs) = try_expr.exprs {
+                    for ex in exprs {
+                        self.visit_expression(ex);
+                    }
+                }
+                if let Some(ref $($mutability)* clauses) = try_expr.clauses {
+                    for clause in clauses {
+                        self.visit_clause(clause);
+                    }
+                }
+                if let Some(ref $($mutability)* catch_clauses) = try_expr.catch_clauses {
+                    for catch_clause in catch_clauses {
+                        self.visit_try_clause(catch_clause);
+                    }
+                }
+                if let Some(ref $($mutability)* after) = try_expr.after {
+                    for ex in after {
+                        self.visit_expression(ex);
+                    }
+                }
+            }
+
+            fn walk_try_clause(&mut self, clause: &'ast $($mutability)* TryClause) {
+                self.visit_name(&$($mutability)* clause.kind);
+                self.visit_expression(&$($mutability)* clause.error);
+                if let Some(ref $($mutability)* guards) = clause.guard {
+                    for guard in guards {
+                        self.visit_guard(guard);
+                    }
+                }
+                self.visit_identifier(&$($mutability)* clause.trace);
+                for expr in &$($mutability)* clause.body {
+                    self.visit_expression(expr);
+                }
+            }
+
+            fn walk_clause(&mut self, clause: &'ast $($mutability)* Clause) {
+                self.visit_expression(&$($mutability)* clause.pattern);
+                if let Some(ref $($mutability)* guards) = clause.guard {
+                    for guard in guards {
+                        self.visit_guard(guard);
+                    }
+                }
+                for expr in &$($mutability)* clause.body {
+                    self.visit_expression(expr);
+                }
+            }
+
+            fn walk_fun(&mut self, fun: &'ast $($mutability)* Function) {
+                match fun {
+                    Function::Named(ref $($mutability)* named) => self.visit_named_lambda(named),
+                    Function::Unnamed(ref $($mutability)* lambda) => self.visit_lambda(lambda),
+                }
+            }
+
+            fn walk_lambda(&mut self, lambda: &'ast $($mutability)* Lambda) {
+                for clause in &$($mutability)* lambda.clauses {
+                    self.visit_function_clause(clause);
+                }
+            }
+
+            fn walk_named_lambda(&mut self, lambda: &'ast $($mutability)* NamedFunction) {
+                for clause in &$($mutability)* lambda.clauses {
+                    self.visit_function_clause(clause);
+                }
             }
         }
     }

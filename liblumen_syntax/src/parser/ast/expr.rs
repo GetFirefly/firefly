@@ -1,10 +1,10 @@
 use std::cmp::Ordering;
 
-use rug::Integer;
 use liblumen_diagnostics::ByteSpan;
+use rug::Integer;
 
-use super::{Ident, BinaryOp, UnaryOp};
-use super::{Type, Guard, Name, FunctionName, Function};
+use super::{BinaryOp, Ident, UnaryOp};
+use super::{Function, FunctionName, Guard, Name, Type};
 
 /// The set of all possible expressions
 #[derive(Debug, Clone, PartialEq)]
@@ -226,12 +226,10 @@ impl Literal {
 impl PartialEq for Literal {
     fn eq(&self, other: &Literal) -> bool {
         match (self, other) {
-            (&Literal::Atom(ref lhs), &Literal::Atom(ref rhs)) =>
-                lhs == rhs,
+            (&Literal::Atom(ref lhs), &Literal::Atom(ref rhs)) => lhs == rhs,
             (&Literal::Atom(_), _) => false,
             (_, &Literal::Atom(_)) => false,
-            (&Literal::String(ref lhs), &Literal::String(ref rhs)) =>
-                lhs == rhs,
+            (&Literal::String(ref lhs), &Literal::String(ref rhs)) => lhs == rhs,
             (&Literal::String(_), _) => false,
             (_, &Literal::String(_)) => false,
             (x, y) => x.partial_cmp(y) == Some(Ordering::Equal),
@@ -242,12 +240,10 @@ impl PartialOrd for Literal {
     // number < atom < reference < fun < port < pid < tuple < map < nil < list < bit string
     fn partial_cmp(&self, other: &Literal) -> Option<Ordering> {
         match (self, other) {
-            (&Literal::String(ref lhs), &Literal::String(ref rhs)) =>
-                lhs.partial_cmp(rhs),
+            (&Literal::String(ref lhs), &Literal::String(ref rhs)) => lhs.partial_cmp(rhs),
             (&Literal::String(_), _) => Some(Ordering::Greater),
             (_, &Literal::String(_)) => Some(Ordering::Less),
-            (&Literal::Atom(ref lhs), &Literal::Atom(ref rhs)) =>
-                lhs.partial_cmp(rhs),
+            (&Literal::Atom(ref lhs), &Literal::Atom(ref rhs)) => lhs.partial_cmp(rhs),
             (&Literal::Atom(_), _) => Some(Ordering::Greater),
             (_, &Literal::Atom(_)) => Some(Ordering::Less),
             (&Literal::Integer(_, x), &Literal::Integer(_, y)) => x.partial_cmp(&y),
@@ -339,9 +335,7 @@ pub struct RecordAccess {
 }
 impl PartialEq for RecordAccess {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name &&
-        self.field == other.field &&
-        self.record == other.record
+        self.name == other.name && self.field == other.field && self.record == other.record
     }
 }
 
@@ -368,9 +362,7 @@ pub struct RecordUpdate {
 }
 impl PartialEq for RecordUpdate {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name &&
-        self.record == other.record &&
-        self.updates == other.updates
+        self.name == other.name && self.record == other.record && self.updates == other.updates
     }
 }
 
@@ -445,8 +437,7 @@ pub struct ListComprehension {
 }
 impl PartialEq for ListComprehension {
     fn eq(&self, other: &Self) -> bool {
-        self.body == other.body &&
-        self.qualifiers == other.qualifiers
+        self.body == other.body && self.qualifiers == other.qualifiers
     }
 }
 
@@ -458,8 +449,7 @@ pub struct BinaryComprehension {
 }
 impl PartialEq for BinaryComprehension {
     fn eq(&self, other: &Self) -> bool {
-        self.body == other.body &&
-        self.qualifiers == other.qualifiers
+        self.body == other.body && self.qualifiers == other.qualifiers
     }
 }
 
@@ -536,9 +526,7 @@ pub struct BinaryExpr {
 }
 impl PartialEq for BinaryExpr {
     fn eq(&self, other: &Self) -> bool {
-        self.op == other.op &&
-        self.lhs == other.lhs &&
-        self.rhs == other.rhs
+        self.op == other.op && self.lhs == other.lhs && self.rhs == other.rhs
     }
 }
 
@@ -635,10 +623,10 @@ pub struct Try {
 }
 impl PartialEq for Try {
     fn eq(&self, other: &Self) -> bool {
-        self.exprs == other.exprs &&
-        self.clauses == other.clauses &&
-        self.catch_clauses == other.catch_clauses &&
-        self.after == other.after
+        self.exprs == other.exprs
+            && self.clauses == other.clauses
+            && self.catch_clauses == other.catch_clauses
+            && self.after == other.after
     }
 }
 
@@ -654,11 +642,11 @@ pub struct TryClause {
 }
 impl PartialEq for TryClause {
     fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind &&
-        self.error == other.error &&
-        self.guard == other.guard &&
-        self.trace == other.trace &&
-        self.body == other.body
+        self.kind == other.kind
+            && self.error == other.error
+            && self.guard == other.guard
+            && self.trace == other.trace
+            && self.body == other.body
     }
 }
 
@@ -685,8 +673,6 @@ pub struct Clause {
 }
 impl PartialEq for Clause {
     fn eq(&self, other: &Self) -> bool {
-        self.pattern == other.pattern &&
-        self.guard == other.guard &&
-        self.body == other.body
+        self.pattern == other.pattern && self.guard == other.guard && self.body == other.body
     }
 }

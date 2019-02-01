@@ -1,19 +1,22 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 use failure::Error;
 
-use liblumen_syntax::{Symbol, Ident};
+use liblumen_diagnostics::{ByteSpan, Diagnostic, Label};
 use liblumen_syntax::ast::*;
 use liblumen_syntax::visitor::ImmutableVisitor;
-use liblumen_diagnostics::{ByteSpan, Diagnostic, Label};
+use liblumen_syntax::{Ident, Symbol};
 
 use super::compiler::Compiler;
 
 pub fn module(_compiler: &mut Compiler, module: &Module) -> Result<(), Error> {
-    let opts = module.compile.clone().unwrap_or_else(|| CompileOptions::default());
+    let opts = module
+        .compile
+        .clone()
+        .unwrap_or_else(|| CompileOptions::default());
     let mut linter = Linter::new(module, opts);
     linter.lint(module)
 }
@@ -26,9 +29,7 @@ pub struct Variable {
     used: bool,
     notsafe: bool,
 }
-impl Variable {
-
-}
+impl Variable {}
 
 pub struct Linter<'ast> {
     module: &'ast Module,
@@ -88,6 +89,5 @@ impl<'ast> Linter<'ast> {
 /// * Normalize record construction so that all fields are initialized
 /// * Check format strings for `io:format/fwrite` and `io_lib:format/fwrite`
 impl<'ast> ImmutableVisitor<'ast> for Linter<'ast> {
-    fn visit(&mut self, _module: &'ast Module) {
-    }
+    fn visit(&mut self, _module: &'ast Module) {}
 }

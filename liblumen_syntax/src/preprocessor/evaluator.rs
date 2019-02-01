@@ -36,33 +36,72 @@ pub fn eval(expr: Expr) -> Result<Expr, PreprocessorError> {
         Expr::RecordIndex(_) => expr,
 
         // Recursively evaluate subexpressions
-        Expr::Cons(Cons { span, box head, box tail }) => {
-            Expr::Cons(Cons { span, head: Box::new(eval(head)?), tail: Box::new(eval(tail)?) })
-        }
-        Expr::Tuple(Tuple { span, elements }) => {
-            Expr::Tuple(Tuple { span, elements: eval_list(elements)? })
-        }
-        Expr::Map(Map { span, fields }) => {
-            Expr::Map(Map { span, fields: eval_map(fields)? })
-        }
-        Expr::MapUpdate(MapUpdate { span, map: box map, updates }) => {
-            Expr::MapUpdate(MapUpdate { span, map: Box::new(eval(map)?), updates: eval_map(updates)? })
-        }
-        Expr::MapProjection(MapProjection { span, map: box map, fields }) => {
-            Expr::MapProjection(MapProjection { span, map: Box::new(eval(map)?), fields: eval_map(fields)? })
-        }
-        Expr::Binary(Binary { span, elements }) => {
-            Expr::Binary(Binary { span, elements: eval_bin_elements(elements)? })
-        }
-        Expr::Record(Record { span, name, fields }) => {
-            Expr::Record(Record { span, name, fields: eval_record(fields)? })
-        }
-        Expr::RecordAccess(RecordAccess { span, box record, name, field }) => {
-            Expr::RecordAccess(RecordAccess { span, record: Box::new(eval(record)?), name, field })
-        }
-        Expr::RecordUpdate(RecordUpdate { span, box record, name, updates }) => {
-            Expr::RecordUpdate(RecordUpdate { span, record: Box::new(eval(record)?), name, updates: eval_record(updates)? })
-        }
+        Expr::Cons(Cons {
+            span,
+            box head,
+            box tail,
+        }) => Expr::Cons(Cons {
+            span,
+            head: Box::new(eval(head)?),
+            tail: Box::new(eval(tail)?),
+        }),
+        Expr::Tuple(Tuple { span, elements }) => Expr::Tuple(Tuple {
+            span,
+            elements: eval_list(elements)?,
+        }),
+        Expr::Map(Map { span, fields }) => Expr::Map(Map {
+            span,
+            fields: eval_map(fields)?,
+        }),
+        Expr::MapUpdate(MapUpdate {
+            span,
+            map: box map,
+            updates,
+        }) => Expr::MapUpdate(MapUpdate {
+            span,
+            map: Box::new(eval(map)?),
+            updates: eval_map(updates)?,
+        }),
+        Expr::MapProjection(MapProjection {
+            span,
+            map: box map,
+            fields,
+        }) => Expr::MapProjection(MapProjection {
+            span,
+            map: Box::new(eval(map)?),
+            fields: eval_map(fields)?,
+        }),
+        Expr::Binary(Binary { span, elements }) => Expr::Binary(Binary {
+            span,
+            elements: eval_bin_elements(elements)?,
+        }),
+        Expr::Record(Record { span, name, fields }) => Expr::Record(Record {
+            span,
+            name,
+            fields: eval_record(fields)?,
+        }),
+        Expr::RecordAccess(RecordAccess {
+            span,
+            box record,
+            name,
+            field,
+        }) => Expr::RecordAccess(RecordAccess {
+            span,
+            record: Box::new(eval(record)?),
+            name,
+            field,
+        }),
+        Expr::RecordUpdate(RecordUpdate {
+            span,
+            box record,
+            name,
+            updates,
+        }) => Expr::RecordUpdate(RecordUpdate {
+            span,
+            record: Box::new(eval(record)?),
+            name,
+            updates: eval_record(updates)?,
+        }),
         Expr::Begin(Begin { span, .. }) => {
             return Err(PreprocessorError::InvalidConstExpression(span));
         }
@@ -95,7 +134,11 @@ pub fn eval(expr: Expr) -> Result<Expr, PreprocessorError> {
             let rhs = eval(rhs)?;
             return eval_binary_op(span, lhs, op, rhs);
         }
-        Expr::UnaryExpr(UnaryExpr { span, op, box operand }) => {
+        Expr::UnaryExpr(UnaryExpr {
+            span,
+            op,
+            box operand,
+        }) => {
             let operand = eval(operand)?;
             return eval_unary_op(span, op, operand);
         }

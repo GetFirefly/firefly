@@ -49,11 +49,13 @@ macro_rules! cons {
             head: Box::new($head),
             tail: Box::new($tail),
         })
-    }
+    };
 }
 
 macro_rules! nil {
-    () => { Expr::Nil(Nil(ByteSpan::default())) }
+    () => {
+        Expr::Nil(Nil(ByteSpan::default()))
+    };
 }
 
 /// Produces a tuple expression with the given elements
@@ -70,23 +72,25 @@ macro_rules! tuple {
 macro_rules! int {
     ($i:expr) => {
         Expr::Literal(Literal::Integer(ByteSpan::default(), $i))
-    }
+    };
 }
 
 /// Produces a literal expression which evaluates to an atom
 macro_rules! atom {
     ($sym:ident) => {
-        Expr::Literal(Literal::Atom(Ident::with_empty_span(Symbol::intern(stringify!($sym)))))
+        Expr::Literal(Literal::Atom(Ident::with_empty_span(Symbol::intern(
+            stringify!($sym),
+        ))))
     };
     ($sym:expr) => {
         Expr::Literal(Literal::Atom(Ident::with_empty_span(Symbol::intern($sym))))
-    }
+    };
 }
 
 macro_rules! atom_from_sym {
     ($sym:expr) => {
         Expr::Literal(Literal::Atom(Ident::with_empty_span($sym)))
-    }
+    };
 }
 
 /// Produces an Ident from an expression, meant to be used to simplify generating
@@ -100,7 +104,7 @@ macro_rules! ident {
     };
     (_) => {
         Ident::with_empty_span(Symbol::intern("_"))
-    }
+    };
 }
 
 /// Produces an Option<Ident> from an expression, meant to be used to simplify generating
@@ -115,7 +119,7 @@ macro_rules! ident_opt {
     };
     (_) => {
         Ident::with_empty_span(Symbol::intern("_"))
-    }
+    };
 }
 
 /// Produces a variable expression
@@ -125,7 +129,7 @@ macro_rules! var {
     };
     (_) => {
         Expr::Var(ident!(_))
-    }
+    };
 }
 
 /// Produces a remote expression, e.g. `erlang:get_module_info`
@@ -145,7 +149,7 @@ macro_rules! remote {
             module: Box::new($module),
             function: Box::new($function),
         })
-    }
+    };
 }
 
 /// Produces a function application expression

@@ -7,7 +7,8 @@
 //!
 //! # Alternative Implementations
 //!
-//! - [`org.elixir_lang.beam.chunk.Chunk` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Chunk.java) in Java.
+//! - [`org.elixir_lang.beam.chunk.Chunk` in IntelliJ Elixir](https://github.
+//!   com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Chunk.java) in Java.
 //!
 mod aux;
 
@@ -134,7 +135,8 @@ impl Chunk for RawChunk {
 ///
 /// ## Alternative Implementations
 ///
-/// * [`org.elixir_lang.beam.chunk.Atoms` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Atoms.kt) in Kotlin
+/// * [`org.elixir_lang.beam.chunk.Atoms` in IntelliJ Elixir](https://github.
+///   com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Atoms.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct AtomChunk {
     /// Whether or not this Atom chunk contains UTF-8 atoms
@@ -153,7 +155,9 @@ impl Chunk for AtomChunk {
 
     /// ## Alternative Implementations
     ///
-    /// - [`org.elixir_lang.beam.chunk.Atoms.Companion.from` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Atoms.kt#L24-L49) in Kotlin
+    /// - [`org.elixir_lang.beam.chunk.Atoms.Companion.from` in IntelliJ Elixir](https://github.
+    ///   com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Atoms.
+    ///   kt#L24-L49) in Kotlin
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -200,7 +204,8 @@ impl Chunk for AtomChunk {
 ///
 /// - [AtomChunk](AtomChunk) for the module name and direct atom usage.
 /// - [ImpTChunk](ImpTChunk) to convert the import index to MFA for external calls.
-/// - "Line" chunk for `file:line` information for stacktraces that are set with the `line` operation.
+/// - "Line" chunk for `file:line` information for stacktraces that are set with the `line`
+///   operation.
 /// - [LitTChunk](LitTChunk) for literal (constant) references used as arguments to operations.
 /// - [StrTChunk](StrTChunk) for strings from the string pool used in `bs_*` operations.
 ///
@@ -234,7 +239,8 @@ impl Chunk for CodeChunk {
 
     /// ## Alternative Implementations
     /// - [`org.elixir_lang.beam.chunk.Code.Companion.from` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Code.kt#L171-L216) in Kotlin
-    ///   NOTE: This implementation decodes the operations as it loads the data instead of storing it as raw bytes.
+    /// NOTE: This implementation decodes the operations as it loads the data instead of storing it
+    /// as raw bytes.
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -421,7 +427,7 @@ impl Chunk for LitTChunk {
 
     /// ## Alternative Implementations
     /// - [`org.elixir_lang.bream.chunk.Literals.Companion.from`](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Literals.kt#L20-L46) in Kotlin
-    ///   NOTE: This implementation converts the raw bytes to JInterface objects
+    /// NOTE: This implementation converts the raw bytes to JInterface objects
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
     where
         Self: Sized,
@@ -515,8 +521,8 @@ impl Chunk for LocTChunk {
 /// variables.
 ///
 /// The `"FunT"` chunk is a table:
-/// 1. Index of function atom in [AtomChunk](AtomChunk) - Anonymous have static names in the `.beam` format!
-/// 2. Arity
+/// 1. Index of function atom in [AtomChunk](AtomChunk) - Anonymous have static names in the `.beam`
+/// format! 2. Arity
 /// 3. Label in the [CodeChunk](CodeChunk)
 /// 4. Index
 /// 5. Free Variable Count that needs to be passed in from caller
@@ -571,7 +577,6 @@ impl Chunk for FunTChunk {
 /// In Erlang, module attributes are registed by default, but in Elixir, only those declared with
 /// [`Module.register_attribute(module, attribute, persist: true)`](https://hexdocs.pm/elixir/Module.html#register_attribute/3)
 /// will appear in this chunk.
-///
 #[derive(Debug, PartialEq, Eq)]
 pub struct AttrChunk {
     /// The attributes of a module (i.e., BEAM file).

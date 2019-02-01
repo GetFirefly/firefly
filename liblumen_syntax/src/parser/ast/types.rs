@@ -4,8 +4,8 @@ use lazy_static::lazy_static;
 
 use liblumen_diagnostics::ByteSpan;
 
-use super::{Ident, Name, Symbol};
 use super::{BinaryOp, UnaryOp};
+use super::{Ident, Name, Symbol};
 
 lazy_static! {
     pub static ref BUILTIN_TYPES: HashSet<(Symbol, usize)> = {
@@ -106,7 +106,11 @@ pub enum Type {
     Integer(ByteSpan, i64),
     Char(ByteSpan, char),
     AnyFun(ByteSpan),
-    Fun { span: ByteSpan, params: Vec<Type>, ret: Box<Type> },
+    Fun {
+        span: ByteSpan,
+        params: Vec<Type>,
+        ret: Box<Type>,
+    },
     KeyValuePair(ByteSpan, Box<Type>, Box<Type>),
     Field(ByteSpan, Ident, Box<Type>),
 }
@@ -126,15 +130,13 @@ impl Type {
 
     pub fn is_builtin_type(&self) -> bool {
         match self {
-            &Type::Name(Name::Atom(Ident { ref name, .. })) => {
-                BUILTIN_TYPES.contains(&(*name, 0))
-            }
-            &Type::Annotated { ref name, ..  } => {
-                BUILTIN_TYPES.contains(&(name.name, 0))
-            }
-            &Type::Generic { ref fun, ref params, .. } => {
-                BUILTIN_TYPES.contains(&(fun.name, params.len()))
-            }
+            &Type::Name(Name::Atom(Ident { ref name, .. })) => BUILTIN_TYPES.contains(&(*name, 0)),
+            &Type::Annotated { ref name, .. } => BUILTIN_TYPES.contains(&(name.name, 0)),
+            &Type::Generic {
+                ref fun,
+                ref params,
+                ..
+            } => BUILTIN_TYPES.contains(&(fun.name, params.len())),
             &Type::Nil(_) => true,
             &Type::List(_, _) => true,
             &Type::NonEmptyList(_, _) => true,
@@ -257,8 +259,18 @@ impl PartialEq for Type {
             (&Type::Integer(_, x), &Type::Integer(_, y)) => x == y,
             (&Type::Char(_, x), &Type::Char(_, y)) => x == y,
             (&Type::AnyFun(_), &Type::AnyFun(_)) => true,
-            (&Type::Fun { params: ref x1, ret: ref x2, .. }, &Type::Fun { params: ref y1, ret: ref y2, .. }) =>
-                (x1 == y1) && (x2 == y2),
+            (
+                &Type::Fun {
+                    params: ref x1,
+                    ret: ref x2,
+                    ..
+                },
+                &Type::Fun {
+                    params: ref y1,
+                    ret: ref y2,
+                    ..
+                },
+            ) => (x1 == y1) && (x2 == y2),
             (&Type::KeyValuePair(_, ref x1, ref x2), &Type::KeyValuePair(_, ref y1, ref y2)) => {
                 (x1 == y1) && (x2 == y2)
             }

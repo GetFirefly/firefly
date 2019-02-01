@@ -26,7 +26,10 @@ impl PrettyPrintVisitor {
 
 impl<'ast> ImmutableVisitor<'ast> for PrettyPrintVisitor {
     fn visit(&mut self, module: &'ast Module) {
-        self.output.push_str(&format!("-module({}).\n\n", self.stringify_atom(&module.name)));
+        self.output.push_str(&format!(
+            "-module({}).\n\n",
+            self.stringify_atom(&module.name)
+        ));
 
         // TODO
     }

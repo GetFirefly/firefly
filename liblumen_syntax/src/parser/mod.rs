@@ -29,12 +29,13 @@ pub(crate) mod grammar {
     include!(concat!(env!("OUT_DIR"), "/parser/grammar.rs"));
 }
 
-#[macro_use] mod macros;
+#[macro_use]
+mod macros;
 
-/// Contains the visitor trait needed to traverse the AST and helper walk functions.
-pub mod visitor;
 pub mod ast;
 mod errors;
+/// Contains the visitor trait needed to traverse the AST and helper walk functions.
+pub mod visitor;
 
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
@@ -216,21 +217,19 @@ mod test {
     }
 
     macro_rules! module {
-        ($name:expr, $body:expr) => {
-            {
-                let mut errs = Vec::new();
-                let module = Module::new(&mut errs, ByteSpan::default(), $name, $body);
-                if errs.len() > 0 {
-                    let emitter = StandardStreamEmitter::new(ColorChoice::Auto);
-                    for err in errs.drain(..) {
-                        let err = ParserError::from(err);
-                        emitter.diagnostic(&err.to_diagnostic()).unwrap();
-                    }
-                    panic!("failed to create expected module!");
+        ($name:expr, $body:expr) => {{
+            let mut errs = Vec::new();
+            let module = Module::new(&mut errs, ByteSpan::default(), $name, $body);
+            if errs.len() > 0 {
+                let emitter = StandardStreamEmitter::new(ColorChoice::Auto);
+                for err in errs.drain(..) {
+                    let err = ParserError::from(err);
+                    emitter.diagnostic(&err.to_diagnostic()).unwrap();
                 }
-                module
+                panic!("failed to create expected module!");
             }
-        }
+            module
+        }};
     }
 
     #[test]
@@ -464,12 +463,14 @@ loop(State, Timeout) ->
                         span: ByteSpan::default(),
                         pattern: var!(_),
                         guard: None,
-                        body: vec![
-                            apply!(atom!(exit),
-                                   apply!(remote!(io_lib, format),
-                                          Expr::Literal(Literal::String(ident!("unexpected message: ~p~n"))),
-                                          cons!(var!(Msg), nil!())))
-                        ],
+                        body: vec![apply!(
+                            atom!(exit),
+                            apply!(
+                                remote!(io_lib, format),
+                                Expr::Literal(Literal::String(ident!("unexpected message: ~p~n"))),
+                                cons!(var!(Msg), nil!())
+                            )
+                        )],
                     },
                 ]),
                 after: Some(After {
@@ -620,7 +621,10 @@ example(File) ->
                         error: tuple!(var!(Mod), var!(Code)),
                         trace: ident!(_),
                         guard: None,
-                        body: vec![tuple!(atom!(error), apply!(remote!(var!(Mod), atom!(format_error)), var!(Code)))],
+                        body: vec![tuple!(
+                            atom!(error),
+                            apply!(remote!(var!(Mod), atom!(format_error)), var!(Code))
+                        )],
                     },
                     TryClause {
                         span: ByteSpan::default(),

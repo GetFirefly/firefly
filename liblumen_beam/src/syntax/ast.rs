@@ -8,9 +8,9 @@
 //!
 //! # Examples
 //!
-//!     use syntax::ast::AST;
+//!     use liblumen_beam::syntax::ast::AST;
 //!
-//!     let ast = AST::from_beam_file("src/testdata/test.beam").unwrap();
+//!     let ast = AST::from_beam_file("tests/testdata/ast/test.beam").unwrap();
 //!     println!("{:?}", ast);
 //!
 pub mod ast;

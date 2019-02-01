@@ -13,7 +13,7 @@ impl<I: Ord> Span<I> {
     /// Create a new span
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     ///
     /// let span = Span::new(ByteIndex(3), ByteIndex(6));
     /// assert_eq!(span.start(), ByteIndex(3));
@@ -23,7 +23,7 @@ impl<I: Ord> Span<I> {
     /// `start` and `end` are reordered to maintain the invariant that `start <= end`
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     ///
     /// let span = Span::new(ByteIndex(6), ByteIndex(3));
     /// assert_eq!(span.start(), ByteIndex(3));
@@ -91,7 +91,7 @@ impl<I: Index> Span<I> {
     /// Return a new span with the low byte position replaced with the supplied byte position
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     ///
     /// let span = Span::new(ByteIndex(3), ByteIndex(6));
     /// assert_eq!(
@@ -115,7 +115,7 @@ impl<I: Index> Span<I> {
     /// Return a new span with the high byte position replaced with the supplied byte position
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     ///
     /// let span = Span::new(ByteIndex(3), ByteIndex(6));
     /// assert_eq!(
@@ -139,7 +139,7 @@ impl<I: Index> Span<I> {
     /// Return true if `self` fully encloses `other`.
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     ///
     /// let a = Span::new(ByteIndex(5), ByteIndex(8));
     ///
@@ -157,7 +157,7 @@ impl<I: Index> Span<I> {
     /// `start` or `Greater` if `pos` is after or at `end`.
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     /// use std::cmp::Ordering::*;
     ///
     /// let a = Span::new(ByteIndex(5), ByteIndex(8));
@@ -183,7 +183,7 @@ impl<I: Index> Span<I> {
     /// `start` or `Greater` if `pos` is *strictly* after `end`.
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     /// use std::cmp::Ordering::*;
     ///
     /// let a = Span::new(ByteIndex(5), ByteIndex(8));
@@ -212,7 +212,7 @@ impl<I: Index> Span<I> {
     /// ```
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     ///
     /// let a = Span::new(ByteIndex(2), ByteIndex(5));
     /// let b = Span::new(ByteIndex(10), ByteIndex(14));
@@ -236,7 +236,7 @@ impl<I: Index> Span<I> {
     /// ```
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     ///
     /// let a = Span::new(ByteIndex(2), ByteIndex(5));
     /// let b = Span::new(ByteIndex(10), ByteIndex(14));
@@ -257,7 +257,7 @@ impl<I: Index> Span<I> {
     /// ```
     ///
     /// ```rust
-    /// use liblumen_syntax::diagnostics::{ByteIndex, Span};
+    /// use liblumen_diagnostics::{ByteIndex, Span};
     ///
     /// let a = Span::new(ByteIndex(2), ByteIndex(5));
     /// let b = Span::new(ByteIndex(10), ByteIndex(14));

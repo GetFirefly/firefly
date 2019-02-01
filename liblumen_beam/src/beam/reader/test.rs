@@ -34,7 +34,7 @@ fn raw_chunks() {
 
 #[test]
 fn standard_chunks() {
-    use StandardChunk::*;
+    use self::StandardChunk::*;
     macro_rules! find_chunk {
         ($beam:expr, $chunk:ident) => {
             $beam

@@ -20,9 +20,6 @@ fn main() {
         return;
     }
 
-    let home = env::var_os("HOME")
-        .map(PathBuf::from)
-        .expect("HOME was not set");
     let target = env::var("TARGET").expect("TARGET was not set");
     let host = env::var("HOST").expect("HOST was not set");
     let is_crossed = target != host;

@@ -6,10 +6,10 @@
 //! Read a BEAM file:
 //!
 //!
-//!     use reader::StandardBeamFile;
-//!     use reader::beam_file::chunk::Chunk;
+//!     use liblumen_beam::beam::reader::StandardBeamFile;
+//!     use liblumen_beam::beam::chunk::Chunk;
 //!
-//!     let beam = StandardBeamFile::from_file("tests/testdata/test.beam").unwrap();
+//!     let beam = StandardBeamFile::from_file("tests/testdata/reader/test.beam").unwrap();
 //!
 //!     assert_eq!(vec![b"Atom", b"Code", b"StrT", b"ImpT", b"ExpT", b"FunT", b"LitT",
 //!                     b"LocT", b"Attr", b"CInf", b"Abst", b"Line"],
@@ -19,8 +19,8 @@
 //! Write a BEAM file:
 //!
 //!
-//!     use reader::RawBeamFile;
-//!     use reader::chunk::{Chunk, RawChunk};
+//!     use liblumen_beam::beam::chunk::{Chunk, RawChunk};
+//!     use liblumen_beam::beam::reader::RawBeamFile;
 //!
 //!     // NOTE: The following chunk is malformed
 //!     let chunk = RawChunk{id: *b"Atom", data: Vec::new()};

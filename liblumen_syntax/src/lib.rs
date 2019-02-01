@@ -1,10 +1,10 @@
-#![feature(custom_attribute)]
-#![feature(try_from)]
-#![feature(optin_builtin_traits)]
 #![feature(box_patterns)]
 #![feature(box_syntax)]
 #![feature(core_intrinsics)]
+#![feature(custom_attribute)]
 #![feature(map_get_key_value)]
+#![feature(optin_builtin_traits)]
+#![feature(try_from)]
 
 mod lexer;
 mod parser;

@@ -766,10 +766,10 @@ impl Chunk for DocsChunk {
 /// A representation of commonly used chunk.
 ///
 /// ```
-/// use beam_file::chunk::{Chunk, StandardChunk};
-/// use beam_file::BeamFile;
+/// use liblumen_beam::beam::chunk::{Chunk, StandardChunk};
+/// use liblumen_beam::beam::reader::BeamFile;
 ///
-/// let beam = BeamFile::<StandardChunk>::from_file("tests/testdata/test.beam").unwrap();
+/// let beam = BeamFile::<StandardChunk>::from_file("tests/testdata/reader/test.beam").unwrap();
 /// assert_eq!(
 ///     b"Atom",
 ///     beam.chunks().iter().nth(0).map(|c| c.id()).unwrap()

@@ -1,0 +1,81 @@
+version: 2
+jobs:
+  build:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    steps:
+      - checkout
+      - run:
+          name: Version Information
+          command: rustc --version; cargo --version; rustup --version
+      - run:
+          name: Calculate Dependencies
+          command: cargo generate-lockfile
+      - restore_cache:
+          keys:
+            - v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+      - run:
+          name: Build all targets
+          command: cargo build --all --all-targets
+      - save_cache:
+          key: v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+          paths:
+            - /usr/local/cargo/registry
+            - target/debug/.fingerprint
+            - target/debug/build
+            - target/debug/deps
+      - persist_to_workspace:
+          root: .
+          paths:
+            - example
+            - liblumen_arena
+            - liblumen_beam
+            - liblumen_codegen
+            - liblumen_common
+            - liblumen_compiler
+            - liblumen_core
+            - liblumen_diagnostics
+            - liblumen_syntax
+            - lumen
+            - lumen_runtime
+            - target/debug/.fingerprint
+            - target/debug/build
+            - target/debug/deps
+            - .rustfmt.toml
+            - Cargo.lock
+            - Cargo.toml
+            - Makefile
+  check_formatted:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Check formatting
+          command: |
+            rustfmt --version
+            cargo fmt -- --check
+  test:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run all tests
+          command: cargo test --all --all-targets
+workflows:
+  version: 2
+  primary:
+    jobs:
+      - build
+      - check_formatted:
+          requires:
+            - build
+      - test:
+          requires:
+            - build

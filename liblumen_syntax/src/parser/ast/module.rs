@@ -1,15 +1,15 @@
-use std::collections::{HashMap, HashSet};
-use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
+use std::collections::{HashMap, HashSet};
 
 use liblumen_diagnostics::{ByteSpan, Diagnostic, Label};
 
+use super::{Apply, Cons, Nil, Remote, Tuple};
+use super::{Attribute, Deprecation, UserAttribute};
+use super::{Callback, Record, TypeDef, TypeSig, TypeSpec};
+use super::{Expr, Ident, Literal, Symbol};
+use super::{FunctionClause, FunctionName, NamedFunction, ResolvedFunctionName};
 use super::{ParseError, ParserError};
-use super::{Ident, Symbol, Expr, Literal};
-use super::{Record, Callback, TypeSpec, TypeDef, TypeSig};
-use super::{NamedFunction, FunctionName, ResolvedFunctionName, FunctionClause};
-use super::{Attribute, UserAttribute, Deprecation};
-use super::{Tuple, Cons, Apply, Remote, Nil};
 
 /// Represents expressions valid at the top level of a module body
 #[derive(Debug, Clone, PartialEq)]
@@ -66,7 +66,12 @@ impl Module {
     /// * Errors on redefined functions
     ///
     /// And a few other similar lints
-    pub fn new(errs: &mut Vec<ParseError>, span: ByteSpan, name: Ident, mut body: Vec<TopLevel>) -> Self {
+    pub fn new(
+        errs: &mut Vec<ParseError>,
+        span: ByteSpan,
+        name: Ident,
+        mut body: Vec<TopLevel>,
+    ) -> Self {
         let mut module = Module {
             span,
             name,
@@ -102,10 +107,13 @@ impl Module {
                     }
                     errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                         Diagnostic::new_error("attribute is already defined")
-                            .with_label(Label::new_primary(aspan)
-                                .with_message("redefinition occurs here"))
-                            .with_label(Label::new_secondary(module.vsn.clone().map(|v| v.span()).unwrap())
-                                .with_message("first defined here"))
+                            .with_label(
+                                Label::new_primary(aspan).with_message("redefinition occurs here")
+                            )
+                            .with_label(
+                                Label::new_secondary(module.vsn.clone().map(|v| v.span()).unwrap())
+                                    .with_message("first defined here")
+                            )
                     )));
                 }
                 TopLevel::Attribute(Attribute::OnLoad(aspan, fname)) => {
@@ -116,10 +124,15 @@ impl Module {
                     }
                     errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                         Diagnostic::new_error("on_load can only be defined once")
-                            .with_label(Label::new_primary(aspan)
-                                .with_message("redefinition occurs here"))
-                            .with_label(Label::new_secondary(module.on_load.clone().map(|v| v.span).unwrap())
-                                .with_message("first defined here"))
+                            .with_label(
+                                Label::new_primary(aspan).with_message("redefinition occurs here")
+                            )
+                            .with_label(
+                                Label::new_secondary(
+                                    module.on_load.clone().map(|v| v.span).unwrap()
+                                )
+                                .with_message("first defined here")
+                            )
                     )))
                 }
                 TopLevel::Attribute(Attribute::Import(aspan, from_module, mut imports)) => {
@@ -129,13 +142,19 @@ impl Module {
                             None => {
                                 module.imports.insert(import);
                             }
-                            Some(ResolvedFunctionName { span: ref prev_span, .. }) => {
+                            Some(ResolvedFunctionName {
+                                span: ref prev_span,
+                                ..
+                            }) => {
                                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                     Diagnostic::new_warning("unused import")
-                                        .with_label(Label::new_primary(aspan)
-                                            .with_message("this import is a duplicate of a previous import"))
-                                        .with_label(Label::new_secondary(prev_span.clone())
-                                            .with_message("function was first imported here"))
+                                        .with_label(Label::new_primary(aspan).with_message(
+                                            "this import is a duplicate of a previous import"
+                                        ))
+                                        .with_label(
+                                            Label::new_secondary(prev_span.clone())
+                                                .with_message("function was first imported here")
+                                        )
                                 )));
                             }
                         }
@@ -148,13 +167,20 @@ impl Module {
                             None => {
                                 module.exports.insert(export);
                             }
-                            Some(ResolvedFunctionName { span: ref prev_span, .. }) => {
+                            Some(ResolvedFunctionName {
+                                span: ref prev_span,
+                                ..
+                            }) => {
                                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                     Diagnostic::new_warning("already exported")
-                                        .with_label(Label::new_primary(aspan)
-                                            .with_message("duplicate export occurs here"))
-                                        .with_label(Label::new_secondary(prev_span.clone())
-                                            .with_message("function was first exported here"))
+                                        .with_label(
+                                            Label::new_primary(aspan)
+                                                .with_message("duplicate export occurs here")
+                                        )
+                                        .with_label(
+                                            Label::new_secondary(prev_span.clone())
+                                                .with_message("function was first exported here")
+                                        )
                                 )));
                             }
                         }
@@ -166,19 +192,26 @@ impl Module {
                         span: ty.name.span.clone(),
                         module: module.name.clone(),
                         function: ty.name.clone(),
-                        arity: arity,
+                        arity,
                     };
                     match module.types.get(&type_name) {
                         None => {
                             module.types.insert(type_name, ty);
                         }
-                        Some(TypeDef { span: ref prev_span, .. }) => {
+                        Some(TypeDef {
+                            span: ref prev_span,
+                            ..
+                        }) => {
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                 Diagnostic::new_warning("type is already defined")
-                                    .with_label(Label::new_primary(ty.span)
-                                        .with_message("redefinition occurs here"))
-                                    .with_label(Label::new_secondary(prev_span.clone())
-                                        .with_message("type was first defined here"))
+                                    .with_label(
+                                        Label::new_primary(ty.span)
+                                            .with_message("redefinition occurs here")
+                                    )
+                                    .with_label(
+                                        Label::new_secondary(prev_span.clone())
+                                            .with_message("type was first defined here")
+                                    )
                             )));
                         }
                     }
@@ -190,13 +223,20 @@ impl Module {
                             None => {
                                 module.exported_types.insert(export);
                             }
-                            Some(ResolvedFunctionName { span: ref prev_span, .. }) => {
+                            Some(ResolvedFunctionName {
+                                span: ref prev_span,
+                                ..
+                            }) => {
                                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                     Diagnostic::new_warning("type already exported")
-                                        .with_label(Label::new_primary(aspan)
-                                            .with_message("duplicate export occurs here"))
-                                        .with_label(Label::new_secondary(prev_span.clone())
-                                            .with_message("type was first exported here"))
+                                        .with_label(
+                                            Label::new_primary(aspan)
+                                                .with_message("duplicate export occurs here")
+                                        )
+                                        .with_label(
+                                            Label::new_secondary(prev_span.clone())
+                                                .with_message("type was first exported here")
+                                        )
                                 )));
                             }
                         }
@@ -207,13 +247,20 @@ impl Module {
                         None => {
                             module.behaviours.insert(b_module);
                         }
-                        Some(Ident { span: ref prev_span, .. }) => {
+                        Some(Ident {
+                            span: ref prev_span,
+                            ..
+                        }) => {
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                 Diagnostic::new_warning("duplicate behaviour declaration")
-                                    .with_label(Label::new_primary(aspan)
-                                        .with_message("duplicate declaration occurs here"))
-                                    .with_label(Label::new_secondary(prev_span.clone())
-                                        .with_message("first declaration occurs here"))
+                                    .with_label(
+                                        Label::new_primary(aspan)
+                                            .with_message("duplicate declaration occurs here")
+                                    )
+                                    .with_label(
+                                        Label::new_secondary(prev_span.clone())
+                                            .with_message("first declaration occurs here")
+                                    )
                             )));
                         }
                     }
@@ -224,14 +271,26 @@ impl Module {
 
                     // Verify that all clauses match
                     if callback.sigs.len() > 1 {
-                        for TypeSig { span: ref sigspan, ref params, .. } in &callback.sigs[1..] {
+                        for TypeSig {
+                            span: ref sigspan,
+                            ref params,
+                            ..
+                        } in &callback.sigs[1..]
+                        {
                             if params.len() != arity {
                                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                     Diagnostic::new_error("mismatched arity")
-                                        .with_label(Label::new_primary(sigspan.clone())
-                                            .with_message(format!("expected arity of {}", arity)))
-                                        .with_label(Label::new_secondary(first_sig.span.clone())
-                                            .with_message("expected arity was derived from this clause"))
+                                        .with_label(
+                                            Label::new_primary(sigspan.clone()).with_message(
+                                                format!("expected arity of {}", arity)
+                                            )
+                                        )
+                                        .with_label(
+                                            Label::new_secondary(first_sig.span.clone())
+                                                .with_message(
+                                                    "expected arity was derived from this clause"
+                                                )
+                                        )
                                 )));
                             }
                         }
@@ -241,20 +300,27 @@ impl Module {
                         span: callback.span.clone(),
                         module: module.name.clone(),
                         function: callback.function.clone(),
-                        arity: arity,
+                        arity,
                     };
                     match module.callbacks.get(&cb_name) {
                         None => {
                             module.callbacks.insert(cb_name, callback);
                             continue;
                         }
-                        Some(Callback { span: ref prev_span, .. }) => {
+                        Some(Callback {
+                            span: ref prev_span,
+                            ..
+                        }) => {
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                 Diagnostic::new_error("cannot redefine callback")
-                                    .with_label(Label::new_primary(callback.span)
-                                        .with_message("redefinition occurs here"))
-                                    .with_label(Label::new_secondary(prev_span.clone())
-                                        .with_message("callback first defined here"))
+                                    .with_label(
+                                        Label::new_primary(callback.span)
+                                            .with_message("redefinition occurs here")
+                                    )
+                                    .with_label(
+                                        Label::new_secondary(prev_span.clone())
+                                            .with_message("callback first defined here")
+                                    )
                             )));
                         }
                     }
@@ -265,14 +331,26 @@ impl Module {
 
                     // Verify that all clauses match
                     if typespec.sigs.len() > 1 {
-                        for TypeSig { span: ref sigspan, ref params, .. } in &typespec.sigs[1..] {
+                        for TypeSig {
+                            span: ref sigspan,
+                            ref params,
+                            ..
+                        } in &typespec.sigs[1..]
+                        {
                             if params.len() != arity {
                                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                     Diagnostic::new_error("mismatched arity")
-                                        .with_label(Label::new_primary(sigspan.clone())
-                                            .with_message(format!("expected arity of {}", arity)))
-                                        .with_label(Label::new_secondary(first_sig.span.clone())
-                                            .with_message("expected arity was derived from this clause"))
+                                        .with_label(
+                                            Label::new_primary(sigspan.clone()).with_message(
+                                                format!("expected arity of {}", arity)
+                                            )
+                                        )
+                                        .with_label(
+                                            Label::new_secondary(first_sig.span.clone())
+                                                .with_message(
+                                                    "expected arity was derived from this clause"
+                                                )
+                                        )
                                 )));
                             }
                         }
@@ -282,64 +360,80 @@ impl Module {
                         span: typespec.span.clone(),
                         module: module.name.clone(),
                         function: typespec.function.clone(),
-                        arity: arity,
+                        arity,
                     };
                     match specs.get(&spec_name) {
                         None => {
                             specs.insert(spec_name.clone(), typespec);
                         }
-                        Some(TypeSpec { span: ref prev_span, .. }) => {
+                        Some(TypeSpec {
+                            span: ref prev_span,
+                            ..
+                        }) => {
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                 Diagnostic::new_error("spec already defined")
-                                    .with_label(Label::new_primary(typespec.span)
-                                        .with_message("redefinition occurs here"))
-                                    .with_label(Label::new_secondary(prev_span.clone())
-                                        .with_message("spec first defined here"))
+                                    .with_label(
+                                        Label::new_primary(typespec.span)
+                                            .with_message("redefinition occurs here")
+                                    )
+                                    .with_label(
+                                        Label::new_secondary(prev_span.clone())
+                                            .with_message("spec first defined here")
+                                    )
                             )));
                         }
                     }
                 }
-                TopLevel::Attribute(Attribute::Compile(_, compile)) => {
-                    match module.compile {
-                        None => {
-                            let (opts, mut validation_errs) = CompileOptions::from_expr(&module.name, &compile);
-                            module.compile = Some(opts);
+                TopLevel::Attribute(Attribute::Compile(_, compile)) => match module.compile {
+                    None => {
+                        let (opts, mut validation_errs) =
+                            CompileOptions::from_expr(&module.name, &compile);
+                        module.compile = Some(opts);
+                        for err in validation_errs.drain(..) {
+                            errs.push(to_lalrpop_err!(ParserError::Diagnostic(err)));
+                        }
+                        continue;
+                    }
+                    Some(ref mut opts) => {
+                        if let Err(mut validation_errs) =
+                            opts.merge_from_expr(&module.name, &compile)
+                        {
                             for err in validation_errs.drain(..) {
                                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(err)));
                             }
-                            continue;
-                        }
-                        Some(ref mut opts) => {
-                            if let Err(mut validation_errs) = opts.merge_from_expr(&module.name, &compile) {
-                                for err in validation_errs.drain(..) {
-                                    errs.push(to_lalrpop_err!(ParserError::Diagnostic(err)));
-                                }
-                            }
                         }
                     }
-                }
+                },
                 TopLevel::Attribute(Attribute::Deprecation(mut deprecations)) => {
                     for deprecation in deprecations.drain(..) {
                         match deprecation {
-                            Deprecation::Module { span: ref dspan, .. } => {
-                                match module.deprecation {
-                                    None => {
-                                        module.deprecation = Some(deprecation);
-                                    }
-                                    Some(Deprecation::Module { span: ref orig_span, .. }) => {
-                                        errs.push(to_lalrpop_err!(ParserError::Diagnostic(
+                            Deprecation::Module {
+                                span: ref dspan, ..
+                            } => match module.deprecation {
+                                None => {
+                                    module.deprecation = Some(deprecation);
+                                }
+                                Some(Deprecation::Module {
+                                    span: ref orig_span,
+                                    ..
+                                }) => {
+                                    errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                             Diagnostic::new_warning("redundant deprecation")
                                                 .with_label(Label::new_primary(dspan.clone())
                                                     .with_message("this module is already deprecated by a previous declaration"))
                                                 .with_label(Label::new_secondary(orig_span.clone())
                                                     .with_message("deprecation first declared here"))
                                         )));
-                                    }
-                                    Some(Deprecation::Function { .. }) => unreachable!()
                                 }
-                            }
-                            Deprecation::Function { span: ref fspan, .. } => {
-                                if let Some(Deprecation::Module { span: ref mspan, .. }) = module.deprecation {
+                                Some(Deprecation::Function { .. }) => unreachable!(),
+                            },
+                            Deprecation::Function {
+                                span: ref fspan, ..
+                            } => {
+                                if let Some(Deprecation::Module {
+                                    span: ref mspan, ..
+                                }) = module.deprecation
+                                {
                                     errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                         Diagnostic::new_warning("redundant deprecation")
                                             .with_label(Label::new_primary(*fspan)
@@ -354,7 +448,10 @@ impl Module {
                                     None => {
                                         module.deprecations.insert(deprecation);
                                     }
-                                    Some(Deprecation::Function { span: ref prev_span, .. }) => {
+                                    Some(Deprecation::Function {
+                                        span: ref prev_span,
+                                        ..
+                                    }) => {
                                         errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                             Diagnostic::new_warning("redundant deprecation")
                                                 .with_label(Label::new_primary(*fspan)
@@ -363,7 +460,7 @@ impl Module {
                                                     .with_message("deprecation first declared here"))
                                         )));
                                     }
-                                    Some(Deprecation::Module { .. }) => unreachable!()
+                                    Some(Deprecation::Module { .. }) => unreachable!(),
                                 }
                             }
                         }
@@ -374,10 +471,14 @@ impl Module {
                         "module" => {
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                 Diagnostic::new_error("multiple module declarations")
-                                    .with_label(Label::new_primary(attr.span.clone())
-                                        .with_message("invalid declaration occurs here"))
-                                    .with_label(Label::new_secondary(module.name.span.clone())
-                                        .with_message("module first declared here"))
+                                    .with_label(
+                                        Label::new_primary(attr.span.clone())
+                                            .with_message("invalid declaration occurs here")
+                                    )
+                                    .with_label(
+                                        Label::new_secondary(module.name.span.clone())
+                                            .with_message("module first declared here")
+                                    )
                             )));
                             continue;
                         }
@@ -385,19 +486,26 @@ impl Module {
                             // Drop dialyzer attributes as they are unused
                             continue;
                         }
-                        _ => ()
+                        _ => (),
                     }
                     match module.attributes.get(&attr.name) {
                         None => {
                             module.attributes.insert(attr.name.clone(), attr);
                         }
-                        Some(UserAttribute { span: ref prev_span, .. }) => {
+                        Some(UserAttribute {
+                            span: ref prev_span,
+                            ..
+                        }) => {
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                 Diagnostic::new_warning("redefined attribute")
-                                    .with_label(Label::new_primary(attr.span.clone())
-                                        .with_message("redefinition occurs here"))
-                                    .with_label(Label::new_secondary(prev_span.clone())
-                                        .with_message("previously defined here"))
+                                    .with_label(
+                                        Label::new_primary(attr.span.clone())
+                                            .with_message("redefinition occurs here")
+                                    )
+                                    .with_label(
+                                        Label::new_secondary(prev_span.clone())
+                                            .with_message("previously defined here")
+                                    )
                             )));
                             module.attributes.insert(attr.name.clone(), attr);
                         }
@@ -412,13 +520,20 @@ impl Module {
                         None => {
                             module.records.insert(name, record);
                         }
-                        Some(Record { span: ref prev_span, .. }) => {
+                        Some(Record {
+                            span: ref prev_span,
+                            ..
+                        }) => {
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                                 Diagnostic::new_error("record already defined")
-                                    .with_label(Label::new_primary(record.span.clone())
-                                        .with_message("duplicate definition occurs here"))
-                                    .with_label(Label::new_secondary(prev_span.clone())
-                                        .with_message("previously defined here"))
+                                    .with_label(
+                                        Label::new_primary(record.span.clone())
+                                            .with_message("duplicate definition occurs here")
+                                    )
+                                    .with_label(
+                                        Label::new_secondary(prev_span.clone())
+                                            .with_message("previously defined here")
+                                    )
                             )));
                         }
                     }
@@ -431,16 +546,18 @@ impl Module {
                         function: name.clone(),
                         arity: function.arity,
                     };
-                    let warn_missing_specs = module.compile
+                    let warn_missing_specs = module
+                        .compile
                         .as_ref()
                         .map(|c| c.warn_missing_spec)
                         .unwrap_or(false);
                     function.spec = match specs.get(&resolved_name) {
                         None if warn_missing_specs => {
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
-                                Diagnostic::new_warning("missing function spec")
-                                    .with_label(Label::new_primary(function.span.clone())
-                                        .with_message("expected type spec for this function"))
+                                Diagnostic::new_warning("missing function spec").with_label(
+                                    Label::new_primary(function.span.clone())
+                                        .with_message("expected type spec for this function")
+                                )
                             )));
                             None
                         }
@@ -454,11 +571,17 @@ impl Module {
                         Entry::Occupied(initial_def) => {
                             let def = initial_def.into_mut();
                             errs.push(to_lalrpop_err!(ParserError::Diagnostic(
-                                Diagnostic::new_error("clauses from the same function should be grouped together")
-                                    .with_label(Label::new_primary(function.span.clone())
-                                        .with_message("found more clauses here"))
-                                    .with_label(Label::new_secondary(def.span.clone())
-                                        .with_message("function is first defined here"))
+                                Diagnostic::new_error(
+                                    "clauses from the same function should be grouped together"
+                                )
+                                .with_label(
+                                    Label::new_primary(function.span.clone())
+                                        .with_message("found more clauses here")
+                                )
+                                .with_label(
+                                    Label::new_secondary(def.span.clone())
+                                        .with_message("function is first defined here")
+                                )
                             )));
                             def.clauses.append(&mut function.clauses);
                         }
@@ -474,9 +597,10 @@ impl Module {
         if let Some(ref on_load_name) = module.on_load {
             if !module.functions.contains_key(on_load_name) {
                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
-                    Diagnostic::new_error("invalid on_load function")
-                        .with_label(Label::new_primary(on_load_name.span.clone())
-                            .with_message("this function is not defined in this module"))
+                    Diagnostic::new_error("invalid on_load function").with_label(
+                        Label::new_primary(on_load_name.span.clone())
+                            .with_message("this function is not defined in this module")
+                    )
                 )));
             }
         }
@@ -485,9 +609,11 @@ impl Module {
         for (spec_name, spec) in &specs {
             if !module.functions.contains_key(spec_name) {
                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
-                    Diagnostic::new_warning("type spec for undefined function")
-                        .with_label(Label::new_primary(spec.span.clone())
-                            .with_message("this type spec has no corresponding function definition"))
+                    Diagnostic::new_warning("type spec for undefined function").with_label(
+                        Label::new_primary(spec.span.clone()).with_message(
+                            "this type spec has no corresponding function definition"
+                        )
+                    )
                 )));
             }
         }
@@ -517,12 +643,24 @@ impl Module {
                 if cb.optional {
                     acc
                 } else {
-                    cons!(tuple!(atom_from_sym!(cbname.function.name.clone()), int!(cbname.arity as i64)), acc)
+                    cons!(
+                        tuple!(
+                            atom_from_sym!(cbname.function.name.clone()),
+                            int!(cbname.arity as i64)
+                        ),
+                        acc
+                    )
                 }
             });
             let opt_callbacks = self.callbacks.iter().fold(nil!(), |acc, (cbname, cb)| {
                 if cb.optional {
-                    cons!(tuple!(atom_from_sym!(cbname.function.name.clone()), int!(cbname.arity as i64)), acc)
+                    cons!(
+                        tuple!(
+                            atom_from_sym!(cbname.function.name.clone()),
+                            int!(cbname.arity as i64)
+                        ),
+                        acc
+                    )
                 } else {
                     acc
                 }
@@ -587,7 +725,6 @@ impl PartialEq for Module {
         true
     }
 }
-
 
 /// This structure holds all module-specific compiler options
 /// and configuration; it is passed through all phases of
@@ -655,10 +792,8 @@ impl CompileOptions {
     pub fn from_expr(module: &Ident, expr: &Expr) -> (Self, Vec<Diagnostic>) {
         let mut opts = CompileOptions::default();
         match opts.merge_from_expr(module, expr) {
-            Ok(_) =>
-                (opts, Vec::new()),
-            Err(errs) =>
-                (opts, errs),
+            Ok(_) => (opts, Vec::new()),
+            Err(errs) => (opts, errs),
         }
     }
 
@@ -670,33 +805,26 @@ impl CompileOptions {
         let mut diagnostics = Vec::new();
         match expr {
             // e.g. -compile(export_all).
-            &Expr::Literal(Literal::Atom(ref option_name)) => {
-                match option_name.as_str().get() {
-                    "export_all" =>
-                        self.export_all = true,
-                    "nowarn_export_all" =>
-                        self.warn_export_all = false,
-                    "nowarn_shadow_vars" =>
-                        self.warn_shadow_vars = false,
-                    "nowarn_unused_function" =>
-                        self.warn_unused_function = false,
-                    "nowarn_unused_vars" =>
-                        self.warn_unused_var = false,
-                    "no_auto_import" =>
-                        self.no_auto_import = true,
-                    _name => {
-                        diagnostics.push(
-                            Diagnostic::new_warning("invalid compile option")
-                                .with_label(Label::new_primary(option_name.span)
-                                    .with_message("this option is either unsupported or unrecognized"))
-                        );
-                    }
+            &Expr::Literal(Literal::Atom(ref option_name)) => match option_name.as_str().get() {
+                "export_all" => self.export_all = true,
+                "nowarn_export_all" => self.warn_export_all = false,
+                "nowarn_shadow_vars" => self.warn_shadow_vars = false,
+                "nowarn_unused_function" => self.warn_unused_function = false,
+                "nowarn_unused_vars" => self.warn_unused_var = false,
+                "no_auto_import" => self.no_auto_import = true,
+                _name => {
+                    diagnostics.push(
+                        Diagnostic::new_warning("invalid compile option").with_label(
+                            Label::new_primary(option_name.span)
+                                .with_message("this option is either unsupported or unrecognized"),
+                        ),
+                    );
                 }
-            }
+            },
             // e.g. -compile([export_all, nowarn_unused_function]).
-            &Expr::Cons(Cons { ref head, ref tail, .. }) => {
-                self.compiler_opts_from_list(&mut diagnostics, module, to_list(head, tail))
-            }
+            &Expr::Cons(Cons {
+                ref head, ref tail, ..
+            }) => self.compiler_opts_from_list(&mut diagnostics, module, to_list(head, tail)),
             // e.g. -compile({nowarn_unused_function, [some_fun/0]}).
             &Expr::Tuple(Tuple { ref elements, .. }) => {
                 if let Some((head, tail)) = elements.split_first() {
@@ -710,9 +838,11 @@ impl CompileOptions {
                             }
                             _name => {
                                 diagnostics.push(
-                                    Diagnostic::new_warning("invalid compile option")
-                                        .with_label(Label::new_primary(option_name.span)
-                                            .with_message("this option is either unsupported or unrecognized"))
+                                    Diagnostic::new_warning("invalid compile option").with_label(
+                                        Label::new_primary(option_name.span).with_message(
+                                            "this option is either unsupported or unrecognized",
+                                        ),
+                                    ),
                                 );
                             }
                         }
@@ -721,9 +851,10 @@ impl CompileOptions {
             }
             term => {
                 diagnostics.push(
-                    Diagnostic::new_warning("invalid compile option")
-                        .with_label(Label::new_primary(term.span())
-                            .with_message("unexpected expression: expected atom, list, or tuple"))
+                    Diagnostic::new_warning("invalid compile option").with_label(
+                        Label::new_primary(term.span())
+                            .with_message("unexpected expression: expected atom, list, or tuple"),
+                    ),
                 );
             }
         }
@@ -735,8 +866,12 @@ impl CompileOptions {
         Ok(())
     }
 
-
-    fn compiler_opts_from_list(&mut self, diagnostics: &mut Vec<Diagnostic>, module: &Ident, options: Vec<Expr>) {
+    fn compiler_opts_from_list(
+        &mut self,
+        diagnostics: &mut Vec<Diagnostic>,
+        module: &Ident,
+        options: Vec<Expr>,
+    ) {
         for option in options {
             match self.set_option(module, &option) {
                 Ok(_) => continue,
@@ -745,7 +880,12 @@ impl CompileOptions {
         }
     }
 
-    fn no_auto_imports(&mut self, diagnostics: &mut Vec<Diagnostic>, module: &Ident, imports: &[Expr]) {
+    fn no_auto_imports(
+        &mut self,
+        diagnostics: &mut Vec<Diagnostic>,
+        module: &Ident,
+        imports: &[Expr],
+    ) {
         for import in imports {
             match import {
                 Expr::FunctionName(FunctionName::PartiallyResolved(name)) => {
@@ -753,26 +893,36 @@ impl CompileOptions {
                 }
                 other => {
                     diagnostics.push(
-                        Diagnostic::new_warning("invalid compile option")
-                            .with_label(Label::new_primary(other.span())
-                                .with_message("expected function name/arity term for no_auto_imports"))
+                        Diagnostic::new_warning("invalid compile option").with_label(
+                            Label::new_primary(other.span()).with_message(
+                                "expected function name/arity term for no_auto_imports",
+                            ),
+                        ),
                     );
                 }
             }
         }
     }
 
-    fn no_warn_unused_functions(&mut self, diagnostics: &mut Vec<Diagnostic>, module: &Ident, funs: &[Expr]) {
+    fn no_warn_unused_functions(
+        &mut self,
+        diagnostics: &mut Vec<Diagnostic>,
+        module: &Ident,
+        funs: &[Expr],
+    ) {
         for fun in funs {
             match fun {
                 Expr::FunctionName(FunctionName::PartiallyResolved(name)) => {
-                    self.no_warn_unused_functions.insert(name.resolve(module.clone()));
+                    self.no_warn_unused_functions
+                        .insert(name.resolve(module.clone()));
                 }
                 other => {
                     diagnostics.push(
-                        Diagnostic::new_warning("invalid compile option")
-                            .with_label(Label::new_primary(other.span())
-                                .with_message("expected function name/arity term for no_warn_unused_functions"))
+                        Diagnostic::new_warning("invalid compile option").with_label(
+                            Label::new_primary(other.span()).with_message(
+                                "expected function name/arity term for no_warn_unused_functions",
+                            ),
+                        ),
                     );
                 }
             }
@@ -783,22 +933,27 @@ impl CompileOptions {
 fn to_list(head: &Expr, tail: &Expr) -> Vec<Expr> {
     let mut list = Vec::new();
     match head {
-        &Expr::Cons(Cons { head: ref head2, tail: ref tail2, .. }) => {
+        &Expr::Cons(Cons {
+            head: ref head2,
+            tail: ref tail2,
+            ..
+        }) => {
             let mut h = to_list(head2, tail2);
             list.append(&mut h);
         }
-        expr =>
-            list.push(expr.clone()),
+        expr => list.push(expr.clone()),
     }
     match tail {
-        &Expr::Cons(Cons { head: ref head2, tail: ref tail2, .. }) => {
+        &Expr::Cons(Cons {
+            head: ref head2,
+            tail: ref tail2,
+            ..
+        }) => {
             let mut t = to_list(head2, tail2);
             list.append(&mut t);
         }
-        &Expr::Nil(_) =>
-            (),
-        expr =>
-            list.push(expr.clone()),
+        &Expr::Nil(_) => (),
+        expr => list.push(expr.clone()),
     }
 
     list

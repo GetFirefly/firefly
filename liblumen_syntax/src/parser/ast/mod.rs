@@ -6,17 +6,16 @@ mod types;
 
 use liblumen_diagnostics::ByteIndex;
 
-pub use super::{ParseError, ParserError};
-pub use crate::lexer::{Ident, Symbol};
 pub use self::attributes::*;
 pub use self::expr::*;
 pub use self::functions::*;
 pub use self::module::*;
 pub use self::types::*;
+pub use super::{ParseError, ParserError};
+pub use crate::lexer::{Ident, Symbol};
 
 use crate::lexer::Token;
 use crate::preprocessor::PreprocessorError;
-
 
 /// Used for AST functions which need to raise an error to the parser directly
 pub type TryParseResult<T> =

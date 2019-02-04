@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 
 use liblumen_diagnostics::ByteSpan;
 
-use super::{Ident, PartiallyResolvedFunctionName, Expr, Type};
+use super::{Expr, Ident, PartiallyResolvedFunctionName, Type};
 
 /// Type definitions
 ///
@@ -72,9 +72,7 @@ pub struct TypeSpec {
 }
 impl PartialEq for TypeSpec {
     fn eq(&self, other: &Self) -> bool {
-        self.module == other.module &&
-        self.function == other.function &&
-        self.sigs == other.sigs
+        self.module == other.module && self.function == other.function && self.sigs == other.sigs
     }
 }
 
@@ -91,10 +89,10 @@ pub struct Callback {
 }
 impl PartialEq for Callback {
     fn eq(&self, other: &Self) -> bool {
-        self.optional == other.optional &&
-        self.module == other.module &&
-        self.function == other.function &&
-        self.sigs == other.sigs
+        self.optional == other.optional
+            && self.module == other.module
+            && self.function == other.function
+            && self.sigs == other.sigs
     }
 }
 
@@ -142,8 +140,15 @@ impl PartialEq for UserAttribute {
 /// Represents a deprecated function or module
 #[derive(Debug, Clone)]
 pub enum Deprecation {
-    Module { span: ByteSpan, flag: DeprecatedFlag },
-    Function { span: ByteSpan, function: PartiallyResolvedFunctionName, flag: DeprecatedFlag }
+    Module {
+        span: ByteSpan,
+        flag: DeprecatedFlag,
+    },
+    Function {
+        span: ByteSpan,
+        function: PartiallyResolvedFunctionName,
+        flag: DeprecatedFlag,
+    },
 }
 impl Deprecation {
     pub fn span(&self) -> ByteSpan {
@@ -159,10 +164,14 @@ impl PartialEq for Deprecation {
             (&Deprecation::Module { .. }, &Deprecation::Module { .. }) => true,
             // We ignore the flag because it used only for display,
             // the function/arity determines equality
-            (&Deprecation::Function { function: ref x1, .. },
-             &Deprecation::Function { function: ref y1, .. }) => {
-                x1 == y1
-            }
+            (
+                &Deprecation::Function {
+                    function: ref x1, ..
+                },
+                &Deprecation::Function {
+                    function: ref y1, ..
+                },
+            ) => x1 == y1,
             _ => false,
         }
     }
@@ -220,28 +229,19 @@ impl PartialEq for Attribute {
         }
 
         match (self, other) {
-            (&Attribute::Type(ref x), &Attribute::Type(ref y)) =>
-                x == y,
-            (&Attribute::Spec(ref x), &Attribute::Spec(ref y)) =>
-                x == y,
-            (&Attribute::Callback(ref x), &Attribute::Callback(ref y)) =>
-                x == y,
-            (&Attribute::Custom(ref x), &Attribute::Custom(ref y)) =>
-                x == y,
-            (&Attribute::ExportType(_, ref x), &Attribute::ExportType(_, ref y)) =>
-                x == y,
-            (&Attribute::Export(_, ref x), &Attribute::Export(_, ref y)) =>
-                x == y,
-            (&Attribute::Import(_, ref x1, ref x2), &Attribute::Import(_, ref y1, ref y2)) =>
-                (x1 == y1) && (x2 == y2),
-            (&Attribute::Compile(_, ref x), &Attribute::Compile(_, ref y)) =>
-                x == y,
-            (&Attribute::Vsn(_, ref x), &Attribute::Vsn(_, ref y)) =>
-                x == y,
-            (&Attribute::OnLoad(_, ref x), &Attribute::OnLoad(_, ref y)) =>
-                x == y,
-            (&Attribute::Behaviour(_, ref x), &Attribute::Behaviour(_, ref y)) =>
-                x == y,
+            (&Attribute::Type(ref x), &Attribute::Type(ref y)) => x == y,
+            (&Attribute::Spec(ref x), &Attribute::Spec(ref y)) => x == y,
+            (&Attribute::Callback(ref x), &Attribute::Callback(ref y)) => x == y,
+            (&Attribute::Custom(ref x), &Attribute::Custom(ref y)) => x == y,
+            (&Attribute::ExportType(_, ref x), &Attribute::ExportType(_, ref y)) => x == y,
+            (&Attribute::Export(_, ref x), &Attribute::Export(_, ref y)) => x == y,
+            (&Attribute::Import(_, ref x1, ref x2), &Attribute::Import(_, ref y1, ref y2)) => {
+                (x1 == y1) && (x2 == y2)
+            }
+            (&Attribute::Compile(_, ref x), &Attribute::Compile(_, ref y)) => x == y,
+            (&Attribute::Vsn(_, ref x), &Attribute::Vsn(_, ref y)) => x == y,
+            (&Attribute::OnLoad(_, ref x), &Attribute::OnLoad(_, ref y)) => x == y,
+            (&Attribute::Behaviour(_, ref x), &Attribute::Behaviour(_, ref y)) => x == y,
             _ => false,
         }
     }

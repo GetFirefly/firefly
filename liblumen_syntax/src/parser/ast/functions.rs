@@ -1,13 +1,13 @@
-use std::fmt;
 use std::cmp::Ordering;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use liblumen_diagnostics::{ByteSpan, Diagnostic, Label};
 
 use crate::preprocessor::PreprocessorError;
 
-use super::{TryParseResult, ParseError, ParserError};
-use super::{Ident, Name, Expr, TypeSpec};
+use super::{Expr, Ident, Name, TypeSpec};
+use super::{ParseError, ParserError, TryParseResult};
 
 /// Represents a fully-resolved function name, with module/function/arity explicit
 #[derive(Debug, Clone)]
@@ -19,9 +19,7 @@ pub struct ResolvedFunctionName {
 }
 impl PartialEq for ResolvedFunctionName {
     fn eq(&self, other: &Self) -> bool {
-        self.module == other.module &&
-        self.function == other.function &&
-        self.arity == other.arity
+        self.module == other.module && self.function == other.function && self.arity == other.arity
     }
 }
 impl Eq for ResolvedFunctionName {}
@@ -41,7 +39,7 @@ impl PartialOrd for ResolvedFunctionName {
                 None | Some(Ordering::Equal) => xa.partial_cmp(&ya),
                 Some(order) => Some(order),
             },
-            Some(order) => Some(order)
+            Some(order) => Some(order),
         }
     }
 }
@@ -71,8 +69,7 @@ impl PartiallyResolvedFunctionName {
 }
 impl PartialEq for PartiallyResolvedFunctionName {
     fn eq(&self, other: &Self) -> bool {
-        self.function == other.function &&
-        self.arity == other.arity
+        self.function == other.function && self.arity == other.arity
     }
 }
 impl Eq for PartiallyResolvedFunctionName {}
@@ -88,7 +85,7 @@ impl PartialOrd for PartiallyResolvedFunctionName {
         let (yf, ya) = (other.function, other.arity);
         match xf.partial_cmp(&yf) {
             None | Some(Ordering::Equal) => xa.partial_cmp(&ya),
-            Some(order) => Some(order)
+            Some(order) => Some(order),
         }
     }
 }
@@ -105,9 +102,7 @@ pub struct UnresolvedFunctionName {
 }
 impl PartialEq for UnresolvedFunctionName {
     fn eq(&self, other: &Self) -> bool {
-        self.module == other.module &&
-        self.function == other.function &&
-        self.arity == other.arity
+        self.module == other.module && self.function == other.function && self.arity == other.arity
     }
 }
 impl Eq for UnresolvedFunctionName {}
@@ -121,14 +116,11 @@ impl Hash for UnresolvedFunctionName {
 impl PartialOrd for UnresolvedFunctionName {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match self.module.partial_cmp(&other.module) {
-            None | Some(Ordering::Equal) =>
-                match self.function.partial_cmp(&other.function) {
-                    None | Some(Ordering::Equal) =>
-                        self.arity.partial_cmp(&other.arity),
-                    Some(order) =>
-                        Some(order),
-                },
-            Some(order) => Some(order)
+            None | Some(Ordering::Equal) => match self.function.partial_cmp(&other.function) {
+                None | Some(Ordering::Equal) => self.arity.partial_cmp(&other.arity),
+                Some(order) => Some(order),
+            },
+            Some(order) => Some(order),
         }
     }
 }
@@ -143,7 +135,9 @@ impl FunctionName {
     pub fn span(&self) -> ByteSpan {
         match self {
             &FunctionName::Resolved(ResolvedFunctionName { ref span, .. }) => span.clone(),
-            &FunctionName::PartiallyResolved(PartiallyResolvedFunctionName { ref span, .. }) => span.clone(),
+            &FunctionName::PartiallyResolved(PartiallyResolvedFunctionName {
+                ref span, ..
+            }) => span.clone(),
             &FunctionName::Unresolved(UnresolvedFunctionName { ref span, .. }) => span.clone(),
         }
     }
@@ -154,7 +148,7 @@ impl FunctionName {
                 Name::Atom(f) => FunctionName::PartiallyResolved(PartiallyResolvedFunctionName {
                     span,
                     function: f,
-                    arity: arity,
+                    arity,
                 }),
                 Name::Var(_) => FunctionName::Unresolved(UnresolvedFunctionName {
                     span,
@@ -180,7 +174,7 @@ impl FunctionName {
             span,
             module,
             function,
-            arity: arity,
+            arity,
         })
     }
 
@@ -191,16 +185,12 @@ impl FunctionName {
                 ref span,
                 ref params,
                 ..
-            } => {
-                FunctionName::PartiallyResolved(PartiallyResolvedFunctionName {
-                    span: span.clone(),
-                    function: name.clone(),
-                    arity: params.len(),
-                })
-            }
-            _ => {
-                panic!("cannot create a FunctionName from an anonymous FunctionClause!")
-            }
+            } => FunctionName::PartiallyResolved(PartiallyResolvedFunctionName {
+                span: span.clone(),
+                function: name.clone(),
+                arity: params.len(),
+            }),
+            _ => panic!("cannot create a FunctionName from an anonymous FunctionClause!"),
         }
     }
 }
@@ -243,24 +233,27 @@ pub struct NamedFunction {
 }
 impl PartialEq for NamedFunction {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name &&
-        self.arity == other.arity &&
-        self.clauses == other.clauses &&
-        self.spec == other.spec
+        self.name == other.name
+            && self.arity == other.arity
+            && self.clauses == other.clauses
+            && self.spec == other.spec
     }
 }
 impl NamedFunction {
-    pub fn new(errs: &mut Vec<ParseError>, span: ByteSpan, clauses: Vec<FunctionClause>) -> TryParseResult<Self> {
+    pub fn new(
+        errs: &mut Vec<ParseError>,
+        span: ByteSpan,
+        clauses: Vec<FunctionClause>,
+    ) -> TryParseResult<Self> {
         debug_assert!(clauses.len() > 0);
-        let (head, rest) = clauses
-            .split_first()
-            .unwrap();
+        let (head, rest) = clauses.split_first().unwrap();
 
         if head.name.is_none() {
             return Err(to_lalrpop_err!(PreprocessorError::Diagnostic(
-                Diagnostic::new_error("expected named function")
-                    .with_label(Label::new_primary(head.span)
-                        .with_message("this clause has no name, but a name is required here"))
+                Diagnostic::new_error("expected named function").with_label(
+                    Label::new_primary(head.span)
+                        .with_message("this clause has no name, but a name is required here")
+                )
             )));
         }
 
@@ -275,10 +268,16 @@ impl NamedFunction {
             if clause.name.is_none() {
                 return Err(to_lalrpop_err!(PreprocessorError::Diagnostic(
                     Diagnostic::new_error("expected named function clause")
-                        .with_label(Label::new_primary(clause.span)
-                            .with_message("this clause has no name, but a name is required here"))
-                        .with_label(Label::new_secondary(last_clause)
-                            .with_message("expected a clause with the same name as this clause"))
+                        .with_label(
+                            Label::new_primary(clause.span).with_message(
+                                "this clause has no name, but a name is required here"
+                            )
+                        )
+                        .with_label(
+                            Label::new_secondary(last_clause).with_message(
+                                "expected a clause with the same name as this clause"
+                            )
+                        )
                 )));
             }
 
@@ -290,20 +289,26 @@ impl NamedFunction {
             if clause_name != name {
                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                     Diagnostic::new_error("unterminated function clause")
-                        .with_label(Label::new_primary(last_clause.clone())
-                            .with_message("this clause ends with ';', indicating that another clause follows"))
-                        .with_label(Label::new_secondary(clause_span.clone())
-                            .with_message("but this clause has a different name"))
+                        .with_label(Label::new_primary(last_clause.clone()).with_message(
+                            "this clause ends with ';', indicating that another clause follows"
+                        ))
+                        .with_label(
+                            Label::new_secondary(clause_span.clone())
+                                .with_message("but this clause has a different name")
+                        )
                 )));
                 continue;
             }
             if clause_arity != arity {
                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                     Diagnostic::new_error("unterminated function clause")
-                        .with_label(Label::new_primary(last_clause.clone())
-                            .with_message("this clause ends with ';', indicating that another clause follows"))
-                        .with_label(Label::new_secondary(clause_span.clone())
-                            .with_message("but this clause has a different arity"))
+                        .with_label(Label::new_primary(last_clause.clone()).with_message(
+                            "this clause ends with ';', indicating that another clause follows"
+                        ))
+                        .with_label(
+                            Label::new_secondary(clause_span.clone())
+                                .with_message("but this clause has a different arity")
+                        )
                 )));
                 continue;
             }
@@ -329,16 +334,17 @@ pub struct Lambda {
 }
 impl PartialEq for Lambda {
     fn eq(&self, other: &Self) -> bool {
-        self.arity == other.arity &&
-        self.clauses == other.clauses
+        self.arity == other.arity && self.clauses == other.clauses
     }
 }
 impl Lambda {
-    pub fn new(errs: &mut Vec<ParseError>, span: ByteSpan, clauses: Vec<FunctionClause>) -> TryParseResult<Self> {
+    pub fn new(
+        errs: &mut Vec<ParseError>,
+        span: ByteSpan,
+        clauses: Vec<FunctionClause>,
+    ) -> TryParseResult<Self> {
         debug_assert!(clauses.len() > 0);
-        let (head, rest) = clauses
-            .split_first()
-            .unwrap();
+        let (head, rest) = clauses.split_first().unwrap();
 
         let head_span = &head.span;
         let params = &head.params;
@@ -355,20 +361,26 @@ impl Lambda {
             if clause_name.is_some() {
                 return Err(to_lalrpop_err!(PreprocessorError::Diagnostic(
                     Diagnostic::new_error("mismatched function clause")
-                        .with_label(Label::new_primary(clause_span.clone())
-                            .with_message("this clause is named"))
-                        .with_label(Label::new_secondary(last_clause.clone())
-                            .with_message("but this clause is unnamed, all clauses must share the same name"))
-                )))
+                        .with_label(
+                            Label::new_primary(clause_span.clone())
+                                .with_message("this clause is named")
+                        )
+                        .with_label(Label::new_secondary(last_clause.clone()).with_message(
+                            "but this clause is unnamed, all clauses must share the same name"
+                        ))
+                )));
             }
 
             if clause_arity != arity {
                 errs.push(to_lalrpop_err!(ParserError::Diagnostic(
                     Diagnostic::new_error("mismatched function clause")
-                        .with_label(Label::new_primary(clause_span.clone())
-                            .with_message("the arity of this clause does not match the previous clause"))
-                        .with_label(Label::new_secondary(last_clause.clone())
-                            .with_message("this is the previous clause"))
+                        .with_label(Label::new_primary(clause_span.clone()).with_message(
+                            "the arity of this clause does not match the previous clause"
+                        ))
+                        .with_label(
+                            Label::new_secondary(last_clause.clone())
+                                .with_message("this is the previous clause")
+                        )
                 )));
                 continue;
             }
@@ -384,7 +396,6 @@ impl Lambda {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Function {
     Named(NamedFunction),
@@ -393,18 +404,18 @@ pub enum Function {
 impl Function {
     pub fn span(&self) -> ByteSpan {
         match self {
-            &Function::Named(NamedFunction { ref span, .. }) =>
-                span.clone(),
-            &Function::Unnamed(Lambda { ref span, .. }) =>
-                span.clone(),
+            &Function::Named(NamedFunction { ref span, .. }) => span.clone(),
+            &Function::Unnamed(Lambda { ref span, .. }) => span.clone(),
         }
     }
 
-    pub fn new(errs: &mut Vec<ParseError>, span: ByteSpan, clauses: Vec<FunctionClause>) -> TryParseResult<Self> {
+    pub fn new(
+        errs: &mut Vec<ParseError>,
+        span: ByteSpan,
+        clauses: Vec<FunctionClause>,
+    ) -> TryParseResult<Self> {
         debug_assert!(clauses.len() > 0);
-        let (head, _rest) = clauses
-            .split_first()
-            .unwrap();
+        let (head, _rest) = clauses.split_first().unwrap();
 
         if head.name.is_some() {
             Ok(Function::Named(NamedFunction::new(errs, span, clauses)?))
@@ -424,10 +435,10 @@ pub struct FunctionClause {
 }
 impl PartialEq for FunctionClause {
     fn eq(&self, other: &FunctionClause) -> bool {
-        self.name == other.name &&
-        self.params == other.params &&
-        self.guard == other.guard &&
-        self.body == other.body
+        self.name == other.name
+            && self.params == other.params
+            && self.guard == other.guard
+            && self.body == other.body
     }
 }
 impl FunctionClause {
@@ -443,7 +454,7 @@ impl FunctionClause {
             name,
             params,
             guard,
-            body
+            body,
         }
     }
 }

@@ -151,6 +151,10 @@ impl Env {
 }
 
 impl Term {
+    const EMPTY_LIST: Term = Term {
+        tagged: Tag::EmptyList as usize,
+    };
+
     fn tag(&self) -> Tag {
         match (self.tagged as usize).try_into() {
             Ok(tag) => tag,
@@ -159,7 +163,15 @@ impl Term {
     }
 
     fn is_atom(&self, env: &mut Env) -> Term {
-        if self.tag() == Tag::Atom {
+        Term::from_bool(self.tag() == Tag::Atom, env)
+    }
+
+    fn is_empty_list(&self, env: &mut Env) -> Term {
+        Term::from_bool(self.tag() == Tag::EmptyList, env)
+    }
+
+    fn from_bool(b: bool, env: &mut Env) -> Term {
+        if b {
             env.find_or_insert_atom("true")
         } else {
             env.find_or_insert_atom("false")
@@ -286,6 +298,26 @@ mod tests {
 
         assert_eq!(
             env.find_or_insert_atom("nil").is_atom(&mut env),
+            env.find_or_insert_atom("true")
+        );
+    }
+
+    #[test]
+    fn atom_is_not_empty_list() {
+        let mut env = Env::new();
+
+        assert_eq!(
+            env.find_or_insert_atom("nil").is_empty_list(&mut env),
+            env.find_or_insert_atom("false")
+        );
+    }
+
+    #[test]
+    fn empty_list_is_empty_list() {
+        let mut env = Env::new();
+
+        assert_eq!(
+            Term::EMPTY_LIST.is_empty_list(&mut env),
             env.find_or_insert_atom("true")
         );
     }

@@ -145,8 +145,8 @@ impl Env {
         }
     }
 
-    fn find_or_insert_atom(&mut self, name: &str) -> Term {
-        self.atom_table.find_or_insert(name).try_into().unwrap()
+    fn find_or_insert_atom(&mut self, name: &str) -> Result<Term, AtomIndexOverflow> {
+        self.atom_table.find_or_insert(name).try_into()
     }
 }
 
@@ -162,19 +162,71 @@ impl Term {
         }
     }
 
-    fn is_atom(&self, env: &mut Env) -> Term {
-        Term::from_bool(self.tag() == Tag::Atom, env)
+    fn is_atom(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
+        (self.tag() == Tag::Atom).try_into_term(&mut env)
     }
 
-    fn is_empty_list(&self, env: &mut Env) -> Term {
-        Term::from_bool(self.tag() == Tag::EmptyList, env)
+    fn is_empty_list(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
+        (self.tag() == Tag::EmptyList).try_into_term(&mut env)
     }
 
-    fn from_bool(b: bool, env: &mut Env) -> Term {
-        if b {
-            env.find_or_insert_atom("true")
+    fn is_integer(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
+        match self.tag() {
+            Tag::SmallInteger => true,
+            _ => false,
+        }
+        .try_into_term(&mut env)
+    }
+}
+
+/// Attempt to construct `Term` via a conversion.
+trait TryIntoTerm {
+    /// The type returned in the event of a conversion error.
+    type Error;
+
+    /// Performs the conversion
+    fn try_into_term(self, env: &mut Env) -> Result<Term, Self::Error>;
+}
+
+impl TryIntoTerm for bool {
+    type Error = AtomIndexOverflow;
+
+    fn try_into_term(self: Self, env: &mut Env) -> Result<Term, AtomIndexOverflow> {
+        let name = if self { "true" } else { "false" };
+
+        env.find_or_insert_atom(name)
+    }
+}
+
+struct SmallIntegerOverflow {
+    value: isize,
+}
+
+const SMALL_INTEGER_TAG_BIT_COUNT: u8 = 4;
+const MIN_SMALL_INTEGER: isize = std::isize::MIN >> SMALL_INTEGER_TAG_BIT_COUNT;
+const MAX_SMALL_INTEGER: isize = std::isize::MAX >> SMALL_INTEGER_TAG_BIT_COUNT;
+
+impl Debug for SmallIntegerOverflow {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "Integer ({}) does not fit in small integer range ({}..{})",
+            self.value, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER
+        )
+    }
+}
+
+impl TryIntoTerm for isize {
+    type Error = SmallIntegerOverflow;
+
+    fn try_into_term(self: Self, _env: &mut Env) -> Result<Term, SmallIntegerOverflow> {
+        if MIN_SMALL_INTEGER <= self && self <= MAX_SMALL_INTEGER {
+            Ok(Term {
+                tagged: ((self as usize) << SMALL_INTEGER_TAG_BIT_COUNT)
+                    | (Tag::SmallInteger as usize),
+            })
         } else {
-            env.find_or_insert_atom("false")
+            Err(SmallIntegerOverflow { value: self })
         }
     }
 }
@@ -266,50 +318,44 @@ mod tests {
     fn atoms_with_same_name_have_same_tagged_value() {
         let mut env = Env::new();
         assert_eq!(
-            env.find_or_insert_atom("atom").tagged,
-            env.find_or_insert_atom("atom").tagged
+            env.find_or_insert_atom("atom").unwrap().tagged,
+            env.find_or_insert_atom("atom").unwrap().tagged
         )
     }
 
     #[test]
     fn atoms_have_atom_tag() {
         let mut env = Env::new();
-        assert_eq!(env.find_or_insert_atom("true").tag(), Tag::Atom);
-        assert_eq!(env.find_or_insert_atom("false").tag(), Tag::Atom);
+        assert_eq!(env.find_or_insert_atom("true").unwrap().tag(), Tag::Atom);
+        assert_eq!(env.find_or_insert_atom("false").unwrap().tag(), Tag::Atom);
     }
 
     #[test]
     fn booleans_are_atoms() {
         let mut env = Env::new();
+        let true_term = env.find_or_insert_atom("true").unwrap();
+        let false_term = env.find_or_insert_atom("false").unwrap();
 
-        assert_eq!(
-            env.find_or_insert_atom("true").is_atom(&mut env),
-            env.find_or_insert_atom("true")
-        );
-        assert_eq!(
-            env.find_or_insert_atom("false").is_atom(&mut env),
-            env.find_or_insert_atom("true")
-        );
+        assert_eq!(true_term.is_atom(&mut env).unwrap(), true_term);
+        assert_eq!(false_term.is_atom(&mut env).unwrap(), true_term);
     }
 
     #[test]
     fn nil_is_atom() {
         let mut env = Env::new();
+        let nil_term = env.find_or_insert_atom("nil").unwrap();
+        let true_term = env.find_or_insert_atom("true").unwrap();
 
-        assert_eq!(
-            env.find_or_insert_atom("nil").is_atom(&mut env),
-            env.find_or_insert_atom("true")
-        );
+        assert_eq!(nil_term.is_atom(&mut env).unwrap(), true_term);
     }
 
     #[test]
     fn atom_is_not_empty_list() {
         let mut env = Env::new();
+        let nil_term = env.find_or_insert_atom("nil").unwrap();
+        let false_term = false.try_into_term(&mut env).unwrap();
 
-        assert_eq!(
-            env.find_or_insert_atom("nil").is_empty_list(&mut env),
-            env.find_or_insert_atom("false")
-        );
+        assert_eq!(nil_term.is_empty_list(&mut env).unwrap(), false_term);
     }
 
     #[test]
@@ -317,8 +363,17 @@ mod tests {
         let mut env = Env::new();
 
         assert_eq!(
-            Term::EMPTY_LIST.is_empty_list(&mut env),
-            env.find_or_insert_atom("true")
+            Term::EMPTY_LIST.is_empty_list(&mut env).unwrap(),
+            env.find_or_insert_atom("true").unwrap()
         );
+    }
+
+    #[test]
+    fn small_integer_is_integer() {
+        let mut env = Env::new();
+        let zero_term = 0.try_into_term(&mut env).unwrap();
+        let true_term = true.try_into_term(&mut env).unwrap();
+
+        assert_eq!(zero_term.is_integer(&mut env).unwrap(), true_term)
     }
 }

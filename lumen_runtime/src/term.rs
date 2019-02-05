@@ -150,6 +150,20 @@ impl Env {
     }
 }
 
+struct BadArgument;
+
+impl Debug for BadArgument {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "bad argument")
+    }
+}
+
+#[derive(Debug)]
+enum LengthError {
+    BadArgument(BadArgument),
+    SmallIntegerOverflow(SmallIntegerOverflow),
+}
+
 impl Term {
     const EMPTY_LIST: Term = Term {
         tagged: Tag::EmptyList as usize,
@@ -176,6 +190,15 @@ impl Term {
             _ => false,
         }
         .try_into_term(&mut env)
+    }
+
+    fn length(&self, mut env: &mut Env) -> Result<Term, LengthError> {
+        match self.tag() {
+            Tag::EmptyList => 0.try_into_term(&mut env).map_err(|small_integer_overflow| {
+                LengthError::SmallIntegerOverflow(small_integer_overflow)
+            }),
+            _ => Err(LengthError::BadArgument(BadArgument)),
+        }
     }
 }
 
@@ -295,7 +318,7 @@ impl std::cmp::PartialEq for Term {
 
         if tag == other.tag() {
             match tag {
-                Tag::Atom => self.tagged == other.tagged,
+                Tag::Atom | Tag::SmallInteger => self.tagged == other.tagged,
                 _ => unimplemented!(),
             }
         } else {
@@ -374,6 +397,14 @@ mod tests {
         let zero_term = 0.try_into_term(&mut env).unwrap();
         let true_term = true.try_into_term(&mut env).unwrap();
 
-        assert_eq!(zero_term.is_integer(&mut env).unwrap(), true_term)
+        assert_eq!(zero_term.is_integer(&mut env).unwrap(), true_term);
+    }
+
+    #[test]
+    fn empty_list_length_is_zero() {
+        let mut env = Env::new();
+        let zero_term = 0.try_into_term(&mut env).unwrap();
+
+        assert_eq!(Term::EMPTY_LIST.length(&mut env).unwrap(), zero_term);
     }
 }

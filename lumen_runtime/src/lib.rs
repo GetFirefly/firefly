@@ -1,6 +1,12 @@
+// for conversion of `usize` to `lumen_runtime::term::Tag`
+#![feature(try_from)]
+// for `lumen_runtime::term::Term`
+#![feature(untagged_unions)]
+
 mod config;
 mod logging;
 mod system;
+mod term;
 #[macro_use]
 mod support;
 

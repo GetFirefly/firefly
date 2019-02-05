@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::fmt;

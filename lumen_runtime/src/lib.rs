@@ -3,7 +3,9 @@
 // for `lumen_runtime::term::Term`
 #![feature(untagged_unions)]
 
+mod atom;
 mod config;
+mod environment;
 mod logging;
 mod system;
 mod term;

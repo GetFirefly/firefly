@@ -176,15 +176,36 @@ impl Term {
         }
     }
 
-    fn is_atom(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
+    pub fn abs(&self) -> Result<Term, BadArgument> {
+        match self.tag() {
+            Tag::SmallInteger => {
+                if unsafe { self.small_integer_is_negative() } {
+                    // cast first so that sign bit is extended on shift
+                    let signed = (self.tagged as isize) >> SMALL_INTEGER_TAG_BIT_COUNT;
+                    let positive = -signed;
+                    Ok(Term {
+                        tagged: ((positive << SMALL_INTEGER_TAG_BIT_COUNT) as usize)
+                            | (Tag::SmallInteger as usize),
+                    })
+                } else {
+                    Ok(Term {
+                        tagged: self.tagged,
+                    })
+                }
+            }
+            _ => Err(BadArgument)
+        }
+    }
+
+    pub fn is_atom(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
         (self.tag() == Tag::Atom).try_into_term(&mut env)
     }
 
-    fn is_empty_list(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
+    pub fn is_empty_list(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
         (self.tag() == Tag::EmptyList).try_into_term(&mut env)
     }
 
-    fn is_integer(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
+    pub fn is_integer(&self, mut env: &mut Env) -> Result<Term, AtomIndexOverflow> {
         match self.tag() {
             Tag::SmallInteger => true,
             _ => false,
@@ -192,13 +213,20 @@ impl Term {
         .try_into_term(&mut env)
     }
 
-    fn length(&self, mut env: &mut Env) -> Result<Term, LengthError> {
+    pub fn length(&self, mut env: &mut Env) -> Result<Term, LengthError> {
         match self.tag() {
             Tag::EmptyList => 0.try_into_term(&mut env).map_err(|small_integer_overflow| {
                 LengthError::SmallIntegerOverflow(small_integer_overflow)
             }),
             _ => Err(LengthError::BadArgument(BadArgument)),
         }
+    }
+
+    const SMALL_INTEGER_SIGN_BIT_MASK: usize = std::isize::MIN as usize;
+
+    /// Only call if verified `tag` is `Tag::SmallInteger`.
+    unsafe fn small_integer_is_negative(&self) -> bool {
+        self.tagged & Term::SMALL_INTEGER_SIGN_BIT_MASK == Term::SMALL_INTEGER_SIGN_BIT_MASK
     }
 }
 
@@ -406,5 +434,27 @@ mod tests {
         let zero_term = 0.try_into_term(&mut env).unwrap();
 
         assert_eq!(Term::EMPTY_LIST.length(&mut env).unwrap(), zero_term);
+    }
+
+    #[test]
+    fn abs_negative_is_positive() {
+        let mut env = Env::new();
+
+        let negative = -1;
+        let negative_term = negative.try_into_term(&mut env).unwrap();
+
+        let positive = -negative;
+        let positive_term = positive.try_into_term(&mut env).unwrap();
+
+        assert_eq!(negative_term.abs().unwrap(), positive_term)
+    }
+
+    #[test]
+    fn abs_positive_is_self() {
+        let mut env = Env::new();
+
+        let positive_term = 1.try_into_term(&mut env).unwrap();
+
+        assert_eq!(positive_term.abs().unwrap(), positive_term)
     }
 }

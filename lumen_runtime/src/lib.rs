@@ -6,7 +6,9 @@
 mod atom;
 mod config;
 mod environment;
+mod list;
 mod logging;
+mod process;
 mod system;
 mod term;
 #[macro_use]

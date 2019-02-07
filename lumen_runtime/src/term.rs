@@ -7,8 +7,8 @@ use std::fmt::Debug;
 use std::fmt::Display;
 
 use crate::atom;
-use crate::environment::Environment;
-use crate::environment::TryIntoEnvironment;
+use crate::list::Cons;
+use crate::process::{Process, TryIntoProcess};
 
 impl From<&Term> for atom::Index {
     fn from(term: &Term) -> atom::Index {
@@ -45,6 +45,10 @@ pub enum Tag {
     CatchPointer = 0b01_10_11,
     EmptyList = 0b11_10_11,
     SmallInteger = 0b11_11,
+}
+
+impl Tag {
+    const LIST_MASK: usize = 0b11;
 }
 
 pub struct TagError {
@@ -111,7 +115,7 @@ impl TryFrom<usize> for Tag {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy)]
 // MUST be `repr(C)` so that size and layout is fixed for direct LLVM IR checking of tags
 #[repr(C)]
 pub struct Term {
@@ -134,9 +138,25 @@ pub enum LengthError {
 }
 
 impl Term {
-    const EMPTY_LIST: Term = Term {
+    pub const EMPTY_LIST: Term = Term {
         tagged: Tag::EmptyList as usize,
     };
+
+    pub fn cons(head: Term, tail: Term, process: &mut Process) -> Term {
+        let pointer_bits = process.cons(head, tail) as usize;
+
+        assert_eq!(
+            pointer_bits & Tag::LIST_MASK,
+            0,
+            "List tag bit ({:#b}) would overwrite pointer bits ({:#b})",
+            Tag::LIST_MASK,
+            pointer_bits
+        );
+
+        Term {
+            tagged: pointer_bits | (Tag::List as usize),
+        }
+    }
 
     pub fn tag(&self) -> Tag {
         match (self.tagged as usize).try_into() {
@@ -166,34 +186,69 @@ impl Term {
         }
     }
 
-    pub fn is_atom(&self, mut environment: &mut Environment) -> Result<Term, AtomIndexOverflow> {
-        (self.tag() == Tag::Atom).try_into_environment(&mut environment)
+    pub fn head(&self) -> Result<Term, BadArgument> {
+        match self.tag() {
+            Tag::List => {
+                let cons: &Cons = (*self).into();
+                Ok(cons.head())
+            }
+            _ => Err(BadArgument),
+        }
     }
 
-    pub fn is_empty_list(
-        &self,
-        mut environment: &mut Environment,
-    ) -> Result<Term, AtomIndexOverflow> {
-        (self.tag() == Tag::EmptyList).try_into_environment(&mut environment)
+    pub fn tail(&self) -> Result<Term, BadArgument> {
+        match self.tag() {
+            Tag::List => {
+                let cons: &Cons = (*self).into();
+                Ok(cons.tail())
+            }
+            _ => Err(BadArgument),
+        }
     }
 
-    pub fn is_integer(&self, mut environment: &mut Environment) -> Result<Term, AtomIndexOverflow> {
+    pub fn is_atom(&self, mut process: &mut Process) -> Result<Term, AtomIndexOverflow> {
+        (self.tag() == Tag::Atom).try_into_process(&mut process)
+    }
+
+    pub fn is_empty_list(&self, mut process: &mut Process) -> Result<Term, AtomIndexOverflow> {
+        (self.tag() == Tag::EmptyList).try_into_process(&mut process)
+    }
+
+    pub fn is_integer(&self, mut process: &mut Process) -> Result<Term, AtomIndexOverflow> {
         match self.tag() {
             Tag::SmallInteger => true,
             _ => false,
         }
-        .try_into_environment(&mut environment)
+        .try_into_process(&mut process)
     }
 
-    pub fn length(&self, mut environment: &mut Environment) -> Result<Term, LengthError> {
+    pub fn is_list(&self, mut process: &mut Process) -> Result<Term, AtomIndexOverflow> {
         match self.tag() {
-            Tag::EmptyList => {
-                0.try_into_environment(&mut environment)
-                    .map_err(|small_integer_overflow| {
-                        LengthError::SmallIntegerOverflow(small_integer_overflow)
-                    })
+            Tag::EmptyList | Tag::List => true,
+            _ => false,
+        }
+        .try_into_process(&mut process)
+    }
+
+    pub fn length(&self, mut process: &mut Process) -> Result<Term, LengthError> {
+        let mut length: usize = 0;
+        let mut tail = *self;
+
+        loop {
+            match tail.tag() {
+                Tag::EmptyList => {
+                    break length
+                        .try_into_process(&mut process)
+                        .map_err(|small_integer_overflow| {
+                            LengthError::SmallIntegerOverflow(small_integer_overflow)
+                        });
+                }
+                Tag::List => {
+                    tail = tail.tail().unwrap();
+                    length += 1;
+                }
+                _ => break Err(LengthError::BadArgument(BadArgument)),
             }
-            _ => Err(LengthError::BadArgument(BadArgument)),
         }
     }
 
@@ -202,6 +257,30 @@ impl Term {
     /// Only call if verified `tag` is `Tag::SmallInteger`.
     unsafe fn small_integer_is_negative(&self) -> bool {
         self.tagged & Term::SMALL_INTEGER_SIGN_BIT_MASK == Term::SMALL_INTEGER_SIGN_BIT_MASK
+    }
+}
+
+impl Debug for Term {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            formatter,
+            "Term {{ tagged: 0b{tagged:0bit_count$b} }}",
+            tagged = self.tagged,
+            bit_count = std::mem::size_of::<usize>() * 8
+        )
+    }
+}
+
+impl From<Term> for *const Cons {
+    fn from(term: Term) -> Self {
+        (term.tagged & !(Tag::List as usize)) as *const Cons
+    }
+}
+
+impl From<Term> for &Cons {
+    fn from(term: Term) -> Self {
+        let pointer: *const Cons = term.into();
+        unsafe { &*pointer }
     }
 }
 
@@ -217,22 +296,9 @@ impl From<&Term> for isize {
     }
 }
 
-impl TryIntoEnvironment<Term> for bool {
-    type Error = AtomIndexOverflow;
-
-    fn try_into_environment(
-        self: Self,
-        environment: &mut Environment,
-    ) -> Result<Term, AtomIndexOverflow> {
-        let name = if self { "true" } else { "false" };
-
-        environment.find_or_insert_atom(name)
-    }
-}
-
 #[derive(PartialEq)]
 pub struct SmallIntegerOverflow {
-    value: isize,
+    value_string: String,
 }
 
 const SMALL_INTEGER_TAG_BIT_COUNT: u8 = 4;
@@ -244,25 +310,41 @@ impl Debug for SmallIntegerOverflow {
         write!(
             formatter,
             "Integer ({}) does not fit in small integer range ({}..{})",
-            self.value, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER
+            self.value_string, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER
         )
     }
 }
 
-impl TryIntoEnvironment<Term> for isize {
+impl TryIntoProcess<Term> for isize {
     type Error = SmallIntegerOverflow;
 
-    fn try_into_environment(
-        self: Self,
-        _environment: &mut Environment,
-    ) -> Result<Term, SmallIntegerOverflow> {
+    fn try_into_process(self: Self, _process: &mut Process) -> Result<Term, SmallIntegerOverflow> {
         if MIN_SMALL_INTEGER <= self && self <= MAX_SMALL_INTEGER {
             Ok(Term {
                 tagged: ((self as usize) << SMALL_INTEGER_TAG_BIT_COUNT)
                     | (Tag::SmallInteger as usize),
             })
         } else {
-            Err(SmallIntegerOverflow { value: self })
+            Err(SmallIntegerOverflow {
+                value_string: self.to_string(),
+            })
+        }
+    }
+}
+
+impl TryIntoProcess<Term> for usize {
+    type Error = SmallIntegerOverflow;
+
+    fn try_into_process(self: Self, _process: &mut Process) -> Result<Term, SmallIntegerOverflow> {
+        if self <= (MAX_SMALL_INTEGER as usize) {
+            Ok(Term {
+                tagged: ((self as usize) << SMALL_INTEGER_TAG_BIT_COUNT)
+                    | (Tag::SmallInteger as usize),
+            })
+        } else {
+            Err(SmallIntegerOverflow {
+                value_string: self.to_string(),
+            })
         }
     }
 }
@@ -325,7 +407,7 @@ impl std::cmp::PartialEq for Term {
 
         if tag == other.tag() {
             match tag {
-                Tag::Atom | Tag::SmallInteger => self.tagged == other.tagged,
+                Tag::Atom | Tag::EmptyList | Tag::SmallInteger => self.tagged == other.tagged,
                 _ => unimplemented!(),
             }
         } else {
@@ -343,30 +425,103 @@ impl std::cmp::Eq for Term {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use std::sync::RwLock;
 
     mod abs {
         use super::*;
 
         #[test]
         fn with_negative_is_positive() {
-            let mut environment = Environment::new();
+            let mut process = process();
 
-            let negative = -1;
-            let negative_term = negative.try_into_environment(&mut environment).unwrap();
+            let negative: isize = -1;
+            let negative_term = negative.try_into_process(&mut process).unwrap();
 
             let positive = -negative;
-            let positive_term = positive.try_into_environment(&mut environment).unwrap();
+            let positive_term = positive.try_into_process(&mut process).unwrap();
 
             assert_eq!(negative_term.abs().unwrap(), positive_term);
         }
 
         #[test]
         fn with_positive_is_self() {
-            let mut environment = Environment::new();
-
-            let positive_term = 1.try_into_environment(&mut environment).unwrap();
+            let mut process = process();
+            let positive_term = 1usize.try_into_process(&mut process).unwrap();
 
             assert_eq!(positive_term.abs().unwrap(), positive_term);
+        }
+    }
+
+    mod head {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process = process();
+            let atom_term = atom_term(&mut process, "atom");
+
+            assert_eq!(atom_term.head().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let empty_list_term = Term::EMPTY_LIST;
+
+            assert_eq!(empty_list_term.head().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_list_returns_head() {
+            let mut process = process();
+            let head_term = atom_term(&mut process, "head");
+            let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
+
+            assert_eq!(list_term.head().unwrap(), head_term);
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+
+            assert_eq!(small_integer_term.head().unwrap_err(), BadArgument);
+        }
+    }
+
+    mod tail {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process = process();
+            let atom_term = atom_term(&mut process, "atom");
+
+            assert_eq!(atom_term.tail().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let empty_list_term = Term::EMPTY_LIST;
+
+            assert_eq!(empty_list_term.tail().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_list_returns_tail() {
+            let mut process = process();
+            let head_term = atom_term(&mut process, "head");
+            let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
+
+            assert_eq!(list_term.tail().unwrap(), Term::EMPTY_LIST);
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+
+            assert_eq!(small_integer_term.tail().unwrap_err(), BadArgument);
         }
     }
 
@@ -375,53 +530,62 @@ mod tests {
 
         #[test]
         fn with_atom_is_true() {
-            let mut environment = Environment::new();
-            let atom_term = environment.find_or_insert_atom("atom").unwrap();
-            let true_term = environment.find_or_insert_atom("true").unwrap();
-
-            assert_eq!(atom_term.is_atom(&mut environment).unwrap(), true_term);
-        }
-
-        #[test]
-        fn with_booleans_is_true() {
-            let mut environment = Environment::new();
-            let true_term = environment.find_or_insert_atom("true").unwrap();
-            let false_term = environment.find_or_insert_atom("false").unwrap();
-
-            assert_eq!(true_term.is_atom(&mut environment).unwrap(), true_term);
-            assert_eq!(false_term.is_atom(&mut environment).unwrap(), true_term);
-        }
-
-        #[test]
-        fn with_nil_is_true() {
-            let mut environment = Environment::new();
-            let nil_term = environment.find_or_insert_atom("nil").unwrap();
-            let true_term = environment.find_or_insert_atom("true").unwrap();
-
-            assert_eq!(nil_term.is_atom(&mut environment).unwrap(), true_term);
-        }
-
-        #[test]
-        fn with_empty_list_is_false() {
-            let mut environment = Environment::new();
-            let empty_list_term = Term::EMPTY_LIST;
-            let false_term = environment.find_or_insert_atom("false").unwrap();
+            let mut process = process();
+            let atom_term = atom_term(&mut process, "atom");
 
             assert_eq!(
-                empty_list_term.is_atom(&mut environment).unwrap(),
-                false_term,
+                atom_term.is_atom(&mut process).unwrap(),
+                true_term(&mut process)
             );
         }
 
         #[test]
+        fn with_booleans_is_true() {
+            let mut process = process();
+            let true_term = true_term(&mut process);
+            let false_term = false_term(&mut process);
+
+            assert_eq!(true_term.is_atom(&mut process).unwrap(), true_term);
+            assert_eq!(false_term.is_atom(&mut process).unwrap(), true_term);
+        }
+
+        #[test]
+        fn with_nil_is_true() {
+            let mut process = process();
+            let nil_term = atom_term(&mut process, "nil");
+            let true_term = true_term(&mut process);
+
+            assert_eq!(nil_term.is_atom(&mut process).unwrap(), true_term);
+        }
+
+        #[test]
+        fn with_empty_list_is_false() {
+            let mut process = process();
+            let empty_list_term = Term::EMPTY_LIST;
+            let false_term = false_term(&mut process);
+
+            assert_eq!(empty_list_term.is_atom(&mut process).unwrap(), false_term);
+        }
+
+        #[test]
+        fn with_list_is_false() {
+            let mut process = process();
+            let head_term = atom_term(&mut process, "head");
+            let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
+            let false_term = false_term(&mut process);
+
+            assert_eq!(list_term.is_atom(&mut process).unwrap(), false_term);
+        }
+
+        #[test]
         fn with_small_integer_is_false() {
-            let mut environment = Environment::new();
-            let small_integer_term = 0.try_into_environment(&mut environment).unwrap();
-            let false_term = environment.find_or_insert_atom("false").unwrap();
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+            let false_term = false_term(&mut process);
 
             assert_eq!(
-                small_integer_term.is_atom(&mut environment).unwrap(),
-                false_term,
+                small_integer_term.is_atom(&mut process).unwrap(),
+                false_term
             );
         }
     }
@@ -431,36 +595,43 @@ mod tests {
 
         #[test]
         fn with_atom_is_false() {
-            let mut environment = Environment::new();
-            let nil_term = environment.find_or_insert_atom("nil").unwrap();
-            let false_term = false.try_into_environment(&mut environment).unwrap();
+            let mut process = process();
+            let atom_term = atom_term(&mut process, "atom");
+            let false_term = false_term(&mut process);
 
-            assert_eq!(
-                nil_term.is_empty_list(&mut environment).unwrap(),
-                false_term
-            );
+            assert_eq!(atom_term.is_empty_list(&mut process).unwrap(), false_term);
         }
 
         #[test]
         fn with_empty_list_is_true() {
-            let mut environment = Environment::new();
+            let mut process = process();
             let empty_list_term = Term::EMPTY_LIST;
-            let true_term = true.try_into_environment(&mut environment).unwrap();
+            let true_term = true_term(&mut process);
 
             assert_eq!(
-                empty_list_term.is_empty_list(&mut environment).unwrap(),
+                empty_list_term.is_empty_list(&mut process).unwrap(),
                 true_term
             );
         }
 
         #[test]
+        fn with_list_is_false() {
+            let mut process = process();
+            let head_term = atom_term(&mut process, "head");
+            let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
+            let false_term = false_term(&mut process);
+
+            assert_eq!(list_term.is_empty_list(&mut process).unwrap(), false_term,);
+        }
+
+        #[test]
         fn with_small_integer_is_false() {
-            let mut environment = Environment::new();
-            let zero_term = 0.try_into_environment(&mut environment).unwrap();
-            let false_term = false.try_into_environment(&mut environment).unwrap();
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+            let false_term = false_term(&mut process);
 
             assert_eq!(
-                zero_term.is_empty_list(&mut environment).unwrap(),
+                small_integer_term.is_empty_list(&mut process).unwrap(),
                 false_term
             );
         }
@@ -471,32 +642,84 @@ mod tests {
 
         #[test]
         fn with_atom_is_false() {
-            let mut environment = Environment::new();
-            let atom_term = environment.find_or_insert_atom("atom").unwrap();
-            let false_term = false.try_into_environment(&mut environment).unwrap();
+            let mut process = process();
+            let atom_term = atom_term(&mut process, "atom");
+            let false_term = false_term(&mut process);
 
-            assert_eq!(atom_term.is_integer(&mut environment).unwrap(), false_term);
+            assert_eq!(atom_term.is_integer(&mut process).unwrap(), false_term);
         }
 
         #[test]
         fn with_empty_list_is_false() {
-            let mut environment = Environment::new();
+            let mut process = process();
             let empty_list_term = Term::EMPTY_LIST;
-            let false_term = false.try_into_environment(&mut environment).unwrap();
+            let false_term = false_term(&mut process);
 
             assert_eq!(
-                empty_list_term.is_integer(&mut environment).unwrap(),
+                empty_list_term.is_integer(&mut process).unwrap(),
                 false_term
             );
         }
 
         #[test]
-        fn with_small_integer_is_true() {
-            let mut environment = Environment::new();
-            let zero_term = 0.try_into_environment(&mut environment).unwrap();
-            let true_term = true.try_into_environment(&mut environment).unwrap();
+        fn with_list_is_false() {
+            let mut process = process();
+            let list_term = list_term(&mut process);
+            let false_term = false_term(&mut process);
 
-            assert_eq!(zero_term.is_integer(&mut environment).unwrap(), true_term);
+            assert_eq!(list_term.is_integer(&mut process).unwrap(), false_term);
+        }
+
+        #[test]
+        fn with_small_integer_is_true() {
+            let mut process = process();
+            let zero_term = 0usize.try_into_process(&mut process).unwrap();
+            let true_term = true.try_into_process(&mut process).unwrap();
+
+            assert_eq!(zero_term.is_integer(&mut process).unwrap(), true_term);
+        }
+    }
+
+    mod is_list {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_false() {
+            let mut process = process();
+            let atom_term = atom_term(&mut process, "atom");
+            let false_term = false_term(&mut process);
+
+            assert_eq!(atom_term.is_list(&mut process).unwrap(), false_term);
+        }
+
+        #[test]
+        fn with_empty_list_is_true() {
+            let mut process = process();
+            let empty_list_term = Term::EMPTY_LIST;
+            let true_term = true_term(&mut process);
+
+            assert_eq!(empty_list_term.is_list(&mut process).unwrap(), true_term);
+        }
+
+        #[test]
+        fn with_list_is_true() {
+            let mut process = process();
+            let list_term = list_term(&mut process);
+            let true_term = true_term(&mut process);
+
+            assert_eq!(list_term.is_list(&mut process).unwrap(), true_term);
+        }
+
+        #[test]
+        fn with_small_integer_is_false() {
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+            let false_term = false_term(&mut process);
+
+            assert_eq!(
+                small_integer_term.is_list(&mut process).unwrap(),
+                false_term
+            );
         }
     }
 
@@ -505,35 +728,85 @@ mod tests {
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut environment = Environment::new();
-            let atom_term = environment.find_or_insert_atom("atom").unwrap();
+            let mut process = process();
+            let atom_term = atom_term(&mut process, "atom");
 
             assert_eq!(
-                atom_term.length(&mut environment).unwrap_err(),
+                atom_term.length(&mut process).unwrap_err(),
                 LengthError::BadArgument(BadArgument)
             );
         }
 
         #[test]
         fn with_empty_list_is_zero() {
-            let mut environment = Environment::new();
-            let zero_term = 0.try_into_environment(&mut environment).unwrap();
+            let mut process = process();
+            let zero_term = small_integer_term(&mut process, 0);
+
+            assert_eq!(Term::EMPTY_LIST.length(&mut process).unwrap(), zero_term);
+        }
+
+        #[test]
+        fn with_improper_list_is_bad_argument() {
+            let mut process = process();
+            let head_term = atom_term(&mut process, "head");
+            let tail_term = atom_term(&mut process, "tail");
+            let improper_list_term = Term::cons(head_term, tail_term, &mut process);
 
             assert_eq!(
-                Term::EMPTY_LIST.length(&mut environment).unwrap(),
-                zero_term
+                improper_list_term.length(&mut process).unwrap_err(),
+                LengthError::BadArgument(BadArgument)
+            );
+        }
+
+        #[test]
+        fn with_list_is_length() {
+            let mut process = process();
+            let list_term = (0..=2).rfold(Term::EMPTY_LIST, |acc, i| {
+                Term::cons(small_integer_term(&mut process, i), acc, &mut process)
+            });
+
+            assert_eq!(
+                list_term.length(&mut process).unwrap(),
+                small_integer_term(&mut process, 3)
             );
         }
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut environment = Environment::new();
-            let zero_term = 0.try_into_environment(&mut environment).unwrap();
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq!(
-                zero_term.length(&mut environment).unwrap_err(),
+                small_integer_term.length(&mut process).unwrap_err(),
                 LengthError::BadArgument(BadArgument)
             );
         }
+    }
+
+    fn process() -> Process {
+        use crate::environment::Environment;
+
+        Process::new(Arc::new(RwLock::new(Environment::new())))
+    }
+
+    fn atom_term(process: &mut Process, name: &str) -> Term {
+        process.find_or_insert_atom(name).unwrap()
+    }
+
+    fn true_term(mut process: &mut Process) -> Term {
+        true.try_into_process(&mut process).unwrap()
+    }
+
+    fn false_term(mut process: &mut Process) -> Term {
+        false.try_into_process(&mut process).unwrap()
+    }
+
+    fn small_integer_term(mut process: &mut Process, signed_size: isize) -> Term {
+        signed_size.try_into_process(&mut process).unwrap()
+    }
+
+    fn list_term(process: &mut Process) -> Term {
+        let head_term = atom_term(process, "head");
+        Term::cons(head_term, Term::EMPTY_LIST, process)
     }
 }

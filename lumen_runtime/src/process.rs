@@ -5,7 +5,7 @@ use std::sync::RwLock;
 
 use crate::environment::Environment;
 use crate::list::Cons;
-use crate::term::{AtomIndexOverflow, Tag, Term};
+use crate::term::{Tag, Term};
 
 pub struct Process {
     environment: Arc<RwLock<Environment>>,
@@ -28,7 +28,7 @@ impl Process {
         self.environment.read().unwrap().atom_to_string(term)
     }
 
-    pub fn find_or_insert_atom(&mut self, name: &str) -> Result<Term, AtomIndexOverflow> {
+    pub fn find_or_insert_atom(&mut self, name: &str) -> Term {
         self.environment.write().unwrap().find_or_insert_atom(name)
     }
 }
@@ -36,20 +36,23 @@ impl Process {
 /// Like `std::convert::TryInto`, but additionally takes `&mut Process` in case it is needed to
 /// lookup or create new values in the `Process`.
 pub trait TryIntoProcess<T> {
-    /// THe type return in the event of a conversion error.
+    /// The type return in the event of a conversion error.
     type Error;
 
     /// Performs the conversion.
     fn try_into_process(self, process: &mut Process) -> Result<T, Self::Error>;
 }
 
-impl TryIntoProcess<Term> for bool {
-    type Error = AtomIndexOverflow;
+/// Like `std::convert::Into`, but additionally takes `&mut Process` in case it is needed to
+/// lookup or create new values in the `Process`.
+pub trait IntoProcess<T> {
+    /// Performs the conversion.
+    fn into_process(self, process: &mut Process) -> T;
+}
 
-    fn try_into_process(self: Self, process: &mut Process) -> Result<Term, AtomIndexOverflow> {
-        let name = if self { "true" } else { "false" };
-
-        process.find_or_insert_atom(name)
+impl IntoProcess<Term> for bool {
+    fn into_process(self: Self, process: &mut Process) -> Term {
+        process.find_or_insert_atom(&self.to_string())
     }
 }
 
@@ -64,14 +67,8 @@ mod tests {
         fn have_atom_tags() {
             let mut process = process();
 
-            assert_eq!(
-                process.find_or_insert_atom("true").unwrap().tag(),
-                Tag::Atom
-            );
-            assert_eq!(
-                process.find_or_insert_atom("false").unwrap().tag(),
-                Tag::Atom
-            );
+            assert_eq!(process.find_or_insert_atom("true").tag(), Tag::Atom);
+            assert_eq!(process.find_or_insert_atom("false").tag(), Tag::Atom);
         }
 
         #[test]
@@ -79,8 +76,8 @@ mod tests {
             let mut process = process();
 
             assert_eq!(
-                process.find_or_insert_atom("atom").unwrap().tagged,
-                process.find_or_insert_atom("atom").unwrap().tagged
+                process.find_or_insert_atom("atom").tagged,
+                process.find_or_insert_atom("atom").tagged
             )
         }
     }

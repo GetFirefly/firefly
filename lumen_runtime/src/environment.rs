@@ -1,9 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use std::convert::TryInto;
-
 use crate::atom;
-use crate::term::{AtomIndexOverflow, Tag, Term};
+use crate::term::{Tag, Term};
 
 pub struct Environment {
     atom_table: atom::Table,
@@ -22,8 +20,8 @@ impl Environment {
         self.atom_table.name(term.into())
     }
 
-    pub fn find_or_insert_atom(&mut self, name: &str) -> Result<Term, AtomIndexOverflow> {
-        self.atom_table.find_or_insert(name).try_into()
+    pub fn find_or_insert_atom(&mut self, name: &str) -> Term {
+        self.atom_table.find_or_insert(name).into()
     }
 }
 
@@ -47,22 +45,16 @@ mod tests {
         #[test]
         fn have_atom_tags() {
             let mut environment = Environment::new();
-            assert_eq!(
-                environment.find_or_insert_atom("true").unwrap().tag(),
-                Tag::Atom
-            );
-            assert_eq!(
-                environment.find_or_insert_atom("false").unwrap().tag(),
-                Tag::Atom
-            );
+            assert_eq!(environment.find_or_insert_atom("true").tag(), Tag::Atom);
+            assert_eq!(environment.find_or_insert_atom("false").tag(), Tag::Atom);
         }
 
         #[test]
         fn with_same_string_have_same_tagged_value() {
             let mut environment = Environment::new();
             assert_eq!(
-                environment.find_or_insert_atom("atom").unwrap().tagged,
-                environment.find_or_insert_atom("atom").unwrap().tagged
+                environment.find_or_insert_atom("atom").tagged,
+                environment.find_or_insert_atom("atom").tagged
             )
         }
     }

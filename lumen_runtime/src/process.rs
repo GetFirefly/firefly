@@ -9,17 +9,25 @@ use crate::term::{Tag, Term};
 
 pub struct Process {
     environment: Arc<RwLock<Environment>>,
+    cons_pointers: Vec<*mut Cons>,
 }
 
 impl Process {
     pub fn new(environment: Arc<RwLock<Environment>>) -> Process {
-        Process { environment }
+        Process {
+            environment,
+            cons_pointers: Vec::new(),
+        }
     }
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
     /// is a list `Term` (`Term.tag` is `Tag::List`) or empty list (`Term.tag` is `Tag::EmptyList`).
-    pub fn cons(&self, head: Term, tail: Term) -> *const Cons {
-        Box::leak(Box::new(Cons::new(head, tail)))
+    pub fn cons(&mut self, head: Term, tail: Term) -> *const Cons {
+        let pointer = Box::leak(Box::new(Cons::new(head, tail)));
+
+        self.cons_pointers.push(pointer);
+
+        return pointer;
     }
 
     pub fn atom_to_string(&self, term: &Term) -> String {
@@ -30,6 +38,16 @@ impl Process {
 
     pub fn find_or_insert_atom(&mut self, name: &str) -> Term {
         self.environment.write().unwrap().find_or_insert_atom(name)
+    }
+}
+
+impl Drop for Process {
+    fn drop(&mut self) {
+        self.cons_pointers
+            .drain(..)
+            .for_each(|cons_pointer| unsafe {
+                Box::from_raw(cons_pointer);
+            });
     }
 }
 

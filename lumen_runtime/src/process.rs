@@ -1,22 +1,28 @@
 #![cfg_attr(not(test), allow(dead_code))]
 ///! The memory specific to a process in the VM.
+use std::alloc::{Alloc, Global};
 use std::sync::Arc;
 use std::sync::RwLock;
 
 use crate::environment::Environment;
 use crate::list::Cons;
 use crate::term::{Tag, Term};
+use crate::tuple::{self, Tuple};
 
-pub struct Process {
+pub struct Process<A: Alloc = Global> {
+    alloc: A,
     environment: Arc<RwLock<Environment>>,
     cons_pointers: Vec<*mut Cons>,
+    tuples: Vec<Tuple>,
 }
 
-impl Process {
-    pub fn new(environment: Arc<RwLock<Environment>>) -> Process {
+impl<A: Alloc> Process<A> {
+    pub fn new_in(alloc: A, environment: Arc<RwLock<Environment>>) -> Self {
         Process {
+            alloc,
             environment,
             cons_pointers: Vec::new(),
+            tuples: Vec::new(),
         }
     }
 
@@ -39,15 +45,30 @@ impl Process {
     pub fn find_or_insert_atom(&mut self, name: &str) -> Term {
         self.environment.write().unwrap().find_or_insert_atom(name)
     }
+
+    pub fn slice_to_tuple(&mut self, slice: &[Term]) -> Tuple {
+        tuple::slice_to_tuple(slice, &mut self.alloc)
+    }
 }
 
-impl Drop for Process {
+impl Process<Global> {
+    pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
+        Self::new_in(Global, environment)
+    }
+}
+
+impl<A: Alloc> Drop for Process<A> {
     fn drop(&mut self) {
         self.cons_pointers
             .drain(..)
             .for_each(|cons_pointer| unsafe {
                 Box::from_raw(cons_pointer);
             });
+
+        let alloc = &mut self.alloc;
+
+        self.tuples.iter().for_each(|t| tuple::dealloc(*t, alloc));
+        self.tuples.clear();
     }
 }
 

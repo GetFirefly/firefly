@@ -1,10 +1,11 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use std::convert::TryFrom;
-use std::convert::TryInto;
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Display;
+use std::alloc::{handle_alloc_error, Alloc, Layout};
+use std::collections::CollectionAllocErr::{self, CapacityOverflow};
+use std::convert::{TryFrom, TryInto};
+use std::fmt::{self, Debug, Display};
+use std::mem;
+use std::ptr::NonNull;
 
 use crate::atom;
 use crate::list::Cons;
@@ -48,8 +49,11 @@ pub enum Tag {
 }
 
 impl Tag {
-    const LIST_MASK: usize = 0b11;
+    const PRIMARY_MASK: usize = 0b11;
+    const BOXED_MASK: usize = Self::PRIMARY_MASK;
+    const LIST_MASK: usize = Self::PRIMARY_MASK;
     const ATOM_BIT_COUNT: u8 = 6;
+    const ARITY_BIT_COUNT: u8 = 6;
 }
 
 pub struct TagError {
@@ -68,7 +72,6 @@ impl Display for TagError {
     }
 }
 
-const PRIMARY_TAG_MASK: usize = 0b11;
 const HEADER_PRIMARY_TAG: usize = 0b00;
 const HEADER_PRIMARY_TAG_MASK: usize = 0b1111_11;
 const IMMEDIATE_PRIMARY_TAG_MASK: usize = 0b11_11;
@@ -78,7 +81,7 @@ impl TryFrom<usize> for Tag {
     type Error = TagError;
 
     fn try_from(bits: usize) -> Result<Self, Self::Error> {
-        match bits & PRIMARY_TAG_MASK {
+        match bits & Tag::PRIMARY_MASK {
             HEADER_PRIMARY_TAG => match bits & HEADER_PRIMARY_TAG_MASK {
                 0b0000_00 => Ok(Tag::Arity),
                 0b0001_00 => Ok(Tag::BinaryAggregate),
@@ -138,10 +141,83 @@ pub enum LengthError {
     SmallIntegerOverflow(SmallIntegerOverflow),
 }
 
+// From https://github.com/rust-lang/rust/blob/d1731801163df1d3a8d4ddfa68adac2ec833ef7f/src/liballoc/raw_vec.rs#L724-L747
+
+// We need to guarantee the following:
+// * We don't ever allocate `> isize::MAX` byte-size objects
+// * We don't overflow `usize::MAX` and actually allocate too little
+//
+// On 64-bit we just need to check for overflow since trying to allocate
+// `> isize::MAX` bytes will surely fail. On 32-bit and 16-bit we need to add
+// an extra guard for this in case we're running on a platform which can use
+// all 4GB in user-space. e.g., PAE or x32
+
+#[inline]
+fn alloc_guard(alloc_size: usize) -> Result<(), CollectionAllocErr> {
+    if mem::size_of::<usize>() < 8 && alloc_size > core::isize::MAX as usize {
+        Err(CapacityOverflow)
+    } else {
+        Ok(())
+    }
+}
+
+fn capacity_overflow() -> ! {
+    panic!("capacity overflow")
+}
+
 impl Term {
+    const MAX_ARITY: usize = std::usize::MAX >> Tag::ARITY_BIT_COUNT;
+
     pub const EMPTY_LIST: Term = Term {
         tagged: Tag::EmptyList as usize,
     };
+
+    pub fn arity(arity: usize) -> Term {
+        if Term::MAX_ARITY < arity {
+            panic!(
+                "Arity ({}) exceeds max arity ({}) that can fit in a Term",
+                arity,
+                Term::MAX_ARITY
+            );
+        }
+
+        Term {
+            tagged: (arity << Tag::ARITY_BIT_COUNT) | Tag::Arity as usize,
+        }
+    }
+
+    pub fn alloc_count(alloc: &mut Alloc, count: usize) -> *mut Term {
+        let layout = Self::layout_count(count);
+
+        match unsafe { alloc.alloc(layout) } {
+            Ok(pointer) => pointer.cast().as_ptr(),
+            Err(_) => handle_alloc_error(layout),
+        }
+    }
+
+    pub fn dealloc_count(alloc: &mut Alloc, pointer: *mut Term, count: usize) {
+        let layout = Self::layout_count(count);
+
+        unsafe {
+            alloc.dealloc(NonNull::new(pointer as *mut u8).unwrap(), layout);
+        }
+    }
+
+    // Based on https://github.com/rust-lang/rust/blob/d1731801163df1d3a8d4ddfa68adac2ec833ef7f/src/liballoc/raw_vec.rs#L79-L109
+    fn layout_count(count: usize) -> Layout {
+        assert_ne!(count, 0);
+
+        let term_size = mem::size_of::<Term>();
+        let alloc_size = count
+            .checked_mul(term_size)
+            .unwrap_or_else(|| capacity_overflow());
+        alloc_guard(alloc_size).unwrap_or_else(|_| capacity_overflow());
+
+        assert_ne!(alloc_size, 0);
+
+        let align = mem::align_of::<Term>();
+        Layout::from_size_align(alloc_size, align).unwrap()
+    }
 
     pub fn cons(head: Term, tail: Term, process: &mut Process) -> Term {
         let pointer_bits = process.cons(head, tail) as usize;
@@ -231,6 +307,10 @@ impl Term {
         .into_process(&mut process)
     }
 
+    pub fn is_tuple(&self, mut process: &mut Process) -> Term {
+        (self.tag() == Tag::Boxed && self.unbox().tag() == Tag::Arity).into_process(&mut process)
+    }
+
     pub fn length(&self, mut process: &mut Process) -> Result<Term, LengthError> {
         let mut length: usize = 0;
         let mut tail = *self;
@@ -250,6 +330,32 @@ impl Term {
                 }
                 _ => break Err(LengthError::BadArgument(BadArgument)),
             }
+        }
+    }
+
+    pub fn slice_to_tuple(slice: &[Term], process: &mut Process) -> Term {
+        let pointer_bits = process.slice_to_tuple(slice) as usize;
+
+        assert_eq!(
+            pointer_bits & Tag::BOXED_MASK,
+            0,
+            "Boxed tag bit ({:#b}) would overwrite pointer bits ({:#b})",
+            Tag::BOXED_MASK,
+            pointer_bits
+        );
+
+        Term {
+            tagged: pointer_bits | (Tag::Boxed as usize),
+        }
+    }
+
+    fn unbox(&self) -> &Term {
+        match self.tag() {
+            Tag::Boxed => {
+                let pointer = (self.tagged & !(Tag::Boxed as usize)) as *const Term;
+                unsafe { pointer.as_ref() }.unwrap()
+            }
+            tag => panic!("Tagged ({:?}) term ({:?}) cannot be unboxed", tag, self),
         }
     }
 
@@ -313,6 +419,15 @@ impl Debug for SmallIntegerOverflow {
             "Integer ({}) does not fit in small integer range ({}..{})",
             self.value_string, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER
         )
+    }
+}
+
+impl From<Term> for usize {
+    fn from(term: Term) -> Self {
+        match term.tag() {
+            Tag::Arity => term.tagged >> Tag::ARITY_BIT_COUNT,
+            _ => unimplemented!(),
+        }
     }
 }
 
@@ -415,6 +530,27 @@ mod tests {
         use super::*;
 
         #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process = process();
+            let atom_term = process.find_or_insert_atom("atom");
+
+            assert_eq!(atom_term.abs().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            assert_eq!(Term::EMPTY_LIST.abs().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process = process();
+            let list_term = list_term(&mut process);
+
+            assert_eq!(list_term.abs().unwrap_err(), BadArgument);
+        }
+
+        #[test]
         fn with_negative_is_positive() {
             let mut process = process();
 
@@ -433,6 +569,14 @@ mod tests {
             let positive_term = 1usize.try_into_process(&mut process).unwrap();
 
             assert_eq!(positive_term.abs().unwrap(), positive_term);
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+
+            assert_eq!(tuple_term.abs().unwrap_err(), BadArgument);
         }
     }
 
@@ -470,6 +614,14 @@ mod tests {
 
             assert_eq!(small_integer_term.head().unwrap_err(), BadArgument);
         }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+
+            assert_eq!(tuple_term.head().unwrap_err(), BadArgument);
+        }
     }
 
     mod tail {
@@ -505,6 +657,14 @@ mod tests {
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq!(small_integer_term.tail().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+
+            assert_eq!(tuple_term.tail().unwrap_err(), BadArgument);
         }
     }
 
@@ -568,6 +728,15 @@ mod tests {
 
             assert_eq!(small_integer_term.is_atom(&mut process), false_term);
         }
+
+        #[test]
+        fn with_tuple_is_false() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq!(tuple_term.is_atom(&mut process), false_term);
+        }
     }
 
     mod is_empty_list {
@@ -609,6 +778,15 @@ mod tests {
 
             assert_eq!(small_integer_term.is_empty_list(&mut process), false_term);
         }
+
+        #[test]
+        fn with_tuple_is_false() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq!(tuple_term.is_empty_list(&mut process), false_term);
+        }
     }
 
     mod is_integer {
@@ -649,6 +827,15 @@ mod tests {
 
             assert_eq!(zero_term.is_integer(&mut process), true_term);
         }
+
+        #[test]
+        fn with_tuple_is_false() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq!(tuple_term.is_integer(&mut process), false_term);
+        }
     }
 
     mod is_list {
@@ -688,6 +875,64 @@ mod tests {
             let false_term = false.into_process(&mut process);
 
             assert_eq!(small_integer_term.is_list(&mut process), false_term);
+        }
+
+        #[test]
+        fn with_tuple_is_false() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq!(tuple_term.is_list(&mut process), false_term);
+        }
+    }
+
+    mod is_tuple {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_false() {
+            let mut process = process();
+            let atom_term = process.find_or_insert_atom("atom");
+            let false_term = false.into_process(&mut process);
+
+            assert_eq!(atom_term.is_tuple(&mut process), false_term);
+        }
+
+        #[test]
+        fn with_empty_list_is_false() {
+            let mut process = process();
+            let empty_list_term = Term::EMPTY_LIST;
+            let false_term = false.into_process(&mut process);
+
+            assert_eq!(empty_list_term.is_tuple(&mut process), false_term);
+        }
+
+        #[test]
+        fn with_list_is_false() {
+            let mut process = process();
+            let list_term = list_term(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq!(list_term.is_tuple(&mut process), false_term);
+        }
+
+        #[test]
+        fn with_small_integer_is_false() {
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq!(small_integer_term.is_tuple(&mut process), false_term)
+        }
+
+        #[test]
+        fn with_tuple_is_true() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+            let true_term = true.into_process(&mut process);
+
+            assert_eq!(tuple_term.is_tuple(&mut process), true_term);
         }
     }
 
@@ -749,6 +994,17 @@ mod tests {
                 LengthError::BadArgument(BadArgument)
             );
         }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
+            let mut process = process();
+            let tuple_term = tuple_term(&mut process);
+
+            assert_eq!(
+                tuple_term.length(&mut process).unwrap_err(),
+                LengthError::BadArgument(BadArgument)
+            );
+        }
     }
 
     fn process() -> Process {
@@ -764,5 +1020,9 @@ mod tests {
     fn list_term(process: &mut Process) -> Term {
         let head_term = process.find_or_insert_atom("head");
         Term::cons(head_term, Term::EMPTY_LIST, process)
+    }
+
+    fn tuple_term(process: &mut Process) -> Term {
+        Term::slice_to_tuple(&[], process)
     }
 }

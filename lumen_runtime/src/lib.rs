@@ -1,5 +1,9 @@
+// For allocating multiple contiguous terms, like for Tuples.
+#![feature(allocator_api)]
 // for conversion of `usize` to `lumen_runtime::term::Tag`
 #![feature(try_from)]
+// For allocation multiple contiguous terms in `Term::alloc_count`.
+#![feature(try_reserve)]
 // for `lumen_runtime::term::Term`
 #![feature(untagged_unions)]
 
@@ -11,6 +15,7 @@ mod logging;
 mod process;
 mod system;
 mod term;
+mod tuple;
 #[macro_use]
 mod support;
 

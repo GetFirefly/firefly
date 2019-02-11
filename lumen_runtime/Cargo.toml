@@ -9,17 +9,18 @@ edition = "2018"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
-clap = "2.32.0"
-signal-hook = "0.1"
-bus = "2.0"
-xdg = "2.1"
-log = "0.4"
-colored = "1.6"
-lazy_static = "1.2"
-internment = "0.3.6"
-crossbeam = "0.5"
-libc = "0.2"
 bindgen = "0.43"
+bus = "2.0"
+clap = "2.32.0"
+colored = "1.6"
+crossbeam = "0.5"
+internment = "0.3.6"
+lazy_static = "1.2"
+libc = "0.2"
+liblumen_arena = { path = "../liblumen_arena" }
+log = "0.4"
+signal-hook = "0.1"
+xdg = "2.1"
 
 [target.'cfg(unix)'.dependencies]
 rand = "0.6"

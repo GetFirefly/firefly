@@ -2,7 +2,10 @@
 
 use crate::term::Term;
 
+pub type List = *const Term;
+
 /// A cons cell in a list
+#[repr(C)]
 pub struct Cons {
     head: Term,
     tail: Term,

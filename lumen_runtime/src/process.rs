@@ -1,39 +1,36 @@
 #![cfg_attr(not(test), allow(dead_code))]
 ///! The memory specific to a process in the VM.
-use std::alloc::{Alloc, Global};
 use std::sync::Arc;
 use std::sync::RwLock;
 
+use liblumen_arena::TypedArena;
+
 use crate::environment::Environment;
-use crate::list::Cons;
+use crate::list::List;
 use crate::term::{Tag, Term};
 use crate::tuple::{self, Tuple};
 
-pub struct Process<A: Alloc = Global> {
-    alloc: A,
+pub struct Process {
     environment: Arc<RwLock<Environment>>,
-    cons_pointers: Vec<*mut Cons>,
-    tuples: Vec<Tuple>,
+    term_arena: TypedArena<Term>,
 }
 
-impl<A: Alloc> Process<A> {
-    pub fn new_in(alloc: A, environment: Arc<RwLock<Environment>>) -> Self {
+impl Process {
+    pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
         Process {
-            alloc,
             environment,
-            cons_pointers: Vec::new(),
-            tuples: Vec::new(),
+            term_arena: Default::default(),
         }
     }
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
     /// is a list `Term` (`Term.tag` is `Tag::List`) or empty list (`Term.tag` is `Tag::EmptyList`).
-    pub fn cons(&mut self, head: Term, tail: Term) -> *const Cons {
-        let pointer = Box::leak(Box::new(Cons::new(head, tail)));
+    pub fn cons(&mut self, head: Term, tail: Term) -> List {
+        let mut term_vector = Vec::with_capacity(2);
+        term_vector.push(head);
+        term_vector.push(tail);
 
-        self.cons_pointers.push(pointer);
-
-        return pointer;
+        Term::alloc_slice(term_vector.as_slice(), &mut self.term_arena)
     }
 
     pub fn atom_to_string(&self, term: &Term) -> String {
@@ -47,28 +44,7 @@ impl<A: Alloc> Process<A> {
     }
 
     pub fn slice_to_tuple(&mut self, slice: &[Term]) -> Tuple {
-        tuple::slice_to_tuple(slice, &mut self.alloc)
-    }
-}
-
-impl Process<Global> {
-    pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
-        Self::new_in(Global, environment)
-    }
-}
-
-impl<A: Alloc> Drop for Process<A> {
-    fn drop(&mut self) {
-        self.cons_pointers
-            .drain(..)
-            .for_each(|cons_pointer| unsafe {
-                Box::from_raw(cons_pointer);
-            });
-
-        let alloc = &mut self.alloc;
-
-        self.tuples.iter().for_each(|t| tuple::dealloc(*t, alloc));
-        self.tuples.clear();
+        tuple::slice_to_tuple(slice, &mut self.term_arena)
     }
 }
 

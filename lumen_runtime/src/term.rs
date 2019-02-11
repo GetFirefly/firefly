@@ -1,11 +1,9 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use std::alloc::{handle_alloc_error, Alloc, Layout};
-use std::collections::CollectionAllocErr::{self, CapacityOverflow};
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Debug, Display};
-use std::mem;
-use std::ptr::NonNull;
+
+use liblumen_arena::TypedArena;
 
 use crate::atom;
 use crate::list::Cons;
@@ -141,30 +139,6 @@ pub enum LengthError {
     SmallIntegerOverflow(SmallIntegerOverflow),
 }
 
-// From https://github.com/rust-lang/rust/blob/d1731801163df1d3a8d4ddfa68adac2ec833ef7f/src/liballoc/raw_vec.rs#L724-L747
-
-// We need to guarantee the following:
-// * We don't ever allocate `> isize::MAX` byte-size objects
-// * We don't overflow `usize::MAX` and actually allocate too little
-//
-// On 64-bit we just need to check for overflow since trying to allocate
-// `> isize::MAX` bytes will surely fail. On 32-bit and 16-bit we need to add
-// an extra guard for this in case we're running on a platform which can use
-// all 4GB in user-space. e.g., PAE or x32
-
-#[inline]
-fn alloc_guard(alloc_size: usize) -> Result<(), CollectionAllocErr> {
-    if mem::size_of::<usize>() < 8 && alloc_size > core::isize::MAX as usize {
-        Err(CapacityOverflow)
-    } else {
-        Ok(())
-    }
-}
-
-fn capacity_overflow() -> ! {
-    panic!("capacity overflow")
-}
-
 impl Term {
     const MAX_ARITY: usize = std::usize::MAX >> Tag::ARITY_BIT_COUNT;
 
@@ -186,37 +160,8 @@ impl Term {
         }
     }
 
-    pub fn alloc_count(alloc: &mut Alloc, count: usize) -> *mut Term {
-        let layout = Self::layout_count(count);
-
-        match unsafe { alloc.alloc(layout) } {
-            Ok(pointer) => pointer.cast().as_ptr(),
-            Err(_) => handle_alloc_error(layout),
-        }
-    }
-
-    pub fn dealloc_count(alloc: &mut Alloc, pointer: *mut Term, count: usize) {
-        let layout = Self::layout_count(count);
-
-        unsafe {
-            alloc.dealloc(NonNull::new(pointer as *mut u8).unwrap(), layout);
-        }
-    }
-
-    // Based on https://github.com/rust-lang/rust/blob/d1731801163df1d3a8d4ddfa68adac2ec833ef7f/src/liballoc/raw_vec.rs#L79-L109
-    fn layout_count(count: usize) -> Layout {
-        assert_ne!(count, 0);
-
-        let term_size = mem::size_of::<Term>();
-        let alloc_size = count
-            .checked_mul(term_size)
-            .unwrap_or_else(|| capacity_overflow());
-        alloc_guard(alloc_size).unwrap_or_else(|_| capacity_overflow());
-
-        assert_ne!(alloc_size, 0);
-
-        let align = mem::align_of::<Term>();
-        Layout::from_size_align(alloc_size, align).unwrap()
+    pub fn alloc_slice(slice: &[Term], term_arena: &mut TypedArena<Term>) -> *const Term {
+        term_arena.alloc_slice(slice).as_ptr()
     }
 
     pub fn cons(head: Term, tail: Term, process: &mut Process) -> Term {

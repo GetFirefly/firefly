@@ -1,47 +1,16 @@
-use std::alloc::Alloc;
-use std::ptr;
+use liblumen_arena::TypedArena;
 
 use crate::term::Term;
 
-pub type Tuple = *mut Term;
+pub type Tuple = *const Term;
 
-pub fn slice_to_tuple(slice: &[Term], alloc: &mut Alloc) -> Tuple {
-    let arity = slice.len();
-    let tuple = alloc_arity(alloc, arity);
-
-    set_arity(tuple, arity);
-
-    for index in 0..arity {
-        set_element(tuple, index, slice[index]);
-    }
-
-    tuple
-}
-
-pub fn dealloc(tuple: Tuple, alloc: &mut Alloc) {
-    Term::dealloc_count(alloc, tuple, 1 + get_arity(tuple))
-}
-
-fn alloc_arity(alloc: &mut Alloc, arity: usize) -> Tuple {
-    Term::alloc_count(alloc, 1 + arity)
-}
-
-fn get_arity(tuple: Tuple) -> usize {
-    let arity_term = unsafe { ptr::read(tuple) };
-
-    arity_term.into()
-}
-
-fn set_arity(tuple: Tuple, arity: usize) {
+pub fn slice_to_tuple(element_slice: &[Term], term_arena: &mut TypedArena<Term>) -> Tuple {
+    let arity = element_slice.len();
     let arity_term = Term::arity(arity);
+    let mut term_vector = Vec::with_capacity(1 + arity);
 
-    unsafe {
-        ptr::write(tuple, arity_term);
-    }
-}
+    term_vector.push(arity_term);
+    term_vector.extend_from_slice(element_slice);
 
-fn set_element(tuple: Tuple, index: usize, element: Term) {
-    unsafe {
-        ptr::write(tuple.offset(1 + index as isize), element);
-    }
+    Term::alloc_slice(term_vector.as_slice(), term_arena)
 }

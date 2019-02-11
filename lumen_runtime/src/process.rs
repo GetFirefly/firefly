@@ -48,16 +48,6 @@ impl Process {
     }
 }
 
-/// Like `std::convert::TryInto`, but additionally takes `&mut Process` in case it is needed to
-/// lookup or create new values in the `Process`.
-pub trait TryIntoProcess<T> {
-    /// The type return in the event of a conversion error.
-    type Error;
-
-    /// Performs the conversion.
-    fn try_into_process(self, process: &mut Process) -> Result<T, Self::Error>;
-}
-
 /// Like `std::convert::Into`, but additionally takes `&mut Process` in case it is needed to
 /// lookup or create new values in the `Process`.
 pub trait IntoProcess<T> {

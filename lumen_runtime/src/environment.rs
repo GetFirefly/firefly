@@ -25,16 +25,6 @@ impl Environment {
     }
 }
 
-/// Like `std::convert::TryInto`, but additionally takes `&mut Environment` in case it is needed to
-/// lookup or create new values in the `Environment`.
-pub trait TryIntoEnvironment<T> {
-    /// THe type return in the event of a conversion error.
-    type Error;
-
-    /// Performs the conversion.
-    fn try_into_environment(self, environment: &mut Environment) -> Result<T, Self::Error>;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

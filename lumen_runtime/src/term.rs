@@ -7,7 +7,7 @@ use liblumen_arena::TypedArena;
 
 use crate::atom;
 use crate::list::Cons;
-use crate::process::{IntoProcess, Process, TryIntoProcess};
+use crate::process::{IntoProcess, Process};
 
 impl From<&Term> for atom::Index {
     fn from(term: &Term) -> atom::Index {
@@ -133,12 +133,6 @@ impl Debug for BadArgument {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum LengthError {
-    BadArgument(BadArgument),
-    SmallIntegerOverflow(SmallIntegerOverflow),
-}
-
 impl Term {
     const MAX_ARITY: usize = std::usize::MAX >> Tag::ARITY_BIT_COUNT;
 
@@ -256,24 +250,18 @@ impl Term {
         (self.tag() == Tag::Boxed && self.unbox().tag() == Tag::Arity).into_process(&mut process)
     }
 
-    pub fn length(&self, mut process: &mut Process) -> Result<Term, LengthError> {
+    pub fn length(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
         let mut length: usize = 0;
         let mut tail = *self;
 
         loop {
             match tail.tag() {
-                Tag::EmptyList => {
-                    break length
-                        .try_into_process(&mut process)
-                        .map_err(|small_integer_overflow| {
-                            LengthError::SmallIntegerOverflow(small_integer_overflow)
-                        });
-                }
+                Tag::EmptyList => break Ok(length.into_process(&mut process)),
                 Tag::List => {
                     tail = tail.tail().unwrap();
                     length += 1;
                 }
-                _ => break Err(LengthError::BadArgument(BadArgument)),
+                _ => break Err(BadArgument),
             }
         }
     }
@@ -348,24 +336,9 @@ impl From<&Term> for isize {
     }
 }
 
-#[derive(PartialEq)]
-pub struct SmallIntegerOverflow {
-    value_string: String,
-}
-
 const SMALL_INTEGER_TAG_BIT_COUNT: u8 = 4;
 const MIN_SMALL_INTEGER: isize = std::isize::MIN >> SMALL_INTEGER_TAG_BIT_COUNT;
 const MAX_SMALL_INTEGER: isize = std::isize::MAX >> SMALL_INTEGER_TAG_BIT_COUNT;
-
-impl Debug for SmallIntegerOverflow {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            formatter,
-            "Integer ({}) does not fit in small integer range ({}..{})",
-            self.value_string, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER
-        )
-    }
-}
 
 impl From<Term> for usize {
     fn from(term: Term) -> Self {
@@ -376,36 +349,31 @@ impl From<Term> for usize {
     }
 }
 
-impl TryIntoProcess<Term> for isize {
-    type Error = SmallIntegerOverflow;
-
-    fn try_into_process(self: Self, _process: &mut Process) -> Result<Term, SmallIntegerOverflow> {
+impl IntoProcess<Term> for isize {
+    fn into_process(self: Self, _process: &mut Process) -> Term {
         if MIN_SMALL_INTEGER <= self && self <= MAX_SMALL_INTEGER {
-            Ok(Term {
+            Term {
                 tagged: ((self as usize) << SMALL_INTEGER_TAG_BIT_COUNT)
                     | (Tag::SmallInteger as usize),
-            })
+            }
         } else {
-            Err(SmallIntegerOverflow {
-                value_string: self.to_string(),
-            })
+            panic!("isize ({}) is not between the min small integer ({}) and max small integer ({}), inclusive", self, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER);
         }
     }
 }
 
-impl TryIntoProcess<Term> for usize {
-    type Error = SmallIntegerOverflow;
-
-    fn try_into_process(self: Self, _process: &mut Process) -> Result<Term, SmallIntegerOverflow> {
+impl IntoProcess<Term> for usize {
+    fn into_process(self: Self, _process: &mut Process) -> Term {
         if self <= (MAX_SMALL_INTEGER as usize) {
-            Ok(Term {
+            Term {
                 tagged: ((self as usize) << SMALL_INTEGER_TAG_BIT_COUNT)
                     | (Tag::SmallInteger as usize),
-            })
+            }
         } else {
-            Err(SmallIntegerOverflow {
-                value_string: self.to_string(),
-            })
+            panic!(
+                "usize ({}) is greater than max small integer ({})",
+                self, MAX_SMALL_INTEGER
+            );
         }
     }
 }
@@ -500,10 +468,10 @@ mod tests {
             let mut process = process();
 
             let negative: isize = -1;
-            let negative_term = negative.try_into_process(&mut process).unwrap();
+            let negative_term = negative.into_process(&mut process);
 
             let positive = -negative;
-            let positive_term = positive.try_into_process(&mut process).unwrap();
+            let positive_term = positive.into_process(&mut process);
 
             assert_eq!(negative_term.abs().unwrap(), positive_term);
         }
@@ -511,7 +479,7 @@ mod tests {
         #[test]
         fn with_positive_is_self() {
             let mut process = process();
-            let positive_term = 1usize.try_into_process(&mut process).unwrap();
+            let positive_term = 1usize.into_process(&mut process);
 
             assert_eq!(positive_term.abs().unwrap(), positive_term);
         }
@@ -767,7 +735,7 @@ mod tests {
         #[test]
         fn with_small_integer_is_true() {
             let mut process = process();
-            let zero_term = 0usize.try_into_process(&mut process).unwrap();
+            let zero_term = 0usize.into_process(&mut process);
             let true_term = true.into_process(&mut process);
 
             assert_eq!(zero_term.is_integer(&mut process), true_term);
@@ -889,10 +857,7 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(
-                atom_term.length(&mut process).unwrap_err(),
-                LengthError::BadArgument(BadArgument)
-            );
+            assert_eq!(atom_term.length(&mut process).unwrap_err(), BadArgument);
         }
 
         #[test]
@@ -912,7 +877,7 @@ mod tests {
 
             assert_eq!(
                 improper_list_term.length(&mut process).unwrap_err(),
-                LengthError::BadArgument(BadArgument)
+                BadArgument
             );
         }
 
@@ -936,7 +901,7 @@ mod tests {
 
             assert_eq!(
                 small_integer_term.length(&mut process).unwrap_err(),
-                LengthError::BadArgument(BadArgument)
+                BadArgument
             );
         }
 
@@ -945,10 +910,7 @@ mod tests {
             let mut process = process();
             let tuple_term = tuple_term(&mut process);
 
-            assert_eq!(
-                tuple_term.length(&mut process).unwrap_err(),
-                LengthError::BadArgument(BadArgument)
-            );
+            assert_eq!(tuple_term.length(&mut process).unwrap_err(), BadArgument);
         }
     }
 
@@ -959,7 +921,7 @@ mod tests {
     }
 
     fn small_integer_term(mut process: &mut Process, signed_size: isize) -> Term {
-        signed_size.try_into_process(&mut process).unwrap()
+        signed_size.into_process(&mut process)
     }
 
     fn list_term(process: &mut Process) -> Term {

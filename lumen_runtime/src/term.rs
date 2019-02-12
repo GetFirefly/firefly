@@ -8,6 +8,7 @@ use liblumen_arena::TypedArena;
 use crate::atom;
 use crate::list::Cons;
 use crate::process::{IntoProcess, Process};
+use crate::tuple::Tuple;
 
 impl From<&Term> for atom::Index {
     fn from(term: &Term) -> atom::Index {
@@ -154,6 +155,21 @@ impl Term {
         }
     }
 
+    pub fn arity_to_integer(&self) -> Term {
+        const TAG_ARITY: usize = Tag::Arity as usize;
+
+        assert_eq!(
+            self.tagged & TAG_ARITY,
+            TAG_ARITY,
+            "Term ({:?}) is not a tuple arity",
+            self
+        );
+
+        // Tag::ARITY_BIT_COUNT > Tag::SMALL_INTEGER_BIT_COUNT, so any arity MUST fit into a term
+        // and not need `into_process` for allocation.
+        ((self.tagged & !(TAG_ARITY)) >> Tag::ARITY_BIT_COUNT).into()
+    }
+
     pub fn alloc_slice(slice: &[Term], term_arena: &mut TypedArena<Term>) -> *const Term {
         term_arena.alloc_slice(slice).as_ptr()
     }
@@ -266,8 +282,22 @@ impl Term {
         }
     }
 
+    pub fn size(&self) -> Result<Term, BadArgument> {
+        match self.tag() {
+            Tag::Boxed => {
+                let unboxed = self.unbox();
+
+                match unboxed.tag() {
+                    Tag::Arity => Ok(<&Tuple>::from(unboxed).size()),
+                    _ => Err(BadArgument),
+                }
+            }
+            _ => Err(BadArgument),
+        }
+    }
+
     pub fn slice_to_tuple(slice: &[Term], process: &mut Process) -> Term {
-        let pointer_bits = process.slice_to_tuple(slice) as usize;
+        let pointer_bits = process.slice_to_tuple(slice) as *const Tuple as usize;
 
         assert_eq!(
             pointer_bits & Tag::BOXED_MASK,
@@ -325,7 +355,7 @@ impl From<Term> for &Cons {
 }
 
 impl From<&Term> for isize {
-    fn from(term: &Term) -> isize {
+    fn from(term: &Term) -> Self {
         match term.tag() {
             Tag::SmallInteger => (term.tagged as isize) >> SMALL_INTEGER_TAG_BIT_COUNT,
             tag => panic!(
@@ -333,6 +363,27 @@ impl From<&Term> for isize {
                 tag, term
             ),
         }
+    }
+}
+
+impl From<&Term> for *const Tuple {
+    fn from(term: &Term) -> Self {
+        assert_eq!(
+            term.tag(),
+            Tag::Arity,
+            "Term ({:?}) cannot be converted to &Tuple because it is not tagged as an arity ({:b})",
+            term,
+            Tag::Arity as usize
+        );
+
+        term as *const Term as *const Tuple
+    }
+}
+
+impl From<&Term> for &Tuple {
+    fn from(term: &Term) -> Self {
+        let pointer: *const Tuple = term.into();
+        unsafe { &*pointer }
     }
 }
 
@@ -345,6 +396,21 @@ impl From<Term> for usize {
         match term.tag() {
             Tag::Arity => term.tagged >> Tag::ARITY_BIT_COUNT,
             _ => unimplemented!(),
+        }
+    }
+}
+
+impl From<usize> for Term {
+    fn from(u: usize) -> Self {
+        if u <= (MAX_SMALL_INTEGER as usize) {
+            Term {
+                tagged: (u << SMALL_INTEGER_TAG_BIT_COUNT) | (Tag::SmallInteger as usize),
+            }
+        } else {
+            panic!(
+                "usize ({}) is greater than max small integer ({})",
+                u, MAX_SMALL_INTEGER
+            );
         }
     }
 }
@@ -364,17 +430,7 @@ impl IntoProcess<Term> for isize {
 
 impl IntoProcess<Term> for usize {
     fn into_process(self: Self, _process: &mut Process) -> Term {
-        if self <= (MAX_SMALL_INTEGER as usize) {
-            Term {
-                tagged: ((self as usize) << SMALL_INTEGER_TAG_BIT_COUNT)
-                    | (Tag::SmallInteger as usize),
-            }
-        } else {
-            panic!(
-                "usize ({}) is greater than max small integer ({})",
-                self, MAX_SMALL_INTEGER
-            );
-        }
+        self.into()
     }
 }
 
@@ -418,7 +474,9 @@ impl std::cmp::PartialEq for Term {
 
         if tag == other.tag() {
             match tag {
-                Tag::Atom | Tag::EmptyList | Tag::SmallInteger => self.tagged == other.tagged,
+                Tag::Arity | Tag::Atom | Tag::EmptyList | Tag::SmallInteger => {
+                    self.tagged == other.tagged
+                }
                 _ => unimplemented!(),
             }
         } else {
@@ -911,6 +969,60 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
 
             assert_eq!(tuple_term.length(&mut process).unwrap_err(), BadArgument);
+        }
+    }
+
+    mod size {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process = process();
+            let atom_term = process.find_or_insert_atom("atom");
+
+            assert_eq!(atom_term.size().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            assert_eq!(Term::EMPTY_LIST.size().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process = process();
+            let list_term = list_term(&mut process);
+
+            assert_eq!(list_term.size().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+
+            assert_eq!(small_integer_term.size().unwrap_err(), BadArgument);
+        }
+
+        #[test]
+        fn with_tuple_without_elements_is_zero() {
+            let mut process = process();
+            let empty_tuple_term = tuple_term(&mut process);
+            let zero_term = 0usize.into_process(&mut process);
+
+            assert_eq!(empty_tuple_term.size().unwrap(), zero_term);
+        }
+
+        #[test]
+        fn with_tuple_with_elements_is_element_count() {
+            let mut process = process();
+            let element_vec: Vec<Term> =
+                (0..=2usize).map(|i| i.into_process(&mut process)).collect();
+            let element_slice: &[Term] = element_vec.as_slice();
+            let tuple_term = Term::slice_to_tuple(element_slice, &mut process);
+            let arity_term = 3usize.into_process(&mut process);
+
+            assert_eq!(tuple_term.size().unwrap(), arity_term);
         }
     }
 

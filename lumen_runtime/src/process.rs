@@ -1,14 +1,13 @@
 #![cfg_attr(not(test), allow(dead_code))]
 ///! The memory specific to a process in the VM.
-use std::sync::Arc;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use liblumen_arena::TypedArena;
 
 use crate::environment::Environment;
 use crate::list::List;
 use crate::term::{Tag, Term};
-use crate::tuple::{self, Tuple};
+use crate::tuple::Tuple;
 
 pub struct Process {
     environment: Arc<RwLock<Environment>>,
@@ -43,8 +42,8 @@ impl Process {
         self.environment.write().unwrap().find_or_insert_atom(name)
     }
 
-    pub fn slice_to_tuple(&mut self, slice: &[Term]) -> Tuple {
-        tuple::slice_to_tuple(slice, &mut self.term_arena)
+    pub fn slice_to_tuple(&mut self, slice: &[Term]) -> &Tuple {
+        Tuple::from_slice(slice, &mut self.term_arena)
     }
 }
 

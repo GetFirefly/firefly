@@ -8,7 +8,7 @@ use liblumen_arena::TypedArena;
 use crate::atom;
 use crate::list::Cons;
 use crate::process::{IntoProcess, Process};
-use crate::tuple::Tuple;
+use crate::tuple::{Element, Tuple};
 
 impl From<&Term> for atom::Index {
     fn from(term: &Term) -> atom::Index {
@@ -53,6 +53,7 @@ impl Tag {
     const LIST_MASK: usize = Self::PRIMARY_MASK;
     const ATOM_BIT_COUNT: u8 = 6;
     const ARITY_BIT_COUNT: u8 = 6;
+    const SMALL_INTEGER_BIT_COUNT: u8 = 4;
 }
 
 pub struct TagError {
@@ -283,17 +284,7 @@ impl Term {
     }
 
     pub fn size(&self) -> Result<Term, BadArgument> {
-        match self.tag() {
-            Tag::Boxed => {
-                let unboxed = self.unbox();
-
-                match unboxed.tag() {
-                    Tag::Arity => Ok(<&Tuple>::from(unboxed).size()),
-                    _ => Err(BadArgument),
-                }
-            }
-            _ => Err(BadArgument),
-        }
+        Ok(<&Tuple>::try_from(self)?.size())
     }
 
     pub fn slice_to_tuple(slice: &[Term], process: &mut Process) -> Term {
@@ -341,6 +332,21 @@ impl Debug for Term {
     }
 }
 
+impl Element<Term> for Term {
+    fn element(&self, index: Term) -> Result<Term, BadArgument> {
+        <&Tuple>::try_from(self)?.element(index)
+    }
+}
+
+impl Element<Term> for Tuple {
+    fn element(&self, index: Term) -> Result<Term, BadArgument> {
+        match index.tag() {
+            Tag::SmallInteger => self.element(usize::from(index)),
+            _ => Err(BadArgument),
+        }
+    }
+}
+
 impl From<Term> for *const Cons {
     fn from(term: Term) -> Self {
         (term.tagged & !(Tag::List as usize)) as *const Cons
@@ -366,27 +372,6 @@ impl From<&Term> for isize {
     }
 }
 
-impl From<&Term> for *const Tuple {
-    fn from(term: &Term) -> Self {
-        assert_eq!(
-            term.tag(),
-            Tag::Arity,
-            "Term ({:?}) cannot be converted to &Tuple because it is not tagged as an arity ({:b})",
-            term,
-            Tag::Arity as usize
-        );
-
-        term as *const Term as *const Tuple
-    }
-}
-
-impl From<&Term> for &Tuple {
-    fn from(term: &Term) -> Self {
-        let pointer: *const Tuple = term.into();
-        unsafe { &*pointer }
-    }
-}
-
 const SMALL_INTEGER_TAG_BIT_COUNT: u8 = 4;
 const MIN_SMALL_INTEGER: isize = std::isize::MIN >> SMALL_INTEGER_TAG_BIT_COUNT;
 const MAX_SMALL_INTEGER: isize = std::isize::MAX >> SMALL_INTEGER_TAG_BIT_COUNT;
@@ -395,6 +380,15 @@ impl From<Term> for usize {
     fn from(term: Term) -> Self {
         match term.tag() {
             Tag::Arity => term.tagged >> Tag::ARITY_BIT_COUNT,
+            Tag::SmallInteger => {
+                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
+
+                if 0 <= term_isize {
+                    term_isize as usize
+                } else {
+                    panic!("Term ({:?}) contains negative small integer ({}) that can't be converted to usize", term, term_isize);
+                }
+            }
             _ => unimplemented!(),
         }
     }
@@ -444,6 +438,21 @@ impl From<atom::Index> for Term {
             }
         } else {
             panic!("index ({}) in atom table exceeds max index that can be tagged as an atom in a Term ({})", atom_index.0, MAX_ATOM_INDEX)
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a Term> for &'a Tuple {
+    type Error = BadArgument;
+
+    fn try_from(term: &Term) -> Result<&Tuple, BadArgument> {
+        match term.tag() {
+            Tag::Arity => {
+                let pointer = term as *const Term as *const Tuple;
+                Ok(unsafe { pointer.as_ref() }.unwrap())
+            }
+            Tag::Boxed => term.unbox().try_into(),
+            _ => Err(BadArgument),
         }
     }
 }
@@ -548,6 +557,73 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
 
             assert_eq!(tuple_term.abs().unwrap_err(), BadArgument);
+        }
+    }
+
+    mod element {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process = process();
+            let atom_term = process.find_or_insert_atom("atom");
+
+            assert_eq!(atom_term.element(0.into()), Err(BadArgument));
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            assert_eq!(Term::EMPTY_LIST.element(0.into()), Err(BadArgument));
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process = process();
+            let list_term = list_term(&mut process);
+
+            assert_eq!(list_term.element(0.into()), Err(BadArgument));
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+
+            assert_eq!(small_integer_term.element(0.into()), Err(BadArgument));
+        }
+
+        #[test]
+        fn with_tuple_without_small_integer_index_is_bad_argument() {
+            let mut process = process();
+            let element_term = 1.into();
+            let tuple_term = Term::slice_to_tuple(&[element_term], &mut process);
+            let index = 0usize;
+            let invalid_index_term = Term::arity(index);
+
+            assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
+            assert_eq!(tuple_term.element(invalid_index_term), Err(BadArgument));
+
+            let valid_index_term = Term::from(index);
+
+            assert_eq!(valid_index_term.tag(), Tag::SmallInteger);
+            assert_eq!(tuple_term.element(valid_index_term), Ok(element_term));
+        }
+
+        #[test]
+        fn with_tuple_without_index_in_range_is_bad_argument() {
+            let mut process = process();
+            let empty_tuple_term = tuple_term(&mut process);
+
+            assert_eq!(empty_tuple_term.element(0.into()), Err(BadArgument));
+        }
+
+        #[test]
+        fn with_tuple_with_index_in_range_is_element() {
+            let mut process = process();
+            let element_term = 1.into();
+            let tuple_term = Term::slice_to_tuple(&[element_term], &mut process);
+
+            assert_eq!(tuple_term.element(0.into()), Ok(element_term));
         }
     }
 

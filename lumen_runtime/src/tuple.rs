@@ -1,6 +1,8 @@
+use std::ops::Index;
+
 use liblumen_arena::TypedArena;
 
-use crate::term::Term;
+use crate::term::{BadArgument, Term};
 
 #[repr(C)]
 pub struct Tuple {
@@ -28,6 +30,35 @@ impl Tuple {
         // The `arity` field is not the same as `size` because `size` is a tagged as a small integer
         // while `arity` is tagged as an `arity` to mark the beginning of a tuple.
         Term::arity_to_integer(&self.arity)
+    }
+}
+
+pub trait Element<T> {
+    fn element(&self, index: T) -> Result<Term, BadArgument>;
+}
+
+impl Element<usize> for Tuple {
+    fn element(&self, index: usize) -> Result<Term, BadArgument> {
+        let arity_usize: usize = self.arity.into();
+
+        if index < arity_usize {
+            Ok(self[index])
+        } else {
+            Err(BadArgument)
+        }
+    }
+}
+
+impl Index<usize> for Tuple {
+    type Output = Term;
+
+    fn index(&self, index: usize) -> &Term {
+        let arity_usize: usize = self.arity.into();
+
+        assert!(index < arity_usize);
+
+        let arity_pointer = self as *const Tuple as *const Term;
+        unsafe { arity_pointer.offset(1 + index as isize).as_ref() }.unwrap()
     }
 }
 
@@ -59,6 +90,26 @@ mod tests {
 
             let element_pointer = unsafe { arity_pointer.offset(1) };
             assert_eq!(unsafe { *element_pointer }, 0.into());
+        }
+    }
+
+    mod element {
+        use super::*;
+
+        #[test]
+        fn without_valid_index() {
+            let mut term_arena: TypedArena<Term> = Default::default();
+            let tuple = Tuple::from_slice(&[], &mut term_arena);
+
+            assert_eq!(tuple.element(0), Err(BadArgument));
+        }
+
+        #[test]
+        fn with_valid_index() {
+            let mut term_arena: TypedArena<Term> = Default::default();
+            let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
+
+            assert_eq!(tuple.element(0), Ok(0.into()));
         }
     }
 

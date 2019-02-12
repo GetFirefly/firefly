@@ -11,7 +11,7 @@ use crate::tuple::Tuple;
 
 pub struct Process {
     environment: Arc<RwLock<Environment>>,
-    term_arena: TypedArena<Term>,
+    pub term_arena: TypedArena<Term>,
 }
 
 impl Process {

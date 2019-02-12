@@ -1,3 +1,4 @@
+use std::cmp::{Eq, PartialEq};
 use std::ops::Index;
 
 use liblumen_arena::TypedArena;
@@ -26,6 +27,46 @@ impl Tuple {
         unsafe { &*pointer }
     }
 
+    pub fn delete_element<'a>(
+        &self,
+        index: usize,
+        mut term_arena: &'a mut TypedArena<Term>,
+    ) -> Result<&'a Tuple, BadArgument> {
+        let arity_usize = usize::from(self.arity);
+
+        if index < arity_usize {
+            let smaller_element_vec: Vec<Term> = self
+                .iter()
+                .enumerate()
+                .filter_map(|(old_index, old_term)| {
+                    if old_index == index {
+                        None
+                    } else {
+                        Some(old_term)
+                    }
+                })
+                .collect();
+            let smaller_tuple_pointer =
+                Tuple::from_slice(smaller_element_vec.as_slice(), &mut term_arena) as *const Tuple;
+
+            Ok(unsafe { &*smaller_tuple_pointer })
+        } else {
+            Err(BadArgument)
+        }
+    }
+
+    pub fn iter(&self) -> Iter {
+        let arity_pointer = self as *const Tuple as *const Term;
+        let arity_isize = usize::from(self.arity) as isize;
+
+        unsafe {
+            Iter {
+                pointer: arity_pointer.offset(1),
+                limit: arity_pointer.offset(1 + arity_isize as isize + 1),
+            }
+        }
+    }
+
     pub fn size(&self) -> Term {
         // The `arity` field is not the same as `size` because `size` is a tagged as a small integer
         // while `arity` is tagged as an `arity` to mark the beginning of a tuple.
@@ -39,7 +80,7 @@ pub trait Element<T> {
 
 impl Element<usize> for Tuple {
     fn element(&self, index: usize) -> Result<Term, BadArgument> {
-        let arity_usize: usize = self.arity.into();
+        let arity_usize = usize::from(self.arity);
 
         if index < arity_usize {
             Ok(self[index])
@@ -48,6 +89,8 @@ impl Element<usize> for Tuple {
         }
     }
 }
+
+impl Eq for Tuple {}
 
 impl Index<usize> for Tuple {
     type Output = Term;
@@ -59,6 +102,42 @@ impl Index<usize> for Tuple {
 
         let arity_pointer = self as *const Tuple as *const Term;
         unsafe { arity_pointer.offset(1 + index as isize).as_ref() }.unwrap()
+    }
+}
+
+pub struct Iter {
+    pointer: *const Term,
+    limit: *const Term,
+}
+
+impl Iterator for Iter {
+    type Item = Term;
+
+    fn next(&mut self) -> Option<Term> {
+        if self.pointer == self.limit {
+            None
+        } else {
+            let old_pointer = self.pointer;
+
+            unsafe {
+                self.pointer = self.pointer.offset(1);
+                old_pointer.as_ref().map(|r| *r)
+            }
+        }
+    }
+}
+
+impl PartialEq for Tuple {
+    fn eq(&self, other: &Tuple) -> bool {
+        (self.arity == other.arity)
+            & self
+                .iter()
+                .zip(other.iter())
+                .all(|(self_element, other_element)| self_element == other_element)
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
     }
 }
 

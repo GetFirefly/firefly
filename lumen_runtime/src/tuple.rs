@@ -4,6 +4,7 @@ use std::ops::Index;
 use liblumen_arena::TypedArena;
 
 use crate::term::{BadArgument, Term};
+use std::fmt::{self, Debug};
 
 #[repr(C)]
 pub struct Tuple {
@@ -11,10 +12,7 @@ pub struct Tuple {
 }
 
 impl Tuple {
-    pub fn from_slice<'a>(
-        element_slice: &[Term],
-        term_arena: &'a mut TypedArena<Term>,
-    ) -> &'a Tuple {
+    pub fn from_slice(element_slice: &[Term], term_arena: &mut TypedArena<Term>) -> &'static Tuple {
         let arity = element_slice.len();
         let arity_term = Term::arity(arity);
         let mut term_vector = Vec::with_capacity(1 + arity);
@@ -27,11 +25,11 @@ impl Tuple {
         unsafe { &*pointer }
     }
 
-    pub fn delete_element<'a>(
+    pub fn delete_element(
         &self,
         index: usize,
-        mut term_arena: &'a mut TypedArena<Term>,
-    ) -> Result<&'a Tuple, BadArgument> {
+        mut term_arena: &mut TypedArena<Term>,
+    ) -> Result<&'static Tuple, BadArgument> {
         let arity_usize = usize::from(self.arity);
 
         if index < arity_usize {
@@ -46,10 +44,42 @@ impl Tuple {
                     }
                 })
                 .collect();
-            let smaller_tuple_pointer =
-                Tuple::from_slice(smaller_element_vec.as_slice(), &mut term_arena) as *const Tuple;
+            let smaller_tuple = Tuple::from_slice(smaller_element_vec.as_slice(), &mut term_arena);
 
-            Ok(unsafe { &*smaller_tuple_pointer })
+            Ok(smaller_tuple)
+        } else {
+            Err(BadArgument)
+        }
+    }
+
+    pub fn insert_element(
+        &self,
+        index: usize,
+        element: Term,
+        mut term_arena: &mut TypedArena<Term>,
+    ) -> Result<&'static Tuple, BadArgument> {
+        let arity_usize = usize::from(self.arity);
+
+        // can be equal to arity when insertion is at the end
+        if index <= arity_usize {
+            let new_arity_usize = arity_usize + 1;
+            let mut larger_element_vec = Vec::with_capacity(new_arity_usize);
+
+            for (current_index, current_element) in self.iter().enumerate() {
+                if current_index == index {
+                    larger_element_vec.push(element);
+                }
+
+                larger_element_vec.push(current_element);
+            }
+
+            if index == arity_usize {
+                larger_element_vec.push(element);
+            }
+
+            let tuple = Tuple::from_slice(larger_element_vec.as_slice(), &mut term_arena);
+
+            Ok(tuple)
         } else {
             Err(BadArgument)
         }
@@ -62,7 +92,7 @@ impl Tuple {
         unsafe {
             Iter {
                 pointer: arity_pointer.offset(1),
-                limit: arity_pointer.offset(1 + arity_isize as isize + 1),
+                limit: arity_pointer.offset(1 + arity_isize as isize),
             }
         }
     }
@@ -71,6 +101,24 @@ impl Tuple {
         // The `arity` field is not the same as `size` because `size` is a tagged as a small integer
         // while `arity` is tagged as an `arity` to mark the beginning of a tuple.
         Term::arity_to_integer(&self.arity)
+    }
+}
+
+impl Debug for Tuple {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "Tuple::from_slice(&[")?;
+
+        let mut iter = self.iter();
+
+        if let Some(first_element) = iter.next() {
+            write!(formatter, "{:?}", first_element)?;
+
+            for element in iter {
+                write!(formatter, ", {:?}", element)?;
+            }
+        }
+
+        write!(formatter, "])")
     }
 }
 
@@ -189,6 +237,51 @@ mod tests {
             let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
 
             assert_eq!(tuple.element(0), Ok(0.into()));
+        }
+    }
+
+    mod eq {
+        use super::*;
+
+        #[test]
+        fn without_element() {
+            let mut term_arena: TypedArena<Term> = Default::default();
+            let tuple = Tuple::from_slice(&[], &mut term_arena);
+            let equal = Tuple::from_slice(&[], &mut term_arena);
+
+            assert_eq!(tuple, tuple);
+            assert_eq!(tuple, equal);
+        }
+
+        #[test]
+        fn with_unequal_length() {
+            let mut term_arena: TypedArena<Term> = Default::default();
+            let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
+            let unequal = Tuple::from_slice(&[0.into(), 1.into()], &mut term_arena);
+
+            assert_ne!(tuple, unequal);
+        }
+    }
+
+    mod iter {
+        use super::*;
+
+        #[test]
+        fn without_elements() {
+            let mut term_arena: TypedArena<Term> = Default::default();
+            let tuple = Tuple::from_slice(&[], &mut term_arena);
+
+            assert_eq!(tuple.iter().count(), 0);
+            assert_eq!(tuple.iter().count(), tuple.size().into());
+        }
+
+        #[test]
+        fn with_elements() {
+            let mut term_arena: TypedArena<Term> = Default::default();
+            let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
+
+            assert_eq!(tuple.iter().count(), 1);
+            assert_eq!(tuple.iter().count(), tuple.size().into());
         }
     }
 

@@ -312,11 +312,37 @@ impl Term {
 impl Debug for Term {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self.tag() {
+            Tag::Arity => write!(formatter, "Term::arity({:?})", Term::arity_to_integer(self)),
+            Tag::Boxed => {
+                let unboxed = self.unbox();
+
+                match unboxed.tag() {
+                    Tag::Arity => {
+                        let tuple: &Tuple = unboxed.try_into().unwrap();
+
+                        write!(formatter, "Term::slice_to_tuple(&[")?;
+
+                        let mut iter = tuple.iter();
+
+                        if let Some(first_element) = iter.next() {
+                            write!(formatter, "{:?}", first_element)?;
+
+                            for element in iter {
+                                write!(formatter, ", {:?}", element)?;
+                            }
+                        }
+
+                        write!(formatter, "], &mut process)")
+                    }
+                    _ => unimplemented!(),
+                }
+            }
+            Tag::EmptyList => write!(formatter, "Term::EMPTY_LIST"),
             Tag::List => {
                 let cons: &Cons = self.try_into().unwrap();
                 write!(
                     formatter,
-                    "Term::cons({:?}, {:?}, process)",
+                    "Term::cons({:?}, {:?}, &mut process)",
                     cons.head(),
                     cons.tail()
                 )
@@ -448,6 +474,42 @@ impl From<usize> for Term {
     }
 }
 
+trait InsertElement<T> {
+    fn insert_element(
+        &self,
+        index: T,
+        element: Term,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument>;
+}
+
+impl InsertElement<Term> for Term {
+    fn insert_element(
+        &self,
+        index: Term,
+        element: Term,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        InsertElement::insert_element(<&Tuple>::try_from(self)?, index, element, &mut process)
+    }
+}
+
+impl InsertElement<Term> for Tuple {
+    fn insert_element(
+        &self,
+        index: Term,
+        element: Term,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        match index.tag() {
+            Tag::SmallInteger => self
+                .insert_element(usize::from(index), element, &mut process.term_arena)
+                .map(|tuple| tuple.into()),
+            _ => Err(BadArgument),
+        }
+    }
+}
+
 impl IntoProcess<Term> for isize {
     fn into_process(self: Self, _process: &mut Process) -> Term {
         if MIN_SMALL_INTEGER <= self && self <= MAX_SMALL_INTEGER {
@@ -544,29 +606,25 @@ impl std::cmp::PartialEq for Term {
                     Tag::Arity | Tag::Atom | Tag::EmptyList | Tag::SmallInteger => false,
                     Tag::Boxed => {
                         let self_unboxed = self.unbox();
-                        let other_unboxed = self.unbox();
+                        let other_unboxed = other.unbox();
 
-                        if self_unboxed.tagged == other_unboxed.tagged {
-                            true
-                        } else {
-                            let self_unboxed_tag = self_unboxed.tag();
+                        let self_unboxed_tag = self_unboxed.tag();
 
-                            if self_unboxed_tag == other_unboxed.tag() {
-                                match self_unboxed_tag {
-                                    Tag::Arity => {
-                                        let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
-                                        let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
+                        if self_unboxed_tag == other_unboxed.tag() {
+                            match self_unboxed_tag {
+                                Tag::Arity => {
+                                    let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
+                                    let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
 
-                                        self_tuple == other_tuple
-                                    }
-                                    tag => unimplemented!(
-                                        "std::cmp::PartialEq.eq unimplemented for boxed tag ({:?})",
-                                        tag
-                                    ),
+                                    self_tuple == other_tuple
                                 }
-                            } else {
-                                false
+                                tag => unimplemented!(
+                                    "std::cmp::PartialEq.eq unimplemented for boxed tag ({:?})",
+                                    tag
+                                ),
                             }
+                        } else {
+                            false
                         }
                     }
                     Tag::List => {
@@ -890,6 +948,18 @@ mod tests {
             assert_ne!(list_term, shorter_list_term);
             assert_ne!(list_term, longer_list_term);
         }
+
+        #[test]
+        fn with_tuples_of_unequal_length() {
+            let mut process = process();
+            let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
+            let equal_term = Term::slice_to_tuple(&[0.into()], &mut process);
+            let unequal_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
+
+            assert_eq!(tuple_term, tuple_term);
+            assert_eq!(tuple_term, equal_term);
+            assert_ne!(tuple_term, unequal_term);
+        }
     }
 
     mod head {
@@ -977,6 +1047,114 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
 
             assert_eq!(tuple_term.tail().unwrap_err(), BadArgument);
+        }
+    }
+
+    mod insert_element {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process = process();
+            let atom_term = process.find_or_insert_atom("atom");
+
+            assert_eq!(
+                atom_term.insert_element(0.into(), 0.into(), &mut process),
+                Err(BadArgument)
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process = process();
+
+            assert_eq!(
+                Term::EMPTY_LIST.insert_element(0.into(), 0.into(), &mut process),
+                Err(BadArgument)
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process = process();
+            let list_term = list_term(&mut process);
+
+            assert_eq!(
+                list_term.insert_element(0.into(), 0.into(), &mut process),
+                Err(BadArgument)
+            );
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process = process();
+            let small_integer_term = small_integer_term(&mut process, 0);
+
+            assert_eq!(
+                small_integer_term.insert_element(0.into(), 0.into(), &mut process),
+                Err(BadArgument)
+            );
+        }
+
+        #[test]
+        fn with_tuple_without_small_integer_index_is_bad_argument() {
+            let mut process = process();
+            let tuple_term = Term::slice_to_tuple(&[0.into(), 2.into()], &mut process);
+            let index = 1usize;
+            let invalid_index_term = Term::arity(index);
+
+            assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
+            assert_eq!(
+                tuple_term.insert_element(invalid_index_term, 0.into(), &mut process),
+                Err(BadArgument)
+            );
+
+            let valid_index_term = Term::from(index);
+
+            assert_eq!(valid_index_term.tag(), Tag::SmallInteger);
+            assert_eq!(
+                tuple_term.insert_element(valid_index_term, 1.into(), &mut process),
+                Ok(Term::slice_to_tuple(
+                    &[0.into(), 1.into(), 2.into()],
+                    &mut process
+                ))
+            );
+        }
+
+        #[test]
+        fn with_tuple_without_index_in_range_is_bad_argument() {
+            let mut process = process();
+            let empty_tuple_term = tuple_term(&mut process);
+
+            assert_eq!(
+                empty_tuple_term.insert_element(1.into(), 0.into(), &mut process),
+                Err(BadArgument)
+            );
+        }
+
+        #[test]
+        fn with_tuple_with_index_in_range_returns_tuple_with_new_element_at_index() {
+            let mut process = process();
+            let tuple_term = Term::slice_to_tuple(&[0.into(), 2.into()], &mut process);
+
+            assert_eq!(
+                tuple_term.insert_element(1.into(), 1.into(), &mut process),
+                Ok(Term::slice_to_tuple(
+                    &[0.into(), 1.into(), 2.into()],
+                    &mut process
+                ))
+            );
+        }
+
+        #[test]
+        fn with_tuple_with_index_at_size_return_tuples_with_new_element_at_end() {
+            let mut process = process();
+            let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
+
+            assert_eq!(
+                tuple_term.insert_element(1.into(), 1.into(), &mut process),
+                Ok(Term::slice_to_tuple(&[0.into(), 1.into()], &mut process))
+            )
         }
     }
 

@@ -311,12 +311,24 @@ impl Term {
 
 impl Debug for Term {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            formatter,
-            "Term {{ tagged: 0b{tagged:0bit_count$b} }}",
-            tagged = self.tagged,
-            bit_count = std::mem::size_of::<usize>() * 8
-        )
+        match self.tag() {
+            Tag::List => {
+                let cons: &Cons = self.try_into().unwrap();
+                write!(
+                    formatter,
+                    "Term::cons({:?}, {:?}, process)",
+                    cons.head(),
+                    cons.tail()
+                )
+            }
+            Tag::SmallInteger => write!(formatter, "{:?}.into()", isize::from(self)),
+            _ => write!(
+                formatter,
+                "Term {{ tagged: 0b{tagged:0bit_count$b} }}",
+                tagged = self.tagged,
+                bit_count = std::mem::size_of::<usize>() * 8
+            ),
+        }
     }
 }
 
@@ -484,6 +496,21 @@ impl<'a> TryFrom<&'a Term> for &'a Tuple {
     }
 }
 
+impl<'a> TryFrom<&'a Term> for &'a Cons {
+    type Error = BadArgument;
+
+    fn try_from(term: &Term) -> Result<&Cons, BadArgument> {
+        match term.tag() {
+            Tag::List => {
+                let untagged = term.tagged & !(Tag::List as usize);
+                let pointer = untagged as *const Term as *const Cons;
+                Ok(unsafe { pointer.as_ref() }.unwrap())
+            }
+            _ => Err(BadArgument),
+        }
+    }
+}
+
 /// All terms in Erlang and Elixir are completely ordered.
 ///
 /// number < atom < reference < function < port < pid < tuple < map < list < bitstring
@@ -506,40 +533,55 @@ impl<'a> TryFrom<&'a Term> for &'a Tuple {
 /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
 impl std::cmp::PartialEq for Term {
     fn eq(&self, other: &Self) -> bool {
-        let tag = self.tag();
+        if self.tagged == other.tagged {
+            true
+        } else {
+            let tag = self.tag();
 
-        if tag == other.tag() {
-            match tag {
-                Tag::Arity | Tag::Atom | Tag::EmptyList | Tag::SmallInteger => {
-                    self.tagged == other.tagged
-                }
-                Tag::Boxed => {
-                    let self_unboxed = self.unbox();
-                    let other_unboxed = self.unbox();
+            if tag == other.tag() {
+                match tag {
+                    // If `tagged` isn't equal then the form untagged can't be equal for these tags.
+                    Tag::Arity | Tag::Atom | Tag::EmptyList | Tag::SmallInteger => false,
+                    Tag::Boxed => {
+                        let self_unboxed = self.unbox();
+                        let other_unboxed = self.unbox();
 
-                    let self_unboxed_tag = self_unboxed.tag();
+                        if self_unboxed.tagged == other_unboxed.tagged {
+                            true
+                        } else {
+                            let self_unboxed_tag = self_unboxed.tag();
 
-                    if self_unboxed_tag == other_unboxed.tag() {
-                        match self_unboxed_tag {
-                            Tag::Arity => {
-                                let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
-                                let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
+                            if self_unboxed_tag == other_unboxed.tag() {
+                                match self_unboxed_tag {
+                                    Tag::Arity => {
+                                        let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
+                                        let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
 
-                                self_tuple == other_tuple
+                                        self_tuple == other_tuple
+                                    }
+                                    tag => unimplemented!(
+                                        "std::cmp::PartialEq.eq unimplemented for boxed tag ({:?})",
+                                        tag
+                                    ),
+                                }
+                            } else {
+                                false
                             }
-                            tag => unimplemented!(
-                                "std::cmp::PartialEq.eq unimplemented for boxed tag ({:?})",
-                                tag
-                            ),
                         }
-                    } else {
-                        false
+                    }
+                    Tag::List => {
+                        let self_cons: &Cons = self.try_into().unwrap();
+                        let other_cons: &Cons = other.try_into().unwrap();
+
+                        self_cons == other_cons
+                    }
+                    tag => {
+                        unimplemented!("std::cmp::PartialEq.eq unimplemented for tag ({:?})", tag)
                     }
                 }
-                tag => unimplemented!("std::cmp::PartialEq.eq unimplemented for tag ({:?})", tag),
+            } else {
+                false
             }
-        } else {
-            false
         }
     }
 
@@ -765,6 +807,88 @@ mod tests {
             let tuple_term = Term::slice_to_tuple(&[element_term], &mut process);
 
             assert_eq!(tuple_term.element(0.into()), Ok(element_term));
+        }
+    }
+
+    mod eq {
+        use super::*;
+
+        #[test]
+        fn with_improper_list() {
+            let mut process = process();
+            let list_term = Term::cons(0.into(), 1.into(), &mut process);
+            let equal_list_term = Term::cons(0.into(), 1.into(), &mut process);
+            let unequal_list_term = Term::cons(1.into(), 0.into(), &mut process);
+
+            assert_eq!(list_term, list_term);
+            assert_eq!(equal_list_term, equal_list_term);
+            assert_ne!(list_term, unequal_list_term);
+        }
+
+        #[test]
+        fn with_proper_list() {
+            let mut process = process();
+            let list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
+            let equal_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
+            let unequal_list_term = Term::cons(1.into(), Term::EMPTY_LIST, &mut process);
+
+            assert_eq!(list_term, list_term);
+            assert_eq!(list_term, equal_list_term);
+            assert_ne!(list_term, unequal_list_term);
+        }
+
+        #[test]
+        fn with_nested_list() {
+            let mut process = process();
+            let list_term = Term::cons(
+                0.into(),
+                Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                &mut process,
+            );
+            let equal_list_term = Term::cons(
+                0.into(),
+                Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                &mut process,
+            );
+            let unequal_list_term = Term::cons(
+                1.into(),
+                Term::cons(0.into(), Term::EMPTY_LIST, &mut process),
+                &mut process,
+            );
+
+            assert_eq!(list_term, list_term);
+            assert_eq!(list_term, equal_list_term);
+            assert_ne!(list_term, unequal_list_term);
+        }
+
+        #[test]
+        fn with_lists_of_unequal_length() {
+            let mut process = process();
+            let list_term = Term::cons(
+                0.into(),
+                Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                &mut process,
+            );
+            let equal_list_term = Term::cons(
+                0.into(),
+                Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                &mut process,
+            );
+            let shorter_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
+            let longer_list_term = Term::cons(
+                0.into(),
+                Term::cons(
+                    1.into(),
+                    Term::cons(2.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process,
+                ),
+                &mut process,
+            );
+
+            assert_eq!(list_term, list_term);
+            assert_eq!(list_term, equal_list_term);
+            assert_ne!(list_term, shorter_list_term);
+            assert_ne!(list_term, longer_list_term);
         }
     }
 

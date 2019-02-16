@@ -1,8 +1,8 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use std::cmp::{Eq, PartialEq};
-use std::fmt::{self, Debug};
+use std::cmp::Ordering;
 
+use crate::process::{DebugInProcess, OrderInProcess, Process};
 use crate::term::Term;
 
 pub type List = *const Term;
@@ -28,17 +28,22 @@ impl Cons {
     }
 }
 
-impl Debug for Cons {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "Cons::new({:?}. {:?})", self.head, self.tail)
+impl DebugInProcess for Cons {
+    fn format_in_process(&self, process: &Process) -> String {
+        format!(
+            "Cons::new({}, {})",
+            self.head.format_in_process(process),
+            self.tail.format_in_process(process)
+        )
     }
 }
 
-impl Eq for Cons {}
-
-impl PartialEq for Cons {
-    fn eq(&self, other: &Cons) -> bool {
-        (self.head == other.head) & (self.tail == other.tail)
+impl OrderInProcess for Cons {
+    fn cmp_in_process(&self, other: &Cons, process: &Process) -> Ordering {
+        match self.head.cmp_in_process(&other.head, process) {
+            Ordering::Equal => self.tail.cmp_in_process(&other.tail, process),
+            ordering => ordering,
+        }
     }
 }
 
@@ -51,24 +56,26 @@ mod tests {
 
         #[test]
         fn with_proper() {
+            let process: Process = Default::default();
             let cons = Cons::new(0.into(), Term::EMPTY_LIST);
             let equal = Cons::new(0.into(), Term::EMPTY_LIST);
             let unequal = Cons::new(1.into(), Term::EMPTY_LIST);
 
-            assert_eq!(cons, cons);
-            assert_eq!(cons, equal);
-            assert_ne!(cons, unequal);
+            assert_eq_in_process!(cons, cons, process);
+            assert_eq_in_process!(cons, equal, process);
+            assert_ne_in_process!(cons, unequal, process);
         }
 
         #[test]
         fn with_improper() {
+            let process: Process = Default::default();
             let cons = Cons::new(0.into(), 1.into());
             let equal = Cons::new(0.into(), 1.into());
             let unequal = Cons::new(1.into(), 0.into());
 
-            assert_eq!(cons, cons);
-            assert_eq!(cons, equal);
-            assert_ne!(cons, unequal);
+            assert_eq_in_process!(cons, cons, process);
+            assert_eq_in_process!(cons, equal, process);
+            assert_ne_in_process!(cons, unequal, process);
         }
     }
 }

@@ -1,5 +1,6 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
+use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Debug, Display};
 
@@ -7,7 +8,7 @@ use liblumen_arena::TypedArena;
 
 use crate::atom;
 use crate::list::Cons;
-use crate::process::{IntoProcess, Process};
+use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::tuple::{Element, Tuple};
 
 impl From<&Term> for atom::Index {
@@ -162,8 +163,8 @@ impl Term {
         assert_eq!(
             self.tagged & TAG_ARITY,
             TAG_ARITY,
-            "Term ({:?}) is not a tuple arity",
-            self
+            "Term ({:#b}) is not a tuple arity",
+            self.tagged
         );
 
         // Tag::ARITY_BIT_COUNT > Tag::SMALL_INTEGER_BIT_COUNT, so any arity MUST fit into a term
@@ -297,7 +298,10 @@ impl Term {
                 let pointer = (self.tagged & !(Tag::Boxed as usize)) as *const Term;
                 unsafe { pointer.as_ref() }.unwrap()
             }
-            tag => panic!("Tagged ({:?}) term ({:?}) cannot be unboxed", tag, self),
+            tag => panic!(
+                "Tagged ({:?}) term ({:#b}) cannot be unboxed",
+                tag, self.tagged
+            ),
         }
     }
 
@@ -309,10 +313,10 @@ impl Term {
     }
 }
 
-impl Debug for Term {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+impl DebugInProcess for Term {
+    fn format_in_process(&self, process: &Process) -> String {
         match self.tag() {
-            Tag::Arity => write!(formatter, "Term::arity({:?})", Term::arity_to_integer(self)),
+            Tag::Arity => format!("Term::arity({})", usize::from(Term::arity_to_integer(self))),
             Tag::Boxed => {
                 let unboxed = self.unbox();
 
@@ -320,36 +324,39 @@ impl Debug for Term {
                     Tag::Arity => {
                         let tuple: &Tuple = unboxed.try_into().unwrap();
 
-                        write!(formatter, "Term::slice_to_tuple(&[")?;
+                        let mut strings: Vec<String> = Vec::new();
+
+                        strings.push("Term::slice_to_tuple(&[".to_string());
 
                         let mut iter = tuple.iter();
 
                         if let Some(first_element) = iter.next() {
-                            write!(formatter, "{:?}", first_element)?;
+                            strings.push(first_element.format_in_process(process));
 
                             for element in iter {
-                                write!(formatter, ", {:?}", element)?;
+                                strings.push(", ".to_string());
+                                strings.push(element.format_in_process(process));
                             }
                         }
 
-                        write!(formatter, "], &mut process)")
+                        strings.push("], &mut process)".to_string());
+
+                        strings.join("")
                     }
                     _ => unimplemented!(),
                 }
             }
-            Tag::EmptyList => write!(formatter, "Term::EMPTY_LIST"),
+            Tag::EmptyList => "Term::EMPTY_LIST".to_string(),
             Tag::List => {
                 let cons: &Cons = self.try_into().unwrap();
-                write!(
-                    formatter,
-                    "Term::cons({:?}, {:?}, &mut process)",
-                    cons.head(),
-                    cons.tail()
+                format!(
+                    "Term::cons({}, {}, &mut process)",
+                    cons.head().format_in_process(&process),
+                    cons.tail().format_in_process(&process)
                 )
             }
-            Tag::SmallInteger => write!(formatter, "{:?}.into()", isize::from(self)),
-            _ => write!(
-                formatter,
+            Tag::SmallInteger => format!("{:?}.into()", isize::from(self)),
+            _ => format!(
                 "Term {{ tagged: 0b{tagged:0bit_count$b} }}",
                 tagged = self.tagged,
                 bit_count = std::mem::size_of::<usize>() * 8
@@ -412,8 +419,8 @@ impl From<&Term> for isize {
         match term.tag() {
             Tag::SmallInteger => (term.tagged as isize) >> SMALL_INTEGER_TAG_BIT_COUNT,
             tag => panic!(
-                "{:?} tagged term {:?} cannot be converted to isize",
-                tag, term
+                "{:?} tagged term {:#b} cannot be converted to isize",
+                tag, term.tagged
             ),
         }
     }
@@ -451,7 +458,7 @@ impl From<Term> for usize {
                 if 0 <= term_isize {
                     term_isize as usize
                 } else {
-                    panic!("Term ({:?}) contains negative small integer ({}) that can't be converted to usize", term, term_isize);
+                    panic!("Term ({:#b}) contains negative small integer ({}) that can't be converted to usize", term.tagged, term_isize);
                 }
             }
             _ => unimplemented!(),
@@ -593,62 +600,102 @@ impl<'a> TryFrom<&'a Term> for &'a Cons {
 /// > * Lists are compared element by element.
 /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
 /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-impl std::cmp::PartialEq for Term {
-    fn eq(&self, other: &Self) -> bool {
-        if self.tagged == other.tagged {
-            true
-        } else {
-            let tag = self.tag();
-
-            if tag == other.tag() {
-                match tag {
-                    // If `tagged` isn't equal then the form untagged can't be equal for these tags.
-                    Tag::Arity | Tag::Atom | Tag::EmptyList | Tag::SmallInteger => false,
-                    Tag::Boxed => {
-                        let self_unboxed = self.unbox();
-                        let other_unboxed = other.unbox();
-
-                        let self_unboxed_tag = self_unboxed.tag();
-
-                        if self_unboxed_tag == other_unboxed.tag() {
-                            match self_unboxed_tag {
-                                Tag::Arity => {
-                                    let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
-                                    let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
-
-                                    self_tuple == other_tuple
-                                }
-                                tag => unimplemented!(
-                                    "std::cmp::PartialEq.eq unimplemented for boxed tag ({:?})",
-                                    tag
-                                ),
-                            }
-                        } else {
-                            false
-                        }
-                    }
-                    Tag::List => {
-                        let self_cons: &Cons = self.try_into().unwrap();
-                        let other_cons: &Cons = other.try_into().unwrap();
-
-                        self_cons == other_cons
-                    }
-                    tag => {
-                        unimplemented!("std::cmp::PartialEq.eq unimplemented for tag ({:?})", tag)
-                    }
+impl OrderInProcess for Term {
+    fn cmp_in_process(&self, other: &Self, process: &Process) -> Ordering {
+        // in ascending order
+        match (self.tag(), other.tag()) {
+            (Tag::Arity, Tag::Arity) => self.tagged.cmp(&other.tagged),
+            (Tag::SmallInteger, Tag::SmallInteger) => {
+                if self.tagged == other.tagged {
+                    Ordering::Equal
+                } else {
+                    let self_isize: isize = self.try_into().unwrap();
+                    let other_isize: isize = other.try_into().unwrap();
+                    self_isize.cmp(&other_isize)
                 }
-            } else {
-                false
             }
+            (Tag::SmallInteger, Tag::Atom) => Ordering::Less,
+            (Tag::Atom, Tag::SmallInteger) => Ordering::Greater,
+            (Tag::Atom, Tag::Atom) => {
+                if self.tagged == other.tagged {
+                    Ordering::Equal
+                } else {
+                    let self_name = process.atom_to_string(self);
+                    let other_name = process.atom_to_string(other);
+
+                    self_name.cmp(&other_name)
+                }
+            }
+            (Tag::Atom, Tag::Boxed) => {
+                let other_unboxed = other.unbox();
+
+                match other_unboxed.tag() {
+                    Tag::Arity => Ordering::Less,
+                    other_unboxed_tag => unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag),
+                }
+            }
+            (Tag::Boxed, Tag::Atom) => {
+                let self_unboxed = self.unbox();
+
+                match self_unboxed.tag() {
+                    Tag::Arity => Ordering::Greater,
+                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag),
+                }
+            }
+            (Tag::Boxed, Tag::Boxed) => {
+                let self_unboxed = self.unbox();
+                let other_unboxed = other.unbox();
+
+                // in ascending order
+                match (self_unboxed.tag(), other_unboxed.tag()) {
+                    (Tag::Arity, Tag::Arity) => {
+                        let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
+                        let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
+
+                        self_tuple.cmp_in_process(other_tuple, process)
+                    }
+                    (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
+                        "unboxed {:?} cmp unboxed {:?}",
+                        self_unboxed_tag,
+                        other_unboxed_tag
+                    ),
+                }
+            }
+            (Tag::Boxed, Tag::EmptyList) | (Tag::Boxed, Tag::List) => {
+                let self_unboxed = self.unbox();
+
+                match self_unboxed.tag() {
+                    Tag::Arity => Ordering::Less,
+                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp []", self_unboxed_tag),
+                }
+            }
+            (Tag::EmptyList, Tag::Boxed) | (Tag::List, Tag::Boxed) => {
+                let other_unboxed = other.unbox();
+
+                match other_unboxed.tag() {
+                    Tag::Arity => Ordering::Greater,
+                    other_unboxed_tag => unimplemented!("[] cmp unboxed {:?}", other_unboxed_tag),
+                }
+            }
+            (Tag::EmptyList, Tag::EmptyList) => Ordering::Equal,
+            (Tag::EmptyList, Tag::List) => {
+                // Empty list is shorter than all lists, so it is lesser.
+                Ordering::Less
+            }
+            (Tag::List, Tag::EmptyList) => {
+                // Any list is longer than empty lit
+                Ordering::Greater
+            }
+            (Tag::List, Tag::List) => {
+                let self_cons: &Cons = self.try_into().unwrap();
+                let other_cons: &Cons = other.try_into().unwrap();
+
+                self_cons.cmp_in_process(other_cons, process)
+            }
+            (self_tag, other_tag) => unimplemented!("{:?} cmp {:?}", self_tag, other_tag),
         }
     }
-
-    fn ne(&self, other: &Self) -> bool {
-        !self.eq(other)
-    }
 }
-
-impl std::cmp::Eq for Term {}
 
 #[cfg(test)]
 mod tests {
@@ -664,12 +711,12 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(atom_term.abs().unwrap_err(), BadArgument);
+            assert_eq_in_process!(atom_term.abs(), Err(BadArgument), process);
         }
 
         #[test]
         fn with_empty_list_is_bad_argument() {
-            assert_eq!(Term::EMPTY_LIST.abs().unwrap_err(), BadArgument);
+            assert_eq_in_process!(Term::EMPTY_LIST.abs(), Err(BadArgument), Default::default());
         }
 
         #[test]
@@ -677,7 +724,7 @@ mod tests {
             let mut process = process();
             let list_term = list_term(&mut process);
 
-            assert_eq!(list_term.abs().unwrap_err(), BadArgument);
+            assert_eq_in_process!(list_term.abs(), Err(BadArgument), process);
         }
 
         #[test]
@@ -690,7 +737,7 @@ mod tests {
             let positive = -negative;
             let positive_term = positive.into_process(&mut process);
 
-            assert_eq!(negative_term.abs().unwrap(), positive_term);
+            assert_eq_in_process!(negative_term.abs(), Ok(positive_term), process);
         }
 
         #[test]
@@ -698,7 +745,7 @@ mod tests {
             let mut process = process();
             let positive_term = 1usize.into_process(&mut process);
 
-            assert_eq!(positive_term.abs().unwrap(), positive_term);
+            assert_eq_in_process!(positive_term.abs(), Ok(positive_term), process);
         }
 
         #[test]
@@ -706,8 +753,189 @@ mod tests {
             let mut process = process();
             let tuple_term = tuple_term(&mut process);
 
-            assert_eq!(tuple_term.abs().unwrap_err(), BadArgument);
+            assert_eq_in_process!(tuple_term.abs(), Err(BadArgument), process);
         }
+    }
+
+    mod cmp_in_process {
+        use super::*;
+
+        mod less {
+            use super::*;
+
+            #[test]
+            fn number_is_less_than_atom() {
+                let mut process = process();
+                let number_term: Term = 0.into();
+                let atom_term = process.find_or_insert_atom("0");
+
+                assert_cmp_in_process!(number_term, Ordering::Less, atom_term, process);
+                refute_cmp_in_process!(atom_term, Ordering::Less, number_term, process);
+            }
+
+            #[test]
+            fn atom_is_less_than_tuple() {
+                let mut process = process();
+                let atom_term = process.find_or_insert_atom("0");
+                let tuple_term = Term::slice_to_tuple(&[], &mut process);
+
+                assert_cmp_in_process!(atom_term, Ordering::Less, tuple_term, process);
+                refute_cmp_in_process!(tuple_term, Ordering::Less, atom_term, process);
+            }
+
+            #[test]
+            fn atom_is_less_than_atom_if_name_is_less_than() {
+                let mut process = process();
+                let greater_name = "b";
+                let greater_term = process.find_or_insert_atom(greater_name);
+                let lesser_name = "a";
+                let lesser_term = process.find_or_insert_atom(lesser_name);
+
+                assert!(lesser_name < greater_name);
+                assert_cmp_in_process!(lesser_term, Ordering::Less, greater_term, process);
+                // it isn't just comparing the atom index
+                assert!(!(lesser_term.tagged < greater_term.tagged));
+
+                assert!(!(greater_name < lesser_name));
+                refute_cmp_in_process!(greater_term, Ordering::Less, lesser_term, process);
+                assert!(greater_term.tagged < lesser_term.tagged);
+            }
+
+            #[test]
+            fn shorter_tuple_is_less_than_longer_tuple() {
+                let mut process = process();
+                let shorter_tuple = Term::slice_to_tuple(&[], &mut process);
+                let longer_tuple = Term::slice_to_tuple(&[0.into()], &mut process);
+
+                assert_cmp_in_process!(shorter_tuple, Ordering::Less, longer_tuple, process);
+                refute_cmp_in_process!(longer_tuple, Ordering::Less, shorter_tuple, process);
+            }
+
+            #[test]
+            fn same_length_tuples_with_lesser_elements_is_lesser() {
+                let mut process = process();
+                let lesser_tuple = Term::slice_to_tuple(&[0.into()], &mut process);
+                let greater_tuple = Term::slice_to_tuple(&[1.into()], &mut process);
+
+                assert_cmp_in_process!(lesser_tuple, Ordering::Less, greater_tuple, process);
+                refute_cmp_in_process!(greater_tuple, Ordering::Less, lesser_tuple, process);
+            }
+
+            #[test]
+            fn tuple_is_less_than_empty_list() {
+                let mut process = process();
+                let tuple_term = Term::slice_to_tuple(&[], &mut process);
+                let empty_list_term = Term::EMPTY_LIST;
+
+                assert_cmp_in_process!(tuple_term, Ordering::Less, empty_list_term, process);
+                refute_cmp_in_process!(empty_list_term, Ordering::Less, tuple_term, process);
+            }
+
+            #[test]
+            fn tuple_is_less_than_list() {
+                let mut process = process();
+                let tuple_term = Term::slice_to_tuple(&[], &mut process);
+                let list_term = list_term(&mut process);
+
+                assert_cmp_in_process!(tuple_term, Ordering::Less, list_term, process);
+                refute_cmp_in_process!(list_term, Ordering::Less, tuple_term, process);
+            }
+        }
+
+        mod equal {
+            use super::*;
+
+            #[test]
+            fn with_improper_list() {
+                let mut process = process();
+                let list_term = Term::cons(0.into(), 1.into(), &mut process);
+                let equal_list_term = Term::cons(0.into(), 1.into(), &mut process);
+                let unequal_list_term = Term::cons(1.into(), 0.into(), &mut process);
+
+                assert_eq_in_process!(list_term, list_term, process);
+                assert_eq_in_process!(equal_list_term, equal_list_term, process);
+                assert_ne_in_process!(list_term, unequal_list_term, process);
+            }
+
+            #[test]
+            fn with_proper_list() {
+                let mut process = process();
+                let list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
+                let equal_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
+                let unequal_list_term = Term::cons(1.into(), Term::EMPTY_LIST, &mut process);
+
+                assert_eq_in_process!(list_term, list_term, process);
+                assert_eq_in_process!(list_term, equal_list_term, process);
+                assert_ne_in_process!(list_term, unequal_list_term, process);
+            }
+
+            #[test]
+            fn with_nested_list() {
+                let mut process = process();
+                let list_term = Term::cons(
+                    0.into(),
+                    Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process,
+                );
+                let equal_list_term = Term::cons(
+                    0.into(),
+                    Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process,
+                );
+                let unequal_list_term = Term::cons(
+                    1.into(),
+                    Term::cons(0.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process,
+                );
+
+                assert_eq_in_process!(list_term, list_term, process);
+                assert_eq_in_process!(list_term, equal_list_term, process);
+                assert_ne_in_process!(list_term, unequal_list_term, process);
+            }
+
+            #[test]
+            fn with_lists_of_unequal_length() {
+                let mut process = process();
+                let list_term = Term::cons(
+                    0.into(),
+                    Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process,
+                );
+                let equal_list_term = Term::cons(
+                    0.into(),
+                    Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process,
+                );
+                let shorter_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
+                let longer_list_term = Term::cons(
+                    0.into(),
+                    Term::cons(
+                        1.into(),
+                        Term::cons(2.into(), Term::EMPTY_LIST, &mut process),
+                        &mut process,
+                    ),
+                    &mut process,
+                );
+
+                assert_eq_in_process!(list_term, list_term, process);
+                assert_eq_in_process!(list_term, equal_list_term, process);
+                assert_ne_in_process!(list_term, shorter_list_term, process);
+                assert_ne_in_process!(list_term, longer_list_term, process);
+            }
+
+            #[test]
+            fn with_tuples_of_unequal_length() {
+                let mut process = process();
+                let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
+                let equal_term = Term::slice_to_tuple(&[0.into()], &mut process);
+                let unequal_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
+
+                assert_eq_in_process!(tuple_term, tuple_term, process);
+                assert_eq_in_process!(tuple_term, equal_term, process);
+                assert_ne_in_process!(tuple_term, unequal_term, process);
+            }
+        }
+
     }
 
     mod delete_element {
@@ -718,9 +946,10 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(
+            assert_eq_in_process!(
                 atom_term.delete_element(0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -728,9 +957,10 @@ mod tests {
         fn with_empty_list_is_bad_argument() {
             let mut process = process();
 
-            assert_eq!(
+            assert_eq_in_process!(
                 Term::EMPTY_LIST.delete_element(0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -739,9 +969,10 @@ mod tests {
             let mut process = process();
             let list_term = list_term(&mut process);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 list_term.delete_element(0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -750,9 +981,10 @@ mod tests {
             let mut process = process();
             let small_integer_term = small_integer_term(&mut process, 0);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 small_integer_term.delete_element(0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -764,17 +996,19 @@ mod tests {
             let invalid_index_term = Term::arity(index);
 
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
-            assert_eq!(
+            assert_eq_in_process!(
                 tuple_term.delete_element(invalid_index_term, &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
 
             let valid_index_term = Term::from(index);
 
             assert_eq!(valid_index_term.tag(), Tag::SmallInteger);
-            assert_eq!(
+            assert_eq_in_process!(
                 tuple_term.delete_element(valid_index_term, &mut process),
-                Ok(Term::slice_to_tuple(&[0.into(), 2.into()], &mut process))
+                Ok(Term::slice_to_tuple(&[0.into(), 2.into()], &mut process)),
+                process
             );
         }
 
@@ -783,9 +1017,10 @@ mod tests {
             let mut process = process();
             let empty_tuple_term = tuple_term(&mut process);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 empty_tuple_term.delete_element(0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -794,9 +1029,10 @@ mod tests {
             let mut process = process();
             let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into(), 2.into()], &mut process);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 tuple_term.delete_element(1.into(), &mut process),
-                Ok(Term::slice_to_tuple(&[0.into(), 2.into()], &mut process))
+                Ok(Term::slice_to_tuple(&[0.into(), 2.into()], &mut process)),
+                process
             );
         }
     }
@@ -809,12 +1045,16 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(atom_term.element(0.into()), Err(BadArgument));
+            assert_eq_in_process!(atom_term.element(0.into()), Err(BadArgument), process);
         }
 
         #[test]
         fn with_empty_list_is_bad_argument() {
-            assert_eq!(Term::EMPTY_LIST.element(0.into()), Err(BadArgument));
+            assert_eq_in_process!(
+                Term::EMPTY_LIST.element(0.into()),
+                Err(BadArgument),
+                Default::default()
+            );
         }
 
         #[test]
@@ -822,7 +1062,7 @@ mod tests {
             let mut process = process();
             let list_term = list_term(&mut process);
 
-            assert_eq!(list_term.element(0.into()), Err(BadArgument));
+            assert_eq_in_process!(list_term.element(0.into()), Err(BadArgument), process);
         }
 
         #[test]
@@ -830,7 +1070,11 @@ mod tests {
             let mut process = process();
             let small_integer_term = small_integer_term(&mut process, 0);
 
-            assert_eq!(small_integer_term.element(0.into()), Err(BadArgument));
+            assert_eq_in_process!(
+                small_integer_term.element(0.into()),
+                Err(BadArgument),
+                process
+            );
         }
 
         #[test]
@@ -842,12 +1086,20 @@ mod tests {
             let invalid_index_term = Term::arity(index);
 
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
-            assert_eq!(tuple_term.element(invalid_index_term), Err(BadArgument));
+            assert_eq_in_process!(
+                tuple_term.element(invalid_index_term),
+                Err(BadArgument),
+                process
+            );
 
             let valid_index_term = Term::from(index);
 
             assert_eq!(valid_index_term.tag(), Tag::SmallInteger);
-            assert_eq!(tuple_term.element(valid_index_term), Ok(element_term));
+            assert_eq_in_process!(
+                tuple_term.element(valid_index_term),
+                Ok(element_term),
+                process
+            );
         }
 
         #[test]
@@ -855,7 +1107,11 @@ mod tests {
             let mut process = process();
             let empty_tuple_term = tuple_term(&mut process);
 
-            assert_eq!(empty_tuple_term.element(0.into()), Err(BadArgument));
+            assert_eq_in_process!(
+                empty_tuple_term.element(0.into()),
+                Err(BadArgument),
+                process
+            );
         }
 
         #[test]
@@ -864,104 +1120,9 @@ mod tests {
             let element_term = 1.into();
             let tuple_term = Term::slice_to_tuple(&[element_term], &mut process);
 
-            assert_eq!(tuple_term.element(0.into()), Ok(element_term));
+            assert_eq_in_process!(tuple_term.element(0.into()), Ok(element_term), process);
         }
     }
-
-    mod eq {
-        use super::*;
-
-        #[test]
-        fn with_improper_list() {
-            let mut process = process();
-            let list_term = Term::cons(0.into(), 1.into(), &mut process);
-            let equal_list_term = Term::cons(0.into(), 1.into(), &mut process);
-            let unequal_list_term = Term::cons(1.into(), 0.into(), &mut process);
-
-            assert_eq!(list_term, list_term);
-            assert_eq!(equal_list_term, equal_list_term);
-            assert_ne!(list_term, unequal_list_term);
-        }
-
-        #[test]
-        fn with_proper_list() {
-            let mut process = process();
-            let list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
-            let equal_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
-            let unequal_list_term = Term::cons(1.into(), Term::EMPTY_LIST, &mut process);
-
-            assert_eq!(list_term, list_term);
-            assert_eq!(list_term, equal_list_term);
-            assert_ne!(list_term, unequal_list_term);
-        }
-
-        #[test]
-        fn with_nested_list() {
-            let mut process = process();
-            let list_term = Term::cons(
-                0.into(),
-                Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
-                &mut process,
-            );
-            let equal_list_term = Term::cons(
-                0.into(),
-                Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
-                &mut process,
-            );
-            let unequal_list_term = Term::cons(
-                1.into(),
-                Term::cons(0.into(), Term::EMPTY_LIST, &mut process),
-                &mut process,
-            );
-
-            assert_eq!(list_term, list_term);
-            assert_eq!(list_term, equal_list_term);
-            assert_ne!(list_term, unequal_list_term);
-        }
-
-        #[test]
-        fn with_lists_of_unequal_length() {
-            let mut process = process();
-            let list_term = Term::cons(
-                0.into(),
-                Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
-                &mut process,
-            );
-            let equal_list_term = Term::cons(
-                0.into(),
-                Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
-                &mut process,
-            );
-            let shorter_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
-            let longer_list_term = Term::cons(
-                0.into(),
-                Term::cons(
-                    1.into(),
-                    Term::cons(2.into(), Term::EMPTY_LIST, &mut process),
-                    &mut process,
-                ),
-                &mut process,
-            );
-
-            assert_eq!(list_term, list_term);
-            assert_eq!(list_term, equal_list_term);
-            assert_ne!(list_term, shorter_list_term);
-            assert_ne!(list_term, longer_list_term);
-        }
-
-        #[test]
-        fn with_tuples_of_unequal_length() {
-            let mut process = process();
-            let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
-            let equal_term = Term::slice_to_tuple(&[0.into()], &mut process);
-            let unequal_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
-
-            assert_eq!(tuple_term, tuple_term);
-            assert_eq!(tuple_term, equal_term);
-            assert_ne!(tuple_term, unequal_term);
-        }
-    }
-
     mod head {
         use super::*;
 
@@ -970,14 +1131,14 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(atom_term.head().unwrap_err(), BadArgument);
+            assert_eq_in_process!(atom_term.head(), Err(BadArgument), process);
         }
 
         #[test]
         fn with_empty_list_is_bad_argument() {
             let empty_list_term = Term::EMPTY_LIST;
 
-            assert_eq!(empty_list_term.head().unwrap_err(), BadArgument);
+            assert_eq_in_process!(empty_list_term.head(), Err(BadArgument), Default::default());
         }
 
         #[test]
@@ -986,7 +1147,7 @@ mod tests {
             let head_term = process.find_or_insert_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
-            assert_eq!(list_term.head().unwrap(), head_term);
+            assert_eq_in_process!(list_term.head(), Ok(head_term), process);
         }
 
         #[test]
@@ -994,7 +1155,7 @@ mod tests {
             let mut process = process();
             let small_integer_term = small_integer_term(&mut process, 0);
 
-            assert_eq!(small_integer_term.head().unwrap_err(), BadArgument);
+            assert_eq_in_process!(small_integer_term.head(), Err(BadArgument), process);
         }
 
         #[test]
@@ -1002,7 +1163,7 @@ mod tests {
             let mut process = process();
             let tuple_term = tuple_term(&mut process);
 
-            assert_eq!(tuple_term.head().unwrap_err(), BadArgument);
+            assert_eq_in_process!(tuple_term.head(), Err(BadArgument), process);
         }
     }
 
@@ -1014,14 +1175,14 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(atom_term.tail().unwrap_err(), BadArgument);
+            assert_eq_in_process!(atom_term.tail(), Err(BadArgument), process);
         }
 
         #[test]
         fn with_empty_list_is_bad_argument() {
             let empty_list_term = Term::EMPTY_LIST;
 
-            assert_eq!(empty_list_term.tail().unwrap_err(), BadArgument);
+            assert_eq_in_process!(empty_list_term.tail(), Err(BadArgument), Default::default());
         }
 
         #[test]
@@ -1030,7 +1191,7 @@ mod tests {
             let head_term = process.find_or_insert_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
-            assert_eq!(list_term.tail().unwrap(), Term::EMPTY_LIST);
+            assert_eq_in_process!(list_term.tail(), Ok(Term::EMPTY_LIST), process);
         }
 
         #[test]
@@ -1038,7 +1199,7 @@ mod tests {
             let mut process = process();
             let small_integer_term = small_integer_term(&mut process, 0);
 
-            assert_eq!(small_integer_term.tail().unwrap_err(), BadArgument);
+            assert_eq_in_process!(small_integer_term.tail(), Err(BadArgument), process);
         }
 
         #[test]
@@ -1046,7 +1207,7 @@ mod tests {
             let mut process = process();
             let tuple_term = tuple_term(&mut process);
 
-            assert_eq!(tuple_term.tail().unwrap_err(), BadArgument);
+            assert_eq_in_process!(tuple_term.tail(), Err(BadArgument), process);
         }
     }
 
@@ -1058,9 +1219,10 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(
+            assert_eq_in_process!(
                 atom_term.insert_element(0.into(), 0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -1068,9 +1230,10 @@ mod tests {
         fn with_empty_list_is_bad_argument() {
             let mut process = process();
 
-            assert_eq!(
+            assert_eq_in_process!(
                 Term::EMPTY_LIST.insert_element(0.into(), 0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -1079,9 +1242,10 @@ mod tests {
             let mut process = process();
             let list_term = list_term(&mut process);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 list_term.insert_element(0.into(), 0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -1090,9 +1254,10 @@ mod tests {
             let mut process = process();
             let small_integer_term = small_integer_term(&mut process, 0);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 small_integer_term.insert_element(0.into(), 0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -1104,20 +1269,22 @@ mod tests {
             let invalid_index_term = Term::arity(index);
 
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
-            assert_eq!(
+            assert_eq_in_process!(
                 tuple_term.insert_element(invalid_index_term, 0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
 
             let valid_index_term = Term::from(index);
 
             assert_eq!(valid_index_term.tag(), Tag::SmallInteger);
-            assert_eq!(
+            assert_eq_in_process!(
                 tuple_term.insert_element(valid_index_term, 1.into(), &mut process),
                 Ok(Term::slice_to_tuple(
                     &[0.into(), 1.into(), 2.into()],
                     &mut process
-                ))
+                )),
+                process
             );
         }
 
@@ -1126,9 +1293,10 @@ mod tests {
             let mut process = process();
             let empty_tuple_term = tuple_term(&mut process);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 empty_tuple_term.insert_element(1.into(), 0.into(), &mut process),
-                Err(BadArgument)
+                Err(BadArgument),
+                process
             );
         }
 
@@ -1137,12 +1305,13 @@ mod tests {
             let mut process = process();
             let tuple_term = Term::slice_to_tuple(&[0.into(), 2.into()], &mut process);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 tuple_term.insert_element(1.into(), 1.into(), &mut process),
                 Ok(Term::slice_to_tuple(
                     &[0.into(), 1.into(), 2.into()],
                     &mut process
-                ))
+                )),
+                process
             );
         }
 
@@ -1151,9 +1320,10 @@ mod tests {
             let mut process = process();
             let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
 
-            assert_eq!(
+            assert_eq_in_process!(
                 tuple_term.insert_element(1.into(), 1.into(), &mut process),
-                Ok(Term::slice_to_tuple(&[0.into(), 1.into()], &mut process))
+                Ok(Term::slice_to_tuple(&[0.into(), 1.into()], &mut process)),
+                process
             )
         }
     }
@@ -1166,9 +1336,10 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(
+            assert_eq_in_process!(
                 atom_term.is_atom(&mut process),
-                true.into_process(&mut process)
+                true.into_process(&mut process),
+                process
             );
         }
 
@@ -1178,8 +1349,8 @@ mod tests {
             let true_term = true.into_process(&mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(true_term.is_atom(&mut process), true_term);
-            assert_eq!(false_term.is_atom(&mut process), true_term);
+            assert_eq_in_process!(true_term.is_atom(&mut process), true_term, process);
+            assert_eq_in_process!(false_term.is_atom(&mut process), true_term, process);
         }
 
         #[test]
@@ -1188,7 +1359,7 @@ mod tests {
             let nil_term = process.find_or_insert_atom("nil");
             let true_term = true.into_process(&mut process);
 
-            assert_eq!(nil_term.is_atom(&mut process), true_term);
+            assert_eq_in_process!(nil_term.is_atom(&mut process), true_term, process);
         }
 
         #[test]
@@ -1197,7 +1368,7 @@ mod tests {
             let empty_list_term = Term::EMPTY_LIST;
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(empty_list_term.is_atom(&mut process), false_term);
+            assert_eq_in_process!(empty_list_term.is_atom(&mut process), false_term, process);
         }
 
         #[test]
@@ -1207,7 +1378,7 @@ mod tests {
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(list_term.is_atom(&mut process), false_term);
+            assert_eq_in_process!(list_term.is_atom(&mut process), false_term, process);
         }
 
         #[test]
@@ -1216,7 +1387,11 @@ mod tests {
             let small_integer_term = small_integer_term(&mut process, 0);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(small_integer_term.is_atom(&mut process), false_term);
+            assert_eq_in_process!(
+                small_integer_term.is_atom(&mut process),
+                false_term,
+                process
+            );
         }
 
         #[test]
@@ -1225,7 +1400,7 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(tuple_term.is_atom(&mut process), false_term);
+            assert_eq_in_process!(tuple_term.is_atom(&mut process), false_term, process);
         }
     }
 
@@ -1238,7 +1413,7 @@ mod tests {
             let atom_term = process.find_or_insert_atom("atom");
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(atom_term.is_empty_list(&mut process), false_term);
+            assert_eq_in_process!(atom_term.is_empty_list(&mut process), false_term, process);
         }
 
         #[test]
@@ -1247,7 +1422,11 @@ mod tests {
             let empty_list_term = Term::EMPTY_LIST;
             let true_term = true.into_process(&mut process);
 
-            assert_eq!(empty_list_term.is_empty_list(&mut process), true_term);
+            assert_eq_in_process!(
+                empty_list_term.is_empty_list(&mut process),
+                true_term,
+                process
+            );
         }
 
         #[test]
@@ -1257,7 +1436,7 @@ mod tests {
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(list_term.is_empty_list(&mut process), false_term);
+            assert_eq_in_process!(list_term.is_empty_list(&mut process), false_term, process);
         }
 
         #[test]
@@ -1266,7 +1445,11 @@ mod tests {
             let small_integer_term = small_integer_term(&mut process, 0);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(small_integer_term.is_empty_list(&mut process), false_term);
+            assert_eq_in_process!(
+                small_integer_term.is_empty_list(&mut process),
+                false_term,
+                process
+            );
         }
 
         #[test]
@@ -1275,7 +1458,7 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(tuple_term.is_empty_list(&mut process), false_term);
+            assert_eq_in_process!(tuple_term.is_empty_list(&mut process), false_term, process);
         }
     }
 
@@ -1288,7 +1471,7 @@ mod tests {
             let atom_term = process.find_or_insert_atom("atom");
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(atom_term.is_integer(&mut process), false_term);
+            assert_eq_in_process!(atom_term.is_integer(&mut process), false_term, process);
         }
 
         #[test]
@@ -1297,7 +1480,11 @@ mod tests {
             let empty_list_term = Term::EMPTY_LIST;
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(empty_list_term.is_integer(&mut process), false_term);
+            assert_eq_in_process!(
+                empty_list_term.is_integer(&mut process),
+                false_term,
+                process
+            );
         }
 
         #[test]
@@ -1306,7 +1493,7 @@ mod tests {
             let list_term = list_term(&mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(list_term.is_integer(&mut process), false_term);
+            assert_eq_in_process!(list_term.is_integer(&mut process), false_term, process);
         }
 
         #[test]
@@ -1315,7 +1502,7 @@ mod tests {
             let zero_term = 0usize.into_process(&mut process);
             let true_term = true.into_process(&mut process);
 
-            assert_eq!(zero_term.is_integer(&mut process), true_term);
+            assert_eq_in_process!(zero_term.is_integer(&mut process), true_term, process);
         }
 
         #[test]
@@ -1324,7 +1511,7 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(tuple_term.is_integer(&mut process), false_term);
+            assert_eq_in_process!(tuple_term.is_integer(&mut process), false_term, process);
         }
     }
 
@@ -1337,7 +1524,7 @@ mod tests {
             let atom_term = process.find_or_insert_atom("atom");
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(atom_term.is_list(&mut process), false_term);
+            assert_eq_in_process!(atom_term.is_list(&mut process), false_term, process);
         }
 
         #[test]
@@ -1346,7 +1533,7 @@ mod tests {
             let empty_list_term = Term::EMPTY_LIST;
             let true_term = true.into_process(&mut process);
 
-            assert_eq!(empty_list_term.is_list(&mut process), true_term);
+            assert_eq_in_process!(empty_list_term.is_list(&mut process), true_term, process);
         }
 
         #[test]
@@ -1355,7 +1542,7 @@ mod tests {
             let list_term = list_term(&mut process);
             let true_term = true.into_process(&mut process);
 
-            assert_eq!(list_term.is_list(&mut process), true_term);
+            assert_eq_in_process!(list_term.is_list(&mut process), true_term, process);
         }
 
         #[test]
@@ -1364,7 +1551,11 @@ mod tests {
             let small_integer_term = small_integer_term(&mut process, 0);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(small_integer_term.is_list(&mut process), false_term);
+            assert_eq_in_process!(
+                small_integer_term.is_list(&mut process),
+                false_term,
+                process
+            );
         }
 
         #[test]
@@ -1373,7 +1564,7 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(tuple_term.is_list(&mut process), false_term);
+            assert_eq_in_process!(tuple_term.is_list(&mut process), false_term, process);
         }
     }
 
@@ -1386,7 +1577,7 @@ mod tests {
             let atom_term = process.find_or_insert_atom("atom");
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(atom_term.is_tuple(&mut process), false_term);
+            assert_eq_in_process!(atom_term.is_tuple(&mut process), false_term, process);
         }
 
         #[test]
@@ -1395,7 +1586,7 @@ mod tests {
             let empty_list_term = Term::EMPTY_LIST;
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(empty_list_term.is_tuple(&mut process), false_term);
+            assert_eq_in_process!(empty_list_term.is_tuple(&mut process), false_term, process);
         }
 
         #[test]
@@ -1404,7 +1595,7 @@ mod tests {
             let list_term = list_term(&mut process);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(list_term.is_tuple(&mut process), false_term);
+            assert_eq_in_process!(list_term.is_tuple(&mut process), false_term, process);
         }
 
         #[test]
@@ -1413,7 +1604,11 @@ mod tests {
             let small_integer_term = small_integer_term(&mut process, 0);
             let false_term = false.into_process(&mut process);
 
-            assert_eq!(small_integer_term.is_tuple(&mut process), false_term)
+            assert_eq_in_process!(
+                small_integer_term.is_tuple(&mut process),
+                false_term,
+                process
+            );
         }
 
         #[test]
@@ -1422,7 +1617,7 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
             let true_term = true.into_process(&mut process);
 
-            assert_eq!(tuple_term.is_tuple(&mut process), true_term);
+            assert_eq_in_process!(tuple_term.is_tuple(&mut process), true_term, process);
         }
     }
 
@@ -1434,7 +1629,7 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(atom_term.length(&mut process).unwrap_err(), BadArgument);
+            assert_eq_in_process!(atom_term.length(&mut process), Err(BadArgument), process);
         }
 
         #[test]
@@ -1442,7 +1637,11 @@ mod tests {
             let mut process = process();
             let zero_term = small_integer_term(&mut process, 0);
 
-            assert_eq!(Term::EMPTY_LIST.length(&mut process).unwrap(), zero_term);
+            assert_eq_in_process!(
+                Term::EMPTY_LIST.length(&mut process),
+                Ok(zero_term),
+                process
+            );
         }
 
         #[test]
@@ -1452,9 +1651,10 @@ mod tests {
             let tail_term = process.find_or_insert_atom("tail");
             let improper_list_term = Term::cons(head_term, tail_term, &mut process);
 
-            assert_eq!(
-                improper_list_term.length(&mut process).unwrap_err(),
-                BadArgument
+            assert_eq_in_process!(
+                improper_list_term.length(&mut process),
+                Err(BadArgument),
+                process
             );
         }
 
@@ -1465,9 +1665,10 @@ mod tests {
                 Term::cons(small_integer_term(&mut process, i), acc, &mut process)
             });
 
-            assert_eq!(
-                list_term.length(&mut process).unwrap(),
-                small_integer_term(&mut process, 3)
+            assert_eq_in_process!(
+                list_term.length(&mut process),
+                Ok(small_integer_term(&mut process, 3)),
+                process
             );
         }
 
@@ -1476,9 +1677,10 @@ mod tests {
             let mut process = process();
             let small_integer_term = small_integer_term(&mut process, 0);
 
-            assert_eq!(
-                small_integer_term.length(&mut process).unwrap_err(),
-                BadArgument
+            assert_eq_in_process!(
+                small_integer_term.length(&mut process),
+                Err(BadArgument),
+                process
             );
         }
 
@@ -1487,7 +1689,7 @@ mod tests {
             let mut process = process();
             let tuple_term = tuple_term(&mut process);
 
-            assert_eq!(tuple_term.length(&mut process).unwrap_err(), BadArgument);
+            assert_eq_in_process!(tuple_term.length(&mut process), Err(BadArgument), process);
         }
     }
 
@@ -1499,12 +1701,14 @@ mod tests {
             let mut process = process();
             let atom_term = process.find_or_insert_atom("atom");
 
-            assert_eq!(atom_term.size().unwrap_err(), BadArgument);
+            assert_eq_in_process!(atom_term.size(), Err(BadArgument), process);
         }
 
         #[test]
         fn with_empty_list_is_bad_argument() {
-            assert_eq!(Term::EMPTY_LIST.size().unwrap_err(), BadArgument);
+            let process: Process = Default::default();
+
+            assert_eq_in_process!(Term::EMPTY_LIST.size(), Err(BadArgument), process);
         }
 
         #[test]
@@ -1512,7 +1716,7 @@ mod tests {
             let mut process = process();
             let list_term = list_term(&mut process);
 
-            assert_eq!(list_term.size().unwrap_err(), BadArgument);
+            assert_eq_in_process!(list_term.size(), Err(BadArgument), process);
         }
 
         #[test]
@@ -1520,7 +1724,7 @@ mod tests {
             let mut process = process();
             let small_integer_term = small_integer_term(&mut process, 0);
 
-            assert_eq!(small_integer_term.size().unwrap_err(), BadArgument);
+            assert_eq_in_process!(small_integer_term.size(), Err(BadArgument), process);
         }
 
         #[test]
@@ -1529,7 +1733,7 @@ mod tests {
             let empty_tuple_term = tuple_term(&mut process);
             let zero_term = 0usize.into_process(&mut process);
 
-            assert_eq!(empty_tuple_term.size().unwrap(), zero_term);
+            assert_eq_in_process!(empty_tuple_term.size(), Ok(zero_term), process);
         }
 
         #[test]
@@ -1541,7 +1745,7 @@ mod tests {
             let tuple_term = Term::slice_to_tuple(element_slice, &mut process);
             let arity_term = 3usize.into_process(&mut process);
 
-            assert_eq!(tuple_term.size().unwrap(), arity_term);
+            assert_eq_in_process!(tuple_term.size(), Ok(arity_term), process);
         }
     }
 

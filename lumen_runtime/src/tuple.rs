@@ -1,10 +1,10 @@
-use std::cmp::{Eq, PartialEq};
+use std::cmp::Ordering;
 use std::ops::Index;
 
 use liblumen_arena::TypedArena;
 
+use crate::process::{DebugInProcess, OrderInProcess, Process};
 use crate::term::{BadArgument, Term};
-use std::fmt::{self, Debug};
 
 #[repr(C)]
 pub struct Tuple {
@@ -104,21 +104,24 @@ impl Tuple {
     }
 }
 
-impl Debug for Tuple {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "Tuple::from_slice(&[")?;
+impl DebugInProcess for Tuple {
+    fn format_in_process(&self, process: &Process) -> String {
+        let mut strings: Vec<String> = Vec::new();
+        strings.push("Tuple::from_slice(&[".to_string());
 
         let mut iter = self.iter();
 
         if let Some(first_element) = iter.next() {
-            write!(formatter, "{:?}", first_element)?;
+            strings.push(first_element.format_in_process(process));
 
             for element in iter {
-                write!(formatter, ", {:?}", element)?;
+                strings.push(", ".to_string());
+                strings.push(element.format_in_process(process));
             }
         }
 
-        write!(formatter, "])")
+        strings.push("])".to_string());
+        strings.join("")
     }
 }
 
@@ -137,8 +140,6 @@ impl Element<usize> for Tuple {
         }
     }
 }
-
-impl Eq for Tuple {}
 
 impl Index<usize> for Tuple {
     type Output = Term;
@@ -175,17 +176,26 @@ impl Iterator for Iter {
     }
 }
 
-impl PartialEq for Tuple {
-    fn eq(&self, other: &Tuple) -> bool {
-        (self.arity == other.arity)
-            & self
-                .iter()
-                .zip(other.iter())
-                .all(|(self_element, other_element)| self_element == other_element)
-    }
+impl OrderInProcess for Tuple {
+    fn cmp_in_process(&self, other: &Tuple, process: &Process) -> Ordering {
+        match self.arity.cmp_in_process(&other.arity, process) {
+            Ordering::Equal => {
+                let mut final_ordering = Ordering::Equal;
 
-    fn ne(&self, other: &Self) -> bool {
-        !self.eq(other)
+                for (self_element, other_element) in self.iter().zip(other.iter()) {
+                    match self_element.cmp_in_process(&other_element, process) {
+                        Ordering::Equal => continue,
+                        ordering => {
+                            final_ordering = ordering;
+                            break;
+                        }
+                    }
+                }
+
+                final_ordering
+            }
+            ordering => ordering,
+        }
     }
 }
 
@@ -198,25 +208,25 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let mut term_arena: TypedArena<Term> = Default::default();
-            let tuple = Tuple::from_slice(&[], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
-            assert_eq!(unsafe { *arity_pointer }, Term::arity(0));
+            assert_eq_in_process!(unsafe { *arity_pointer }, Term::arity(0), process);
         }
 
         #[test]
         fn with_elements() {
-            let mut term_arena: TypedArena<Term> = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[0.into()], &mut process.term_arena);
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
-            assert_eq!(unsafe { *arity_pointer }, Term::arity(1));
+            assert_eq_in_process!(unsafe { *arity_pointer }, Term::arity(1), process);
 
             let element_pointer = unsafe { arity_pointer.offset(1) };
-            assert_eq!(unsafe { *element_pointer }, 0.into());
+            assert_eq_in_process!(unsafe { *element_pointer }, 0.into(), process);
         }
     }
 
@@ -225,18 +235,18 @@ mod tests {
 
         #[test]
         fn without_valid_index() {
-            let mut term_arena: TypedArena<Term> = Default::default();
-            let tuple = Tuple::from_slice(&[], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_eq!(tuple.element(0), Err(BadArgument));
+            assert_eq_in_process!(tuple.element(0), Err(BadArgument), process);
         }
 
         #[test]
         fn with_valid_index() {
-            let mut term_arena: TypedArena<Term> = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[0.into()], &mut process.term_arena);
 
-            assert_eq!(tuple.element(0), Ok(0.into()));
+            assert_eq_in_process!(tuple.element(0), Ok(0.into()), process);
         }
     }
 
@@ -245,21 +255,21 @@ mod tests {
 
         #[test]
         fn without_element() {
-            let mut term_arena: TypedArena<Term> = Default::default();
-            let tuple = Tuple::from_slice(&[], &mut term_arena);
-            let equal = Tuple::from_slice(&[], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[], &mut process.term_arena);
+            let equal = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_eq!(tuple, tuple);
-            assert_eq!(tuple, equal);
+            assert_eq_in_process!(tuple, tuple, process);
+            assert_eq_in_process!(tuple, equal, process);
         }
 
         #[test]
         fn with_unequal_length() {
-            let mut term_arena: TypedArena<Term> = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
-            let unequal = Tuple::from_slice(&[0.into(), 1.into()], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[0.into()], &mut process.term_arena);
+            let unequal = Tuple::from_slice(&[0.into(), 1.into()], &mut process.term_arena);
 
-            assert_ne!(tuple, unequal);
+            assert_ne_in_process!(tuple, unequal, process);
         }
     }
 
@@ -290,18 +300,18 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let mut term_arena: TypedArena<Term> = Default::default();
-            let tuple = Tuple::from_slice(&[], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_eq!(tuple.size(), 0.into())
+            assert_eq_in_process!(tuple.size(), &0.into(), process);
         }
 
         #[test]
         fn with_elements() {
-            let mut term_arena: TypedArena<Term> = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[0.into()], &mut process.term_arena);
 
-            assert_eq!(tuple.size(), 1.into())
+            assert_eq_in_process!(tuple.size(), &1.into(), process);
         }
     }
 }

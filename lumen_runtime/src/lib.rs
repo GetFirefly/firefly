@@ -7,17 +7,19 @@
 // for `lumen_runtime::term::Term`
 #![feature(untagged_unions)]
 
+#[macro_use]
+mod process;
+#[macro_use]
+mod support;
+
 mod atom;
 mod config;
 mod environment;
 mod list;
 mod logging;
-mod process;
 mod system;
 mod term;
 mod tuple;
-#[macro_use]
-mod support;
 
 use self::config::Config;
 use self::logging::Logger;

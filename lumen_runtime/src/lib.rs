@@ -13,6 +13,7 @@ mod process;
 mod support;
 
 mod atom;
+mod binary;
 mod config;
 mod environment;
 mod list;

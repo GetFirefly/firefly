@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 
 use liblumen_arena::TypedArena;
 
+use crate::binary::heap::Binary;
 use crate::environment::Environment;
 use crate::list::List;
 use crate::term::BadArgument;
@@ -13,6 +14,8 @@ use crate::tuple::Tuple;
 
 pub struct Process {
     environment: Arc<RwLock<Environment>>,
+    pub byte_arena: TypedArena<u8>,
+    pub binary_arena: TypedArena<Binary>,
     pub term_arena: TypedArena<Term>,
 }
 
@@ -20,6 +23,8 @@ impl Process {
     pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
         Process {
             environment,
+            byte_arena: Default::default(),
+            binary_arena: Default::default(),
             term_arena: Default::default(),
         }
     }
@@ -42,6 +47,10 @@ impl Process {
 
     pub fn find_or_insert_atom(&mut self, name: &str) -> Term {
         self.environment.write().unwrap().find_or_insert_atom(name)
+    }
+
+    pub fn slice_to_binary(&mut self, slice: &[u8]) -> &Binary {
+        Binary::from_slice(slice, &mut self.binary_arena, &mut self.byte_arena)
     }
 
     pub fn slice_to_tuple(&mut self, slice: &[Term]) -> &Tuple {

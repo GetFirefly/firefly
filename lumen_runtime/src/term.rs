@@ -7,6 +7,7 @@ use std::fmt::{self, Debug, Display};
 use liblumen_arena::TypedArena;
 
 use crate::atom;
+use crate::binary::heap::Binary;
 use crate::list::Cons;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::tuple::{Element, Tuple};
@@ -52,8 +53,10 @@ impl Tag {
     const PRIMARY_MASK: usize = 0b11;
     const BOXED_MASK: usize = Self::PRIMARY_MASK;
     const LIST_MASK: usize = Self::PRIMARY_MASK;
+    const HEADER_BIT_COUNT: u8 = 6;
     const ATOM_BIT_COUNT: u8 = 6;
-    const ARITY_BIT_COUNT: u8 = 6;
+    const ARITY_BIT_COUNT: u8 = Self::HEADER_BIT_COUNT;
+    const HEAP_BINARY_BIT_COUNT: u8 = Self::HEADER_BIT_COUNT;
     const SMALL_INTEGER_BIT_COUNT: u8 = 4;
 }
 
@@ -138,6 +141,7 @@ impl Debug for BadArgument {
 
 impl Term {
     const MAX_ARITY: usize = std::usize::MAX >> Tag::ARITY_BIT_COUNT;
+    const MAX_HEAP_BINARY_BYTE_COUNT: usize = std::usize::MAX >> Tag::HEAP_BINARY_BIT_COUNT;
 
     pub const EMPTY_LIST: Term = Term {
         tagged: Tag::EmptyList as usize,
@@ -192,6 +196,37 @@ impl Term {
         }
     }
 
+    pub fn heap_binary(byte_count: usize) -> Term {
+        assert!(
+            byte_count <= Self::MAX_HEAP_BINARY_BYTE_COUNT,
+            "byte_count ({}) is greater than max heap binary byte count ({})",
+            byte_count,
+            Self::MAX_HEAP_BINARY_BYTE_COUNT,
+        );
+
+        Term {
+            tagged: ((byte_count << Tag::HEAP_BINARY_BIT_COUNT) as usize)
+                | (Tag::HeapBinary as usize),
+        }
+    }
+
+    pub fn heap_binary_to_byte_count(&self) -> usize {
+        const TAG_HEAP_BINARY: usize = Tag::HeapBinary as usize;
+
+        assert_eq!(
+            self.tagged & TAG_HEAP_BINARY,
+            TAG_HEAP_BINARY,
+            "Term ({:#b}) is not a heap binary",
+            self.tagged
+        );
+
+        (self.tagged & !(TAG_HEAP_BINARY)) >> Tag::HEAP_BINARY_BIT_COUNT
+    }
+
+    pub fn heap_binary_to_integer(&self) -> Term {
+        self.heap_binary_to_byte_count().into()
+    }
+
     pub fn tag(&self) -> Tag {
         match (self.tagged as usize).try_into() {
             Ok(tag) => tag,
@@ -244,6 +279,11 @@ impl Term {
         (self.tag() == Tag::Atom).into_process(&mut process)
     }
 
+    pub fn is_binary(&self, mut process: &mut Process) -> Term {
+        (self.tag() == Tag::Boxed && self.unbox_reference::<Term>().tag() == Tag::HeapBinary)
+            .into_process(&mut process)
+    }
+
     pub fn is_empty_list(&self, mut process: &mut Process) -> Term {
         (self.tag() == Tag::EmptyList).into_process(&mut process)
     }
@@ -265,7 +305,8 @@ impl Term {
     }
 
     pub fn is_tuple(&self, mut process: &mut Process) -> Term {
-        (self.tag() == Tag::Boxed && self.unbox().tag() == Tag::Arity).into_process(&mut process)
+        (self.tag() == Tag::Boxed && self.unbox_reference::<Term>().tag() == Tag::Arity)
+            .into_process(&mut process)
     }
 
     pub fn length(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
@@ -285,24 +326,63 @@ impl Term {
     }
 
     pub fn size(&self) -> Result<Term, BadArgument> {
-        Ok(<&Tuple>::try_from(self)?.size())
+        match self.tag() {
+            Tag::Boxed => {
+                println!("boxed");
+
+                let unboxed: &Term = self.unbox_reference();
+
+                println!("unboxed");
+
+                match unboxed.tag() {
+                    Tag::Arity => Ok(Term::unbox_reference::<Tuple>(self).size()),
+                    Tag::HeapBinary => Ok(Term::unbox_reference::<Binary>(self).size()),
+                    _ => Err(BadArgument),
+                }
+            }
+            _ => Err(BadArgument),
+        }
+    }
+
+    pub fn slice_to_binary(slice: &[u8], process: &mut Process) -> Term {
+        process.slice_to_binary(slice).into()
     }
 
     pub fn slice_to_tuple(slice: &[Term], process: &mut Process) -> Term {
         process.slice_to_tuple(slice).into()
     }
 
-    fn unbox(&self) -> &Term {
-        match self.tag() {
-            Tag::Boxed => {
-                let pointer = (self.tagged & !(Tag::Boxed as usize)) as *const Term;
-                unsafe { pointer.as_ref() }.unwrap()
-            }
-            tag => panic!(
-                "Tagged ({:?}) term ({:#b}) cannot be unboxed",
-                tag, self.tagged
-            ),
+    fn box_reference<T>(reference: &T) -> Term {
+        let pointer_bits = reference as *const T as usize;
+
+        assert_eq!(
+            pointer_bits & Tag::BOXED_MASK,
+            0,
+            "Boxed tag bit ({:#b}) would overwrite pointer bits ({:#b})",
+            Tag::BOXED_MASK,
+            pointer_bits
+        );
+
+        Term {
+            tagged: pointer_bits | (Tag::Boxed as usize),
         }
+    }
+
+    fn unbox_reference<T>(&self) -> &T {
+        const TAG_BOXED: usize = Tag::Boxed as usize;
+
+        assert_eq!(
+            self.tagged & TAG_BOXED,
+            TAG_BOXED,
+            "Term ({:#b}) is not tagged as boxed ({:#b})",
+            self.tagged,
+            TAG_BOXED
+        );
+
+        let pointer_bits = self.tagged & !TAG_BOXED;
+        let pointer = pointer_bits as *const T;
+
+        unsafe { pointer.as_ref() }.unwrap()
     }
 
     const SMALL_INTEGER_SIGN_BIT_MASK: usize = std::isize::MIN as usize;
@@ -318,7 +398,7 @@ impl DebugInProcess for Term {
         match self.tag() {
             Tag::Arity => format!("Term::arity({})", usize::from(Term::arity_to_integer(self))),
             Tag::Boxed => {
-                let unboxed = self.unbox();
+                let unboxed: &Term = self.unbox_reference();
 
                 match unboxed.tag() {
                     Tag::Arity => {
@@ -426,21 +506,9 @@ impl From<&Term> for isize {
     }
 }
 
-impl From<&Tuple> for Term {
-    fn from(tuple: &Tuple) -> Self {
-        let pointer_bits = tuple as *const Tuple as usize;
-
-        assert_eq!(
-            pointer_bits & Tag::BOXED_MASK,
-            0,
-            "Boxed tag bit ({:#b}) would overwrite pointer bits ({:#b})",
-            Tag::BOXED_MASK,
-            pointer_bits
-        );
-
-        Term {
-            tagged: pointer_bits | (Tag::Boxed as usize),
-        }
+impl<T> From<&T> for Term {
+    fn from(reference: &T) -> Self {
+        Term::box_reference(reference)
     }
 }
 
@@ -559,7 +627,7 @@ impl<'a> TryFrom<&'a Term> for &'a Tuple {
                 let pointer = term as *const Term as *const Tuple;
                 Ok(unsafe { pointer.as_ref() }.unwrap())
             }
-            Tag::Boxed => term.unbox().try_into(),
+            Tag::Boxed => term.unbox_reference::<Term>().try_into(),
             _ => Err(BadArgument),
         }
     }
@@ -604,7 +672,9 @@ impl OrderInProcess for Term {
     fn cmp_in_process(&self, other: &Self, process: &Process) -> Ordering {
         // in ascending order
         match (self.tag(), other.tag()) {
-            (Tag::Arity, Tag::Arity) => self.tagged.cmp(&other.tagged),
+            (Tag::Arity, Tag::Arity) | (Tag::HeapBinary, Tag::HeapBinary) => {
+                self.tagged.cmp(&other.tagged)
+            }
             (Tag::SmallInteger, Tag::SmallInteger) => {
                 if self.tagged == other.tagged {
                     Ordering::Equal
@@ -627,7 +697,7 @@ impl OrderInProcess for Term {
                 }
             }
             (Tag::Atom, Tag::Boxed) => {
-                let other_unboxed = other.unbox();
+                let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
                     Tag::Arity => Ordering::Less,
@@ -635,7 +705,7 @@ impl OrderInProcess for Term {
                 }
             }
             (Tag::Boxed, Tag::Atom) => {
-                let self_unboxed = self.unbox();
+                let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
                     Tag::Arity => Ordering::Greater,
@@ -643,8 +713,8 @@ impl OrderInProcess for Term {
                 }
             }
             (Tag::Boxed, Tag::Boxed) => {
-                let self_unboxed = self.unbox();
-                let other_unboxed = other.unbox();
+                let self_unboxed: &Term = self.unbox_reference();
+                let other_unboxed: &Term = other.unbox_reference();
 
                 // in ascending order
                 match (self_unboxed.tag(), other_unboxed.tag()) {
@@ -654,6 +724,12 @@ impl OrderInProcess for Term {
 
                         self_tuple.cmp_in_process(other_tuple, process)
                     }
+                    (Tag::HeapBinary, Tag::HeapBinary) => {
+                        let self_binary: &Binary = self.unbox_reference();
+                        let other_binary: &Binary = other.unbox_reference();
+
+                        self_binary.cmp_in_process(other_binary, process)
+                    }
                     (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
                         "unboxed {:?} cmp unboxed {:?}",
                         self_unboxed_tag,
@@ -662,7 +738,7 @@ impl OrderInProcess for Term {
                 }
             }
             (Tag::Boxed, Tag::EmptyList) | (Tag::Boxed, Tag::List) => {
-                let self_unboxed = self.unbox();
+                let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
                     Tag::Arity => Ordering::Less,
@@ -670,7 +746,7 @@ impl OrderInProcess for Term {
                 }
             }
             (Tag::EmptyList, Tag::Boxed) | (Tag::List, Tag::Boxed) => {
-                let other_unboxed = other.unbox();
+                let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
                     Tag::Arity => Ordering::Greater,
@@ -700,15 +776,13 @@ impl OrderInProcess for Term {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-    use std::sync::RwLock;
 
     mod abs {
         use super::*;
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(atom_term.abs(), Err(BadArgument), process);
@@ -721,7 +795,7 @@ mod tests {
 
         #[test]
         fn with_list_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
 
             assert_eq_in_process!(list_term.abs(), Err(BadArgument), process);
@@ -729,7 +803,7 @@ mod tests {
 
         #[test]
         fn with_negative_is_positive() {
-            let mut process = process();
+            let mut process: Process = Default::default();
 
             let negative: isize = -1;
             let negative_term = negative.into_process(&mut process);
@@ -742,7 +816,7 @@ mod tests {
 
         #[test]
         fn with_positive_is_self() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let positive_term = 1usize.into_process(&mut process);
 
             assert_eq_in_process!(positive_term.abs(), Ok(positive_term), process);
@@ -750,7 +824,7 @@ mod tests {
 
         #[test]
         fn with_tuple_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
 
             assert_eq_in_process!(tuple_term.abs(), Err(BadArgument), process);
@@ -765,7 +839,7 @@ mod tests {
 
             #[test]
             fn number_is_less_than_atom() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let number_term: Term = 0.into();
                 let atom_term = process.find_or_insert_atom("0");
 
@@ -775,7 +849,7 @@ mod tests {
 
             #[test]
             fn atom_is_less_than_tuple() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let atom_term = process.find_or_insert_atom("0");
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
@@ -785,7 +859,7 @@ mod tests {
 
             #[test]
             fn atom_is_less_than_atom_if_name_is_less_than() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let greater_name = "b";
                 let greater_term = process.find_or_insert_atom(greater_name);
                 let lesser_name = "a";
@@ -803,7 +877,7 @@ mod tests {
 
             #[test]
             fn shorter_tuple_is_less_than_longer_tuple() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let shorter_tuple = Term::slice_to_tuple(&[], &mut process);
                 let longer_tuple = Term::slice_to_tuple(&[0.into()], &mut process);
 
@@ -813,7 +887,7 @@ mod tests {
 
             #[test]
             fn same_length_tuples_with_lesser_elements_is_lesser() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let lesser_tuple = Term::slice_to_tuple(&[0.into()], &mut process);
                 let greater_tuple = Term::slice_to_tuple(&[1.into()], &mut process);
 
@@ -823,7 +897,7 @@ mod tests {
 
             #[test]
             fn tuple_is_less_than_empty_list() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
                 let empty_list_term = Term::EMPTY_LIST;
 
@@ -833,7 +907,7 @@ mod tests {
 
             #[test]
             fn tuple_is_less_than_list() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
                 let list_term = list_term(&mut process);
 
@@ -847,7 +921,7 @@ mod tests {
 
             #[test]
             fn with_improper_list() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let list_term = Term::cons(0.into(), 1.into(), &mut process);
                 let equal_list_term = Term::cons(0.into(), 1.into(), &mut process);
                 let unequal_list_term = Term::cons(1.into(), 0.into(), &mut process);
@@ -859,7 +933,7 @@ mod tests {
 
             #[test]
             fn with_proper_list() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
                 let equal_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
                 let unequal_list_term = Term::cons(1.into(), Term::EMPTY_LIST, &mut process);
@@ -871,7 +945,7 @@ mod tests {
 
             #[test]
             fn with_nested_list() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let list_term = Term::cons(
                     0.into(),
                     Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
@@ -895,7 +969,7 @@ mod tests {
 
             #[test]
             fn with_lists_of_unequal_length() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let list_term = Term::cons(
                     0.into(),
                     Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
@@ -925,7 +999,7 @@ mod tests {
 
             #[test]
             fn with_tuples_of_unequal_length() {
-                let mut process = process();
+                let mut process: Process = Default::default();
                 let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
                 let equal_term = Term::slice_to_tuple(&[0.into()], &mut process);
                 let unequal_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
@@ -934,8 +1008,21 @@ mod tests {
                 assert_eq_in_process!(tuple_term, equal_term, process);
                 assert_ne_in_process!(tuple_term, unequal_term, process);
             }
-        }
 
+            #[test]
+            fn with_heap_binaries_of_unequal_length() {
+                let mut process: Process = Default::default();
+                let heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
+                let equal_heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
+                let shorter_heap_binary_term = Term::slice_to_binary(&[0], &mut process);
+                let longer_heap_binary_term = Term::slice_to_binary(&[0, 1, 2], &mut process);
+
+                assert_eq_in_process!(heap_binary_term, heap_binary_term, process);
+                assert_eq_in_process!(heap_binary_term, equal_heap_binary_term, process);
+                assert_ne_in_process!(heap_binary_term, shorter_heap_binary_term, process);
+                assert_ne_in_process!(heap_binary_term, longer_heap_binary_term, process);
+            }
+        }
     }
 
     mod delete_element {
@@ -943,7 +1030,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(
@@ -955,7 +1042,7 @@ mod tests {
 
         #[test]
         fn with_empty_list_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
 
             assert_eq_in_process!(
                 Term::EMPTY_LIST.delete_element(0.into(), &mut process),
@@ -966,7 +1053,7 @@ mod tests {
 
         #[test]
         fn with_list_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
 
             assert_eq_in_process!(
@@ -978,7 +1065,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq_in_process!(
@@ -990,7 +1077,7 @@ mod tests {
 
         #[test]
         fn with_tuple_without_small_integer_index_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into(), 2.into()], &mut process);
             let index = 1usize;
             let invalid_index_term = Term::arity(index);
@@ -1014,7 +1101,7 @@ mod tests {
 
         #[test]
         fn with_tuple_without_index_in_range_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_tuple_term = tuple_term(&mut process);
 
             assert_eq_in_process!(
@@ -1026,12 +1113,24 @@ mod tests {
 
         #[test]
         fn with_tuple_with_index_in_range_returns_tuple_without_element() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into(), 2.into()], &mut process);
 
             assert_eq_in_process!(
                 tuple_term.delete_element(1.into(), &mut process),
                 Ok(Term::slice_to_tuple(&[0.into(), 2.into()], &mut process)),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.delete_element(0.into(), &mut process),
+                Err(BadArgument),
                 process
             );
         }
@@ -1042,7 +1141,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(atom_term.element(0.into()), Err(BadArgument), process);
@@ -1059,7 +1158,7 @@ mod tests {
 
         #[test]
         fn with_list_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
 
             assert_eq_in_process!(list_term.element(0.into()), Err(BadArgument), process);
@@ -1067,7 +1166,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq_in_process!(
@@ -1079,7 +1178,7 @@ mod tests {
 
         #[test]
         fn with_tuple_without_small_integer_index_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let element_term = 1.into();
             let tuple_term = Term::slice_to_tuple(&[element_term], &mut process);
             let index = 0usize;
@@ -1104,7 +1203,7 @@ mod tests {
 
         #[test]
         fn with_tuple_without_index_in_range_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_tuple_term = tuple_term(&mut process);
 
             assert_eq_in_process!(
@@ -1116,19 +1215,32 @@ mod tests {
 
         #[test]
         fn with_tuple_with_index_in_range_is_element() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let element_term = 1.into();
             let tuple_term = Term::slice_to_tuple(&[element_term], &mut process);
 
             assert_eq_in_process!(tuple_term.element(0.into()), Ok(element_term), process);
         }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.element(0.into()),
+                Err(BadArgument),
+                process
+            );
+        }
     }
+
     mod head {
         use super::*;
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(atom_term.head(), Err(BadArgument), process);
@@ -1143,7 +1255,7 @@ mod tests {
 
         #[test]
         fn with_list_returns_head() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let head_term = process.find_or_insert_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
@@ -1152,7 +1264,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq_in_process!(small_integer_term.head(), Err(BadArgument), process);
@@ -1160,10 +1272,18 @@ mod tests {
 
         #[test]
         fn with_tuple_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
 
             assert_eq_in_process!(tuple_term.head(), Err(BadArgument), process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+
+            assert_eq_in_process!(heap_binary_term.head(), Err(BadArgument), process);
         }
     }
 
@@ -1172,7 +1292,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(atom_term.tail(), Err(BadArgument), process);
@@ -1187,7 +1307,7 @@ mod tests {
 
         #[test]
         fn with_list_returns_tail() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let head_term = process.find_or_insert_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
@@ -1196,7 +1316,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq_in_process!(small_integer_term.tail(), Err(BadArgument), process);
@@ -1204,10 +1324,18 @@ mod tests {
 
         #[test]
         fn with_tuple_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
 
             assert_eq_in_process!(tuple_term.tail(), Err(BadArgument), process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+
+            assert_eq_in_process!(heap_binary_term.tail(), Err(BadArgument), process);
         }
     }
 
@@ -1216,7 +1344,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(
@@ -1228,7 +1356,7 @@ mod tests {
 
         #[test]
         fn with_empty_list_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
 
             assert_eq_in_process!(
                 Term::EMPTY_LIST.insert_element(0.into(), 0.into(), &mut process),
@@ -1239,7 +1367,7 @@ mod tests {
 
         #[test]
         fn with_list_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
 
             assert_eq_in_process!(
@@ -1251,7 +1379,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq_in_process!(
@@ -1263,7 +1391,7 @@ mod tests {
 
         #[test]
         fn with_tuple_without_small_integer_index_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[0.into(), 2.into()], &mut process);
             let index = 1usize;
             let invalid_index_term = Term::arity(index);
@@ -1290,7 +1418,7 @@ mod tests {
 
         #[test]
         fn with_tuple_without_index_in_range_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_tuple_term = tuple_term(&mut process);
 
             assert_eq_in_process!(
@@ -1302,7 +1430,7 @@ mod tests {
 
         #[test]
         fn with_tuple_with_index_in_range_returns_tuple_with_new_element_at_index() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[0.into(), 2.into()], &mut process);
 
             assert_eq_in_process!(
@@ -1317,7 +1445,7 @@ mod tests {
 
         #[test]
         fn with_tuple_with_index_at_size_return_tuples_with_new_element_at_end() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
 
             assert_eq_in_process!(
@@ -1326,6 +1454,18 @@ mod tests {
                 process
             )
         }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.insert_element(0.into(), 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
     }
 
     mod is_atom {
@@ -1333,7 +1473,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_true() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(
@@ -1345,7 +1485,7 @@ mod tests {
 
         #[test]
         fn with_booleans_is_true() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let true_term = true.into_process(&mut process);
             let false_term = false.into_process(&mut process);
 
@@ -1355,7 +1495,7 @@ mod tests {
 
         #[test]
         fn with_nil_is_true() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let nil_term = process.find_or_insert_atom("nil");
             let true_term = true.into_process(&mut process);
 
@@ -1364,7 +1504,7 @@ mod tests {
 
         #[test]
         fn with_empty_list_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_list_term = Term::EMPTY_LIST;
             let false_term = false.into_process(&mut process);
 
@@ -1373,7 +1513,7 @@ mod tests {
 
         #[test]
         fn with_list_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let head_term = process.find_or_insert_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
@@ -1383,7 +1523,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
             let false_term = false.into_process(&mut process);
 
@@ -1396,11 +1536,83 @@ mod tests {
 
         #[test]
         fn with_tuple_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(tuple_term.is_atom(&mut process), false_term, process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_false() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(heap_binary_term.is_atom(&mut process), false_term, process);
+        }
+    }
+
+    mod is_binary {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_false() {
+            let mut process: Process = Default::default();
+            let atom_term = process.find_or_insert_atom("atom");
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(atom_term.is_binary(&mut process), false_term, process);
+        }
+
+        #[test]
+        fn with_empty_list_is_false() {
+            let mut process: Process = Default::default();
+            let empty_list_term = Term::EMPTY_LIST;
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(empty_list_term.is_binary(&mut process), false_term, process);
+        }
+
+        #[test]
+        fn with_list_is_false() {
+            let mut process: Process = Default::default();
+            let head_term = process.find_or_insert_atom("head");
+            let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(list_term.is_binary(&mut process), false_term, process);
+        }
+
+        #[test]
+        fn with_small_integer_is_false() {
+            let mut process: Process = Default::default();
+            let small_integer_term = small_integer_term(&mut process, 0);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                small_integer_term.is_binary(&mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_false() {
+            let mut process: Process = Default::default();
+            let tuple_term = tuple_term(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(tuple_term.is_binary(&mut process), false_term, process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_true() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let true_term = true.into_process(&mut process);
+
+            assert_eq_in_process!(heap_binary_term.is_binary(&mut process), true_term, process);
         }
     }
 
@@ -1409,7 +1621,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
             let false_term = false.into_process(&mut process);
 
@@ -1418,7 +1630,7 @@ mod tests {
 
         #[test]
         fn with_empty_list_is_true() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_list_term = Term::EMPTY_LIST;
             let true_term = true.into_process(&mut process);
 
@@ -1431,7 +1643,7 @@ mod tests {
 
         #[test]
         fn with_list_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let head_term = process.find_or_insert_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
@@ -1441,7 +1653,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
             let false_term = false.into_process(&mut process);
 
@@ -1454,11 +1666,24 @@ mod tests {
 
         #[test]
         fn with_tuple_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(tuple_term.is_empty_list(&mut process), false_term, process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_false() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.is_empty_list(&mut process),
+                false_term,
+                process
+            );
         }
     }
 
@@ -1467,7 +1692,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
             let false_term = false.into_process(&mut process);
 
@@ -1476,7 +1701,7 @@ mod tests {
 
         #[test]
         fn with_empty_list_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_list_term = Term::EMPTY_LIST;
             let false_term = false.into_process(&mut process);
 
@@ -1489,7 +1714,7 @@ mod tests {
 
         #[test]
         fn with_list_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
             let false_term = false.into_process(&mut process);
 
@@ -1498,7 +1723,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_true() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let zero_term = 0usize.into_process(&mut process);
             let true_term = true.into_process(&mut process);
 
@@ -1507,11 +1732,24 @@ mod tests {
 
         #[test]
         fn with_tuple_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(tuple_term.is_integer(&mut process), false_term, process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_false() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.is_integer(&mut process),
+                false_term,
+                process
+            );
         }
     }
 
@@ -1520,7 +1758,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
             let false_term = false.into_process(&mut process);
 
@@ -1529,7 +1767,7 @@ mod tests {
 
         #[test]
         fn with_empty_list_is_true() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_list_term = Term::EMPTY_LIST;
             let true_term = true.into_process(&mut process);
 
@@ -1538,7 +1776,7 @@ mod tests {
 
         #[test]
         fn with_list_is_true() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
             let true_term = true.into_process(&mut process);
 
@@ -1547,7 +1785,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
             let false_term = false.into_process(&mut process);
 
@@ -1560,11 +1798,20 @@ mod tests {
 
         #[test]
         fn with_tuple_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(tuple_term.is_list(&mut process), false_term, process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_false() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(heap_binary_term.is_list(&mut process), false_term, process);
         }
     }
 
@@ -1573,7 +1820,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
             let false_term = false.into_process(&mut process);
 
@@ -1582,7 +1829,7 @@ mod tests {
 
         #[test]
         fn with_empty_list_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_list_term = Term::EMPTY_LIST;
             let false_term = false.into_process(&mut process);
 
@@ -1591,7 +1838,7 @@ mod tests {
 
         #[test]
         fn with_list_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
             let false_term = false.into_process(&mut process);
 
@@ -1600,7 +1847,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_false() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
             let false_term = false.into_process(&mut process);
 
@@ -1613,11 +1860,20 @@ mod tests {
 
         #[test]
         fn with_tuple_is_true() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
             let true_term = true.into_process(&mut process);
 
             assert_eq_in_process!(tuple_term.is_tuple(&mut process), true_term, process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_false() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(heap_binary_term.is_tuple(&mut process), false_term, process);
         }
     }
 
@@ -1626,7 +1882,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(atom_term.length(&mut process), Err(BadArgument), process);
@@ -1634,7 +1890,7 @@ mod tests {
 
         #[test]
         fn with_empty_list_is_zero() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let zero_term = small_integer_term(&mut process, 0);
 
             assert_eq_in_process!(
@@ -1646,7 +1902,7 @@ mod tests {
 
         #[test]
         fn with_improper_list_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let head_term = process.find_or_insert_atom("head");
             let tail_term = process.find_or_insert_atom("tail");
             let improper_list_term = Term::cons(head_term, tail_term, &mut process);
@@ -1660,7 +1916,7 @@ mod tests {
 
         #[test]
         fn with_list_is_length() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = (0..=2).rfold(Term::EMPTY_LIST, |acc, i| {
                 Term::cons(small_integer_term(&mut process, i), acc, &mut process)
             });
@@ -1674,7 +1930,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq_in_process!(
@@ -1686,10 +1942,22 @@ mod tests {
 
         #[test]
         fn with_tuple_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
 
             assert_eq_in_process!(tuple_term.length(&mut process), Err(BadArgument), process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_false() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.length(&mut process),
+                Err(BadArgument),
+                process
+            );
         }
     }
 
@@ -1698,7 +1966,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let atom_term = process.find_or_insert_atom("atom");
 
             assert_eq_in_process!(atom_term.size(), Err(BadArgument), process);
@@ -1713,7 +1981,7 @@ mod tests {
 
         #[test]
         fn with_list_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
 
             assert_eq_in_process!(list_term.size(), Err(BadArgument), process);
@@ -1721,7 +1989,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq_in_process!(small_integer_term.size(), Err(BadArgument), process);
@@ -1729,7 +1997,7 @@ mod tests {
 
         #[test]
         fn with_tuple_without_elements_is_zero() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let empty_tuple_term = tuple_term(&mut process);
             let zero_term = 0usize.into_process(&mut process);
 
@@ -1738,7 +2006,7 @@ mod tests {
 
         #[test]
         fn with_tuple_with_elements_is_element_count() {
-            let mut process = process();
+            let mut process: Process = Default::default();
             let element_vec: Vec<Term> =
                 (0..=2usize).map(|i| i.into_process(&mut process)).collect();
             let element_slice: &[Term] = element_vec.as_slice();
@@ -1747,12 +2015,15 @@ mod tests {
 
             assert_eq_in_process!(tuple_term.size(), Ok(arity_term), process);
         }
-    }
 
-    fn process() -> Process {
-        use crate::environment::Environment;
+        #[test]
+        fn with_heap_binary_is_byte_count() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[0, 1, 2], &mut process);
+            let byte_count_term = 3usize.into_process(&mut process);
 
-        Process::new(Arc::new(RwLock::new(Environment::new())))
+            assert_eq_in_process!(heap_binary_term.size(), Ok(byte_count_term), process);
+        }
     }
 
     fn small_integer_term(mut process: &mut Process, signed_size: isize) -> Term {

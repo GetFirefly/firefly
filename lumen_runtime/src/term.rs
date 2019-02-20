@@ -147,6 +147,17 @@ impl Term {
         tagged: Tag::EmptyList as usize,
     };
 
+    pub fn append_element(
+        &self,
+        element: Term,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        let tuple = <&Tuple>::try_from(self)?;
+        let new_tuple = tuple.append_element(element, &mut process.term_arena);
+
+        Ok(new_tuple.into())
+    }
+
     pub fn arity(arity: usize) -> Term {
         if Term::MAX_ARITY < arity {
             panic!(
@@ -828,6 +839,96 @@ mod tests {
             let tuple_term = tuple_term(&mut process);
 
             assert_eq_in_process!(tuple_term.abs(), Err(BadArgument), process);
+        }
+    }
+
+    mod append_element {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_term = process.find_or_insert_atom("atom");
+
+            assert_eq_in_process!(
+                atom_term.append_element(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+
+            assert_eq_in_process!(
+                Term::EMPTY_LIST.append_element(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+
+            assert_eq_in_process!(
+                list_term.append_element(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let small_integer_term = small_integer_term(&mut process, 0);
+
+            assert_eq_in_process!(
+                small_integer_term.append_element(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_returns_tuple_with_new_element_at_end() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
+
+            assert_eq_in_process!(
+                tuple_term.append_element(2.into(), &mut process),
+                Ok(Term::slice_to_tuple(
+                    &[0.into(), 1.into(), 2.into()],
+                    &mut process
+                )),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_with_index_at_size_return_tuples_with_new_element_at_end() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
+
+            assert_eq_in_process!(
+                tuple_term.append_element(1.into(), &mut process),
+                Ok(Term::slice_to_tuple(&[0.into(), 1.into()], &mut process)),
+                process
+            )
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.append_element(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
         }
     }
 

@@ -11,8 +11,10 @@ pub struct Tuple {
     arity: Term, // the elements follow, but can't be represented in Rust
 }
 
+type TermArena = TypedArena<Term>;
+
 impl Tuple {
-    pub fn from_slice(element_slice: &[Term], term_arena: &mut TypedArena<Term>) -> &'static Tuple {
+    pub fn from_slice(element_slice: &[Term], term_arena: &mut TermArena) -> &'static Tuple {
         let arity = element_slice.len();
         let arity_term = Term::arity(arity);
         let mut term_vector = Vec::with_capacity(1 + arity);
@@ -25,10 +27,19 @@ impl Tuple {
         unsafe { &*pointer }
     }
 
+    pub fn append_element(&self, element: Term, mut term_arena: &mut TermArena) -> &'static Tuple {
+        let arity_usize: usize = self.arity.into();
+        let mut longer_element_vec: Vec<Term> = Vec::with_capacity(arity_usize + 1);
+        longer_element_vec.extend(self.iter());
+        longer_element_vec.push(element);
+
+        Tuple::from_slice(longer_element_vec.as_slice(), &mut term_arena)
+    }
+
     pub fn delete_element(
         &self,
         index: usize,
-        mut term_arena: &mut TypedArena<Term>,
+        mut term_arena: &mut TermArena,
     ) -> Result<&'static Tuple, BadArgument> {
         let arity_usize = usize::from(self.arity);
 
@@ -56,7 +67,7 @@ impl Tuple {
         &self,
         index: usize,
         element: Term,
-        mut term_arena: &mut TypedArena<Term>,
+        mut term_arena: &mut TermArena,
     ) -> Result<&'static Tuple, BadArgument> {
         let arity_usize = usize::from(self.arity);
 
@@ -278,7 +289,7 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let mut term_arena: TypedArena<Term> = Default::default();
+            let mut term_arena: TermArena = Default::default();
             let tuple = Tuple::from_slice(&[], &mut term_arena);
 
             assert_eq!(tuple.iter().count(), 0);
@@ -287,7 +298,7 @@ mod tests {
 
         #[test]
         fn with_elements() {
-            let mut term_arena: TypedArena<Term> = Default::default();
+            let mut term_arena: TermArena = Default::default();
             let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
 
             assert_eq!(tuple.iter().count(), 1);

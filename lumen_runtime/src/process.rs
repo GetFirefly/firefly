@@ -106,9 +106,9 @@ macro_rules! assert_cmp_in_process {
                      panic!(r#"assertion failed: `(left {} right)`
   left: `{}`,
  right: `{}`"#,
+                       ordering_str,
                        left_val.format_in_process(process_val),
-                       right_val.format_in_process(process_val),
-                       ordering_str
+                       right_val.format_in_process(process_val)
                      )
                 }
             }
@@ -129,9 +129,9 @@ macro_rules! assert_cmp_in_process {
                      panic!(r#"assertion failed: `(left {} right)`
   left: `{}`,
  right: `{}`: {}"#,
+                       ordering_str,
                        left_val.format_in_process(process_val),
                        right_val.format_in_process(process_val),
-                       ordering_str,
                        format_args!($($arg)+)
                      )
                 }
@@ -154,9 +154,9 @@ macro_rules! refute_cmp_in_process {
                      panic!(r#"assertion failed: `(left {} right)`
   left: `{}`,
  right: `{}`"#,
+                       ordering_str,
                        left_val.format_in_process(process_val),
-                       right_val.format_in_process(process_val),
-                       ordering_str
+                       right_val.format_in_process(process_val)
                      )
                 }
             }
@@ -177,9 +177,9 @@ macro_rules! refute_cmp_in_process {
                      panic!(r#"assertion failed: `(left {} right)`
   left: `{}`,
  right: `{}`: {}"#,
+                       ordering_str,
                        left_val.format_in_process(process_val),
                        right_val.format_in_process(process_val),
-                       ordering_str,
                        format_args!($($arg)+)
                      )
                 }

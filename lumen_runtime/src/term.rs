@@ -187,6 +187,26 @@ impl Term {
         ((self.tagged & !(TAG_ARITY)) >> Tag::ARITY_BIT_COUNT).into()
     }
 
+    pub fn atom_to_binary(
+        &self,
+        encoding: Term,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        match self.tag() {
+            Tag::Atom => match encoding.tag() {
+                Tag::Atom => match process.atom_to_string(&encoding).as_ref() {
+                    "unicode" | "utf8" | "latin1" => {
+                        let string = process.atom_to_string(self);
+                        Ok(Self::slice_to_binary(string.as_bytes(), &mut process))
+                    }
+                    _ => Err(BadArgument),
+                },
+                _ => Err(BadArgument),
+            },
+            _ => Err(BadArgument),
+        }
+    }
+
     pub fn alloc_slice(slice: &[Term], term_arena: &mut TypedArena<Term>) -> *const Term {
         term_arena.alloc_slice(slice).as_ptr()
     }
@@ -434,7 +454,29 @@ impl DebugInProcess for Term {
 
                         strings.join("")
                     }
-                    _ => unimplemented!(),
+                    Tag::HeapBinary => {
+                        let binary: &Binary = self.unbox_reference();
+
+                        let mut strings: Vec<String> = Vec::new();
+
+                        strings.push("Term::slice_to_binary(&[".to_string());
+
+                        let mut iter = binary.iter();
+
+                        if let Some(first_byte) = iter.next() {
+                            strings.push(first_byte.to_string());
+
+                            for byte in iter {
+                                strings.push(", ".to_string());
+                                strings.push(byte.to_string());
+                            }
+                        }
+
+                        strings.push("], &mut process".to_string());
+
+                        strings.join("")
+                    }
+                    unboxed_tag => unimplemented!("unboxed {:?}", unboxed_tag),
                 }
             }
             Tag::EmptyList => "Term::EMPTY_LIST".to_string(),
@@ -926,6 +968,127 @@ mod tests {
 
             assert_eq_in_process!(
                 heap_binary_term.append_element(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+    }
+
+    mod atom_to_binary {
+        use super::*;
+
+        #[test]
+        fn with_atom_without_encoding_atom_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_name = "😈";
+            let atom_term = process.find_or_insert_atom(atom_name);
+
+            assert_eq_in_process!(
+                atom_term.atom_to_binary(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_atom_with_invalid_encoding_atom_returns_name_in_binary() {
+            let mut process: Process = Default::default();
+            let atom_name = "😈";
+            let atom_term = process.find_or_insert_atom(atom_name);
+            let invalid_encoding_atom_term = process.find_or_insert_atom("invalid_encoding");
+
+            assert_eq_in_process!(
+                atom_term.atom_to_binary(invalid_encoding_atom_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_atom_with_encoding_atom_returns_name_in_binary() {
+            let mut process: Process = Default::default();
+            let atom_name = "😈";
+            let atom_term = process.find_or_insert_atom(atom_name);
+            let latin1_atom_term = process.find_or_insert_atom("latin1");
+            let unicode_atom_term = process.find_or_insert_atom("unicode");
+            let utf8_atom_term = process.find_or_insert_atom("utf8");
+
+            assert_eq_in_process!(
+                atom_term.atom_to_binary(latin1_atom_term, &mut process),
+                Ok(Term::slice_to_binary(atom_name.as_bytes(), &mut process)),
+                process
+            );
+            assert_eq_in_process!(
+                atom_term.atom_to_binary(unicode_atom_term, &mut process),
+                Ok(Term::slice_to_binary(atom_name.as_bytes(), &mut process)),
+                process
+            );
+            assert_eq_in_process!(
+                atom_term.atom_to_binary(utf8_atom_term, &mut process),
+                Ok(Term::slice_to_binary(atom_name.as_bytes(), &mut process)),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let encoding_term = process.find_or_insert_atom("unicode");
+
+            assert_eq_in_process!(
+                Term::EMPTY_LIST.atom_to_binary(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+            let encoding_term = process.find_or_insert_atom("unicode");
+
+            assert_eq_in_process!(
+                list_term.atom_to_binary(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let small_integer_term = small_integer_term(&mut process, 0);
+            let encoding_term = process.find_or_insert_atom("unicode");
+
+            assert_eq_in_process!(
+                small_integer_term.atom_to_binary(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_returns_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
+            let encoding_term = process.find_or_insert_atom("unicode");
+
+            assert_eq_in_process!(
+                tuple_term.atom_to_binary(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let encoding_term = process.find_or_insert_atom("unicode");
+
+            assert_eq_in_process!(
+                heap_binary_term.atom_to_binary(encoding_term, &mut process),
                 Err(BadArgument),
                 process
             );

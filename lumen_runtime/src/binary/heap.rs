@@ -34,7 +34,7 @@ impl<'binary, 'bytes: 'binary> Binary {
         }
     }
 
-    fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter {
         let byte_count = Term::heap_binary_to_byte_count(&self.header);
 
         unsafe {

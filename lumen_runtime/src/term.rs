@@ -6,7 +6,7 @@ use std::fmt::{self, Debug, Display};
 
 use liblumen_arena::TypedArena;
 
-use crate::atom;
+use crate::atom::{self, Encoding};
 use crate::binary::heap::Binary;
 use crate::list::Cons;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
@@ -192,23 +192,74 @@ impl Term {
         encoding: Term,
         mut process: &mut Process,
     ) -> Result<Term, BadArgument> {
+        if let Tag::Atom = self.tag() {
+            encoding.atom_to_encoding(&mut process)?;
+            let string = process.atom_to_string(self);
+            Ok(Self::slice_to_binary(string.as_bytes(), &mut process))
+        } else {
+            Err(BadArgument)
+        }
+    }
+
+    fn atom_to_encoding(&self, process: &mut Process) -> Result<Encoding, BadArgument> {
         match self.tag() {
-            Tag::Atom => match encoding.tag() {
-                Tag::Atom => match process.atom_to_string(&encoding).as_ref() {
-                    "unicode" | "utf8" | "latin1" => {
-                        let string = process.atom_to_string(self);
-                        Ok(Self::slice_to_binary(string.as_bytes(), &mut process))
+            Tag::Atom => {
+                let unicode_atom = process.str_to_atom("unicode");
+                let tagged = self.tagged;
+
+                if tagged == unicode_atom.tagged {
+                    Ok(Encoding::Unicode)
+                } else {
+                    let utf8_atom = process.str_to_atom("utf8");
+
+                    if tagged == utf8_atom.tagged {
+                        Ok(Encoding::Utf8)
+                    } else {
+                        let latin1_atom = process.str_to_atom("latin1");
+
+                        if tagged == latin1_atom.tagged {
+                            Ok(Encoding::Latin1)
+                        } else {
+                            Err(BadArgument)
+                        }
                     }
-                    _ => Err(BadArgument),
-                },
-                _ => Err(BadArgument),
-            },
+                }
+            }
             _ => Err(BadArgument),
         }
     }
 
     pub fn alloc_slice(slice: &[Term], term_arena: &mut TypedArena<Term>) -> *const Term {
         term_arena.alloc_slice(slice).as_ptr()
+    }
+
+    pub fn binary_to_atom(
+        &self,
+        encoding: Term,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        match self.tag() {
+            Tag::Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::HeapBinary => match encoding.tag() {
+                        Tag::Atom => match process.atom_to_string(&encoding).as_ref() {
+                            "unicode" | "utf8" | "latin1" => {
+                                let binary: &Binary = self.unbox_reference();
+                                let atom = binary.to_atom(&mut process);
+
+                                Ok(atom)
+                            }
+                            _ => Err(BadArgument),
+                        },
+                        _ => Err(BadArgument),
+                    },
+                    _ => Err(BadArgument),
+                }
+            }
+            _ => Err(BadArgument),
+        }
     }
 
     pub fn cons(head: Term, tail: Term, process: &mut Process) -> Term {
@@ -836,7 +887,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(atom_term.abs(), Err(BadArgument), process);
         }
@@ -890,7 +941,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(
                 atom_term.append_element(0.into(), &mut process),
@@ -981,7 +1032,7 @@ mod tests {
         fn with_atom_without_encoding_atom_returns_bad_argument() {
             let mut process: Process = Default::default();
             let atom_name = "😈";
-            let atom_term = process.find_or_insert_atom(atom_name);
+            let atom_term = process.str_to_atom(atom_name);
 
             assert_eq_in_process!(
                 atom_term.atom_to_binary(0.into(), &mut process),
@@ -991,11 +1042,11 @@ mod tests {
         }
 
         #[test]
-        fn with_atom_with_invalid_encoding_atom_returns_name_in_binary() {
+        fn with_atom_with_invalid_encoding_atom_returns_bad_argument() {
             let mut process: Process = Default::default();
             let atom_name = "😈";
-            let atom_term = process.find_or_insert_atom(atom_name);
-            let invalid_encoding_atom_term = process.find_or_insert_atom("invalid_encoding");
+            let atom_term = process.str_to_atom(atom_name);
+            let invalid_encoding_atom_term = process.str_to_atom("invalid_encoding");
 
             assert_eq_in_process!(
                 atom_term.atom_to_binary(invalid_encoding_atom_term, &mut process),
@@ -1008,10 +1059,10 @@ mod tests {
         fn with_atom_with_encoding_atom_returns_name_in_binary() {
             let mut process: Process = Default::default();
             let atom_name = "😈";
-            let atom_term = process.find_or_insert_atom(atom_name);
-            let latin1_atom_term = process.find_or_insert_atom("latin1");
-            let unicode_atom_term = process.find_or_insert_atom("unicode");
-            let utf8_atom_term = process.find_or_insert_atom("utf8");
+            let atom_term = process.str_to_atom(atom_name);
+            let latin1_atom_term = process.str_to_atom("latin1");
+            let unicode_atom_term = process.str_to_atom("unicode");
+            let utf8_atom_term = process.str_to_atom("utf8");
 
             assert_eq_in_process!(
                 atom_term.atom_to_binary(latin1_atom_term, &mut process),
@@ -1033,7 +1084,7 @@ mod tests {
         #[test]
         fn with_empty_list_is_bad_argument() {
             let mut process: Process = Default::default();
-            let encoding_term = process.find_or_insert_atom("unicode");
+            let encoding_term = process.str_to_atom("unicode");
 
             assert_eq_in_process!(
                 Term::EMPTY_LIST.atom_to_binary(encoding_term, &mut process),
@@ -1046,7 +1097,7 @@ mod tests {
         fn with_list_is_bad_argument() {
             let mut process: Process = Default::default();
             let list_term = list_term(&mut process);
-            let encoding_term = process.find_or_insert_atom("unicode");
+            let encoding_term = process.str_to_atom("unicode");
 
             assert_eq_in_process!(
                 list_term.atom_to_binary(encoding_term, &mut process),
@@ -1059,7 +1110,7 @@ mod tests {
         fn with_small_integer_is_bad_argument() {
             let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
-            let encoding_term = process.find_or_insert_atom("unicode");
+            let encoding_term = process.str_to_atom("unicode");
 
             assert_eq_in_process!(
                 small_integer_term.atom_to_binary(encoding_term, &mut process),
@@ -1072,7 +1123,7 @@ mod tests {
         fn with_tuple_returns_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
-            let encoding_term = process.find_or_insert_atom("unicode");
+            let encoding_term = process.str_to_atom("unicode");
 
             assert_eq_in_process!(
                 tuple_term.atom_to_binary(encoding_term, &mut process),
@@ -1085,12 +1136,131 @@ mod tests {
         fn with_heap_binary_is_bad_argument() {
             let mut process: Process = Default::default();
             let heap_binary_term = Term::slice_to_binary(&[], &mut process);
-            let encoding_term = process.find_or_insert_atom("unicode");
+            let encoding_term = process.str_to_atom("unicode");
 
             assert_eq_in_process!(
                 heap_binary_term.atom_to_binary(encoding_term, &mut process),
                 Err(BadArgument),
                 process
+            );
+        }
+    }
+
+    mod binary_to_atom {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_term = process.str_to_atom("atom");
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                atom_term.binary_to_atom(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                Term::EMPTY_LIST.binary_to_atom(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                list_term.binary_to_atom(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let small_integer_term = small_integer_term(&mut process, 0);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                small_integer_term.binary_to_atom(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_returns_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                tuple_term.binary_to_atom(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_without_encoding_atom_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_to_atom(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_invalid_encoding_atom_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let invalid_encoding_term = process.str_to_atom("invalid_encoding");
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_to_atom(invalid_encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_valid_encoding_returns_atom() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary("😈".as_bytes(), &mut process);
+            let latin1_atom_term = process.str_to_atom("latin1");
+            let unicode_atom_term = process.str_to_atom("unicode");
+            let utf8_atom_term = process.str_to_atom("utf8");
+            let atom_term = process.str_to_atom("😈");
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_to_atom(latin1_atom_term, &mut process),
+                Ok(atom_term),
+                &mut process
+            );
+            assert_eq_in_process!(
+                heap_binary_term.binary_to_atom(unicode_atom_term, &mut process),
+                Ok(atom_term),
+                &mut process
+            );
+            assert_eq_in_process!(
+                heap_binary_term.binary_to_atom(utf8_atom_term, &mut process),
+                Ok(atom_term),
+                &mut process
             );
         }
     }
@@ -1105,7 +1275,7 @@ mod tests {
             fn number_is_less_than_atom() {
                 let mut process: Process = Default::default();
                 let number_term: Term = 0.into();
-                let atom_term = process.find_or_insert_atom("0");
+                let atom_term = process.str_to_atom("0");
 
                 assert_cmp_in_process!(number_term, Ordering::Less, atom_term, process);
                 refute_cmp_in_process!(atom_term, Ordering::Less, number_term, process);
@@ -1114,7 +1284,7 @@ mod tests {
             #[test]
             fn atom_is_less_than_tuple() {
                 let mut process: Process = Default::default();
-                let atom_term = process.find_or_insert_atom("0");
+                let atom_term = process.str_to_atom("0");
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
                 assert_cmp_in_process!(atom_term, Ordering::Less, tuple_term, process);
@@ -1125,9 +1295,9 @@ mod tests {
             fn atom_is_less_than_atom_if_name_is_less_than() {
                 let mut process: Process = Default::default();
                 let greater_name = "b";
-                let greater_term = process.find_or_insert_atom(greater_name);
+                let greater_term = process.str_to_atom(greater_name);
                 let lesser_name = "a";
-                let lesser_term = process.find_or_insert_atom(lesser_name);
+                let lesser_term = process.str_to_atom(lesser_name);
 
                 assert!(lesser_name < greater_name);
                 assert_cmp_in_process!(lesser_term, Ordering::Less, greater_term, process);
@@ -1295,7 +1465,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(
                 atom_term.delete_element(0.into(), &mut process),
@@ -1406,7 +1576,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(atom_term.element(0.into()), Err(BadArgument), process);
         }
@@ -1505,7 +1675,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(atom_term.head(), Err(BadArgument), process);
         }
@@ -1520,7 +1690,7 @@ mod tests {
         #[test]
         fn with_list_returns_head() {
             let mut process: Process = Default::default();
-            let head_term = process.find_or_insert_atom("head");
+            let head_term = process.str_to_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
             assert_eq_in_process!(list_term.head(), Ok(head_term), process);
@@ -1557,7 +1727,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(atom_term.tail(), Err(BadArgument), process);
         }
@@ -1572,7 +1742,7 @@ mod tests {
         #[test]
         fn with_list_returns_tail() {
             let mut process: Process = Default::default();
-            let head_term = process.find_or_insert_atom("head");
+            let head_term = process.str_to_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
             assert_eq_in_process!(list_term.tail(), Ok(Term::EMPTY_LIST), process);
@@ -1609,7 +1779,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(
                 atom_term.insert_element(0.into(), 0.into(), &mut process),
@@ -1738,7 +1908,7 @@ mod tests {
         #[test]
         fn with_atom_is_true() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(
                 atom_term.is_atom(&mut process),
@@ -1760,7 +1930,7 @@ mod tests {
         #[test]
         fn with_nil_is_true() {
             let mut process: Process = Default::default();
-            let nil_term = process.find_or_insert_atom("nil");
+            let nil_term = process.str_to_atom("nil");
             let true_term = true.into_process(&mut process);
 
             assert_eq_in_process!(nil_term.is_atom(&mut process), true_term, process);
@@ -1778,7 +1948,7 @@ mod tests {
         #[test]
         fn with_list_is_false() {
             let mut process: Process = Default::default();
-            let head_term = process.find_or_insert_atom("head");
+            let head_term = process.str_to_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
 
@@ -1823,7 +1993,7 @@ mod tests {
         #[test]
         fn with_atom_is_false() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(atom_term.is_binary(&mut process), false_term, process);
@@ -1841,7 +2011,7 @@ mod tests {
         #[test]
         fn with_list_is_false() {
             let mut process: Process = Default::default();
-            let head_term = process.find_or_insert_atom("head");
+            let head_term = process.str_to_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
 
@@ -1886,7 +2056,7 @@ mod tests {
         #[test]
         fn with_atom_is_false() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(atom_term.is_empty_list(&mut process), false_term, process);
@@ -1908,7 +2078,7 @@ mod tests {
         #[test]
         fn with_list_is_false() {
             let mut process: Process = Default::default();
-            let head_term = process.find_or_insert_atom("head");
+            let head_term = process.str_to_atom("head");
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
 
@@ -1957,7 +2127,7 @@ mod tests {
         #[test]
         fn with_atom_is_false() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(atom_term.is_integer(&mut process), false_term, process);
@@ -2023,7 +2193,7 @@ mod tests {
         #[test]
         fn with_atom_is_false() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(atom_term.is_list(&mut process), false_term, process);
@@ -2085,7 +2255,7 @@ mod tests {
         #[test]
         fn with_atom_is_false() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(atom_term.is_tuple(&mut process), false_term, process);
@@ -2147,7 +2317,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(atom_term.length(&mut process), Err(BadArgument), process);
         }
@@ -2167,8 +2337,8 @@ mod tests {
         #[test]
         fn with_improper_list_is_bad_argument() {
             let mut process: Process = Default::default();
-            let head_term = process.find_or_insert_atom("head");
-            let tail_term = process.find_or_insert_atom("tail");
+            let head_term = process.str_to_atom("head");
+            let tail_term = process.str_to_atom("tail");
             let improper_list_term = Term::cons(head_term, tail_term, &mut process);
 
             assert_eq_in_process!(
@@ -2231,7 +2401,7 @@ mod tests {
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
-            let atom_term = process.find_or_insert_atom("atom");
+            let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(atom_term.size(), Err(BadArgument), process);
         }
@@ -2295,7 +2465,7 @@ mod tests {
     }
 
     fn list_term(process: &mut Process) -> Term {
-        let head_term = process.find_or_insert_atom("head");
+        let head_term = process.str_to_atom("head");
         Term::cons(head_term, Term::EMPTY_LIST, process)
     }
 

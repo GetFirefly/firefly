@@ -45,8 +45,8 @@ impl Process {
         self.environment.read().unwrap().atom_to_string(term)
     }
 
-    pub fn find_or_insert_atom(&mut self, name: &str) -> Term {
-        self.environment.write().unwrap().find_or_insert_atom(name)
+    pub fn str_to_atom(&mut self, name: &str) -> Term {
+        self.environment.write().unwrap().str_to_atom(name)
     }
 
     pub fn slice_to_binary(&mut self, slice: &[u8]) -> &Binary {
@@ -223,7 +223,7 @@ pub trait IntoProcess<T> {
 
 impl IntoProcess<Term> for bool {
     fn into_process(self: Self, process: &mut Process) -> Term {
-        process.find_or_insert_atom(&self.to_string())
+        process.str_to_atom(&self.to_string())
     }
 }
 
@@ -245,8 +245,8 @@ mod tests {
         fn have_atom_tags() {
             let mut process: Process = Default::default();
 
-            assert_eq!(process.find_or_insert_atom("true").tag(), Tag::Atom);
-            assert_eq!(process.find_or_insert_atom("false").tag(), Tag::Atom);
+            assert_eq!(process.str_to_atom("true").tag(), Tag::Atom);
+            assert_eq!(process.str_to_atom("false").tag(), Tag::Atom);
         }
 
         #[test]
@@ -254,8 +254,8 @@ mod tests {
             let mut process: Process = Default::default();
 
             assert_eq!(
-                process.find_or_insert_atom("atom").tagged,
-                process.find_or_insert_atom("atom").tagged
+                process.str_to_atom("atom").tagged,
+                process.str_to_atom("atom").tagged
             )
         }
     }

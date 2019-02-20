@@ -50,6 +50,14 @@ impl<'binary, 'bytes: 'binary> Binary {
         // while `header` is tagged as `HeapBinary` to mark the beginning of a heap binary.
         Term::heap_binary_to_integer(&self.header)
     }
+
+    pub fn to_atom(&self, process: &mut Process) -> Term {
+        let bytes = unsafe {
+            std::slice::from_raw_parts(self.bytes, Term::heap_binary_to_byte_count(&self.header))
+        };
+
+        process.str_to_atom(std::str::from_utf8(bytes).unwrap())
+    }
 }
 
 impl DebugInProcess for Binary {

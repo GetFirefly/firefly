@@ -11,6 +11,7 @@ use crate::binary::heap::Binary;
 use crate::list::Cons;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::tuple::{Element, Tuple};
+use std::str::Chars;
 
 impl From<&Term> for atom::Index {
     fn from(term: &Term) -> atom::Index {
@@ -201,6 +202,20 @@ impl Term {
         }
     }
 
+    pub fn atom_to_list(
+        &self,
+        encoding: Term,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        if let Tag::Atom = self.tag() {
+            encoding.atom_to_encoding(&mut process)?;
+            let string = process.atom_to_string(self);
+            Ok(Self::chars_to_list(string.chars(), &mut process))
+        } else {
+            Err(BadArgument)
+        }
+    }
+
     fn atom_to_encoding(&self, process: &mut Process) -> Result<Encoding, BadArgument> {
         match self.tag() {
             Tag::Atom => {
@@ -260,6 +275,12 @@ impl Term {
             }
             _ => Err(BadArgument),
         }
+    }
+
+    fn chars_to_list(chars: Chars, mut process: &mut Process) -> Term {
+        chars.rfold(Self::EMPTY_LIST, |acc, character| {
+            Term::cons(character.into_process(&mut process), acc, &mut process)
+        })
     }
 
     pub fn cons(head: Term, tail: Term, process: &mut Process) -> Term {
@@ -689,6 +710,20 @@ impl InsertElement<Term> for Tuple {
     }
 }
 
+impl IntoProcess<Term> for char {
+    fn into_process(self: Self, _process: &mut Process) -> Term {
+        let self_usize = self as usize;
+
+        if (self_usize as isize) <= MAX_SMALL_INTEGER {
+            Term {
+                tagged: (self_usize << SMALL_INTEGER_TAG_BIT_COUNT) | (Tag::SmallInteger as usize),
+            }
+        } else {
+            panic!("char ({}) is not between the min small integer ({}) and max small integer ({}), inclusive", self, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER);
+        }
+    }
+}
+
 impl IntoProcess<Term> for isize {
     fn into_process(self: Self, _process: &mut Process) -> Term {
         if MIN_SMALL_INTEGER <= self && self <= MAX_SMALL_INTEGER {
@@ -846,7 +881,8 @@ impl OrderInProcess for Term {
 
                 match self_unboxed.tag() {
                     Tag::Arity => Ordering::Less,
-                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp []", self_unboxed_tag),
+                    Tag::HeapBinary => Ordering::Greater,
+                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag),
                 }
             }
             (Tag::EmptyList, Tag::Boxed) | (Tag::List, Tag::Boxed) => {
@@ -854,7 +890,10 @@ impl OrderInProcess for Term {
 
                 match other_unboxed.tag() {
                     Tag::Arity => Ordering::Greater,
-                    other_unboxed_tag => unimplemented!("[] cmp unboxed {:?}", other_unboxed_tag),
+                    Tag::HeapBinary => Ordering::Less,
+                    other_unboxed_tag => {
+                        unimplemented!("list() cmp unboxed {:?}", other_unboxed_tag)
+                    }
                 }
             }
             (Tag::EmptyList, Tag::EmptyList) => Ordering::Equal,
@@ -1140,6 +1179,139 @@ mod tests {
 
             assert_eq_in_process!(
                 heap_binary_term.atom_to_binary(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+    }
+
+    mod atom_to_list {
+        use super::*;
+
+        #[test]
+        fn with_atom_without_encoding_atom_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_name = "😈🤘";
+            let atom_term = process.str_to_atom(atom_name);
+
+            assert_eq_in_process!(
+                atom_term.atom_to_list(0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_atom_with_invalid_encoding_atom_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_name = "😈🤘";
+            let atom_term = process.str_to_atom(atom_name);
+            let invalid_encoding_atom_term = process.str_to_atom("invalid_encoding");
+
+            assert_eq_in_process!(
+                atom_term.atom_to_list(invalid_encoding_atom_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_atom_with_encoding_atom_returns_chars_in_list() {
+            let mut process: Process = Default::default();
+            let atom_name = "😈🤘";
+            let atom_term = process.str_to_atom(atom_name);
+            let latin1_atom_term = process.str_to_atom("latin1");
+            let unicode_atom_term = process.str_to_atom("unicode");
+            let utf8_atom_term = process.str_to_atom("utf8");
+
+            assert_eq_in_process!(
+                atom_term.atom_to_list(latin1_atom_term, &mut process),
+                Ok(Term::cons(
+                    128520.into(),
+                    Term::cons(129304.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process
+                )),
+                process
+            );
+            assert_eq_in_process!(
+                atom_term.atom_to_list(unicode_atom_term, &mut process),
+                Ok(Term::cons(
+                    128520.into(),
+                    Term::cons(129304.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process
+                )),
+                process
+            );
+            assert_eq_in_process!(
+                atom_term.atom_to_list(utf8_atom_term, &mut process),
+                Ok(Term::cons(
+                    128520.into(),
+                    Term::cons(129304.into(), Term::EMPTY_LIST, &mut process),
+                    &mut process
+                )),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                Term::EMPTY_LIST.atom_to_list(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                list_term.atom_to_list(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let small_integer_term = small_integer_term(&mut process, 0);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                small_integer_term.atom_to_list(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_returns_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                tuple_term.atom_to_list(encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                heap_binary_term.atom_to_list(encoding_term, &mut process),
                 Err(BadArgument),
                 process
             );

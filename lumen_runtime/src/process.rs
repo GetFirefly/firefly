@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 
 use liblumen_arena::TypedArena;
 
-use crate::binary::heap::Binary;
+use crate::binary::{heap, sub, Binary};
 use crate::environment::Environment;
 use crate::list::List;
 use crate::term::BadArgument;
@@ -15,7 +15,8 @@ use crate::tuple::Tuple;
 pub struct Process {
     environment: Arc<RwLock<Environment>>,
     pub byte_arena: TypedArena<u8>,
-    pub binary_arena: TypedArena<Binary>,
+    pub heap_binary_arena: TypedArena<heap::Binary>,
+    pub subbinary_arena: TypedArena<sub::Binary>,
     pub term_arena: TypedArena<Term>,
 }
 
@@ -24,7 +25,8 @@ impl Process {
         Process {
             environment,
             byte_arena: Default::default(),
-            binary_arena: Default::default(),
+            heap_binary_arena: Default::default(),
+            subbinary_arena: Default::default(),
             term_arena: Default::default(),
         }
     }
@@ -45,12 +47,31 @@ impl Process {
         self.environment.read().unwrap().atom_to_string(term)
     }
 
+    pub fn subbinary(
+        &self,
+        original: Term,
+        byte_offset: usize,
+        bit_offset: u8,
+        byte_count: usize,
+        bit_count: u8,
+    ) -> &'static sub::Binary {
+        let pointer = self.subbinary_arena.alloc(sub::Binary::new(
+            original,
+            byte_offset,
+            bit_offset,
+            byte_count,
+            bit_count,
+        )) as *const sub::Binary;
+
+        unsafe { &*pointer }
+    }
+
     pub fn str_to_atom(&mut self, name: &str) -> Term {
         self.environment.write().unwrap().str_to_atom(name)
     }
 
-    pub fn slice_to_binary(&mut self, slice: &[u8]) -> &Binary {
-        Binary::from_slice(slice, &mut self.binary_arena, &mut self.byte_arena)
+    pub fn slice_to_binary(&mut self, slice: &[u8]) -> Binary {
+        Binary::from_slice(slice, self)
     }
 
     pub fn slice_to_tuple(&mut self, slice: &[Term]) -> &Tuple {

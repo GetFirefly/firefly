@@ -2,8 +2,9 @@ use std::cmp::Ordering;
 
 use liblumen_arena::TypedArena;
 
+use crate::binary::{self, Part};
 use crate::process::{DebugInProcess, OrderInProcess, Process};
-use crate::term::Term;
+use crate::term::{BadArgument, Term};
 
 pub struct Binary {
     header: Term,
@@ -32,6 +33,16 @@ impl<'binary, 'bytes: 'binary> Binary {
             header: Term::heap_binary(bytes.len()),
             bytes: bytes.as_ptr(),
         }
+    }
+
+    pub fn byte(&self, index: usize) -> u8 {
+        assert!(index < Term::heap_binary_to_byte_count(&self.header));
+
+        unsafe { *self.bytes.offset(index as isize) }
+    }
+
+    pub fn byte_iter(&self) -> Iter {
+        self.iter()
     }
 
     pub fn iter(&self) -> Iter {
@@ -103,6 +114,48 @@ impl Iterator for Iter {
     }
 }
 
+impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
+    fn part(
+        &'a self,
+        start: usize,
+        length: isize,
+        process: &mut Process,
+    ) -> Result<binary::Binary<'b>, BadArgument> {
+        let byte_count = Term::heap_binary_to_byte_count(&self.header);
+        let byte_count_isize = byte_count as isize;
+
+        // subbinary is entire binary, so return original without making a subbinary
+        if ((start == 0) & (length == byte_count_isize))
+            | ((start == byte_count) & (length == -byte_count_isize))
+        {
+            Ok(binary::Binary::Heap(self))
+        } else if length >= 0 {
+            let non_negative_length = length as usize;
+
+            if (start < byte_count) & (start + non_negative_length <= byte_count) {
+                let process_subbinary =
+                    process.subbinary(self.into(), start, 0, non_negative_length, 0);
+                Ok(binary::Binary::Sub(process_subbinary))
+            } else {
+                Err(BadArgument)
+            }
+        } else {
+            let start_isize = start as isize;
+
+            if (start <= byte_count) & (0 <= start_isize + length) {
+                let byte_offset = (start_isize + length) as usize;
+                let byte_count = (-length) as usize;
+                let process_subbinary =
+                    process.subbinary(self.into(), byte_offset, 0, byte_count, 0);
+
+                Ok(binary::Binary::Sub(process_subbinary))
+            } else {
+                Err(BadArgument)
+            }
+        }
+    }
+}
+
 impl OrderInProcess for Binary {
     fn cmp_in_process(&self, other: &Binary, process: &Process) -> Ordering {
         match self.header.cmp_in_process(&other.header, process) {
@@ -129,6 +182,8 @@ impl OrderInProcess for Binary {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::convert::TryInto;
 
     mod from_slice {
         use super::*;
@@ -165,8 +220,9 @@ mod tests {
         fn without_elements() {
             let mut process: Process = Default::default();
             let binary =
-                Binary::from_slice(&[], &mut process.binary_arena, &mut process.byte_arena);
-            let equal = Binary::from_slice(&[], &mut process.binary_arena, &mut process.byte_arena);
+                Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
+            let equal =
+                Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
 
             assert_eq_in_process!(binary, binary, process);
             assert_eq_in_process!(binary, equal, process);
@@ -175,10 +231,16 @@ mod tests {
         #[test]
         fn without_equal_length() {
             let mut process: Process = Default::default();
-            let binary =
-                Binary::from_slice(&[0], &mut process.binary_arena, &mut process.byte_arena);
-            let unequal =
-                Binary::from_slice(&[0, 1], &mut process.binary_arena, &mut process.byte_arena);
+            let binary = Binary::from_slice(
+                &[0],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
+            let unequal = Binary::from_slice(
+                &[0, 1],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
 
             assert_ne_in_process!(binary, unequal, process);
         }
@@ -186,10 +248,16 @@ mod tests {
         #[test]
         fn with_equal_length_without_same_byte() {
             let mut process: Process = Default::default();
-            let binary =
-                Binary::from_slice(&[0], &mut process.binary_arena, &mut process.byte_arena);
-            let unequal =
-                Binary::from_slice(&[1], &mut process.binary_arena, &mut process.byte_arena);
+            let binary = Binary::from_slice(
+                &[0],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
+            let unequal = Binary::from_slice(
+                &[1],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
 
             assert_eq_in_process!(binary, binary, process);
             assert_ne_in_process!(binary, unequal, process);
@@ -198,10 +266,16 @@ mod tests {
         #[test]
         fn with_equal_length_with_same_bytes() {
             let mut process: Process = Default::default();
-            let binary =
-                Binary::from_slice(&[0], &mut process.binary_arena, &mut process.byte_arena);
-            let unequal =
-                Binary::from_slice(&[0], &mut process.binary_arena, &mut process.byte_arena);
+            let binary = Binary::from_slice(
+                &[0],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
+            let unequal = Binary::from_slice(
+                &[0],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
 
             assert_eq_in_process!(binary, unequal, process);
         }
@@ -214,20 +288,23 @@ mod tests {
         fn without_elements() {
             let mut process: Process = Default::default();
             let binary =
-                Binary::from_slice(&[], &mut process.binary_arena, &mut process.byte_arena);
+                Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
 
             assert_eq!(binary.iter().count(), 0);
-            assert_eq!(binary.iter().count(), binary.size().into());
+            assert_eq!(binary.iter().count(), binary.size().try_into().unwrap());
         }
 
         #[test]
         fn with_elements() {
             let mut process: Process = Default::default();
-            let binary =
-                Binary::from_slice(&[0], &mut process.binary_arena, &mut process.byte_arena);
+            let binary = Binary::from_slice(
+                &[0],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
 
             assert_eq!(binary.iter().count(), 1);
-            assert_eq!(binary.iter().count(), binary.size().into());
+            assert_eq!(binary.iter().count(), binary.size().try_into().unwrap());
         }
     }
 
@@ -238,7 +315,7 @@ mod tests {
         fn without_elements() {
             let mut process: Process = Default::default();
             let binary =
-                Binary::from_slice(&[], &mut process.binary_arena, &mut process.byte_arena);
+                Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
 
             assert_eq_in_process!(binary.size(), &0.into(), process);
         }
@@ -246,8 +323,11 @@ mod tests {
         #[test]
         fn with_elements() {
             let mut process: Process = Default::default();
-            let binary =
-                Binary::from_slice(&[0], &mut process.binary_arena, &mut process.byte_arena);
+            let binary = Binary::from_slice(
+                &[0],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
 
             assert_eq_in_process!(binary.size(), &1.into(), process);
         }

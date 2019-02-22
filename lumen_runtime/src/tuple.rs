@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::iter::FusedIterator;
 use std::ops::Index;
 
 use liblumen_arena::TypedArena;
@@ -28,7 +29,7 @@ impl Tuple {
     }
 
     pub fn append_element(&self, element: Term, mut term_arena: &mut TermArena) -> &'static Tuple {
-        let arity_usize: usize = self.arity.into();
+        let arity_usize: usize = self.arity.arity_to_usize();
         let mut longer_element_vec: Vec<Term> = Vec::with_capacity(arity_usize + 1);
         longer_element_vec.extend(self.iter());
         longer_element_vec.push(element);
@@ -41,7 +42,7 @@ impl Tuple {
         index: usize,
         mut term_arena: &mut TermArena,
     ) -> Result<&'static Tuple, BadArgument> {
-        let arity_usize = usize::from(self.arity);
+        let arity_usize = self.arity.arity_to_usize();
 
         if index < arity_usize {
             let smaller_element_vec: Vec<Term> = self
@@ -69,7 +70,7 @@ impl Tuple {
         element: Term,
         mut term_arena: &mut TermArena,
     ) -> Result<&'static Tuple, BadArgument> {
-        let arity_usize = usize::from(self.arity);
+        let arity_usize = self.arity.arity_to_usize();
 
         // can be equal to arity when insertion is at the end
         if index <= arity_usize {
@@ -98,7 +99,7 @@ impl Tuple {
 
     pub fn iter(&self) -> Iter {
         let arity_pointer = self as *const Tuple as *const Term;
-        let arity_isize = usize::from(self.arity) as isize;
+        let arity_isize = self.arity.arity_to_usize() as isize;
 
         unsafe {
             Iter {
@@ -142,7 +143,7 @@ pub trait Element<T> {
 
 impl Element<usize> for Tuple {
     fn element(&self, index: usize) -> Result<Term, BadArgument> {
-        let arity_usize = usize::from(self.arity);
+        let arity_usize = self.arity.arity_to_usize();
 
         if index < arity_usize {
             Ok(self[index])
@@ -156,7 +157,7 @@ impl Index<usize> for Tuple {
     type Output = Term;
 
     fn index(&self, index: usize) -> &Term {
-        let arity_usize: usize = self.arity.into();
+        let arity_usize = self.arity.arity_to_usize();
 
         assert!(index < arity_usize);
 
@@ -187,6 +188,8 @@ impl Iterator for Iter {
     }
 }
 
+impl FusedIterator for Iter {}
+
 impl OrderInProcess for Tuple {
     fn cmp_in_process(&self, other: &Tuple, process: &Process) -> Ordering {
         match self.arity.cmp_in_process(&other.arity, process) {
@@ -213,6 +216,8 @@ impl OrderInProcess for Tuple {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::convert::TryInto;
 
     mod from_slice {
         use super::*;
@@ -293,7 +298,7 @@ mod tests {
             let tuple = Tuple::from_slice(&[], &mut term_arena);
 
             assert_eq!(tuple.iter().count(), 0);
-            assert_eq!(tuple.iter().count(), tuple.size().into());
+            assert_eq!(tuple.iter().count(), tuple.size().try_into().unwrap());
         }
 
         #[test]
@@ -302,7 +307,7 @@ mod tests {
             let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
 
             assert_eq!(tuple.iter().count(), 1);
-            assert_eq!(tuple.iter().count(), tuple.size().into());
+            assert_eq!(tuple.iter().count(), tuple.size().try_into().unwrap());
         }
     }
 

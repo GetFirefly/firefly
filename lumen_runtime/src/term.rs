@@ -7,7 +7,7 @@ use std::fmt::{self, Debug, Display};
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding};
-use crate::binary::heap::Binary;
+use crate::binary::{self, heap, sub, Part};
 use crate::list::Cons;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::tuple::{Element, Tuple};
@@ -174,18 +174,20 @@ impl Term {
     }
 
     pub fn arity_to_integer(&self) -> Term {
-        const TAG_ARITY: usize = Tag::Arity as usize;
+        // Tag::ARITY_BIT_COUNT > Tag::SMALL_INTEGER_BIT_COUNT, so any arity MUST fit into a term
+        // and not need `into_process` for allocation.
+        self.arity_to_usize().into()
+    }
 
+    pub fn arity_to_usize(&self) -> usize {
         assert_eq!(
-            self.tagged & TAG_ARITY,
-            TAG_ARITY,
+            self.tag(),
+            Tag::Arity,
             "Term ({:#b}) is not a tuple arity",
             self.tagged
         );
 
-        // Tag::ARITY_BIT_COUNT > Tag::SMALL_INTEGER_BIT_COUNT, so any arity MUST fit into a term
-        // and not need `into_process` for allocation.
-        ((self.tagged & !(TAG_ARITY)) >> Tag::ARITY_BIT_COUNT).into()
+        ((self.tagged & !(Tag::Arity as usize)) >> Tag::ARITY_BIT_COUNT)
     }
 
     pub fn atom_to_binary(
@@ -248,6 +250,29 @@ impl Term {
         term_arena.alloc_slice(slice).as_ptr()
     }
 
+    pub fn binary_part(
+        &self,
+        start: Term,
+        length: Term,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        match self.tag() {
+            Tag::Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::HeapBinary => {
+                        let binary: &heap::Binary = self.unbox_reference();
+
+                        binary.part(start, length, &mut process)
+                    }
+                    _ => Err(BadArgument),
+                }
+            }
+            _ => Err(BadArgument),
+        }
+    }
+
     pub fn binary_to_atom(
         &self,
         encoding: Term,
@@ -261,7 +286,7 @@ impl Term {
                     Tag::HeapBinary => match encoding.tag() {
                         Tag::Atom => match process.atom_to_string(&encoding).as_ref() {
                             "unicode" | "utf8" | "latin1" => {
-                                let binary: &Binary = self.unbox_reference();
+                                let binary: &heap::Binary = self.unbox_reference();
                                 let atom = binary.to_atom(&mut process);
 
                                 Ok(atom)
@@ -274,6 +299,25 @@ impl Term {
                 }
             }
             _ => Err(BadArgument),
+        }
+    }
+
+    pub fn byte(&self, index: usize) -> u8 {
+        match self.tag() {
+            Tag::Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::HeapBinary => {
+                        let heap_binary: &heap::Binary = self.unbox_reference();
+
+                        heap_binary.byte(index)
+                    }
+                    Tag::ReferenceCountedBinary => unimplemented!(),
+                    unboxed_tag => panic!("Cannot get bytes of unboxed {:?}", unboxed_tag),
+                }
+            }
+            tag => panic!("Cannot get bytes of {:?}", tag),
         }
     }
 
@@ -317,8 +361,8 @@ impl Term {
         const TAG_HEAP_BINARY: usize = Tag::HeapBinary as usize;
 
         assert_eq!(
-            self.tagged & TAG_HEAP_BINARY,
-            TAG_HEAP_BINARY,
+            self.tag(),
+            Tag::HeapBinary,
             "Term ({:#b}) is not a heap binary",
             self.tagged
         );
@@ -439,7 +483,7 @@ impl Term {
 
                 match unboxed.tag() {
                     Tag::Arity => Ok(Term::unbox_reference::<Tuple>(self).size()),
-                    Tag::HeapBinary => Ok(Term::unbox_reference::<Binary>(self).size()),
+                    Tag::HeapBinary => Ok(Term::unbox_reference::<heap::Binary>(self).size()),
                     _ => Err(BadArgument),
                 }
             }
@@ -471,7 +515,7 @@ impl Term {
         }
     }
 
-    fn unbox_reference<T>(&self) -> &T {
+    pub fn unbox_reference<T>(&self) -> &T {
         const TAG_BOXED: usize = Tag::Boxed as usize;
 
         assert_eq!(
@@ -490,6 +534,17 @@ impl Term {
 
     const SMALL_INTEGER_SIGN_BIT_MASK: usize = std::isize::MIN as usize;
 
+    pub fn small_integer_to_usize(&self) -> usize {
+        assert_eq!(
+            self.tag(),
+            Tag::SmallInteger,
+            "Term ({:#b}) is not a tuple arity",
+            self.tagged
+        );
+
+        ((self.tagged & !(Tag::SmallInteger as usize)) >> Tag::SMALL_INTEGER_BIT_COUNT)
+    }
+
     /// Only call if verified `tag` is `Tag::SmallInteger`.
     unsafe fn small_integer_is_negative(&self) -> bool {
         self.tagged & Term::SMALL_INTEGER_SIGN_BIT_MASK == Term::SMALL_INTEGER_SIGN_BIT_MASK
@@ -499,7 +554,7 @@ impl Term {
 impl DebugInProcess for Term {
     fn format_in_process(&self, process: &Process) -> String {
         match self.tag() {
-            Tag::Arity => format!("Term::arity({})", usize::from(Term::arity_to_integer(self))),
+            Tag::Arity => format!("Term::arity({})", self.arity_to_usize()),
             Tag::Boxed => {
                 let unboxed: &Term = self.unbox_reference();
 
@@ -527,7 +582,7 @@ impl DebugInProcess for Term {
                         strings.join("")
                     }
                     Tag::HeapBinary => {
-                        let binary: &Binary = self.unbox_reference();
+                        let binary: &heap::Binary = self.unbox_reference();
 
                         let mut strings: Vec<String> = Vec::new();
 
@@ -545,6 +600,33 @@ impl DebugInProcess for Term {
                         }
 
                         strings.push("], &mut process".to_string());
+
+                        strings.join("")
+                    }
+                    Tag::Subbinary => {
+                        let subbinary: &sub::Binary = self.unbox_reference();
+
+                        let mut strings: Vec<String> = Vec::new();
+
+                        strings.push("Term::slice_to_bitstring(&[".to_string());
+
+                        let mut byte_iter = subbinary.byte_iter();
+
+                        if let Some(first_byte) = byte_iter.next() {
+                            strings.push(first_byte.to_string());
+
+                            for byte in byte_iter {
+                                strings.push(", ".to_string());
+                                strings.push(byte.to_string());
+                            }
+                        }
+
+                        let last_bits_byte = subbinary.last_bits_byte();
+                        let bit_count = subbinary.bit_count;
+
+                        strings.push(", ".to_string());
+                        strings.push(format!("{:#b}", last_bits_byte));
+                        strings.push(bit_count.to_string());
 
                         strings.join("")
                     }
@@ -584,7 +666,7 @@ impl DeleteElement<Term> for Tuple {
     fn delete_element(&self, index: Term, process: &mut Process) -> Result<Term, BadArgument> {
         match index.tag() {
             Tag::SmallInteger => self
-                .delete_element(usize::from(index), &mut process.term_arena)
+                .delete_element(index.small_integer_to_usize(), &mut process.term_arena)
                 .map(|tuple| tuple.into()),
             _ => Err(BadArgument),
         }
@@ -599,9 +681,16 @@ impl Element<Term> for Term {
 
 impl Element<Term> for Tuple {
     fn element(&self, index: Term) -> Result<Term, BadArgument> {
-        match index.tag() {
-            Tag::SmallInteger => self.element(usize::from(index)),
-            _ => Err(BadArgument),
+        let index_usize: usize = index.try_into()?;
+        self.element(index_usize)
+    }
+}
+
+impl<'a> From<binary::Binary<'a>> for Term {
+    fn from(binary: binary::Binary<'a>) -> Self {
+        match binary {
+            binary::Binary::Heap(heap_binary) => Term::box_reference(heap_binary),
+            binary::Binary::Sub(sub_binary) => Term::box_reference(sub_binary),
         }
     }
 }
@@ -640,24 +729,6 @@ impl<T> From<&T> for Term {
 const SMALL_INTEGER_TAG_BIT_COUNT: u8 = 4;
 const MIN_SMALL_INTEGER: isize = std::isize::MIN >> SMALL_INTEGER_TAG_BIT_COUNT;
 const MAX_SMALL_INTEGER: isize = std::isize::MAX >> SMALL_INTEGER_TAG_BIT_COUNT;
-
-impl From<Term> for usize {
-    fn from(term: Term) -> Self {
-        match term.tag() {
-            Tag::Arity => term.tagged >> Tag::ARITY_BIT_COUNT,
-            Tag::SmallInteger => {
-                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
-
-                if 0 <= term_isize {
-                    term_isize as usize
-                } else {
-                    panic!("Term ({:#b}) contains negative small integer ({}) that can't be converted to usize", term.tagged, term_isize);
-                }
-            }
-            _ => unimplemented!(),
-        }
-    }
-}
 
 impl From<usize> for Term {
     fn from(u: usize) -> Self {
@@ -701,12 +772,9 @@ impl InsertElement<Term> for Tuple {
         element: Term,
         process: &mut Process,
     ) -> Result<Term, BadArgument> {
-        match index.tag() {
-            Tag::SmallInteger => self
-                .insert_element(usize::from(index), element, &mut process.term_arena)
-                .map(|tuple| tuple.into()),
-            _ => Err(BadArgument),
-        }
+        let index_usize: usize = index.try_into()?;
+        self.insert_element(index_usize, element, &mut process.term_arena)
+            .map(|tuple| tuple.into())
     }
 }
 
@@ -753,6 +821,59 @@ impl From<atom::Index> for Term {
             }
         } else {
             panic!("index ({}) in atom table exceeds max index that can be tagged as an atom in a Term ({})", atom_index.0, MAX_ATOM_INDEX)
+        }
+    }
+}
+
+impl<'a> Part<'a, Term, Term, Term> for heap::Binary {
+    fn part(
+        &'a self,
+        start: Term,
+        length: Term,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        let start_usize: usize = start.try_into()?;
+        let length_isize: isize = length.try_into()?;
+
+        let binary = self.part(start_usize, length_isize, process)?;
+
+        match binary {
+            // a heap binary is only returned if it is the same
+            binary::Binary::Heap(_) => Ok(self.into()),
+            binary::Binary::Sub(subbinary) => Ok(subbinary.into()),
+        }
+    }
+}
+
+impl TryFrom<Term> for isize {
+    type Error = BadArgument;
+
+    fn try_from(term: Term) -> Result<isize, BadArgument> {
+        match term.tag() {
+            Tag::SmallInteger => {
+                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
+                Ok(term_isize)
+            }
+            _ => Err(BadArgument),
+        }
+    }
+}
+
+impl TryFrom<Term> for usize {
+    type Error = BadArgument;
+
+    fn try_from(term: Term) -> Result<usize, BadArgument> {
+        match term.tag() {
+            Tag::SmallInteger => {
+                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
+
+                if term_isize < 0 {
+                    Err(BadArgument)
+                } else {
+                    Ok(term_isize as usize)
+                }
+            }
+            _ => Err(BadArgument),
         }
     }
 }
@@ -864,10 +985,16 @@ impl OrderInProcess for Term {
                         self_tuple.cmp_in_process(other_tuple, process)
                     }
                     (Tag::HeapBinary, Tag::HeapBinary) => {
-                        let self_binary: &Binary = self.unbox_reference();
-                        let other_binary: &Binary = other.unbox_reference();
+                        let self_binary: &heap::Binary = self.unbox_reference();
+                        let other_binary: &heap::Binary = other.unbox_reference();
 
                         self_binary.cmp_in_process(other_binary, process)
+                    }
+                    (Tag::Subbinary, Tag::HeapBinary) => {
+                        let self_subbinary: &sub::Binary = self.unbox_reference();
+                        let other_heap_binary: &heap::Binary = other.unbox_reference();
+
+                        self_subbinary.cmp_in_process(other_heap_binary, process)
                     }
                     (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
                         "unboxed {:?} cmp unboxed {:?}",
@@ -1315,6 +1442,259 @@ mod tests {
                 Err(BadArgument),
                 process
             );
+        }
+    }
+
+    // binary_part/3
+    mod binary_part {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_term = process.str_to_atom("atom");
+
+            assert_eq_in_process!(
+                atom_term.binary_part(0.into(), 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+
+            assert_eq_in_process!(
+                Term::EMPTY_LIST.binary_part(0.into(), 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+
+            assert_eq_in_process!(
+                list_term.binary_part(0.into(), 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let small_integer_term: Term = 0.into();
+
+            assert_eq_in_process!(
+                small_integer_term.binary_part(0.into(), 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_returns_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
+
+            assert_eq_in_process!(
+                tuple_term.binary_part(0.into(), 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_without_integer_start_without_integer_length_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let start_term = Term::slice_to_tuple(&[0.into(), 0.into()], &mut process);
+            let length_term = process.str_to_atom("all");
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_without_integer_start_with_integer_length_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let start_term = 0.into();
+            let length_term = process.str_to_atom("all");
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_integer_start_without_integer_length_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let start_term = 0.into();
+            let length_term = process.str_to_atom("all");
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_negative_start_with_valid_length_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let start_term = (-1isize).into_process(&mut process);
+            let length_term = 0.into();
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_start_greater_than_size_with_non_negative_length_returns_bad_argument(
+        ) {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let start_term = 1.into();
+            let length_term = 0.into();
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_start_less_than_size_with_negative_length_past_start_returns_bad_argument(
+        ) {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[0], &mut process);
+            let start_term = 0.into();
+            let length_term = (-1isize).into_process(&mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_start_less_than_size_with_positive_length_past_end_returns_bad_argument(
+        ) {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[0], &mut process);
+            let start_term = 0.into();
+            let length_term = 2.into();
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_zero_start_and_size_length_returns_binary() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[0], &mut process);
+            let start_term = 0.into();
+            let length_term = 1.into();
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Ok(heap_binary_term),
+                process
+            );
+
+            let returned_binary = heap_binary_term
+                .binary_part(start_term, length_term, &mut process)
+                .unwrap();
+
+            assert_eq!(returned_binary.tagged, heap_binary_term.tagged);
+        }
+
+        #[test]
+        fn with_heap_binary_with_size_start_and_negative_size_length_returns_binary() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[0], &mut process);
+            let start_term = 1.into();
+            let length_term = (-1isize).into_process(&mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Ok(heap_binary_term),
+                process
+            );
+
+            let returned_binary = heap_binary_term
+                .binary_part(start_term, length_term, &mut process)
+                .unwrap();
+
+            assert_eq!(returned_binary.tagged, heap_binary_term.tagged);
+        }
+
+        #[test]
+        fn with_heap_binary_with_positive_start_and_negative_length_returns_subbinary() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
+            let start_term = 1.into();
+            let length_term = (-1isize).into_process(&mut process);
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Ok(Term::slice_to_binary(&[0], &mut process)),
+                process
+            );
+
+            let returned_boxed = heap_binary_term
+                .binary_part(start_term, length_term, &mut process)
+                .unwrap();
+
+            assert_eq!(returned_boxed.tag(), Tag::Boxed);
+
+            let returned_unboxed: &Term = returned_boxed.unbox_reference();
+
+            assert_eq!(returned_unboxed.tag(), Tag::Subbinary);
+        }
+
+        #[test]
+        fn with_heap_binary_with_positive_start_and_positice_length_returns_subbinary() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
+            let start_term = 1.into();
+            let length_term = 1.into();
+
+            assert_eq_in_process!(
+                heap_binary_term.binary_part(start_term, length_term, &mut process),
+                Ok(Term::slice_to_binary(&[1], &mut process)),
+                process
+            );
+
+            let returned_boxed = heap_binary_term
+                .binary_part(start_term, length_term, &mut process)
+                .unwrap();
+
+            assert_eq!(returned_boxed.tag(), Tag::Boxed);
+
+            let returned_unboxed: &Term = returned_boxed.unbox_reference();
+
+            assert_eq!(returned_unboxed.tag(), Tag::Subbinary);
         }
     }
 

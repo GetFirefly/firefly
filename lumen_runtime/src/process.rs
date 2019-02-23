@@ -116,6 +116,8 @@ impl OrderInProcess for Result<Term, BadArgument> {
 #[macro_export]
 macro_rules! assert_cmp_in_process {
     ($left:expr, $ordering:expr, $right:expr, $process:expr) => ({
+        use crate::process::{DebugInProcess, OrderInProcess};
+
         match (&$left, &$ordering, &$right, &$process) {
             (left_val, ordering_val, right_val, process_val) => {
                 if !((*left_val).cmp_in_process(right_val, process_val) == *ordering_val) {
@@ -139,6 +141,8 @@ macro_rules! assert_cmp_in_process {
         assert_cmp_in_process!($left, $ordering, $right, $process)
     });
     ($left:expr, $ordering:expr, $right:expr, $process:expr, $($arg:tt)+) => ({
+        use crate::process::{DebugInProcess, OrderInProcess};
+
         match (&$left, &$ordering, &$right, &$process) {
             (left_val, ordering_val, right_val, process_val) => {
                 if !((*left_val).cmp_in_process(right_val, process_val) == *ordering_val) {
@@ -164,6 +168,8 @@ macro_rules! assert_cmp_in_process {
 #[macro_export]
 macro_rules! refute_cmp_in_process {
     ($left:expr, $ordering:expr, $right:expr, $process:expr) => ({
+        use crate::process::{DebugInProcess, OrderInProcess};
+
         match (&$left, &$ordering, &$right, &$process) {
             (left_val, ordering_val, right_val, process_val) => {
                 if (*left_val).cmp_in_process(right_val, process_val) == *ordering_val {
@@ -187,6 +193,8 @@ macro_rules! refute_cmp_in_process {
         assert_cmp_in_process!($left, $ordering, $right, $process)
     });
     ($left:expr, $ordering:expr, $right:expr, $process:expr, $($arg:tt)+) => ({
+        use crate::process::{DebugInProcess, OrderInProcess};
+
         match (&$left, &$ordering, &$right, &$process) {
             (left_val, ordering_val, right_val, process_val) => {
                 if (*left_val).cmp_in_process(right_val, process_val) == *ordering_val {

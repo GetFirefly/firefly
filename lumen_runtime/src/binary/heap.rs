@@ -183,8 +183,6 @@ impl OrderInProcess for Binary {
 mod tests {
     use super::*;
 
-    use std::convert::TryInto;
-
     mod from_slice {
         use super::*;
 
@@ -283,6 +281,8 @@ mod tests {
 
     mod iter {
         use super::*;
+
+        use std::convert::TryInto;
 
         #[test]
         fn without_elements() {

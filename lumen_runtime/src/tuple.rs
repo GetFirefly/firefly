@@ -64,6 +64,16 @@ impl Tuple {
         }
     }
 
+    pub fn element(&self, index: usize) -> Result<Term, BadArgument> {
+        let arity_usize = self.arity.arity_to_usize();
+
+        if index < arity_usize {
+            Ok(self[index])
+        } else {
+            Err(BadArgument)
+        }
+    }
+
     pub fn insert_element(
         &self,
         index: usize,
@@ -137,22 +147,6 @@ impl DebugInProcess for Tuple {
     }
 }
 
-pub trait Element<T> {
-    fn element(&self, index: T) -> Result<Term, BadArgument>;
-}
-
-impl Element<usize> for Tuple {
-    fn element(&self, index: usize) -> Result<Term, BadArgument> {
-        let arity_usize = self.arity.arity_to_usize();
-
-        if index < arity_usize {
-            Ok(self[index])
-        } else {
-            Err(BadArgument)
-        }
-    }
-}
-
 impl Index<usize> for Tuple {
     type Output = Term;
 
@@ -216,8 +210,6 @@ impl OrderInProcess for Tuple {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::convert::TryInto;
 
     mod from_slice {
         use super::*;
@@ -291,6 +283,8 @@ mod tests {
 
     mod iter {
         use super::*;
+
+        use std::convert::TryInto;
 
         #[test]
         fn without_elements() {

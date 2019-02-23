@@ -18,6 +18,7 @@ mod config;
 mod environment;
 mod list;
 mod logging;
+mod otp;
 mod system;
 mod term;
 mod tuple;

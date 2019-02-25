@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::iter::FusedIterator;
 
+use crate::atom;
 use crate::binary::{heap, Part};
 use crate::process::{OrderInProcess, Process};
 use crate::term::{BadArgument, Tag, Term};
@@ -81,7 +82,7 @@ impl Binary {
     }
 
     /// Converts to atom only if [bit_count] is `0`.
-    pub fn to_atom(&self, process: &mut Process) -> Result<Term, BadArgument> {
+    pub fn to_atom_index(&self, process: &mut Process) -> Result<atom::Index, BadArgument> {
         if 0 < self.bit_count {
             Err(BadArgument)
         } else {
@@ -90,7 +91,7 @@ impl Binary {
             let bytes = bytes_vec.as_slice();
             let bytes_str = std::str::from_utf8(bytes).unwrap();
 
-            Ok(process.str_to_atom(bytes_str))
+            Ok(process.str_to_atom_index(bytes_str))
         }
     }
 }

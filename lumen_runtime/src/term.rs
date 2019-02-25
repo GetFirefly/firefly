@@ -179,21 +179,21 @@ impl Term {
         ((self.tagged & !(Tag::Arity as usize)) >> Tag::ARITY_BIT_COUNT)
     }
 
-    pub fn atom_to_encoding(&self, process: &mut Process) -> Result<Encoding, BadArgument> {
+    pub fn atom_to_encoding(&self, mut process: &mut Process) -> Result<Encoding, BadArgument> {
         match self.tag() {
             Tag::Atom => {
-                let unicode_atom = process.str_to_atom("unicode");
+                let unicode_atom = Term::str_to_atom("unicode", &mut process);
                 let tagged = self.tagged;
 
                 if tagged == unicode_atom.tagged {
                     Ok(Encoding::Unicode)
                 } else {
-                    let utf8_atom = process.str_to_atom("utf8");
+                    let utf8_atom = Term::str_to_atom("utf8", &mut process);
 
                     if tagged == utf8_atom.tagged {
                         Ok(Encoding::Utf8)
                     } else {
-                        let latin1_atom = process.str_to_atom("latin1");
+                        let latin1_atom = Term::str_to_atom("latin1", &mut process);
 
                         if tagged == latin1_atom.tagged {
                             Ok(Encoding::Latin1)
@@ -205,6 +205,10 @@ impl Term {
             }
             _ => Err(BadArgument),
         }
+    }
+
+    pub fn atom_to_string(&self, process: &Process) -> String {
+        process.atom_index_to_string(self.try_into().unwrap())
     }
 
     pub fn alloc_slice(slice: &[Term], term_arena: &mut TypedArena<Term>) -> *const Term {
@@ -300,6 +304,10 @@ impl Term {
 
     pub fn slice_to_tuple(slice: &[Term], process: &mut Process) -> Term {
         process.slice_to_tuple(slice).into()
+    }
+
+    pub fn str_to_atom(name: &str, process: &mut Process) -> Term {
+        process.str_to_atom_index(name).into()
     }
 
     pub fn subbinary(
@@ -704,8 +712,8 @@ impl OrderInProcess for Term {
                 if self.tagged == other.tagged {
                     Ordering::Equal
                 } else {
-                    let self_name = process.atom_to_string(self);
-                    let other_name = process.atom_to_string(other);
+                    let self_name = self.atom_to_string(process);
+                    let other_name = other.atom_to_string(process);
 
                     self_name.cmp(&other_name)
                 }
@@ -817,7 +825,7 @@ mod tests {
             fn number_is_less_than_atom() {
                 let mut process: Process = Default::default();
                 let number_term: Term = 0.into();
-                let atom_term = process.str_to_atom("0");
+                let atom_term = Term::str_to_atom("0", &mut process);
 
                 assert_cmp_in_process!(number_term, Ordering::Less, atom_term, process);
                 refute_cmp_in_process!(atom_term, Ordering::Less, number_term, process);
@@ -826,7 +834,7 @@ mod tests {
             #[test]
             fn atom_is_less_than_tuple() {
                 let mut process: Process = Default::default();
-                let atom_term = process.str_to_atom("0");
+                let atom_term = Term::str_to_atom("0", &mut process);
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
                 assert_cmp_in_process!(atom_term, Ordering::Less, tuple_term, process);
@@ -837,9 +845,9 @@ mod tests {
             fn atom_is_less_than_atom_if_name_is_less_than() {
                 let mut process: Process = Default::default();
                 let greater_name = "b";
-                let greater_term = process.str_to_atom(greater_name);
+                let greater_term = Term::str_to_atom(greater_name, &mut process);
                 let lesser_name = "a";
-                let lesser_term = process.str_to_atom(lesser_name);
+                let lesser_term = Term::str_to_atom(lesser_name, &mut process);
 
                 assert!(lesser_name < greater_name);
                 assert_cmp_in_process!(lesser_term, Ordering::Less, greater_term, process);
@@ -1007,7 +1015,7 @@ mod tests {
         #[test]
         fn with_atom_is_false() {
             let mut process: Process = Default::default();
-            let atom_term = process.str_to_atom("atom");
+            let atom_term = Term::str_to_atom("atom", &mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(atom_term.is_empty_list(&mut process), false_term, process);
@@ -1029,7 +1037,7 @@ mod tests {
         #[test]
         fn with_list_is_false() {
             let mut process: Process = Default::default();
-            let head_term = process.str_to_atom("head");
+            let head_term = Term::str_to_atom("head", &mut process);
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
 
@@ -1076,8 +1084,8 @@ mod tests {
         signed_size.into_process(&mut process)
     }
 
-    fn list_term(process: &mut Process) -> Term {
-        let head_term = process.str_to_atom("head");
+    fn list_term(mut process: &mut Process) -> Term {
+        let head_term = Term::str_to_atom("head", &mut process);
         Term::cons(head_term, Term::EMPTY_LIST, process)
     }
 

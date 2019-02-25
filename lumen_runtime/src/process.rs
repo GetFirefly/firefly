@@ -5,11 +5,12 @@ use std::sync::{Arc, RwLock};
 
 use liblumen_arena::TypedArena;
 
+use crate::atom;
 use crate::binary::{heap, sub, Binary};
 use crate::environment::Environment;
 use crate::list::List;
 use crate::term::BadArgument;
-use crate::term::{Tag, Term};
+use crate::term::Term;
 use crate::tuple::Tuple;
 
 pub struct Process {
@@ -31,6 +32,13 @@ impl Process {
         }
     }
 
+    pub fn atom_index_to_string(&self, atom_index: atom::Index) -> String {
+        self.environment
+            .read()
+            .unwrap()
+            .atom_index_to_string(atom_index)
+    }
+
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
     /// is a list `Term` (`Term.tag` is `Tag::List`) or empty list (`Term.tag` is `Tag::EmptyList`).
     pub fn cons(&mut self, head: Term, tail: Term) -> List {
@@ -39,12 +47,6 @@ impl Process {
         term_vector.push(tail);
 
         Term::alloc_slice(term_vector.as_slice(), &mut self.term_arena)
-    }
-
-    pub fn atom_to_string(&self, term: &Term) -> String {
-        assert_eq!(term.tag(), Tag::Atom);
-
-        self.environment.read().unwrap().atom_to_string(term)
     }
 
     pub fn subbinary(
@@ -66,8 +68,8 @@ impl Process {
         unsafe { &*pointer }
     }
 
-    pub fn str_to_atom(&mut self, name: &str) -> Term {
-        self.environment.write().unwrap().str_to_atom(name)
+    pub fn str_to_atom_index(&mut self, name: &str) -> atom::Index {
+        self.environment.write().unwrap().str_to_atom_index(name)
     }
 
     pub fn slice_to_binary(&mut self, slice: &[u8]) -> Binary {
@@ -251,8 +253,8 @@ pub trait IntoProcess<T> {
 }
 
 impl IntoProcess<Term> for bool {
-    fn into_process(self: Self, process: &mut Process) -> Term {
-        process.str_to_atom(&self.to_string())
+    fn into_process(self: Self, mut process: &mut Process) -> Term {
+        Term::str_to_atom(&self.to_string(), &mut process)
     }
 }
 
@@ -267,24 +269,26 @@ impl Default for Process {
 mod tests {
     use super::*;
 
-    mod find_or_insert_atom {
+    mod str_to_atom_index {
         use super::*;
 
         #[test]
-        fn have_atom_tags() {
+        fn without_same_string_have_different_index() {
             let mut process: Process = Default::default();
 
-            assert_eq!(process.str_to_atom("true").tag(), Tag::Atom);
-            assert_eq!(process.str_to_atom("false").tag(), Tag::Atom);
+            assert_ne!(
+                process.str_to_atom_index("true").0,
+                process.str_to_atom_index("false").0
+            )
         }
 
         #[test]
-        fn with_same_string_have_same_tagged_value() {
+        fn with_same_string_have_same_index() {
             let mut process: Process = Default::default();
 
             assert_eq!(
-                process.str_to_atom("atom").tagged,
-                process.str_to_atom("atom").tagged
+                process.str_to_atom_index("atom").0,
+                process.str_to_atom_index("atom").0
             )
         }
     }

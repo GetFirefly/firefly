@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use liblumen_arena::TypedArena;
 
-use crate::atom;
+use crate::atom::{self, Existence};
 use crate::binary::{self, Part};
 use crate::process::{DebugInProcess, OrderInProcess, Process};
 use crate::term::{BadArgument, Term};
@@ -63,12 +63,16 @@ impl<'binary, 'bytes: 'binary> Binary {
         Term::heap_binary_to_integer(&self.header)
     }
 
-    pub fn to_atom_index(&self, process: &mut Process) -> atom::Index {
+    pub fn to_atom_index(
+        &self,
+        existence: Existence,
+        process: &mut Process,
+    ) -> Result<atom::Index, BadArgument> {
         let bytes = unsafe {
             std::slice::from_raw_parts(self.bytes, Term::heap_binary_to_byte_count(&self.header))
         };
 
-        process.str_to_atom_index(std::str::from_utf8(bytes).unwrap())
+        process.str_to_atom_index(std::str::from_utf8(bytes).unwrap(), existence)
     }
 }
 

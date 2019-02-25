@@ -1,6 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use crate::atom;
+use crate::atom::{self, Existence};
+use crate::term::BadArgument;
 
 pub struct Environment {
     atom_table: atom::Table,
@@ -17,8 +18,12 @@ impl Environment {
         self.atom_table.name(atom_index)
     }
 
-    pub fn str_to_atom_index(&mut self, name: &str) -> atom::Index {
-        self.atom_table.str_to_index(name)
+    pub fn str_to_atom_index(
+        &mut self,
+        name: &str,
+        existence: Existence,
+    ) -> Result<atom::Index, BadArgument> {
+        self.atom_table.str_to_index(name, existence)
     }
 }
 
@@ -34,8 +39,14 @@ mod tests {
             let mut environment = Environment::new();
 
             assert_ne!(
-                environment.str_to_atom_index("true").0,
-                environment.str_to_atom_index("false").0
+                environment
+                    .str_to_atom_index("true", Existence::DoNotCare)
+                    .unwrap()
+                    .0,
+                environment
+                    .str_to_atom_index("false", Existence::DoNotCare)
+                    .unwrap()
+                    .0
             )
         }
 
@@ -44,8 +55,14 @@ mod tests {
             let mut environment = Environment::new();
 
             assert_eq!(
-                environment.str_to_atom_index("atom").0,
-                environment.str_to_atom_index("atom").0
+                environment
+                    .str_to_atom_index("atom", Existence::DoNotCare)
+                    .unwrap()
+                    .0,
+                environment
+                    .str_to_atom_index("atom", Existence::DoNotCare)
+                    .unwrap()
+                    .0
             )
         }
     }

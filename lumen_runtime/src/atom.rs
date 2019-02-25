@@ -1,9 +1,16 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
+use crate::term::BadArgument;
+
 pub enum Encoding {
     Latin1,
     Unicode,
     Utf8,
+}
+
+pub enum Existence {
+    DoNotCare,
+    Exists,
 }
 
 pub struct Index(pub usize);
@@ -17,21 +24,21 @@ impl Table {
         Table { names: Vec::new() }
     }
 
-    pub fn str_to_index(&mut self, name: &str) -> Index {
+    pub fn str_to_index(&mut self, name: &str, existence: Existence) -> Result<Index, BadArgument> {
         let existing_position = self
             .names
             .iter()
             .position(|existing_name| existing_name == name);
 
-        let found_or_existing_position = match existing_position {
-            Some(position) => position,
-            None => {
+        match (existing_position, existence) {
+            (Some(position), _) => Ok(position),
+            (None, Existence::DoNotCare) => {
                 self.names.push(name.to_string());
-                self.names.len() - 1
+                Ok(self.names.len() - 1)
             }
-        };
-
-        Index(found_or_existing_position)
+            (None, Existence::Exists) => Err(BadArgument),
+        }
+        .map(|found_or_existing_position| Index(found_or_existing_position))
     }
 
     pub fn name(&self, index: Index) -> String {

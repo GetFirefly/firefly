@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 
 use liblumen_arena::TypedArena;
 
-use crate::atom;
+use crate::atom::{self, Existence};
 use crate::binary::{heap, sub, Binary};
 use crate::environment::Environment;
 use crate::list::List;
@@ -68,8 +68,15 @@ impl Process {
         unsafe { &*pointer }
     }
 
-    pub fn str_to_atom_index(&mut self, name: &str) -> atom::Index {
-        self.environment.write().unwrap().str_to_atom_index(name)
+    pub fn str_to_atom_index(
+        &mut self,
+        name: &str,
+        existence: Existence,
+    ) -> Result<atom::Index, BadArgument> {
+        self.environment
+            .write()
+            .unwrap()
+            .str_to_atom_index(name, existence)
     }
 
     pub fn slice_to_binary(&mut self, slice: &[u8]) -> Binary {
@@ -254,7 +261,9 @@ pub trait IntoProcess<T> {
 
 impl IntoProcess<Term> for bool {
     fn into_process(self: Self, mut process: &mut Process) -> Term {
-        Term::str_to_atom(&self.to_string(), &mut process)
+        Term::str_to_atom(&self.to_string(), Existence::DoNotCare, &mut process)
+            .unwrap()
+            .into()
     }
 }
 
@@ -277,8 +286,14 @@ mod tests {
             let mut process: Process = Default::default();
 
             assert_ne!(
-                process.str_to_atom_index("true").0,
-                process.str_to_atom_index("false").0
+                process
+                    .str_to_atom_index("true", Existence::DoNotCare)
+                    .unwrap()
+                    .0,
+                process
+                    .str_to_atom_index("false", Existence::DoNotCare)
+                    .unwrap()
+                    .0
             )
         }
 
@@ -287,8 +302,14 @@ mod tests {
             let mut process: Process = Default::default();
 
             assert_eq!(
-                process.str_to_atom_index("atom").0,
-                process.str_to_atom_index("atom").0
+                process
+                    .str_to_atom_index("atom", Existence::DoNotCare)
+                    .unwrap()
+                    .0,
+                process
+                    .str_to_atom_index("atom", Existence::DoNotCare)
+                    .unwrap()
+                    .0
             )
         }
     }

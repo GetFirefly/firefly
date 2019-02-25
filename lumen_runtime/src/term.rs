@@ -6,7 +6,7 @@ use std::fmt::{self, Debug, Display};
 
 use liblumen_arena::TypedArena;
 
-use crate::atom::{self, Encoding};
+use crate::atom::{self, Encoding, Existence};
 use crate::binary::{self, heap, sub, Part};
 use crate::list::Cons;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
@@ -182,18 +182,22 @@ impl Term {
     pub fn atom_to_encoding(&self, mut process: &mut Process) -> Result<Encoding, BadArgument> {
         match self.tag() {
             Tag::Atom => {
-                let unicode_atom = Term::str_to_atom("unicode", &mut process);
+                let unicode_atom =
+                    Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
                 let tagged = self.tagged;
 
                 if tagged == unicode_atom.tagged {
                     Ok(Encoding::Unicode)
                 } else {
-                    let utf8_atom = Term::str_to_atom("utf8", &mut process);
+                    let utf8_atom =
+                        Term::str_to_atom("utf8", Existence::DoNotCare, &mut process).unwrap();
 
                     if tagged == utf8_atom.tagged {
                         Ok(Encoding::Utf8)
                     } else {
-                        let latin1_atom = Term::str_to_atom("latin1", &mut process);
+                        let latin1_atom =
+                            Term::str_to_atom("latin1", Existence::DoNotCare, &mut process)
+                                .unwrap();
 
                         if tagged == latin1_atom.tagged {
                             Ok(Encoding::Latin1)
@@ -306,8 +310,14 @@ impl Term {
         process.slice_to_tuple(slice).into()
     }
 
-    pub fn str_to_atom(name: &str, process: &mut Process) -> Term {
-        process.str_to_atom_index(name).into()
+    pub fn str_to_atom(
+        name: &str,
+        existence: Existence,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        process
+            .str_to_atom_index(name, existence)
+            .map(|atom_index| atom_index.into())
     }
 
     pub fn subbinary(
@@ -825,7 +835,7 @@ mod tests {
             fn number_is_less_than_atom() {
                 let mut process: Process = Default::default();
                 let number_term: Term = 0.into();
-                let atom_term = Term::str_to_atom("0", &mut process);
+                let atom_term = Term::str_to_atom("0", Existence::DoNotCare, &mut process).unwrap();
 
                 assert_cmp_in_process!(number_term, Ordering::Less, atom_term, process);
                 refute_cmp_in_process!(atom_term, Ordering::Less, number_term, process);
@@ -834,7 +844,7 @@ mod tests {
             #[test]
             fn atom_is_less_than_tuple() {
                 let mut process: Process = Default::default();
-                let atom_term = Term::str_to_atom("0", &mut process);
+                let atom_term = Term::str_to_atom("0", Existence::DoNotCare, &mut process).unwrap();
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
                 assert_cmp_in_process!(atom_term, Ordering::Less, tuple_term, process);
@@ -845,9 +855,11 @@ mod tests {
             fn atom_is_less_than_atom_if_name_is_less_than() {
                 let mut process: Process = Default::default();
                 let greater_name = "b";
-                let greater_term = Term::str_to_atom(greater_name, &mut process);
+                let greater_term =
+                    Term::str_to_atom(greater_name, Existence::DoNotCare, &mut process).unwrap();
                 let lesser_name = "a";
-                let lesser_term = Term::str_to_atom(lesser_name, &mut process);
+                let lesser_term =
+                    Term::str_to_atom(lesser_name, Existence::DoNotCare, &mut process).unwrap();
 
                 assert!(lesser_name < greater_name);
                 assert_cmp_in_process!(lesser_term, Ordering::Less, greater_term, process);
@@ -1015,7 +1027,7 @@ mod tests {
         #[test]
         fn with_atom_is_false() {
             let mut process: Process = Default::default();
-            let atom_term = Term::str_to_atom("atom", &mut process);
+            let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(atom_term.is_empty_list(&mut process), false_term, process);
@@ -1037,7 +1049,7 @@ mod tests {
         #[test]
         fn with_list_is_false() {
             let mut process: Process = Default::default();
-            let head_term = Term::str_to_atom("head", &mut process);
+            let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
             let false_term = false.into_process(&mut process);
 
@@ -1085,7 +1097,7 @@ mod tests {
     }
 
     fn list_term(mut process: &mut Process) -> Term {
-        let head_term = Term::str_to_atom("head", &mut process);
+        let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
         Term::cons(head_term, Term::EMPTY_LIST, process)
     }
 

@@ -1,16 +1,17 @@
 use std::cmp::Ordering;
 use std::iter::FusedIterator;
 
-use crate::binary::heap;
+use crate::binary::{heap, Part};
 use crate::process::{OrderInProcess, Process};
-use crate::term::{Tag, Term};
+use crate::term::{BadArgument, Tag, Term};
 
 pub struct Binary {
+    #[allow(dead_code)]
     header: Term,
-    original: Term,
-    byte_offset: usize,
-    bit_offset: u8,
-    byte_count: usize,
+    pub original: Term,
+    pub byte_offset: usize,
+    pub bit_offset: u8,
+    pub byte_count: usize,
     pub bit_count: u8,
 }
 
@@ -46,6 +47,20 @@ impl Binary {
         }
     }
 
+    /// Iterator of the [bit_count] bits.  To get the [byte_count] bytes at the beginning of the
+    /// bitstring use [byte_iter].
+    pub fn bit_iter(&self) -> BitIter {
+        BitIter {
+            original: self.original,
+            byte_offset: self.byte_offset + (self.bit_count as usize),
+            bit_offset: self.bit_offset,
+            current_bit_count: 0,
+            max_bit_count: self.bit_count,
+        }
+    }
+
+    /// Iterator for the [byte_count] bytes.  For the [bit_count] bits in the partial byte at the
+    /// end, use [byte_iter].
     pub fn byte_iter(&self) -> ByteIter {
         ByteIter {
             original: self.original,
@@ -56,13 +71,36 @@ impl Binary {
         }
     }
 
-    pub fn last_bits_byte(&self) -> u8 {
-        if 0 < self.bit_offset {
-            self.original.byte(self.byte_count + 1) >> (8 - self.bit_offset)
+    pub fn is_binary(&self) -> bool {
+        self.bit_count == 0
+    }
+
+    /// The [byte_count] as `size` works on all binaries.
+    pub fn size(&self) -> Term {
+        self.byte_count.into()
+    }
+
+    /// Converts to atom only if [bit_count] is `0`.
+    pub fn to_atom(&self, process: &mut Process) -> Result<Term, BadArgument> {
+        if 0 < self.bit_count {
+            Err(BadArgument)
         } else {
-            0
+            let mut bytes_vec: Vec<u8> = Vec::with_capacity(self.byte_count);
+            bytes_vec.extend(self.byte_iter());
+            let bytes = bytes_vec.as_slice();
+            let bytes_str = std::str::from_utf8(bytes).unwrap();
+
+            Ok(process.str_to_atom(bytes_str))
         }
     }
+}
+
+pub struct BitIter {
+    original: Term,
+    byte_offset: usize,
+    bit_offset: u8,
+    current_bit_count: u8,
+    max_bit_count: u8,
 }
 
 pub struct ByteIter {
@@ -71,6 +109,33 @@ pub struct ByteIter {
     bit_offset: u8,
     current_byte_count: usize,
     max_byte_count: usize,
+}
+
+impl Iterator for BitIter {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        if self.current_bit_count == self.max_bit_count {
+            None
+        } else {
+            let first_index = self.byte_offset;
+            let first_original_byte = self.original.byte(first_index);
+
+            let byte = if 0 < self.bit_offset {
+                let second_original_byte = self.original.byte(first_index + 1);
+                (first_original_byte << self.bit_offset)
+                    | (second_original_byte >> (8 - self.bit_offset))
+            } else {
+                first_original_byte
+            };
+
+            let bit = (byte >> (7 - self.current_bit_count)) & 0b1;
+
+            self.current_bit_count += 1;
+
+            Some(bit)
+        }
+    }
 }
 
 impl Iterator for ByteIter {
@@ -101,26 +166,75 @@ impl OrderInProcess<heap::Binary> for Binary {
     /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
     fn cmp_in_process(&self, other: &heap::Binary, _process: &Process) -> Ordering {
-        let mut final_ordering = Ordering::Equal;
-        let mut self_byte_iter = self.byte_iter();
-        let mut other_byte_iter = other.byte_iter();
+        match self.byte_iter().cmp(other.byte_iter()) {
+            Ordering::Equal =>
+            // a heap::Binary has 0 bit_count, so if the subbinary has any tail bits it is greater
+            {
+                if self.bit_count > 0 {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            }
+            ordering => ordering,
+        }
+    }
+}
 
-        while final_ordering == Ordering::Equal {
-            final_ordering = match (self_byte_iter.next(), other_byte_iter.next()) {
-                (Some(ref self_byte), Some(ref other_byte)) => self_byte.cmp(other_byte),
-                (Some(_), None) => Ordering::Greater,
-                (None, Some(_)) => Ordering::Less,
-                (None, None) => break,
+impl OrderInProcess<Binary> for Binary {
+    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+    fn cmp_in_process(&self, other: &Binary, _process: &Process) -> Ordering {
+        match self.byte_iter().cmp(other.byte_iter()) {
+            Ordering::Equal => self.bit_iter().cmp(other.bit_iter()),
+            ordering => ordering,
+        }
+    }
+}
+
+impl<'b, 'a: 'b> Part<'a, usize, isize, &'b Binary> for Binary {
+    fn part(
+        &'a self,
+        start: usize,
+        length: isize,
+        process: &mut Process,
+    ) -> Result<&'b Binary, BadArgument> {
+        let byte_count_isize = self.byte_count as isize;
+
+        // new subbinary is entire subbinary
+        if (self.bit_count == 0)
+            & (((start == 0) & (length == byte_count_isize))
+                | ((start == self.byte_count) & (length == -byte_count_isize)))
+        {
+            Ok(self)
+        } else if length >= 0 {
+            let non_negative_length = length as usize;
+
+            if (start < self.byte_count) & (start + non_negative_length <= self.byte_count) {
+                let new_subbinary = process.subbinary(
+                    self.original,
+                    self.byte_offset + start,
+                    self.bit_offset,
+                    non_negative_length,
+                    0,
+                );
+                Ok(new_subbinary)
+            } else {
+                Err(BadArgument)
+            }
+        } else {
+            let start_isize = start as isize;
+
+            if (start <= self.byte_count) & (0 <= start_isize + length) {
+                let byte_offset = (start_isize + length) as usize;
+                let byte_count = (-length) as usize;
+                let new_subbinary =
+                    process.subbinary(self.original, byte_offset, self.bit_offset, byte_count, 0);
+
+                Ok(new_subbinary)
+            } else {
+                Err(BadArgument)
             }
         }
-
-        if final_ordering == Ordering::Equal {
-            // a heap::Binary has no tail bits, so if the subbinary has any tail bits it is greater
-            if self.bit_count > 0 {
-                final_ordering = Ordering::Greater
-            }
-        }
-
-        final_ordering
     }
 }

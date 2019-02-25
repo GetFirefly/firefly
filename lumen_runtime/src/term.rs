@@ -302,6 +302,19 @@ impl Term {
         process.slice_to_tuple(slice).into()
     }
 
+    pub fn subbinary(
+        original: Term,
+        byte_offset: usize,
+        bit_offset: u8,
+        byte_count: usize,
+        bit_count: u8,
+        process: &mut Process,
+    ) -> Term {
+        process
+            .subbinary(original, byte_offset, bit_offset, byte_count, bit_count)
+            .into()
+    }
+
     fn box_reference<T>(reference: &T) -> Term {
         let pointer_bits = reference as *const T as usize;
 
@@ -411,25 +424,17 @@ impl DebugInProcess for Term {
 
                         let mut strings: Vec<String> = Vec::new();
 
-                        strings.push("Term::slice_to_bitstring(&[".to_string());
-
-                        let mut byte_iter = subbinary.byte_iter();
-
-                        if let Some(first_byte) = byte_iter.next() {
-                            strings.push(first_byte.to_string());
-
-                            for byte in byte_iter {
-                                strings.push(", ".to_string());
-                                strings.push(byte.to_string());
-                            }
-                        }
-
-                        let last_bits_byte = subbinary.last_bits_byte();
-                        let bit_count = subbinary.bit_count;
-
+                        strings.push("Term::subbinary(".to_string());
+                        strings.push(subbinary.original.format_in_process(process));
                         strings.push(", ".to_string());
-                        strings.push(format!("{:#b}", last_bits_byte));
-                        strings.push(bit_count.to_string());
+                        strings.push(subbinary.byte_offset.to_string());
+                        strings.push(", ".to_string());
+                        strings.push(subbinary.bit_offset.to_string());
+                        strings.push(", ".to_string());
+                        strings.push(subbinary.byte_count.to_string());
+                        strings.push(", ".to_string());
+                        strings.push(subbinary.bit_count.to_string());
+                        strings.push(", process)".to_string());
 
                         strings.join("")
                     }
@@ -565,6 +570,21 @@ impl<'a> Part<'a, Term, Term, Term> for heap::Binary {
             binary::Binary::Heap(_) => Ok(self.into()),
             binary::Binary::Sub(subbinary) => Ok(subbinary.into()),
         }
+    }
+}
+
+impl<'a> Part<'a, Term, Term, Term> for sub::Binary {
+    fn part(
+        &'a self,
+        start: Term,
+        length: Term,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        let start_usize: usize = start.try_into()?;
+        let length_isize: isize = length.try_into()?;
+        let new_subbinary = self.part(start_usize, length_isize, process)?;
+
+        Ok(new_subbinary.into())
     }
 }
 
@@ -729,6 +749,12 @@ impl OrderInProcess for Term {
                         let other_heap_binary: &heap::Binary = other.unbox_reference();
 
                         self_subbinary.cmp_in_process(other_heap_binary, process)
+                    }
+                    (Tag::Subbinary, Tag::Subbinary) => {
+                        let self_subbinary: &sub::Binary = self.unbox_reference();
+                        let other_subbinary: &sub::Binary = other.unbox_reference();
+
+                        self_subbinary.cmp_in_process(other_subbinary, process)
                     }
                     (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
                         "unboxed {:?} cmp unboxed {:?}",

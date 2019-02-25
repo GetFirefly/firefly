@@ -4,7 +4,7 @@
 
 use std::convert::TryInto;
 
-use crate::binary::{heap, Part};
+use crate::binary::{heap, sub, Part};
 use crate::list::Cons;
 use crate::process::{IntoProcess, Process};
 use crate::term::{BadArgument, Tag, Term};
@@ -86,7 +86,11 @@ pub fn binary_part(
 
                     heap_binary.part(start, length, &mut process)
                 }
-                // TODO `Tag::Subbbinary`
+                Tag::Subbinary => {
+                    let subbinary: &sub::Binary = binary.unbox_reference();
+
+                    subbinary.part(start, length, &mut process)
+                }
                 _ => Err(BadArgument),
             }
         }
@@ -99,23 +103,24 @@ pub fn binary_to_atom(
     encoding: Term,
     mut process: &mut Process,
 ) -> Result<Term, BadArgument> {
+    encoding.atom_to_encoding(&mut process)?;
+
     match binary.tag() {
         Tag::Boxed => {
             let unboxed: &Term = binary.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => match encoding.tag() {
-                    Tag::Atom => match process.atom_to_string(&encoding).as_ref() {
-                        "unicode" | "utf8" | "latin1" => {
-                            let heap_binary: &heap::Binary = binary.unbox_reference();
-                            let atom = heap_binary.to_atom(&mut process);
+                Tag::HeapBinary => {
+                    let heap_binary: &heap::Binary = binary.unbox_reference();
+                    let atom = heap_binary.to_atom(&mut process);
 
-                            Ok(atom)
-                        }
-                        _ => Err(BadArgument),
-                    },
-                    _ => Err(BadArgument),
-                },
+                    Ok(atom)
+                }
+                Tag::Subbinary => {
+                    let subbinary: &sub::Binary = binary.unbox_reference();
+
+                    subbinary.to_atom(&mut process)
+                }
                 _ => Err(BadArgument),
             }
         }
@@ -153,7 +158,7 @@ pub fn insert_element(
     tuple: Term,
     index: Term,
     element: Term,
-    mut process: &mut Process,
+    process: &mut Process,
 ) -> Result<Term, BadArgument> {
     let initial_inner_tuple: &Tuple = tuple.try_into()?;
     let inner_index: usize = index.try_into()?;
@@ -168,9 +173,23 @@ pub fn is_atom(term: Term, mut process: &mut Process) -> Term {
 }
 
 pub fn is_binary(term: Term, mut process: &mut Process) -> Term {
-    // TODO Tag::Subbinary
-    (term.tag() == Tag::Boxed && term.unbox_reference::<Term>().tag() == Tag::HeapBinary)
-        .into_process(&mut process)
+    match term.tag() {
+        Tag::Boxed => {
+            let unboxed: &Term = term.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::HeapBinary => true,
+                Tag::Subbinary => {
+                    let subbinary: &sub::Binary = term.unbox_reference();
+
+                    subbinary.is_binary()
+                }
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+    .into_process(&mut process)
 }
 
 pub fn is_integer(term: Term, mut process: &mut Process) -> Term {
@@ -226,7 +245,11 @@ pub fn size(binary_or_tuple: Term) -> Result<Term, BadArgument> {
 
                     Ok(heap_binary.size())
                 }
-                // TODO Tag::Subbinary
+                Tag::Subbinary => {
+                    let subbinary: &sub::Binary = binary_or_tuple.unbox_reference();
+
+                    Ok(subbinary.size())
+                }
                 _ => Err(BadArgument),
             }
         }
@@ -259,6 +282,24 @@ mod tests {
             let atom_term = process.str_to_atom("atom");
 
             assert_eq_in_process!(erlang::abs(atom_term), Err(BadArgument), process);
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[0.into()], &mut process);
+
+            assert_eq_in_process!(erlang::abs(heap_binary_term), Err(BadArgument), process);
+        }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+
+            assert_eq_in_process!(erlang::abs(subbinary_term), Err(BadArgument), process);
         }
 
         #[test]
@@ -396,6 +437,20 @@ mod tests {
                 process
             );
         }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+
+            assert_eq_in_process!(
+                erlang::append_element(subbinary_term, 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            )
+        }
     }
 
     mod atom_to_binary {
@@ -515,6 +570,21 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(heap_binary_term, encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                erlang::atom_to_binary(subbinary_term, encoding_term, &mut process),
                 Err(BadArgument),
                 process
             );
@@ -650,6 +720,21 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(heap_binary_term, encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let encoding_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                erlang::atom_to_list(subbinary_term, encoding_term, &mut process),
                 Err(BadArgument),
                 process
             );
@@ -887,7 +972,7 @@ mod tests {
         }
 
         #[test]
-        fn with_heap_binary_with_positive_start_and_positice_length_returns_subbinary() {
+        fn with_heap_binary_with_positive_start_and_positive_length_returns_subbinary() {
             let mut process: Process = Default::default();
             let heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
             let start_term = 1.into();
@@ -902,6 +987,203 @@ mod tests {
             let returned_boxed =
                 erlang::binary_part(heap_binary_term, start_term, length_term, &mut process)
                     .unwrap();
+
+            assert_eq!(returned_boxed.tag(), Tag::Boxed);
+
+            let returned_unboxed: &Term = returned_boxed.unbox_reference();
+
+            assert_eq!(returned_unboxed.tag(), Tag::Subbinary);
+        }
+
+        #[test]
+        fn with_subbinary_without_integer_start_without_integer_length_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let start_term = Term::slice_to_tuple(&[0.into(), 0.into()], &mut process);
+            let length_term = process.str_to_atom("all");
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_without_integer_start_with_integer_length_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let start_term = 0.into();
+            let length_term = process.str_to_atom("all");
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_integer_start_without_integer_length_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let start_term = 0.into();
+            let length_term = process.str_to_atom("all");
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_negative_start_with_valid_length_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let start_term = (-1isize).into_process(&mut process);
+            let length_term = 0.into();
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_start_greater_than_size_with_non_negative_length_returns_bad_argument(
+        ) {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 0, 1, &mut process);
+            let start_term = 1.into();
+            let length_term = 0.into();
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_start_less_than_size_with_negative_length_past_start_returns_bad_argument(
+        ) {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let start_term = 0.into();
+            let length_term = (-1isize).into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_start_less_than_size_with_positive_length_past_end_returns_bad_argument(
+        ) {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 1, 1, &mut process);
+            let start_term = 0.into();
+            let length_term = 2.into();
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_zero_start_and_byte_count_length_returns_new_subbinary_with_bytes() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let start_term = 0.into();
+            let length_term = 2.into();
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Ok(Term::subbinary(binary_term, 0, 7, 2, 0, &mut process)),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_byte_count_start_and_negative_byte_count_length_returns_new_subbinary_with_bytes(
+        ) {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let start_term = 2.into();
+            let length_term = (-2isize).into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Ok(Term::subbinary(binary_term, 0, 7, 2, 0, &mut process)),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_positive_start_and_negative_length_returns_subbinary() {
+            let mut process: Process = Default::default();
+            let binary_term = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 1, 0, &mut process);
+            let start_term = 1.into();
+            let length_term = (-1isize).into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Ok(Term::slice_to_binary(&[0b1111_1111], &mut process)),
+                process
+            );
+
+            let returned_boxed =
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process).unwrap();
+
+            assert_eq!(returned_boxed.tag(), Tag::Boxed);
+
+            let returned_unboxed: &Term = returned_boxed.unbox_reference();
+
+            assert_eq!(returned_unboxed.tag(), Tag::Subbinary);
+        }
+
+        #[test]
+        fn with_subbinary_with_positive_start_and_positive_length_returns_subbinary() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term: Term = process.subbinary(binary_term, 0, 7, 2, 1).into();
+            let start_term = 1.into();
+            let length_term = 1.into();
+
+            assert_eq_in_process!(
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
+                Ok(Term::slice_to_binary(&[0b0101_0101], &mut process)),
+                process
+            );
+
+            let returned_boxed =
+                erlang::binary_part(subbinary_term, start_term, length_term, &mut process).unwrap();
 
             assert_eq!(returned_boxed.tag(), Tag::Boxed);
 
@@ -1030,6 +1312,35 @@ mod tests {
                 &mut process
             );
         }
+
+        #[test]
+        fn with_subbinary_with_bit_count_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let unicode_atom_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                erlang::binary_to_atom(subbinary_term, unicode_atom_term, &mut process),
+                Err(BadArgument),
+                &mut process
+            )
+        }
+
+        #[test]
+        fn with_subbinaty_without_bit_count_returns_atom_with_bytes() {
+            let mut process: Process = Default::default();
+            let binary_term = Term::slice_to_binary("😈🤘".as_bytes(), &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 4, 0, 4, 0, &mut process);
+            let unicode_atom_term = process.str_to_atom("unicode");
+
+            assert_eq_in_process!(
+                erlang::binary_to_atom(subbinary_term, unicode_atom_term, &mut process),
+                Ok(process.str_to_atom("🤘")),
+                &mut process
+            )
+        }
     }
 
     mod delete_element {
@@ -1137,6 +1448,20 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::delete_element(heap_binary_term, 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+
+            assert_eq_in_process!(
+                erlang::delete_element(subbinary_term, 0.into(), &mut process),
                 Err(BadArgument),
                 process
             );
@@ -1252,6 +1577,20 @@ mod tests {
                 process
             );
         }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+
+            assert_eq_in_process!(
+                erlang::element(subbinary_term, 0.into()),
+                Err(BadArgument),
+                process
+            );
+        }
     }
 
     mod head {
@@ -1287,7 +1626,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process: Process = Default::default();
+            let process: Process = Default::default();
             let small_integer_term = 0.into();
 
             assert_eq_in_process!(erlang::head(small_integer_term), Err(BadArgument), process);
@@ -1307,6 +1646,16 @@ mod tests {
             let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
             assert_eq_in_process!(erlang::head(heap_binary_term), Err(BadArgument), process);
+        }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+
+            assert_eq_in_process!(erlang::head(subbinary_term), Err(BadArgument), process);
         }
     }
 
@@ -1437,6 +1786,20 @@ mod tests {
                 process
             );
         }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+
+            assert_eq_in_process!(
+                erlang::insert_element(subbinary_term, 0.into(), 0.into(), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
     }
 
     mod is_atom {
@@ -1544,6 +1907,21 @@ mod tests {
                 process
             );
         }
+
+        #[test]
+        fn with_subbinary_is_false() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_atom(subbinary_term, &mut process),
+                false_term,
+                process
+            );
+        }
     }
 
     mod is_binary {
@@ -1625,6 +2003,36 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_binary(heap_binary_term, &mut process),
+                true_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_with_bit_count_is_false() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_binary(subbinary_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_without_bit_count_is_true() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 0, &mut process);
+            let true_term = true.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_binary(subbinary_term, &mut process),
                 true_term,
                 process
             );
@@ -1713,6 +2121,21 @@ mod tests {
                 process
             );
         }
+
+        #[test]
+        fn with_subbinary_is_false() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_integer(subbinary_term, &mut process),
+                false_term,
+                process
+            );
+        }
     }
 
     mod is_list {
@@ -1789,6 +2212,21 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_list(heap_binary_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_is_false() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_list(subbinary_term, &mut process),
                 false_term,
                 process
             );
@@ -1873,6 +2311,21 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_tuple(heap_binary_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_is_false() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_tuple(subbinary_term, &mut process),
                 false_term,
                 process
             );
@@ -1969,6 +2422,20 @@ mod tests {
                 process
             );
         }
+
+        #[test]
+        fn with_subbinary_is_false() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+
+            assert_eq_in_process!(
+                erlang::length(subbinary_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
     }
 
     mod size {
@@ -2036,6 +2503,28 @@ mod tests {
 
             assert_eq_in_process!(erlang::size(heap_binary_term), Ok(byte_count_term), process);
         }
+
+        #[test]
+        fn with_subbinary_with_bit_count_is_byte_count() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+            let byte_count_term = 2usize.into_process(&mut process);
+
+            assert_eq_in_process!(erlang::size(subbinary_term), Ok(byte_count_term), process);
+        }
+
+        #[test]
+        fn with_subbinary_without_bit_count_is_byte_count() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 0, &mut process);
+            let byte_count_term = 2usize.into_process(&mut process);
+
+            assert_eq_in_process!(erlang::size(subbinary_term), Ok(byte_count_term), process);
+        }
     }
 
     mod tail {
@@ -2071,7 +2560,7 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_bad_argument() {
-            let mut process: Process = Default::default();
+            let process: Process = Default::default();
             let small_integer_term = 0.into();
 
             assert_eq_in_process!(erlang::tail(small_integer_term), Err(BadArgument), process);
@@ -2091,6 +2580,16 @@ mod tests {
             let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
             assert_eq_in_process!(erlang::tail(heap_binary_term), Err(BadArgument), process);
+        }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term =
+                Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+
+            assert_eq_in_process!(erlang::tail(subbinary_term), Err(BadArgument), process);
         }
     }
 

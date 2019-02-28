@@ -54,12 +54,14 @@ mod tests {
     mod eq {
         use super::*;
 
+        use crate::process::IntoProcess;
+
         #[test]
         fn with_proper() {
-            let process: Process = Default::default();
-            let cons = Cons::new(0.into(), Term::EMPTY_LIST);
-            let equal = Cons::new(0.into(), Term::EMPTY_LIST);
-            let unequal = Cons::new(1.into(), Term::EMPTY_LIST);
+            let mut process: Process = Default::default();
+            let cons = Cons::new(0.into_process(&mut process), Term::EMPTY_LIST);
+            let equal = Cons::new(0.into_process(&mut process), Term::EMPTY_LIST);
+            let unequal = Cons::new(1.into_process(&mut process), Term::EMPTY_LIST);
 
             assert_eq_in_process!(cons, cons, process);
             assert_eq_in_process!(cons, equal, process);
@@ -68,10 +70,10 @@ mod tests {
 
         #[test]
         fn with_improper() {
-            let process: Process = Default::default();
-            let cons = Cons::new(0.into(), 1.into());
-            let equal = Cons::new(0.into(), 1.into());
-            let unequal = Cons::new(1.into(), 0.into());
+            let mut process: Process = Default::default();
+            let cons = Cons::new(0.into_process(&mut process), 1.into_process(&mut process));
+            let equal = Cons::new(0.into_process(&mut process), 1.into_process(&mut process));
+            let unequal = Cons::new(1.into_process(&mut process), 0.into_process(&mut process));
 
             assert_eq_in_process!(cons, cons, process);
             assert_eq_in_process!(cons, equal, process);

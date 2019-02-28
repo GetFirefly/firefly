@@ -19,6 +19,7 @@ lazy_static = "1.2"
 libc = "0.2"
 liblumen_arena = { path = "../liblumen_arena" }
 log = "0.4"
+rug = "1.3"
 signal-hook = "0.1"
 xdg = "2.1"
 

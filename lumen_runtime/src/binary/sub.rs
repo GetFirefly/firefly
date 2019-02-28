@@ -1,8 +1,10 @@
 use std::cmp::Ordering;
+use std::convert::{TryFrom, TryInto};
 use std::iter::FusedIterator;
 
 use crate::atom::{self, Existence};
 use crate::binary::{heap, Part};
+use crate::integer::Integer;
 use crate::process::{OrderInProcess, Process};
 use crate::term::{BadArgument, Tag, Term};
 
@@ -77,7 +79,7 @@ impl Binary {
     }
 
     /// The [byte_count] as `size` works on all binaries.
-    pub fn size(&self) -> Term {
+    pub fn size(&self) -> Integer {
         self.byte_count.into()
     }
 
@@ -87,16 +89,34 @@ impl Binary {
         existence: Existence,
         process: &mut Process,
     ) -> Result<atom::Index, BadArgument> {
-        if 0 < self.bit_count {
+        let string: String = self.try_into()?;
+
+        process.str_to_atom_index(&string, existence)
+    }
+}
+
+impl TryFrom<&Binary> for Vec<u8> {
+    type Error = BadArgument;
+
+    fn try_from(binary: &Binary) -> Result<Vec<u8>, BadArgument> {
+        if 0 < binary.bit_count {
             Err(BadArgument)
         } else {
-            let mut bytes_vec: Vec<u8> = Vec::with_capacity(self.byte_count);
-            bytes_vec.extend(self.byte_iter());
-            let bytes = bytes_vec.as_slice();
-            let bytes_str = std::str::from_utf8(bytes).unwrap();
+            let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_count);
+            bytes_vec.extend(binary.byte_iter());
 
-            process.str_to_atom_index(bytes_str, existence)
+            Ok(bytes_vec)
         }
+    }
+}
+
+impl TryFrom<&Binary> for String {
+    type Error = BadArgument;
+
+    fn try_from(binary: &Binary) -> Result<String, BadArgument> {
+        let byte_vec: Vec<u8> = binary.try_into()?;
+
+        String::from_utf8(byte_vec).map_err(|_| BadArgument)
     }
 }
 

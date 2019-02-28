@@ -1,9 +1,11 @@
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Existence};
 use crate::binary::{self, Part};
+use crate::integer::Integer;
 use crate::process::{DebugInProcess, OrderInProcess, Process};
 use crate::term::{BadArgument, Term};
 
@@ -42,6 +44,10 @@ impl<'binary, 'bytes: 'binary> Binary {
         unsafe { *self.bytes.offset(index as isize) }
     }
 
+    pub fn byte_count(&self) -> usize {
+        self.header.heap_binary_to_byte_count()
+    }
+
     pub fn byte_iter(&self) -> Iter {
         self.iter()
     }
@@ -57,10 +63,10 @@ impl<'binary, 'bytes: 'binary> Binary {
         }
     }
 
-    pub fn size(&self) -> Term {
+    pub fn size(&self) -> Integer {
         // The `header` field is not the same as `size` because `sie` is tagged as a small integer
         // while `header` is tagged as `HeapBinary` to mark the beginning of a heap binary.
-        Term::heap_binary_to_integer(&self.header)
+        self.header.heap_binary_to_byte_count().into()
     }
 
     pub fn to_atom_index(
@@ -184,6 +190,25 @@ impl OrderInProcess for Binary {
     }
 }
 
+impl From<&Binary> for Vec<u8> {
+    fn from(binary: &Binary) -> Vec<u8> {
+        let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_count());
+        bytes_vec.extend(binary.byte_iter());
+
+        bytes_vec
+    }
+}
+
+impl TryFrom<&Binary> for String {
+    type Error = BadArgument;
+
+    fn try_from(binary: &Binary) -> Result<String, BadArgument> {
+        let byte_vec: Vec<u8> = binary.into();
+
+        String::from_utf8(byte_vec).map_err(|_| BadArgument)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,8 +312,6 @@ mod tests {
     mod iter {
         use super::*;
 
-        use std::convert::TryInto;
-
         #[test]
         fn without_elements() {
             let mut process: Process = Default::default();
@@ -296,7 +319,11 @@ mod tests {
                 Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
 
             assert_eq!(binary.iter().count(), 0);
-            assert_eq!(binary.iter().count(), binary.size().try_into().unwrap());
+
+            let size_integer: Integer = binary.size();
+            let size_usize: usize = size_integer.into();
+
+            assert_eq!(binary.iter().count(), size_usize);
         }
 
         #[test]
@@ -309,7 +336,11 @@ mod tests {
             );
 
             assert_eq!(binary.iter().count(), 1);
-            assert_eq!(binary.iter().count(), binary.size().try_into().unwrap());
+
+            let size_integer: Integer = binary.size();
+            let size_usize: usize = size_integer.into();
+
+            assert_eq!(binary.iter().count(), size_usize);
         }
     }
 

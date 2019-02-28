@@ -8,6 +8,7 @@ use liblumen_arena::TypedArena;
 use crate::atom::{self, Existence};
 use crate::binary::{heap, sub, Binary};
 use crate::environment::Environment;
+use crate::integer::{self, big};
 use crate::list::List;
 use crate::term::BadArgument;
 use crate::term::Term;
@@ -15,6 +16,7 @@ use crate::tuple::Tuple;
 
 pub struct Process {
     environment: Arc<RwLock<Environment>>,
+    big_integer_arena: TypedArena<big::Integer>,
     pub byte_arena: TypedArena<u8>,
     pub heap_binary_arena: TypedArena<heap::Binary>,
     pub subbinary_arena: TypedArena<sub::Binary>,
@@ -25,6 +27,7 @@ impl Process {
     pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
         Process {
             environment,
+            big_integer_arena: Default::default(),
             byte_arena: Default::default(),
             heap_binary_arena: Default::default(),
             subbinary_arena: Default::default(),
@@ -47,6 +50,13 @@ impl Process {
         term_vector.push(tail);
 
         Term::alloc_slice(term_vector.as_slice(), &mut self.term_arena)
+    }
+
+    pub fn rug_integer_to_big_integer(&self, rug_integer: rug::Integer) -> &'static big::Integer {
+        let pointer =
+            self.big_integer_arena.alloc(big::Integer::new(rug_integer)) as *const big::Integer;
+
+        unsafe { &*pointer }
     }
 
     pub fn subbinary(
@@ -260,10 +270,18 @@ pub trait IntoProcess<T> {
 }
 
 impl IntoProcess<Term> for bool {
-    fn into_process(self: Self, mut process: &mut Process) -> Term {
+    fn into_process(self, mut process: &mut Process) -> Term {
         Term::str_to_atom(&self.to_string(), Existence::DoNotCare, &mut process)
             .unwrap()
             .into()
+    }
+}
+
+impl IntoProcess<Term> for rug::Integer {
+    fn into_process(self, mut process: &mut Process) -> Term {
+        let integer: integer::Integer = self.into();
+
+        integer.into_process(&mut process)
     }
 }
 

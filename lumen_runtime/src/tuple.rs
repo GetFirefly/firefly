@@ -4,6 +4,7 @@ use std::ops::Index;
 
 use liblumen_arena::TypedArena;
 
+use crate::integer::Integer;
 use crate::process::{DebugInProcess, OrderInProcess, Process};
 use crate::term::{BadArgument, Term};
 
@@ -119,10 +120,10 @@ impl Tuple {
         }
     }
 
-    pub fn size(&self) -> Term {
+    pub fn size(&self) -> Integer {
         // The `arity` field is not the same as `size` because `size` is a tagged as a small integer
         // while `arity` is tagged as an `arity` to mark the beginning of a tuple.
-        Term::arity_to_integer(&self.arity)
+        self.arity.arity_to_usize().into()
     }
 }
 
@@ -214,6 +215,8 @@ mod tests {
     mod from_slice {
         use super::*;
 
+        use crate::process::IntoProcess;
+
         #[test]
         fn without_elements() {
             let mut process: Process = Default::default();
@@ -227,19 +230,25 @@ mod tests {
         #[test]
         fn with_elements() {
             let mut process: Process = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut process.term_arena);
+            let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
             assert_eq_in_process!(unsafe { *arity_pointer }, Term::arity(1), process);
 
             let element_pointer = unsafe { arity_pointer.offset(1) };
-            assert_eq_in_process!(unsafe { *element_pointer }, 0.into(), process);
+            assert_eq_in_process!(
+                unsafe { *element_pointer },
+                0.into_process(&mut process),
+                process
+            );
         }
     }
 
     mod element {
         use super::*;
+
+        use crate::process::IntoProcess;
 
         #[test]
         fn without_valid_index() {
@@ -252,14 +261,16 @@ mod tests {
         #[test]
         fn with_valid_index() {
             let mut process: Process = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut process.term_arena);
+            let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
-            assert_eq_in_process!(tuple.element(0), Ok(0.into()), process);
+            assert_eq_in_process!(tuple.element(0), Ok(0.into_process(&mut process)), process);
         }
     }
 
     mod eq {
         use super::*;
+
+        use crate::process::IntoProcess;
 
         #[test]
         fn without_element() {
@@ -274,8 +285,11 @@ mod tests {
         #[test]
         fn with_unequal_length() {
             let mut process: Process = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut process.term_arena);
-            let unequal = Tuple::from_slice(&[0.into(), 1.into()], &mut process.term_arena);
+            let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
+            let unequal = Tuple::from_slice(
+                &[0.into_process(&mut process), 1.into_process(&mut process)],
+                &mut process.term_arena,
+            );
 
             assert_ne_in_process!(tuple, unequal, process);
         }
@@ -284,29 +298,37 @@ mod tests {
     mod iter {
         use super::*;
 
-        use std::convert::TryInto;
+        use crate::process::IntoProcess;
 
         #[test]
         fn without_elements() {
-            let mut term_arena: TermArena = Default::default();
-            let tuple = Tuple::from_slice(&[], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
             assert_eq!(tuple.iter().count(), 0);
-            assert_eq!(tuple.iter().count(), tuple.size().try_into().unwrap());
+
+            let size_usize: usize = tuple.size().into();
+
+            assert_eq!(tuple.iter().count(), size_usize);
         }
 
         #[test]
         fn with_elements() {
-            let mut term_arena: TermArena = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut term_arena);
+            let mut process: Process = Default::default();
+            let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
             assert_eq!(tuple.iter().count(), 1);
-            assert_eq!(tuple.iter().count(), tuple.size().try_into().unwrap());
+
+            let size_usize: usize = tuple.size().into();
+
+            assert_eq!(tuple.iter().count(), size_usize);
         }
     }
 
     mod size {
         use super::*;
+
+        use crate::process::IntoProcess;
 
         #[test]
         fn without_elements() {
@@ -319,7 +341,7 @@ mod tests {
         #[test]
         fn with_elements() {
             let mut process: Process = Default::default();
-            let tuple = Tuple::from_slice(&[0.into()], &mut process.term_arena);
+            let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
             assert_eq_in_process!(tuple.size(), &1.into(), process);
         }

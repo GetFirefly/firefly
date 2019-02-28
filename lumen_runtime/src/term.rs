@@ -8,6 +8,8 @@ use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding, Existence};
 use crate::binary::{self, heap, sub, Part};
+use crate::integer::Integer::{self, Big, Small};
+use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::tuple::Tuple;
@@ -27,8 +29,7 @@ impl From<&Term> for atom::Index {
 pub enum Tag {
     Arity = 0b0000_00,
     BinaryAggregate = 0b0001_00,
-    PositiveBigNumber = 0b0010_00,
-    NegativeBigNumber = 0b0011_00,
+    BigInteger = 0b0010_00,
     Reference = 0b0100_00,
     Function = 0b0101_00,
     Float = 0b0110_00,
@@ -90,8 +91,7 @@ impl TryFrom<usize> for Tag {
             HEADER_PRIMARY_TAG => match bits & HEADER_PRIMARY_TAG_MASK {
                 0b0000_00 => Ok(Tag::Arity),
                 0b0001_00 => Ok(Tag::BinaryAggregate),
-                0b0010_00 => Ok(Tag::PositiveBigNumber),
-                0b0011_00 => Ok(Tag::NegativeBigNumber),
+                0b0010_00 => Ok(Tag::BigInteger),
                 0b0100_00 => Ok(Tag::Reference),
                 0b0101_00 => Ok(Tag::Function),
                 0b0110_00 => Ok(Tag::Float),
@@ -162,10 +162,8 @@ impl Term {
         }
     }
 
-    pub fn arity_to_integer(&self) -> Term {
-        // Tag::ARITY_BIT_COUNT > Tag::SMALL_INTEGER_BIT_COUNT, so any arity MUST fit into a term
-        // and not need `into_process` for allocation.
-        self.arity_to_usize().into()
+    pub fn arity_to_integer(&self, mut process: &mut Process) -> Term {
+        self.arity_to_usize().into_process(&mut process)
     }
 
     pub fn arity_to_usize(&self) -> usize {
@@ -285,10 +283,6 @@ impl Term {
         );
 
         (self.tagged & !(TAG_HEAP_BINARY)) >> Tag::HEAP_BINARY_BIT_COUNT
-    }
-
-    pub fn heap_binary_to_integer(&self) -> Term {
-        self.heap_binary_to_byte_count().into()
     }
 
     pub fn tag(&self) -> Tag {
@@ -415,6 +409,11 @@ impl DebugInProcess for Term {
 
                         strings.join("")
                     }
+                    Tag::BigInteger => {
+                        let big_integer: &big::Integer = self.unbox_reference();
+
+                        format!("rug::Integer::from(rug::Integer::parse(\"{}\").unwrap()).into_process(&mut process)", big_integer.inner)
+                    }
                     Tag::HeapBinary => {
                         let binary: &heap::Binary = self.unbox_reference();
 
@@ -490,7 +489,7 @@ impl<'a> From<binary::Binary<'a>> for Term {
 impl From<&Term> for isize {
     fn from(term: &Term) -> Self {
         match term.tag() {
-            Tag::SmallInteger => (term.tagged as isize) >> SMALL_INTEGER_TAG_BIT_COUNT,
+            Tag::SmallInteger => (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT,
             tag => panic!(
                 "{:?} tagged term {:#b} cannot be converted to isize",
                 tag, term.tagged
@@ -505,55 +504,52 @@ impl<T> From<&T> for Term {
     }
 }
 
-const SMALL_INTEGER_TAG_BIT_COUNT: u8 = 4;
-const MIN_SMALL_INTEGER: isize = std::isize::MIN >> SMALL_INTEGER_TAG_BIT_COUNT;
-const MAX_SMALL_INTEGER: isize = std::isize::MAX >> SMALL_INTEGER_TAG_BIT_COUNT;
+impl IntoProcess<Term> for char {
+    fn into_process(self, mut process: &mut Process) -> Term {
+        let integer: Integer = self.into();
 
-impl From<usize> for Term {
-    fn from(u: usize) -> Self {
-        if u <= (MAX_SMALL_INTEGER as usize) {
-            Term {
-                tagged: (u << SMALL_INTEGER_TAG_BIT_COUNT) | (Tag::SmallInteger as usize),
-            }
-        } else {
-            panic!(
-                "usize ({}) is greater than max small integer ({})",
-                u, MAX_SMALL_INTEGER
-            );
-        }
+        integer.into_process(&mut process)
     }
 }
 
-impl IntoProcess<Term> for char {
-    fn into_process(self: Self, _process: &mut Process) -> Term {
-        let self_usize = self as usize;
+impl IntoProcess<Term> for i32 {
+    fn into_process(self, mut process: &mut Process) -> Term {
+        let integer: Integer = self.into();
 
-        if (self_usize as isize) <= MAX_SMALL_INTEGER {
-            Term {
-                tagged: (self_usize << SMALL_INTEGER_TAG_BIT_COUNT) | (Tag::SmallInteger as usize),
-            }
-        } else {
-            panic!("char ({}) is not between the min small integer ({}) and max small integer ({}), inclusive", self, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER);
-        }
+        integer.into_process(&mut process)
     }
 }
 
 impl IntoProcess<Term> for isize {
-    fn into_process(self: Self, _process: &mut Process) -> Term {
-        if MIN_SMALL_INTEGER <= self && self <= MAX_SMALL_INTEGER {
-            Term {
-                tagged: ((self as usize) << SMALL_INTEGER_TAG_BIT_COUNT)
-                    | (Tag::SmallInteger as usize),
-            }
-        } else {
-            panic!("isize ({}) is not between the min small integer ({}) and max small integer ({}), inclusive", self, MIN_SMALL_INTEGER, MAX_SMALL_INTEGER);
-        }
+    fn into_process(self, mut process: &mut Process) -> Term {
+        let integer: Integer = self.into();
+
+        integer.into_process(&mut process)
     }
 }
 
 impl IntoProcess<Term> for usize {
-    fn into_process(self: Self, _process: &mut Process) -> Term {
-        self.into()
+    fn into_process(self: Self, mut process: &mut Process) -> Term {
+        let integer: Integer = self.into();
+
+        integer.into_process(&mut process)
+    }
+}
+
+impl IntoProcess<Term> for Integer {
+    fn into_process(self, process: &mut Process) -> Term {
+        match self {
+            Small(small::Integer(untagged)) => Term {
+                tagged: ((untagged << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
+                    | (Tag::SmallInteger as usize),
+            },
+            Big(rug_integer) => {
+                let process_integer: &big::Integer =
+                    process.rug_integer_to_big_integer(rug_integer);
+
+                Term::box_reference(process_integer)
+            }
+        }
     }
 }
 
@@ -648,6 +644,34 @@ impl TryFrom<Term> for &'static Cons {
                 let untagged = term.tagged & !(Tag::List as usize);
                 let pointer = untagged as *const Term as *const Cons;
                 Ok(unsafe { pointer.as_ref() }.unwrap())
+            }
+            _ => Err(BadArgument),
+        }
+    }
+}
+
+impl TryFrom<Term> for String {
+    type Error = BadArgument;
+
+    fn try_from(term: Term) -> Result<String, BadArgument> {
+        match term.tag() {
+            Tag::Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::HeapBinary => {
+                        let heap_binary: &heap::Binary = term.unbox_reference();
+
+                        heap_binary.try_into()
+                    }
+                    Tag::Subbinary => {
+                        let subbinary: &sub::Binary = term.unbox_reference();
+
+                        subbinary.try_into()
+                    }
+                    // TODO ReferenceCountedBinary
+                    _ => Err(BadArgument),
+                }
             }
             _ => Err(BadArgument),
         }
@@ -750,6 +774,12 @@ impl OrderInProcess for Term {
 
                 // in ascending order
                 match (self_unboxed.tag(), other_unboxed.tag()) {
+                    (Tag::BigInteger, Tag::BigInteger) => {
+                        let self_big_integer: &big::Integer = self.unbox_reference();
+                        let other_big_integer: &big::Integer = other.unbox_reference();
+
+                        self_big_integer.inner.cmp(&other_big_integer.inner)
+                    }
                     (Tag::Arity, Tag::Arity) => {
                         let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
                         let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
@@ -834,7 +864,7 @@ mod tests {
             #[test]
             fn number_is_less_than_atom() {
                 let mut process: Process = Default::default();
-                let number_term: Term = 0.into();
+                let number_term: Term = 0.into_process(&mut process);
                 let atom_term = Term::str_to_atom("0", Existence::DoNotCare, &mut process).unwrap();
 
                 assert_cmp_in_process!(number_term, Ordering::Less, atom_term, process);
@@ -875,7 +905,8 @@ mod tests {
             fn shorter_tuple_is_less_than_longer_tuple() {
                 let mut process: Process = Default::default();
                 let shorter_tuple = Term::slice_to_tuple(&[], &mut process);
-                let longer_tuple = Term::slice_to_tuple(&[0.into()], &mut process);
+                let longer_tuple =
+                    Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
 
                 assert_cmp_in_process!(shorter_tuple, Ordering::Less, longer_tuple, process);
                 refute_cmp_in_process!(longer_tuple, Ordering::Less, shorter_tuple, process);
@@ -884,8 +915,10 @@ mod tests {
             #[test]
             fn same_length_tuples_with_lesser_elements_is_lesser() {
                 let mut process: Process = Default::default();
-                let lesser_tuple = Term::slice_to_tuple(&[0.into()], &mut process);
-                let greater_tuple = Term::slice_to_tuple(&[1.into()], &mut process);
+                let lesser_tuple =
+                    Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
+                let greater_tuple =
+                    Term::slice_to_tuple(&[1.into_process(&mut process)], &mut process);
 
                 assert_cmp_in_process!(lesser_tuple, Ordering::Less, greater_tuple, process);
                 refute_cmp_in_process!(greater_tuple, Ordering::Less, lesser_tuple, process);
@@ -918,9 +951,21 @@ mod tests {
             #[test]
             fn with_improper_list() {
                 let mut process: Process = Default::default();
-                let list_term = Term::cons(0.into(), 1.into(), &mut process);
-                let equal_list_term = Term::cons(0.into(), 1.into(), &mut process);
-                let unequal_list_term = Term::cons(1.into(), 0.into(), &mut process);
+                let list_term = Term::cons(
+                    0.into_process(&mut process),
+                    1.into_process(&mut process),
+                    &mut process,
+                );
+                let equal_list_term = Term::cons(
+                    0.into_process(&mut process),
+                    1.into_process(&mut process),
+                    &mut process,
+                );
+                let unequal_list_term = Term::cons(
+                    1.into_process(&mut process),
+                    0.into_process(&mut process),
+                    &mut process,
+                );
 
                 assert_eq_in_process!(list_term, list_term, process);
                 assert_eq_in_process!(equal_list_term, equal_list_term, process);
@@ -930,9 +975,12 @@ mod tests {
             #[test]
             fn with_proper_list() {
                 let mut process: Process = Default::default();
-                let list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
-                let equal_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
-                let unequal_list_term = Term::cons(1.into(), Term::EMPTY_LIST, &mut process);
+                let list_term =
+                    Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process);
+                let equal_list_term =
+                    Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process);
+                let unequal_list_term =
+                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process);
 
                 assert_eq_in_process!(list_term, list_term, process);
                 assert_eq_in_process!(list_term, equal_list_term, process);
@@ -943,18 +991,18 @@ mod tests {
             fn with_nested_list() {
                 let mut process: Process = Default::default();
                 let list_term = Term::cons(
-                    0.into(),
-                    Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                    0.into_process(&mut process),
+                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
                     &mut process,
                 );
                 let equal_list_term = Term::cons(
-                    0.into(),
-                    Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                    0.into_process(&mut process),
+                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
                     &mut process,
                 );
                 let unequal_list_term = Term::cons(
-                    1.into(),
-                    Term::cons(0.into(), Term::EMPTY_LIST, &mut process),
+                    1.into_process(&mut process),
+                    Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process),
                     &mut process,
                 );
 
@@ -967,21 +1015,22 @@ mod tests {
             fn with_lists_of_unequal_length() {
                 let mut process: Process = Default::default();
                 let list_term = Term::cons(
-                    0.into(),
-                    Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                    0.into_process(&mut process),
+                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
                     &mut process,
                 );
                 let equal_list_term = Term::cons(
-                    0.into(),
-                    Term::cons(1.into(), Term::EMPTY_LIST, &mut process),
+                    0.into_process(&mut process),
+                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
                     &mut process,
                 );
-                let shorter_list_term = Term::cons(0.into(), Term::EMPTY_LIST, &mut process);
+                let shorter_list_term =
+                    Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process);
                 let longer_list_term = Term::cons(
-                    0.into(),
+                    0.into_process(&mut process),
                     Term::cons(
-                        1.into(),
-                        Term::cons(2.into(), Term::EMPTY_LIST, &mut process),
+                        1.into_process(&mut process),
+                        Term::cons(2.into_process(&mut process), Term::EMPTY_LIST, &mut process),
                         &mut process,
                     ),
                     &mut process,
@@ -996,9 +1045,14 @@ mod tests {
             #[test]
             fn with_tuples_of_unequal_length() {
                 let mut process: Process = Default::default();
-                let tuple_term = Term::slice_to_tuple(&[0.into()], &mut process);
-                let equal_term = Term::slice_to_tuple(&[0.into()], &mut process);
-                let unequal_term = Term::slice_to_tuple(&[0.into(), 1.into()], &mut process);
+                let tuple_term =
+                    Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
+                let equal_term =
+                    Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
+                let unequal_term = Term::slice_to_tuple(
+                    &[0.into_process(&mut process), 1.into_process(&mut process)],
+                    &mut process,
+                );
 
                 assert_eq_in_process!(tuple_term, tuple_term, process);
                 assert_eq_in_process!(tuple_term, equal_term, process);

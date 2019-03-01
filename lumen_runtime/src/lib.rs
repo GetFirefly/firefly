@@ -16,6 +16,7 @@ mod atom;
 mod binary;
 mod config;
 mod environment;
+mod float;
 mod integer;
 mod list;
 mod logging;

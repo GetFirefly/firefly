@@ -8,6 +8,7 @@ use liblumen_arena::TypedArena;
 use crate::atom::{self, Existence};
 use crate::binary::{heap, sub, Binary};
 use crate::environment::Environment;
+use crate::float::Float;
 use crate::integer::{self, big};
 use crate::list::List;
 use crate::term::BadArgument;
@@ -18,6 +19,7 @@ pub struct Process {
     environment: Arc<RwLock<Environment>>,
     big_integer_arena: TypedArena<big::Integer>,
     pub byte_arena: TypedArena<u8>,
+    float_arena: TypedArena<Float>,
     pub heap_binary_arena: TypedArena<heap::Binary>,
     pub subbinary_arena: TypedArena<sub::Binary>,
     pub term_arena: TypedArena<Term>,
@@ -29,6 +31,7 @@ impl Process {
             environment,
             big_integer_arena: Default::default(),
             byte_arena: Default::default(),
+            float_arena: Default::default(),
             heap_binary_arena: Default::default(),
             subbinary_arena: Default::default(),
             term_arena: Default::default(),
@@ -50,6 +53,12 @@ impl Process {
         term_vector.push(tail);
 
         Term::alloc_slice(term_vector.as_slice(), &mut self.term_arena)
+    }
+
+    pub fn f64_to_float(&self, f: f64) -> &'static Float {
+        let pointer = self.float_arena.alloc(Float::new(f)) as *const Float;
+
+        unsafe { &*pointer }
     }
 
     pub fn rug_integer_to_big_integer(&self, rug_integer: rug::Integer) -> &'static big::Integer {

@@ -8,6 +8,7 @@ use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding, Existence};
 use crate::binary::{self, heap, sub, Part};
+use crate::float::Float;
 use crate::integer::Integer::{self, Big, Small};
 use crate::integer::{big, small};
 use crate::list::Cons;
@@ -414,6 +415,11 @@ impl DebugInProcess for Term {
 
                         format!("rug::Integer::from(rug::Integer::parse(\"{}\").unwrap()).into_process(&mut process)", big_integer.inner)
                     }
+                    Tag::Float => {
+                        let float: &Float = self.unbox_reference();
+
+                        format!("{}_f64.into_process(&mut process)", float.inner)
+                    }
                     Tag::HeapBinary => {
                         let binary: &heap::Binary = self.unbox_reference();
 
@@ -509,6 +515,14 @@ impl IntoProcess<Term> for char {
         let integer: Integer = self.into();
 
         integer.into_process(&mut process)
+    }
+}
+
+impl IntoProcess<Term> for f64 {
+    fn into_process(self, process: &mut Process) -> Term {
+        let process_float: &Float = process.f64_to_float(self);
+
+        Term::box_reference(process_float)
     }
 }
 
@@ -779,6 +793,21 @@ impl OrderInProcess for Term {
                         let other_big_integer: &big::Integer = other.unbox_reference();
 
                         self_big_integer.inner.cmp(&other_big_integer.inner)
+                    }
+                    (Tag::Float, Tag::Float) => {
+                        let self_float: &Float = self.unbox_reference();
+                        let self_inner = self_float.inner;
+
+                        let other_float: &Float = other.unbox_reference();
+                        let other_inner = other_float.inner;
+
+                        // Erlang doesn't support the floats that can't be compared
+                        self_inner.partial_cmp(&other_inner).unwrap_or_else(|| {
+                            panic!(
+                                "Comparing these floats ({} and {}) is not supported",
+                                self_inner, other_inner
+                            )
+                        })
                     }
                     (Tag::Arity, Tag::Arity) => {
                         let self_tuple: &Tuple = self_unboxed.try_into().unwrap();

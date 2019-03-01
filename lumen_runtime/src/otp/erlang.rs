@@ -154,6 +154,30 @@ pub fn binary_to_integer(binary: Term, mut process: &mut Process) -> Result<Term
     }
 }
 
+/// `binary_to_integer/2`
+pub fn binary_in_base_to_integer(
+    binary: Term,
+    base: Term,
+    mut process: &mut Process,
+) -> Result<Term, BadArgument> {
+    let string: String = binary.try_into()?;
+    let radix: usize = base.try_into()?;
+
+    if 2 <= radix && radix <= 36 {
+        match rug::Integer::parse_radix(string, radix as i32) {
+            Ok(incomplete) => {
+                let rug_integer = rug::Integer::from(incomplete);
+                let term: Term = rug_integer.into_process(&mut process);
+
+                Ok(term)
+            }
+            Err(_) => Err(BadArgument),
+        }
+    } else {
+        Err(BadArgument)
+    }
+}
+
 pub fn delete_element(
     tuple: Term,
     index: Term,
@@ -2262,6 +2286,350 @@ mod tests {
         }
     }
 
+    mod binary_in_base_to_integer {
+        use super::*;
+
+        use crate::process::IntoProcess;
+
+        #[test]
+        fn with_atom_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_term =
+                Term::str_to_atom("😈🤘", Existence::DoNotCare, &mut process).unwrap();
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(atom_term, base_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(Term::EMPTY_LIST, base_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(list_term, base_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let small_integer_term = 0usize.into_process(&mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(small_integer_term, base_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_big_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let big_integer_term: Term =
+                rug::Integer::from(rug::Integer::parse("18446744073709551616").unwrap())
+                    .into_process(&mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(big_integer_term, base_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_returns_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[], &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(tuple_term, base_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_with_min_small_integer_returns_small_integer() {
+            let mut process: Process = Default::default();
+            let heap_binary_term =
+                Term::slice_to_binary("-800000000000000".as_bytes(), &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            let integer_result =
+                erlang::binary_in_base_to_integer(heap_binary_term, base_term, &mut process);
+
+            assert_eq_in_process!(
+                integer_result,
+                Ok((-576460752303423488_isize).into_process(&mut process)),
+                process
+            );
+            assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
+        }
+
+        #[test]
+        fn with_heap_binary_with_max_small_integer_returns_small_integer() {
+            let mut process: Process = Default::default();
+            let heap_binary_term =
+                Term::slice_to_binary("7FFFFFFFFFFFFFF".as_bytes(), &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            let integer_result =
+                erlang::binary_in_base_to_integer(heap_binary_term, base_term, &mut process);
+
+            assert_eq_in_process!(
+                integer_result,
+                Ok(576460752303423487usize.into_process(&mut process)),
+                process
+            );
+            assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
+        }
+
+        #[test]
+        fn with_heap_binary_with_less_than_min_small_integer_returns_big_integer() {
+            let mut process: Process = Default::default();
+            let heap_binary_term =
+                Term::slice_to_binary("-800000000000001".as_bytes(), &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            let integer_result =
+                erlang::binary_in_base_to_integer(heap_binary_term, base_term, &mut process);
+
+            assert_eq_in_process!(
+                integer_result,
+                Ok((-576460752303423489_isize).into_process(&mut process)),
+                process
+            );
+
+            let integer = integer_result.unwrap();
+
+            assert_eq!(integer.tag(), Tag::Boxed);
+
+            let unboxed: &Term = integer.unbox_reference();
+
+            assert_eq!(unboxed.tag(), Tag::BigInteger);
+        }
+
+        #[test]
+        fn with_heap_binary_with_greater_than_max_small_integer_returns_big_integer() {
+            let mut process: Process = Default::default();
+            let heap_binary_term =
+                Term::slice_to_binary("800000000000000".as_bytes(), &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            let integer_result =
+                erlang::binary_in_base_to_integer(heap_binary_term, base_term, &mut process);
+
+            assert_eq_in_process!(
+                integer_result,
+                Ok(576460752303423488_usize.into_process(&mut process)),
+                process
+            );
+
+            let integer = integer_result.unwrap();
+
+            assert_eq!(integer.tag(), Tag::Boxed);
+
+            let unboxed: &Term = integer.unbox_reference();
+
+            assert_eq!(unboxed.tag(), Tag::BigInteger);
+        }
+
+        #[test]
+        fn with_subbinary_with_min_small_integer_returns_small_integer() {
+            let mut process: Process = Default::default();
+            // <<1::1, Integer.to_string(-576460752303423488, 16) :: binary>>
+            let heap_binary_term = Term::slice_to_binary(
+                &[
+                    150,
+                    156,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    0b0000_0000,
+                ],
+                &mut process,
+            );
+            let subbinary_term = Term::subbinary(heap_binary_term, 0, 1, 16, 0, &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            let integer_result =
+                erlang::binary_in_base_to_integer(subbinary_term, base_term, &mut process);
+
+            assert_eq_in_process!(
+                integer_result,
+                Ok((-576460752303423488_isize).into_process(&mut process)),
+                process
+            );
+            assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
+        }
+
+        #[test]
+        fn with_subbinary_with_max_small_integer_returns_small_integer() {
+            let mut process: Process = Default::default();
+            // <<1::1, Integer.to_string(576460752303423487, 16) :: binary>>
+            let heap_binary_term = Term::slice_to_binary(
+                &[
+                    155,
+                    163,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    35,
+                    0b0000_0000,
+                ],
+                &mut process,
+            );
+            let subbinary_term = Term::subbinary(heap_binary_term, 0, 1, 15, 0, &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            let integer_result =
+                erlang::binary_in_base_to_integer(subbinary_term, base_term, &mut process);
+
+            assert_eq_in_process!(
+                integer_result,
+                Ok(576460752303423487_isize.into_process(&mut process)),
+                process
+            );
+            assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
+        }
+
+        #[test]
+        fn with_subbinary_with_less_than_min_small_integer_returns_big_integer() {
+            let mut process: Process = Default::default();
+            // <<1::1, Integer.to_string(-576460752303423489, 16) :: binary>>
+            let heap_binary_term = Term::slice_to_binary(
+                &[
+                    150,
+                    156,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    0b1000_0000,
+                ],
+                &mut process,
+            );
+            let subbinary_term = Term::subbinary(heap_binary_term, 0, 1, 16, 0, &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            let integer_result =
+                erlang::binary_in_base_to_integer(subbinary_term, base_term, &mut process);
+
+            assert_eq_in_process!(
+                integer_result,
+                Ok((-576460752303423489_isize).into_process(&mut process)),
+                process
+            );
+
+            let integer = integer_result.unwrap();
+
+            assert_eq!(integer.tag(), Tag::Boxed);
+
+            let unboxed: &Term = integer.unbox_reference();
+
+            assert_eq!(unboxed.tag(), Tag::BigInteger);
+        }
+
+        #[test]
+        fn with_subbinary_with_greater_than_max_small_integer_returns_big_integer() {
+            let mut process: Process = Default::default();
+            // <<1::1, Integer.to_string(576460752303423488, 16) :: binary>>
+            let heap_binary_term = Term::slice_to_binary(
+                &[
+                    156,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    24,
+                    0b0000_0000,
+                ],
+                &mut process,
+            );
+            let subbinary_term = Term::subbinary(heap_binary_term, 0, 1, 15, 0, &mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            let integer_result =
+                erlang::binary_in_base_to_integer(subbinary_term, base_term, &mut process);
+
+            assert_eq_in_process!(
+                integer_result,
+                Ok(576460752303423488_usize.into_process(&mut process)),
+                process
+            );
+
+            let integer = integer_result.unwrap();
+
+            assert_eq!(integer.tag(), Tag::Boxed);
+
+            let unboxed: &Term = integer.unbox_reference();
+
+            assert_eq!(unboxed.tag(), Tag::BigInteger);
+        }
+    }
+
     mod delete_element {
         use super::*;
 
@@ -3216,7 +3584,6 @@ mod tests {
                 process
             );
         }
-
 
         #[test]
         fn with_tuple_is_false() {

@@ -8,6 +8,7 @@ use std::num::FpCategory;
 
 use crate::atom::Existence;
 use crate::binary::{heap, sub, Part};
+use crate::float::Float;
 use crate::integer::big;
 use crate::list::Cons;
 use crate::otp;
@@ -45,6 +46,20 @@ pub fn abs(number: Term, mut process: &mut Process) -> Result<Term, BadArgument>
                             let positive_rug_integer = rug_integer.clone().abs();
                             let positive_number: Term =
                                 positive_rug_integer.into_process(&mut process);
+
+                            Ok(positive_number)
+                        }
+                        _ => Ok(number),
+                    }
+                }
+                Tag::Float => {
+                    let float: &Float = number.unbox_reference();
+                    let inner = float.inner;
+
+                    match inner.partial_cmp(&0.0).unwrap() {
+                        Ordering::Less => {
+                            let positive_inner = inner.abs();
+                            let positive_number: Term = positive_inner.into_process(&mut process);
 
                             Ok(positive_number)
                         }
@@ -586,6 +601,47 @@ mod tests {
         }
 
         #[test]
+        fn with_float_that_is_negative_returns_positive() {
+            let mut process: Process = Default::default();
+
+            let negative = -1.0;
+            let negative_term = negative.into_process(&mut process);
+
+            assert_eq!(negative_term.tag(), Tag::Boxed);
+
+            let unboxed_negative_term: &Term = negative_term.unbox_reference();
+
+            assert_eq!(unboxed_negative_term.tag(), Tag::Float);
+
+            let positive = -negative;
+            let positive_term = positive.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::abs(negative_term, &mut process),
+                Ok(positive_term),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_that_is_positive_return_self() {
+            let mut process: Process = Default::default();
+            let positive_term: Term = 1.0.into_process(&mut process);
+
+            assert_eq!(positive_term.tag(), Tag::Boxed);
+
+            let unboxed_positive_term: &Term = positive_term.unbox_reference();
+
+            assert_eq!(unboxed_positive_term.tag(), Tag::Float);
+
+            assert_eq_in_process!(
+                erlang::abs(positive_term, &mut process),
+                Ok(positive_term),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -667,6 +723,18 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term: Term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::append_element(float_term, 0.into_process(&mut process), &mut process),
                 Err(BadArgument),
                 process
             );
@@ -855,6 +923,20 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(big_integer_term, encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::atom_to_binary(float_term, encoding_term, &mut process),
                 Err(BadArgument),
                 process
             );
@@ -1053,6 +1135,20 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::atom_to_list(float_term, encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_returns_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
@@ -1181,6 +1277,23 @@ mod tests {
             assert_eq_in_process!(
                 erlang::binary_part(
                     big_integer_term,
+                    0.into_process(&mut process),
+                    0.into_process(&mut process),
+                    &mut process
+                ),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term: Term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_part(
+                    float_term,
                     0.into_process(&mut process),
                     0.into_process(&mut process),
                     &mut process
@@ -1678,6 +1791,20 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_atom(float_term, encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_returns_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
@@ -1770,7 +1897,7 @@ mod tests {
         }
 
         #[test]
-        fn with_subbinaty_without_bit_count_returns_atom_with_bytes() {
+        fn with_subbinary_without_bit_count_returns_atom_with_bytes() {
             let mut process: Process = Default::default();
             let binary_term = Term::slice_to_binary("😈🤘".as_bytes(), &mut process);
             let subbinary_term = Term::subbinary(binary_term, 4, 0, 4, 0, &mut process);
@@ -1854,6 +1981,20 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(big_integer_term, encoding_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_existing_atom(float_term, encoding_term, &mut process),
                 Err(BadArgument),
                 process
             );
@@ -2077,6 +2218,18 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(big_integer_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_to_float(float_term, &mut process),
                 Err(BadArgument),
                 process
             );
@@ -3552,6 +3705,18 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_to_integer(float_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_returns_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -3917,6 +4082,19 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(float_term, base_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_returns_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -4253,6 +4431,18 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_to_list(float_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_returns_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -4401,6 +4591,23 @@ mod tests {
             assert_eq_in_process!(
                 erlang::binary_byte_range_to_list(
                     big_integer_term,
+                    2.into_process(&mut process),
+                    3.into_process(&mut process),
+                    &mut process
+                ),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_byte_range_to_list(
+                    float_term,
                     2.into_process(&mut process),
                     3.into_process(&mut process),
                     &mut process
@@ -4627,6 +4834,18 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::delete_element(float_term, 0.into_process(&mut process), &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_without_small_integer_index_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
@@ -4792,6 +5011,18 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::element(float_term, 0.into_process(&mut process)),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_without_small_integer_index_is_bad_argument() {
             let mut process: Process = Default::default();
             let element_term = 1.into_process(&mut process);
@@ -4916,6 +5147,14 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(erlang::head(float_term), Err(BadArgument), process);
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -5020,6 +5259,23 @@ mod tests {
             assert_eq_in_process!(
                 erlang::insert_element(
                     big_integer_term,
+                    0.into_process(&mut process),
+                    0.into_process(&mut process),
+                    &mut process
+                ),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::insert_element(
+                    float_term,
                     0.into_process(&mut process),
                     0.into_process(&mut process),
                     &mut process
@@ -5268,6 +5524,19 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_false() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_atom(float_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_false() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -5375,6 +5644,19 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_binary(big_integer_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_false() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_binary(float_term, &mut process),
                 false_term,
                 process
             );
@@ -5508,6 +5790,19 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_false() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_integer(float_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_false() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -5610,6 +5905,19 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_list(big_integer_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_false() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_list(float_term, &mut process),
                 false_term,
                 process
             );
@@ -5722,6 +6030,19 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_tuple(big_integer_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_false() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_tuple(float_term, &mut process),
                 false_term,
                 process
             );
@@ -5849,6 +6170,18 @@ mod tests {
         }
 
         #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::length(float_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -5946,6 +6279,18 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::size(big_integer_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::size(float_term, &mut process),
                 Err(BadArgument),
                 process
             );
@@ -6069,6 +6414,14 @@ mod tests {
             let big_integer_term = 576460752303423489_isize.into_process(&mut process);
 
             assert_eq_in_process!(erlang::tail(big_integer_term), Err(BadArgument), process);
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(erlang::tail(float_term), Err(BadArgument), process);
         }
 
         #[test]

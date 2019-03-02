@@ -7,7 +7,7 @@ use std::fmt::{self, Debug, Display};
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding, Existence};
-use crate::binary::{self, heap, sub, Part};
+use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::float::Float;
 use crate::integer::Integer::{self, Big, Small};
 use crate::integer::{big, small};
@@ -621,6 +621,34 @@ impl<'a> Part<'a, Term, Term, Term> for sub::Binary {
         let new_subbinary = self.part(start_usize, length_isize, process)?;
 
         Ok(new_subbinary.into())
+    }
+}
+
+impl PartToList<Term, Term> for heap::Binary {
+    fn part_to_list(
+        &self,
+        start: Term,
+        length: Term,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        let start_usize: usize = start.try_into()?;
+        let length_isize: isize = length.try_into()?;
+
+        self.part_to_list(start_usize, length_isize, process)
+    }
+}
+
+impl PartToList<Term, Term> for sub::Binary {
+    fn part_to_list(
+        &self,
+        start: Term,
+        length: Term,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        let start_usize: usize = start.try_into()?;
+        let length_isize: isize = length.try_into()?;
+
+        self.part_to_list(start_usize, length_isize, process)
     }
 }
 

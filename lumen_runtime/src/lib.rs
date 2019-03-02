@@ -1,5 +1,7 @@
 // For allocating multiple contiguous terms, like for Tuples.
 #![feature(allocator_api)]
+// For `lumen_runtime::binary::heap::<Iter as Iterator>.size_hint`
+#![feature(ptr_offset_from)]
 // for conversion of `usize` to `lumen_runtime::term::Tag`
 #![feature(try_from)]
 // For allocation multiple contiguous terms in `Term::alloc_count`.

@@ -4,7 +4,9 @@ use std::convert::TryFrom;
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Existence};
-use crate::binary::{self, Part};
+use crate::binary::{
+    self, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange, PartToList,
+};
 use crate::integer::Integer;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::term::{BadArgument, Term};
@@ -114,6 +116,10 @@ pub struct Iter {
     limit: *const u8,
 }
 
+impl ByteIterator for Iter {}
+
+impl ExactSizeIterator for Iter {}
+
 impl Iterator for Iter {
     type Item = u8;
 
@@ -128,6 +134,12 @@ impl Iterator for Iter {
                 old_pointer.as_ref().map(|r| *r)
             }
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = unsafe { self.limit.offset_from(self.pointer) } as usize;
+
+        (size, Some(size))
     }
 }
 
@@ -153,38 +165,34 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
         length: isize,
         process: &mut Process,
     ) -> Result<binary::Binary<'b>, BadArgument> {
-        let byte_count = Term::heap_binary_to_byte_count(&self.header);
-        let byte_count_isize = byte_count as isize;
+        let available_byte_count = Term::heap_binary_to_byte_count(&self.header);
+        let PartRange {
+            byte_offset,
+            byte_count,
+        } = start_length_to_part_range(start, length, available_byte_count)?;
 
-        // subbinary is entire binary, so return original without making a subbinary
-        if ((start == 0) & (length == byte_count_isize))
-            | ((start == byte_count) & (length == -byte_count_isize))
-        {
+        if (byte_offset == 0) & (byte_count == available_byte_count) {
             Ok(binary::Binary::Heap(self))
-        } else if length >= 0 {
-            let non_negative_length = length as usize;
-
-            if (start < byte_count) & (start + non_negative_length <= byte_count) {
-                let process_subbinary =
-                    process.subbinary(self.into(), start, 0, non_negative_length, 0);
-                Ok(binary::Binary::Sub(process_subbinary))
-            } else {
-                Err(BadArgument)
-            }
         } else {
-            let start_isize = start as isize;
+            let process_subbinary = process.subbinary(self.into(), byte_offset, 0, byte_count, 0);
 
-            if (start <= byte_count) & (0 <= start_isize + length) {
-                let byte_offset = (start_isize + length) as usize;
-                let byte_count = (-length) as usize;
-                let process_subbinary =
-                    process.subbinary(self.into(), byte_offset, 0, byte_count, 0);
-
-                Ok(binary::Binary::Sub(process_subbinary))
-            } else {
-                Err(BadArgument)
-            }
+            Ok(binary::Binary::Sub(process_subbinary))
         }
+    }
+}
+
+impl PartToList<usize, isize> for Binary {
+    fn part_to_list(
+        &self,
+        start: usize,
+        length: isize,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        let available_byte_count = Term::heap_binary_to_byte_count(&self.header);
+        let part_range = start_length_to_part_range(start, length, available_byte_count)?;
+        let list = part_range_to_list(self.iter(), part_range, &mut process);
+
+        Ok(list)
     }
 }
 

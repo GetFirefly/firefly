@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 
-use crate::process::{DebugInProcess, OrderInProcess, Process};
+use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::term::Term;
 
 pub type List = *const Term;
@@ -44,6 +44,21 @@ impl OrderInProcess for Cons {
             Ordering::Equal => self.tail.cmp_in_process(&other.tail, process),
             ordering => ordering,
         }
+    }
+}
+
+pub trait ToList {
+    fn to_list(&mut self, process: &mut Process) -> Term;
+}
+
+impl<T> ToList for T
+where
+    T: DoubleEndedIterator + Iterator<Item = u8>,
+{
+    fn to_list(&mut self, mut process: &mut Process) -> Term {
+        self.rfold(Term::EMPTY_LIST, |acc, byte| {
+            Term::cons(byte.into_process(&mut process), acc, &mut process)
+        })
     }
 }
 

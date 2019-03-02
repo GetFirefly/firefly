@@ -3,7 +3,9 @@ use std::convert::{TryFrom, TryInto};
 use std::iter::FusedIterator;
 
 use crate::atom::{self, Existence};
-use crate::binary::{heap, Part};
+use crate::binary::{
+    heap, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange, PartToList,
+};
 use crate::integer::Integer;
 use crate::process::{IntoProcess, OrderInProcess, Process};
 use crate::term::{BadArgument, Tag, Term};
@@ -163,6 +165,10 @@ impl ByteIter {
     }
 }
 
+impl ByteIterator for ByteIter {}
+
+impl ExactSizeIterator for ByteIter {}
+
 impl Iterator for BitIter {
     type Item = u8;
 
@@ -202,6 +208,12 @@ impl Iterator for ByteIter {
 
             Some(byte)
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = self.max_byte_count - self.current_byte_count;
+
+        (size, Some(size))
     }
 }
 
@@ -257,43 +269,34 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, &'b Binary> for Binary {
         length: isize,
         process: &mut Process,
     ) -> Result<&'b Binary, BadArgument> {
-        let byte_count_isize = self.byte_count as isize;
+        let PartRange {
+            byte_offset,
+            byte_count,
+        } = start_length_to_part_range(start, length, self.byte_count)?;
 
         // new subbinary is entire subbinary
-        if (self.bit_count == 0)
-            & (((start == 0) & (length == byte_count_isize))
-                | ((start == self.byte_count) & (length == -byte_count_isize)))
-        {
+        if (self.bit_count == 0) && (byte_offset == 0) && (byte_count == self.byte_count) {
             Ok(self)
-        } else if length >= 0 {
-            let non_negative_length = length as usize;
-
-            if (start < self.byte_count) & (start + non_negative_length <= self.byte_count) {
-                let new_subbinary = process.subbinary(
-                    self.original,
-                    self.byte_offset + start,
-                    self.bit_offset,
-                    non_negative_length,
-                    0,
-                );
-                Ok(new_subbinary)
-            } else {
-                Err(BadArgument)
-            }
         } else {
-            let start_isize = start as isize;
+            let new_subbinary =
+                process.subbinary(self.original, byte_offset, self.bit_offset, byte_count, 0);
 
-            if (start <= self.byte_count) & (0 <= start_isize + length) {
-                let byte_offset = (start_isize + length) as usize;
-                let byte_count = (-length) as usize;
-                let new_subbinary =
-                    process.subbinary(self.original, byte_offset, self.bit_offset, byte_count, 0);
-
-                Ok(new_subbinary)
-            } else {
-                Err(BadArgument)
-            }
+            Ok(new_subbinary)
         }
+    }
+}
+
+impl PartToList<usize, isize> for Binary {
+    fn part_to_list(
+        &self,
+        start: usize,
+        length: isize,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        let part_range = start_length_to_part_range(start, length, self.byte_count)?;
+        let list = part_range_to_list(self.byte_iter(), part_range, &mut process);
+
+        Ok(list)
     }
 }
 

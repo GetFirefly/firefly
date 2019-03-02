@@ -5,7 +5,7 @@ use std::iter::FusedIterator;
 use crate::atom::{self, Existence};
 use crate::binary::{heap, Part};
 use crate::integer::Integer;
-use crate::process::{OrderInProcess, Process};
+use crate::process::{IntoProcess, OrderInProcess, Process};
 use crate::term::{BadArgument, Tag, Term};
 
 pub struct Binary {
@@ -93,6 +93,18 @@ impl Binary {
 
         process.str_to_atom_index(&string, existence)
     }
+
+    pub fn to_list(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
+        if self.bit_count == 0 {
+            let list = self.byte_iter().rfold(Term::EMPTY_LIST, |acc, byte| {
+                Term::cons(byte.into_process(&mut process), acc, &mut process)
+            });
+
+            Ok(list)
+        } else {
+            Err(BadArgument)
+        }
+    }
 }
 
 impl TryFrom<&Binary> for Vec<u8> {
@@ -136,6 +148,21 @@ pub struct ByteIter {
     max_byte_count: usize,
 }
 
+impl ByteIter {
+    fn byte(&self, index: usize) -> u8 {
+        let first_index = self.byte_offset + index;
+        let first_byte = self.original.byte(first_index);
+
+        if 0 < self.bit_offset {
+            let second_byte = self.original.byte(first_index + 1);
+
+            (first_byte << self.bit_offset) | (second_byte >> (8 - self.bit_offset))
+        } else {
+            first_byte
+        }
+    }
+}
+
 impl Iterator for BitIter {
     type Item = u8;
 
@@ -170,17 +197,23 @@ impl Iterator for ByteIter {
         if self.current_byte_count == self.max_byte_count {
             None
         } else {
-            let first_index = self.byte_offset + self.current_byte_count;
-            let first_byte = self.original.byte(first_index);
+            let byte = self.byte(self.current_byte_count);
             self.current_byte_count += 1;
 
-            if 0 < self.bit_offset {
-                let second_byte = self.original.byte(first_index + 1);
+            Some(byte)
+        }
+    }
+}
 
-                Some((first_byte << self.bit_offset) | (second_byte >> (8 - self.bit_offset)))
-            } else {
-                Some(first_byte)
-            }
+impl DoubleEndedIterator for ByteIter {
+    fn next_back(&mut self) -> Option<u8> {
+        if self.current_byte_count == self.max_byte_count {
+            None
+        } else {
+            self.max_byte_count -= 1;
+            let byte = self.byte(self.max_byte_count);
+
+            Some(byte)
         }
     }
 }
@@ -260,6 +293,47 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, &'b Binary> for Binary {
             } else {
                 Err(BadArgument)
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod byte_iter {
+        use super::*;
+
+        #[test]
+        fn is_double_ended() {
+            let mut process: Process = Default::default();
+            // <<1::1, 0, 1, 2>>
+            let binary = Term::slice_to_binary(&[128, 0, 129, 0b0000_0000], &mut process);
+            let subbinary = Binary::new(binary, 0, 1, 3, 0);
+
+            let mut iter = subbinary.byte_iter();
+
+            assert_eq!(iter.next(), Some(0));
+            assert_eq!(iter.next(), Some(1));
+            assert_eq!(iter.next(), Some(2));
+            assert_eq!(iter.next(), None);
+            assert_eq!(iter.next(), None);
+
+            let mut rev_iter = subbinary.byte_iter();
+
+            assert_eq!(rev_iter.next_back(), Some(2));
+            assert_eq!(rev_iter.next_back(), Some(1));
+            assert_eq!(rev_iter.next_back(), Some(0));
+            assert_eq!(rev_iter.next_back(), None);
+            assert_eq!(rev_iter.next_back(), None);
+
+            let mut double_ended_iter = subbinary.byte_iter();
+
+            assert_eq!(double_ended_iter.next(), Some(0));
+            assert_eq!(double_ended_iter.next_back(), Some(2));
+            assert_eq!(double_ended_iter.next(), Some(1));
+            assert_eq!(double_ended_iter.next_back(), None);
+            assert_eq!(double_ended_iter.next(), None);
         }
     }
 }

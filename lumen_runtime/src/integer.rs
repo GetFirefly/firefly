@@ -41,6 +41,12 @@ impl From<isize> for Integer {
     }
 }
 
+impl From<u8> for Integer {
+    fn from(u: u8) -> Integer {
+        (u as usize).into()
+    }
+}
+
 impl From<usize> for Integer {
     fn from(u: usize) -> Integer {
         if (u as isize) <= small::MAX {

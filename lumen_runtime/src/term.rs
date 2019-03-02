@@ -473,7 +473,7 @@ impl DebugInProcess for Term {
                     cons.tail().format_in_process(&process)
                 )
             }
-            Tag::SmallInteger => format!("{:?}.into()", isize::from(self)),
+            Tag::SmallInteger => format!("{:?}.into_process(&mut process)", isize::from(self)),
             _ => format!(
                 "Term {{ tagged: 0b{tagged:0bit_count$b} }}",
                 tagged = self.tagged,
@@ -542,8 +542,16 @@ impl IntoProcess<Term> for isize {
     }
 }
 
+impl IntoProcess<Term> for u8 {
+    fn into_process(self, mut process: &mut Process) -> Term {
+        let integer: Integer = self.into();
+
+        integer.into_process(&mut process)
+    }
+}
+
 impl IntoProcess<Term> for usize {
-    fn into_process(self: Self, mut process: &mut Process) -> Term {
+    fn into_process(self, mut process: &mut Process) -> Term {
         let integer: Integer = self.into();
 
         integer.into_process(&mut process)

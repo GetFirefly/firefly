@@ -6,7 +6,7 @@ use liblumen_arena::TypedArena;
 use crate::atom::{self, Existence};
 use crate::binary::{self, Part};
 use crate::integer::Integer;
-use crate::process::{DebugInProcess, OrderInProcess, Process};
+use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::term::{BadArgument, Term};
 
 pub struct Binary {
@@ -80,6 +80,12 @@ impl<'binary, 'bytes: 'binary> Binary {
 
         process.str_to_atom_index(std::str::from_utf8(bytes).unwrap(), existence)
     }
+
+    pub fn to_list(&self, mut process: &mut Process) -> Term {
+        self.iter().rfold(Term::EMPTY_LIST, |acc, byte| {
+            Term::cons(byte.into_process(&mut process), acc, &mut process)
+        })
+    }
 }
 
 impl DebugInProcess for Binary {
@@ -120,6 +126,21 @@ impl Iterator for Iter {
             unsafe {
                 self.pointer = self.pointer.offset(1);
                 old_pointer.as_ref().map(|r| *r)
+            }
+        }
+    }
+}
+
+impl DoubleEndedIterator for Iter {
+    fn next_back(&mut self) -> Option<u8> {
+        if self.pointer == self.limit {
+            None
+        } else {
+            unsafe {
+                // limit is +1 past the actual elements, so pre-decrement unlike `next`, which
+                // post-decrements
+                self.limit = self.limit.offset(-1);
+                self.limit.as_ref().map(|r| *r)
             }
         }
     }
@@ -341,6 +362,40 @@ mod tests {
             let size_usize: usize = size_integer.into();
 
             assert_eq!(binary.iter().count(), size_usize);
+        }
+
+        #[test]
+        fn is_double_ended() {
+            let mut process: Process = Default::default();
+            let binary = Binary::from_slice(
+                &[0, 1, 2],
+                &mut process.heap_binary_arena,
+                &mut process.byte_arena,
+            );
+
+            let mut iter = binary.iter();
+
+            assert_eq!(iter.next(), Some(0));
+            assert_eq!(iter.next(), Some(1));
+            assert_eq!(iter.next(), Some(2));
+            assert_eq!(iter.next(), None);
+            assert_eq!(iter.next(), None);
+
+            let mut rev_iter = binary.iter();
+
+            assert_eq!(rev_iter.next_back(), Some(2));
+            assert_eq!(rev_iter.next_back(), Some(1));
+            assert_eq!(rev_iter.next_back(), Some(0));
+            assert_eq!(rev_iter.next_back(), None);
+            assert_eq!(rev_iter.next_back(), None);
+
+            let mut double_ended_iter = binary.iter();
+
+            assert_eq!(double_ended_iter.next(), Some(0));
+            assert_eq!(double_ended_iter.next_back(), Some(2));
+            assert_eq!(double_ended_iter.next(), Some(1));
+            assert_eq!(double_ended_iter.next_back(), None);
+            assert_eq!(double_ended_iter.next(), None);
         }
     }
 

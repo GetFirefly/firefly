@@ -5,7 +5,8 @@ use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Existence};
 use crate::binary::{
-    self, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange, PartToList,
+    self, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
+    PartToList, ToTerm,
 };
 use crate::integer::Integer;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
@@ -41,7 +42,14 @@ impl<'binary, 'bytes: 'binary> Binary {
     }
 
     pub fn byte(&self, index: usize) -> u8 {
-        assert!(index < Term::heap_binary_to_byte_count(&self.header));
+        let byte_count = Term::heap_binary_to_byte_count(&self.header);
+
+        assert!(
+            index < byte_count,
+            "index ({}) >= byte count ({})",
+            index,
+            byte_count
+        );
 
         unsafe { *self.bytes.offset(index as isize) }
     }
@@ -225,6 +233,22 @@ impl From<&Binary> for Vec<u8> {
         bytes_vec.extend(binary.byte_iter());
 
         bytes_vec
+    }
+}
+
+impl ToTerm for Binary {
+    fn to_term(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
+        let mut iter = self.iter();
+        match iter.next_versioned_term(&mut process) {
+            Some(term) => {
+                if iter.is_empty() {
+                    Ok(term)
+                } else {
+                    Err(BadArgument)
+                }
+            }
+            None => Err(BadArgument),
+        }
     }
 }
 

@@ -16,6 +16,8 @@ use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::tuple::Tuple;
 use std::str::Chars;
 
+pub mod external_format;
+
 impl From<&Term> for atom::Index {
     fn from(term: &Term) -> atom::Index {
         assert_eq!(term.tag(), Tag::Atom);
@@ -384,6 +386,10 @@ impl DebugInProcess for Term {
     fn format_in_process(&self, process: &Process) -> String {
         match self.tag() {
             Tag::Arity => format!("Term::arity({})", self.arity_to_usize()),
+            Tag::Atom => format!(
+                "Term::str_to_atom(\"{}\", Existence::DoNotCare, &mut process).unwrap()",
+                self.atom_to_string(process)
+            ),
             Tag::Boxed => {
                 let unboxed: &Term = self.unbox_reference();
 
@@ -438,7 +444,7 @@ impl DebugInProcess for Term {
                             }
                         }
 
-                        strings.push("], &mut process".to_string());
+                        strings.push("], &mut process)".to_string());
 
                         strings.join("")
                     }
@@ -457,7 +463,7 @@ impl DebugInProcess for Term {
                         strings.push(subbinary.byte_count.to_string());
                         strings.push(", ".to_string());
                         strings.push(subbinary.bit_count.to_string());
-                        strings.push(", process)".to_string());
+                        strings.push(", &mut process)".to_string());
 
                         strings.join("")
                     }
@@ -488,6 +494,17 @@ impl<'a> From<binary::Binary<'a>> for Term {
         match binary {
             binary::Binary::Heap(heap_binary) => Term::box_reference(heap_binary),
             binary::Binary::Sub(sub_binary) => Term::box_reference(sub_binary),
+        }
+    }
+}
+
+impl From<u8> for Term {
+    fn from(u: u8) -> Term {
+        let untagged: isize = u as isize;
+
+        Term {
+            tagged: ((untagged << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
+                | (Tag::SmallInteger as usize),
         }
     }
 }
@@ -791,6 +808,7 @@ impl OrderInProcess for Term {
                 }
             }
             (Tag::SmallInteger, Tag::Atom) => Ordering::Less,
+            (Tag::SmallInteger, Tag::List) => Ordering::Less,
             (Tag::Atom, Tag::SmallInteger) => Ordering::Greater,
             (Tag::Atom, Tag::Atom) => {
                 if self.tagged == other.tagged {
@@ -807,7 +825,18 @@ impl OrderInProcess for Term {
 
                 match other_unboxed.tag() {
                     Tag::Arity => Ordering::Less,
+                    Tag::Subbinary => Ordering::Less,
                     other_unboxed_tag => unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag),
+                }
+            }
+            (Tag::Boxed, Tag::SmallInteger) => {
+                let self_unboxed: &Term = self.unbox_reference();
+
+                match self_unboxed.tag() {
+                    Tag::Subbinary => Ordering::Greater,
+                    self_unboxed_tag => {
+                        unimplemented!("unboxed {:?} cmp SmallInteger", self_unboxed_tag)
+                    }
                 }
             }
             (Tag::Boxed, Tag::Atom) => {
@@ -851,6 +880,7 @@ impl OrderInProcess for Term {
 
                         self_tuple.cmp_in_process(other_tuple, process)
                     }
+                    (Tag::Arity, Tag::Float) => Ordering::Greater,
                     (Tag::HeapBinary, Tag::HeapBinary) => {
                         let self_binary: &heap::Binary = self.unbox_reference();
                         let other_binary: &heap::Binary = other.unbox_reference();

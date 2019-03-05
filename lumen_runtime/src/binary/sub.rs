@@ -4,11 +4,12 @@ use std::iter::FusedIterator;
 
 use crate::atom::{self, Existence};
 use crate::binary::{
-    heap, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange, PartToList,
+    heap, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
+    PartToList, ToTerm,
 };
 use crate::integer::Integer;
 use crate::process::{IntoProcess, OrderInProcess, Process};
-use crate::term::{BadArgument, Tag, Term};
+use crate::term::{BadArgument, Tag::*, Term};
 
 pub struct Binary {
     #[allow(dead_code)]
@@ -28,21 +29,39 @@ impl Binary {
         byte_count: usize,
         bit_count: u8,
     ) -> Self {
-        assert_eq!(original.tag(), Tag::Boxed);
+        match original.tag() {
+            Boxed => {
+                let unboxed: &Term = original.unbox_reference();
 
-        let unboxed: &Term = original.unbox_reference();
-        let unboxed_tag = unboxed.tag();
+                match unboxed.tag() {
+                    HeapBinary => {
+                        let heap_binary: &heap::Binary = original.unbox_reference();
+                        let original_byte_count = heap_binary.byte_count();
+                        let original_bit_count = original_byte_count * 8;
+                        let required_bit_count = byte_offset * 8
+                            + (bit_offset as usize)
+                            + 8 * byte_count
+                            + (bit_count as usize);
 
-        assert!(
-            (unboxed_tag == Tag::HeapBinary) | (unboxed_tag == Tag::ReferenceCountedBinary),
-            "Unbox original ({:#b}) is tagged ({:?}) neither as heap or reference counted binary",
-            unboxed.tagged,
-            unboxed_tag
-        );
+                        assert!(
+                            required_bit_count <= original_bit_count,
+                            "Required bit count ({}) is greater than original bit count ({})",
+                            required_bit_count,
+                            original_bit_count
+                        );
+                    }
+                    unboxed_tag => panic!(
+                        "Unboxed tag ({:?}) cannot be original binary for subbinary",
+                        unboxed_tag
+                    ),
+                }
+            }
+            tag => panic!("Tag ({:?}) cannot be original binary for subbinary", tag),
+        }
 
         Binary {
             header: Term {
-                tagged: Tag::Subbinary as usize,
+                tagged: Subbinary as usize,
             },
             original,
             byte_offset,
@@ -57,7 +76,7 @@ impl Binary {
     pub fn bit_iter(&self) -> BitIter {
         BitIter {
             original: self.original,
-            byte_offset: self.byte_offset + (self.bit_count as usize),
+            byte_offset: self.byte_offset + (self.byte_count as usize),
             bit_offset: self.bit_offset,
             current_bit_count: 0,
             max_bit_count: self.bit_count,
@@ -103,6 +122,27 @@ impl Binary {
             });
 
             Ok(list)
+        } else {
+            Err(BadArgument)
+        }
+    }
+}
+
+impl ToTerm for Binary {
+    fn to_term(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
+        if self.bit_count == 0 {
+            let mut byte_iter = self.byte_iter();
+
+            match byte_iter.next_versioned_term(&mut process) {
+                Some(term) => {
+                    if byte_iter.is_empty() {
+                        Ok(term)
+                    } else {
+                        Err(BadArgument)
+                    }
+                }
+                None => Err(BadArgument),
+            }
         } else {
             Err(BadArgument)
         }

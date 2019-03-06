@@ -131,6 +131,29 @@ impl Binary {
             Err(BadArgument)
         }
     }
+
+    pub fn to_bitstring_list(&self, mut process: &mut Process) -> Term {
+        let initial = if self.bit_count == 0 {
+            Term::EMPTY_LIST
+        } else {
+            self.bit_count_subbinary(&mut process)
+        };
+
+        self.byte_iter().rfold(initial, |acc, byte| {
+            Term::cons(byte.into_process(&mut process), acc, &mut process)
+        })
+    }
+
+    fn bit_count_subbinary(&self, mut process: &mut Process) -> Term {
+        Term::subbinary(
+            self.original,
+            self.byte_offset + (self.byte_count as usize),
+            self.bit_offset,
+            0,
+            self.bit_count,
+            &mut process,
+        )
+    }
 }
 
 impl ToTerm for Binary {

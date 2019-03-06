@@ -931,6 +931,7 @@ impl OrderInProcess for Term {
                 // Empty list is shorter than all lists, so it is lesser.
                 Ordering::Less
             }
+            (Tag::List, Tag::SmallInteger) => Ordering::Greater,
             (Tag::List, Tag::EmptyList) => {
                 // Any list is longer than empty lit
                 Ordering::Greater

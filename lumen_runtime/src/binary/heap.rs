@@ -100,6 +100,10 @@ impl<'binary, 'bytes: 'binary> Binary {
             Term::cons(byte.into_process(&mut process), acc, &mut process)
         })
     }
+
+    pub fn to_bitstring_list(&self, process: &mut Process) -> Term {
+        self.to_list(process)
+    }
 }
 
 impl DebugInProcess for Binary {

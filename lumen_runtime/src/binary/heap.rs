@@ -41,6 +41,10 @@ impl<'binary, 'bytes: 'binary> Binary {
         }
     }
 
+    pub fn bit_size(&self) -> usize {
+        self.header.heap_binary_to_byte_count() * 8
+    }
+
     pub fn byte(&self, index: usize) -> u8 {
         let byte_count = Term::heap_binary_to_byte_count(&self.header);
 
@@ -74,7 +78,7 @@ impl<'binary, 'bytes: 'binary> Binary {
     }
 
     pub fn size(&self) -> Integer {
-        // The `header` field is not the same as `size` because `sie` is tagged as a small integer
+        // The `header` field is not the same as `size` because `size` is tagged as a small integer
         // while `header` is tagged as `HeapBinary` to mark the beginning of a heap binary.
         self.header.heap_binary_to_byte_count().into()
     }

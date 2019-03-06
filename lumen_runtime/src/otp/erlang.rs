@@ -317,6 +317,30 @@ pub fn binary_options_to_term(
     }
 }
 
+pub fn bit_size(bit_string: Term, mut process: &mut Process) -> Result<Term, BadArgument> {
+    match bit_string.tag() {
+        Tag::Boxed => {
+            let unboxed: &Term = bit_string.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::HeapBinary => {
+                    let heap_binary: &heap::Binary = bit_string.unbox_reference();
+
+                    Ok(heap_binary.bit_size())
+                }
+                Tag::Subbinary => {
+                    let subbinary: &sub::Binary = bit_string.unbox_reference();
+
+                    Ok(subbinary.bit_size())
+                }
+                _ => Err(BadArgument),
+            }
+        }
+        _ => Err(BadArgument),
+    }
+    .map(|bit_size_usize| bit_size_usize.into_process(&mut process))
+}
+
 pub fn delete_element(
     tuple: Term,
     index: Term,
@@ -5471,6 +5495,121 @@ mod tests {
             assert_eq_in_process!(
                 erlang::binary_options_to_term(binary_term, Term::EMPTY_LIST, &mut process),
                 Ok(term),
+                process
+            );
+        }
+    }
+
+    mod bit_size {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::bit_size(atom_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+
+            assert_eq_in_process!(
+                erlang::bit_size(Term::EMPTY_LIST, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+
+            assert_eq_in_process!(
+                erlang::bit_size(list_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_small_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let small_integer_term: Term = 0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::bit_size(small_integer_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_big_integer_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::bit_size(big_integer_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::bit_size(float_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[], &mut process);
+            let index = 1usize;
+            let invalid_index_term = Term::arity(index);
+
+            assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
+            assert_eq_in_process!(
+                erlang::bit_size(tuple_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_is_eight_times_byte_count() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[1], &mut process);
+
+            assert_eq_in_process!(
+                erlang::bit_size(heap_binary_term, &mut process),
+                Ok(8.into_process(&mut process)),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_is_eight_times_byte_count_plus_bit_count() {
+            let mut process: Process = Default::default();
+            let binary_term = Term::slice_to_binary(&[0, 1, 0b010], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 0, 0, 2, 3, &mut process);
+
+            assert_eq_in_process!(
+                erlang::bit_size(subbinary_term, &mut process),
+                Ok(19.into_process(&mut process)),
                 process
             );
         }

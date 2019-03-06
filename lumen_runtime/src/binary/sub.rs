@@ -73,14 +73,19 @@ impl Binary {
 
     /// Iterator of the [bit_count] bits.  To get the [byte_count] bytes at the beginning of the
     /// bitstring use [byte_iter].
-    pub fn bit_iter(&self) -> BitIter {
-        BitIter {
+    pub fn bit_count_iter(&self) -> BitCountIter {
+        BitCountIter {
             original: self.original,
             byte_offset: self.byte_offset + (self.byte_count as usize),
             bit_offset: self.bit_offset,
             current_bit_count: 0,
             max_bit_count: self.bit_count,
         }
+    }
+
+    /// The total number of bits including bits in [byte_count] and [bit_count].
+    pub fn bit_size(&self) -> usize {
+        self.byte_count * 8 + (self.bit_count as usize)
     }
 
     /// Iterator for the [byte_count] bytes.  For the [bit_count] bits in the partial byte at the
@@ -181,7 +186,7 @@ impl TryFrom<&Binary> for String {
     }
 }
 
-pub struct BitIter {
+pub struct BitCountIter {
     original: Term,
     byte_offset: usize,
     bit_offset: u8,
@@ -216,7 +221,7 @@ impl ByteIterator for ByteIter {}
 
 impl ExactSizeIterator for ByteIter {}
 
-impl Iterator for BitIter {
+impl Iterator for BitCountIter {
     type Item = u8;
 
     fn next(&mut self) -> Option<u8> {
@@ -303,7 +308,7 @@ impl OrderInProcess<Binary> for Binary {
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
     fn cmp_in_process(&self, other: &Binary, _process: &Process) -> Ordering {
         match self.byte_iter().cmp(other.byte_iter()) {
-            Ordering::Equal => self.bit_iter().cmp(other.bit_iter()),
+            Ordering::Equal => self.bit_count_iter().cmp(other.bit_count_iter()),
             ordering => ordering,
         }
     }

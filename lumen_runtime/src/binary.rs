@@ -2,9 +2,9 @@ use std::convert::TryInto;
 use std::mem::transmute;
 
 use crate::atom::Existence;
-use crate::list::ToList;
+use crate::list::{Cons, ToList};
 use crate::process::{IntoProcess, Process};
-use crate::term::{self, BadArgument, Term};
+use crate::term::{self, BadArgument, Tag::*, Term};
 
 pub mod heap;
 pub mod sub;
@@ -100,16 +100,14 @@ where
         }
     }
 
-    fn next_atom(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_atom(&mut self, existence: Existence, mut process: &mut Process) -> Option<Term> {
         self.next_u16()
             .and_then(|length| self.next_byte_vec(length as usize))
             .and_then(|byte_vec| match String::from_utf8(byte_vec) {
-                Ok(string) => {
-                    match Term::str_to_atom(&string, Existence::DoNotCare, &mut process) {
-                        Ok(term) => Some(term),
-                        Err(BadArgument) => None,
-                    }
-                }
+                Ok(string) => match Term::str_to_atom(&string, existence, &mut process) {
+                    Ok(term) => Some(term),
+                    Err(BadArgument) => None,
+                },
                 Err(_) => None,
             })
     }
@@ -176,11 +174,13 @@ where
             .map(|integer| integer.into_process(&mut process))
     }
 
-    fn next_list(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_list(&mut self, existence: Existence, mut process: &mut Process) -> Option<Term> {
         self.next_u32()
-            .and_then(|element_count| self.next_terms(element_count as usize, &mut process))
+            .and_then(|element_count| {
+                self.next_terms(existence, element_count as usize, &mut process)
+            })
             .and_then(|element_vec| {
-                self.next_term(&mut process).map(|tail_term| {
+                self.next_term(existence, &mut process).map(|tail_term| {
                     element_vec.iter().rfold(tail_term, |acc, element| {
                         Term::cons(*element, acc, &mut process)
                     })
@@ -193,16 +193,18 @@ where
             .map(|inner| inner.into_process(&mut process))
     }
 
-    fn next_small_atom_utf8(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_small_atom_utf8(
+        &mut self,
+        existence: Existence,
+        mut process: &mut Process,
+    ) -> Option<Term> {
         self.next()
             .and_then(|length| self.next_byte_vec(length as usize))
             .and_then(|byte_vec| match String::from_utf8(byte_vec) {
-                Ok(string) => {
-                    match Term::str_to_atom(&string, Existence::DoNotCare, &mut process) {
-                        Ok(term) => Some(term),
-                        Err(BadArgument) => None,
-                    }
-                }
+                Ok(string) => match Term::str_to_atom(&string, existence, &mut process) {
+                    Ok(term) => Some(term),
+                    Err(BadArgument) => None,
+                },
                 Err(_) => None,
             })
     }
@@ -238,31 +240,35 @@ where
         })
     }
 
-    fn next_small_tuple(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_small_tuple(
+        &mut self,
+        existence: Existence,
+        mut process: &mut Process,
+    ) -> Option<Term> {
         self.next()
-            .and_then(|arity| self.next_terms(arity as usize, &mut process))
+            .and_then(|arity| self.next_terms(existence, arity as usize, &mut process))
             .map(|element_vec| Term::slice_to_tuple(element_vec.as_slice(), &mut process))
     }
 
-    fn next_term(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_term(&mut self, existence: Existence, mut process: &mut Process) -> Option<Term> {
         match self.next() {
             Some(tag_byte) => match tag_byte.try_into() {
                 Ok(tag) => {
                     use crate::term::external_format::Tag::*;
 
                     match tag {
-                        Atom => self.next_atom(&mut process),
+                        Atom => self.next_atom(existence, &mut process),
                         Binary => self.next_binary(&mut process),
                         BitBinary => self.next_bit_binary(&mut process),
                         ByteList => self.next_byte_list(&mut process),
                         EmptyList => Some(Term::EMPTY_LIST),
                         Integer => self.next_integer(&mut process),
-                        List => self.next_list(&mut process),
+                        List => self.next_list(existence, &mut process),
                         NewFloat => self.next_new_float(&mut process),
-                        SmallAtomUTF8 => self.next_small_atom_utf8(&mut process),
+                        SmallAtomUTF8 => self.next_small_atom_utf8(existence, &mut process),
                         SmallBigInteger => self.next_small_big_integer(&mut process),
                         SmallInteger => self.next_small_integer(),
-                        SmallTuple => self.next_small_tuple(&mut process),
+                        SmallTuple => self.next_small_tuple(existence, &mut process),
                     }
                 }
                 _ => None,
@@ -271,11 +277,16 @@ where
         }
     }
 
-    fn next_terms(&mut self, count: usize, mut process: &mut Process) -> Option<Vec<Term>> {
+    fn next_terms(
+        &mut self,
+        existence: Existence,
+        count: usize,
+        mut process: &mut Process,
+    ) -> Option<Vec<Term>> {
         let mut element_vec: Vec<Term> = Vec::with_capacity(count);
 
         for _ in 0..count {
-            match self.next_term(&mut process) {
+            match self.next_term(existence, &mut process) {
                 Some(term) => element_vec.push(term),
                 None => break,
             }
@@ -288,9 +299,13 @@ where
         }
     }
 
-    fn next_versioned_term(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_versioned_term(
+        &mut self,
+        existence: Existence,
+        mut process: &mut Process,
+    ) -> Option<Term> {
         match self.next() {
-            Some(term::external_format::VERSION_NUMBER) => self.next_term(&mut process),
+            Some(term::external_format::VERSION_NUMBER) => self.next_term(existence, &mut process),
             Some(version) => panic!("Unknown version number ({})", version),
             None => None,
         }
@@ -372,5 +387,68 @@ pub trait PartToList<S, L> {
 }
 
 pub trait ToTerm {
-    fn to_term(&self, process: &mut Process) -> Result<Term, BadArgument>;
+    fn to_term(&self, options: ToTermOptions, process: &mut Process) -> Result<Term, BadArgument>;
+}
+
+pub struct ToTermOptions {
+    pub existence: Existence,
+    pub used: bool,
+}
+
+impl ToTermOptions {
+    pub fn try_from(term: Term, process: &Process) -> Result<ToTermOptions, BadArgument> {
+        let mut options: ToTermOptions = Default::default();
+        let mut options_term = term;
+
+        loop {
+            match options_term.tag() {
+                EmptyList => return Ok(options),
+                List => {
+                    let cons: &Cons = options_term.try_into().unwrap();
+
+                    options.put_option_term(cons.head(), process)?;
+                    options_term = cons.tail();
+
+                    continue;
+                }
+                _ => return Err(BadArgument),
+            };
+        }
+    }
+
+    fn put_option_term(
+        &mut self,
+        option: Term,
+        process: &Process,
+    ) -> Result<&ToTermOptions, BadArgument> {
+        match option.tag() {
+            Atom => {
+                let option_string = option.atom_to_string(process);
+
+                match option_string.as_ref() {
+                    "safe" => {
+                        self.existence = Existence::Exists;
+
+                        Ok(self)
+                    }
+                    "used" => {
+                        self.used = true;
+
+                        Ok(self)
+                    }
+                    _ => Err(BadArgument),
+                }
+            }
+            _ => Err(BadArgument),
+        }
+    }
+}
+
+impl Default for ToTermOptions {
+    fn default() -> ToTermOptions {
+        ToTermOptions {
+            existence: Existence::DoNotCare,
+            used: false,
+        }
+    }
 }

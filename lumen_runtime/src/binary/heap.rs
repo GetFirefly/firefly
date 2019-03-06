@@ -6,7 +6,7 @@ use liblumen_arena::TypedArena;
 use crate::atom::{self, Existence};
 use crate::binary::{
     self, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
-    PartToList, ToTerm,
+    PartToList, ToTerm, ToTermOptions,
 };
 use crate::integer::Integer;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
@@ -237,14 +237,22 @@ impl From<&Binary> for Vec<u8> {
 }
 
 impl ToTerm for Binary {
-    fn to_term(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
+    fn to_term(
+        &self,
+        options: ToTermOptions,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
         let mut iter = self.iter();
-        match iter.next_versioned_term(&mut process) {
+
+        match iter.next_versioned_term(options.existence, &mut process) {
             Some(term) => {
-                if iter.is_empty() {
-                    Ok(term)
+                if options.used {
+                    let used = self.byte_count() - iter.len();
+                    let used_term: Term = used.into_process(&mut process);
+
+                    Ok(Term::slice_to_tuple(&[term, used_term], &mut process))
                 } else {
-                    Err(BadArgument)
+                    Ok(term)
                 }
             }
             None => Err(BadArgument),

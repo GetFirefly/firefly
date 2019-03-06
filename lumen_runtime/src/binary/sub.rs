@@ -5,7 +5,7 @@ use std::iter::FusedIterator;
 use crate::atom::{self, Existence};
 use crate::binary::{
     heap, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
-    PartToList, ToTerm,
+    PartToList, ToTerm, ToTermOptions,
 };
 use crate::integer::Integer;
 use crate::process::{IntoProcess, OrderInProcess, Process};
@@ -129,16 +129,23 @@ impl Binary {
 }
 
 impl ToTerm for Binary {
-    fn to_term(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
+    fn to_term(
+        &self,
+        options: ToTermOptions,
+        mut process: &mut Process,
+    ) -> Result<Term, BadArgument> {
         if self.bit_count == 0 {
             let mut byte_iter = self.byte_iter();
 
-            match byte_iter.next_versioned_term(&mut process) {
+            match byte_iter.next_versioned_term(options.existence, &mut process) {
                 Some(term) => {
-                    if byte_iter.is_empty() {
-                        Ok(term)
+                    if options.used {
+                        let used = self.byte_count - byte_iter.len();
+                        let used_term: Term = used.into_process(&mut process);
+
+                        Ok(Term::slice_to_tuple(&[term, used_term], &mut process))
                     } else {
-                        Err(BadArgument)
+                        Ok(term)
                     }
                 }
                 None => Err(BadArgument),

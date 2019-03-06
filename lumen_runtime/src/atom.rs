@@ -8,6 +8,7 @@ pub enum Encoding {
     Utf8,
 }
 
+#[derive(Clone, Copy)]
 pub enum Existence {
     DoNotCare,
     Exists,

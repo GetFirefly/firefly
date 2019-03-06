@@ -36,7 +36,7 @@ impl Binary {
                 match unboxed.tag() {
                     HeapBinary => {
                         let heap_binary: &heap::Binary = original.unbox_reference();
-                        let original_byte_count = heap_binary.byte_count();
+                        let original_byte_count = heap_binary.byte_size();
                         let original_bit_count = original_byte_count * 8;
                         let required_bit_count = byte_offset * 8
                             + (bit_offset as usize)
@@ -98,6 +98,10 @@ impl Binary {
             current_byte_count: 0,
             max_byte_count: self.byte_count,
         }
+    }
+
+    pub fn byte_size(&self) -> usize {
+        self.byte_count + if 0 < self.bit_count { 1 } else { 0 }
     }
 
     pub fn is_binary(&self) -> bool {

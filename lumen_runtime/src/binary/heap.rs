@@ -58,12 +58,12 @@ impl<'binary, 'bytes: 'binary> Binary {
         unsafe { *self.bytes.offset(index as isize) }
     }
 
-    pub fn byte_count(&self) -> usize {
-        self.header.heap_binary_to_byte_count()
-    }
-
     pub fn byte_iter(&self) -> Iter {
         self.iter()
+    }
+
+    pub fn byte_size(&self) -> usize {
+        self.header.heap_binary_to_byte_count()
     }
 
     pub fn iter(&self) -> Iter {
@@ -237,7 +237,7 @@ impl OrderInProcess for Binary {
 
 impl From<&Binary> for Vec<u8> {
     fn from(binary: &Binary) -> Vec<u8> {
-        let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_count());
+        let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_size());
         bytes_vec.extend(binary.byte_iter());
 
         bytes_vec
@@ -255,7 +255,7 @@ impl ToTerm for Binary {
         match iter.next_versioned_term(options.existence, &mut process) {
             Some(term) => {
                 if options.used {
-                    let used = self.byte_count() - iter.len();
+                    let used = self.byte_size() - iter.len();
                     let used_term: Term = used.into_process(&mut process);
 
                     Ok(Term::slice_to_tuple(&[term, used_term], &mut process))

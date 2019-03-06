@@ -9,7 +9,7 @@ use std::num::FpCategory;
 use crate::atom::Existence;
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
 use crate::float::Float;
-use crate::integer::big;
+use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::otp;
 use crate::process::{IntoProcess, Process};
@@ -386,6 +386,38 @@ pub fn byte_size(bit_string: Term, mut process: &mut Process) -> Result<Term, Ba
         _ => Err(BadArgument),
     }
     .map(|byte_size_usize| byte_size_usize.into_process(&mut process))
+}
+
+pub fn ceil(number: Term, mut process: &mut Process) -> Result<Term, BadArgument> {
+    match number.tag() {
+        Tag::SmallInteger => Ok(number),
+        Tag::Boxed => {
+            let unboxed: &Term = number.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::BigInteger => Ok(number),
+                Tag::Float => {
+                    let float: &Float = number.unbox_reference();
+                    let inner = float.inner;
+                    let ceil_inner = inner.ceil();
+
+                    // skip creating a rug::Integer if float can fit in small integer.
+                    let ceil_term =
+                        if (small::MIN as f64) <= ceil_inner && ceil_inner <= (small::MAX as f64) {
+                            (ceil_inner as usize).into_process(&mut process)
+                        } else {
+                            let rug_integer = rug::Integer::from_f64(ceil_inner).unwrap();
+
+                            rug_integer.into_process(&mut process)
+                        };
+
+                    Ok(ceil_term)
+                }
+                _ => Err(BadArgument),
+            }
+        }
+        _ => Err(BadArgument),
+    }
 }
 
 pub fn delete_element(
@@ -5936,6 +5968,129 @@ mod tests {
             assert_eq_in_process!(
                 erlang::byte_size(subbinary_term, &mut process),
                 Ok(2.into_process(&mut process)),
+                process
+            );
+        }
+    }
+
+    mod ceil {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::ceil(atom_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+
+            assert_eq_in_process!(
+                erlang::ceil(Term::EMPTY_LIST, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+
+            assert_eq_in_process!(
+                erlang::ceil(list_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_small_integer_returns_same() {
+            let mut process: Process = Default::default();
+            let small_integer_term: Term = 0.into_process(&mut process);
+
+            let result = erlang::ceil(small_integer_term, &mut process);
+
+            assert_eq_in_process!(result, Ok(small_integer_term), process);
+            assert_eq!(result.unwrap().tagged, small_integer_term.tagged);
+        }
+
+        #[test]
+        fn with_big_integer_returns_same() {
+            let mut process: Process = Default::default();
+            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+
+            let result = erlang::ceil(big_integer_term, &mut process);
+
+            assert_eq_in_process!(result, Ok(big_integer_term), process);
+            assert_eq!(result.unwrap().tagged, big_integer_term.tagged);
+        }
+
+        #[test]
+        fn with_float_without_fraction_returns_integer() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::ceil(float_term, &mut process),
+                Ok(1.into_process(&mut process)),
+                process
+            );
+        }
+
+        #[test]
+        fn with_float_with_fraction_rounds_up_to_next_integer() {
+            let mut process: Process = Default::default();
+            let float_term = (-1.1).into_process(&mut process);
+
+            let result = erlang::ceil(float_term, &mut process);
+
+            assert_eq_in_process!(result, Ok((-1).into_process(&mut process)), process);
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[], &mut process);
+            let index = 1usize;
+            let invalid_index_term = Term::arity(index);
+
+            assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
+            assert_eq_in_process!(
+                erlang::ceil(tuple_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[1], &mut process);
+
+            assert_eq_in_process!(
+                erlang::ceil(heap_binary_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term = Term::slice_to_binary(&[0, 1], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 1, 0, 1, 0, &mut process);
+
+            assert_eq_in_process!(
+                erlang::ceil(subbinary_term, &mut process),
+                Err(BadArgument),
                 process
             );
         }

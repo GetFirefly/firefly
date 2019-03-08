@@ -717,6 +717,33 @@ impl TryFrom<Term> for &'static Cons {
     }
 }
 
+impl TryFrom<Term> for rug::Integer {
+    type Error = BadArgument;
+
+    fn try_from(term: Term) -> Result<rug::Integer, BadArgument> {
+        match term.tag() {
+            Tag::SmallInteger => {
+                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
+
+                Ok(rug::Integer::from(term_isize))
+            }
+            Tag::Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::BigInteger => {
+                        let big_integer: &big::Integer = term.unbox_reference();
+
+                        Ok(big_integer.inner.clone())
+                    }
+                    _ => Err(BadArgument),
+                }
+            }
+            _ => Err(BadArgument),
+        }
+    }
+}
+
 impl TryFrom<Term> for String {
     type Error = BadArgument;
 
@@ -807,6 +834,40 @@ impl OrderInProcess for Term {
                     self_isize.cmp(&other_isize)
                 }
             }
+            (Tag::SmallInteger, Tag::Boxed) => {
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match other_unboxed.tag() {
+                    Tag::BigInteger => {
+                        let self_isize: isize = self.try_into().unwrap();
+                        let self_cmp0 = self_isize.cmp(&0);
+
+                        let other_big_integer: &big::Integer = other.unbox_reference();
+                        let other_inner = &other_big_integer.inner;
+                        let other_cmp0 = other_big_integer.inner.cmp0();
+
+                        match (self_cmp0, other_cmp0) {
+                            // have to promote self to rug::Integer
+                            (Ordering::Less, Ordering::Less)
+                            | (Ordering::Greater, Ordering::Greater) => {
+                                let self_rug_integer = rug::Integer::from(self_isize);
+
+                                self_rug_integer.cmp(&other_inner)
+                            }
+                            (Ordering::Less, _) | (Ordering::Equal, Ordering::Greater) => {
+                                Ordering::Less
+                            }
+                            (Ordering::Equal, Ordering::Equal) => Ordering::Equal,
+                            (Ordering::Equal, Ordering::Less)
+                            | (Ordering::Greater, Ordering::Less)
+                            | (Ordering::Greater, Ordering::Equal) => Ordering::Greater,
+                        }
+                    }
+                    other_unboxed_tag => {
+                        unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag)
+                    }
+                }
+            }
             (Tag::SmallInteger, Tag::Atom) => Ordering::Less,
             (Tag::SmallInteger, Tag::List) => Ordering::Less,
             (Tag::Atom, Tag::SmallInteger) => Ordering::Greater,
@@ -833,6 +894,31 @@ impl OrderInProcess for Term {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
+                    Tag::BigInteger => {
+                        let self_big_integer: &big::Integer = self.unbox_reference();
+                        let self_inner = &self_big_integer.inner;
+                        let self_cmp0 = self_big_integer.inner.cmp0();
+
+                        let other_isize: isize = other.try_into().unwrap();
+                        let other_cmp0 = other_isize.cmp(&0);
+
+                        match (self_cmp0, other_cmp0) {
+                            // have to promote other to rug::Integer
+                            (Ordering::Less, Ordering::Less)
+                            | (Ordering::Greater, Ordering::Greater) => {
+                                let other_rug_integer = rug::Integer::from(other_isize);
+
+                                self_inner.cmp(&other_rug_integer)
+                            }
+                            (Ordering::Less, _) | (Ordering::Equal, Ordering::Greater) => {
+                                Ordering::Less
+                            }
+                            (Ordering::Equal, Ordering::Equal) => Ordering::Equal,
+                            (Ordering::Equal, Ordering::Less)
+                            | (Ordering::Greater, Ordering::Less)
+                            | (Ordering::Greater, Ordering::Equal) => Ordering::Greater,
+                        }
+                    }
                     Tag::Subbinary => Ordering::Greater,
                     self_unboxed_tag => {
                         unimplemented!("unboxed {:?} cmp SmallInteger", self_unboxed_tag)

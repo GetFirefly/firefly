@@ -1,5 +1,6 @@
 // For allocating multiple contiguous terms, like for Tuples.
 #![feature(allocator_api)]
+#![feature(duration_as_u128)]
 #![feature(exact_size_is_empty)]
 // For `lumen_runtime::binary::heap::<Iter as Iterator>.size_hint`
 #![feature(ptr_offset_from)]
@@ -9,6 +10,9 @@
 #![feature(try_reserve)]
 // for `lumen_runtime::term::Term`
 #![feature(untagged_unions)]
+
+#[macro_use]
+extern crate cfg_if;
 
 #[macro_use]
 mod process;
@@ -36,19 +40,26 @@ use self::system::break_handler;
 use bus::Bus;
 use log::Level;
 
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen(start)]
-pub fn start(name: &str, version: &str) {
-    main(name, version, std::env::args().collect());
-}
+cfg_if! {
+  if #[cfg(target_arch = "wasm32")] {
+    use wasm_bindgen::prelude::*;
 
-#[cfg(not(target_arch = "wasm32"))]
-#[no_mangle]
-pub extern "C" fn start(name: *const libc::c_char, version: *const libc::c_char) -> i32 {
-    let name = c_str_to_str!(name);
-    let version = c_str_to_str!(version);
-    main(name, version, std::env::args().collect());
-    0
+    const NAME: &'static str = env!("CARGO_PKG_NAME");
+    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+    #[wasm_bindgen(start)]
+    pub fn start() {
+      main(NAME, VERSION, std::env::args().collect());
+    }
+  } else {
+    #[no_mangle]
+    pub extern "C" fn start(name: *const libc::c_char, version: *const libc::c_char) -> i32 {
+       let name = c_str_to_str!(name);
+       let version = c_str_to_str!(version);
+       main(name, version, std::env::args().collect());
+       0
+    }
+  }
 }
 
 /// The main entry point for the runtime, it is invoked by the platform-specific shims found above
@@ -62,7 +73,7 @@ pub fn main(name: &str, version: &str, argv: Vec<String>) {
     // Each thread needs a reader
     let mut rx1 = bus.add_rx();
     // Initialize the break handler with the bus, which will broadcast on it
-    break_handler::init(bus);
+    break_handler::init(bus).unwrap();
 
     // Start logger
     Logger::init(Level::Info).expect("Unexpected failure initializing logger");

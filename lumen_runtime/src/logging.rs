@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use colored::*;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 
@@ -46,8 +47,9 @@ impl Logger {
 
     #[cfg(target_arch = "wasm32")]
     fn log_color(record: &Record) {
-        log_plain(record);
+        Self::log_plain(record);
     }
+
     #[cfg(target_arch = "wasm32")]
     fn log_plain(record: &Record) {
         let msg = format!(
@@ -57,7 +59,7 @@ impl Logger {
             record.module_path().unwrap_or_default(),
             record.args()
         );
-        system::io::console_log(msg);
+        system::io::console_log(&msg);
     }
 }
 

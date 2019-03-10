@@ -2,11 +2,14 @@
 
 use std::convert::TryInto;
 
+use num_bigint::BigInt;
+use num_traits::Zero;
+
 use crate::integer::big;
 use crate::process::Process;
 use crate::term::{BadArgument, Tag::*, Term};
 
-pub fn convert(time: rug::Integer, from_unit: Unit, to_unit: Unit) -> rug::Integer {
+pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
     if from_unit == to_unit {
         time
     } else {
@@ -17,12 +20,13 @@ pub fn convert(time: rug::Integer, from_unit: Unit, to_unit: Unit) -> rug::Integ
             time * ((to_hertz / from_hertz) as i32)
         } else {
             // mimic behavior of erts_napi_convert_time_unit, so that rounding is the same
-            let denominator = (from_hertz / to_hertz) as i32;
+            let denominator: BigInt = (from_hertz / to_hertz).into();
+            let zero: BigInt = Zero::zero();
 
-            if 0 <= time {
+            if zero <= time {
                 time / denominator
             } else {
-                (time - (denominator - 1)) / denominator
+                (time - (denominator.clone() - 1)) / denominator
             }
         }
     }
@@ -55,9 +59,10 @@ impl Unit {
                 match unboxed.tag() {
                     BigInteger => {
                         let big_integer: &big::Integer = term.unbox_reference();
-                        let hertz: usize = big_integer.inner.to_usize().ok_or(BadArgument)?;
+                        let big_integer_usize: usize =
+                            big_integer.try_into().map_err(|_| BadArgument)?;
 
-                        Ok(Unit::Hertz(hertz))
+                        Ok(Unit::Hertz(big_integer_usize))
                     }
                     _ => Err(BadArgument),
                 }

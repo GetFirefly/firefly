@@ -3,6 +3,8 @@
 use std::cmp::Ordering;
 use std::sync::{Arc, RwLock};
 
+use num_bigint::BigInt;
+
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Existence};
@@ -61,9 +63,9 @@ impl Process {
         unsafe { &*pointer }
     }
 
-    pub fn rug_integer_to_big_integer(&self, rug_integer: rug::Integer) -> &'static big::Integer {
+    pub fn num_bigint_big_in_to_big_integer(&self, big_int: BigInt) -> &'static big::Integer {
         let pointer =
-            self.big_integer_arena.alloc(big::Integer::new(rug_integer)) as *const big::Integer;
+            self.big_integer_arena.alloc(big::Integer::new(big_int)) as *const big::Integer;
 
         unsafe { &*pointer }
     }
@@ -286,7 +288,7 @@ impl IntoProcess<Term> for bool {
     }
 }
 
-impl IntoProcess<Term> for rug::Integer {
+impl IntoProcess<Term> for BigInt {
     fn into_process(self, mut process: &mut Process) -> Term {
         let integer: integer::Integer = self.into();
 

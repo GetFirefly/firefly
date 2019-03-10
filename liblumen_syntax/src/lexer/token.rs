@@ -80,7 +80,9 @@ impl TryFrom<LexicalToken> for AtomToken {
         use super::symbol::symbols;
 
         match t {
-            LexicalToken(start, tok @ Token::Atom(_), end) => return Ok(AtomToken(start, tok, end)),
+            LexicalToken(start, tok @ Token::Atom(_), end) => {
+                return Ok(AtomToken(start, tok, end))
+            }
             LexicalToken(start, Token::If, end) => {
                 return Ok(AtomToken(start, Token::Atom(symbols::If), end));
             }

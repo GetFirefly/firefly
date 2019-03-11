@@ -298,6 +298,8 @@ mod tests {
     mod iter {
         use super::*;
 
+        use std::convert::TryInto;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -307,7 +309,7 @@ mod tests {
 
             assert_eq!(tuple.iter().count(), 0);
 
-            let size_usize: usize = tuple.size().into();
+            let size_usize: usize = tuple.size().try_into().unwrap();
 
             assert_eq!(tuple.iter().count(), size_usize);
         }
@@ -319,7 +321,7 @@ mod tests {
 
             assert_eq!(tuple.iter().count(), 1);
 
-            let size_usize: usize = tuple.size().into();
+            let size_usize: usize = tuple.size().try_into().unwrap();
 
             assert_eq!(tuple.iter().count(), size_usize);
         }

@@ -1,6 +1,9 @@
 use std::convert::TryInto;
 use std::mem::transmute;
 
+use num_bigint::BigInt;
+use num_traits::Zero;
+
 use crate::atom::Existence;
 use crate::list::{Cons, ToList};
 use crate::process::{IntoProcess, Process};
@@ -212,12 +215,15 @@ where
     fn next_small_big_integer(&mut self, mut process: &mut Process) -> Option<Term> {
         self.next().and_then(|count| {
             self.next().and_then(|sign| {
-                let mut rug_integer = rug::Integer::new();
+                let mut big_int: BigInt = Zero::zero();
                 let mut truncated = false;
 
                 for _ in 0..count {
                     match self.next() {
-                        Some(byte) => rug_integer = (rug_integer << 8) | (byte as u32),
+                        Some(byte) => {
+                            let byte_big_int: BigInt = byte.into();
+                            big_int = (big_int << 8) | (byte_big_int)
+                        }
                         None => {
                             truncated = true;
                             break;
@@ -228,13 +234,9 @@ where
                 if truncated {
                     None
                 } else {
-                    let signed_rug_integer = if sign == 0 {
-                        rug_integer
-                    } else {
-                        -1 * rug_integer
-                    };
+                    let signed_big_int = if sign == 0 { big_int } else { -1 * big_int };
 
-                    Some(signed_rug_integer.into_process(&mut process))
+                    Some(signed_big_int.into_process(&mut process))
                 }
             })
         })

@@ -6,6 +6,9 @@ use std::cmp::Ordering;
 use std::convert::TryInto;
 use std::num::FpCategory;
 
+use num_bigint::BigInt;
+use num_traits::Zero;
+
 use crate::atom::Existence;
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
 use crate::float::Float;
@@ -40,18 +43,18 @@ pub fn abs(number: Term, mut process: &mut Process) -> Result<Term, BadArgument>
             match unboxed.tag() {
                 Tag::BigInteger => {
                     let big_integer: &big::Integer = number.unbox_reference();
-                    let rug_integer = &big_integer.inner;
+                    let big_int = &big_integer.inner;
+                    let zero_big_int: &BigInt = &Zero::zero();
 
-                    match rug_integer.cmp0() {
-                        Ordering::Less => {
-                            let positive_rug_integer = rug_integer.clone().abs();
-                            let positive_number: Term =
-                                positive_rug_integer.into_process(&mut process);
+                    let positive_term: Term = if big_int < zero_big_int {
+                        let positive_big_int: BigInt = -1 * big_int;
 
-                            Ok(positive_number)
-                        }
-                        _ => Ok(number),
-                    }
+                        positive_big_int.into_process(&mut process)
+                    } else {
+                        number
+                    };
+
+                    Ok(positive_term)
                 }
                 Tag::Float => {
                     let float: &Float = number.unbox_reference();
@@ -187,15 +190,15 @@ pub fn binary_to_float(binary: Term, mut process: &mut Process) -> Result<Term, 
 /// `binary_to_integer/1`
 pub fn binary_to_integer(binary: Term, mut process: &mut Process) -> Result<Term, BadArgument> {
     let string: String = binary.try_into()?;
+    let bytes = string.as_bytes();
 
-    match rug::Integer::parse(string) {
-        Ok(incomplete) => {
-            let rug_integer = rug::Integer::from(incomplete);
-            let term: Term = rug_integer.into_process(&mut process);
+    match BigInt::parse_bytes(bytes, 10) {
+        Some(big_int) => {
+            let term: Term = big_int.into_process(&mut process);
 
             Ok(term)
         }
-        Err(_) => Err(BadArgument),
+        None => Err(BadArgument),
     }
 }
 
@@ -209,14 +212,15 @@ pub fn binary_in_base_to_integer(
     let radix: usize = base.try_into()?;
 
     if 2 <= radix && radix <= 36 {
-        match rug::Integer::parse_radix(string, radix as i32) {
-            Ok(incomplete) => {
-                let rug_integer = rug::Integer::from(incomplete);
-                let term: Term = rug_integer.into_process(&mut process);
+        let bytes = string.as_bytes();
+
+        match BigInt::parse_bytes(bytes, radix as u32) {
+            Some(big_int) => {
+                let term: Term = big_int.into_process(&mut process);
 
                 Ok(term)
             }
-            Err(_) => Err(BadArgument),
+            None => Err(BadArgument),
         }
     } else {
         Err(BadArgument)
@@ -407,9 +411,11 @@ pub fn ceil(number: Term, mut process: &mut Process) -> Result<Term, BadArgument
                         if (small::MIN as f64) <= ceil_inner && ceil_inner <= (small::MAX as f64) {
                             (ceil_inner as usize).into_process(&mut process)
                         } else {
-                            let rug_integer = rug::Integer::from_f64(ceil_inner).unwrap();
+                            let ceil_string = ceil_inner.to_string();
+                            let ceil_bytes = ceil_string.as_bytes();
+                            let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
 
-                            rug_integer.into_process(&mut process)
+                            big_int.into_process(&mut process)
                         };
 
                     Ok(ceil_term)
@@ -427,11 +433,11 @@ pub fn convert_time_unit(
     to_unit: Term,
     mut process: &mut Process,
 ) -> Result<Term, BadArgument> {
-    let time_rug_integer: rug::Integer = time.try_into()?;
+    let time_big_int: BigInt = time.try_into()?;
     let from_unit_unit = crate::time::Unit::try_from(from_unit, &mut process)?;
     let to_unit_unit = crate::time::Unit::try_from(to_unit, &mut process)?;
     let converted =
-        time::convert(time_rug_integer, from_unit_unit, to_unit_unit).into_process(&mut process);
+        time::convert(time_big_int, from_unit_unit, to_unit_unit).into_process(&mut process);
 
     Ok(converted)
 }
@@ -2313,6 +2319,8 @@ mod tests {
     mod binary_to_float {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -2367,7 +2375,8 @@ mod tests {
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
             let big_integer_term: Term =
-                rug::Integer::from(rug::Integer::parse("18446744073709551616").unwrap())
+                <BigInt as Num>::from_str_radix("18446744073709551616", 10)
+                    .unwrap()
                     .into_process(&mut process);
 
             assert_eq_in_process!(
@@ -3794,6 +3803,8 @@ mod tests {
     mod binary_to_integer {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -3848,7 +3859,8 @@ mod tests {
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
             let big_integer_term: Term =
-                rug::Integer::from(rug::Integer::parse("18446744073709551616").unwrap())
+                <BigInt as Num>::from_str_radix("18446744073709551616", 10)
+                    .unwrap()
                     .into_process(&mut process);
 
             assert_eq_in_process!(
@@ -4166,6 +4178,8 @@ mod tests {
     mod binary_in_base_to_integer {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -4224,7 +4238,8 @@ mod tests {
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
             let big_integer_term: Term =
-                rug::Integer::from(rug::Integer::parse("18446744073709551616").unwrap())
+                <BigInt as Num>::from_str_radix("18446744073709551616", 10)
+                    .unwrap()
                     .into_process(&mut process);
             let base_term: Term = 16.into_process(&mut process);
 
@@ -6170,6 +6185,8 @@ mod tests {
         mod with_small_integer {
             use super::*;
 
+            use num_traits::Num;
+
             #[test]
             fn without_valid_units_returns_bad_argument() {
                 let mut process: Process = Default::default();
@@ -6346,10 +6363,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Second, Native)
@@ -6812,6 +6830,8 @@ mod tests {
         mod with_big_integer {
             use super::*;
 
+            use num_traits::Num;
+
             #[test]
             fn without_valid_units_returns_bad_argument() {
                 let mut process: Process = Default::default();
@@ -6864,10 +6884,11 @@ mod tests {
                         5_usize.into_process(&mut process),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("2_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("2_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Hertz, Second)
@@ -6890,10 +6911,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("500_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Hertz, Microsecond)
@@ -6905,10 +6927,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("500_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Hertz, Nanosecond)
@@ -6920,10 +6943,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("500_000_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Hertz, Native)
@@ -6934,10 +6958,11 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("500_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Hertz, PerformanceCounter)
@@ -6949,10 +6974,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("500_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
 
@@ -6964,10 +6990,11 @@ mod tests {
                         5_usize.into_process(&mut process),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("5_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("5_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Second, Second)
@@ -6978,10 +7005,11 @@ mod tests {
                         Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Second, Millisecond)
@@ -6993,10 +7021,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Second, Microsecond)
@@ -7008,10 +7037,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Second, Nanosecond)
@@ -7023,9 +7053,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000_000_000").unwrap()
+                    Ok(<BigInt as Num>::from_str_radix(
+                        "1_000_000_000_000_000_000_000_000_000",
+                        10
                     )
+                    .unwrap()
                     .into_process(&mut process)),
                     process
                 );
@@ -7037,10 +7069,11 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Second, PerformanceCounter)
@@ -7052,10 +7085,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
 
@@ -7093,10 +7127,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Millisecond, Microsecond)
@@ -7109,10 +7144,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Millisecond, Nanosecond)
@@ -7125,10 +7161,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Millisecond, Native)
@@ -7140,10 +7177,11 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Millisecond, PerformanceCounter)
@@ -7156,10 +7194,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
 
@@ -7197,10 +7236,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Microsecond, Microsecond)
@@ -7213,10 +7253,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Microsecond, Nanosecond)
@@ -7229,10 +7270,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Microsecond, Native)
@@ -7244,10 +7286,11 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Microsecond, PerformanceCounter)
@@ -7260,10 +7303,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
 
@@ -7327,10 +7371,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Nanosecond, Native)
@@ -7390,10 +7435,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Native, Microsecond)
@@ -7405,10 +7451,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Native, Nanosecond)
@@ -7420,10 +7467,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Native, Native)
@@ -7434,10 +7482,11 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Native, PerformanceCounter)
@@ -7449,10 +7498,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
 
@@ -7487,10 +7537,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Native, Microsecond)
@@ -7502,10 +7553,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Native, Nanosecond)
@@ -7517,10 +7569,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Native, Native)
@@ -7531,10 +7584,11 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Native, PerformanceCounter)
@@ -7546,10 +7600,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(rug::Integer::from(
-                        rug::Integer::parse("1_000_000_000_000_000_000").unwrap()
-                    )
-                    .into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
             }

@@ -381,6 +381,8 @@ mod tests {
     mod iter {
         use super::*;
 
+        use std::convert::TryInto;
+
         #[test]
         fn without_elements() {
             let mut process: Process = Default::default();
@@ -390,7 +392,7 @@ mod tests {
             assert_eq!(binary.iter().count(), 0);
 
             let size_integer: Integer = binary.size();
-            let size_usize: usize = size_integer.into();
+            let size_usize: usize = size_integer.try_into().unwrap();
 
             assert_eq!(binary.iter().count(), size_usize);
         }
@@ -407,7 +409,7 @@ mod tests {
             assert_eq!(binary.iter().count(), 1);
 
             let size_integer: Integer = binary.size();
-            let size_usize: usize = size_integer.into();
+            let size_usize: usize = size_integer.try_into().unwrap();
 
             assert_eq!(binary.iter().count(), size_usize);
         }

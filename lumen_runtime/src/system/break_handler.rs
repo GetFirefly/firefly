@@ -39,9 +39,7 @@ impl std::convert::From<usize> for Signal {
 
 // Signal handling doesn't apply to WebAssembly
 #[cfg(target_arch = "wasm32")]
-pub fn init(_bus: Bus<Signal>) -> Result<bool, std::io::Error> {
-    Ok(false)
-}
+pub fn init(_bus: Bus<Signal>) {}
 
 // But should everywhere else
 #[cfg(not(target_arch = "wasm32"))]

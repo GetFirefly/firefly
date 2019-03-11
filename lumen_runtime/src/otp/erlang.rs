@@ -627,6 +627,8 @@ mod tests {
     mod abs {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -723,7 +725,7 @@ mod tests {
         fn with_big_integer_that_is_negative_returns_positive() {
             let mut process: Process = Default::default();
 
-            let negative: isize = -576460752303423489;
+            let negative: isize = small::MIN - 1;
             let negative_term = negative.into_process(&mut process);
 
             assert_eq!(negative_term.tag(), Tag::Boxed);
@@ -745,7 +747,9 @@ mod tests {
         #[test]
         fn with_big_integer_that_is_positive_return_self() {
             let mut process: Process = Default::default();
-            let positive_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let positive_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq!(positive_term.tag(), Tag::Boxed);
 
@@ -817,6 +821,8 @@ mod tests {
     mod append_element {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -875,7 +881,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::append_element(
@@ -970,6 +978,8 @@ mod tests {
 
     mod atom_to_binary {
         use super::*;
+
+        use num_traits::Num;
 
         use crate::process::IntoProcess;
 
@@ -1077,7 +1087,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let encoding_term =
                 Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
@@ -1152,6 +1164,8 @@ mod tests {
 
     mod atom_to_list {
         use super::*;
+
+        use num_traits::Num;
 
         use crate::process::IntoProcess;
 
@@ -1283,7 +1297,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let encoding_term =
                 Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
@@ -1360,6 +1376,8 @@ mod tests {
     mod binary_part {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -1432,7 +1450,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::binary_part(
@@ -1879,6 +1899,8 @@ mod tests {
     mod binary_to_atom {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -1939,7 +1961,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let encoding_term =
                 Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
@@ -2075,6 +2099,8 @@ mod tests {
     mod binary_to_existing_atom {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -2135,7 +2161,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let encoding_term =
                 Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
@@ -3904,7 +3932,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok((-576460752303423488_isize).into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("-576460752303423488", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
             assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
@@ -3920,7 +3950,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok(576460752303423487usize.into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("576460752303423487", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
             assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
@@ -3936,7 +3968,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok((-576460752303423489_isize).into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("-576460752303423489", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
 
@@ -3959,7 +3993,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok(576460752303423488_usize.into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("576460752303423488", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
 
@@ -4019,7 +4055,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok((-576460752303423488_isize).into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("-576460752303423488", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
             assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
@@ -4059,7 +4097,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok(576460752303423487_isize.into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("576460752303423487", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
             assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
@@ -4100,7 +4140,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok((-576460752303423489_isize).into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("-576460752303423489", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
 
@@ -4147,7 +4189,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok(576460752303423488_usize.into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("576460752303423488", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
 
@@ -4288,7 +4332,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok((-576460752303423488_isize).into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("-576460752303423488", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
             assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
@@ -4306,7 +4352,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok(576460752303423487usize.into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("576460752303423487", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
             assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
@@ -4324,7 +4372,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok((-576460752303423489_isize).into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("-576460752303423489", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
 
@@ -4349,7 +4399,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok(576460752303423488_usize.into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("576460752303423488", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
 
@@ -4396,7 +4448,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok((-576460752303423488_isize).into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("-576460752303423488", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
             assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
@@ -4435,7 +4489,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok(576460752303423487_isize.into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("576460752303423487", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
             assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
@@ -4475,7 +4531,11 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok((-576460752303423489_isize).into_process(&mut process)),
+                Ok(
+                    <BigInt as Num>::from_str_radix("-5764_60_752_303_423_489", 10)
+                        .unwrap()
+                        .into_process(&mut process)
+                ),
                 process
             );
 
@@ -4521,7 +4581,9 @@ mod tests {
 
             assert_eq_in_process!(
                 integer_result,
-                Ok(576460752303423488_usize.into_process(&mut process)),
+                Ok(<BigInt as Num>::from_str_radix("576460752303423488", 10)
+                    .unwrap()
+                    .into_process(&mut process)),
                 process
             );
 
@@ -4537,6 +4599,8 @@ mod tests {
 
     mod binary_to_list {
         use super::*;
+
+        use num_traits::Num;
 
         use crate::process::IntoProcess;
 
@@ -4590,7 +4654,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::binary_to_list(big_integer_term, &mut process),
@@ -4683,6 +4749,8 @@ mod tests {
     mod binary_byte_range_to_list {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -4755,7 +4823,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::binary_byte_range_to_list(
@@ -4931,6 +5001,8 @@ mod tests {
     mod binary_to_term {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -4983,7 +5055,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::binary_to_term(big_integer_term, &mut process),
@@ -5613,6 +5687,8 @@ mod tests {
     mod bit_size {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -5663,7 +5739,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::bit_size(big_integer_term, &mut process),
@@ -5728,6 +5806,8 @@ mod tests {
     mod bitstring_to_list {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -5778,7 +5858,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::bitstring_to_list(big_integer_term, &mut process),
@@ -5879,6 +5961,8 @@ mod tests {
     mod byte_size {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -5929,7 +6013,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::byte_size(big_integer_term, &mut process),
@@ -6007,6 +6093,8 @@ mod tests {
     mod ceil {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -6056,7 +6144,9 @@ mod tests {
         #[test]
         fn with_big_integer_returns_same() {
             let mut process: Process = Default::default();
-            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             let result = erlang::ceil(big_integer_term, &mut process);
 
@@ -6257,7 +6347,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(500_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Hertz, Microsecond)
@@ -6269,7 +6361,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(500_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("500_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Hertz, Nanosecond)
@@ -6281,7 +6375,11 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(500_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Hertz, Native)
@@ -6292,7 +6390,9 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(500_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Hertz, PerformanceCounter)
@@ -6304,7 +6404,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(500_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
 
@@ -6316,7 +6418,9 @@ mod tests {
                         5_usize.into_process(&mut process),
                         &mut process
                     ),
-                    Ok(5_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("5_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Second, Second)
@@ -6339,7 +6443,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Second, Microsecond)
@@ -6351,7 +6457,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Second, Nanosecond)
@@ -6378,7 +6486,9 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Second, PerformanceCounter)
@@ -6390,7 +6500,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
 
@@ -6441,7 +6553,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Millisecond, Nanosecond)
@@ -6454,7 +6568,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Millisecond, Native)
@@ -6530,7 +6646,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Microsecond, Nanosecond)
@@ -6543,7 +6661,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Microsecond, Native)
@@ -6704,7 +6824,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Native, Nanosecond)
@@ -6716,7 +6838,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Native, Native)
@@ -6786,7 +6910,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Native, Nanosecond)
@@ -6798,7 +6924,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Native, Native)
@@ -6836,7 +6964,9 @@ mod tests {
             fn without_valid_units_returns_bad_argument() {
                 let mut process: Process = Default::default();
                 let big_integer_term: Term =
-                    1_000_000_000_000_000_000_usize.into_process(&mut process);
+                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process);
 
                 assert_eq!(big_integer_term.tag(), Tag::Boxed);
 
@@ -6872,7 +7002,9 @@ mod tests {
             fn with_valid_units_returns_converted_value() {
                 let mut process: Process = Default::default();
                 let big_integer_term: Term =
-                    1_000_000_000_000_000_000_usize.into_process(&mut process);
+                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process);
 
                 assert_eq!(big_integer_term.tag(), Tag::Boxed);
 
@@ -6899,7 +7031,11 @@ mod tests {
                         Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(500_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
                     process
                 );
                 // (Hertz, Millisecond)
@@ -7102,7 +7238,9 @@ mod tests {
                         5_usize.into_process(&mut process),
                         &mut process
                     ),
-                    Ok(5_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Millisecond, Second)
@@ -7114,7 +7252,9 @@ mod tests {
                         Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Millisecond, Millisecond)
@@ -7211,7 +7351,9 @@ mod tests {
                         5_usize.into_process(&mut process),
                         &mut process
                     ),
-                    Ok(5_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Microsecond, Second)
@@ -7223,7 +7365,9 @@ mod tests {
                         Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Microsecond, Millisecond)
@@ -7320,7 +7464,9 @@ mod tests {
                         5_usize.into_process(&mut process),
                         &mut process
                     ),
-                    Ok(5_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("5_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Nanosecond, Second)
@@ -7345,7 +7491,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Nanosecond, Microsecond)
@@ -7358,7 +7506,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Nanosecond, Nanosecond)
@@ -7387,7 +7537,9 @@ mod tests {
                         Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Nanosecond, PerformanceCounter)
@@ -7400,7 +7552,9 @@ mod tests {
                             .unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
 
@@ -7412,7 +7566,9 @@ mod tests {
                         5_usize.into_process(&mut process),
                         &mut process
                     ),
-                    Ok(5_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Native, Second)
@@ -7423,7 +7579,9 @@ mod tests {
                         Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Native, Millisecond)
@@ -7514,7 +7672,9 @@ mod tests {
                         5_usize.into_process(&mut process),
                         &mut process
                     ),
-                    Ok(5_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Native, Second)
@@ -7525,7 +7685,9 @@ mod tests {
                         Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
                         &mut process
                     ),
-                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(&mut process)),
                     process
                 );
                 // (Native, Millisecond)
@@ -7689,6 +7851,8 @@ mod tests {
     mod delete_element {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -7747,7 +7911,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::delete_element(
@@ -7878,6 +8044,8 @@ mod tests {
     mod element {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -7928,7 +8096,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term: Term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term: Term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::element(big_integer_term, 0.into_process(&mut process)),
@@ -8029,6 +8199,8 @@ mod tests {
     mod head {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -8068,7 +8240,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(erlang::head(big_integer_term), Err(BadArgument), process);
         }
@@ -8110,6 +8284,8 @@ mod tests {
 
     mod insert_element {
         use super::*;
+
+        use num_traits::Num;
 
         #[test]
         fn with_atom_is_bad_argument() {
@@ -8181,7 +8357,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::insert_element(
@@ -8360,6 +8538,8 @@ mod tests {
     mod is_atom {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -8440,7 +8620,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_false() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(
@@ -8508,6 +8690,8 @@ mod tests {
     mod is_binary {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -8566,7 +8750,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_false() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(
@@ -8649,6 +8835,8 @@ mod tests {
     mod is_integer {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -8706,7 +8894,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_true() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let true_term = true.into_process(&mut process);
 
             assert_eq_in_process!(
@@ -8774,6 +8964,8 @@ mod tests {
     mod is_list {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -8827,7 +9019,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_false() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(
@@ -8895,6 +9089,8 @@ mod tests {
     mod is_tuple {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -8952,7 +9148,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_false() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
             let false_term = false.into_process(&mut process);
 
             assert_eq_in_process!(
@@ -9019,6 +9217,8 @@ mod tests {
 
     mod length {
         use super::*;
+
+        use num_traits::Num;
 
         #[test]
         fn with_atom_is_bad_argument() {
@@ -9087,7 +9287,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::length(big_integer_term, &mut process),
@@ -9150,6 +9352,8 @@ mod tests {
     mod size {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -9202,7 +9406,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(
                 erlang::size(big_integer_term, &mut process),
@@ -9299,6 +9505,8 @@ mod tests {
     mod tail {
         use super::*;
 
+        use num_traits::Num;
+
         #[test]
         fn with_atom_is_bad_argument() {
             let mut process: Process = Default::default();
@@ -9338,7 +9546,9 @@ mod tests {
         #[test]
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
-            let big_integer_term = 576460752303423489_isize.into_process(&mut process);
+            let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+                .unwrap()
+                .into_process(&mut process);
 
             assert_eq_in_process!(erlang::tail(big_integer_term), Err(BadArgument), process);
         }

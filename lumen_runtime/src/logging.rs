@@ -11,8 +11,6 @@ pub struct Logger {
 
 impl Logger {
     pub fn init(level: Level) -> Result<(), SetLoggerError> {
-        let logger = Logger { level, color: true };
-        log::set_boxed_logger(Box::new(logger))?;
         log::set_max_level(level.to_level_filter());
         Ok(())
     }

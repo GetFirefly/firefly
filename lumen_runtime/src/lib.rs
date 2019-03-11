@@ -73,7 +73,7 @@ pub fn main(name: &str, version: &str, argv: Vec<String>) {
     // Each thread needs a reader
     let mut rx1 = bus.add_rx();
     // Initialize the break handler with the bus, which will broadcast on it
-    break_handler::init(bus).unwrap();
+    break_handler::init(bus);
 
     // Start logger
     Logger::init(Level::Info).expect("Unexpected failure initializing logger");

@@ -2,13 +2,14 @@
 
 use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
-use std::fmt::{self, Debug, Display};
+use std::fmt::{self, Display};
 
 use num_bigint::BigInt;
 
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding, Existence};
+use crate::bad_argument::BadArgument;
 use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::float::Float;
 use crate::integer::Integer::{self, Big, Small};
@@ -136,15 +137,6 @@ pub struct Term {
     pub tagged: usize,
 }
 
-#[derive(PartialEq)]
-pub struct BadArgument;
-
-impl Debug for BadArgument {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "bad argument")
-    }
-}
-
 impl Term {
     const MAX_ARITY: usize = std::usize::MAX >> Tag::ARITY_BIT_COUNT;
     const MAX_HEAP_BINARY_BYTE_COUNT: usize = std::usize::MAX >> Tag::HEAP_BINARY_BIT_COUNT;
@@ -205,12 +197,12 @@ impl Term {
                         if tagged == latin1_atom.tagged {
                             Ok(Encoding::Latin1)
                         } else {
-                            Err(BadArgument)
+                            Err(bad_argument!())
                         }
                     }
                 }
             }
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 
@@ -683,7 +675,7 @@ impl TryFrom<Term> for isize {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
                 Ok(term_isize)
             }
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -697,12 +689,12 @@ impl TryFrom<Term> for usize {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
 
                 if term_isize < 0 {
-                    Err(BadArgument)
+                    Err(bad_argument!())
                 } else {
                     Ok(term_isize as usize)
                 }
             }
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -717,7 +709,7 @@ impl TryFrom<Term> for &'static Cons {
                 let pointer = untagged as *const Term as *const Cons;
                 Ok(unsafe { pointer.as_ref() }.unwrap())
             }
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -741,10 +733,10 @@ impl TryFrom<Term> for BigInt {
 
                         Ok(big_integer.inner.clone())
                     }
-                    _ => Err(BadArgument),
+                    _ => Err(bad_argument!()),
                 }
             }
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -769,10 +761,10 @@ impl TryFrom<Term> for String {
                         subbinary.try_into()
                     }
                     // TODO ReferenceCountedBinary
-                    _ => Err(BadArgument),
+                    _ => Err(bad_argument!()),
                 }
             }
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -783,7 +775,7 @@ impl TryFrom<Term> for &'static Tuple {
     fn try_from(term: Term) -> Result<&'static Tuple, BadArgument> {
         match term.tag() {
             Tag::Boxed => term.unbox_reference::<Term>().try_into(),
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -806,7 +798,7 @@ impl<'a> TryFrom<&'a Term> for &'a Tuple {
                 Ok(unsafe { pointer.as_ref() }.unwrap())
             }
             Tag::Boxed => term.unbox_reference::<Term>().try_into(),
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 }

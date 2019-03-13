@@ -4,13 +4,14 @@ use std::convert::TryFrom;
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Existence};
+use crate::bad_argument::BadArgument;
 use crate::binary::{
     self, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
     PartToList, ToTerm, ToTermOptions,
 };
 use crate::integer::Integer;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
-use crate::term::{BadArgument, Term};
+use crate::term::Term;
 
 pub struct Binary {
     header: Term,
@@ -263,7 +264,7 @@ impl ToTerm for Binary {
                     Ok(term)
                 }
             }
-            None => Err(BadArgument),
+            None => Err(bad_argument!()),
         }
     }
 }
@@ -274,7 +275,7 @@ impl TryFrom<&Binary> for String {
     fn try_from(binary: &Binary) -> Result<String, BadArgument> {
         let byte_vec: Vec<u8> = binary.into();
 
-        String::from_utf8(byte_vec).map_err(|_| BadArgument)
+        String::from_utf8(byte_vec).map_err(|_| bad_argument!())
     }
 }
 

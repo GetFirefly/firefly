@@ -1,6 +1,6 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use crate::term::BadArgument;
+use crate::bad_argument::BadArgument;
 
 pub enum Encoding {
     Latin1,
@@ -37,7 +37,7 @@ impl Table {
                 self.names.push(name.to_string());
                 Ok(self.names.len() - 1)
             }
-            (None, Existence::Exists) => Err(BadArgument),
+            (None, Existence::Exists) => Err(bad_argument!()),
         }
         .map(|found_or_existing_position| Index(found_or_existing_position))
     }

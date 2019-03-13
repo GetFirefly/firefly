@@ -3,13 +3,14 @@ use std::convert::{TryFrom, TryInto};
 use std::iter::FusedIterator;
 
 use crate::atom::{self, Existence};
+use crate::bad_argument::BadArgument;
 use crate::binary::{
     heap, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
     PartToList, ToTerm, ToTermOptions,
 };
 use crate::integer::Integer;
 use crate::process::{IntoProcess, OrderInProcess, Process};
-use crate::term::{BadArgument, Tag::*, Term};
+use crate::term::{Tag::*, Term};
 
 pub struct Binary {
     #[allow(dead_code)]
@@ -132,7 +133,7 @@ impl Binary {
 
             Ok(list)
         } else {
-            Err(BadArgument)
+            Err(bad_argument!())
         }
     }
 
@@ -180,10 +181,10 @@ impl ToTerm for Binary {
                         Ok(term)
                     }
                 }
-                None => Err(BadArgument),
+                None => Err(bad_argument!()),
             }
         } else {
-            Err(BadArgument)
+            Err(bad_argument!())
         }
     }
 }
@@ -193,7 +194,7 @@ impl TryFrom<&Binary> for Vec<u8> {
 
     fn try_from(binary: &Binary) -> Result<Vec<u8>, BadArgument> {
         if 0 < binary.bit_count {
-            Err(BadArgument)
+            Err(bad_argument!())
         } else {
             let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_count);
             bytes_vec.extend(binary.byte_iter());
@@ -209,7 +210,7 @@ impl TryFrom<&Binary> for String {
     fn try_from(binary: &Binary) -> Result<String, BadArgument> {
         let byte_vec: Vec<u8> = binary.try_into()?;
 
-        String::from_utf8(byte_vec).map_err(|_| BadArgument)
+        String::from_utf8(byte_vec).map_err(|_| bad_argument!())
     }
 }
 

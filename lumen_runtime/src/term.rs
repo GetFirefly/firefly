@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Display};
+use std::mem::size_of;
 
 use num_bigint::BigInt;
 
@@ -15,7 +16,7 @@ use crate::float::Float;
 use crate::integer::Integer::{self, Big, Small};
 use crate::integer::{big, small};
 use crate::list::Cons;
-use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
+use crate::process::{self, DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::tuple::Tuple;
 use std::str::Chars;
 
@@ -65,6 +66,8 @@ impl Tag {
     const ATOM_BIT_COUNT: u8 = 6;
     const ARITY_BIT_COUNT: u8 = Self::HEADER_BIT_COUNT;
     const HEAP_BINARY_BIT_COUNT: u8 = Self::HEADER_BIT_COUNT;
+
+    pub const LOCAL_PID_BIT_COUNT: u8 = 4;
     pub const SMALL_INTEGER_BIT_COUNT: u8 = 4;
 }
 
@@ -138,6 +141,8 @@ pub struct Term {
 }
 
 impl Term {
+    pub const BIT_COUNT: u8 = (size_of::<Term>() * 8) as u8;
+
     const MAX_ARITY: usize = std::usize::MAX >> Tag::ARITY_BIT_COUNT;
     const MAX_HEAP_BINARY_BYTE_COUNT: usize = std::usize::MAX >> Tag::HEAP_BINARY_BIT_COUNT;
 
@@ -255,6 +260,23 @@ impl Term {
         }
     }
 
+    pub fn external_pid(
+        node: usize,
+        number: usize,
+        serial: usize,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        if (number <= process::identifier::NUMBER_MAX)
+            && (serial <= process::identifier::SERIAL_MAX)
+        {
+            Ok(Term::box_reference(
+                process.external_pid(node, number, serial),
+            ))
+        } else {
+            Err(bad_argument!())
+        }
+    }
+
     pub fn heap_binary(byte_count: usize) -> Term {
         assert!(
             byte_count <= Self::MAX_HEAP_BINARY_BYTE_COUNT,
@@ -282,6 +304,21 @@ impl Term {
         (self.tagged & !(TAG_HEAP_BINARY)) >> Tag::HEAP_BINARY_BIT_COUNT
     }
 
+    pub fn local_pid(number: usize, serial: usize) -> Result<Term, BadArgument> {
+        if (number <= process::identifier::NUMBER_MAX)
+            && (serial <= process::identifier::SERIAL_MAX)
+        {
+            Ok(Term {
+                tagged: (serial
+                    << (process::identifier::NUMBER_BIT_COUNT + Tag::LOCAL_PID_BIT_COUNT))
+                    | (number << (Tag::LOCAL_PID_BIT_COUNT))
+                    | (Tag::LocalPid as usize),
+            })
+        } else {
+            Err(bad_argument!())
+        }
+    }
+
     pub fn tag(&self) -> Tag {
         match (self.tagged as usize).try_into() {
             Ok(tag) => tag,
@@ -289,8 +326,21 @@ impl Term {
         }
     }
 
-    pub fn is_empty_list(&self, mut process: &mut Process) -> Term {
-        (self.tag() == Tag::EmptyList).into_process(&mut process)
+    pub fn is_empty_list(&self) -> bool {
+        (self.tag() == Tag::EmptyList)
+    }
+
+    pub fn pid(
+        node: usize,
+        number: usize,
+        serial: usize,
+        process: &mut Process,
+    ) -> Result<Term, BadArgument> {
+        if node == 0 {
+            Self::local_pid(number, serial)
+        } else {
+            Self::external_pid(node, number, serial, process)
+        }
     }
 
     pub fn slice_to_binary(slice: &[u8], process: &mut Process) -> Term {
@@ -309,6 +359,12 @@ impl Term {
         process
             .str_to_atom_index(name, existence)
             .map(|atom_index| atom_index.into())
+    }
+
+    pub fn str_to_char_list(name: &str, mut process: &mut Process) -> Term {
+        name.chars().rfold(Term::EMPTY_LIST, |acc, c| {
+            Term::cons(c.into_process(&mut process), acc, &mut process)
+        })
     }
 
     pub fn subbinary(
@@ -359,11 +415,11 @@ impl Term {
 
     const SMALL_INTEGER_SIGN_BIT_MASK: usize = std::isize::MIN as usize;
 
-    pub fn small_integer_to_usize(&self) -> usize {
+    pub unsafe fn small_integer_to_usize(&self) -> usize {
         assert_eq!(
             self.tag(),
             Tag::SmallInteger,
-            "Term ({:#b}) is not a tuple arity",
+            "Term ({:#b}) is not a small integer",
             self.tagged
         );
 
@@ -373,6 +429,12 @@ impl Term {
     /// Only call if verified `tag` is `Tag::SmallInteger`.
     pub unsafe fn small_integer_is_negative(&self) -> bool {
         self.tagged & Term::SMALL_INTEGER_SIGN_BIT_MASK == Term::SMALL_INTEGER_SIGN_BIT_MASK
+    }
+
+    pub const unsafe fn isize_to_small_integer(i: isize) -> Term {
+        Term {
+            tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (Tag::SmallInteger as usize),
+        }
     }
 }
 
@@ -931,6 +993,14 @@ impl OrderInProcess for Term {
                             )
                         })
                     }
+                    (Tag::ExternalPid, Tag::ExternalPid) => {
+                        let self_external_pid: &process::identifier::External =
+                            self.unbox_reference();
+                        let other_external_pid: &process::identifier::External =
+                            other.unbox_reference();
+
+                        self_external_pid.cmp_in_process(other_external_pid, process)
+                    }
                     (Tag::Arity, Tag::Arity) => {
                         let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
                         let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
@@ -972,6 +1042,7 @@ impl OrderInProcess for Term {
                     self_unboxed_tag => unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag),
                 }
             }
+            (Tag::LocalPid, Tag::LocalPid) => self.tagged.cmp(&other.tagged),
             (Tag::EmptyList, Tag::Boxed) | (Tag::List, Tag::Boxed) => {
                 let other_unboxed: &Term = other.unbox_reference();
 
@@ -1235,22 +1306,13 @@ mod tests {
         fn with_atom_is_false() {
             let mut process: Process = Default::default();
             let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
-            let false_term = false.into_process(&mut process);
 
-            assert_eq_in_process!(atom_term.is_empty_list(&mut process), false_term, process);
+            assert_eq!(atom_term.is_empty_list(), false);
         }
 
         #[test]
         fn with_empty_list_is_true() {
-            let mut process: Process = Default::default();
-            let empty_list_term = Term::EMPTY_LIST;
-            let true_term = true.into_process(&mut process);
-
-            assert_eq_in_process!(
-                empty_list_term.is_empty_list(&mut process),
-                true_term,
-                process
-            );
+            assert_eq!(Term::EMPTY_LIST.is_empty_list(), true);
         }
 
         #[test]
@@ -1258,44 +1320,32 @@ mod tests {
             let mut process: Process = Default::default();
             let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
-            let false_term = false.into_process(&mut process);
 
-            assert_eq_in_process!(list_term.is_empty_list(&mut process), false_term, process);
+            assert_eq!(list_term.is_empty_list(), false);
         }
 
         #[test]
         fn with_small_integer_is_false() {
             let mut process: Process = Default::default();
             let small_integer_term = small_integer_term(&mut process, 0);
-            let false_term = false.into_process(&mut process);
 
-            assert_eq_in_process!(
-                small_integer_term.is_empty_list(&mut process),
-                false_term,
-                process
-            );
+            assert_eq!(small_integer_term.is_empty_list(), false);
         }
 
         #[test]
         fn with_tuple_is_false() {
             let mut process: Process = Default::default();
             let tuple_term = tuple_term(&mut process);
-            let false_term = false.into_process(&mut process);
 
-            assert_eq_in_process!(tuple_term.is_empty_list(&mut process), false_term, process);
+            assert_eq!(tuple_term.is_empty_list(), false);
         }
 
         #[test]
         fn with_heap_binary_is_false() {
             let mut process: Process = Default::default();
             let heap_binary_term = Term::slice_to_binary(&[], &mut process);
-            let false_term = false.into_process(&mut process);
 
-            assert_eq_in_process!(
-                heap_binary_term.is_empty_list(&mut process),
-                false_term,
-                process
-            );
+            assert_eq!(heap_binary_term.is_empty_list(), false);
         }
     }
 

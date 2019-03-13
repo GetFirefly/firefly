@@ -17,10 +17,13 @@ use crate::list::List;
 use crate::term::Term;
 use crate::tuple::Tuple;
 
+pub mod identifier;
+
 pub struct Process {
     environment: Arc<RwLock<Environment>>,
     big_integer_arena: TypedArena<big::Integer>,
     pub byte_arena: TypedArena<u8>,
+    external_pid_arena: TypedArena<identifier::External>,
     float_arena: TypedArena<Float>,
     pub heap_binary_arena: TypedArena<heap::Binary>,
     pub subbinary_arena: TypedArena<sub::Binary>,
@@ -33,6 +36,7 @@ impl Process {
             environment,
             big_integer_arena: Default::default(),
             byte_arena: Default::default(),
+            external_pid_arena: Default::default(),
             float_arena: Default::default(),
             heap_binary_arena: Default::default(),
             subbinary_arena: Default::default(),
@@ -55,6 +59,20 @@ impl Process {
         term_vector.push(tail);
 
         Term::alloc_slice(term_vector.as_slice(), &mut self.term_arena)
+    }
+
+    pub fn external_pid(
+        &mut self,
+        node: usize,
+        number: usize,
+        serial: usize,
+    ) -> &'static identifier::External {
+        let pointer = self
+            .external_pid_arena
+            .alloc(identifier::External::new(node, number, serial))
+            as *const identifier::External;
+
+        unsafe { &*pointer }
     }
 
     pub fn f64_to_float(&self, f: f64) -> &'static Float {

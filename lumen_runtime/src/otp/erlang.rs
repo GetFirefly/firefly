@@ -813,6 +813,30 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::abs(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::abs(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -910,6 +934,34 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::append_element(float_term, 0.into_process(&mut process), &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::append_element(local_pid_term, 0.into_process(&mut process), &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::append_element(
+                    external_pid_term,
+                    0.into_process(&mut process),
+                    &mut process
+                ),
                 Err(bad_argument!()),
                 process
             );
@@ -1122,7 +1174,35 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::atom_to_binary(local_pid_term, encoding_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::atom_to_binary(external_pid_term, encoding_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
                 &[0.into_process(&mut process), 1.into_process(&mut process)],
@@ -1332,7 +1412,35 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::atom_to_list(local_pid_term, encoding_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::atom_to_list(external_pid_term, encoding_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
                 &[0.into_process(&mut process), 1.into_process(&mut process)],
@@ -1491,7 +1599,41 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_part(
+                    local_pid_term,
+                    0.into_process(&mut process),
+                    0.into_process(&mut process),
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_part(
+                    external_pid_term,
+                    0.into_process(&mut process),
+                    0.into_process(&mut process),
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
                 &[0.into_process(&mut process), 1.into_process(&mut process)],
@@ -1996,7 +2138,35 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_atom(local_pid_term, encoding_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let encoding_term =
+                Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_atom(external_pid_term, encoding_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
                 &[0.into_process(&mut process), 1.into_process(&mut process)],
@@ -2196,7 +2366,7 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
                 &[0.into_process(&mut process), 1.into_process(&mut process)],
@@ -2434,7 +2604,31 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_float(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_float(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
@@ -3918,7 +4112,7 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
@@ -4315,7 +4509,33 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(local_pid_term, base_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let base_term: Term = 16.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::binary_in_base_to_integer(external_pid_term, base_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
             let base_term: Term = 16.into_process(&mut process);
@@ -4685,7 +4905,31 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_list(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_list(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
@@ -4864,7 +5108,41 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_byte_range_to_list(
+                    local_pid_term,
+                    2.into_process(&mut process),
+                    3.into_process(&mut process),
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_byte_range_to_list(
+                    external_pid_term,
+                    2.into_process(&mut process),
+                    3.into_process(&mut process),
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
@@ -5086,7 +5364,31 @@ mod tests {
         }
 
         #[test]
-        fn with_tuple_returns_is_bad_argument() {
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_term(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::binary_to_term(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
@@ -5770,13 +6072,34 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::bit_size(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::bit_size(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
-            let index = 1usize;
-            let invalid_index_term = Term::arity(index);
 
-            assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::bit_size(tuple_term, &mut process),
                 Err(bad_argument!()),
@@ -5889,13 +6212,34 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::bitstring_to_list(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::bitstring_to_list(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
-            let index = 1usize;
-            let invalid_index_term = Term::arity(index);
 
-            assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::bitstring_to_list(tuple_term, &mut process),
                 Err(bad_argument!()),
@@ -6044,13 +6388,34 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::byte_size(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::byte_size(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
-            let index = 1usize;
-            let invalid_index_term = Term::arity(index);
 
-            assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::byte_size(tuple_term, &mut process),
                 Err(bad_argument!()),
@@ -6184,13 +6549,34 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::ceil(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::ceil(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
-            let index = 1usize;
-            let invalid_index_term = Term::arity(index);
 
-            assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::ceil(tuple_term, &mut process),
                 Err(bad_argument!()),
@@ -7796,6 +8182,48 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(
+                    local_pid_term,
+                    from_unit_term,
+                    to_unit_term,
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(
+                    external_pid_term,
+                    from_unit_term,
+                    to_unit_term,
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -7946,6 +8374,34 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::delete_element(local_pid_term, 0.into_process(&mut process), &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::delete_element(
+                    external_pid_term,
+                    0.into_process(&mut process),
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_without_small_integer_index_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(
@@ -8072,7 +8528,7 @@ mod tests {
             assert_eq_in_process!(
                 erlang::element(Term::EMPTY_LIST, 0.into_process(&mut process)),
                 Err(bad_argument!()),
-                Default::default()
+                process
             );
         }
 
@@ -8121,6 +8577,30 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(float_term, 0.into_process(&mut process)),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::element(local_pid_term, 0.into_process(&mut process)),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::element(external_pid_term, 0.into_process(&mut process)),
                 Err(bad_argument!()),
                 process
             );
@@ -8271,6 +8751,26 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(erlang::head(local_pid_term), Err(bad_argument!()), process);
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::head(external_pid_term),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -8400,6 +8900,40 @@ mod tests {
             assert_eq_in_process!(
                 erlang::insert_element(
                     float_term,
+                    0.into_process(&mut process),
+                    0.into_process(&mut process),
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::insert_element(
+                    local_pid_term,
+                    0.into_process(&mut process),
+                    0.into_process(&mut process),
+                    &mut process
+                ),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::insert_element(
+                    external_pid_term,
                     0.into_process(&mut process),
                     0.into_process(&mut process),
                     &mut process
@@ -8665,6 +9199,32 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_false() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_atom(local_pid_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_false() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_atom(external_pid_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_false() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -8789,6 +9349,32 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_binary(float_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_local_pid_is_false() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_binary(local_pid_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_false() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_binary(external_pid_term, &mut process),
                 false_term,
                 process
             );
@@ -8939,6 +9525,32 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_false() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_integer(local_pid_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_false() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_integer(external_pid_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_false() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -9058,6 +9670,32 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_list(float_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_local_pid_is_false() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_list(local_pid_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_false() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_list(external_pid_term, &mut process),
                 false_term,
                 process
             );
@@ -9187,6 +9825,32 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::is_tuple(float_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_local_pid_is_true() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_tuple(local_pid_term, &mut process),
+                false_term,
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_true() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+            let false_term = false.into_process(&mut process);
+
+            assert_eq_in_process!(
+                erlang::is_tuple(external_pid_term, &mut process),
                 false_term,
                 process
             );
@@ -9409,6 +10073,30 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::list_to_pid(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::list_to_pid(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -9543,6 +10231,30 @@ mod tests {
         }
 
         #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::length(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::length(external_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
         fn with_tuple_is_bad_argument() {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
@@ -9656,6 +10368,30 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::size(float_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_local_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(
+                erlang::size(local_pid_term, &mut process),
+                Err(bad_argument!()),
+                process
+            );
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::size(external_pid_term, &mut process),
                 Err(bad_argument!()),
                 process
             );
@@ -9799,6 +10535,26 @@ mod tests {
             let float_term = 1.0.into_process(&mut process);
 
             assert_eq_in_process!(erlang::tail(float_term), Err(bad_argument!()), process);
+        }
+
+        #[test]
+        fn with_local_pid_is_bad_argument() {
+            let process: Process = Default::default();
+            let local_pid_term = Term::local_pid(0, 0).unwrap();
+
+            assert_eq_in_process!(erlang::tail(local_pid_term), Err(bad_argument!()), process);
+        }
+
+        #[test]
+        fn with_external_pid_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::tail(external_pid_term),
+                Err(bad_argument!()),
+                process
+            );
         }
 
         #[test]

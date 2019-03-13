@@ -5,9 +5,10 @@ use num_bigint::BigInt;
 use num_traits::Zero;
 
 use crate::atom::Existence;
+use crate::bad_argument::BadArgument;
 use crate::list::{Cons, ToList};
 use crate::process::{IntoProcess, Process};
-use crate::term::{self, BadArgument, Tag::*, Term};
+use crate::term::{self, Tag::*, Term};
 
 pub mod heap;
 pub mod sub;
@@ -109,7 +110,7 @@ where
             .and_then(|byte_vec| match String::from_utf8(byte_vec) {
                 Ok(string) => match Term::str_to_atom(&string, existence, &mut process) {
                     Ok(term) => Some(term),
-                    Err(BadArgument) => None,
+                    Err(BadArgument { .. }) => None,
                 },
                 Err(_) => None,
             })
@@ -206,7 +207,7 @@ where
             .and_then(|byte_vec| match String::from_utf8(byte_vec) {
                 Ok(string) => match Term::str_to_atom(&string, existence, &mut process) {
                     Ok(term) => Some(term),
-                    Err(BadArgument) => None,
+                    Err(_) => None,
                 },
                 Err(_) => None,
             })
@@ -356,7 +357,7 @@ fn start_length_to_part_range(
                 byte_count: non_negative_length,
             })
         } else {
-            Err(BadArgument)
+            Err(bad_argument!())
         }
     } else {
         let start_isize = start as isize;
@@ -370,7 +371,7 @@ fn start_length_to_part_range(
                 byte_count,
             })
         } else {
-            Err(BadArgument)
+            Err(bad_argument!())
         }
     }
 }
@@ -413,7 +414,7 @@ impl ToTermOptions {
 
                     continue;
                 }
-                _ => return Err(BadArgument),
+                _ => return Err(bad_argument!()),
             };
         }
     }
@@ -438,10 +439,10 @@ impl ToTermOptions {
 
                         Ok(self)
                     }
-                    _ => Err(BadArgument),
+                    _ => Err(bad_argument!()),
                 }
             }
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 }

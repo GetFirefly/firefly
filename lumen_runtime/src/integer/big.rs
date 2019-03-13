@@ -2,7 +2,8 @@ use std::convert::TryFrom;
 
 use num_bigint::{BigInt, Sign::*};
 
-use crate::term::{BadArgument, Tag, Term};
+use crate::bad_argument::BadArgument;
+use crate::term::{Tag, Term};
 
 pub struct Integer {
     #[allow(dead_code)]
@@ -48,6 +49,6 @@ pub fn big_int_to_usize(big_int: &BigInt) -> Result<usize, BadArgument> {
             Ok(integer_usize)
         }
         NoSign => Ok(0),
-        Minus => Err(BadArgument),
+        Minus => Err(bad_argument!()),
     }
 }

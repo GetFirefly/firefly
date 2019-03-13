@@ -10,13 +10,14 @@ use num_bigint::BigInt;
 use num_traits::Zero;
 
 use crate::atom::Existence;
+use crate::bad_argument::BadArgument;
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
 use crate::float::Float;
 use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::otp;
 use crate::process::{IntoProcess, Process};
-use crate::term::{BadArgument, Tag, Term};
+use crate::term::{Tag, Term};
 use crate::time;
 use crate::tuple::Tuple;
 
@@ -70,10 +71,10 @@ pub fn abs(number: Term, mut process: &mut Process) -> Result<Term, BadArgument>
                         _ => Ok(number),
                     }
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
 }
 
@@ -98,7 +99,7 @@ pub fn atom_to_binary(
         let string = atom.atom_to_string(process);
         Ok(Term::slice_to_binary(string.as_bytes(), &mut process))
     } else {
-        Err(BadArgument)
+        Err(bad_argument!())
     }
 }
 
@@ -112,7 +113,7 @@ pub fn atom_to_list(
         let string = atom.atom_to_string(process);
         Ok(Term::chars_to_list(string.chars(), &mut process))
     } else {
-        Err(BadArgument)
+        Err(bad_argument!())
     }
 }
 
@@ -137,10 +138,10 @@ pub fn binary_part(
 
                     subbinary.part(start, length, &mut process)
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
 }
 
@@ -170,20 +171,20 @@ pub fn binary_to_float(binary: Term, mut process: &mut Process) -> Result<Term, 
                 // unlike Rust, Erlang requires float strings to have a decimal point
                 {
                     if (inner.fract() == 0.0) & !string.chars().any(|b| b == '.') {
-                        Err(BadArgument)
+                        Err(bad_argument!())
                     } else {
                         Ok(inner.into_process(&mut process))
                     }
                 }
                 // Erlang has no support for Nan, +inf or -inf
-                FpCategory::Nan | FpCategory::Infinite => Err(BadArgument),
+                FpCategory::Nan | FpCategory::Infinite => Err(bad_argument!()),
                 FpCategory::Zero => {
                     // Erlang does not track the difference without +0 and -0.
                     Ok(inner.abs().into_process(&mut process))
                 }
             }
         }
-        Err(_) => Err(BadArgument),
+        Err(_) => Err(bad_argument!()),
     }
 }
 
@@ -198,7 +199,7 @@ pub fn binary_to_integer(binary: Term, mut process: &mut Process) -> Result<Term
 
             Ok(term)
         }
-        None => Err(BadArgument),
+        None => Err(bad_argument!()),
     }
 }
 
@@ -220,10 +221,10 @@ pub fn binary_in_base_to_integer(
 
                 Ok(term)
             }
-            None => Err(BadArgument),
+            None => Err(bad_argument!()),
         }
     } else {
-        Err(BadArgument)
+        Err(bad_argument!())
     }
 }
 
@@ -244,10 +245,10 @@ pub fn binary_to_list(binary: Term, mut process: &mut Process) -> Result<Term, B
 
                     subbinary.to_list(&mut process)
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
 }
 
@@ -280,10 +281,10 @@ pub fn binary_byte_range_to_list(
                 &mut process,
             )
         } else {
-            Err(BadArgument)
+            Err(bad_argument!())
         }
     } else {
-        Err(BadArgument)
+        Err(bad_argument!())
     }
 }
 
@@ -315,10 +316,10 @@ pub fn binary_options_to_term(
 
                     subbinary.to_term(to_term_options, &mut process)
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
 }
 
@@ -338,10 +339,10 @@ pub fn bit_size(bit_string: Term, mut process: &mut Process) -> Result<Term, Bad
 
                     Ok(subbinary.bit_size())
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
     .map(|bit_size_usize| bit_size_usize.into_process(&mut process))
 }
@@ -362,10 +363,10 @@ pub fn bitstring_to_list(bit_string: Term, mut process: &mut Process) -> Result<
 
                     Ok(subbinary.to_bitstring_list(&mut process))
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
 }
 
@@ -385,10 +386,10 @@ pub fn byte_size(bit_string: Term, mut process: &mut Process) -> Result<Term, Ba
 
                     Ok(subbinary.byte_size())
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
     .map(|byte_size_usize| byte_size_usize.into_process(&mut process))
 }
@@ -420,10 +421,10 @@ pub fn ceil(number: Term, mut process: &mut Process) -> Result<Term, BadArgument
 
                     Ok(ceil_term)
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
 }
 
@@ -543,7 +544,7 @@ pub fn length(list: Term, mut process: &mut Process) -> Result<Term, BadArgument
                 tail = crate::otp::erlang::tail(tail).unwrap();
                 length += 1;
             }
-            _ => break Err(BadArgument),
+            _ => break Err(bad_argument!()),
         }
     }
 }
@@ -569,10 +570,10 @@ pub fn size(binary_or_tuple: Term, mut process: &mut Process) -> Result<Term, Ba
 
                     Ok(subbinary.size())
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
     .map(|integer| integer.into_process(&mut process))
 }
@@ -608,10 +609,10 @@ fn binary_existence_to_atom(
 
                     subbinary.to_atom_index(existence, &mut process)
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
     .map(|atom_index| atom_index.into())
 }
@@ -638,7 +639,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::abs(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -650,7 +651,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::abs(heap_binary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -664,7 +665,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::abs(subbinary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -675,7 +676,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::abs(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 Default::default()
             );
         }
@@ -687,7 +688,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::abs(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -812,7 +813,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::abs(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -830,7 +831,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::append_element(atom_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -845,7 +846,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -857,7 +858,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::append_element(list_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -873,7 +874,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -891,7 +892,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -903,7 +904,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::append_element(float_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -956,7 +957,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -970,7 +971,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::append_element(subbinary_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             )
         }
@@ -992,7 +993,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(atom_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1008,7 +1009,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(atom_term, invalid_encoding_atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1051,7 +1052,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(Term::EMPTY_LIST, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1065,7 +1066,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(list_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1079,7 +1080,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(small_integer_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1095,7 +1096,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(big_integer_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1109,7 +1110,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(float_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1126,7 +1127,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(tuple_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1140,7 +1141,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(heap_binary_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1156,7 +1157,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_binary(subbinary_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1178,7 +1179,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(atom_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1194,7 +1195,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(atom_term, invalid_encoding_atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1261,7 +1262,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(Term::EMPTY_LIST, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1275,7 +1276,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(list_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1289,7 +1290,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(small_integer_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1305,7 +1306,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(big_integer_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1319,7 +1320,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(float_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1336,7 +1337,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(tuple_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1350,7 +1351,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(heap_binary_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1366,7 +1367,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::atom_to_list(subbinary_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1392,7 +1393,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1408,7 +1409,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1425,7 +1426,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1442,7 +1443,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1461,7 +1462,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1478,7 +1479,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1498,7 +1499,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1515,7 +1516,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1529,7 +1530,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1543,7 +1544,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1557,7 +1558,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1572,7 +1573,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1587,7 +1588,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1602,7 +1603,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1709,7 +1710,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1725,7 +1726,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1741,7 +1742,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1757,7 +1758,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1774,7 +1775,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1791,7 +1792,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1808,7 +1809,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1912,7 +1913,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(atom_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1925,7 +1926,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(Term::EMPTY_LIST, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1939,7 +1940,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(list_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1953,7 +1954,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(small_integer_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1969,7 +1970,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(big_integer_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -1983,7 +1984,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(float_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2000,7 +2001,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(tuple_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2016,7 +2017,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2030,7 +2031,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(heap_binary_term, invalid_encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2075,7 +2076,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_atom(subbinary_term, unicode_atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 &mut process
             )
         }
@@ -2112,7 +2113,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(atom_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2125,7 +2126,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(Term::EMPTY_LIST, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2139,7 +2140,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(list_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2153,7 +2154,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(small_integer_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2169,7 +2170,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(big_integer_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2183,7 +2184,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(float_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2200,7 +2201,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(tuple_term, encoding_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2216,7 +2217,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2234,7 +2235,7 @@ mod tests {
                     invalid_encoding_term,
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2252,17 +2253,17 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(heap_binary_term, latin1_atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 &mut process
             );
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(heap_binary_term, unicode_atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 &mut process
             );
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(heap_binary_term, utf8_atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 &mut process
             );
         }
@@ -2307,7 +2308,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(subbinary_term, unicode_atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 &mut process
             )
         }
@@ -2322,7 +2323,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_existing_atom(subbinary_term, unicode_atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 &mut process
             )
         }
@@ -2359,7 +2360,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2370,7 +2371,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2382,7 +2383,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2394,7 +2395,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2409,7 +2410,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2421,7 +2422,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2433,7 +2434,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2445,7 +2446,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(heap_binary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             )
         }
@@ -2484,7 +2485,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(heap_binary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -2497,7 +2498,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(heap_binary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3490,7 +3491,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(subbinary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3822,7 +3823,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_float(subbinary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3843,7 +3844,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3854,7 +3855,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3866,7 +3867,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3878,7 +3879,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3893,7 +3894,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3905,7 +3906,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -3917,7 +3918,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4015,7 +4016,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(heap_binary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4213,7 +4214,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_integer(subbinary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4235,7 +4236,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_in_base_to_integer(atom_term, base_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4247,7 +4248,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_in_base_to_integer(Term::EMPTY_LIST, base_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4260,7 +4261,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_in_base_to_integer(list_term, base_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4273,7 +4274,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_in_base_to_integer(small_integer_term, base_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4289,7 +4290,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_in_base_to_integer(big_integer_term, base_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4302,7 +4303,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_in_base_to_integer(float_term, base_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4315,7 +4316,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_in_base_to_integer(tuple_term, base_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4611,7 +4612,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_list(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4622,7 +4623,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_list(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4634,7 +4635,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_list(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4646,7 +4647,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_list(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4660,7 +4661,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_list(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4672,7 +4673,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_list(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4684,7 +4685,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_list(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4740,7 +4741,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_list(subbinary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4765,7 +4766,7 @@ mod tests {
                     3.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4781,7 +4782,7 @@ mod tests {
                     3.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4798,7 +4799,7 @@ mod tests {
                     3.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4815,7 +4816,7 @@ mod tests {
                     3.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4834,7 +4835,7 @@ mod tests {
                     3.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4851,7 +4852,7 @@ mod tests {
                     3.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4868,7 +4869,7 @@ mod tests {
                     3.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4927,7 +4928,7 @@ mod tests {
                     2.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -4992,7 +4993,7 @@ mod tests {
                     2.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5012,7 +5013,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_term(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5023,7 +5024,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_term(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5035,7 +5036,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_term(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5047,7 +5048,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_term(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5061,7 +5062,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_term(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5073,7 +5074,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_term(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5085,7 +5086,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::binary_to_term(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5532,7 +5533,7 @@ mod tests {
 
                 assert_eq_in_process!(
                     erlang::binary_options_to_term(binary_term, options, &mut process),
-                    Err(BadArgument),
+                    Err(bad_argument!()),
                     process
                 );
 
@@ -5560,7 +5561,7 @@ mod tests {
 
                 assert_eq_in_process!(
                     erlang::binary_options_to_term(binary_term, options, &mut process),
-                    Err(BadArgument),
+                    Err(bad_argument!()),
                     process
                 );
 
@@ -5592,7 +5593,7 @@ mod tests {
 
                 assert_eq_in_process!(
                     erlang::binary_options_to_term(binary_term, options, &mut process),
-                    Err(BadArgument),
+                    Err(bad_argument!()),
                     process
                 );
 
@@ -5620,7 +5621,7 @@ mod tests {
 
                 assert_eq_in_process!(
                     erlang::binary_options_to_term(binary_term, options, &mut process),
-                    Err(BadArgument),
+                    Err(bad_argument!()),
                     process
                 );
 
@@ -5696,7 +5697,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bit_size(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5707,7 +5708,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bit_size(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5719,7 +5720,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bit_size(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5731,7 +5732,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bit_size(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5745,7 +5746,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bit_size(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5757,7 +5758,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bit_size(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5772,7 +5773,7 @@ mod tests {
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::bit_size(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5815,7 +5816,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bitstring_to_list(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5826,7 +5827,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bitstring_to_list(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5838,7 +5839,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bitstring_to_list(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5850,7 +5851,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bitstring_to_list(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5864,7 +5865,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bitstring_to_list(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5876,7 +5877,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::bitstring_to_list(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5891,7 +5892,7 @@ mod tests {
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::bitstring_to_list(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5970,7 +5971,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::byte_size(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5981,7 +5982,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::byte_size(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -5993,7 +5994,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::byte_size(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6005,7 +6006,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::byte_size(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6019,7 +6020,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::byte_size(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6031,7 +6032,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::byte_size(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6046,7 +6047,7 @@ mod tests {
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::byte_size(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6102,7 +6103,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::ceil(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6113,7 +6114,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::ceil(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6125,7 +6126,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::ceil(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6186,7 +6187,7 @@ mod tests {
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::ceil(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6198,7 +6199,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::ceil(heap_binary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6211,7 +6212,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::ceil(subbinary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6231,7 +6232,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::convert_time_unit(atom_term, from_unit_term, to_unit_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6251,7 +6252,7 @@ mod tests {
                     to_unit_term,
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6267,7 +6268,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::convert_time_unit(list_term, from_unit_term, to_unit_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -6293,7 +6294,7 @@ mod tests {
                         invalid_unit_term,
                         &mut process,
                     ),
-                    Err(BadArgument),
+                    Err(bad_argument!()),
                     process
                 );
 
@@ -6304,7 +6305,7 @@ mod tests {
                         valid_unit_term,
                         &mut process,
                     ),
-                    Err(BadArgument),
+                    Err(bad_argument!()),
                     process
                 );
             }
@@ -6982,7 +6983,7 @@ mod tests {
                         invalid_unit_term,
                         &mut process,
                     ),
-                    Err(BadArgument),
+                    Err(bad_argument!()),
                     process
                 );
 
@@ -6993,7 +6994,7 @@ mod tests {
                         valid_unit_term,
                         &mut process,
                     ),
-                    Err(BadArgument),
+                    Err(bad_argument!()),
                     process
                 );
             }
@@ -7783,7 +7784,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::convert_time_unit(float_term, from_unit_term, to_unit_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7799,7 +7800,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::convert_time_unit(tuple_term, from_unit_term, to_unit_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7820,7 +7821,7 @@ mod tests {
                     to_unit_term,
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7842,7 +7843,7 @@ mod tests {
                     to_unit_term,
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7860,7 +7861,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::delete_element(atom_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7875,7 +7876,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7887,7 +7888,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::delete_element(list_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7903,7 +7904,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7921,7 +7922,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7933,7 +7934,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::delete_element(float_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -7955,7 +7956,7 @@ mod tests {
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::delete_element(tuple_term, invalid_index_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
 
@@ -7983,7 +7984,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8021,7 +8022,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8035,7 +8036,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::delete_element(subbinary_term, 0.into_process(&mut process), &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8053,7 +8054,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(atom_term, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8064,7 +8065,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(Term::EMPTY_LIST, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 Default::default()
             );
         }
@@ -8076,7 +8077,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(list_term, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8088,7 +8089,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(small_integer_term, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8102,7 +8103,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(big_integer_term, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8114,7 +8115,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(float_term, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8130,7 +8131,7 @@ mod tests {
             assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
             assert_eq_in_process!(
                 erlang::element(tuple_term, invalid_index_term),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
 
@@ -8151,7 +8152,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(empty_tuple_term, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8176,7 +8177,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(heap_binary_term, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8190,7 +8191,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::element(subbinary_term, 0.into_process(&mut process)),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8206,7 +8207,7 @@ mod tests {
             let mut process: Process = Default::default();
             let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
 
-            assert_eq_in_process!(erlang::head(atom_term), Err(BadArgument), process);
+            assert_eq_in_process!(erlang::head(atom_term), Err(bad_argument!()), process);
         }
 
         #[test]
@@ -8215,7 +8216,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::head(empty_list_term),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 Default::default()
             );
         }
@@ -8234,7 +8235,11 @@ mod tests {
             let mut process: Process = Default::default();
             let small_integer_term = 0.into_process(&mut process);
 
-            assert_eq_in_process!(erlang::head(small_integer_term), Err(BadArgument), process);
+            assert_eq_in_process!(
+                erlang::head(small_integer_term),
+                Err(bad_argument!()),
+                process
+            );
         }
 
         #[test]
@@ -8244,7 +8249,11 @@ mod tests {
                 .unwrap()
                 .into_process(&mut process);
 
-            assert_eq_in_process!(erlang::head(big_integer_term), Err(BadArgument), process);
+            assert_eq_in_process!(
+                erlang::head(big_integer_term),
+                Err(bad_argument!()),
+                process
+            );
         }
 
         #[test]
@@ -8252,7 +8261,7 @@ mod tests {
             let mut process: Process = Default::default();
             let float_term = 1.0.into_process(&mut process);
 
-            assert_eq_in_process!(erlang::head(float_term), Err(BadArgument), process);
+            assert_eq_in_process!(erlang::head(float_term), Err(bad_argument!()), process);
         }
 
         #[test]
@@ -8260,7 +8269,7 @@ mod tests {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
-            assert_eq_in_process!(erlang::head(tuple_term), Err(BadArgument), process);
+            assert_eq_in_process!(erlang::head(tuple_term), Err(bad_argument!()), process);
         }
 
         #[test]
@@ -8268,7 +8277,11 @@ mod tests {
             let mut process: Process = Default::default();
             let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
-            assert_eq_in_process!(erlang::head(heap_binary_term), Err(BadArgument), process);
+            assert_eq_in_process!(
+                erlang::head(heap_binary_term),
+                Err(bad_argument!()),
+                process
+            );
         }
 
         #[test]
@@ -8278,7 +8291,7 @@ mod tests {
                 Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
             let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
 
-            assert_eq_in_process!(erlang::head(subbinary_term), Err(BadArgument), process);
+            assert_eq_in_process!(erlang::head(subbinary_term), Err(bad_argument!()), process);
         }
     }
 
@@ -8299,7 +8312,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8315,7 +8328,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8332,7 +8345,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8349,7 +8362,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8368,7 +8381,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8385,7 +8398,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8408,7 +8421,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
 
@@ -8446,7 +8459,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8510,7 +8523,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -8529,7 +8542,7 @@ mod tests {
                     0.into_process(&mut process),
                     &mut process
                 ),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9227,7 +9240,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::length(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9253,7 +9266,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::length(improper_list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9279,7 +9292,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::length(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9293,7 +9306,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::length(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9305,7 +9318,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::length(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9317,7 +9330,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::length(tuple_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9329,7 +9342,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::length(heap_binary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9343,7 +9356,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::length(subbinary_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9363,7 +9376,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::size(atom_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9374,7 +9387,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::size(Term::EMPTY_LIST, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9386,7 +9399,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::size(list_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9398,7 +9411,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::size(small_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9412,7 +9425,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::size(big_integer_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9424,7 +9437,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::size(float_term, &mut process),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 process
             );
         }
@@ -9512,7 +9525,7 @@ mod tests {
             let mut process: Process = Default::default();
             let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
 
-            assert_eq_in_process!(erlang::tail(atom_term), Err(BadArgument), process);
+            assert_eq_in_process!(erlang::tail(atom_term), Err(bad_argument!()), process);
         }
 
         #[test]
@@ -9521,7 +9534,7 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::tail(empty_list_term),
-                Err(BadArgument),
+                Err(bad_argument!()),
                 Default::default()
             );
         }
@@ -9540,7 +9553,11 @@ mod tests {
             let mut process: Process = Default::default();
             let small_integer_term = 0.into_process(&mut process);
 
-            assert_eq_in_process!(erlang::tail(small_integer_term), Err(BadArgument), process);
+            assert_eq_in_process!(
+                erlang::tail(small_integer_term),
+                Err(bad_argument!()),
+                process
+            );
         }
 
         #[test]
@@ -9550,7 +9567,11 @@ mod tests {
                 .unwrap()
                 .into_process(&mut process);
 
-            assert_eq_in_process!(erlang::tail(big_integer_term), Err(BadArgument), process);
+            assert_eq_in_process!(
+                erlang::tail(big_integer_term),
+                Err(bad_argument!()),
+                process
+            );
         }
 
         #[test]
@@ -9558,7 +9579,7 @@ mod tests {
             let mut process: Process = Default::default();
             let float_term = 1.0.into_process(&mut process);
 
-            assert_eq_in_process!(erlang::tail(float_term), Err(BadArgument), process);
+            assert_eq_in_process!(erlang::tail(float_term), Err(bad_argument!()), process);
         }
 
         #[test]
@@ -9566,7 +9587,7 @@ mod tests {
             let mut process: Process = Default::default();
             let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
-            assert_eq_in_process!(erlang::tail(tuple_term), Err(BadArgument), process);
+            assert_eq_in_process!(erlang::tail(tuple_term), Err(bad_argument!()), process);
         }
 
         #[test]
@@ -9574,7 +9595,11 @@ mod tests {
             let mut process: Process = Default::default();
             let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
-            assert_eq_in_process!(erlang::tail(heap_binary_term), Err(BadArgument), process);
+            assert_eq_in_process!(
+                erlang::tail(heap_binary_term),
+                Err(bad_argument!()),
+                process
+            );
         }
 
         #[test]
@@ -9584,7 +9609,7 @@ mod tests {
                 Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
             let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
 
-            assert_eq_in_process!(erlang::tail(subbinary_term), Err(BadArgument), process);
+            assert_eq_in_process!(erlang::tail(subbinary_term), Err(bad_argument!()), process);
         }
     }
 

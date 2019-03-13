@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use crate::atom::{self, Existence};
-use crate::term::BadArgument;
+use crate::bad_argument::BadArgument;
 
 pub struct Environment {
     atom_table: atom::Table,

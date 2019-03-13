@@ -10,9 +10,8 @@ fn with_atom_returns_bad_argument() {
     let atom_term = Term::str_to_atom("😈🤘", Existence::DoNotCare, &mut process).unwrap();
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(atom_term, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -22,9 +21,8 @@ fn with_empty_list_returns_bad_argument() {
     let mut process: Process = Default::default();
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(Term::EMPTY_LIST, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -35,9 +33,8 @@ fn with_list_is_bad_argument() {
     let list_term = list_term(&mut process);
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(list_term, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -48,9 +45,8 @@ fn with_small_integer_is_bad_argument() {
     let small_integer_term = 0usize.into_process(&mut process);
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(small_integer_term, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -63,9 +59,8 @@ fn with_big_integer_is_bad_argument() {
         .into_process(&mut process);
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(big_integer_term, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -76,9 +71,8 @@ fn with_float_is_bad_argument() {
     let float_term = 1.0.into_process(&mut process);
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(float_term, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -89,9 +83,8 @@ fn with_local_pid_is_bad_argument() {
     let local_pid_term = Term::local_pid(0, 0).unwrap();
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(local_pid_term, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -102,9 +95,8 @@ fn with_external_pid_is_bad_argument() {
     let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(external_pid_term, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -115,9 +107,8 @@ fn with_tuple_is_bad_argument() {
     let tuple_term = Term::slice_to_tuple(&[], &mut process);
     let base_term: Term = 16.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_in_base_to_integer(tuple_term, base_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }

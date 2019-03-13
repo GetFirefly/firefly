@@ -10,9 +10,8 @@ fn with_atom_is_bad_argument() {
     let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
     let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(atom_term, encoding_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -22,9 +21,8 @@ fn with_empty_list_is_bad_argument() {
     let mut process: Process = Default::default();
     let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(Term::EMPTY_LIST, encoding_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -35,9 +33,8 @@ fn with_list_is_bad_argument() {
     let list_term = list_term(&mut process);
     let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(list_term, encoding_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -48,9 +45,8 @@ fn with_small_integer_is_bad_argument() {
     let small_integer_term = 0usize.into_process(&mut process);
     let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(small_integer_term, encoding_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -63,9 +59,8 @@ fn with_big_integer_is_bad_argument() {
         .into_process(&mut process);
     let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(big_integer_term, encoding_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -76,9 +71,8 @@ fn with_float_is_bad_argument() {
     let float_term = 1.0.into_process(&mut process);
     let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(float_term, encoding_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -92,9 +86,8 @@ fn with_tuple_is_bad_argument() {
     );
     let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(tuple_term, encoding_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -104,13 +97,12 @@ fn with_heap_binary_without_encoding_atom_returns_bad_argument() {
     let mut process: Process = Default::default();
     let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(
             heap_binary_term,
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -122,9 +114,8 @@ fn with_heap_binary_with_invalid_encoding_atom_returns_bad_argument() {
     let invalid_encoding_term =
         Term::str_to_atom("invalid_encoding", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(heap_binary_term, invalid_encoding_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -138,20 +129,17 @@ fn with_heap_binary_with_valid_encoding_without_existing_atom_returns_atom() {
         Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
     let utf8_atom_term = Term::str_to_atom("utf8", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(heap_binary_term, latin1_atom_term, &mut process),
-        Err(bad_argument!()),
-        &mut process
+        process
     );
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(heap_binary_term, unicode_atom_term, &mut process),
-        Err(bad_argument!()),
-        &mut process
+        process
     );
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(heap_binary_term, utf8_atom_term, &mut process),
-        Err(bad_argument!()),
-        &mut process
+        process
     );
 }
 
@@ -168,17 +156,17 @@ fn with_heap_binary_with_valid_encoding_with_existing_atom_returns_atom() {
     assert_eq_in_process!(
         erlang::binary_to_existing_atom(heap_binary_term, latin1_atom_term, &mut process),
         Ok(atom_term),
-        &mut process
+        process
     );
     assert_eq_in_process!(
         erlang::binary_to_existing_atom(heap_binary_term, unicode_atom_term, &mut process),
         Ok(atom_term),
-        &mut process
+        process
     );
     assert_eq_in_process!(
         erlang::binary_to_existing_atom(heap_binary_term, utf8_atom_term, &mut process),
         Ok(atom_term),
-        &mut process
+        process
     );
 }
 
@@ -191,10 +179,9 @@ fn with_subbinary_with_bit_count_returns_bad_argument() {
     let unicode_atom_term =
         Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(subbinary_term, unicode_atom_term, &mut process),
-        Err(bad_argument!()),
-        &mut process
+        process
     )
 }
 
@@ -206,10 +193,9 @@ fn with_subbinary_without_bit_count_without_existing_atom_returns_bad_argument()
     let unicode_atom_term =
         Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_existing_atom(subbinary_term, unicode_atom_term, &mut process),
-        Err(bad_argument!()),
-        &mut process
+        process
     )
 }
 
@@ -225,6 +211,6 @@ fn with_subbinary_without_bit_count_with_existing_atom_returns_atom_with_bytes()
     assert_eq_in_process!(
         erlang::binary_to_existing_atom(subbinary_term, unicode_atom_term, &mut process),
         atom_term,
-        &mut process
+        process
     )
 }

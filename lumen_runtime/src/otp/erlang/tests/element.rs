@@ -7,9 +7,8 @@ fn with_atom_is_bad_argument() {
     let mut process: Process = Default::default();
     let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(atom_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -18,9 +17,8 @@ fn with_atom_is_bad_argument() {
 fn with_empty_list_is_bad_argument() {
     let mut process: Process = Default::default();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(Term::EMPTY_LIST, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -30,9 +28,8 @@ fn with_list_is_bad_argument() {
     let mut process: Process = Default::default();
     let list_term = list_term(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(list_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -42,9 +39,8 @@ fn with_small_integer_is_bad_argument() {
     let mut process: Process = Default::default();
     let small_integer_term: Term = 0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(small_integer_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -56,9 +52,8 @@ fn with_big_integer_is_bad_argument() {
         .unwrap()
         .into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(big_integer_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -68,9 +63,8 @@ fn with_float_is_bad_argument() {
     let mut process: Process = Default::default();
     let float_term = 1.0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(float_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -80,9 +74,8 @@ fn with_local_pid_is_bad_argument() {
     let mut process: Process = Default::default();
     let local_pid_term = Term::local_pid(0, 0).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(local_pid_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -92,9 +85,8 @@ fn with_external_pid_is_bad_argument() {
     let mut process: Process = Default::default();
     let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(external_pid_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -108,11 +100,7 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
     let invalid_index_term = Term::arity(index);
 
     assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
-    assert_eq_in_process!(
-        erlang::element(tuple_term, invalid_index_term),
-        Err(bad_argument!()),
-        process
-    );
+    assert_bad_argument!(erlang::element(tuple_term, invalid_index_term), process);
 
     let valid_index_term: Term = index.into_process(&mut process);
 
@@ -129,9 +117,8 @@ fn with_tuple_without_index_in_range_is_bad_argument() {
     let mut process: Process = Default::default();
     let empty_tuple_term = Term::slice_to_tuple(&[], &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(empty_tuple_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -154,9 +141,8 @@ fn with_heap_binary_is_bad_argument() {
     let mut process: Process = Default::default();
     let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(heap_binary_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }
@@ -168,9 +154,8 @@ fn with_subbinary_is_bad_argument() {
         Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
     let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::element(subbinary_term, 0.into_process(&mut process)),
-        Err(bad_argument!()),
         process
     );
 }

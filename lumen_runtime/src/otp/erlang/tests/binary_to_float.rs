@@ -9,20 +9,15 @@ fn with_atom_returns_bad_argument() {
     let mut process: Process = Default::default();
     let atom_term = Term::str_to_atom("😈🤘", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
-        erlang::binary_to_float(atom_term, &mut process),
-        Err(bad_argument!()),
-        process
-    );
+    assert_bad_argument!(erlang::binary_to_float(atom_term, &mut process), process);
 }
 
 #[test]
 fn with_empty_list_returns_bad_argument() {
     let mut process: Process = Default::default();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(Term::EMPTY_LIST, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -32,11 +27,7 @@ fn with_list_is_bad_argument() {
     let mut process: Process = Default::default();
     let list_term = list_term(&mut process);
 
-    assert_eq_in_process!(
-        erlang::binary_to_float(list_term, &mut process),
-        Err(bad_argument!()),
-        process
-    );
+    assert_bad_argument!(erlang::binary_to_float(list_term, &mut process), process);
 }
 
 #[test]
@@ -44,9 +35,8 @@ fn with_small_integer_is_bad_argument() {
     let mut process: Process = Default::default();
     let small_integer_term = 0usize.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(small_integer_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -58,9 +48,8 @@ fn with_big_integer_is_bad_argument() {
         .unwrap()
         .into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(big_integer_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -70,11 +59,7 @@ fn with_float_is_bad_argument() {
     let mut process: Process = Default::default();
     let float_term = 1.0.into_process(&mut process);
 
-    assert_eq_in_process!(
-        erlang::binary_to_float(float_term, &mut process),
-        Err(bad_argument!()),
-        process
-    );
+    assert_bad_argument!(erlang::binary_to_float(float_term, &mut process), process);
 }
 
 #[test]
@@ -82,9 +67,8 @@ fn with_local_pid_is_bad_argument() {
     let mut process: Process = Default::default();
     let local_pid_term = Term::local_pid(0, 0).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(local_pid_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -94,9 +78,8 @@ fn with_external_pid_is_bad_argument() {
     let mut process: Process = Default::default();
     let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(external_pid_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -106,11 +89,7 @@ fn with_tuple_is_bad_argument() {
     let mut process: Process = Default::default();
     let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
-    assert_eq_in_process!(
-        erlang::binary_to_float(tuple_term, &mut process),
-        Err(bad_argument!()),
-        process
-    );
+    assert_bad_argument!(erlang::binary_to_float(tuple_term, &mut process), process);
 }
 
 #[test]
@@ -118,9 +97,8 @@ fn with_heap_binary_with_integer_returns_bad_argument() {
     let mut process: Process = Default::default();
     let heap_binary_term = Term::slice_to_binary("1".as_bytes(), &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(heap_binary_term, &mut process),
-        Err(bad_argument!()),
         process
     )
 }
@@ -157,9 +135,8 @@ fn with_heap_binary_with_less_than_min_f64_returns_bad_argument() {
     let heap_binary_term =
             Term::slice_to_binary("-1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0".as_bytes(), &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(heap_binary_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -170,9 +147,8 @@ fn with_heap_binary_with_greater_than_max_f64_returns_bad_argument() {
     let heap_binary_term =
             Term::slice_to_binary("17976931348623157000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0".as_bytes(), &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(heap_binary_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -1163,9 +1139,8 @@ fn with_subbinary_with_less_than_min_f64_returns_bag_argument() {
     );
     let subbinary_term = Term::subbinary(heap_binary_term, 0, 1, 313, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(subbinary_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -1495,9 +1470,8 @@ fn with_subbinary_with_greater_than_max_f64_returns_bad_argument() {
     );
     let subbinary_term = Term::subbinary(heap_binary_term, 0, 1, 313, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_to_float(subbinary_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }

@@ -14,9 +14,8 @@ mod with_safe {
             &mut process,
         );
 
-        assert_eq_in_process!(
+        assert_bad_argument!(
             erlang::binary_options_to_term(binary_term, options, &mut process),
-            Err(bad_argument!()),
             process
         );
 
@@ -41,9 +40,8 @@ mod with_safe {
             &mut process,
         );
 
-        assert_eq_in_process!(
+        assert_bad_argument!(
             erlang::binary_options_to_term(binary_term, options, &mut process),
-            Err(bad_argument!()),
             process
         );
 
@@ -70,9 +68,8 @@ mod with_safe {
             &mut process,
         );
 
-        assert_eq_in_process!(
+        assert_bad_argument!(
             erlang::binary_options_to_term(binary_term, options, &mut process),
-            Err(bad_argument!()),
             process
         );
 
@@ -97,9 +94,8 @@ mod with_safe {
             &mut process,
         );
 
-        assert_eq_in_process!(
+        assert_bad_argument!(
             erlang::binary_options_to_term(binary_term, options, &mut process),
-            Err(bad_argument!()),
             process
         );
 

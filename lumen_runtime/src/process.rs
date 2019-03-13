@@ -294,6 +294,16 @@ macro_rules! assert_ne_in_process {
     });
 }
 
+#[macro_export]
+macro_rules! assert_bad_argument {
+    ($left:expr, $process:expr) => {{
+        assert_eq_in_process!($left, Err(bad_argument!()), $process)
+    }};
+    ($left:expr, $process:expr,) => {{
+        assert_eq_in_process!($left, Err(bad_argument!()), $process)
+    }};
+}
+
 /// Like `std::convert::Into`, but additionally takes `&mut Process` in case it is needed to
 /// lookup or create new values in the `Process`.
 pub trait IntoProcess<T> {

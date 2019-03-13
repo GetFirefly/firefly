@@ -7,9 +7,8 @@ fn with_atom_is_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(atom_term, from_unit_term, to_unit_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -20,9 +19,8 @@ fn with_empty_list_is_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(Term::EMPTY_LIST, from_unit_term, to_unit_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -34,9 +32,8 @@ fn with_list_is_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(list_term, from_unit_term, to_unit_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -54,25 +51,23 @@ mod with_small_integer {
             Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
         let invalid_unit_term = Term::str_to_atom("s", Existence::DoNotCare, &mut process).unwrap();
 
-        assert_eq_in_process!(
+        assert_bad_argument!(
             erlang::convert_time_unit(
                 small_integer_term,
                 valid_unit_term,
                 invalid_unit_term,
                 &mut process,
             ),
-            Err(bad_argument!()),
             process
         );
 
-        assert_eq_in_process!(
+        assert_bad_argument!(
             erlang::convert_time_unit(
                 small_integer_term,
                 invalid_unit_term,
                 valid_unit_term,
                 &mut process,
             ),
-            Err(bad_argument!()),
             process
         );
     }
@@ -693,25 +688,23 @@ mod with_big_integer {
             Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
         let invalid_unit_term = Term::str_to_atom("s", Existence::DoNotCare, &mut process).unwrap();
 
-        assert_eq_in_process!(
+        assert_bad_argument!(
             erlang::convert_time_unit(
                 big_integer_term,
                 valid_unit_term,
                 invalid_unit_term,
                 &mut process,
             ),
-            Err(bad_argument!()),
             process
         );
 
-        assert_eq_in_process!(
+        assert_bad_argument!(
             erlang::convert_time_unit(
                 big_integer_term,
                 invalid_unit_term,
                 valid_unit_term,
                 &mut process,
             ),
-            Err(bad_argument!()),
             process
         );
     }
@@ -1447,9 +1440,8 @@ fn with_float_returns_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(float_term, from_unit_term, to_unit_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -1461,9 +1453,8 @@ fn with_local_pid_is_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(local_pid_term, from_unit_term, to_unit_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -1475,14 +1466,13 @@ fn with_external_pid_is_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(
             external_pid_term,
             from_unit_term,
             to_unit_term,
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -1494,9 +1484,8 @@ fn with_tuple_is_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(tuple_term, from_unit_term, to_unit_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -1508,9 +1497,8 @@ fn with_heap_binary_is_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(heap_binary_term, from_unit_term, to_unit_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -1523,9 +1511,8 @@ fn with_subbinary_is_bad_argument() {
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::convert_time_unit(subbinary_term, from_unit_term, to_unit_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }

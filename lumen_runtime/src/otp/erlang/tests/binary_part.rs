@@ -9,14 +9,13 @@ fn with_atom_is_bad_argument() {
     let mut process: Process = Default::default();
     let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             atom_term,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -25,14 +24,13 @@ fn with_atom_is_bad_argument() {
 fn with_empty_list_is_bad_argument() {
     let mut process: Process = Default::default();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             Term::EMPTY_LIST,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -42,14 +40,13 @@ fn with_list_is_bad_argument() {
     let mut process: Process = Default::default();
     let list_term = list_term(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             list_term,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -59,14 +56,13 @@ fn with_small_integer_is_bad_argument() {
     let mut process: Process = Default::default();
     let small_integer_term: Term = 0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             small_integer_term,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -78,14 +74,13 @@ fn with_big_integer_is_bad_argument() {
         .unwrap()
         .into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             big_integer_term,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -95,14 +90,13 @@ fn with_float_is_bad_argument() {
     let mut process: Process = Default::default();
     let float_term: Term = 1.0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             float_term,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -112,14 +106,13 @@ fn with_local_pid_is_bad_argument() {
     let mut process: Process = Default::default();
     let local_pid_term = Term::local_pid(0, 0).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             local_pid_term,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -129,14 +122,13 @@ fn with_external_pid_is_bad_argument() {
     let mut process: Process = Default::default();
     let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             external_pid_term,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -149,14 +141,13 @@ fn with_tuple_is_bad_argument() {
         &mut process,
     );
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(
             tuple_term,
             0.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
-        Err(bad_argument!()),
         process
     );
 }
@@ -171,9 +162,8 @@ fn with_heap_binary_without_integer_start_without_integer_length_returns_bad_arg
     );
     let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -185,9 +175,8 @@ fn with_heap_binary_without_integer_start_with_integer_length_returns_bad_argume
     let start_term = 0.into_process(&mut process);
     let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -199,9 +188,8 @@ fn with_heap_binary_with_integer_start_without_integer_length_returns_bad_argume
     let start_term = 0.into_process(&mut process);
     let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -213,9 +201,8 @@ fn with_heap_binary_with_negative_start_with_valid_length_returns_bad_argument()
     let start_term = (-1isize).into_process(&mut process);
     let length_term = 0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -227,9 +214,8 @@ fn with_heap_binary_with_start_greater_than_size_with_non_negative_length_return
     let start_term = 1.into_process(&mut process);
     let length_term = 0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -242,9 +228,8 @@ fn with_heap_binary_with_start_less_than_size_with_negative_length_past_start_re
     let start_term = 0.into_process(&mut process);
     let length_term = (-1isize).into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -256,9 +241,8 @@ fn with_heap_binary_with_start_less_than_size_with_positive_length_past_end_retu
     let start_term = 0.into_process(&mut process);
     let length_term = 2.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -359,9 +343,8 @@ fn with_subbinary_without_integer_start_without_integer_length_returns_bad_argum
     );
     let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -375,9 +358,8 @@ fn with_subbinary_without_integer_start_with_integer_length_returns_bad_argument
     let start_term = 0.into_process(&mut process);
     let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -391,9 +373,8 @@ fn with_subbinary_with_integer_start_without_integer_length_returns_bad_argument
     let start_term = 0.into_process(&mut process);
     let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -407,9 +388,8 @@ fn with_subbinary_with_negative_start_with_valid_length_returns_bad_argument() {
     let start_term = (-1isize).into_process(&mut process);
     let length_term = 0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -423,9 +403,8 @@ fn with_subbinary_with_start_greater_than_size_with_non_negative_length_returns_
     let start_term = 1.into_process(&mut process);
     let length_term = 0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -439,9 +418,8 @@ fn with_subbinary_with_start_less_than_size_with_negative_length_past_start_retu
     let start_term = 0.into_process(&mut process);
     let length_term = (-1isize).into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }
@@ -455,9 +433,8 @@ fn with_subbinary_with_start_less_than_size_with_positive_length_past_end_return
     let start_term = 0.into_process(&mut process);
     let length_term = 2.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        Err(bad_argument!()),
         process
     );
 }

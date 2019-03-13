@@ -4,9 +4,10 @@ use std::ops::Index;
 
 use liblumen_arena::TypedArena;
 
+use crate::bad_argument::BadArgument;
 use crate::integer::Integer;
 use crate::process::{DebugInProcess, OrderInProcess, Process};
-use crate::term::{BadArgument, Term};
+use crate::term::Term;
 
 #[repr(C)]
 pub struct Tuple {
@@ -61,7 +62,7 @@ impl Tuple {
 
             Ok(smaller_tuple)
         } else {
-            Err(BadArgument)
+            Err(bad_argument!())
         }
     }
 
@@ -71,7 +72,7 @@ impl Tuple {
         if index < arity_usize {
             Ok(self[index])
         } else {
-            Err(BadArgument)
+            Err(bad_argument!())
         }
     }
 
@@ -104,7 +105,7 @@ impl Tuple {
 
             Ok(tuple)
         } else {
-            Err(BadArgument)
+            Err(bad_argument!())
         }
     }
 
@@ -255,7 +256,7 @@ mod tests {
             let mut process: Process = Default::default();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_eq_in_process!(tuple.element(0), Err(BadArgument), process);
+            assert_eq_in_process!(tuple.element(0), Err(bad_argument!()), process);
         }
 
         #[test]

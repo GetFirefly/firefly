@@ -5,9 +5,10 @@ use std::convert::TryInto;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
+use crate::bad_argument::BadArgument;
 use crate::integer::big;
 use crate::process::Process;
-use crate::term::{BadArgument, Tag::*, Term};
+use crate::term::{Tag::*, Term};
 
 pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
     if from_unit == to_unit {
@@ -60,16 +61,16 @@ impl Unit {
                     BigInteger => {
                         let big_integer: &big::Integer = term.unbox_reference();
                         let big_integer_usize: usize =
-                            big_integer.try_into().map_err(|_| BadArgument)?;
+                            big_integer.try_into().map_err(|_| bad_argument!())?;
 
                         Ok(Unit::Hertz(big_integer_usize))
                     }
-                    _ => Err(BadArgument),
+                    _ => Err(bad_argument!()),
                 }
             }
             Atom => {
                 let term_string = term.atom_to_string(process);
-                let mut result = Err(BadArgument);
+                let mut result = Err(bad_argument!());
 
                 for (s, unit) in [
                     ("second", Unit::Second),
@@ -93,7 +94,7 @@ impl Unit {
 
                 result
             }
-            _ => Err(BadArgument),
+            _ => Err(bad_argument!()),
         }
     }
 

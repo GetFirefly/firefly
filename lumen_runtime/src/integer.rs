@@ -3,8 +3,8 @@ use std::convert::{TryFrom, TryInto};
 
 use num_bigint::BigInt;
 
+use crate::bad_argument::BadArgument;
 use crate::process::{DebugInProcess, OrderInProcess, Process};
-use crate::term::BadArgument;
 
 pub mod big;
 pub mod small;
@@ -99,7 +99,7 @@ impl TryFrom<Integer> for usize {
     fn try_from(integer: Integer) -> Result<usize, BadArgument> {
         match integer {
             Integer::Small(small::Integer(untagged)) => {
-                untagged.try_into().map_err(|_| BadArgument)
+                untagged.try_into().map_err(|_| bad_argument!())
             }
             Integer::Big(big_int) => big_int_to_usize(&big_int),
         }

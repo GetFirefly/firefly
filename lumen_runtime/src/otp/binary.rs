@@ -1,6 +1,7 @@
+use crate::bad_argument::BadArgument;
 use crate::binary::{heap, sub, PartToList};
 use crate::process::Process;
-use crate::term::{BadArgument, Tag, Term};
+use crate::term::{Tag, Term};
 
 /// Converts `binary` to a list of bytes, each representing the value of one byte.
 ///
@@ -37,9 +38,9 @@ pub fn bin_to_list(
 
                     subbinary.part_to_list(position, length, &mut process)
                 }
-                _ => Err(BadArgument),
+                _ => Err(bad_argument!()),
             }
         }
-        _ => Err(BadArgument),
+        _ => Err(bad_argument!()),
     }
 }

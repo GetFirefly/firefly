@@ -8,12 +8,12 @@ use num_bigint::BigInt;
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Existence};
+use crate::bad_argument::BadArgument;
 use crate::binary::{heap, sub, Binary};
 use crate::environment::Environment;
 use crate::float::Float;
 use crate::integer::{self, big};
 use crate::list::List;
-use crate::term::BadArgument;
 use crate::term::Term;
 use crate::tuple::Tuple;
 
@@ -119,7 +119,10 @@ impl DebugInProcess for Result<Term, BadArgument> {
     fn format_in_process(&self, process: &Process) -> String {
         match self {
             Ok(term) => format!("Ok({})", term.format_in_process(process)),
-            Err(BadArgument) => "Err(BadArgument)".to_string(),
+            Err(BadArgument { file, line, column }) => format!(
+                "Err(BadArgument {{ file: {:?}, line: {:?}, column: {:?} }})",
+                file, line, column
+            ),
         }
     }
 }
@@ -138,7 +141,7 @@ impl OrderInProcess for Result<Term, BadArgument> {
             (Ok(self_ok), Ok(other_ok)) => self_ok.cmp_in_process(&other_ok, process),
             (Ok(_), Err(_)) => Ordering::Less,
             (Err(_), Ok(_)) => Ordering::Greater,
-            (Err(BadArgument), Err(BadArgument)) => Ordering::Equal,
+            (Err(BadArgument { .. }), Err(BadArgument { .. })) => Ordering::Equal,
         }
     }
 }

@@ -1082,12 +1082,18 @@ mod tests {
     mod cmp_in_process {
         use super::*;
 
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
+
         mod less {
             use super::*;
 
             #[test]
             fn number_is_less_than_atom() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let number_term: Term = 0.into_process(&mut process);
                 let atom_term = Term::str_to_atom("0", Existence::DoNotCare, &mut process).unwrap();
 
@@ -1097,7 +1103,9 @@ mod tests {
 
             #[test]
             fn atom_is_less_than_tuple() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let atom_term = Term::str_to_atom("0", Existence::DoNotCare, &mut process).unwrap();
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
@@ -1107,7 +1115,9 @@ mod tests {
 
             #[test]
             fn atom_is_less_than_atom_if_name_is_less_than() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let greater_name = "b";
                 let greater_term =
                     Term::str_to_atom(greater_name, Existence::DoNotCare, &mut process).unwrap();
@@ -1127,7 +1137,9 @@ mod tests {
 
             #[test]
             fn shorter_tuple_is_less_than_longer_tuple() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let shorter_tuple = Term::slice_to_tuple(&[], &mut process);
                 let longer_tuple =
                     Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
@@ -1138,7 +1150,9 @@ mod tests {
 
             #[test]
             fn same_length_tuples_with_lesser_elements_is_lesser() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let lesser_tuple =
                     Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
                 let greater_tuple =
@@ -1150,7 +1164,9 @@ mod tests {
 
             #[test]
             fn tuple_is_less_than_empty_list() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
                 let empty_list_term = Term::EMPTY_LIST;
 
@@ -1160,7 +1176,9 @@ mod tests {
 
             #[test]
             fn tuple_is_less_than_list() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
                 let list_term = list_term(&mut process);
 
@@ -1174,7 +1192,9 @@ mod tests {
 
             #[test]
             fn with_improper_list() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let list_term = Term::cons(
                     0.into_process(&mut process),
                     1.into_process(&mut process),
@@ -1198,7 +1218,9 @@ mod tests {
 
             #[test]
             fn with_proper_list() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let list_term =
                     Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process);
                 let equal_list_term =
@@ -1213,7 +1235,9 @@ mod tests {
 
             #[test]
             fn with_nested_list() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let list_term = Term::cons(
                     0.into_process(&mut process),
                     Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
@@ -1237,7 +1261,9 @@ mod tests {
 
             #[test]
             fn with_lists_of_unequal_length() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let list_term = Term::cons(
                     0.into_process(&mut process),
                     Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
@@ -1268,7 +1294,9 @@ mod tests {
 
             #[test]
             fn with_tuples_of_unequal_length() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let tuple_term =
                     Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
                 let equal_term =
@@ -1285,7 +1313,9 @@ mod tests {
 
             #[test]
             fn with_heap_binaries_of_unequal_length() {
-                let mut process: Process = Default::default();
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
                 let heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
                 let equal_heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
                 let shorter_heap_binary_term = Term::slice_to_binary(&[0], &mut process);
@@ -1302,9 +1332,15 @@ mod tests {
     mod is_empty_list {
         use super::*;
 
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
+
         #[test]
         fn with_atom_is_false() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
 
             assert_eq!(atom_term.is_empty_list(), false);
@@ -1317,7 +1353,9 @@ mod tests {
 
         #[test]
         fn with_list_is_false() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
@@ -1326,7 +1364,9 @@ mod tests {
 
         #[test]
         fn with_small_integer_is_false() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let small_integer_term = small_integer_term(&mut process, 0);
 
             assert_eq!(small_integer_term.is_empty_list(), false);
@@ -1334,7 +1374,9 @@ mod tests {
 
         #[test]
         fn with_tuple_is_false() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple_term = tuple_term(&mut process);
 
             assert_eq!(tuple_term.is_empty_list(), false);
@@ -1342,7 +1384,9 @@ mod tests {
 
         #[test]
         fn with_heap_binary_is_false() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
             assert_eq!(heap_binary_term.is_empty_list(), false);

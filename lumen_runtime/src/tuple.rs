@@ -216,11 +216,16 @@ mod tests {
     mod from_slice {
         use super::*;
 
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
         use crate::process::IntoProcess;
 
         #[test]
         fn without_elements() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
             let tuple_pointer = tuple as *const Tuple;
@@ -230,7 +235,9 @@ mod tests {
 
         #[test]
         fn with_elements() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
             let tuple_pointer = tuple as *const Tuple;
@@ -249,11 +256,16 @@ mod tests {
     mod element {
         use super::*;
 
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
         use crate::process::IntoProcess;
 
         #[test]
         fn without_valid_index() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
             assert_eq_in_process!(tuple.element(0), Err(bad_argument!()), process);
@@ -261,7 +273,9 @@ mod tests {
 
         #[test]
         fn with_valid_index() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
             assert_eq_in_process!(tuple.element(0), Ok(0.into_process(&mut process)), process);
@@ -271,11 +285,16 @@ mod tests {
     mod eq {
         use super::*;
 
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
         use crate::process::IntoProcess;
 
         #[test]
         fn without_element() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
             let equal = Tuple::from_slice(&[], &mut process.term_arena);
 
@@ -285,7 +304,9 @@ mod tests {
 
         #[test]
         fn with_unequal_length() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
             let unequal = Tuple::from_slice(
                 &[0.into_process(&mut process), 1.into_process(&mut process)],
@@ -300,12 +321,16 @@ mod tests {
         use super::*;
 
         use std::convert::TryInto;
+        use std::sync::{Arc, RwLock};
 
+        use crate::environment::{self, Environment};
         use crate::process::IntoProcess;
 
         #[test]
         fn without_elements() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
             assert_eq!(tuple.iter().count(), 0);
@@ -317,7 +342,9 @@ mod tests {
 
         #[test]
         fn with_elements() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
             assert_eq!(tuple.iter().count(), 1);
@@ -331,11 +358,16 @@ mod tests {
     mod size {
         use super::*;
 
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
         use crate::process::IntoProcess;
 
         #[test]
         fn without_elements() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
             assert_eq_in_process!(tuple.size(), &0.into(), process);
@@ -343,7 +375,10 @@ mod tests {
 
         #[test]
         fn with_elements() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
+
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
             assert_eq_in_process!(tuple.size(), &1.into(), process);

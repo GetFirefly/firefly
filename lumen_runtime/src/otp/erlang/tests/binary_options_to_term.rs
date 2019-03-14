@@ -1,11 +1,17 @@
 use super::*;
 
+use std::sync::{Arc, RwLock};
+
+use crate::environment::{self, Environment};
+
 mod with_safe {
     use super::*;
 
     #[test]
     fn with_binary_encoding_atom_that_does_not_exist_returns_bad_argument() {
-        let mut process: Process = Default::default();
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+        let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+        let mut process = process_rw_lock.write().unwrap();
         // :erlang.term_to_binary(:atom)
         let binary_term = Term::slice_to_binary(&[131, 100, 0, 4, 97, 116, 111, 109], &mut process);
         let options = Term::cons(
@@ -28,7 +34,9 @@ mod with_safe {
 
     #[test]
     fn with_binary_encoding_list_containing_atom_that_does_not_exist_returns_bad_argument() {
-        let mut process: Process = Default::default();
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+        let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+        let mut process = process_rw_lock.write().unwrap();
         // :erlang.term_to_binary([:atom])
         let binary_term = Term::slice_to_binary(
             &[131, 108, 0, 0, 0, 1, 100, 0, 4, 97, 116, 111, 109, 106],
@@ -58,7 +66,9 @@ mod with_safe {
 
     #[test]
     fn with_binary_encoding_small_tuple_containing_atom_that_does_not_exist_returns_bad_argument() {
-        let mut process: Process = Default::default();
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+        let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+        let mut process = process_rw_lock.write().unwrap();
         // :erlang.term_to_binary({:atom})
         let binary_term =
             Term::slice_to_binary(&[131, 104, 1, 100, 0, 4, 97, 116, 111, 109], &mut process);
@@ -85,7 +95,9 @@ mod with_safe {
 
     #[test]
     fn with_binary_encoding_small_atom_utf8_that_does_not_exist_returns_bad_argument() {
-        let mut process: Process = Default::default();
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+        let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+        let mut process = process_rw_lock.write().unwrap();
         // :erlang.term_to_binary(:"😈")
         let binary_term = Term::slice_to_binary(&[131, 119, 4, 240, 159, 152, 136], &mut process);
         let options = Term::cons(
@@ -109,7 +121,9 @@ mod with_safe {
 
 #[test]
 fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     // <<131,100,0,5,"hello","world">>
     let binary_term = Term::slice_to_binary(
         &[

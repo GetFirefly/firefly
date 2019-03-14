@@ -1,7 +1,5 @@
 use super::*;
 
-use std::cmp::Ordering;
-
 use crate::otp::erlang;
 
 mod abs;
@@ -34,6 +32,7 @@ mod is_list;
 mod is_tuple;
 mod length;
 mod list_to_pid;
+mod self_pid;
 mod size;
 mod tail;
 

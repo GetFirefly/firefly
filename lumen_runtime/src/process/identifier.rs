@@ -43,3 +43,32 @@ impl OrderInProcess for External {
         }
     }
 }
+
+pub struct LocalCounter {
+    serial: usize,
+    number: usize,
+}
+
+impl LocalCounter {
+    pub fn next(&mut self) -> Term {
+        let local_pid = Term::local_pid(self.number, self.serial).unwrap();
+
+        if NUMBER_MAX <= self.number {
+            self.serial += 1;
+            self.number = 0;
+        } else {
+            self.number += 1;
+        }
+
+        local_pid
+    }
+}
+
+impl Default for LocalCounter {
+    fn default() -> LocalCounter {
+        LocalCounter {
+            serial: 0,
+            number: 0,
+        }
+    }
+}

@@ -1,8 +1,14 @@
 use super::*;
 
+use std::sync::{Arc, RwLock};
+
+use crate::environment::{self, Environment};
+
 #[test]
 fn with_atom_is_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -15,7 +21,9 @@ fn with_atom_is_bad_argument() {
 
 #[test]
 fn with_empty_list_is_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
@@ -27,7 +35,9 @@ fn with_empty_list_is_bad_argument() {
 
 #[test]
 fn with_list_is_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let list_term = list_term(&mut process);
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -45,7 +55,9 @@ mod with_small_integer {
 
     #[test]
     fn without_valid_units_returns_bad_argument() {
-        let mut process: Process = Default::default();
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+        let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+        let mut process = process_rw_lock.write().unwrap();
         let small_integer_term: Term = 0.into_process(&mut process);
         let valid_unit_term =
             Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -74,7 +86,9 @@ mod with_small_integer {
 
     #[test]
     fn with_valid_units_returns_converted_value() {
-        let mut process: Process = Default::default();
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+        let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+        let mut process = process_rw_lock.write().unwrap();
         let small_integer_term: Term = 1_000_000_000.into_process(&mut process);
 
         assert_eq!(small_integer_term.tag(), Tag::SmallInteger);
@@ -676,7 +690,9 @@ mod with_big_integer {
 
     #[test]
     fn without_valid_units_returns_bad_argument() {
-        let mut process: Process = Default::default();
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+        let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+        let mut process = process_rw_lock.write().unwrap();
         let big_integer_term: Term =
             <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
                 .unwrap()
@@ -711,7 +727,9 @@ mod with_big_integer {
 
     #[test]
     fn with_valid_units_returns_converted_value() {
-        let mut process: Process = Default::default();
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+        let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+        let mut process = process_rw_lock.write().unwrap();
         let big_integer_term: Term =
             <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
                 .unwrap()
@@ -1435,7 +1453,9 @@ mod with_big_integer {
 
 #[test]
 fn with_float_returns_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let float_term = 1.0.into_process(&mut process);
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -1448,7 +1468,9 @@ fn with_float_returns_bad_argument() {
 
 #[test]
 fn with_local_pid_is_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let local_pid_term = Term::local_pid(0, 0).unwrap();
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -1461,7 +1483,9 @@ fn with_local_pid_is_bad_argument() {
 
 #[test]
 fn with_external_pid_is_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -1479,7 +1503,9 @@ fn with_external_pid_is_bad_argument() {
 
 #[test]
 fn with_tuple_is_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let tuple_term = Term::slice_to_tuple(&[], &mut process);
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -1492,7 +1518,9 @@ fn with_tuple_is_bad_argument() {
 
 #[test]
 fn with_heap_binary_is_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let heap_binary_term = Term::slice_to_binary(&[1], &mut process);
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -1505,7 +1533,9 @@ fn with_heap_binary_is_bad_argument() {
 
 #[test]
 fn with_subbinary_is_bad_argument() {
-    let mut process: Process = Default::default();
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
     let binary_term = Term::slice_to_binary(&[0, 1], &mut process);
     let subbinary_term = Term::subbinary(binary_term, 1, 0, 1, 0, &mut process);
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();

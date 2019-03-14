@@ -181,11 +181,16 @@ mod tests {
     mod eq {
         use super::*;
 
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
         use crate::process::IntoProcess;
 
         #[test]
         fn with_proper() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let cons = Cons::new(0.into_process(&mut process), Term::EMPTY_LIST);
             let equal = Cons::new(0.into_process(&mut process), Term::EMPTY_LIST);
             let unequal = Cons::new(1.into_process(&mut process), Term::EMPTY_LIST);
@@ -197,7 +202,9 @@ mod tests {
 
         #[test]
         fn with_improper() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             let cons = Cons::new(0.into_process(&mut process), 1.into_process(&mut process));
             let equal = Cons::new(0.into_process(&mut process), 1.into_process(&mut process));
             let unequal = Cons::new(1.into_process(&mut process), 0.into_process(&mut process));

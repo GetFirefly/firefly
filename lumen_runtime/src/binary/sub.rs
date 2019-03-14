@@ -387,9 +387,15 @@ mod tests {
     mod byte_iter {
         use super::*;
 
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
+
         #[test]
         fn is_double_ended() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
             // <<1::1, 0, 1, 2>>
             let binary = Term::slice_to_binary(&[128, 0, 129, 0b0000_0000], &mut process);
             let subbinary = Binary::new(binary, 0, 1, 3, 0);

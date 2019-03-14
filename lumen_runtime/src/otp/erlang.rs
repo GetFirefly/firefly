@@ -558,6 +558,10 @@ pub fn list_to_pid(string: Term, mut process: &mut Process) -> Result<Term, BadA
     cons.to_pid(&mut process)
 }
 
+pub fn self_pid(process: &Process) -> Term {
+    process.pid
+}
+
 pub fn size(binary_or_tuple: Term, mut process: &mut Process) -> Result<Term, BadArgument> {
     match binary_or_tuple.tag() {
         Tag::Boxed => {

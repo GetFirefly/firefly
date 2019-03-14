@@ -19,13 +19,9 @@ pub enum Binary<'a> {
 }
 
 impl<'a> Binary<'a> {
-    pub fn from_slice(bytes: &[u8], process: &mut Process) -> Self {
+    pub fn from_slice(bytes: &[u8], mut process: &mut Process) -> Self {
         // TODO use reference counted binaries for bytes.len() > 64
-        let heap_binary = heap::Binary::from_slice(
-            bytes,
-            &mut process.heap_binary_arena,
-            &mut process.byte_arena,
-        );
+        let heap_binary = heap::Binary::from_slice(bytes, &mut process);
 
         Binary::Heap(heap_binary)
     }

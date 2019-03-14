@@ -1,7 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 ///! The memory specific to a process in the VM.
 use std::cmp::Ordering;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Weak};
 
 use num_bigint::BigInt;
 
@@ -20,7 +20,10 @@ use crate::tuple::Tuple;
 pub mod identifier;
 
 pub struct Process {
-    environment: Arc<RwLock<Environment>>,
+    // parent pointer, so must be held weakly to prevent cycle with this field and
+    // `Environment.process_by_pid`.
+    environment: Weak<RwLock<Environment>>,
+    pub pid: Term,
     big_integer_arena: TypedArena<big::Integer>,
     pub byte_arena: TypedArena<u8>,
     external_pid_arena: TypedArena<identifier::External>,
@@ -33,7 +36,8 @@ pub struct Process {
 impl Process {
     pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
         Process {
-            environment,
+            environment: Arc::downgrade(&Arc::clone(&environment)),
+            pid: environment.write().unwrap().next_pid(),
             big_integer_arena: Default::default(),
             byte_arena: Default::default(),
             external_pid_arena: Default::default(),
@@ -46,6 +50,8 @@ impl Process {
 
     pub fn atom_index_to_string(&self, atom_index: atom::Index) -> String {
         self.environment
+            .upgrade()
+            .unwrap()
             .read()
             .unwrap()
             .atom_index_to_string(atom_index)
@@ -113,6 +119,8 @@ impl Process {
         existence: Existence,
     ) -> Result<atom::Index, BadArgument> {
         self.environment
+            .upgrade()
+            .unwrap()
             .write()
             .unwrap()
             .str_to_atom_index(name, existence)
@@ -167,6 +175,8 @@ impl OrderInProcess for Result<Term, BadArgument> {
 #[macro_export]
 macro_rules! assert_cmp_in_process {
     ($left:expr, $ordering:expr, $right:expr, $process:expr) => ({
+        use std::cmp::Ordering;
+
         use crate::process::{DebugInProcess, OrderInProcess};
 
         match (&$left, &$ordering, &$right, &$process) {
@@ -192,6 +202,8 @@ macro_rules! assert_cmp_in_process {
         assert_cmp_in_process!($left, $ordering, $right, $process)
     });
     ($left:expr, $ordering:expr, $right:expr, $process:expr, $($arg:tt)+) => ({
+        use std::cmp::Ordering;
+
         use crate::process::{DebugInProcess, OrderInProcess};
 
         match (&$left, &$ordering, &$right, &$process) {
@@ -219,6 +231,8 @@ macro_rules! assert_cmp_in_process {
 #[macro_export]
 macro_rules! refute_cmp_in_process {
     ($left:expr, $ordering:expr, $right:expr, $process:expr) => ({
+        use std::cmp::Ordering;
+
         use crate::process::{DebugInProcess, OrderInProcess};
 
         match (&$left, &$ordering, &$right, &$process) {
@@ -244,6 +258,8 @@ macro_rules! refute_cmp_in_process {
         assert_cmp_in_process!($left, $ordering, $right, $process)
     });
     ($left:expr, $ordering:expr, $right:expr, $process:expr, $($arg:tt)+) => ({
+        use std::cmp::Ordering;
+
         use crate::process::{DebugInProcess, OrderInProcess};
 
         match (&$left, &$ordering, &$right, &$process) {
@@ -328,22 +344,75 @@ impl IntoProcess<Term> for BigInt {
 }
 
 #[cfg(test)]
-impl Default for Process {
-    fn default() -> Process {
-        Process::new(Arc::new(RwLock::new(Environment::new())))
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
+
+    mod pid {
+        use super::*;
+
+        use crate::environment;
+        use crate::otp::erlang;
+
+        #[test]
+        fn different_processes_in_same_environment_have_different_pids() {
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+
+            let first_process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let first_process = first_process_rw_lock.read().unwrap();
+
+            let second_process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let second_process = second_process_rw_lock.read().unwrap();
+
+            assert_ne_in_process!(
+                erlang::self_pid(&first_process),
+                erlang::self_pid(&second_process),
+                first_process
+            );
+            assert_eq_in_process!(
+                erlang::self_pid(&first_process),
+                Term::local_pid(0, 0).unwrap(),
+                first_process
+            );
+            assert_eq_in_process!(
+                erlang::self_pid(&second_process),
+                Term::local_pid(1, 0).unwrap(),
+                second_process
+            );
+        }
+
+        #[test]
+        fn number_rolling_over_increments_serial() {
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+
+            let first_process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let first_process = first_process_rw_lock.read().unwrap();
+
+            let mut final_pid = None;
+
+            for _ in 0..identifier::NUMBER_MAX + 1 {
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let process = process_rw_lock.read().unwrap();
+                final_pid = Some(erlang::self_pid(&process))
+            }
+
+            assert_eq_in_process!(
+                final_pid.unwrap(),
+                Term::local_pid(0, 1).unwrap(),
+                first_process
+            );
+        }
+    }
 
     mod str_to_atom_index {
         use super::*;
 
+        use crate::environment;
+
         #[test]
         fn without_same_string_have_different_index() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
 
             assert_ne!(
                 process
@@ -359,7 +428,9 @@ mod tests {
 
         #[test]
         fn with_same_string_have_same_index() {
-            let mut process: Process = Default::default();
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
 
             assert_eq!(
                 process

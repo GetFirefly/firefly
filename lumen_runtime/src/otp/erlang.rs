@@ -531,6 +531,22 @@ pub fn is_list(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
+pub fn is_pid(term: Term, mut process: &mut Process) -> Term {
+    match term.tag() {
+        Tag::LocalPid => true,
+        Tag::Boxed => {
+            let unboxed: &Term = term.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::ExternalPid => true,
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+    .into_process(&mut process)
+}
+
 pub fn is_tuple(term: Term, mut process: &mut Process) -> Term {
     (term.tag() == Tag::Boxed && term.unbox_reference::<Term>().tag() == Tag::Arity)
         .into_process(&mut process)

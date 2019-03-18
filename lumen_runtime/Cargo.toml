@@ -14,6 +14,8 @@ cfg-if = "0.1.7"
 clap = "2.32.0"
 colored = "1.6"
 crossbeam = "0.5"
+# immutable HashMap to back maps.
+im-rc = "12.3"
 lazy_static = "1.2"
 libc = "0.2"
 liblumen_arena = { path = "../liblumen_arena" }

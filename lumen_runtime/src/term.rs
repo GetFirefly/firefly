@@ -3,7 +3,9 @@
 use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Display};
+use std::hash::{Hash, Hasher};
 use std::mem::size_of;
+use std::str::Chars;
 
 use num_bigint::BigInt;
 
@@ -18,7 +20,6 @@ use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::process::{self, DebugInProcess, IntoProcess, OrderInProcess, Process};
 use crate::tuple::Tuple;
-use std::str::Chars;
 
 pub mod external_format;
 
@@ -347,6 +348,10 @@ impl Term {
         process.slice_to_binary(slice).into()
     }
 
+    pub fn slice_to_map(slice: &[(Term, Term)], process: &mut Process) -> Term {
+        process.slice_to_map(slice).into()
+    }
+
     pub fn slice_to_tuple(slice: &[Term], process: &mut Process) -> Term {
         process.slice_to_tuple(slice).into()
     }
@@ -548,6 +553,8 @@ impl DebugInProcess for Term {
     }
 }
 
+impl Eq for Term {}
+
 impl<'a> From<binary::Binary<'a>> for Term {
     fn from(binary: binary::Binary<'a>) -> Self {
         match binary {
@@ -583,6 +590,14 @@ impl From<&Term> for isize {
 impl<T> From<&T> for Term {
     fn from(reference: &T) -> Self {
         Term::box_reference(reference)
+    }
+}
+
+impl Hash for Term {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self.tag() {
+            tag => unimplemented!("tag {:?}", tag),
+        }
     }
 }
 
@@ -725,6 +740,24 @@ impl PartToList<Term, Term> for sub::Binary {
         let length_isize: isize = length.try_into()?;
 
         self.part_to_list(start_usize, length_isize, process)
+    }
+}
+
+impl PartialEq for Term {
+    fn eq(&self, other: &Term) -> bool {
+        let tag = self.tag();
+
+        if tag == other.tag() {
+            match tag {
+                _ => unimplemented!("tag ({:?})", tag),
+            }
+        } else {
+            false
+        }
+    }
+
+    fn ne(&self, other: &Term) -> bool {
+        !self.eq(other)
     }
 }
 

@@ -29,6 +29,7 @@ mod float;
 mod integer;
 mod list;
 mod logging;
+mod map;
 mod otp;
 mod system;
 mod term;

@@ -14,6 +14,7 @@ use crate::environment::Environment;
 use crate::float::Float;
 use crate::integer::{self, big};
 use crate::list::List;
+use crate::map::Map;
 use crate::term::Term;
 use crate::tuple::Tuple;
 
@@ -29,6 +30,7 @@ pub struct Process {
     external_pid_arena: TypedArena<identifier::External>,
     float_arena: TypedArena<Float>,
     pub heap_binary_arena: TypedArena<heap::Binary>,
+    pub map_arena: TypedArena<Map>,
     pub subbinary_arena: TypedArena<sub::Binary>,
     pub term_arena: TypedArena<Term>,
 }
@@ -43,6 +45,7 @@ impl Process {
             external_pid_arena: Default::default(),
             float_arena: Default::default(),
             heap_binary_arena: Default::default(),
+            map_arena: Default::default(),
             subbinary_arena: Default::default(),
             term_arena: Default::default(),
         }
@@ -128,6 +131,10 @@ impl Process {
 
     pub fn slice_to_binary(&mut self, slice: &[u8]) -> Binary {
         Binary::from_slice(slice, self)
+    }
+
+    pub fn slice_to_map(&mut self, slice: &[(Term, Term)]) -> &Map {
+        Map::from_slice(slice, self)
     }
 
     pub fn slice_to_tuple(&mut self, slice: &[Term]) -> &Tuple {

@@ -145,6 +145,20 @@ fn with_tuple_is_false() {
 }
 
 #[test]
+fn with_map_is_false() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let map_term = Term::slice_to_map(&[], &mut process);
+
+    assert_eq_in_process!(
+        erlang::is_integer(map_term, &mut process),
+        false.into_process(&mut process),
+        process
+    );
+}
+
+#[test]
 fn with_heap_binary_is_false() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

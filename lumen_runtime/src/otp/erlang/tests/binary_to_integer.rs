@@ -88,6 +88,16 @@ fn with_tuple_is_bad_argument() {
 }
 
 #[test]
+fn with_map_is_bad_argument() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let map_term = Term::slice_to_map(&[], &mut process);
+
+    assert_bad_argument!(erlang::binary_to_integer(map_term, &mut process), process);
+}
+
+#[test]
 fn with_heap_binary_with_min_small_integer_returns_small_integer() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

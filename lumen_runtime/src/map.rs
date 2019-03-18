@@ -4,6 +4,7 @@ use crate::process::Process;
 use crate::term::{Tag, Term};
 
 pub struct Map {
+    #[allow(dead_code)]
     header: Term,
     inner: HashMap<Term, Term>,
 }

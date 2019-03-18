@@ -594,7 +594,7 @@ impl<T> From<&T> for Term {
 }
 
 impl Hash for Term {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, _state: &mut H) {
         match self.tag() {
             tag => unimplemented!("tag {:?}", tag),
         }

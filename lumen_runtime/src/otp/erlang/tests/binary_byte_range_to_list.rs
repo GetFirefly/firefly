@@ -171,6 +171,24 @@ fn with_tuple_is_bad_argument() {
 }
 
 #[test]
+fn with_map_is_bad_argument() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let map_term = Term::slice_to_map(&[], &mut process);
+
+    assert_bad_argument!(
+        erlang::binary_byte_range_to_list(
+            map_term,
+            2.into_process(&mut process),
+            3.into_process(&mut process),
+            &mut process
+        ),
+        process
+    );
+}
+
+#[test]
 fn with_heap_binary_with_start_less_than_stop_returns_list_of_bytes() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

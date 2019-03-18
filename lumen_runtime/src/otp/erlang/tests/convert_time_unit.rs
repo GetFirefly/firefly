@@ -1517,6 +1517,21 @@ fn with_tuple_is_bad_argument() {
 }
 
 #[test]
+fn with_map_is_bad_argument() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let map_term = Term::slice_to_map(&[], &mut process);
+    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+    assert_bad_argument!(
+        erlang::convert_time_unit(map_term, from_unit_term, to_unit_term, &mut process),
+        process
+    );
+}
+
+#[test]
 fn with_heap_binary_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

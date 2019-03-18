@@ -192,6 +192,19 @@ fn with_tuple_with_index_in_range_returns_tuple_without_element() {
 }
 
 #[test]
+fn with_map_is_bad_argument() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let map_term = Term::slice_to_map(&[], &mut process);
+
+    assert_bad_argument!(
+        erlang::delete_element(map_term, 0.into_process(&mut process), &mut process),
+        process
+    );
+}
+
+#[test]
 fn with_heap_binary_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

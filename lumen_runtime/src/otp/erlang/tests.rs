@@ -29,6 +29,7 @@ mod is_atom;
 mod is_binary;
 mod is_integer;
 mod is_list;
+mod is_pid;
 mod is_tuple;
 mod length;
 mod list_to_pid;

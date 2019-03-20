@@ -15,9 +15,9 @@
 extern crate cfg_if;
 
 #[macro_use]
-mod exception;
-#[macro_use]
 mod process;
+#[macro_use]
+mod exception;
 #[macro_use]
 mod support;
 

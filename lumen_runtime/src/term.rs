@@ -1135,6 +1135,17 @@ impl OrderInProcess for Term {
     }
 }
 
+impl OrderInProcess for Option<Term> {
+    fn cmp_in_process(&self, other: &Option<Term>, process: &Process) -> Ordering {
+        match (self, other) {
+            (None, Some(_)) => Ordering::Less,
+            (None, None) => Ordering::Equal,
+            (Some(self_term), Some(other_term)) => self_term.cmp_in_process(other_term, process),
+            (Some(_), None) => Ordering::Greater
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

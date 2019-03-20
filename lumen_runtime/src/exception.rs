@@ -115,3 +115,44 @@ macro_rules! error {
         error!($reason, $arguments)
     }};
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod error {
+        use super::*;
+
+        use std::sync::{Arc, RwLock};
+
+        use crate::atom::Existence::DoNotCare;
+        use crate::environment::{self, Environment};
+
+        #[test]
+        fn without_arguments_stores_none() {
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
+            let reason = Term::str_to_atom("badarg", DoNotCare, &mut process).unwrap();
+
+            let error = error!(reason);
+
+            assert_eq_in_process!(error.reason, reason, &mut process);
+            assert_eq_in_process!(error.arguments, None, &mut process);
+        }
+
+        #[test]
+        fn without_arguments_stores_some() {
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
+            let reason = Term::str_to_atom("badarg", DoNotCare, &mut process).unwrap();
+            let arguments = Term::EMPTY_LIST;
+
+            let error = error!(reason, arguments);
+
+            assert_eq_in_process!(error.reason, reason, &mut process);
+            assert_eq_in_process!(error.arguments, Some(arguments), &mut process);
+        }
+    }
+}

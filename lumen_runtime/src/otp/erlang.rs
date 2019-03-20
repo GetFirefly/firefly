@@ -428,8 +428,14 @@ pub fn element(tuple: Term, index: Term, mut process: &mut Process) -> Result {
     inner_tuple.element(inner_index, &mut process)
 }
 
+/// `error/1`
 pub fn error(reason: Term) -> Result {
     Err(error!(reason))
+}
+
+/// `error/2`
+pub fn error_with_arguments(reason: Term, arguments: Term) -> Result {
+    Err(error!(reason, arguments))
 }
 
 pub fn head(list: Term, mut process: &mut Process) -> Result {

@@ -12,6 +12,7 @@ pub enum Class {
 pub struct Exception {
     pub class: Class,
     pub reason: Term,
+    pub arguments: Option<Term>,
     pub file: &'static str,
     pub line: u32,
     pub column: u32,
@@ -66,6 +67,12 @@ macro_rules! assert_error {
     ($left:expr, $reason:expr, $process:expr,) => {{
         assert_eq_in_process!($left, Err(error!($reason)), $process)
     }};
+    ($left:expr, $reason:expr, $arguments:expr, $process:expr) => {{
+        assert_eq_in_process!($left, Err(error!($reason, $arguments)), $process)
+    }};
+    ($left:expr, $reason:expr, $arguments:expr, $process:expr,) => {{
+        assert_eq_in_process!($left, Err(error!($reason, $arguments)), $process)
+    }};
 }
 
 #[macro_export]
@@ -86,9 +93,25 @@ macro_rules! error {
         Exception {
             class: Error,
             reason: $reason,
+            arguments: None,
             file: file!(),
             line: line!(),
             column: column!(),
         }
+    }};
+    ($reason:expr, $arguments:expr) => {{
+        use crate::exception::{Class::Error, Exception};
+
+        Exception {
+            class: Error,
+            reason: $reason,
+            arguments: Some($arguments),
+            file: file!(),
+            line: line!(),
+            column: column!(),
+        }
+    }};
+    ($reason:expr, $arguments:expr,) => {{
+        error!($reason, $arguments)
     }};
 }

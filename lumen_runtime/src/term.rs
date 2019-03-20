@@ -576,6 +576,15 @@ impl DebugInProcess for Term {
     }
 }
 
+impl DebugInProcess for Option<Term> {
+    fn format_in_process(&self, process: &Process) -> String {
+        match self {
+            Some(term) => format!("Some({})", term.format_in_process(process)),
+            None => "None".to_string(),
+        }
+    }
+}
+
 impl Eq for Term {}
 
 impl<'a> From<binary::Binary<'a>> for Term {
@@ -617,8 +626,9 @@ impl<T> From<&T> for Term {
 }
 
 impl Hash for Term {
-    fn hash<H: Hasher>(&self, _state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         match self.tag() {
+            Tag::Atom => self.tagged.hash(state),
             tag => unimplemented!("tag {:?}", tag),
         }
     }
@@ -762,6 +772,7 @@ impl PartialEq for Term {
 
         if tag == other.tag() {
             match tag {
+                Tag::Atom => self.tagged == other.tagged,
                 _ => unimplemented!("tag ({:?})", tag),
             }
         } else {

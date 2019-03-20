@@ -152,9 +152,9 @@ impl DebugInProcess for exception::Result {
     fn format_in_process(&self, process: &Process) -> String {
         match self {
             Ok(term) => format!("Ok({})", term.format_in_process(process)),
-            Err(Exception { class, reason, file, line, column }) => format!(
-                "Err(BadArgument {{ class: {:?}, reason: {}, file: {:?}, line: {:?}, column: {:?} }})",
-                class, reason.format_in_process(&process), file, line, column
+            Err(Exception { class, reason, arguments, file, line, column }) => format!(
+                "Err(Exception {{ class: {:?}, reason: {}, arguments: {}, file: {:?}, line: {:?}, column: {:?} }})",
+                class, arguments.format_in_process(&process), reason.format_in_process(&process), file, line, column
             ),
         }
     }

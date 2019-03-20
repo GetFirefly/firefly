@@ -24,6 +24,7 @@ mod convert_time_unit;
 mod delete_element;
 mod element;
 mod error;
+mod error_with_arguments;
 mod head;
 mod insert_element;
 mod is_atom;

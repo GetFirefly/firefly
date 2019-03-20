@@ -4,7 +4,7 @@ use std::ops::Index;
 
 use liblumen_arena::TypedArena;
 
-use crate::bad_argument::BadArgument;
+use crate::exception::{self, Exception};
 use crate::integer::Integer;
 use crate::process::{DebugInProcess, OrderInProcess, Process};
 use crate::term::Term;
@@ -42,8 +42,8 @@ impl Tuple {
     pub fn delete_element(
         &self,
         index: usize,
-        mut term_arena: &mut TermArena,
-    ) -> Result<&'static Tuple, BadArgument> {
+        mut process: &mut Process,
+    ) -> Result<&'static Tuple, Exception> {
         let arity_usize = self.arity.arity_to_usize();
 
         if index < arity_usize {
@@ -58,21 +58,22 @@ impl Tuple {
                     }
                 })
                 .collect();
-            let smaller_tuple = Tuple::from_slice(smaller_element_vec.as_slice(), &mut term_arena);
+            let smaller_tuple =
+                Tuple::from_slice(smaller_element_vec.as_slice(), &mut process.term_arena);
 
             Ok(smaller_tuple)
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 
-    pub fn element(&self, index: usize) -> Result<Term, BadArgument> {
+    pub fn element(&self, index: usize, mut process: &mut Process) -> exception::Result {
         let arity_usize = self.arity.arity_to_usize();
 
         if index < arity_usize {
             Ok(self[index])
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 
@@ -80,8 +81,8 @@ impl Tuple {
         &self,
         index: usize,
         element: Term,
-        mut term_arena: &mut TermArena,
-    ) -> Result<&'static Tuple, BadArgument> {
+        mut process: &mut Process,
+    ) -> Result<&'static Tuple, Exception> {
         let arity_usize = self.arity.arity_to_usize();
 
         // can be equal to arity when insertion is at the end
@@ -101,11 +102,11 @@ impl Tuple {
                 larger_element_vec.push(element);
             }
 
-            let tuple = Tuple::from_slice(larger_element_vec.as_slice(), &mut term_arena);
+            let tuple = Tuple::from_slice(larger_element_vec.as_slice(), &mut process.term_arena);
 
             Ok(tuple)
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 
@@ -268,7 +269,7 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_eq_in_process!(tuple.element(0), Err(bad_argument!()), process);
+            assert_bad_argument!(tuple.element(0, &mut process), &mut process);
         }
 
         #[test]
@@ -278,7 +279,11 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
-            assert_eq_in_process!(tuple.element(0), Ok(0.into_process(&mut process)), process);
+            assert_eq_in_process!(
+                tuple.element(0, &mut process),
+                Ok(0.into_process(&mut process)),
+                process
+            );
         }
     }
 
@@ -320,11 +325,10 @@ mod tests {
     mod iter {
         use super::*;
 
-        use std::convert::TryInto;
         use std::sync::{Arc, RwLock};
 
         use crate::environment::{self, Environment};
-        use crate::process::IntoProcess;
+        use crate::process::{IntoProcess, TryIntoInProcess};
 
         #[test]
         fn without_elements() {
@@ -335,7 +339,7 @@ mod tests {
 
             assert_eq!(tuple.iter().count(), 0);
 
-            let size_usize: usize = tuple.size().try_into().unwrap();
+            let size_usize: usize = tuple.size().try_into_in_process(&mut process).unwrap();
 
             assert_eq!(tuple.iter().count(), size_usize);
         }
@@ -349,7 +353,7 @@ mod tests {
 
             assert_eq!(tuple.iter().count(), 1);
 
-            let size_usize: usize = tuple.size().try_into().unwrap();
+            let size_usize: usize = tuple.size().try_into_in_process(&mut process).unwrap();
 
             assert_eq!(tuple.iter().count(), size_usize);
         }

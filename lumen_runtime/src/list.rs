@@ -1,10 +1,9 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use std::cmp::Ordering;
-use std::convert::TryInto;
 
-use crate::bad_argument::BadArgument;
-use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
+use crate::exception::Exception;
+use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryIntoInProcess};
 use crate::term::{Tag::*, Term};
 
 pub type List = *const Term;
@@ -29,31 +28,33 @@ impl Cons {
         self.tail
     }
 
-    pub fn to_pid(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
-        let prefix_tail = self.skip_pid_prefix()?;
-        let prefix_tail_cons: &Cons = prefix_tail.try_into()?;
+    pub fn to_pid(&self, mut process: &mut Process) -> Result<Term, Exception> {
+        let prefix_tail = self.skip_pid_prefix(&mut process)?;
+        let prefix_tail_cons: &Cons = prefix_tail.try_into_in_process(&mut process)?;
 
-        let (node, node_tail) = prefix_tail_cons.next_decimal()?;
-        let node_tail_cons: &Cons = node_tail.try_into()?;
+        let (node, node_tail) = prefix_tail_cons.next_decimal(&mut process)?;
+        let node_tail_cons: &Cons = node_tail.try_into_in_process(&mut process)?;
 
-        let first_separator_tail = node_tail_cons.skip_pid_separator()?;
-        let first_separator_tail_cons: &Cons = first_separator_tail.try_into()?;
+        let first_separator_tail = node_tail_cons.skip_pid_separator(&mut process)?;
+        let first_separator_tail_cons: &Cons =
+            first_separator_tail.try_into_in_process(&mut process)?;
 
-        let (number, number_tail) = first_separator_tail_cons.next_decimal()?;
-        let number_tail_cons: &Cons = number_tail.try_into()?;
+        let (number, number_tail) = first_separator_tail_cons.next_decimal(&mut process)?;
+        let number_tail_cons: &Cons = number_tail.try_into_in_process(&mut process)?;
 
-        let second_separator_tail = number_tail_cons.skip_pid_separator()?;
-        let second_separator_tail_cons: &Cons = second_separator_tail.try_into()?;
+        let second_separator_tail = number_tail_cons.skip_pid_separator(&mut process)?;
+        let second_separator_tail_cons: &Cons =
+            second_separator_tail.try_into_in_process(&mut process)?;
 
-        let (serial, serial_tail) = second_separator_tail_cons.next_decimal()?;
-        let serial_tail_cons: &Cons = serial_tail.try_into()?;
+        let (serial, serial_tail) = second_separator_tail_cons.next_decimal(&mut process)?;
+        let serial_tail_cons: &Cons = serial_tail.try_into_in_process(&mut process)?;
 
-        let suffix_tail = serial_tail_cons.skip_pid_suffix()?;
+        let suffix_tail = serial_tail_cons.skip_pid_suffix(&mut process)?;
 
         if suffix_tail.is_empty_list() {
             Term::pid(node, number, serial, &mut process)
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 
@@ -61,25 +62,29 @@ impl Cons {
     const PID_SEPARATOR: Term = unsafe { Term::isize_to_small_integer('.' as isize) };
     const PID_SUFFIX: Term = unsafe { Term::isize_to_small_integer('>' as isize) };
 
-    fn next_decimal(&self) -> Result<(usize, Term), BadArgument> {
-        self.next_decimal_digit()
-            .and_then(&Self::rest_decimal_digits)
+    fn next_decimal(&self, mut process: &mut Process) -> Result<(usize, Term), Exception> {
+        self.next_decimal_digit(&mut process)
+            .and_then(|(first_digit, first_tail)| {
+                Self::rest_decimal_digits(first_digit, first_tail, &mut process)
+            })
     }
 
     fn rest_decimal_digits(
-        (first_digit, first_tail): (u8, Term),
-    ) -> Result<(usize, Term), BadArgument> {
-        match first_tail.try_into() {
+        first_digit: u8,
+        first_tail: Term,
+        mut process: &mut Process,
+    ) -> Result<(usize, Term), Exception> {
+        match first_tail.try_into_in_process(&mut process) {
             Ok(first_tail_cons) => {
                 let mut acc_decimal: usize = first_digit as usize;
                 let mut acc_tail = first_tail;
                 let mut acc_cons: &Cons = first_tail_cons;
 
-                while let Ok((digit, tail)) = acc_cons.next_decimal_digit() {
+                while let Ok((digit, tail)) = acc_cons.next_decimal_digit(&mut process) {
                     acc_decimal = 10 * acc_decimal + (digit as usize);
                     acc_tail = tail;
 
-                    match tail.try_into() {
+                    match tail.try_into_in_process(&mut process) {
                         Ok(tail_cons) => acc_cons = tail_cons,
                         Err(_) => {
                             break;
@@ -93,7 +98,7 @@ impl Cons {
         }
     }
 
-    fn next_decimal_digit(&self) -> Result<(u8, Term), BadArgument> {
+    fn next_decimal_digit(&self, mut process: &mut Process) -> Result<(u8, Term), Exception> {
         let head = self.head;
 
         match head.tag() {
@@ -105,37 +110,37 @@ impl Cons {
 
                     match c.to_digit(10) {
                         Some(digit) => Ok((digit as u8, self.tail)),
-                        None => Err(bad_argument!()),
+                        None => Err(bad_argument!(&mut process)),
                     }
                 } else {
-                    Err(bad_argument!())
+                    Err(bad_argument!(&mut process))
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 
-    fn skip_pid_prefix(&self) -> Result<Term, BadArgument> {
+    fn skip_pid_prefix(&self, mut process: &mut Process) -> Result<Term, Exception> {
         if self.head.tagged == Self::PID_PREFIX.tagged {
             Ok(self.tail)
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 
-    fn skip_pid_separator(&self) -> Result<Term, BadArgument> {
+    fn skip_pid_separator(&self, mut process: &mut Process) -> Result<Term, Exception> {
         if self.head.tagged == Self::PID_SEPARATOR.tagged {
             Ok(self.tail)
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 
-    fn skip_pid_suffix(&self) -> Result<Term, BadArgument> {
+    fn skip_pid_suffix(&self, mut process: &mut Process) -> Result<Term, Exception> {
         if self.head.tagged == Self::PID_SUFFIX.tagged {
             Ok(self.tail)
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 }

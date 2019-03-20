@@ -51,7 +51,7 @@ pub struct LocalCounter {
 
 impl LocalCounter {
     pub fn next(&mut self) -> Term {
-        let local_pid = Term::local_pid(self.number, self.serial).unwrap();
+        let local_pid = unsafe { Term::local_pid_unchecked(self.number, self.serial) };
 
         if NUMBER_MAX <= self.number {
             self.serial += 1;

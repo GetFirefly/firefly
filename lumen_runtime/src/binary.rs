@@ -1,13 +1,12 @@
-use std::convert::TryInto;
 use std::mem::transmute;
 
 use num_bigint::BigInt;
 use num_traits::Zero;
 
 use crate::atom::Existence;
-use crate::bad_argument::BadArgument;
+use crate::exception::{self, Exception};
 use crate::list::{Cons, ToList};
-use crate::process::{IntoProcess, Process};
+use crate::process::{IntoProcess, Process, TryFromInProcess, TryIntoInProcess};
 use crate::term::{self, Tag::*, Term};
 
 pub mod heap;
@@ -106,7 +105,7 @@ where
             .and_then(|byte_vec| match String::from_utf8(byte_vec) {
                 Ok(string) => match Term::str_to_atom(&string, existence, &mut process) {
                     Ok(term) => Some(term),
-                    Err(BadArgument { .. }) => None,
+                    Err(_) => None,
                 },
                 Err(_) => None,
             })
@@ -251,7 +250,7 @@ where
 
     fn next_term(&mut self, existence: Existence, mut process: &mut Process) -> Option<Term> {
         match self.next() {
-            Some(tag_byte) => match tag_byte.try_into() {
+            Some(tag_byte) => match tag_byte.try_into_in_process(&mut process) {
                 Ok(tag) => {
                     use crate::term::external_format::Tag::*;
 
@@ -331,7 +330,7 @@ where
 }
 
 pub trait Part<'a, S, L, T> {
-    fn part(&'a self, start: S, length: L, process: &mut Process) -> Result<T, BadArgument>;
+    fn part(&'a self, start: S, length: L, process: &mut Process) -> Result<T, Exception>;
 }
 
 pub struct PartRange {
@@ -343,7 +342,8 @@ fn start_length_to_part_range(
     start: usize,
     length: isize,
     available_byte_count: usize,
-) -> Result<PartRange, BadArgument> {
+    mut process: &mut Process,
+) -> Result<PartRange, Exception> {
     if length >= 0 {
         let non_negative_length = length as usize;
 
@@ -353,7 +353,7 @@ fn start_length_to_part_range(
                 byte_count: non_negative_length,
             })
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     } else {
         let start_isize = start as isize;
@@ -367,7 +367,7 @@ fn start_length_to_part_range(
                 byte_count,
             })
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 }
@@ -381,12 +381,11 @@ fn part_range_to_list<T: ByteIterator>(
 }
 
 pub trait PartToList<S, L> {
-    fn part_to_list(&self, start: S, length: L, process: &mut Process)
-        -> Result<Term, BadArgument>;
+    fn part_to_list(&self, start: S, length: L, process: &mut Process) -> exception::Result;
 }
 
 pub trait ToTerm {
-    fn to_term(&self, options: ToTermOptions, process: &mut Process) -> Result<Term, BadArgument>;
+    fn to_term(&self, options: ToTermOptions, process: &mut Process) -> exception::Result;
 }
 
 pub struct ToTermOptions {
@@ -395,31 +394,11 @@ pub struct ToTermOptions {
 }
 
 impl ToTermOptions {
-    pub fn try_from(term: Term, process: &Process) -> Result<ToTermOptions, BadArgument> {
-        let mut options: ToTermOptions = Default::default();
-        let mut options_term = term;
-
-        loop {
-            match options_term.tag() {
-                EmptyList => return Ok(options),
-                List => {
-                    let cons: &Cons = options_term.try_into().unwrap();
-
-                    options.put_option_term(cons.head(), process)?;
-                    options_term = cons.tail();
-
-                    continue;
-                }
-                _ => return Err(bad_argument!()),
-            };
-        }
-    }
-
     fn put_option_term(
         &mut self,
         option: Term,
-        process: &Process,
-    ) -> Result<&ToTermOptions, BadArgument> {
+        mut process: &mut Process,
+    ) -> Result<&ToTermOptions, Exception> {
         match option.tag() {
             Atom => {
                 let option_string = option.atom_to_string(process);
@@ -435,10 +414,35 @@ impl ToTermOptions {
 
                         Ok(self)
                     }
-                    _ => Err(bad_argument!()),
+                    _ => Err(bad_argument!(&mut process)),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(bad_argument!(&mut process)),
+        }
+    }
+}
+
+impl TryFromInProcess<Term> for ToTermOptions {
+    fn try_from_in_process(
+        term: Term,
+        mut process: &mut Process,
+    ) -> Result<ToTermOptions, Exception> {
+        let mut options: ToTermOptions = Default::default();
+        let mut options_term = term;
+
+        loop {
+            match options_term.tag() {
+                EmptyList => return Ok(options),
+                List => {
+                    let cons: &Cons = options_term.try_into_in_process(&mut process).unwrap();
+
+                    options.put_option_term(cons.head(), process)?;
+                    options_term = cons.tail();
+
+                    continue;
+                }
+                _ => return Err(bad_argument!(&mut process)),
+            };
         }
     }
 }

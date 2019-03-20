@@ -17,7 +17,7 @@ fn with_atom_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(atom_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -30,7 +30,7 @@ fn with_empty_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(Term::EMPTY_LIST, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -44,7 +44,7 @@ fn with_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(list_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -58,7 +58,7 @@ fn with_small_integer_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(small_integer_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -74,7 +74,7 @@ fn with_big_integer_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(big_integer_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -88,7 +88,7 @@ fn with_float_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(float_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -105,7 +105,7 @@ fn with_tuple_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(tuple_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -119,7 +119,7 @@ fn with_map_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(map_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -136,7 +136,7 @@ fn with_heap_binary_without_encoding_atom_returns_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -151,7 +151,7 @@ fn with_heap_binary_with_invalid_encoding_atom_returns_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(heap_binary_term, invalid_encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -168,15 +168,15 @@ fn with_heap_binary_with_valid_encoding_without_existing_atom_returns_atom() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(heap_binary_term, latin1_atom_term, &mut process),
-        process
+        &mut process
     );
     assert_bad_argument!(
         erlang::binary_to_existing_atom(heap_binary_term, unicode_atom_term, &mut process),
-        process
+        &mut process
     );
     assert_bad_argument!(
         erlang::binary_to_existing_atom(heap_binary_term, utf8_atom_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -222,7 +222,7 @@ fn with_subbinary_with_bit_count_returns_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(subbinary_term, unicode_atom_term, &mut process),
-        process
+        &mut process
     )
 }
 
@@ -238,7 +238,7 @@ fn with_subbinary_without_bit_count_without_existing_atom_returns_bad_argument()
 
     assert_bad_argument!(
         erlang::binary_to_existing_atom(subbinary_term, unicode_atom_term, &mut process),
-        process
+        &mut process
     )
 }
 

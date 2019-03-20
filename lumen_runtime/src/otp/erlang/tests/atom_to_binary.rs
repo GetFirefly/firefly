@@ -17,7 +17,7 @@ fn with_atom_without_encoding_atom_returns_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(atom_term, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -33,7 +33,7 @@ fn with_atom_with_invalid_encoding_atom_returns_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(atom_term, invalid_encoding_atom_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -52,17 +52,17 @@ fn with_atom_with_encoding_atom_returns_name_in_binary() {
     assert_eq_in_process!(
         erlang::atom_to_binary(atom_term, latin1_atom_term, &mut process),
         Ok(Term::slice_to_binary(atom_name.as_bytes(), &mut process)),
-        process
+        &mut process
     );
     assert_eq_in_process!(
         erlang::atom_to_binary(atom_term, unicode_atom_term, &mut process),
         Ok(Term::slice_to_binary(atom_name.as_bytes(), &mut process)),
-        process
+        &mut process
     );
     assert_eq_in_process!(
         erlang::atom_to_binary(atom_term, utf8_atom_term, &mut process),
         Ok(Term::slice_to_binary(atom_name.as_bytes(), &mut process)),
-        process
+        &mut process
     );
 }
 
@@ -75,7 +75,7 @@ fn with_empty_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(Term::EMPTY_LIST, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -89,7 +89,7 @@ fn with_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(list_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -103,7 +103,7 @@ fn with_small_integer_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(small_integer_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -119,7 +119,7 @@ fn with_big_integer_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(big_integer_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -133,7 +133,7 @@ fn with_float_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(float_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -142,12 +142,12 @@ fn with_local_pid_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
+    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
     let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::atom_to_binary(local_pid_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -161,7 +161,7 @@ fn with_external_pid_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(external_pid_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -178,7 +178,7 @@ fn with_tuple_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(tuple_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -192,7 +192,7 @@ fn with_map_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(map_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -206,7 +206,7 @@ fn with_heap_binary_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(heap_binary_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -222,6 +222,6 @@ fn with_subbinary_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::atom_to_binary(subbinary_term, encoding_term, &mut process),
-        process
+        &mut process
     );
 }

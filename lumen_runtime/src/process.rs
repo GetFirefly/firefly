@@ -8,9 +8,9 @@ use num_bigint::BigInt;
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Existence};
-use crate::bad_argument::BadArgument;
 use crate::binary::{heap, sub, Binary};
 use crate::environment::Environment;
+use crate::exception::{self, Exception};
 use crate::float::Float;
 use crate::integer::{self, big};
 use crate::list::List;
@@ -120,7 +120,7 @@ impl Process {
         &mut self,
         name: &str,
         existence: Existence,
-    ) -> Result<atom::Index, BadArgument> {
+    ) -> Result<atom::Index, Exception> {
         self.environment
             .upgrade()
             .unwrap()
@@ -148,13 +148,13 @@ pub trait DebugInProcess {
     fn format_in_process(&self, process: &Process) -> String;
 }
 
-impl DebugInProcess for Result<Term, BadArgument> {
+impl DebugInProcess for exception::Result {
     fn format_in_process(&self, process: &Process) -> String {
         match self {
             Ok(term) => format!("Ok({})", term.format_in_process(process)),
-            Err(BadArgument { file, line, column }) => format!(
-                "Err(BadArgument {{ file: {:?}, line: {:?}, column: {:?} }})",
-                file, line, column
+            Err(Exception { class, reason, file, line, column }) => format!(
+                "Err(BadArgument {{ class: {:?}, reason: {}, file: {:?}, line: {:?}, column: {:?} }})",
+                class, reason.format_in_process(&process), file, line, column
             ),
         }
     }
@@ -168,14 +168,66 @@ pub trait OrderInProcess<Rhs: ?Sized = Self> {
     fn cmp_in_process(&self, other: &Rhs, process: &Process) -> Ordering;
 }
 
-impl OrderInProcess for Result<Term, BadArgument> {
+impl OrderInProcess for exception::Result {
     fn cmp_in_process(&self, other: &Self, process: &Process) -> Ordering {
         match (self, other) {
             (Ok(self_ok), Ok(other_ok)) => self_ok.cmp_in_process(&other_ok, process),
             (Ok(_), Err(_)) => Ordering::Less,
             (Err(_), Ok(_)) => Ordering::Greater,
-            (Err(BadArgument { .. }), Err(BadArgument { .. })) => Ordering::Equal,
+            (
+                Err(Exception {
+                    class: self_class,
+                    reason: self_reason,
+                    ..
+                }),
+                Err(Exception {
+                    class: other_class,
+                    reason: other_reason,
+                    ..
+                }),
+            ) => match self_class.cmp(&other_class) {
+                Ordering::Equal => self_reason.cmp_in_process(other_reason, process),
+                ordering => ordering,
+            },
         }
+    }
+}
+
+impl OrderInProcess for Vec<Term> {
+    fn cmp_in_process(&self, other: &Vec<Term>, process: &Process) -> Ordering {
+        assert_eq!(self.len(), other.len());
+
+        let mut final_ordering = Ordering::Equal;
+
+        for (self_element, other_element) in self.iter().zip(other.iter()) {
+            match self_element.cmp_in_process(other_element, process) {
+                Ordering::Equal => continue,
+                ordering => {
+                    final_ordering = ordering;
+
+                    break;
+                }
+            }
+        }
+
+        final_ordering
+    }
+}
+
+pub trait TryFromInProcess<T>: Sized {
+    fn try_from_in_process(value: T, process: &mut Process) -> Result<Self, Exception>;
+}
+
+pub trait TryIntoInProcess<T>: Sized {
+    fn try_into_in_process(self, process: &mut Process) -> Result<T, Exception>;
+}
+
+impl<T, U> TryIntoInProcess<U> for T
+where
+    U: TryFromInProcess<T>,
+{
+    fn try_into_in_process(self, process: &mut Process) -> Result<U, Exception> {
+        U::try_from_in_process(self, process)
     }
 }
 
@@ -317,16 +369,6 @@ macro_rules! assert_ne_in_process {
     });
 }
 
-#[macro_export]
-macro_rules! assert_bad_argument {
-    ($left:expr, $process:expr) => {{
-        assert_eq_in_process!($left, Err(bad_argument!()), $process)
-    }};
-    ($left:expr, $process:expr,) => {{
-        assert_eq_in_process!($left, Err(bad_argument!()), $process)
-    }};
-}
-
 /// Like `std::convert::Into`, but additionally takes `&mut Process` in case it is needed to
 /// lookup or create new values in the `Process`.
 pub trait IntoProcess<T> {
@@ -365,10 +407,10 @@ mod tests {
             let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
 
             let first_process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let first_process = first_process_rw_lock.read().unwrap();
+            let mut first_process = first_process_rw_lock.write().unwrap();
 
             let second_process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let second_process = second_process_rw_lock.read().unwrap();
+            let mut second_process = second_process_rw_lock.write().unwrap();
 
             assert_ne_in_process!(
                 erlang::self_pid(&first_process),
@@ -377,13 +419,13 @@ mod tests {
             );
             assert_eq_in_process!(
                 erlang::self_pid(&first_process),
-                Term::local_pid(0, 0).unwrap(),
-                first_process
+                Term::local_pid(0, 0, &mut first_process).unwrap(),
+                &mut first_process
             );
             assert_eq_in_process!(
                 erlang::self_pid(&second_process),
-                Term::local_pid(1, 0).unwrap(),
-                second_process
+                Term::local_pid(1, 0, &mut second_process).unwrap(),
+                &mut second_process
             );
         }
 
@@ -392,7 +434,7 @@ mod tests {
             let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
 
             let first_process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let first_process = first_process_rw_lock.read().unwrap();
+            let mut first_process = first_process_rw_lock.write().unwrap();
 
             let mut final_pid = None;
 
@@ -404,7 +446,7 @@ mod tests {
 
             assert_eq_in_process!(
                 final_pid.unwrap(),
-                Term::local_pid(0, 1).unwrap(),
+                Term::local_pid(0, 1, &mut first_process).unwrap(),
                 first_process
             );
         }

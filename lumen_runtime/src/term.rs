@@ -12,13 +12,16 @@ use num_bigint::BigInt;
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding, Existence};
-use crate::bad_argument::BadArgument;
 use crate::binary::{self, heap, sub, Part, PartToList};
+use crate::exception::{self, Exception};
 use crate::float::Float;
 use crate::integer::Integer::{self, Big, Small};
 use crate::integer::{big, small};
 use crate::list::Cons;
-use crate::process::{self, DebugInProcess, IntoProcess, OrderInProcess, Process};
+use crate::map::Map;
+use crate::process::{
+    self, DebugInProcess, IntoProcess, OrderInProcess, Process, TryFromInProcess, TryIntoInProcess,
+};
 use crate::tuple::Tuple;
 
 pub mod external_format;
@@ -180,7 +183,14 @@ impl Term {
         ((self.tagged & !(Tag::Arity as usize)) >> Tag::ARITY_BIT_COUNT)
     }
 
-    pub fn atom_to_encoding(&self, mut process: &mut Process) -> Result<Encoding, BadArgument> {
+    pub unsafe fn as_ref_cons_unchecked(&self) -> &'static Cons {
+        let untagged = self.tagged & !(Tag::List as usize);
+        let pointer = untagged as *const Term as *const Cons;
+
+        &*pointer
+    }
+
+    pub fn atom_to_encoding(&self, mut process: &mut Process) -> Result<Encoding, Exception> {
         match self.tag() {
             Tag::Atom => {
                 let unicode_atom =
@@ -203,12 +213,12 @@ impl Term {
                         if tagged == latin1_atom.tagged {
                             Ok(Encoding::Latin1)
                         } else {
-                            Err(bad_argument!())
+                            Err(bad_argument!(&mut process))
                         }
                     }
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 
@@ -265,8 +275,8 @@ impl Term {
         node: usize,
         number: usize,
         serial: usize,
-        process: &mut Process,
-    ) -> Result<Term, BadArgument> {
+        mut process: &mut Process,
+    ) -> exception::Result {
         if (number <= process::identifier::NUMBER_MAX)
             && (serial <= process::identifier::SERIAL_MAX)
         {
@@ -274,7 +284,7 @@ impl Term {
                 process.external_pid(node, number, serial),
             ))
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 
@@ -305,7 +315,7 @@ impl Term {
         (self.tagged & !(TAG_HEAP_BINARY)) >> Tag::HEAP_BINARY_BIT_COUNT
     }
 
-    pub fn local_pid(number: usize, serial: usize) -> Result<Term, BadArgument> {
+    pub fn local_pid(number: usize, serial: usize, mut process: &mut Process) -> exception::Result {
         if (number <= process::identifier::NUMBER_MAX)
             && (serial <= process::identifier::SERIAL_MAX)
         {
@@ -316,7 +326,15 @@ impl Term {
                     | (Tag::LocalPid as usize),
             })
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
+        }
+    }
+
+    pub unsafe fn local_pid_unchecked(number: usize, serial: usize) -> Term {
+        Term {
+            tagged: (serial << (process::identifier::NUMBER_BIT_COUNT + Tag::LOCAL_PID_BIT_COUNT))
+                | (number << (Tag::LOCAL_PID_BIT_COUNT))
+                | (Tag::LocalPid as usize),
         }
     }
 
@@ -336,9 +354,9 @@ impl Term {
         number: usize,
         serial: usize,
         process: &mut Process,
-    ) -> Result<Term, BadArgument> {
+    ) -> exception::Result {
         if node == 0 {
-            Self::local_pid(number, serial)
+            Self::local_pid(number, serial, process)
         } else {
             Self::external_pid(node, number, serial, process)
         }
@@ -360,7 +378,7 @@ impl Term {
         name: &str,
         existence: Existence,
         process: &mut Process,
-    ) -> Result<Term, BadArgument> {
+    ) -> exception::Result {
         process
             .str_to_atom_index(name, existence)
             .map(|atom_index| atom_index.into())
@@ -441,6 +459,10 @@ impl Term {
             tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (Tag::SmallInteger as usize),
         }
     }
+
+    pub unsafe fn small_integer_to_isize(&self) -> isize {
+        (self.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT
+    }
 }
 
 impl DebugInProcess for Term {
@@ -456,7 +478,7 @@ impl DebugInProcess for Term {
 
                 match unboxed.tag() {
                     Tag::Arity => {
-                        let tuple: &Tuple = unboxed.try_into().unwrap();
+                        let tuple: &Tuple = self.unbox_reference();
 
                         let mut strings: Vec<String> = Vec::new();
 
@@ -536,7 +558,8 @@ impl DebugInProcess for Term {
             }
             Tag::EmptyList => "Term::EMPTY_LIST".to_string(),
             Tag::List => {
-                let cons: &Cons = (*self).try_into().unwrap();
+                let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+
                 format!(
                     "Term::cons({}, {}, &mut process)",
                     cons.head().format_in_process(&process),
@@ -681,16 +704,11 @@ impl From<atom::Index> for Term {
 }
 
 impl<'a> Part<'a, Term, Term, Term> for heap::Binary {
-    fn part(
-        &'a self,
-        start: Term,
-        length: Term,
-        process: &mut Process,
-    ) -> Result<Term, BadArgument> {
-        let start_usize: usize = start.try_into()?;
-        let length_isize: isize = length.try_into()?;
+    fn part(&'a self, start: Term, length: Term, mut process: &mut Process) -> exception::Result {
+        let start_usize: usize = start.try_into_in_process(&mut process)?;
+        let length_isize: isize = length.try_into_in_process(&mut process)?;
 
-        let binary = self.part(start_usize, length_isize, process)?;
+        let binary = self.part(start_usize, length_isize, &mut process)?;
 
         match binary {
             // a heap binary is only returned if it is the same
@@ -701,15 +719,10 @@ impl<'a> Part<'a, Term, Term, Term> for heap::Binary {
 }
 
 impl<'a> Part<'a, Term, Term, Term> for sub::Binary {
-    fn part(
-        &'a self,
-        start: Term,
-        length: Term,
-        process: &mut Process,
-    ) -> Result<Term, BadArgument> {
-        let start_usize: usize = start.try_into()?;
-        let length_isize: isize = length.try_into()?;
-        let new_subbinary = self.part(start_usize, length_isize, process)?;
+    fn part(&'a self, start: Term, length: Term, mut process: &mut Process) -> exception::Result {
+        let start_usize: usize = start.try_into_in_process(&mut process)?;
+        let length_isize: isize = length.try_into_in_process(&mut process)?;
+        let new_subbinary = self.part(start_usize, length_isize, &mut process)?;
 
         Ok(new_subbinary.into())
     }
@@ -720,10 +733,10 @@ impl PartToList<Term, Term> for heap::Binary {
         &self,
         start: Term,
         length: Term,
-        process: &mut Process,
-    ) -> Result<Term, BadArgument> {
-        let start_usize: usize = start.try_into()?;
-        let length_isize: isize = length.try_into()?;
+        mut process: &mut Process,
+    ) -> exception::Result {
+        let start_usize: usize = start.try_into_in_process(&mut process)?;
+        let length_isize: isize = length.try_into_in_process(&mut process)?;
 
         self.part_to_list(start_usize, length_isize, process)
     }
@@ -734,10 +747,10 @@ impl PartToList<Term, Term> for sub::Binary {
         &self,
         start: Term,
         length: Term,
-        process: &mut Process,
-    ) -> Result<Term, BadArgument> {
-        let start_usize: usize = start.try_into()?;
-        let length_isize: isize = length.try_into()?;
+        mut process: &mut Process,
+    ) -> exception::Result {
+        let start_usize: usize = start.try_into_in_process(&mut process)?;
+        let length_isize: isize = length.try_into_in_process(&mut process)?;
 
         self.part_to_list(start_usize, length_isize, process)
     }
@@ -761,58 +774,49 @@ impl PartialEq for Term {
     }
 }
 
-impl TryFrom<Term> for isize {
-    type Error = BadArgument;
-
-    fn try_from(term: Term) -> Result<isize, BadArgument> {
+impl TryFromInProcess<Term> for isize {
+    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<isize, Exception> {
         match term.tag() {
             Tag::SmallInteger => {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
                 Ok(term_isize)
             }
-            _ => Err(bad_argument!()),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 }
 
-impl TryFrom<Term> for usize {
-    type Error = BadArgument;
-
-    fn try_from(term: Term) -> Result<usize, BadArgument> {
+impl TryFromInProcess<Term> for usize {
+    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<usize, Exception> {
         match term.tag() {
             Tag::SmallInteger => {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
 
                 if term_isize < 0 {
-                    Err(bad_argument!())
+                    Err(bad_argument!(&mut process))
                 } else {
                     Ok(term_isize as usize)
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 }
 
-impl TryFrom<Term> for &'static Cons {
-    type Error = BadArgument;
-
-    fn try_from(term: Term) -> Result<&'static Cons, BadArgument> {
+impl TryFromInProcess<Term> for &'static Cons {
+    fn try_from_in_process(
+        term: Term,
+        mut process: &mut Process,
+    ) -> Result<&'static Cons, Exception> {
         match term.tag() {
-            Tag::List => {
-                let untagged = term.tagged & !(Tag::List as usize);
-                let pointer = untagged as *const Term as *const Cons;
-                Ok(unsafe { pointer.as_ref() }.unwrap())
-            }
-            _ => Err(bad_argument!()),
+            Tag::List => Ok(unsafe { term.as_ref_cons_unchecked() }),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 }
 
-impl TryFrom<Term> for BigInt {
-    type Error = BadArgument;
-
-    fn try_from(term: Term) -> Result<BigInt, BadArgument> {
+impl TryFromInProcess<Term> for BigInt {
+    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<BigInt, Exception> {
         match term.tag() {
             Tag::SmallInteger => {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
@@ -828,18 +832,16 @@ impl TryFrom<Term> for BigInt {
 
                         Ok(big_integer.inner.clone())
                     }
-                    _ => Err(bad_argument!()),
+                    _ => Err(bad_argument!(&mut process)),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 }
 
-impl TryFrom<Term> for String {
-    type Error = BadArgument;
-
-    fn try_from(term: Term) -> Result<String, BadArgument> {
+impl TryFromInProcess<Term> for String {
+    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<String, Exception> {
         match term.tag() {
             Tag::Boxed => {
                 let unboxed: &Term = term.unbox_reference();
@@ -848,52 +850,59 @@ impl TryFrom<Term> for String {
                     Tag::HeapBinary => {
                         let heap_binary: &heap::Binary = term.unbox_reference();
 
-                        heap_binary.try_into()
+                        heap_binary.try_into_in_process(&mut process)
                     }
                     Tag::Subbinary => {
                         let subbinary: &sub::Binary = term.unbox_reference();
 
-                        subbinary.try_into()
+                        subbinary.try_into_in_process(&mut process)
                     }
                     // TODO ReferenceCountedBinary
-                    _ => Err(bad_argument!()),
+                    _ => Err(bad_argument!(&mut process)),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 }
 
-impl TryFrom<Term> for &'static Tuple {
-    type Error = BadArgument;
-
-    fn try_from(term: Term) -> Result<&'static Tuple, BadArgument> {
+impl TryFromInProcess<Term> for &'static Tuple {
+    fn try_from_in_process(
+        term: Term,
+        mut process: &mut Process,
+    ) -> Result<&'static Tuple, Exception> {
         match term.tag() {
-            Tag::Boxed => term.unbox_reference::<Term>().try_into(),
-            _ => Err(bad_argument!()),
+            Tag::Boxed => term
+                .unbox_reference::<Term>()
+                .try_into_in_process(&mut process),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 }
 
-impl TryFrom<&Term> for BigInt {
-    type Error = BadArgument;
-
-    fn try_from(term_ref: &Term) -> Result<BigInt, BadArgument> {
-        (*term_ref).try_into()
+impl TryFromInProcess<&Term> for BigInt {
+    fn try_from_in_process(
+        term_ref: &Term,
+        mut process: &mut Process,
+    ) -> Result<BigInt, Exception> {
+        (*term_ref).try_into_in_process(&mut process)
     }
 }
 
-impl<'a> TryFrom<&'a Term> for &'a Tuple {
-    type Error = BadArgument;
-
-    fn try_from(term: &Term) -> Result<&Tuple, BadArgument> {
+impl<'a> TryFromInProcess<&'a Term> for &'a Tuple {
+    fn try_from_in_process(
+        term: &'a Term,
+        mut process: &mut Process,
+    ) -> Result<&'a Tuple, Exception> {
         match term.tag() {
             Tag::Arity => {
                 let pointer = term as *const Term as *const Tuple;
                 Ok(unsafe { pointer.as_ref() }.unwrap())
             }
-            Tag::Boxed => term.unbox_reference::<Term>().try_into(),
-            _ => Err(bad_argument!()),
+            Tag::Boxed => term
+                .unbox_reference::<Term>()
+                .try_into_in_process(&mut process),
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 }
@@ -939,7 +948,7 @@ impl OrderInProcess for Term {
 
                 match other_unboxed.tag() {
                     Tag::BigInteger => {
-                        let self_big_int: BigInt = self.try_into().unwrap();
+                        let self_big_int: BigInt = unsafe { self.small_integer_to_isize() }.into();
 
                         let other_big_integer: &big::Integer = other.unbox_reference();
                         let other_big_int = &other_big_integer.inner;
@@ -981,7 +990,8 @@ impl OrderInProcess for Term {
                         let self_big_integer: &big::Integer = self.unbox_reference();
                         let self_big_int = &self_big_integer.inner;
 
-                        let other_big_int: BigInt = (*other).try_into().unwrap();
+                        let other_big_int: BigInt =
+                            unsafe { other.small_integer_to_isize() }.into();
 
                         self_big_int.cmp(&other_big_int)
                     }
@@ -1035,12 +1045,18 @@ impl OrderInProcess for Term {
                         self_external_pid.cmp_in_process(other_external_pid, process)
                     }
                     (Tag::Arity, Tag::Arity) => {
-                        let self_tuple: &Tuple = self_unboxed.try_into().unwrap();
-                        let other_tuple: &Tuple = other_unboxed.try_into().unwrap();
+                        let self_tuple: &Tuple = self.unbox_reference();
+                        let other_tuple: &Tuple = other.unbox_reference();
 
                         self_tuple.cmp_in_process(other_tuple, process)
                     }
                     (Tag::Arity, Tag::Float) => Ordering::Greater,
+                    (Tag::Map, Tag::Map) => {
+                        let self_map: &Map = self.unbox_reference();
+                        let other_map: &Map = other.unbox_reference();
+
+                        self_map.cmp_in_process(other_map, process)
+                    }
                     (Tag::HeapBinary, Tag::HeapBinary) => {
                         let self_binary: &heap::Binary = self.unbox_reference();
                         let other_binary: &heap::Binary = other.unbox_reference();
@@ -1098,8 +1114,8 @@ impl OrderInProcess for Term {
                 Ordering::Greater
             }
             (Tag::List, Tag::List) => {
-                let self_cons: &Cons = (*self).try_into().unwrap();
-                let other_cons: &Cons = (*other).try_into().unwrap();
+                let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+                let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
 
                 self_cons.cmp_in_process(other_cons, process)
             }

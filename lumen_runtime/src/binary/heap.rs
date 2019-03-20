@@ -1,14 +1,13 @@
 use std::cmp::Ordering;
-use std::convert::TryFrom;
 
 use crate::atom::{self, Existence};
-use crate::bad_argument::BadArgument;
 use crate::binary::{
     self, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
     PartToList, ToTerm, ToTermOptions,
 };
+use crate::exception::Exception;
 use crate::integer::Integer;
-use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
+use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryFromInProcess};
 use crate::term::Term;
 
 pub struct Binary {
@@ -82,7 +81,7 @@ impl Binary {
         &self,
         existence: Existence,
         process: &mut Process,
-    ) -> Result<atom::Index, BadArgument> {
+    ) -> Result<atom::Index, Exception> {
         let bytes = unsafe {
             std::slice::from_raw_parts(self.bytes, Term::heap_binary_to_byte_count(&self.header))
         };
@@ -174,13 +173,13 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
         &'a self,
         start: usize,
         length: isize,
-        process: &mut Process,
-    ) -> Result<binary::Binary<'b>, BadArgument> {
+        mut process: &mut Process,
+    ) -> Result<binary::Binary<'b>, Exception> {
         let available_byte_count = Term::heap_binary_to_byte_count(&self.header);
         let PartRange {
             byte_offset,
             byte_count,
-        } = start_length_to_part_range(start, length, available_byte_count)?;
+        } = start_length_to_part_range(start, length, available_byte_count, &mut process)?;
 
         if (byte_offset == 0) & (byte_count == available_byte_count) {
             Ok(binary::Binary::Heap(self))
@@ -198,9 +197,10 @@ impl PartToList<usize, isize> for Binary {
         start: usize,
         length: isize,
         mut process: &mut Process,
-    ) -> Result<Term, BadArgument> {
+    ) -> Result<Term, Exception> {
         let available_byte_count = Term::heap_binary_to_byte_count(&self.header);
-        let part_range = start_length_to_part_range(start, length, available_byte_count)?;
+        let part_range =
+            start_length_to_part_range(start, length, available_byte_count, &mut process)?;
         let list = part_range_to_list(self.iter(), part_range, &mut process);
 
         Ok(list)
@@ -244,7 +244,7 @@ impl ToTerm for Binary {
         &self,
         options: ToTermOptions,
         mut process: &mut Process,
-    ) -> Result<Term, BadArgument> {
+    ) -> Result<Term, Exception> {
         let mut iter = self.iter();
 
         match iter.next_versioned_term(options.existence, &mut process) {
@@ -258,18 +258,19 @@ impl ToTerm for Binary {
                     Ok(term)
                 }
             }
-            None => Err(bad_argument!()),
+            None => Err(bad_argument!(&mut process)),
         }
     }
 }
 
-impl TryFrom<&Binary> for String {
-    type Error = BadArgument;
-
-    fn try_from(binary: &Binary) -> Result<String, BadArgument> {
+impl TryFromInProcess<&Binary> for String {
+    fn try_from_in_process(
+        binary: &Binary,
+        mut process: &mut Process,
+    ) -> Result<String, Exception> {
         let byte_vec: Vec<u8> = binary.into();
 
-        String::from_utf8(byte_vec).map_err(|_| bad_argument!())
+        String::from_utf8(byte_vec).map_err(|_| bad_argument!(&mut process))
     }
 }
 
@@ -368,10 +369,10 @@ mod tests {
     mod iter {
         use super::*;
 
-        use std::convert::TryInto;
         use std::sync::{Arc, RwLock};
 
         use crate::environment::{self, Environment};
+        use crate::process::TryIntoInProcess;
 
         #[test]
         fn without_elements() {
@@ -383,7 +384,7 @@ mod tests {
             assert_eq!(binary.iter().count(), 0);
 
             let size_integer: Integer = binary.size();
-            let size_usize: usize = size_integer.try_into().unwrap();
+            let size_usize: usize = size_integer.try_into_in_process(&mut process).unwrap();
 
             assert_eq!(binary.iter().count(), size_usize);
         }
@@ -398,7 +399,7 @@ mod tests {
             assert_eq!(binary.iter().count(), 1);
 
             let size_integer: Integer = binary.size();
-            let size_usize: usize = size_integer.try_into().unwrap();
+            let size_usize: usize = size_integer.try_into_in_process(&mut process).unwrap();
 
             assert_eq!(binary.iter().count(), size_usize);
         }

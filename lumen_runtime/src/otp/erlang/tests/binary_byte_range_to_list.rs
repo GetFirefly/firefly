@@ -21,7 +21,7 @@ fn with_atom_returns_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -38,7 +38,7 @@ fn with_empty_list_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -56,7 +56,7 @@ fn with_list_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -74,7 +74,7 @@ fn with_small_integer_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -94,7 +94,7 @@ fn with_big_integer_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -112,7 +112,7 @@ fn with_float_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -121,7 +121,7 @@ fn with_local_pid_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
+    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_byte_range_to_list(
@@ -130,7 +130,7 @@ fn with_local_pid_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -148,7 +148,7 @@ fn with_external_pid_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -166,7 +166,7 @@ fn with_tuple_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -184,7 +184,7 @@ fn with_map_is_bad_argument() {
             3.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -207,7 +207,7 @@ fn with_heap_binary_with_start_less_than_stop_returns_list_of_bytes() {
             Term::EMPTY_LIST,
             &mut process
         )),
-        process
+        &mut process
     );
 }
 
@@ -230,7 +230,7 @@ fn with_heap_binary_with_start_equal_to_stop_returns_list_of_single_byte() {
             Term::EMPTY_LIST,
             &mut process
         )),
-        process
+        &mut process
     );
 }
 
@@ -248,7 +248,7 @@ fn with_heap_binary_with_start_greater_than_stop_returns_bad_argument() {
             2.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -318,6 +318,6 @@ fn with_subbinary_with_start_greater_than_stop_returns_bad_argument() {
             2.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }

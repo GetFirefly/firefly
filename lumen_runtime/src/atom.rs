@@ -1,6 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use crate::bad_argument::BadArgument;
+use crate::exception::Exception;
+use crate::term::Term;
 
 pub enum Encoding {
     Latin1,
@@ -25,7 +26,7 @@ impl Table {
         Table { names: Vec::new() }
     }
 
-    pub fn str_to_index(&mut self, name: &str, existence: Existence) -> Result<Index, BadArgument> {
+    pub fn str_to_index(&mut self, name: &str, existence: Existence) -> Result<Index, Exception> {
         let existing_position = self
             .names
             .iter()
@@ -37,7 +38,14 @@ impl Table {
                 self.names.push(name.to_string());
                 Ok(self.names.len() - 1)
             }
-            (None, Existence::Exists) => Err(bad_argument!()),
+            (None, Existence::Exists) => {
+                let badarg: Term = self
+                    .str_to_index("badarg", Existence::DoNotCare)
+                    .unwrap()
+                    .into();
+
+                Err(error!(badarg))
+            }
         }
         .map(|found_or_existing_position| Index(found_or_existing_position))
     }

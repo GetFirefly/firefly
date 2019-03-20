@@ -1,13 +1,11 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use std::convert::TryInto;
-
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use crate::bad_argument::BadArgument;
+use crate::exception::Exception;
 use crate::integer::big;
-use crate::process::Process;
+use crate::process::{Process, TryFromInProcess, TryIntoInProcess};
 use crate::term::{Tag::*, Term};
 
 pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
@@ -47,10 +45,25 @@ pub enum Unit {
 impl Unit {
     const MILLISECOND_HERTZ: usize = 1_000;
 
-    pub fn try_from(term: Term, process: &mut Process) -> Result<Unit, BadArgument> {
+    pub fn hertz(&self) -> usize {
+        match self {
+            Unit::Hertz(hertz) => *hertz,
+            Unit::Second => 1,
+            Unit::Millisecond => Self::MILLISECOND_HERTZ,
+            Unit::Microsecond => 1_000_000,
+            Unit::Nanosecond => 1_000_000_000,
+            // As a side-channel protection browsers limit most counters to 1 millisecond resolution
+            Unit::Native => Self::MILLISECOND_HERTZ,
+            Unit::PerformanceCounter => Self::MILLISECOND_HERTZ,
+        }
+    }
+}
+
+impl TryFromInProcess<Term> for Unit {
+    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<Unit, Exception> {
         match term.tag() {
             SmallInteger => {
-                let hertz: usize = term.try_into()?;
+                let hertz: usize = term.try_into_in_process(&mut process)?;
 
                 Ok(Unit::Hertz(hertz))
             }
@@ -61,16 +74,16 @@ impl Unit {
                     BigInteger => {
                         let big_integer: &big::Integer = term.unbox_reference();
                         let big_integer_usize: usize =
-                            big_integer.try_into().map_err(|_| bad_argument!())?;
+                            big_integer.try_into_in_process(&mut process)?;
 
                         Ok(Unit::Hertz(big_integer_usize))
                     }
-                    _ => Err(bad_argument!()),
+                    _ => Err(bad_argument!(&mut process)),
                 }
             }
             Atom => {
                 let term_string = term.atom_to_string(process);
-                let mut result = Err(bad_argument!());
+                let mut result = Err(bad_argument!(&mut process));
 
                 for (s, unit) in [
                     ("second", Unit::Second),
@@ -94,20 +107,7 @@ impl Unit {
 
                 result
             }
-            _ => Err(bad_argument!()),
-        }
-    }
-
-    pub fn hertz(&self) -> usize {
-        match self {
-            Unit::Hertz(hertz) => *hertz,
-            Unit::Second => 1,
-            Unit::Millisecond => Self::MILLISECOND_HERTZ,
-            Unit::Microsecond => 1_000_000,
-            Unit::Nanosecond => 1_000_000_000,
-            // As a side-channel protection browsers limit most counters to 1 millisecond resolution
-            Unit::Native => Self::MILLISECOND_HERTZ,
-            Unit::PerformanceCounter => Self::MILLISECOND_HERTZ,
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 }

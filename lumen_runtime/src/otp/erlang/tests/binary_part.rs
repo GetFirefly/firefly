@@ -21,7 +21,7 @@ fn with_atom_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -38,7 +38,7 @@ fn with_empty_list_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -56,7 +56,7 @@ fn with_list_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -74,7 +74,7 @@ fn with_small_integer_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -94,7 +94,7 @@ fn with_big_integer_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -112,7 +112,7 @@ fn with_float_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -121,7 +121,7 @@ fn with_local_pid_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
+    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_part(
@@ -130,7 +130,7 @@ fn with_local_pid_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -148,7 +148,7 @@ fn with_external_pid_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -169,7 +169,7 @@ fn with_tuple_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -187,7 +187,7 @@ fn with_map_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -205,7 +205,7 @@ fn with_heap_binary_without_integer_start_without_integer_length_returns_bad_arg
 
     assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -220,7 +220,7 @@ fn with_heap_binary_without_integer_start_with_integer_length_returns_bad_argume
 
     assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -235,7 +235,7 @@ fn with_heap_binary_with_integer_start_without_integer_length_returns_bad_argume
 
     assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -250,7 +250,7 @@ fn with_heap_binary_with_negative_start_with_valid_length_returns_bad_argument()
 
     assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -265,7 +265,7 @@ fn with_heap_binary_with_start_greater_than_size_with_non_negative_length_return
 
     assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -281,7 +281,7 @@ fn with_heap_binary_with_start_less_than_size_with_negative_length_past_start_re
 
     assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -296,7 +296,7 @@ fn with_heap_binary_with_start_less_than_size_with_positive_length_past_end_retu
 
     assert_bad_argument!(
         erlang::binary_part(heap_binary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -408,7 +408,7 @@ fn with_subbinary_without_integer_start_without_integer_length_returns_bad_argum
 
     assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -425,7 +425,7 @@ fn with_subbinary_without_integer_start_with_integer_length_returns_bad_argument
 
     assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -442,7 +442,7 @@ fn with_subbinary_with_integer_start_without_integer_length_returns_bad_argument
 
     assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -459,7 +459,7 @@ fn with_subbinary_with_negative_start_with_valid_length_returns_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -476,7 +476,7 @@ fn with_subbinary_with_start_greater_than_size_with_non_negative_length_returns_
 
     assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -493,7 +493,7 @@ fn with_subbinary_with_start_less_than_size_with_negative_length_past_start_retu
 
     assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -510,7 +510,7 @@ fn with_subbinary_with_start_less_than_size_with_positive_length_past_end_return
 
     assert_bad_argument!(
         erlang::binary_part(subbinary_term, start_term, length_term, &mut process),
-        process
+        &mut process
     );
 }
 

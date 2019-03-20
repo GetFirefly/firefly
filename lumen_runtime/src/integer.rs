@@ -1,10 +1,10 @@
 use std::cmp::Ordering;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 
 use num_bigint::BigInt;
 
-use crate::bad_argument::BadArgument;
-use crate::process::{DebugInProcess, OrderInProcess, Process};
+use crate::exception::Exception;
+use crate::process::{DebugInProcess, OrderInProcess, Process, TryFromInProcess};
 
 pub mod big;
 pub mod small;
@@ -93,15 +93,16 @@ impl From<BigInt> for Integer {
     }
 }
 
-impl TryFrom<Integer> for usize {
-    type Error = BadArgument;
-
-    fn try_from(integer: Integer) -> Result<usize, BadArgument> {
+impl TryFromInProcess<Integer> for usize {
+    fn try_from_in_process(
+        integer: Integer,
+        mut process: &mut Process,
+    ) -> Result<usize, Exception> {
         match integer {
             Integer::Small(small::Integer(untagged)) => {
-                untagged.try_into().map_err(|_| bad_argument!())
+                untagged.try_into().map_err(|_| bad_argument!(&mut process))
             }
-            Integer::Big(big_int) => big_int_to_usize(&big_int),
+            Integer::Big(big_int) => big_int_to_usize(&big_int, &mut process),
         }
     }
 }

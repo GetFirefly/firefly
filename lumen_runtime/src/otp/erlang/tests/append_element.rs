@@ -15,7 +15,7 @@ fn with_atom_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::append_element(atom_term, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -27,7 +27,7 @@ fn with_empty_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::append_element(Term::EMPTY_LIST, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -40,7 +40,7 @@ fn with_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::append_element(list_term, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -57,7 +57,7 @@ fn with_small_integer_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -72,7 +72,7 @@ fn with_big_integer_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::append_element(big_integer_term, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -85,7 +85,7 @@ fn with_float_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::append_element(float_term, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -94,11 +94,11 @@ fn with_local_pid_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
+    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::append_element(local_pid_term, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -115,7 +115,7 @@ fn with_external_pid_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -139,7 +139,7 @@ fn with_tuple_returns_tuple_with_new_element_at_end() {
             ],
             &mut process
         )),
-        process
+        &mut process
     );
 }
 
@@ -156,7 +156,7 @@ fn with_tuple_with_index_at_size_return_tuples_with_new_element_at_end() {
             &[0.into_process(&mut process), 1.into_process(&mut process)],
             &mut process
         )),
-        process
+        &mut process
     );
 }
 
@@ -169,7 +169,7 @@ fn with_map_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::append_element(map_term, 1.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -182,7 +182,7 @@ fn with_heap_binary_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::append_element(heap_binary_term, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }
 
@@ -197,6 +197,6 @@ fn with_subbinary_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::append_element(subbinary_term, 0.into_process(&mut process), &mut process),
-        process
+        &mut process
     );
 }

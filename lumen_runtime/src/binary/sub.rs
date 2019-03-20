@@ -1,15 +1,14 @@
 use std::cmp::Ordering;
-use std::convert::{TryFrom, TryInto};
 use std::iter::FusedIterator;
 
 use crate::atom::{self, Existence};
-use crate::bad_argument::BadArgument;
 use crate::binary::{
     heap, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
     PartToList, ToTerm, ToTermOptions,
 };
+use crate::exception::{self, Exception};
 use crate::integer::Integer;
-use crate::process::{IntoProcess, OrderInProcess, Process};
+use crate::process::{IntoProcess, OrderInProcess, Process, TryFromInProcess, TryIntoInProcess};
 use crate::term::{Tag::*, Term};
 
 pub struct Binary {
@@ -118,14 +117,14 @@ impl Binary {
     pub fn to_atom_index(
         &self,
         existence: Existence,
-        process: &mut Process,
-    ) -> Result<atom::Index, BadArgument> {
-        let string: String = self.try_into()?;
+        mut process: &mut Process,
+    ) -> Result<atom::Index, Exception> {
+        let string: String = self.try_into_in_process(&mut process)?;
 
         process.str_to_atom_index(&string, existence)
     }
 
-    pub fn to_list(&self, mut process: &mut Process) -> Result<Term, BadArgument> {
+    pub fn to_list(&self, mut process: &mut Process) -> exception::Result {
         if self.bit_count == 0 {
             let list = self.byte_iter().rfold(Term::EMPTY_LIST, |acc, byte| {
                 Term::cons(byte.into_process(&mut process), acc, &mut process)
@@ -133,7 +132,7 @@ impl Binary {
 
             Ok(list)
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 
@@ -162,11 +161,7 @@ impl Binary {
 }
 
 impl ToTerm for Binary {
-    fn to_term(
-        &self,
-        options: ToTermOptions,
-        mut process: &mut Process,
-    ) -> Result<Term, BadArgument> {
+    fn to_term(&self, options: ToTermOptions, mut process: &mut Process) -> exception::Result {
         if self.bit_count == 0 {
             let mut byte_iter = self.byte_iter();
 
@@ -181,20 +176,21 @@ impl ToTerm for Binary {
                         Ok(term)
                     }
                 }
-                None => Err(bad_argument!()),
+                None => Err(bad_argument!(&mut process)),
             }
         } else {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         }
     }
 }
 
-impl TryFrom<&Binary> for Vec<u8> {
-    type Error = BadArgument;
-
-    fn try_from(binary: &Binary) -> Result<Vec<u8>, BadArgument> {
+impl TryFromInProcess<&Binary> for Vec<u8> {
+    fn try_from_in_process(
+        binary: &Binary,
+        mut process: &mut Process,
+    ) -> Result<Vec<u8>, Exception> {
         if 0 < binary.bit_count {
-            Err(bad_argument!())
+            Err(bad_argument!(&mut process))
         } else {
             let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_count);
             bytes_vec.extend(binary.byte_iter());
@@ -204,13 +200,14 @@ impl TryFrom<&Binary> for Vec<u8> {
     }
 }
 
-impl TryFrom<&Binary> for String {
-    type Error = BadArgument;
+impl TryFromInProcess<&Binary> for String {
+    fn try_from_in_process(
+        binary: &Binary,
+        mut process: &mut Process,
+    ) -> Result<String, Exception> {
+        let byte_vec: Vec<u8> = binary.try_into_in_process(&mut process)?;
 
-    fn try_from(binary: &Binary) -> Result<String, BadArgument> {
-        let byte_vec: Vec<u8> = binary.try_into()?;
-
-        String::from_utf8(byte_vec).map_err(|_| bad_argument!())
+        String::from_utf8(byte_vec).map_err(|_| bad_argument!(&mut process))
     }
 }
 
@@ -347,12 +344,12 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, &'b Binary> for Binary {
         &'a self,
         start: usize,
         length: isize,
-        process: &mut Process,
-    ) -> Result<&'b Binary, BadArgument> {
+        mut process: &mut Process,
+    ) -> Result<&'b Binary, Exception> {
         let PartRange {
             byte_offset,
             byte_count,
-        } = start_length_to_part_range(start, length, self.byte_count)?;
+        } = start_length_to_part_range(start, length, self.byte_count, &mut process)?;
 
         // new subbinary is entire subbinary
         if (self.bit_count == 0) && (byte_offset == 0) && (byte_count == self.byte_count) {
@@ -372,8 +369,8 @@ impl PartToList<usize, isize> for Binary {
         start: usize,
         length: isize,
         mut process: &mut Process,
-    ) -> Result<Term, BadArgument> {
-        let part_range = start_length_to_part_range(start, length, self.byte_count)?;
+    ) -> Result<Term, Exception> {
+        let part_range = start_length_to_part_range(start, length, self.byte_count, &mut process)?;
         let list = part_range_to_list(self.byte_iter(), part_range, &mut process);
 
         Ok(list)

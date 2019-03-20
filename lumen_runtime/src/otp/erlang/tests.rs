@@ -23,6 +23,7 @@ mod ceil;
 mod convert_time_unit;
 mod delete_element;
 mod element;
+mod error;
 mod head;
 mod insert_element;
 mod is_atom;

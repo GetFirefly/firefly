@@ -8,12 +8,12 @@ use crate::environment::{self, Environment};
 fn returns_process_pid() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let process = process_rw_lock.read().unwrap();
+    let mut process = process_rw_lock.write().unwrap();
 
     assert_eq_in_process!(erlang::self_pid(&process), process.pid, process);
     assert_eq_in_process!(
         erlang::self_pid(&process),
-        Term::local_pid(0, 0).unwrap(),
+        Term::local_pid(0, 0, &mut process).unwrap(),
         process
     );
 }

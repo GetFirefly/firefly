@@ -15,7 +15,7 @@ fn with_atom_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::convert_time_unit(atom_term, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -29,7 +29,7 @@ fn with_empty_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::convert_time_unit(Term::EMPTY_LIST, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -44,7 +44,7 @@ fn with_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::convert_time_unit(list_term, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -70,7 +70,7 @@ mod with_small_integer {
                 invalid_unit_term,
                 &mut process,
             ),
-            process
+            &mut process
         );
 
         assert_bad_argument!(
@@ -80,7 +80,7 @@ mod with_small_integer {
                 valid_unit_term,
                 &mut process,
             ),
-            process
+            &mut process
         );
     }
 
@@ -711,7 +711,7 @@ mod with_big_integer {
                 invalid_unit_term,
                 &mut process,
             ),
-            process
+            &mut process
         );
 
         assert_bad_argument!(
@@ -721,7 +721,7 @@ mod with_big_integer {
                 valid_unit_term,
                 &mut process,
             ),
-            process
+            &mut process
         );
     }
 
@@ -1462,7 +1462,7 @@ fn with_float_returns_bad_argument() {
 
     assert_bad_argument!(
         erlang::convert_time_unit(float_term, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -1471,13 +1471,13 @@ fn with_local_pid_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
+    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
     let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
     let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit(local_pid_term, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -1497,7 +1497,7 @@ fn with_external_pid_is_bad_argument() {
             to_unit_term,
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -1512,7 +1512,7 @@ fn with_tuple_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::convert_time_unit(tuple_term, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -1527,7 +1527,7 @@ fn with_map_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::convert_time_unit(map_term, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -1542,7 +1542,7 @@ fn with_heap_binary_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::convert_time_unit(heap_binary_term, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -1558,6 +1558,6 @@ fn with_subbinary_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::convert_time_unit(subbinary_term, from_unit_term, to_unit_term, &mut process),
-        process
+        &mut process
     );
 }

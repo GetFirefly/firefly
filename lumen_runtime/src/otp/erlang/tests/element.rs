@@ -14,8 +14,8 @@ fn with_atom_is_bad_argument() {
     let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
-        erlang::element(atom_term, 0.into_process(&mut process)),
-        process
+        erlang::element(atom_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -26,8 +26,8 @@ fn with_empty_list_is_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
 
     assert_bad_argument!(
-        erlang::element(Term::EMPTY_LIST, 0.into_process(&mut process)),
-        process
+        erlang::element(Term::EMPTY_LIST, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -39,8 +39,8 @@ fn with_list_is_bad_argument() {
     let list_term = list_term(&mut process);
 
     assert_bad_argument!(
-        erlang::element(list_term, 0.into_process(&mut process)),
-        process
+        erlang::element(list_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -52,8 +52,12 @@ fn with_small_integer_is_bad_argument() {
     let small_integer_term: Term = 0.into_process(&mut process);
 
     assert_bad_argument!(
-        erlang::element(small_integer_term, 0.into_process(&mut process)),
-        process
+        erlang::element(
+            small_integer_term,
+            0.into_process(&mut process),
+            &mut process
+        ),
+        &mut process
     );
 }
 
@@ -67,8 +71,8 @@ fn with_big_integer_is_bad_argument() {
         .into_process(&mut process);
 
     assert_bad_argument!(
-        erlang::element(big_integer_term, 0.into_process(&mut process)),
-        process
+        erlang::element(big_integer_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -80,8 +84,8 @@ fn with_float_is_bad_argument() {
     let float_term = 1.0.into_process(&mut process);
 
     assert_bad_argument!(
-        erlang::element(float_term, 0.into_process(&mut process)),
-        process
+        erlang::element(float_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -90,11 +94,11 @@ fn with_local_pid_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
+    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
 
     assert_bad_argument!(
-        erlang::element(local_pid_term, 0.into_process(&mut process)),
-        process
+        erlang::element(local_pid_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -106,8 +110,12 @@ fn with_external_pid_is_bad_argument() {
     let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
 
     assert_bad_argument!(
-        erlang::element(external_pid_term, 0.into_process(&mut process)),
-        process
+        erlang::element(
+            external_pid_term,
+            0.into_process(&mut process),
+            &mut process
+        ),
+        &mut process
     );
 }
 
@@ -122,13 +130,16 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
     let invalid_index_term = Term::arity(index);
 
     assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
-    assert_bad_argument!(erlang::element(tuple_term, invalid_index_term), process);
+    assert_bad_argument!(
+        erlang::element(tuple_term, invalid_index_term, &mut process),
+        &mut process
+    );
 
     let valid_index_term: Term = index.into_process(&mut process);
 
     assert_eq!(valid_index_term.tag(), Tag::SmallInteger);
     assert_eq_in_process!(
-        erlang::element(tuple_term, valid_index_term),
+        erlang::element(tuple_term, valid_index_term, &mut process),
         Ok(element_term),
         process
     );
@@ -142,8 +153,8 @@ fn with_tuple_without_index_in_range_is_bad_argument() {
     let empty_tuple_term = Term::slice_to_tuple(&[], &mut process);
 
     assert_bad_argument!(
-        erlang::element(empty_tuple_term, 0.into_process(&mut process)),
-        process
+        erlang::element(empty_tuple_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -156,7 +167,7 @@ fn with_tuple_with_index_in_range_is_element() {
     let tuple_term = Term::slice_to_tuple(&[element_term], &mut process);
 
     assert_eq_in_process!(
-        erlang::element(tuple_term, 0.into_process(&mut process)),
+        erlang::element(tuple_term, 0.into_process(&mut process), &mut process),
         Ok(element_term),
         process
     );
@@ -170,8 +181,8 @@ fn with_map_is_bad_argument() {
     let map_term = Term::slice_to_map(&[], &mut process);
 
     assert_bad_argument!(
-        erlang::element(map_term, 0.into_process(&mut process)),
-        process
+        erlang::element(map_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -183,8 +194,8 @@ fn with_heap_binary_is_bad_argument() {
     let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
     assert_bad_argument!(
-        erlang::element(heap_binary_term, 0.into_process(&mut process)),
-        process
+        erlang::element(heap_binary_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -198,7 +209,7 @@ fn with_subbinary_is_bad_argument() {
     let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
 
     assert_bad_argument!(
-        erlang::element(subbinary_term, 0.into_process(&mut process)),
-        process
+        erlang::element(subbinary_term, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }

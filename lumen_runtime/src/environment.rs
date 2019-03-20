@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use crate::atom::{self, Existence};
-use crate::bad_argument::BadArgument;
+use crate::exception::Exception;
 use crate::process::{self, Process};
 use crate::term::Term;
 
@@ -35,7 +35,7 @@ impl Environment {
         &mut self,
         name: &str,
         existence: Existence,
-    ) -> Result<atom::Index, BadArgument> {
+    ) -> Result<atom::Index, Exception> {
         self.atom_table.str_to_index(name, existence)
     }
 }

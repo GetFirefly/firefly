@@ -1,5 +1,5 @@
-use crate::bad_argument::BadArgument;
 use crate::binary::{heap, sub, PartToList};
+use crate::exception::Exception;
 use crate::process::Process;
 use crate::term::{Tag, Term};
 
@@ -22,7 +22,7 @@ pub fn bin_to_list(
     position: Term,
     length: Term,
     mut process: &mut Process,
-) -> Result<Term, BadArgument> {
+) -> Result<Term, Exception> {
     match binary.tag() {
         Tag::Boxed => {
             let unboxed: &Term = binary.unbox_reference();
@@ -38,9 +38,9 @@ pub fn bin_to_list(
 
                     subbinary.part_to_list(position, length, &mut process)
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(bad_argument!(&mut process)),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(bad_argument!(&mut process)),
     }
 }

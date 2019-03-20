@@ -20,7 +20,7 @@ fn with_atom_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -37,7 +37,7 @@ fn with_empty_list_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -55,7 +55,7 @@ fn with_list_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -73,7 +73,7 @@ fn with_small_integer_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -93,7 +93,7 @@ fn with_big_integer_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -111,7 +111,7 @@ fn with_float_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -120,7 +120,7 @@ fn with_local_pid_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
+    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::insert_element(
@@ -129,7 +129,7 @@ fn with_local_pid_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -147,7 +147,7 @@ fn with_external_pid_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -171,7 +171,7 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 
     let valid_index_term: Term = index.into_process(&mut process);
@@ -210,7 +210,7 @@ fn with_tuple_without_index_in_range_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -279,7 +279,7 @@ fn with_map_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -297,7 +297,7 @@ fn with_heap_binary_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }
 
@@ -317,6 +317,6 @@ fn with_subbinary_is_bad_argument() {
             0.into_process(&mut process),
             &mut process
         ),
-        process
+        &mut process
     );
 }

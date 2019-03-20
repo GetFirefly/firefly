@@ -14,7 +14,10 @@ fn with_atom_returns_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
     let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
 
-    assert_bad_argument!(erlang::binary_to_term(atom_term, &mut process), process);
+    assert_bad_argument!(
+        erlang::binary_to_term(atom_term, &mut process),
+        &mut process
+    );
 }
 
 #[test]
@@ -25,7 +28,7 @@ fn with_empty_list_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_term(Term::EMPTY_LIST, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -36,7 +39,10 @@ fn with_list_is_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
     let list_term = list_term(&mut process);
 
-    assert_bad_argument!(erlang::binary_to_term(list_term, &mut process), process);
+    assert_bad_argument!(
+        erlang::binary_to_term(list_term, &mut process),
+        &mut process
+    );
 }
 
 #[test]
@@ -48,7 +54,7 @@ fn with_small_integer_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_term(small_integer_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -63,7 +69,7 @@ fn with_big_integer_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_term(big_integer_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -74,7 +80,10 @@ fn with_float_is_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
     let float_term = 1.0.into_process(&mut process);
 
-    assert_bad_argument!(erlang::binary_to_term(float_term, &mut process), process);
+    assert_bad_argument!(
+        erlang::binary_to_term(float_term, &mut process),
+        &mut process
+    );
 }
 
 #[test]
@@ -82,11 +91,11 @@ fn with_local_pid_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
+    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_to_term(local_pid_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -99,7 +108,7 @@ fn with_external_pid_is_bad_argument() {
 
     assert_bad_argument!(
         erlang::binary_to_term(external_pid_term, &mut process),
-        process
+        &mut process
     );
 }
 
@@ -110,7 +119,10 @@ fn with_tuple_is_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
     let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
-    assert_bad_argument!(erlang::binary_to_term(tuple_term, &mut process), process);
+    assert_bad_argument!(
+        erlang::binary_to_term(tuple_term, &mut process),
+        &mut process
+    );
 }
 
 #[test]
@@ -120,7 +132,7 @@ fn with_map_is_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
     let map_term = Term::slice_to_map(&[], &mut process);
 
-    assert_bad_argument!(erlang::binary_to_term(map_term, &mut process), process);
+    assert_bad_argument!(erlang::binary_to_term(map_term, &mut process), &mut process);
 }
 
 #[test]

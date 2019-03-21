@@ -601,6 +601,24 @@ pub fn is_pid(term: Term, mut process: &mut Process) -> Term {
 }
 
 pub fn is_record(term: Term, record_tag: Term, mut process: &mut Process) -> Result {
+    is_record_with_option_size(term, record_tag, None, &mut process)
+}
+
+pub fn is_record_with_size(
+    term: Term,
+    record_tag: Term,
+    size: Term,
+    mut process: &mut Process,
+) -> Result {
+    is_record_with_option_size(term, record_tag, Some(size), &mut process)
+}
+
+fn is_record_with_option_size(
+    term: Term,
+    record_tag: Term,
+    size: Option<Term>,
+    mut process: &mut Process,
+) -> Result {
     match term.tag() {
         Tag::Boxed => {
             let unboxed: &Term = term.unbox_reference();
@@ -609,7 +627,7 @@ pub fn is_record(term: Term, record_tag: Term, mut process: &mut Process) -> Res
                 Tag::Arity => {
                     let tuple: &Tuple = term.unbox_reference();
 
-                    tuple.is_record(record_tag, &mut process)
+                    tuple.is_record(record_tag, size, &mut process)
                 }
                 _ => Ok(false.into_process(&mut process)),
             }

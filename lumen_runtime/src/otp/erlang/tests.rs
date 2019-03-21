@@ -38,6 +38,7 @@ mod is_map_key;
 mod is_number;
 mod is_pid;
 mod is_record;
+mod is_record_with_size;
 mod is_tuple;
 mod length;
 mod list_to_pid;

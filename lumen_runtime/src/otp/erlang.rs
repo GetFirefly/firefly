@@ -483,6 +483,21 @@ pub fn is_binary(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
+pub fn is_float(term: Term, mut process: &mut Process) -> Term {
+    match term.tag() {
+        Tag::Boxed => {
+            let unboxed: &Term = term.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::Float => true,
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+    .into_process(&mut process)
+}
+
 pub fn is_integer(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::SmallInteger => true,

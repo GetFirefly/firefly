@@ -29,6 +29,7 @@ mod head;
 mod insert_element;
 mod is_atom;
 mod is_binary;
+mod is_float;
 mod is_integer;
 mod is_list;
 mod is_map;

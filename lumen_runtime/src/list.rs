@@ -1,6 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 
 use crate::exception::Exception;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryIntoInProcess};
@@ -155,12 +156,31 @@ impl DebugInProcess for Cons {
     }
 }
 
+impl Eq for Cons {}
+
+impl Hash for Cons {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.head.hash(state);
+        self.tail.hash(state);
+    }
+}
+
 impl OrderInProcess for Cons {
     fn cmp_in_process(&self, other: &Cons, process: &Process) -> Ordering {
         match self.head.cmp_in_process(&other.head, process) {
             Ordering::Equal => self.tail.cmp_in_process(&other.tail, process),
             ordering => ordering,
         }
+    }
+}
+
+impl PartialEq for Cons {
+    fn eq(&self, other: &Cons) -> bool {
+        self.head == other.head && self.tail == other.tail
+    }
+
+    fn ne(&self, other: &Cons) -> bool {
+        !self.eq(other)
     }
 }
 

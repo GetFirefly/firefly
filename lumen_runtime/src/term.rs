@@ -507,6 +507,14 @@ impl DebugInProcess for Term {
                             big_integer.inner
                         )
                     }
+                    Tag::ExternalPid => {
+                        let external_pid: &process::identifier::External = self.unbox_reference();
+
+                        format!(
+                            "Term::external_pid({:?}, {:?}, {:?}, &mut process)",
+                            external_pid.node, external_pid.number, external_pid.serial
+                        )
+                    }
                     Tag::Float => {
                         let float: &Float = self.unbox_reference();
 
@@ -628,7 +636,51 @@ impl<T> From<&T> for Term {
 impl Hash for Term {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self.tag() {
-            Tag::Atom => self.tagged.hash(state),
+            Tag::Atom | Tag::EmptyList | Tag::LocalPid | Tag::SmallInteger => {
+                self.tagged.hash(state)
+            }
+            Tag::Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::Arity => {
+                        let tuple: &Tuple = self.unbox_reference();
+
+                        tuple.hash(state)
+                    }
+                    Tag::BigInteger => {
+                        let big_integer: &big::Integer = self.unbox_reference();
+
+                        big_integer.hash(state)
+                    }
+                    Tag::ExternalPid => {
+                        let external_pid: &process::identifier::External = self.unbox_reference();
+
+                        external_pid.hash(state)
+                    }
+                    Tag::Float => {
+                        let float: &Float = self.unbox_reference();
+
+                        float.hash(state)
+                    }
+                    Tag::HeapBinary => {
+                        let heap_binary: &heap::Binary = self.unbox_reference();
+
+                        heap_binary.hash(state)
+                    }
+                    Tag::Subbinary => {
+                        let subbinary: &sub::Binary = self.unbox_reference();
+
+                        subbinary.hash(state)
+                    }
+                    unboxed_tag => unimplemented!("unboxed tag {:?}", unboxed_tag),
+                }
+            }
+            Tag::List => {
+                let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+
+                cons.hash(state)
+            }
             tag => unimplemented!("tag {:?}", tag),
         }
     }
@@ -772,7 +824,59 @@ impl PartialEq for Term {
 
         if tag == other.tag() {
             match tag {
-                Tag::Atom => self.tagged == other.tagged,
+                Tag::Atom | Tag::LocalPid | Tag::SmallInteger => self.tagged == other.tagged,
+                Tag::Boxed => {
+                    let unboxed: &Term = self.unbox_reference();
+
+                    match unboxed.tag() {
+                        Tag::Arity => {
+                            let self_tuple: &Tuple = self.unbox_reference();
+                            let other_tuple: &Tuple = other.unbox_reference();
+
+                            self_tuple == other_tuple
+                        }
+                        Tag::BigInteger => {
+                            let self_big_integer: &big::Integer = self.unbox_reference();
+                            let other_big_integer: &big::Integer = other.unbox_reference();
+
+                            self_big_integer == other_big_integer
+                        }
+                        Tag::ExternalPid => {
+                            let self_external_pid: &process::identifier::External =
+                                self.unbox_reference();
+                            let other_external_pid: &process::identifier::External =
+                                other.unbox_reference();
+
+                            self_external_pid == other_external_pid
+                        }
+                        Tag::Float => {
+                            let self_float: &Float = self.unbox_reference();
+                            let other_float: &Float = other.unbox_reference();
+
+                            self_float == other_float
+                        }
+                        Tag::HeapBinary => {
+                            let self_heap_binary: &heap::Binary = self.unbox_reference();
+                            let other_heap_binary: &heap::Binary = other.unbox_reference();
+
+                            self_heap_binary == other_heap_binary
+                        }
+                        Tag::Subbinary => {
+                            let self_subbinary: &sub::Binary = self.unbox_reference();
+                            let other_subbbinary: &sub::Binary = other.unbox_reference();
+
+                            self_subbinary == other_subbbinary
+                        }
+                        unboxed_tag => unimplemented!("unboxed tag ({:?})", unboxed_tag),
+                    }
+                }
+                Tag::EmptyList => true,
+                Tag::List => {
+                    let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+                    let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
+
+                    self_cons == other_cons
+                }
                 _ => unimplemented!("tag ({:?})", tag),
             }
         } else {
@@ -1141,7 +1245,7 @@ impl OrderInProcess for Option<Term> {
             (None, Some(_)) => Ordering::Less,
             (None, None) => Ordering::Equal,
             (Some(self_term), Some(other_term)) => self_term.cmp_in_process(other_term, process),
-            (Some(_), None) => Ordering::Greater
+            (Some(_), None) => Ordering::Greater,
         }
     }
 }

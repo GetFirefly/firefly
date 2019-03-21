@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 
 use crate::atom::{self, Existence};
@@ -157,6 +158,38 @@ impl Binary {
             self.bit_count,
             &mut process,
         )
+    }
+}
+
+impl Eq for Binary {}
+
+impl Hash for Binary {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for byte in self.byte_iter() {
+            byte.hash(state);
+        }
+
+        for bit in self.bit_count_iter() {
+            bit.hash(state);
+        }
+    }
+}
+
+impl PartialEq for Binary {
+    fn eq(&self, other: &Binary) -> bool {
+        (self.bit_size() == other.bit_size())
+            & self
+                .byte_iter()
+                .zip(other.byte_iter())
+                .all(|(self_byte, other_byte)| self_byte == other_byte)
+            & self
+                .bit_count_iter()
+                .zip(other.bit_count_iter())
+                .all(|(self_bit, other_bit)| self_bit == other_bit)
+    }
+
+    fn ne(&self, other: &Binary) -> bool {
+        !self.eq(other)
     }
 }
 

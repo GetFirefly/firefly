@@ -14,6 +14,7 @@ use crate::exception::Result;
 use crate::float::Float;
 use crate::integer::{big, small};
 use crate::list::Cons;
+use crate::map::Map;
 use crate::otp;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
 use crate::term::{Tag, Term};
@@ -516,6 +517,29 @@ pub fn is_map(term: Term, mut process: &mut Process) -> Term {
         _ => false,
     }
     .into_process(&mut process)
+}
+
+pub fn is_map_key(key: Term, map: Term, mut process: &mut Process) -> Result {
+    match map.tag() {
+        Tag::Boxed => {
+            let unboxed_map: &Term = map.unbox_reference();
+
+            match unboxed_map.tag() {
+                Tag::Map => {
+                    let map_map: &Map = map.unbox_reference();
+                    Some(map_map.is_key(key).into_process(&mut process))
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+    .ok_or_else(|| {
+        let badmap = Term::str_to_atom("badmap", Existence::DoNotCare, &mut process).unwrap();
+        let reason = Term::slice_to_tuple(&[badmap, map], &mut process);
+
+        error!(reason)
+    })
 }
 
 pub fn is_pid(term: Term, mut process: &mut Process) -> Term {

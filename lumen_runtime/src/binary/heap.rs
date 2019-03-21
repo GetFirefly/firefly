@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 
 use crate::atom::{self, Existence};
 use crate::binary::{
@@ -121,6 +122,16 @@ impl DebugInProcess for Binary {
     }
 }
 
+impl Eq for Binary {}
+
+impl Hash for Binary {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for byte in self.byte_iter() {
+            byte.hash(state);
+        }
+    }
+}
+
 pub struct Iter {
     pointer: *const u8,
     limit: *const u8,
@@ -188,6 +199,33 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
 
             Ok(binary::Binary::Sub(process_subbinary))
         }
+    }
+}
+
+impl PartialEq for Binary {
+    fn eq(&self, other: &Binary) -> bool {
+        match self.header.tagged == other.header.tagged {
+            true => {
+                let mut final_eq = true;
+
+                for (self_element, other_element) in self.iter().zip(other.iter()) {
+                    match self_element == other_element {
+                        true => continue,
+                        eq => {
+                            final_eq = eq;
+                            break;
+                        }
+                    }
+                }
+
+                final_eq
+            }
+            eq => eq,
+        }
+    }
+
+    fn ne(&self, other: &Binary) -> bool {
+        !self.eq(other)
     }
 }
 

@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 use std::ops::Index;
 
@@ -150,6 +151,16 @@ impl DebugInProcess for Tuple {
     }
 }
 
+impl Eq for Tuple {}
+
+impl Hash for Tuple {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for element in self.iter() {
+            element.hash(state);
+        }
+    }
+}
+
 impl Index<usize> for Tuple {
     type Output = Term;
 
@@ -207,6 +218,20 @@ impl OrderInProcess for Tuple {
             }
             ordering => ordering,
         }
+    }
+}
+
+impl PartialEq for Tuple {
+    fn eq(&self, other: &Tuple) -> bool {
+        (self.arity.tagged == other.arity.tagged)
+            & self
+                .iter()
+                .zip(other.iter())
+                .all(|(self_element, other_element)| self_element == other_element)
+    }
+
+    fn ne(&self, other: &Tuple) -> bool {
+        !self.eq(other)
     }
 }
 

@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 
 use crate::process::{OrderInProcess, Process};
 use crate::term::{Tag, Term};
@@ -12,9 +13,9 @@ pub const SERIAL_MAX: usize = (1 << (SERIAL_BIT_COUNT as usize)) - 1;
 pub struct External {
     #[allow(dead_code)]
     header: Term,
-    node: usize,
-    serial: usize,
-    number: usize,
+    pub node: usize,
+    pub serial: usize,
+    pub number: usize,
 }
 
 impl External {
@@ -32,6 +33,14 @@ impl External {
     }
 }
 
+impl Hash for External {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.node.hash(state);
+        self.serial.hash(state);
+        self.number.hash(state);
+    }
+}
+
 impl OrderInProcess for External {
     fn cmp_in_process(&self, other: &External, _process: &Process) -> Ordering {
         match self.node.cmp(&other.node) {
@@ -41,6 +50,16 @@ impl OrderInProcess for External {
             },
             ordering => ordering,
         }
+    }
+}
+
+impl PartialEq for External {
+    fn eq(&self, other: &External) -> bool {
+        (self.node == other.node) & (self.serial == other.serial) & (self.number == other.number)
+    }
+
+    fn ne(&self, other: &External) -> bool {
+        !self.eq(other)
     }
 }
 

@@ -33,6 +33,7 @@ mod is_integer;
 mod is_list;
 mod is_map;
 mod is_map_key;
+mod is_number;
 mod is_pid;
 mod is_tuple;
 mod length;

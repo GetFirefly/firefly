@@ -600,6 +600,24 @@ pub fn is_pid(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
+pub fn is_record(term: Term, record_tag: Term, mut process: &mut Process) -> Result {
+    match term.tag() {
+        Tag::Boxed => {
+            let unboxed: &Term = term.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::Arity => {
+                    let tuple: &Tuple = term.unbox_reference();
+
+                    tuple.is_record(record_tag, &mut process)
+                }
+                _ => Ok(false.into_process(&mut process)),
+            }
+        }
+        _ => Ok(false.into_process(&mut process)),
+    }
+}
+
 pub fn is_tuple(term: Term, mut process: &mut Process) -> Term {
     (term.tag() == Tag::Boxed && term.unbox_reference::<Term>().tag() == Tag::Arity)
         .into_process(&mut process)

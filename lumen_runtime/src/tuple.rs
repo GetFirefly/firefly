@@ -7,7 +7,7 @@ use liblumen_arena::TypedArena;
 
 use crate::exception::{self, Exception};
 use crate::integer::Integer;
-use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
+use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryIntoInProcess};
 use crate::term::{Tag::*, Term};
 
 #[repr(C)]
@@ -111,12 +111,27 @@ impl Tuple {
         }
     }
 
-    pub fn is_record(&self, record_tag: Term, mut process: &mut Process) -> exception::Result {
+    pub fn is_record(
+        &self,
+        record_tag: Term,
+        size: Option<Term>,
+        mut process: &mut Process,
+    ) -> exception::Result {
         match record_tag.tag() {
             Atom => {
                 let element = self.element(0, &mut process)?;
 
-                Ok((element == record_tag).into_process(&mut process))
+                match size {
+                    Some(size_term) => {
+                        let size_usize: usize = size_term.try_into_in_process(&mut process)?;
+
+                        Ok(
+                            ((element == record_tag) & (self.arity.arity_to_usize() == size_usize))
+                                .into_process(&mut process),
+                        )
+                    }
+                    None => Ok((element == record_tag).into_process(&mut process)),
+                }
             }
             _ => Err(bad_argument!(&mut process)),
         }

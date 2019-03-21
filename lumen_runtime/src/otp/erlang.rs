@@ -24,7 +24,7 @@ use crate::tuple::Tuple;
 #[cfg(test)]
 mod tests;
 
-pub fn abs(number: Term, mut process: &mut Process) -> Result {
+pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
     match number.tag() {
         Tag::SmallInteger => {
             if unsafe { number.small_integer_is_negative() } {
@@ -81,14 +81,14 @@ pub fn abs(number: Term, mut process: &mut Process) -> Result {
     }
 }
 
-pub fn append_element(tuple: Term, element: Term, mut process: &mut Process) -> Result {
+pub fn append_element_2(tuple: Term, element: Term, mut process: &mut Process) -> Result {
     let internal: &Tuple = tuple.try_into_in_process(&mut process)?;
     let new_tuple = internal.append_element(element, &mut process.term_arena);
 
     Ok(new_tuple.into())
 }
 
-pub fn atom_to_binary(atom: Term, encoding: Term, mut process: &mut Process) -> Result {
+pub fn atom_to_binary_2(atom: Term, encoding: Term, mut process: &mut Process) -> Result {
     if let Tag::Atom = atom.tag() {
         encoding.atom_to_encoding(&mut process)?;
         let string = atom.atom_to_string(process);
@@ -98,9 +98,8 @@ pub fn atom_to_binary(atom: Term, encoding: Term, mut process: &mut Process) -> 
     }
 }
 
-pub fn atom_to_list(atom: Term, encoding: Term, mut process: &mut Process) -> Result {
-    if let Tag::Atom = atom.tag() {
-        encoding.atom_to_encoding(&mut process)?;
+pub fn atom_to_list_1(atom: Term, mut process: &mut Process) -> Result {
+    if atom.tag() == Tag::Atom {
         let string = atom.atom_to_string(process);
         Ok(Term::chars_to_list(string.chars(), &mut process))
     } else {
@@ -108,7 +107,7 @@ pub fn atom_to_list(atom: Term, encoding: Term, mut process: &mut Process) -> Re
     }
 }
 
-pub fn binary_part(binary: Term, start: Term, length: Term, mut process: &mut Process) -> Result {
+pub fn binary_part_3(binary: Term, start: Term, length: Term, mut process: &mut Process) -> Result {
     match binary.tag() {
         Tag::Boxed => {
             let unboxed: &Term = binary.unbox_reference();
@@ -131,15 +130,15 @@ pub fn binary_part(binary: Term, start: Term, length: Term, mut process: &mut Pr
     }
 }
 
-pub fn binary_to_atom(binary: Term, encoding: Term, process: &mut Process) -> Result {
+pub fn binary_to_atom_2(binary: Term, encoding: Term, process: &mut Process) -> Result {
     binary_existence_to_atom(binary, encoding, Existence::DoNotCare, process)
 }
 
-pub fn binary_to_existing_atom(binary: Term, encoding: Term, process: &mut Process) -> Result {
+pub fn binary_to_existing_atom_2(binary: Term, encoding: Term, process: &mut Process) -> Result {
     binary_existence_to_atom(binary, encoding, Existence::Exists, process)
 }
 
-pub fn binary_to_float(binary: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_float_1(binary: Term, mut process: &mut Process) -> Result {
     let string: String = binary.try_into_in_process(&mut process)?;
 
     match string.parse::<f64>() {
@@ -166,8 +165,7 @@ pub fn binary_to_float(binary: Term, mut process: &mut Process) -> Result {
     }
 }
 
-/// `binary_to_integer/1`
-pub fn binary_to_integer(binary: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_integer_1(binary: Term, mut process: &mut Process) -> Result {
     let string: String = binary.try_into_in_process(&mut process)?;
     let bytes = string.as_bytes();
 
@@ -181,8 +179,7 @@ pub fn binary_to_integer(binary: Term, mut process: &mut Process) -> Result {
     }
 }
 
-/// `binary_to_integer/2`
-pub fn binary_in_base_to_integer(binary: Term, base: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_integer_2(binary: Term, base: Term, mut process: &mut Process) -> Result {
     let string: String = binary.try_into_in_process(&mut process)?;
     let radix: usize = base.try_into_in_process(&mut process)?;
 
@@ -202,8 +199,7 @@ pub fn binary_in_base_to_integer(binary: Term, base: Term, mut process: &mut Pro
     }
 }
 
-/// `binary_to_list/1`
-pub fn binary_to_list(binary: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_list_1(binary: Term, mut process: &mut Process) -> Result {
     match binary.tag() {
         Tag::Boxed => {
             let unboxed: &Term = binary.unbox_reference();
@@ -226,12 +222,10 @@ pub fn binary_to_list(binary: Term, mut process: &mut Process) -> Result {
     }
 }
 
-/// `binary_to_list/3`
-///
 /// The one-based indexing for binaries used by this function is deprecated. New code is to use
 /// [crate::otp::binary::bin_to_list] instead. All functions in module [crate::otp::binary]
 /// consistently use zero-based indexing.
-pub fn binary_byte_range_to_list(
+pub fn binary_to_list_3(
     binary: Term,
     start: Term,
     stop: Term,
@@ -262,13 +256,11 @@ pub fn binary_byte_range_to_list(
     }
 }
 
-/// `binary_to_term/1`
-pub fn binary_to_term(binary: Term, process: &mut Process) -> Result {
-    binary_options_to_term(binary, Term::EMPTY_LIST, process)
+pub fn binary_to_term_1(binary: Term, process: &mut Process) -> Result {
+    binary_to_term_2(binary, Term::EMPTY_LIST, process)
 }
 
-/// `binary_to_term/2`
-pub fn binary_options_to_term(binary: Term, options: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_term_2(binary: Term, options: Term, mut process: &mut Process) -> Result {
     let to_term_options: ToTermOptions = options.try_into_in_process(process)?;
 
     match binary.tag() {
@@ -293,7 +285,7 @@ pub fn binary_options_to_term(binary: Term, options: Term, mut process: &mut Pro
     }
 }
 
-pub fn bit_size(bit_string: Term, mut process: &mut Process) -> Result {
+pub fn bit_size_1(bit_string: Term, mut process: &mut Process) -> Result {
     match bit_string.tag() {
         Tag::Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
@@ -317,7 +309,7 @@ pub fn bit_size(bit_string: Term, mut process: &mut Process) -> Result {
     .map(|bit_size_usize| bit_size_usize.into_process(&mut process))
 }
 
-pub fn bitstring_to_list(bit_string: Term, mut process: &mut Process) -> Result {
+pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Result {
     match bit_string.tag() {
         Tag::Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
@@ -340,7 +332,7 @@ pub fn bitstring_to_list(bit_string: Term, mut process: &mut Process) -> Result 
     }
 }
 
-pub fn byte_size(bit_string: Term, mut process: &mut Process) -> Result {
+pub fn byte_size_1(bit_string: Term, mut process: &mut Process) -> Result {
     match bit_string.tag() {
         Tag::Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
@@ -364,7 +356,7 @@ pub fn byte_size(bit_string: Term, mut process: &mut Process) -> Result {
     .map(|byte_size_usize| byte_size_usize.into_process(&mut process))
 }
 
-pub fn ceil(number: Term, mut process: &mut Process) -> Result {
+pub fn ceil_1(number: Term, mut process: &mut Process) -> Result {
     match number.tag() {
         Tag::SmallInteger => Ok(number),
         Tag::Boxed => {
@@ -398,7 +390,7 @@ pub fn ceil(number: Term, mut process: &mut Process) -> Result {
     }
 }
 
-pub fn convert_time_unit(
+pub fn convert_time_unit_3(
     time: Term,
     from_unit: Term,
     to_unit: Term,
@@ -413,7 +405,7 @@ pub fn convert_time_unit(
     Ok(converted)
 }
 
-pub fn delete_element(tuple: Term, index: Term, mut process: &mut Process) -> Result {
+pub fn delete_element_2(tuple: Term, index: Term, mut process: &mut Process) -> Result {
     let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
     let inner_index: usize = index.try_into_in_process(&mut process)?;
 
@@ -422,30 +414,28 @@ pub fn delete_element(tuple: Term, index: Term, mut process: &mut Process) -> Re
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
-pub fn element(tuple: Term, index: Term, mut process: &mut Process) -> Result {
+pub fn element_2(tuple: Term, index: Term, mut process: &mut Process) -> Result {
     let inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
     let inner_index: usize = index.try_into_in_process(&mut process)?;
 
     inner_tuple.element(inner_index, &mut process)
 }
 
-/// `error/1`
-pub fn error(reason: Term) -> Result {
+pub fn error_1(reason: Term) -> Result {
     Err(error!(reason))
 }
 
-/// `error/2`
-pub fn error_with_arguments(reason: Term, arguments: Term) -> Result {
+pub fn error_2(reason: Term, arguments: Term) -> Result {
     Err(error!(reason, arguments))
 }
 
-pub fn head(list: Term, mut process: &mut Process) -> Result {
+pub fn hd_1(list: Term, mut process: &mut Process) -> Result {
     let cons: &Cons = list.try_into_in_process(&mut process)?;
 
     Ok(cons.head())
 }
 
-pub fn insert_element(
+pub fn insert_element_3(
     tuple: Term,
     index: Term,
     element: Term,
@@ -459,11 +449,11 @@ pub fn insert_element(
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
-pub fn is_atom(term: Term, mut process: &mut Process) -> Term {
+pub fn is_atom_1(term: Term, mut process: &mut Process) -> Term {
     (term.tag() == Tag::Atom).into_process(&mut process)
 }
 
-pub fn is_binary(term: Term, mut process: &mut Process) -> Term {
+pub fn is_binary_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::Boxed => {
             let unboxed: &Term = term.unbox_reference();
@@ -483,7 +473,7 @@ pub fn is_binary(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
-pub fn is_boolean(term: Term, mut process: &mut Process) -> Term {
+pub fn is_boolean_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::Atom => match term.atom_to_string(&mut process).as_ref() {
             "false" | "true" => true,
@@ -494,7 +484,7 @@ pub fn is_boolean(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
-pub fn is_float(term: Term, mut process: &mut Process) -> Term {
+pub fn is_float_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::Boxed => {
             let unboxed: &Term = term.unbox_reference();
@@ -509,7 +499,7 @@ pub fn is_float(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
-pub fn is_integer(term: Term, mut process: &mut Process) -> Term {
+pub fn is_integer_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::SmallInteger => true,
         Tag::Boxed => {
@@ -522,7 +512,7 @@ pub fn is_integer(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
-pub fn is_list(term: Term, mut process: &mut Process) -> Term {
+pub fn is_list_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::EmptyList | Tag::List => true,
         _ => false,
@@ -530,7 +520,7 @@ pub fn is_list(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
-pub fn is_map(term: Term, mut process: &mut Process) -> Term {
+pub fn is_map_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::Boxed => {
             let unboxed: &Term = term.unbox_reference();
@@ -545,7 +535,7 @@ pub fn is_map(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
-pub fn is_map_key(key: Term, map: Term, mut process: &mut Process) -> Result {
+pub fn is_map_key_2(key: Term, map: Term, mut process: &mut Process) -> Result {
     match map.tag() {
         Tag::Boxed => {
             let unboxed_map: &Term = map.unbox_reference();
@@ -568,7 +558,7 @@ pub fn is_map_key(key: Term, map: Term, mut process: &mut Process) -> Result {
     })
 }
 
-pub fn is_number(term: Term, mut process: &mut Process) -> Term {
+pub fn is_number_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::SmallInteger => true,
         Tag::Boxed => {
@@ -584,7 +574,7 @@ pub fn is_number(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
-pub fn is_pid(term: Term, mut process: &mut Process) -> Term {
+pub fn is_pid_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::LocalPid => true,
         Tag::Boxed => {
@@ -600,48 +590,20 @@ pub fn is_pid(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
-pub fn is_record(term: Term, record_tag: Term, mut process: &mut Process) -> Result {
-    is_record_with_option_size(term, record_tag, None, &mut process)
+pub fn is_record_2(term: Term, record_tag: Term, mut process: &mut Process) -> Result {
+    is_record(term, record_tag, None, &mut process)
 }
 
-pub fn is_record_with_size(
-    term: Term,
-    record_tag: Term,
-    size: Term,
-    mut process: &mut Process,
-) -> Result {
-    is_record_with_option_size(term, record_tag, Some(size), &mut process)
+pub fn is_record_3(term: Term, record_tag: Term, size: Term, mut process: &mut Process) -> Result {
+    is_record(term, record_tag, Some(size), &mut process)
 }
 
-fn is_record_with_option_size(
-    term: Term,
-    record_tag: Term,
-    size: Option<Term>,
-    mut process: &mut Process,
-) -> Result {
-    match term.tag() {
-        Tag::Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                Tag::Arity => {
-                    let tuple: &Tuple = term.unbox_reference();
-
-                    tuple.is_record(record_tag, size, &mut process)
-                }
-                _ => Ok(false.into_process(&mut process)),
-            }
-        }
-        _ => Ok(false.into_process(&mut process)),
-    }
-}
-
-pub fn is_tuple(term: Term, mut process: &mut Process) -> Term {
+pub fn is_tuple_1(term: Term, mut process: &mut Process) -> Term {
     (term.tag() == Tag::Boxed && term.unbox_reference::<Term>().tag() == Tag::Arity)
         .into_process(&mut process)
 }
 
-pub fn length(list: Term, mut process: &mut Process) -> Result {
+pub fn length_1(list: Term, mut process: &mut Process) -> Result {
     let mut length: usize = 0;
     let mut tail = list;
 
@@ -649,7 +611,7 @@ pub fn length(list: Term, mut process: &mut Process) -> Result {
         match tail.tag() {
             Tag::EmptyList => break Ok(length.into_process(&mut process)),
             Tag::List => {
-                tail = crate::otp::erlang::tail(tail, &mut process).unwrap();
+                tail = crate::otp::erlang::tl_1(tail, &mut process).unwrap();
                 length += 1;
             }
             _ => break Err(bad_argument!(&mut process)),
@@ -657,17 +619,17 @@ pub fn length(list: Term, mut process: &mut Process) -> Result {
     }
 }
 
-pub fn list_to_pid(string: Term, mut process: &mut Process) -> Result {
+pub fn list_to_pid_1(string: Term, mut process: &mut Process) -> Result {
     let cons: &Cons = string.try_into_in_process(&mut process)?;
 
     cons.to_pid(&mut process)
 }
 
-pub fn self_pid(process: &Process) -> Term {
+pub fn self_0(process: &Process) -> Term {
     process.pid
 }
 
-pub fn size(binary_or_tuple: Term, mut process: &mut Process) -> Result {
+pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
     match binary_or_tuple.tag() {
         Tag::Boxed => {
             let unboxed: &Term = binary_or_tuple.unbox_reference();
@@ -696,7 +658,7 @@ pub fn size(binary_or_tuple: Term, mut process: &mut Process) -> Result {
     .map(|integer| integer.into_process(&mut process))
 }
 
-pub fn tail(list: Term, process: &mut Process) -> Result {
+pub fn tl_1(list: Term, process: &mut Process) -> Result {
     let cons: &Cons = list.try_into_in_process(process)?;
 
     Ok(cons.tail())
@@ -733,4 +695,27 @@ fn binary_existence_to_atom(
         _ => Err(bad_argument!(&mut process)),
     }
     .map(|atom_index| atom_index.into())
+}
+
+fn is_record(
+    term: Term,
+    record_tag: Term,
+    size: Option<Term>,
+    mut process: &mut Process,
+) -> Result {
+    match term.tag() {
+        Tag::Boxed => {
+            let unboxed: &Term = term.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::Arity => {
+                    let tuple: &Tuple = term.unbox_reference();
+
+                    tuple.is_record(record_tag, size, &mut process)
+                }
+                _ => Ok(false.into_process(&mut process)),
+            }
+        }
+        _ => Ok(false.into_process(&mut process)),
+    }
 }

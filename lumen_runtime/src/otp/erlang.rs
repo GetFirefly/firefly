@@ -542,6 +542,22 @@ pub fn is_map_key(key: Term, map: Term, mut process: &mut Process) -> Result {
     })
 }
 
+pub fn is_number(term: Term, mut process: &mut Process) -> Term {
+    match term.tag() {
+        Tag::SmallInteger => true,
+        Tag::Boxed => {
+            let unboxed: &Term = term.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::BigInteger | Tag::Float => true,
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+    .into_process(&mut process)
+}
+
 pub fn is_pid(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::LocalPid => true,

@@ -7,8 +7,8 @@ use liblumen_arena::TypedArena;
 
 use crate::exception::{self, Exception};
 use crate::integer::Integer;
-use crate::process::{DebugInProcess, OrderInProcess, Process};
-use crate::term::Term;
+use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
+use crate::term::{Tag::*, Term};
 
 #[repr(C)]
 pub struct Tuple {
@@ -108,6 +108,17 @@ impl Tuple {
             Ok(tuple)
         } else {
             Err(bad_argument!(&mut process))
+        }
+    }
+
+    pub fn is_record(&self, record_tag: Term, mut process: &mut Process) -> exception::Result {
+        match record_tag.tag() {
+            Atom => {
+                let element = self.element(0, &mut process)?;
+
+                Ok((element == record_tag).into_process(&mut process))
+            }
+            _ => Err(bad_argument!(&mut process)),
         }
     }
 

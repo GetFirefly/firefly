@@ -413,17 +413,17 @@ mod tests {
             let mut second_process = second_process_rw_lock.write().unwrap();
 
             assert_ne_in_process!(
-                erlang::self_pid(&first_process),
-                erlang::self_pid(&second_process),
+                erlang::self_0(&first_process),
+                erlang::self_0(&second_process),
                 first_process
             );
             assert_eq_in_process!(
-                erlang::self_pid(&first_process),
+                erlang::self_0(&first_process),
                 Term::local_pid(0, 0, &mut first_process).unwrap(),
                 &mut first_process
             );
             assert_eq_in_process!(
-                erlang::self_pid(&second_process),
+                erlang::self_0(&second_process),
                 Term::local_pid(1, 0, &mut second_process).unwrap(),
                 &mut second_process
             );
@@ -441,7 +441,7 @@ mod tests {
             for _ in 0..identifier::NUMBER_MAX + 1 {
                 let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
                 let process = process_rw_lock.read().unwrap();
-                final_pid = Some(erlang::self_pid(&process))
+                final_pid = Some(erlang::self_0(&process))
             }
 
             assert_eq_in_process!(

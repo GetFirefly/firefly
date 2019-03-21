@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use num_bigint::{BigInt, Sign::*};
 
 use crate::exception::Exception;
@@ -18,6 +20,24 @@ impl Integer {
             },
             inner,
         }
+    }
+}
+
+impl Eq for Integer {}
+
+impl Hash for Integer {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.inner.hash(state)
+    }
+}
+
+impl PartialEq for Integer {
+    fn eq(&self, other: &Integer) -> bool {
+        self.inner == other.inner
+    }
+
+    fn ne(&self, other: &Integer) -> bool {
+        !self.eq(other)
     }
 }
 

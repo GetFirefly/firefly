@@ -33,6 +33,10 @@ impl Map {
             inner,
         }
     }
+
+    pub fn is_key(&self, key: Term) -> bool {
+        self.inner.contains_key(&key)
+    }
 }
 
 impl OrderInProcess for Map {

@@ -48,31 +48,40 @@ macro_rules! assert_bad_argument {
         )
     }};
     ($left:expr, $process:expr,) => {{
+        assert_bad_argument!($left, $process)
+    }};
+}
+
+#[macro_export]
+macro_rules! assert_bad_map {
+    ($left:expr, $map:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
         use crate::term::Term;
 
-        assert_error!(
-            $left,
-            Term::str_to_atom("badarg", DoNotCare, $process).unwrap(),
-            $process
-        )
+        let badmap = Term::str_to_atom("badmap", DoNotCare, $process).unwrap();
+        let reason = Term::slice_to_tuple(&[badmap, $map], $process);
+
+        assert_error!($left, reason, $process)
+    }};
+    ($left:expr, $map:expr, $process:expr,) => {{
+        assert_bad_map($left, $map, $process)
     }};
 }
 
 #[macro_export]
 macro_rules! assert_error {
-    ($left:expr, $reason:expr, $process:expr) => {{
+    ($left:expr, $reason:expr, $process:expr) => {
         assert_eq_in_process!($left, Err(error!($reason)), $process)
-    }};
-    ($left:expr, $reason:expr, $process:expr,) => {{
+    };
+    ($left:expr, $reason:expr, $process:expr,) => {
         assert_eq_in_process!($left, Err(error!($reason)), $process)
-    }};
-    ($left:expr, $reason:expr, $arguments:expr, $process:expr) => {{
+    };
+    ($left:expr, $reason:expr, $arguments:expr, $process:expr) => {
         assert_eq_in_process!($left, Err(error!($reason, $arguments)), $process)
-    }};
-    ($left:expr, $reason:expr, $arguments:expr, $process:expr,) => {{
+    };
+    ($left:expr, $reason:expr, $arguments:expr, $process:expr,) => {
         assert_eq_in_process!($left, Err(error!($reason, $arguments)), $process)
-    }};
+    };
 }
 
 #[macro_export]
@@ -82,6 +91,22 @@ macro_rules! bad_argument {
         use crate::term::Term;
 
         error!(Term::str_to_atom("badarg", DoNotCare, $process).unwrap())
+    }};
+}
+
+#[macro_export]
+macro_rules! bad_map {
+    ($map:expr, $process:expr) => {{
+        use crate::atom::Existence::DoNotCare;
+        use crate::term::Term;
+
+        let badmap = Term::str_to_atom("badmap", DoNotCare, $process).unwrap();
+        let reason = Term::slice_to_tuple(&[badmap, map], $process);
+
+        error!(reason)
+    }};
+    ($map:expr, $process:expr,) => {{
+        bad_map!($map, $process)
     }};
 }
 

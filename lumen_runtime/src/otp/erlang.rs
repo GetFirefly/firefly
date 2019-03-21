@@ -483,6 +483,17 @@ pub fn is_binary(term: Term, mut process: &mut Process) -> Term {
     .into_process(&mut process)
 }
 
+pub fn is_boolean(term: Term, mut process: &mut Process) -> Term {
+    match term.tag() {
+        Tag::Atom => match term.atom_to_string(&mut process).as_ref() {
+            "false" | "true" => true,
+            _ => false,
+        },
+        _ => false,
+    }
+    .into_process(&mut process)
+}
+
 pub fn is_float(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
         Tag::Boxed => {

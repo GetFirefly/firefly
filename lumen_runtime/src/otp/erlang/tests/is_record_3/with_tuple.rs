@@ -10,6 +10,21 @@ use crate::process::IntoProcess;
 mod with_atom_record_tag;
 
 #[test]
+fn with_local_reference_record_tag_errors_badarg() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let record_tag = Term::local_reference(&mut process);
+    let term = Term::slice_to_tuple(&[record_tag], &mut process);
+    let size = 1.into_process(&mut process);
+
+    assert_bad_argument!(
+        erlang::is_record_3(term, record_tag, size, &mut process),
+        &mut process
+    );
+}
+
+#[test]
 fn with_empty_list_record_tag_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

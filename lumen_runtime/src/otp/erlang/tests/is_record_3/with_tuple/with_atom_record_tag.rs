@@ -24,6 +24,21 @@ fn with_atom_size_errors_badarg() {
 }
 
 #[test]
+fn with_local_reference_size_errors_badarg() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let record_tag = Term::str_to_atom("record_tag", DoNotCare, &mut process).unwrap();
+    let term = Term::slice_to_tuple(&[record_tag], &mut process);
+    let size = Term::local_reference(&mut process);
+
+    assert_bad_argument!(
+        erlang::is_record_3(term, record_tag, size, &mut process),
+        &mut process
+    );
+}
+
+#[test]
 fn with_empty_list_size_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

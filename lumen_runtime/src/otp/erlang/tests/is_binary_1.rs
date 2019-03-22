@@ -23,6 +23,17 @@ fn with_atom_is_false() {
 }
 
 #[test]
+fn with_local_reference_is_false() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let term = Term::local_reference(&mut process);
+    let false_term = false.into_process(&mut process);
+
+    assert_eq_in_process!(erlang::is_binary_1(term, &mut process), false_term, process);
+}
+
+#[test]
 fn with_empty_list_is_false() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

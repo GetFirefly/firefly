@@ -8,7 +8,7 @@ use crate::environment::{self, Environment};
 use crate::process::IntoProcess;
 
 #[test]
-fn with_atom_returns_error_1_with_atom_reason() {
+fn with_atom_errors_atom_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -18,7 +18,17 @@ fn with_atom_returns_error_1_with_atom_reason() {
 }
 
 #[test]
-fn with_empty_list_returns_error_1_with_empty_list_reason() {
+fn with_local_reference_errors_local_reference() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let reason = Term::local_reference(&mut process);
+
+    assert_error!(erlang::error_1(reason), reason, &mut process);
+}
+
+#[test]
+fn with_empty_list_errors_empty_list_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -28,7 +38,7 @@ fn with_empty_list_returns_error_1_with_empty_list_reason() {
 }
 
 #[test]
-fn with_list_returns_error_1_with_list_reason() {
+fn with_list_errors_list_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -38,7 +48,7 @@ fn with_list_returns_error_1_with_list_reason() {
 }
 
 #[test]
-fn with_small_integer_returns_error_1_with_small_integer_reason() {
+fn with_small_integer_errors_small_integer_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -48,7 +58,7 @@ fn with_small_integer_returns_error_1_with_small_integer_reason() {
 }
 
 #[test]
-fn with_big_integer_returns_error_1_with_big_integer_reason() {
+fn with_big_integer_errors_big_integer_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -60,7 +70,7 @@ fn with_big_integer_returns_error_1_with_big_integer_reason() {
 }
 
 #[test]
-fn with_float_returns_error_1_with_float_reason() {
+fn with_float_errors_float_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -70,7 +80,7 @@ fn with_float_returns_error_1_with_float_reason() {
 }
 
 #[test]
-fn with_local_pid_returns_error_1_with_local_pid_reason() {
+fn with_local_pid_errors_local_pid_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -80,7 +90,7 @@ fn with_local_pid_returns_error_1_with_local_pid_reason() {
 }
 
 #[test]
-fn with_external_pid_returns_error_1_with_external_pid_reason() {
+fn with_external_pid_errors_external_pid_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -90,7 +100,7 @@ fn with_external_pid_returns_error_1_with_external_pid_reason() {
 }
 
 #[test]
-fn with_tuple_returns_error_1_with_tuple_reason() {
+fn with_tuple_errors_tuple_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -100,7 +110,7 @@ fn with_tuple_returns_error_1_with_tuple_reason() {
 }
 
 #[test]
-fn with_map_returns_error_1_with_map_reason() {
+fn with_map_errors_map_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -110,7 +120,7 @@ fn with_map_returns_error_1_with_map_reason() {
 }
 
 #[test]
-fn with_heap_binary_returns_error_1_with_heap_binary_reason() {
+fn with_heap_binary_errors_heap_binary_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
@@ -121,7 +131,7 @@ fn with_heap_binary_returns_error_1_with_heap_binary_reason() {
 }
 
 #[test]
-fn with_subbinary_returns_error_1_with_subbinary_reason() {
+fn with_subbinary_errors_subbinary_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();

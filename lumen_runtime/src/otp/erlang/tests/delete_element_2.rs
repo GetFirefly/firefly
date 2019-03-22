@@ -20,6 +20,19 @@ fn with_atom_is_bad_argument() {
 }
 
 #[test]
+fn with_local_reference_errors_badarg() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let tuple = Term::local_reference(&mut process);
+
+    assert_bad_argument!(
+        erlang::delete_element_2(tuple, 0.into_process(&mut process), &mut process),
+        &mut process
+    );
+}
+
+#[test]
 fn with_empty_list_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

@@ -34,7 +34,32 @@ fn with_atom_key() {
 }
 
 #[test]
-fn with_empty_key_list() {
+fn with_local_reference_key() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+
+    let key = Term::local_reference(&mut process);
+    let value = Term::local_reference(&mut process);
+    let map_with_key = Term::slice_to_map(&[(key, value)], &mut process);
+
+    assert_eq_in_process!(
+        erlang::is_map_key_2(key, map_with_key, &mut process),
+        Ok(true.into_process(&mut process)),
+        process
+    );
+
+    let map_without_key = Term::slice_to_map(&[], &mut process);
+
+    assert_eq_in_process!(
+        erlang::is_map_key_2(key, map_without_key, &mut process),
+        Ok(false.into_process(&mut process)),
+        process
+    )
+}
+
+#[test]
+fn with_empty_list_key() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();

@@ -25,6 +25,21 @@ fn with_atom_errors_bad_map() {
 }
 
 #[test]
+fn with_local_reference_is_false() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let key = Term::local_reference(&mut process);
+    let map = Term::local_reference(&mut process);
+
+    assert_bad_map!(
+        erlang::is_map_key_2(key, map, &mut process),
+        map,
+        &mut process
+    );
+}
+
+#[test]
 fn with_empty_list_is_false() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

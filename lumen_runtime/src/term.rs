@@ -680,6 +680,11 @@ impl Hash for Term {
 
                         heap_binary.hash(state)
                     }
+                    Tag::LocalReference => {
+                        let local_reference: &local::Reference = self.unbox_reference();
+
+                        local_reference.hash(state)
+                    }
                     Tag::Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
 
@@ -873,11 +878,17 @@ impl PartialEq for Term {
 
                             self_heap_binary == other_heap_binary
                         }
+                        Tag::LocalReference => {
+                            let self_local_reference: &local::Reference = self.unbox_reference();
+                            let other_local_reference: &local::Reference = other.unbox_reference();
+
+                            self_local_reference == other_local_reference
+                        }
                         Tag::Subbinary => {
                             let self_subbinary: &sub::Binary = self.unbox_reference();
-                            let other_subbbinary: &sub::Binary = other.unbox_reference();
+                            let other_subbinary: &sub::Binary = other.unbox_reference();
 
-                            self_subbinary == other_subbbinary
+                            self_subbinary == other_subbinary
                         }
                         unboxed_tag => unimplemented!("unboxed tag ({:?})", unboxed_tag),
                     }

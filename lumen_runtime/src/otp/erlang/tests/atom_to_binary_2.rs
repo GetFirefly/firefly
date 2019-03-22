@@ -67,6 +67,20 @@ fn with_atom_with_encoding_atom_returns_name_in_binary() {
 }
 
 #[test]
+fn with_local_reference_errors_badarg() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let atom = Term::local_reference(&mut process);
+    let encoding_term = Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+
+    assert_bad_argument!(
+        erlang::atom_to_binary_2(atom, encoding_term, &mut process),
+        &mut process
+    );
+}
+
+#[test]
 fn with_empty_list_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

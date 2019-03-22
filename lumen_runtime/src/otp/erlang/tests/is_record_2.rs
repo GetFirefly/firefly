@@ -26,6 +26,21 @@ fn with_atom_is_false() {
 }
 
 #[test]
+fn with_local_reference_is_false() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let term = Term::local_reference(&mut process);
+    let record_tag = Term::str_to_atom("record_tag", DoNotCare, &mut process).unwrap();
+
+    assert_eq_in_process!(
+        erlang::is_record_2(term, record_tag, &mut process),
+        Ok(false.into_process(&mut process)),
+        process
+    );
+}
+
+#[test]
 fn with_empty_list_is_false() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));

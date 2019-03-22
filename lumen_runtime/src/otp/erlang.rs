@@ -598,6 +598,21 @@ pub fn is_record_3(term: Term, record_tag: Term, size: Term, mut process: &mut P
     is_record(term, record_tag, Some(size), &mut process)
 }
 
+pub fn is_reference_1(term: Term, mut process: &mut Process) -> Term {
+    match term.tag() {
+        Tag::Boxed => {
+            let unboxed: &Term = term.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::LocalReference | Tag::ExternalReference => true,
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+    .into_process(&mut process)
+}
+
 pub fn is_tuple_1(term: Term, mut process: &mut Process) -> Term {
     (term.tag() == Tag::Boxed && term.unbox_reference::<Term>().tag() == Tag::Arity)
         .into_process(&mut process)

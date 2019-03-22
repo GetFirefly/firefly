@@ -39,6 +39,7 @@ mod is_number_1;
 mod is_pid_1;
 mod is_record_2;
 mod is_record_3;
+mod is_reference_1;
 mod is_tuple_1;
 mod length_1;
 mod list_to_pid_1;

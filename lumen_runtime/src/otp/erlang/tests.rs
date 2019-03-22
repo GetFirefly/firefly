@@ -42,6 +42,7 @@ mod is_record_3;
 mod is_tuple_1;
 mod length_1;
 mod list_to_pid_1;
+mod make_ref_0;
 mod self_0;
 mod size_1;
 mod tl_1;

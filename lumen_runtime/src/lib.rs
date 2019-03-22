@@ -2,6 +2,8 @@
 #![feature(allocator_api)]
 #![feature(duration_as_u128)]
 #![feature(exact_size_is_empty)]
+// For `lumen_runtime::reference::count
+#![feature(integer_atomics)]
 // For `lumen_runtime::binary::heap::<Iter as Iterator>.size_hint`
 #![feature(ptr_offset_from)]
 // for conversion of `usize` to `lumen_runtime::term::Tag`
@@ -31,6 +33,7 @@ mod list;
 mod logging;
 mod map;
 mod otp;
+mod reference;
 mod system;
 mod term;
 mod time;

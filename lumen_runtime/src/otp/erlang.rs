@@ -625,6 +625,10 @@ pub fn list_to_pid_1(string: Term, mut process: &mut Process) -> Result {
     cons.to_pid(&mut process)
 }
 
+pub fn make_ref_0(mut process: &mut Process) -> Term {
+    Term::local_reference(&mut process)
+}
+
 pub fn self_0(process: &Process) -> Term {
     process.pid
 }

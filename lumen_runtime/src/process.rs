@@ -15,6 +15,7 @@ use crate::float::Float;
 use crate::integer::{self, big};
 use crate::list::List;
 use crate::map::Map;
+use crate::reference::local;
 use crate::term::Term;
 use crate::tuple::Tuple;
 
@@ -31,6 +32,7 @@ pub struct Process {
     float_arena: TypedArena<Float>,
     pub heap_binary_arena: TypedArena<heap::Binary>,
     pub map_arena: TypedArena<Map>,
+    local_reference_arena: TypedArena<local::Reference>,
     pub subbinary_arena: TypedArena<sub::Binary>,
     pub term_arena: TypedArena<Term>,
 }
@@ -46,6 +48,7 @@ impl Process {
             float_arena: Default::default(),
             heap_binary_arena: Default::default(),
             map_arena: Default::default(),
+            local_reference_arena: Default::default(),
             subbinary_arena: Default::default(),
             term_arena: Default::default(),
         }
@@ -86,6 +89,13 @@ impl Process {
 
     pub fn f64_to_float(&self, f: f64) -> &'static Float {
         let pointer = self.float_arena.alloc(Float::new(f)) as *const Float;
+
+        unsafe { &*pointer }
+    }
+
+    pub fn local_reference(&mut self) -> &'static local::Reference {
+        let pointer =
+            self.local_reference_arena.alloc(local::Reference::next()) as *const local::Reference;
 
         unsafe { &*pointer }
     }
@@ -139,6 +149,14 @@ impl Process {
 
     pub fn slice_to_tuple(&mut self, slice: &[Term]) -> &Tuple {
         Tuple::from_slice(slice, &mut self.term_arena)
+    }
+
+    pub fn u64_to_local_reference(&mut self, number: u64) -> &'static local::Reference {
+        let pointer = self
+            .local_reference_arena
+            .alloc(local::Reference::new(number)) as *const local::Reference;
+
+        unsafe { &*pointer }
     }
 }
 

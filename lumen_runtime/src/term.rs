@@ -22,6 +22,7 @@ use crate::map::Map;
 use crate::process::{
     self, DebugInProcess, IntoProcess, OrderInProcess, Process, TryFromInProcess, TryIntoInProcess,
 };
+use crate::reference::local;
 use crate::tuple::Tuple;
 
 pub mod external_format;
@@ -41,7 +42,7 @@ pub enum Tag {
     Arity = 0b0000_00,
     BinaryAggregate = 0b0001_00,
     BigInteger = 0b0010_00,
-    Reference = 0b0100_00,
+    LocalReference = 0b0100_00,
     Function = 0b0101_00,
     Float = 0b0110_00,
     Export = 0b0111_00,
@@ -105,7 +106,7 @@ impl TryFrom<usize> for Tag {
                 0b0000_00 => Ok(Tag::Arity),
                 0b0001_00 => Ok(Tag::BinaryAggregate),
                 0b0010_00 => Ok(Tag::BigInteger),
-                0b0100_00 => Ok(Tag::Reference),
+                0b0100_00 => Ok(Tag::LocalReference),
                 0b0101_00 => Ok(Tag::Function),
                 0b0110_00 => Ok(Tag::Float),
                 0b0111_00 => Ok(Tag::Export),
@@ -319,12 +320,7 @@ impl Term {
         if (number <= process::identifier::NUMBER_MAX)
             && (serial <= process::identifier::SERIAL_MAX)
         {
-            Ok(Term {
-                tagged: (serial
-                    << (process::identifier::NUMBER_BIT_COUNT + Tag::LOCAL_PID_BIT_COUNT))
-                    | (number << (Tag::LOCAL_PID_BIT_COUNT))
-                    | (Tag::LocalPid as usize),
-            })
+            Ok(unsafe { Self::local_pid_unchecked(number, serial) })
         } else {
             Err(bad_argument!(&mut process))
         }
@@ -336,6 +332,10 @@ impl Term {
                 | (number << (Tag::LOCAL_PID_BIT_COUNT))
                 | (Tag::LocalPid as usize),
         }
+    }
+
+    pub fn local_reference(process: &mut Process) -> Term {
+        Term::box_reference(process.local_reference())
     }
 
     pub fn tag(&self) -> Tag {
@@ -463,6 +463,10 @@ impl Term {
     pub unsafe fn small_integer_to_isize(&self) -> isize {
         (self.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT
     }
+
+    pub fn u64_to_local_reference(number: u64, process: &mut Process) -> Term {
+        Term::box_reference(process.u64_to_local_reference(number))
+    }
 }
 
 impl DebugInProcess for Term {
@@ -541,6 +545,14 @@ impl DebugInProcess for Term {
                         strings.push("], &mut process)".to_string());
 
                         strings.join("")
+                    }
+                    Tag::LocalReference => {
+                        let local_reference: &local::Reference = self.unbox_reference();
+
+                        format!(
+                            "Term::u64_to_local_reference({}, &mut process)",
+                            local_reference.number
+                        )
                     }
                     Tag::Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
@@ -901,6 +913,26 @@ impl TryFromInProcess<Term> for isize {
     }
 }
 
+impl TryFromInProcess<Term> for u64 {
+    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<u64, Exception> {
+        match term.tag() {
+            Tag::Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::LocalReference => {
+                        let local_reference: &local::Reference = term.unbox_reference();
+
+                        Ok(local_reference.number)
+                    }
+                    _ => Err(bad_argument!(&mut process)),
+                }
+            }
+            _ => Err(bad_argument!(&mut process)),
+        }
+    }
+}
+
 impl TryFromInProcess<Term> for usize {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<usize, Exception> {
         match term.tag() {
@@ -1150,6 +1182,14 @@ impl OrderInProcess for Term {
                                 self_inner, other_inner
                             )
                         })
+                    }
+                    (Tag::LocalReference, Tag::LocalReference) => {
+                        let self_local_reference: &local::Reference = self.unbox_reference();
+                        let other_local_reference: &local::Reference = other.unbox_reference();
+
+                        self_local_reference
+                            .number
+                            .cmp(&other_local_reference.number)
                     }
                     (Tag::ExternalPid, Tag::ExternalPid) => {
                         let self_external_pid: &process::identifier::External =
@@ -1565,6 +1605,27 @@ mod tests {
             let heap_binary_term = Term::slice_to_binary(&[], &mut process);
 
             assert_eq!(heap_binary_term.is_empty_list(), false);
+        }
+    }
+
+    mod u64_to_local_reference {
+        use super::*;
+
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
+
+        #[test]
+        fn round_trips_with_local_reference() {
+            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+            let mut process = process_rw_lock.write().unwrap();
+
+            let original = Term::local_reference(&mut process);
+            let original_u64: u64 = original.try_into_in_process(&mut process).unwrap();
+            let from_u64 = Term::u64_to_local_reference(original_u64, &mut process);
+
+            assert_eq_in_process!(original, from_u64, process);
         }
     }
 

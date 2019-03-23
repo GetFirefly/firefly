@@ -19,7 +19,7 @@ use crate::otp;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
 use crate::term::{Tag, Term};
 use crate::time;
-use crate::tuple::Tuple;
+use crate::tuple::{Tuple, ZeroBasedIndex};
 
 #[cfg(test)]
 mod tests;
@@ -407,18 +407,18 @@ pub fn convert_time_unit_3(
 
 pub fn delete_element_2(tuple: Term, index: Term, mut process: &mut Process) -> Result {
     let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
-    let inner_index: usize = index.try_into_in_process(&mut process)?;
+    let index_zero_based: ZeroBasedIndex = index.try_into_in_process(&mut process)?;
 
     initial_inner_tuple
-        .delete_element(inner_index, &mut process)
+        .delete_element(index_zero_based, &mut process)
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
 pub fn element_2(tuple: Term, index: Term, mut process: &mut Process) -> Result {
     let inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
-    let inner_index: usize = index.try_into_in_process(&mut process)?;
+    let index_zero_based: ZeroBasedIndex = index.try_into_in_process(&mut process)?;
 
-    inner_tuple.element(inner_index, &mut process)
+    inner_tuple.element(index_zero_based, &mut process)
 }
 
 pub fn error_1(reason: Term) -> Result {
@@ -442,10 +442,10 @@ pub fn insert_element_3(
     mut process: &mut Process,
 ) -> Result {
     let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
-    let inner_index: usize = index.try_into_in_process(&mut process)?;
+    let index_zero_based: ZeroBasedIndex = index.try_into_in_process(&mut process)?;
 
     initial_inner_tuple
-        .insert_element(inner_index, element, &mut process)
+        .insert_element(index_zero_based, element, &mut process)
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 

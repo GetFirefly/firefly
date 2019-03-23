@@ -139,7 +139,7 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
     let element_2_term = 1.into_process(&mut process);
     let tuple_term = Term::slice_to_tuple(&[element_2_term], &mut process);
-    let index = 0usize;
+    let index = 1usize;
     let invalid_index_term = Term::arity(index);
 
     assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
@@ -155,6 +155,19 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
         erlang::element_2(tuple_term, valid_index_term, &mut process),
         Ok(element_2_term),
         process
+    );
+}
+
+#[test]
+fn with_tuple_with_zero_index_is_bad_argument() {
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+    let tuple = Term::slice_to_tuple(&[1.into_process(&mut process)], &mut process);
+
+    assert_bad_argument!(
+        erlang::element_2(tuple, 0.into_process(&mut process), &mut process),
+        &mut process
     );
 }
 
@@ -176,12 +189,12 @@ fn with_tuple_with_index_in_range_is_element_2() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let element_2_term = 1.into_process(&mut process);
-    let tuple_term = Term::slice_to_tuple(&[element_2_term], &mut process);
+    let element = 1.into_process(&mut process);
+    let tuple = Term::slice_to_tuple(&[element], &mut process);
 
     assert_eq_in_process!(
-        erlang::element_2(tuple_term, 0.into_process(&mut process), &mut process),
-        Ok(element_2_term),
+        erlang::element_2(tuple, 1.into_process(&mut process), &mut process),
+        Ok(element),
         process
     );
 }

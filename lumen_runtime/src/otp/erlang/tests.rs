@@ -47,6 +47,7 @@ mod make_ref_0;
 mod self_0;
 mod size_1;
 mod tl_1;
+mod tuple_size_1;
 
 fn list_term(mut process: &mut Process) -> Term {
     let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();

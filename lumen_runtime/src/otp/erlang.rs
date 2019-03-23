@@ -683,6 +683,24 @@ pub fn tl_1(list: Term, process: &mut Process) -> Result {
     Ok(cons.tail())
 }
 
+pub fn tuple_size_1(tuple: Term, mut process: &mut Process) -> Result {
+    match tuple.tag() {
+        Tag::Boxed => {
+            let unboxed: &Term = tuple.unbox_reference();
+
+            match unboxed.tag() {
+                Tag::Arity => {
+                    let tuple: &Tuple = tuple.unbox_reference();
+
+                    Ok(tuple.size().into_process(&mut process))
+                }
+                _ => Err(bad_argument!(&mut process)),
+            }
+        }
+        _ => Err(bad_argument!(&mut process)),
+    }
+}
+
 // Private Functions
 
 fn binary_existence_to_atom(

@@ -66,7 +66,10 @@ fn with_big_integer_errors_badarg() {
         .unwrap()
         .into_process(&mut process);
 
-    assert_bad_argument!(erlang::tuple_size_1(big_integer_term, &mut process), &mut process);
+    assert_bad_argument!(
+        erlang::tuple_size_1(big_integer_term, &mut process),
+        &mut process
+    );
 }
 
 #[test]
@@ -96,10 +99,7 @@ fn with_external_pid_errors_badarg() {
     let mut process = process_rw_lock.write().unwrap();
     let tuple = Term::external_pid(1, 0, 0, &mut process).unwrap();
 
-    assert_bad_argument!(
-        erlang::tuple_size_1(tuple, &mut process),
-        &mut process
-    );
+    assert_bad_argument!(erlang::tuple_size_1(tuple, &mut process), &mut process);
 }
 
 #[test]

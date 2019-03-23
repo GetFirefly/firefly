@@ -257,7 +257,7 @@ impl Term {
     }
 
     pub fn cons(head: Term, tail: Term, process: &mut Process) -> Term {
-        let pointer_bits = process.cons(head, tail) as usize;
+        let pointer_bits = process.cons(head, tail) as *const Cons as usize;
 
         assert_eq!(
             pointer_bits & Tag::LIST_MASK,

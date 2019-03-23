@@ -7,8 +7,6 @@ use crate::exception::Exception;
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryIntoInProcess};
 use crate::term::{Tag::*, Term};
 
-pub type List = *const Term;
-
 /// A cons cell in a list
 #[repr(C)]
 pub struct Cons {
@@ -57,6 +55,29 @@ impl Cons {
         } else {
             Err(bad_argument!(&mut process))
         }
+    }
+
+    pub fn to_tuple(&self, mut process: &mut Process) -> Result<Term, Exception> {
+        let mut vec: Vec<Term> = Vec::new();
+        let mut head = self.head;
+        let mut tail = self.tail;
+
+        loop {
+            vec.push(head);
+
+            match tail.tag() {
+                EmptyList => break,
+                List => {
+                    let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
+
+                    head = cons.head;
+                    tail = cons.tail;
+                }
+                _ => return Err(bad_argument!(&mut process)),
+            }
+        }
+
+        Ok(Term::slice_to_tuple(vec.as_slice(), &mut process))
     }
 
     const PID_PREFIX: Term = unsafe { Term::isize_to_small_integer('<' as isize) };

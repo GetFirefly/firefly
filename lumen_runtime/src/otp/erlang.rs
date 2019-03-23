@@ -17,7 +17,7 @@ use crate::list::Cons;
 use crate::map::Map;
 use crate::otp;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
-use crate::term::{Tag, Term};
+use crate::term::{Tag, Tag::*, Term};
 use crate::time;
 use crate::tuple::{Tuple, ZeroBasedIndex};
 
@@ -638,6 +638,18 @@ pub fn list_to_pid_1(string: Term, mut process: &mut Process) -> Result {
     let cons: &Cons = string.try_into_in_process(&mut process)?;
 
     cons.to_pid(&mut process)
+}
+
+pub fn list_to_tuple_1(list: Term, mut process: &mut Process) -> Result {
+    match list.tag() {
+        EmptyList => Ok(Term::slice_to_tuple(&[], &mut process)),
+        List => {
+            let cons: &Cons = unsafe { list.as_ref_cons_unchecked() };
+
+            cons.to_tuple(&mut process)
+        }
+        _ => Err(bad_argument!(&mut process)),
+    }
 }
 
 pub fn make_ref_0(mut process: &mut Process) -> Term {

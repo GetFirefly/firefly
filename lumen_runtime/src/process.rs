@@ -13,7 +13,7 @@ use crate::environment::Environment;
 use crate::exception::{self, Exception};
 use crate::float::Float;
 use crate::integer::{self, big};
-use crate::list::List;
+use crate::list::Cons;
 use crate::map::Map;
 use crate::reference::local;
 use crate::term::Term;
@@ -28,6 +28,7 @@ pub struct Process {
     pub pid: Term,
     big_integer_arena: TypedArena<big::Integer>,
     pub byte_arena: TypedArena<u8>,
+    cons_arena: TypedArena<Cons>,
     external_pid_arena: TypedArena<identifier::External>,
     float_arena: TypedArena<Float>,
     pub heap_binary_arena: TypedArena<heap::Binary>,
@@ -44,6 +45,7 @@ impl Process {
             pid: environment.write().unwrap().next_pid(),
             big_integer_arena: Default::default(),
             byte_arena: Default::default(),
+            cons_arena: Default::default(),
             external_pid_arena: Default::default(),
             float_arena: Default::default(),
             heap_binary_arena: Default::default(),
@@ -65,12 +67,10 @@ impl Process {
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
     /// is a list `Term` (`Term.tag` is `Tag::List`) or empty list (`Term.tag` is `Tag::EmptyList`).
-    pub fn cons(&mut self, head: Term, tail: Term) -> List {
-        let mut term_vector = Vec::with_capacity(2);
-        term_vector.push(head);
-        term_vector.push(tail);
+    pub fn cons(&mut self, head: Term, tail: Term) -> &'static Cons {
+        let pointer = self.cons_arena.alloc(Cons::new(head, tail)) as *const Cons;
 
-        Term::alloc_slice(term_vector.as_slice(), &mut self.term_arena)
+        unsafe { &*pointer }
     }
 
     pub fn external_pid(

@@ -175,10 +175,10 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let tuple_term = Term::slice_to_tuple(
-        &[0.into_process(&mut process), 2.into_process(&mut process)],
+        &[1.into_process(&mut process), 3.into_process(&mut process)],
         &mut process,
     );
-    let index = 1usize;
+    let index = 2usize;
     let invalid_index_term = Term::arity(index);
 
     assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
@@ -199,14 +199,14 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
         erlang::insert_element_3(
             tuple_term,
             valid_index_term,
-            1.into_process(&mut process),
+            2.into_process(&mut process),
             &mut process
         ),
         Ok(Term::slice_to_tuple(
             &[
-                0.into_process(&mut process),
                 1.into_process(&mut process),
-                2.into_process(&mut process)
+                2.into_process(&mut process),
+                3.into_process(&mut process)
             ],
             &mut process
         )),
@@ -224,7 +224,7 @@ fn with_tuple_without_index_in_range_is_bad_argument() {
     assert_bad_argument!(
         erlang::insert_element_3(
             empty_tuple_term,
-            1.into_process(&mut process),
+            2.into_process(&mut process),
             0.into_process(&mut process),
             &mut process
         ),
@@ -238,22 +238,22 @@ fn with_tuple_with_index_in_range_returns_tuple_with_new_element_at_index() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let tuple_term = Term::slice_to_tuple(
-        &[0.into_process(&mut process), 2.into_process(&mut process)],
+        &[1.into_process(&mut process), 3.into_process(&mut process)],
         &mut process,
     );
 
     assert_eq_in_process!(
         erlang::insert_element_3(
             tuple_term,
-            1.into_process(&mut process),
-            1.into_process(&mut process),
+            2.into_process(&mut process),
+            2.into_process(&mut process),
             &mut process
         ),
         Ok(Term::slice_to_tuple(
             &[
-                0.into_process(&mut process),
                 1.into_process(&mut process),
-                2.into_process(&mut process)
+                2.into_process(&mut process),
+                3.into_process(&mut process)
             ],
             &mut process
         )),
@@ -266,17 +266,17 @@ fn with_tuple_with_index_at_size_return_tuples_with_new_element_at_end() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let tuple_term = Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
+    let tuple_term = Term::slice_to_tuple(&[1.into_process(&mut process)], &mut process);
 
     assert_eq_in_process!(
         erlang::insert_element_3(
             tuple_term,
-            1.into_process(&mut process),
-            1.into_process(&mut process),
+            2.into_process(&mut process),
+            3.into_process(&mut process),
             &mut process
         ),
         Ok(Term::slice_to_tuple(
-            &[0.into_process(&mut process), 1.into_process(&mut process)],
+            &[1.into_process(&mut process), 3.into_process(&mut process)],
             &mut process
         )),
         process

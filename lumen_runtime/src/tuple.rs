@@ -7,7 +7,9 @@ use liblumen_arena::TypedArena;
 
 use crate::exception::{self, Exception};
 use crate::integer::Integer;
-use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryIntoInProcess};
+use crate::process::{
+    DebugInProcess, IntoProcess, OrderInProcess, Process, TryFromInProcess, TryIntoInProcess,
+};
 use crate::term::{Tag::*, Term};
 
 #[repr(C)]
@@ -16,6 +18,38 @@ pub struct Tuple {
 }
 
 type TermArena = TypedArena<Term>;
+
+#[repr(transparent)]
+pub struct ZeroBasedIndex(usize);
+
+impl TryFromInProcess<Term> for ZeroBasedIndex {
+    fn try_from_in_process(
+        term: Term,
+        mut process: &mut Process,
+    ) -> Result<ZeroBasedIndex, Exception> {
+        let OneBasedIndex(one_based_index) = term.try_into_in_process(&mut process)?;
+
+        Ok(ZeroBasedIndex(one_based_index - 1))
+    }
+}
+
+#[repr(transparent)]
+pub struct OneBasedIndex(usize);
+
+impl TryFromInProcess<Term> for OneBasedIndex {
+    fn try_from_in_process(
+        term: Term,
+        mut process: &mut Process,
+    ) -> Result<OneBasedIndex, Exception> {
+        let one_based_index_usize: usize = term.try_into_in_process(&mut process)?;
+
+        if 1 <= one_based_index_usize {
+            Ok(OneBasedIndex(one_based_index_usize))
+        } else {
+            Err(bad_argument!(&mut process))
+        }
+    }
+}
 
 impl Tuple {
     pub fn from_slice(element_slice: &[Term], term_arena: &mut TermArena) -> &'static Tuple {
@@ -42,7 +76,7 @@ impl Tuple {
 
     pub fn delete_element(
         &self,
-        index: usize,
+        ZeroBasedIndex(index): ZeroBasedIndex,
         mut process: &mut Process,
     ) -> Result<&'static Tuple, Exception> {
         let arity_usize = self.arity.arity_to_usize();
@@ -68,7 +102,11 @@ impl Tuple {
         }
     }
 
-    pub fn element(&self, index: usize, mut process: &mut Process) -> exception::Result {
+    pub fn element(
+        &self,
+        ZeroBasedIndex(index): ZeroBasedIndex,
+        mut process: &mut Process,
+    ) -> exception::Result {
         let arity_usize = self.arity.arity_to_usize();
 
         if index < arity_usize {
@@ -80,7 +118,7 @@ impl Tuple {
 
     pub fn insert_element(
         &self,
-        index: usize,
+        ZeroBasedIndex(index): ZeroBasedIndex,
         element: Term,
         mut process: &mut Process,
     ) -> Result<&'static Tuple, Exception> {
@@ -119,7 +157,7 @@ impl Tuple {
     ) -> exception::Result {
         match record_tag.tag() {
             Atom => {
-                let element = self.element(0, &mut process)?;
+                let element = self.element(ZeroBasedIndex(0), &mut process)?;
 
                 match size {
                     Some(size_term) => {
@@ -320,7 +358,7 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_bad_argument!(tuple.element(0, &mut process), &mut process);
+            assert_bad_argument!(tuple.element(ZeroBasedIndex(0), &mut process), &mut process);
         }
 
         #[test]
@@ -331,7 +369,7 @@ mod tests {
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
             assert_eq_in_process!(
-                tuple.element(0, &mut process),
+                tuple.element(ZeroBasedIndex(0), &mut process),
                 Ok(0.into_process(&mut process)),
                 process
             );

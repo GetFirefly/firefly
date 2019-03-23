@@ -139,13 +139,13 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
     let tuple_term = Term::slice_to_tuple(
         &[
-            0.into_process(&mut process),
             1.into_process(&mut process),
             2.into_process(&mut process),
+            3.into_process(&mut process),
         ],
         &mut process,
     );
-    let index = 1usize;
+    let index = 2usize;
     let invalid_index_term = Term::arity(index);
 
     assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
@@ -160,7 +160,7 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
     assert_eq_in_process!(
         erlang::delete_element_2(tuple_term, valid_index_term, &mut process),
         Ok(Term::slice_to_tuple(
-            &[0.into_process(&mut process), 2.into_process(&mut process)],
+            &[1.into_process(&mut process), 3.into_process(&mut process)],
             &mut process
         )),
         process
@@ -187,17 +187,17 @@ fn with_tuple_with_index_in_range_returns_tuple_without_element() {
     let mut process = process_rw_lock.write().unwrap();
     let tuple_term = Term::slice_to_tuple(
         &[
-            0.into_process(&mut process),
             1.into_process(&mut process),
             2.into_process(&mut process),
+            3.into_process(&mut process),
         ],
         &mut process,
     );
 
     assert_eq_in_process!(
-        erlang::delete_element_2(tuple_term, 1.into_process(&mut process), &mut process),
+        erlang::delete_element_2(tuple_term, 2.into_process(&mut process), &mut process),
         Ok(Term::slice_to_tuple(
-            &[0.into_process(&mut process), 2.into_process(&mut process)],
+            &[1.into_process(&mut process), 3.into_process(&mut process)],
             &mut process
         )),
         process

@@ -152,7 +152,7 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
     // Using only `used` portion of binary returns the same result
 
     let tuple = result.unwrap();
-    let used_term = erlang::element_2(tuple, 1.into_process(&mut process), &mut process).unwrap();
+    let used_term = erlang::element_2(tuple, 2.into_process(&mut process), &mut process).unwrap();
     let used: usize = used_term.try_into_in_process(&mut process).unwrap();
 
     let prefix_term = Term::subbinary(binary_term, 0, 0, used, 0, &mut process);

@@ -20,6 +20,7 @@ mod bit_size_1;
 mod bitstring_to_list_1;
 mod byte_size_1;
 mod ceil_1;
+mod concatenate_2;
 mod convert_time_unit_3;
 mod delete_element_2;
 mod element_2;

@@ -3,7 +3,7 @@
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
-use crate::exception::Exception;
+use crate::exception::{self, Exception};
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryIntoInProcess};
 use crate::term::{Tag::*, Term};
 
@@ -27,7 +27,17 @@ impl Cons {
         self.tail
     }
 
-    pub fn to_pid(&self, mut process: &mut Process) -> Result<Term, Exception> {
+    pub fn concatenate(&self, term: Term, mut process: &mut Process) -> exception::Result {
+        let vec: Vec<Term> = self.to_vec(&mut process)?;
+
+        let final_list = vec.iter().rfold(term, |acc, element| {
+            Term::cons(element.clone(), acc, &mut process)
+        });
+
+        Ok(final_list)
+    }
+
+    pub fn to_pid(&self, mut process: &mut Process) -> exception::Result {
         let prefix_tail = self.skip_pid_prefix(&mut process)?;
         let prefix_tail_cons: &Cons = prefix_tail.try_into_in_process(&mut process)?;
 
@@ -57,25 +67,8 @@ impl Cons {
         }
     }
 
-    pub fn to_tuple(&self, mut process: &mut Process) -> Result<Term, Exception> {
-        let mut vec: Vec<Term> = Vec::new();
-        let mut head = self.head;
-        let mut tail = self.tail;
-
-        loop {
-            vec.push(head);
-
-            match tail.tag() {
-                EmptyList => break,
-                List => {
-                    let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
-
-                    head = cons.head;
-                    tail = cons.tail;
-                }
-                _ => return Err(bad_argument!(&mut process)),
-            }
-        }
+    pub fn to_tuple(&self, mut process: &mut Process) -> exception::Result {
+        let vec: Vec<Term> = self.to_vec(&mut process)?;
 
         Ok(Term::slice_to_tuple(vec.as_slice(), &mut process))
     }
@@ -142,7 +135,7 @@ impl Cons {
         }
     }
 
-    fn skip_pid_prefix(&self, mut process: &mut Process) -> Result<Term, Exception> {
+    fn skip_pid_prefix(&self, mut process: &mut Process) -> exception::Result {
         if self.head.tagged == Self::PID_PREFIX.tagged {
             Ok(self.tail)
         } else {
@@ -150,7 +143,7 @@ impl Cons {
         }
     }
 
-    fn skip_pid_separator(&self, mut process: &mut Process) -> Result<Term, Exception> {
+    fn skip_pid_separator(&self, mut process: &mut Process) -> exception::Result {
         if self.head.tagged == Self::PID_SEPARATOR.tagged {
             Ok(self.tail)
         } else {
@@ -158,12 +151,35 @@ impl Cons {
         }
     }
 
-    fn skip_pid_suffix(&self, mut process: &mut Process) -> Result<Term, Exception> {
+    fn skip_pid_suffix(&self, mut process: &mut Process) -> exception::Result {
         if self.head.tagged == Self::PID_SUFFIX.tagged {
             Ok(self.tail)
         } else {
             Err(bad_argument!(&mut process))
         }
+    }
+
+    fn to_vec(&self, mut process: &mut Process) -> Result<Vec<Term>, Exception> {
+        let mut vec: Vec<Term> = Vec::new();
+        let mut head = self.head;
+        let mut tail = self.tail;
+
+        loop {
+            vec.push(head);
+
+            match tail.tag() {
+                EmptyList => break,
+                List => {
+                    let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
+
+                    head = cons.head;
+                    tail = cons.tail;
+                }
+                _ => return Err(bad_argument!(&mut process)),
+            }
+        }
+
+        Ok(vec)
     }
 }
 

@@ -390,6 +390,19 @@ pub fn ceil_1(number: Term, mut process: &mut Process) -> Result {
     }
 }
 
+/// `++/2`
+pub fn concatenate_2(list: Term, term: Term, mut process: &mut Process) -> Result {
+    match list.tag() {
+        EmptyList => Ok(term),
+        List => {
+            let cons: &Cons = unsafe { list.as_ref_cons_unchecked() };
+
+            cons.concatenate(term, &mut process)
+        }
+        _ => Err(bad_argument!(&mut process)),
+    }
+}
+
 pub fn convert_time_unit_3(
     time: Term,
     from_unit: Term,

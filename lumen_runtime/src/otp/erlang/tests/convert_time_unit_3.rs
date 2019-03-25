@@ -106,7 +106,7 @@ mod with_small_integer {
         let mut process = process_rw_lock.write().unwrap();
         let small_integer_term: Term = 1_000_000_000.into_process(&mut process);
 
-        assert_eq!(small_integer_term.tag(), Tag::SmallInteger);
+        assert_eq!(small_integer_term.tag(), SmallInteger);
 
         // (Hertz, Hertz)
         assert_eq_in_process!(
@@ -713,7 +713,7 @@ mod with_big_integer {
                 .unwrap()
                 .into_process(&mut process);
 
-        assert_eq!(big_integer_term.tag(), Tag::Boxed);
+        assert_eq!(big_integer_term.tag(), Boxed);
 
         let valid_unit_term =
             Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
@@ -750,7 +750,7 @@ mod with_big_integer {
                 .unwrap()
                 .into_process(&mut process);
 
-        assert_eq!(big_integer_term.tag(), Tag::Boxed);
+        assert_eq!(big_integer_term.tag(), Boxed);
 
         // (Hertz, Hertz)
         assert_eq_in_process!(

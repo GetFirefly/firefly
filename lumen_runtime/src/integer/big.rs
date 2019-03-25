@@ -4,7 +4,7 @@ use num_bigint::{BigInt, Sign::*};
 
 use crate::exception::Exception;
 use crate::process::{Process, TryFromInProcess};
-use crate::term::{Tag, Term};
+use crate::term::{Tag::BigInteger, Term};
 
 pub struct Integer {
     #[allow(dead_code)]
@@ -16,7 +16,7 @@ impl Integer {
     pub fn new(inner: BigInt) -> Self {
         Integer {
             header: Term {
-                tagged: Tag::BigInteger as usize,
+                tagged: BigInteger as usize,
             },
             inner,
         }

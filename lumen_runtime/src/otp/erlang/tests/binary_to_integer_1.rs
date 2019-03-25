@@ -141,7 +141,7 @@ fn with_heap_binary_with_min_small_integer_returns_small_integer() {
             .into_process(&mut process)),
         process
     );
-    assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
+    assert_eq!(integer_result.unwrap().tag(), SmallInteger);
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn with_heap_binary_with_max_small_integer_returns_small_integer() {
             .into_process(&mut process)),
         process
     );
-    assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
+    assert_eq!(integer_result.unwrap().tag(), SmallInteger);
 }
 
 #[test]
@@ -182,11 +182,11 @@ fn with_heap_binary_with_less_than_min_small_integer_returns_big_integer() {
 
     let integer = integer_result.unwrap();
 
-    assert_eq!(integer.tag(), Tag::Boxed);
+    assert_eq!(integer.tag(), Boxed);
 
     let unboxed: &Term = integer.unbox_reference();
 
-    assert_eq!(unboxed.tag(), Tag::BigInteger);
+    assert_eq!(unboxed.tag(), BigInteger);
 }
 
 #[test]
@@ -208,11 +208,11 @@ fn with_heap_binary_with_greater_than_max_small_integer_returns_big_integer() {
 
     let integer = integer_result.unwrap();
 
-    assert_eq!(integer.tag(), Tag::Boxed);
+    assert_eq!(integer.tag(), Boxed);
 
     let unboxed: &Term = integer.unbox_reference();
 
-    assert_eq!(unboxed.tag(), Tag::BigInteger);
+    assert_eq!(unboxed.tag(), BigInteger);
 }
 
 #[test]
@@ -270,7 +270,7 @@ fn with_subbinary_with_min_small_integer_returns_small_integer() {
             .into_process(&mut process)),
         process
     );
-    assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
+    assert_eq!(integer_result.unwrap().tag(), SmallInteger);
 }
 
 #[test]
@@ -314,7 +314,7 @@ fn with_subbinary_with_max_small_integer_returns_small_integer() {
             .into_process(&mut process)),
         process
     );
-    assert_eq!(integer_result.unwrap().tag(), Tag::SmallInteger);
+    assert_eq!(integer_result.unwrap().tag(), SmallInteger);
 }
 
 #[test]
@@ -362,11 +362,11 @@ fn with_subbinary_with_less_than_min_small_integer_returns_big_integer() {
 
     let integer = integer_result.unwrap();
 
-    assert_eq!(integer.tag(), Tag::Boxed);
+    assert_eq!(integer.tag(), Boxed);
 
     let unboxed: &Term = integer.unbox_reference();
 
-    assert_eq!(unboxed.tag(), Tag::BigInteger);
+    assert_eq!(unboxed.tag(), BigInteger);
 }
 
 #[test]
@@ -413,11 +413,11 @@ fn with_subbinary_with_greater_than_max_small_integer_returns_big_integer() {
 
     let integer = integer_result.unwrap();
 
-    assert_eq!(integer.tag(), Tag::Boxed);
+    assert_eq!(integer.tag(), Boxed);
 
     let unboxed: &Term = integer.unbox_reference();
 
-    assert_eq!(unboxed.tag(), Tag::BigInteger);
+    assert_eq!(unboxed.tag(), BigInteger);
 }
 
 #[test]

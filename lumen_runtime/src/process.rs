@@ -66,7 +66,7 @@ impl Process {
     }
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
-    /// is a list `Term` (`Term.tag` is `Tag::List`) or empty list (`Term.tag` is `Tag::EmptyList`).
+    /// is a list `Term` (`Term.tag` is `List`) or empty list (`Term.tag` is `EmptyList`).
     pub fn cons(&mut self, head: Term, tail: Term) -> &'static Cons {
         let pointer = self.cons_arena.alloc(Cons::new(head, tail)) as *const Cons;
 

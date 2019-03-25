@@ -26,14 +26,14 @@ mod tests;
 
 pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
     match number.tag() {
-        Tag::SmallInteger => {
+        SmallInteger => {
             if unsafe { number.small_integer_is_negative() } {
                 // cast first so that sign bit is extended on shift
                 let signed = (number.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
                 let positive = -signed;
                 Ok(Term {
                     tagged: ((positive << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
-                        | (Tag::SmallInteger as usize),
+                        | (SmallInteger as usize),
                 })
             } else {
                 Ok(Term {
@@ -41,11 +41,11 @@ pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
                 })
             }
         }
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = number.unbox_reference();
 
             match unboxed.tag() {
-                Tag::BigInteger => {
+                BigInteger => {
                     let big_integer: &big::Integer = number.unbox_reference();
                     let big_int = &big_integer.inner;
                     let zero_big_int: &BigInt = &Zero::zero();
@@ -60,7 +60,7 @@ pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
 
                     Ok(positive_term)
                 }
-                Tag::Float => {
+                Float => {
                     let float: &Float = number.unbox_reference();
                     let inner = float.inner;
 
@@ -89,7 +89,7 @@ pub fn append_element_2(tuple: Term, element: Term, mut process: &mut Process) -
 }
 
 pub fn atom_to_binary_2(atom: Term, encoding: Term, mut process: &mut Process) -> Result {
-    if let Tag::Atom = atom.tag() {
+    if atom.tag() == Atom {
         encoding.atom_to_encoding(&mut process)?;
         let string = atom.atom_to_string(process);
         Ok(Term::slice_to_binary(string.as_bytes(), &mut process))
@@ -99,7 +99,7 @@ pub fn atom_to_binary_2(atom: Term, encoding: Term, mut process: &mut Process) -
 }
 
 pub fn atom_to_list_1(atom: Term, mut process: &mut Process) -> Result {
-    if atom.tag() == Tag::Atom {
+    if atom.tag() == Atom {
         let string = atom.atom_to_string(process);
         Ok(Term::chars_to_list(string.chars(), &mut process))
     } else {
@@ -109,16 +109,16 @@ pub fn atom_to_list_1(atom: Term, mut process: &mut Process) -> Result {
 
 pub fn binary_part_3(binary: Term, start: Term, length: Term, mut process: &mut Process) -> Result {
     match binary.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = binary.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
                     heap_binary.part(start, length, &mut process)
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
                     subbinary.part(start, length, &mut process)
@@ -201,16 +201,16 @@ pub fn binary_to_integer_2(binary: Term, base: Term, mut process: &mut Process) 
 
 pub fn binary_to_list_1(binary: Term, mut process: &mut Process) -> Result {
     match binary.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = binary.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
                     Ok(heap_binary.to_list(&mut process))
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
                     subbinary.to_list(&mut process)
@@ -264,16 +264,16 @@ pub fn binary_to_term_2(binary: Term, options: Term, mut process: &mut Process) 
     let to_term_options: ToTermOptions = options.try_into_in_process(process)?;
 
     match binary.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = binary.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
                     heap_binary.to_term(to_term_options, &mut process)
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
                     subbinary.to_term(to_term_options, &mut process)
@@ -287,16 +287,16 @@ pub fn binary_to_term_2(binary: Term, options: Term, mut process: &mut Process) 
 
 pub fn bit_size_1(bit_string: Term, mut process: &mut Process) -> Result {
     match bit_string.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = bit_string.unbox_reference();
 
                     Ok(heap_binary.bit_size())
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = bit_string.unbox_reference();
 
                     Ok(subbinary.bit_size())
@@ -311,16 +311,16 @@ pub fn bit_size_1(bit_string: Term, mut process: &mut Process) -> Result {
 
 pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Result {
     match bit_string.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = bit_string.unbox_reference();
 
                     Ok(heap_binary.to_bitstring_list(&mut process))
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = bit_string.unbox_reference();
 
                     Ok(subbinary.to_bitstring_list(&mut process))
@@ -334,16 +334,16 @@ pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Resul
 
 pub fn byte_size_1(bit_string: Term, mut process: &mut Process) -> Result {
     match bit_string.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = bit_string.unbox_reference();
 
                     Ok(heap_binary.byte_size())
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = bit_string.unbox_reference();
 
                     Ok(subbinary.byte_size())
@@ -358,13 +358,13 @@ pub fn byte_size_1(bit_string: Term, mut process: &mut Process) -> Result {
 
 pub fn ceil_1(number: Term, mut process: &mut Process) -> Result {
     match number.tag() {
-        Tag::SmallInteger => Ok(number),
-        Tag::Boxed => {
+        SmallInteger => Ok(number),
+        Boxed => {
             let unboxed: &Term = number.unbox_reference();
 
             match unboxed.tag() {
-                Tag::BigInteger => Ok(number),
-                Tag::Float => {
+                BigInteger => Ok(number),
+                Float => {
                     let float: &Float = number.unbox_reference();
                     let inner = float.inner;
                     let ceil_inner = inner.ceil();
@@ -450,17 +450,17 @@ pub fn insert_element_3(
 }
 
 pub fn is_atom_1(term: Term, mut process: &mut Process) -> Term {
-    (term.tag() == Tag::Atom).into_process(&mut process)
+    (term.tag() == Atom).into_process(&mut process)
 }
 
 pub fn is_binary_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = term.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => true,
-                Tag::Subbinary => {
+                HeapBinary => true,
+                Subbinary => {
                     let subbinary: &sub::Binary = term.unbox_reference();
 
                     subbinary.is_binary()
@@ -475,7 +475,7 @@ pub fn is_binary_1(term: Term, mut process: &mut Process) -> Term {
 
 pub fn is_boolean_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::Atom => match term.atom_to_string(&mut process).as_ref() {
+        Atom => match term.atom_to_string(&mut process).as_ref() {
             "false" | "true" => true,
             _ => false,
         },
@@ -486,11 +486,11 @@ pub fn is_boolean_1(term: Term, mut process: &mut Process) -> Term {
 
 pub fn is_float_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = term.unbox_reference();
 
             match unboxed.tag() {
-                Tag::Float => true,
+                Float => true,
                 _ => false,
             }
         }
@@ -501,11 +501,11 @@ pub fn is_float_1(term: Term, mut process: &mut Process) -> Term {
 
 pub fn is_integer_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::SmallInteger => true,
-        Tag::Boxed => {
+        SmallInteger => true,
+        Boxed => {
             let unboxed: &Term = term.unbox_reference();
 
-            unboxed.tag() == Tag::BigInteger
+            unboxed.tag() == BigInteger
         }
         _ => false,
     }
@@ -514,7 +514,7 @@ pub fn is_integer_1(term: Term, mut process: &mut Process) -> Term {
 
 pub fn is_list_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::EmptyList | Tag::List => true,
+        EmptyList | List => true,
         _ => false,
     }
     .into_process(&mut process)
@@ -522,11 +522,11 @@ pub fn is_list_1(term: Term, mut process: &mut Process) -> Term {
 
 pub fn is_map_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = term.unbox_reference();
 
             match unboxed.tag() {
-                Tag::Map => true,
+                Map => true,
                 _ => false,
             }
         }
@@ -537,11 +537,11 @@ pub fn is_map_1(term: Term, mut process: &mut Process) -> Term {
 
 pub fn is_map_key_2(key: Term, map: Term, mut process: &mut Process) -> Result {
     match map.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed_map: &Term = map.unbox_reference();
 
             match unboxed_map.tag() {
-                Tag::Map => {
+                Map => {
                     let map_map: &Map = map.unbox_reference();
                     Some(map_map.is_key(key).into_process(&mut process))
                 }
@@ -560,12 +560,12 @@ pub fn is_map_key_2(key: Term, map: Term, mut process: &mut Process) -> Result {
 
 pub fn is_number_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::SmallInteger => true,
-        Tag::Boxed => {
+        SmallInteger => true,
+        Boxed => {
             let unboxed: &Term = term.unbox_reference();
 
             match unboxed.tag() {
-                Tag::BigInteger | Tag::Float => true,
+                BigInteger | Float => true,
                 _ => false,
             }
         }
@@ -576,12 +576,12 @@ pub fn is_number_1(term: Term, mut process: &mut Process) -> Term {
 
 pub fn is_pid_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::LocalPid => true,
-        Tag::Boxed => {
+        LocalPid => true,
+        Boxed => {
             let unboxed: &Term = term.unbox_reference();
 
             match unboxed.tag() {
-                Tag::ExternalPid => true,
+                ExternalPid => true,
                 _ => false,
             }
         }
@@ -600,11 +600,11 @@ pub fn is_record_3(term: Term, record_tag: Term, size: Term, mut process: &mut P
 
 pub fn is_reference_1(term: Term, mut process: &mut Process) -> Term {
     match term.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = term.unbox_reference();
 
             match unboxed.tag() {
-                Tag::LocalReference | Tag::ExternalReference => true,
+                LocalReference | ExternalReference => true,
                 _ => false,
             }
         }
@@ -614,7 +614,7 @@ pub fn is_reference_1(term: Term, mut process: &mut Process) -> Term {
 }
 
 pub fn is_tuple_1(term: Term, mut process: &mut Process) -> Term {
-    (term.tag() == Tag::Boxed && term.unbox_reference::<Term>().tag() == Tag::Arity)
+    (term.tag() == Boxed && term.unbox_reference::<Term>().tag() == Arity)
         .into_process(&mut process)
 }
 
@@ -624,8 +624,8 @@ pub fn length_1(list: Term, mut process: &mut Process) -> Result {
 
     loop {
         match tail.tag() {
-            Tag::EmptyList => break Ok(length.into_process(&mut process)),
-            Tag::List => {
+            EmptyList => break Ok(length.into_process(&mut process)),
+            List => {
                 tail = crate::otp::erlang::tl_1(tail, &mut process).unwrap();
                 length += 1;
             }
@@ -662,21 +662,21 @@ pub fn self_0(process: &Process) -> Term {
 
 pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
     match binary_or_tuple.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = binary_or_tuple.unbox_reference();
 
             match unboxed.tag() {
-                Tag::Arity => {
+                Arity => {
                     let tuple: &Tuple = binary_or_tuple.unbox_reference();
 
                     Ok(tuple.size())
                 }
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = binary_or_tuple.unbox_reference();
 
                     Ok(heap_binary.size())
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = binary_or_tuple.unbox_reference();
 
                     Ok(subbinary.size())
@@ -697,11 +697,11 @@ pub fn tl_1(list: Term, process: &mut Process) -> Result {
 
 pub fn tuple_size_1(tuple: Term, mut process: &mut Process) -> Result {
     match tuple.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = tuple.unbox_reference();
 
             match unboxed.tag() {
-                Tag::Arity => {
+                Arity => {
                     let tuple: &Tuple = tuple.unbox_reference();
 
                     Ok(tuple.size().into_process(&mut process))
@@ -724,16 +724,16 @@ fn binary_existence_to_atom(
     encoding.atom_to_encoding(&mut process)?;
 
     match binary.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = binary.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
                     heap_binary.to_atom_index(existence, &mut process)
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
                     subbinary.to_atom_index(existence, &mut process)
@@ -753,11 +753,11 @@ fn is_record(
     mut process: &mut Process,
 ) -> Result {
     match term.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = term.unbox_reference();
 
             match unboxed.tag() {
-                Tag::Arity => {
+                Arity => {
                     let tuple: &Tuple = term.unbox_reference();
 
                     tuple.is_record(record_tag, size, &mut process)

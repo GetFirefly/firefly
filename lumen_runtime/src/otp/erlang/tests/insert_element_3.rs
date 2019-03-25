@@ -181,7 +181,7 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
     let index = 2usize;
     let invalid_index_term = Term::arity(index);
 
-    assert_ne!(invalid_index_term.tag(), Tag::SmallInteger);
+    assert_ne!(invalid_index_term.tag(), SmallInteger);
     assert_bad_argument!(
         erlang::insert_element_3(
             tuple_term,
@@ -194,7 +194,7 @@ fn with_tuple_without_small_integer_index_is_bad_argument() {
 
     let valid_index_term: Term = index.into_process(&mut process);
 
-    assert_eq!(valid_index_term.tag(), Tag::SmallInteger);
+    assert_eq!(valid_index_term.tag(), SmallInteger);
     assert_eq_in_process!(
         erlang::insert_element_3(
             tuple_term,

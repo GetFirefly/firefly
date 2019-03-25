@@ -110,11 +110,11 @@ fn with_big_integer_that_is_negative_returns_positive() {
     let negative: isize = small::MIN - 1;
     let negative_term = negative.into_process(&mut process);
 
-    assert_eq!(negative_term.tag(), Tag::Boxed);
+    assert_eq!(negative_term.tag(), Boxed);
 
     let unboxed_negative_term: &Term = negative_term.unbox_reference();
 
-    assert_eq!(unboxed_negative_term.tag(), Tag::BigInteger);
+    assert_eq!(unboxed_negative_term.tag(), BigInteger);
 
     let positive = -negative;
     let positive_term = positive.into_process(&mut process);
@@ -135,11 +135,11 @@ fn with_big_integer_that_is_positive_return_self() {
         .unwrap()
         .into_process(&mut process);
 
-    assert_eq!(positive_term.tag(), Tag::Boxed);
+    assert_eq!(positive_term.tag(), Boxed);
 
     let unboxed_positive_term: &Term = positive_term.unbox_reference();
 
-    assert_eq!(unboxed_positive_term.tag(), Tag::BigInteger);
+    assert_eq!(unboxed_positive_term.tag(), BigInteger);
 
     assert_eq_in_process!(
         erlang::abs_1(positive_term, &mut process),
@@ -157,11 +157,11 @@ fn with_float_that_is_negative_returns_positive() {
     let negative = -1.0;
     let negative_term = negative.into_process(&mut process);
 
-    assert_eq!(negative_term.tag(), Tag::Boxed);
+    assert_eq!(negative_term.tag(), Boxed);
 
     let unboxed_negative_term: &Term = negative_term.unbox_reference();
 
-    assert_eq!(unboxed_negative_term.tag(), Tag::Float);
+    assert_eq!(unboxed_negative_term.tag(), Float);
 
     let positive = -negative;
     let positive_term = positive.into_process(&mut process);
@@ -180,11 +180,11 @@ fn with_float_that_is_positive_return_self() {
     let mut process = process_rw_lock.write().unwrap();
     let positive_term: Term = 1.0.into_process(&mut process);
 
-    assert_eq!(positive_term.tag(), Tag::Boxed);
+    assert_eq!(positive_term.tag(), Boxed);
 
     let unboxed_positive_term: &Term = positive_term.unbox_reference();
 
-    assert_eq!(unboxed_positive_term.tag(), Tag::Float);
+    assert_eq!(unboxed_positive_term.tag(), Float);
 
     assert_eq_in_process!(
         erlang::abs_1(positive_term, &mut process),

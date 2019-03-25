@@ -1268,8 +1268,9 @@ impl OrderInProcess for Term {
                 Ordering::Less
             }
             (List, SmallInteger) => Ordering::Greater,
+            (List, Atom) => Ordering::Greater,
             (List, EmptyList) => {
-                // Any list is longer than empty lit
+                // Any list is longer than empty list
                 Ordering::Greater
             }
             (List, List) => {

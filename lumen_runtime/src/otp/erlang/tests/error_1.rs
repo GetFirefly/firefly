@@ -12,7 +12,7 @@ fn with_atom_errors_atom_reason() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let reason = Term::str_to_atom("reason", Existence::DoNotCare, &mut process).unwrap();
+    let reason = Term::str_to_atom("reason", DoNotCare, &mut process).unwrap();
 
     assert_error!(erlang::error_1(reason), reason, &mut process);
 }

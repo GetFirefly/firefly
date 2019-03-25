@@ -11,7 +11,7 @@ use num_bigint::BigInt;
 
 use liblumen_arena::TypedArena;
 
-use crate::atom::{self, Encoding, Existence};
+use crate::atom::{self, Encoding, Existence, Existence::*};
 use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::exception::{self, Exception};
 use crate::float::Float;
@@ -196,22 +196,19 @@ impl Term {
     pub fn atom_to_encoding(&self, mut process: &mut Process) -> Result<Encoding, Exception> {
         match self.tag() {
             Atom => {
-                let unicode_atom =
-                    Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
+                let unicode_atom = Term::str_to_atom("unicode", DoNotCare, &mut process).unwrap();
                 let tagged = self.tagged;
 
                 if tagged == unicode_atom.tagged {
                     Ok(Encoding::Unicode)
                 } else {
-                    let utf8_atom =
-                        Term::str_to_atom("utf8", Existence::DoNotCare, &mut process).unwrap();
+                    let utf8_atom = Term::str_to_atom("utf8", DoNotCare, &mut process).unwrap();
 
                     if tagged == utf8_atom.tagged {
                         Ok(Encoding::Utf8)
                     } else {
                         let latin1_atom =
-                            Term::str_to_atom("latin1", Existence::DoNotCare, &mut process)
-                                .unwrap();
+                            Term::str_to_atom("latin1", DoNotCare, &mut process).unwrap();
 
                         if tagged == latin1_atom.tagged {
                             Ok(Encoding::Latin1)
@@ -475,7 +472,7 @@ impl DebugInProcess for Term {
         match self.tag() {
             Arity => format!("Term::arity({})", self.arity_to_usize()),
             Atom => format!(
-                "Term::str_to_atom(\"{}\", Existence::DoNotCare, &mut process).unwrap()",
+                "Term::str_to_atom(\"{}\", DoNotCare, &mut process).unwrap()",
                 self.atom_to_string(process)
             ),
             Boxed => {
@@ -1317,7 +1314,7 @@ mod tests {
                 let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
                 let mut process = process_rw_lock.write().unwrap();
                 let number_term: Term = 0.into_process(&mut process);
-                let atom_term = Term::str_to_atom("0", Existence::DoNotCare, &mut process).unwrap();
+                let atom_term = Term::str_to_atom("0", DoNotCare, &mut process).unwrap();
 
                 assert_cmp_in_process!(number_term, Ordering::Less, atom_term, process);
                 refute_cmp_in_process!(atom_term, Ordering::Less, number_term, process);
@@ -1328,7 +1325,7 @@ mod tests {
                 let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
                 let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
                 let mut process = process_rw_lock.write().unwrap();
-                let atom_term = Term::str_to_atom("0", Existence::DoNotCare, &mut process).unwrap();
+                let atom_term = Term::str_to_atom("0", DoNotCare, &mut process).unwrap();
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
                 assert_cmp_in_process!(atom_term, Ordering::Less, tuple_term, process);
@@ -1342,10 +1339,9 @@ mod tests {
                 let mut process = process_rw_lock.write().unwrap();
                 let greater_name = "b";
                 let greater_term =
-                    Term::str_to_atom(greater_name, Existence::DoNotCare, &mut process).unwrap();
+                    Term::str_to_atom(greater_name, DoNotCare, &mut process).unwrap();
                 let lesser_name = "a";
-                let lesser_term =
-                    Term::str_to_atom(lesser_name, Existence::DoNotCare, &mut process).unwrap();
+                let lesser_term = Term::str_to_atom(lesser_name, DoNotCare, &mut process).unwrap();
 
                 assert!(lesser_name < greater_name);
                 assert_cmp_in_process!(lesser_term, Ordering::Less, greater_term, process);
@@ -1563,7 +1559,7 @@ mod tests {
             let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
             let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
             let mut process = process_rw_lock.write().unwrap();
-            let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+            let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
 
             assert_eq!(atom_term.is_empty_list(), false);
         }
@@ -1578,7 +1574,7 @@ mod tests {
             let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
             let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
             let mut process = process_rw_lock.write().unwrap();
-            let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
+            let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
             assert_eq!(list_term.is_empty_list(), false);
@@ -1641,7 +1637,7 @@ mod tests {
     }
 
     fn list_term(mut process: &mut Process) -> Term {
-        let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
+        let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
         Term::cons(head_term, Term::EMPTY_LIST, process)
     }
 

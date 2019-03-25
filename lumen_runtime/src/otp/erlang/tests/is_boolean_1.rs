@@ -42,7 +42,7 @@ fn with_list_is_false() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
+    let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
     let term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
     assert_eq_in_process!(

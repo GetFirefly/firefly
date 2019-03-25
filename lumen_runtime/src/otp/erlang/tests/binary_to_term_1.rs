@@ -12,7 +12,7 @@ fn with_atom_returns_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+    let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_to_term_1(atom_term, &mut process),
@@ -159,7 +159,7 @@ fn with_heap_binary_encoding_atom_returns_atom() {
 
     assert_eq_in_process!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Term::str_to_atom("atom", Existence::DoNotCare, &mut process),
+        Term::str_to_atom("atom", DoNotCare, &mut process),
         process
     );
 }
@@ -195,7 +195,7 @@ fn with_heap_binary_encoding_list_returns_list() {
     assert_eq_in_process!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
         Ok(Term::cons(
-            Term::str_to_atom("zero", Existence::DoNotCare, &mut process).unwrap(),
+            Term::str_to_atom("zero", DoNotCare, &mut process).unwrap(),
             Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
             &mut process
         )),
@@ -264,7 +264,7 @@ fn with_heap_binary_encoding_small_tuple_returns_tuple() {
         erlang::binary_to_term_1(heap_binary_term, &mut process),
         Ok(Term::slice_to_tuple(
             &[
-                Term::str_to_atom("zero", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("zero", DoNotCare, &mut process).unwrap(),
                 1.into_process(&mut process)
             ],
             &mut process
@@ -359,7 +359,7 @@ fn with_heap_binary_encoding_small_atom_utf8_returns_atom() {
 
     assert_eq_in_process!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Ok(Term::str_to_atom("😈", Existence::DoNotCare, &mut process).unwrap()),
+        Ok(Term::str_to_atom("😈", DoNotCare, &mut process).unwrap()),
         process,
     );
 }
@@ -378,7 +378,7 @@ fn with_subbinary_encoding_atom_returns_atom() {
 
     assert_eq_in_process!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Term::str_to_atom("atom", Existence::DoNotCare, &mut process),
+        Term::str_to_atom("atom", DoNotCare, &mut process),
         process
     );
 }
@@ -416,7 +416,7 @@ fn with_subbinary_encoding_list_returns_list() {
     assert_eq_in_process!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
         Ok(Term::cons(
-            Term::str_to_atom("zero", Existence::DoNotCare, &mut process).unwrap(),
+            Term::str_to_atom("zero", DoNotCare, &mut process).unwrap(),
             Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
             &mut process
         )),
@@ -503,7 +503,7 @@ fn with_subbinary_encoding_small_tuple_returns_tuple() {
         erlang::binary_to_term_1(subbinary_term, &mut process),
         Ok(Term::slice_to_tuple(
             &[
-                Term::str_to_atom("zero", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("zero", DoNotCare, &mut process).unwrap(),
                 1.into_process(&mut process)
             ],
             &mut process
@@ -608,7 +608,7 @@ fn with_subbinary_encoding_small_atom_utf8_returns_atom() {
 
     assert_eq_in_process!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Ok(Term::str_to_atom("😈", Existence::DoNotCare, &mut process).unwrap()),
+        Ok(Term::str_to_atom("😈", DoNotCare, &mut process).unwrap()),
         process,
     );
 }

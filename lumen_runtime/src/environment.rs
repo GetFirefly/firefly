@@ -71,19 +71,15 @@ mod tests {
     mod str_to_atom_index {
         use super::*;
 
+        use crate::atom::Existence::*;
+
         #[test]
         fn without_same_string_have_different_index() {
             let mut environment = Environment::new();
 
             assert_ne!(
-                environment
-                    .str_to_atom_index("true", Existence::DoNotCare)
-                    .unwrap()
-                    .0,
-                environment
-                    .str_to_atom_index("false", Existence::DoNotCare)
-                    .unwrap()
-                    .0
+                environment.str_to_atom_index("true", DoNotCare).unwrap().0,
+                environment.str_to_atom_index("false", DoNotCare).unwrap().0
             )
         }
 
@@ -92,14 +88,8 @@ mod tests {
             let mut environment = Environment::new();
 
             assert_eq!(
-                environment
-                    .str_to_atom_index("atom", Existence::DoNotCare)
-                    .unwrap()
-                    .0,
-                environment
-                    .str_to_atom_index("atom", Existence::DoNotCare)
-                    .unwrap()
-                    .0
+                environment.str_to_atom_index("atom", DoNotCare).unwrap().0,
+                environment.str_to_atom_index("atom", DoNotCare).unwrap().0
             )
         }
     }

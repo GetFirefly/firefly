@@ -12,7 +12,7 @@ fn with_atom_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+    let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_part_3(
@@ -219,7 +219,7 @@ fn with_heap_binary_without_integer_start_without_integer_length_returns_bad_arg
         &[0.into_process(&mut process), 0.into_process(&mut process)],
         &mut process,
     );
-    let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
+    let length_term = Term::str_to_atom("all", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_part_3(heap_binary_term, start_term, length_term, &mut process),
@@ -234,7 +234,7 @@ fn with_heap_binary_without_integer_start_with_integer_length_returns_bad_argume
     let mut process = process_rw_lock.write().unwrap();
     let heap_binary_term = Term::slice_to_binary(&[], &mut process);
     let start_term = 0.into_process(&mut process);
-    let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
+    let length_term = Term::str_to_atom("all", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_part_3(heap_binary_term, start_term, length_term, &mut process),
@@ -249,7 +249,7 @@ fn with_heap_binary_with_integer_start_without_integer_length_returns_bad_argume
     let mut process = process_rw_lock.write().unwrap();
     let heap_binary_term = Term::slice_to_binary(&[], &mut process);
     let start_term = 0.into_process(&mut process);
-    let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
+    let length_term = Term::str_to_atom("all", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_part_3(heap_binary_term, start_term, length_term, &mut process),
@@ -422,7 +422,7 @@ fn with_subbinary_without_integer_start_without_integer_length_returns_bad_argum
         &[0.into_process(&mut process), 0.into_process(&mut process)],
         &mut process,
     );
-    let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
+    let length_term = Term::str_to_atom("all", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_part_3(subbinary_term, start_term, length_term, &mut process),
@@ -439,7 +439,7 @@ fn with_subbinary_without_integer_start_with_integer_length_returns_bad_argument
         Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
     let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
     let start_term = 0.into_process(&mut process);
-    let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
+    let length_term = Term::str_to_atom("all", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_part_3(subbinary_term, start_term, length_term, &mut process),
@@ -456,7 +456,7 @@ fn with_subbinary_with_integer_start_without_integer_length_returns_bad_argument
         Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
     let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
     let start_term = 0.into_process(&mut process);
-    let length_term = Term::str_to_atom("all", Existence::DoNotCare, &mut process).unwrap();
+    let length_term = Term::str_to_atom("all", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_part_3(subbinary_term, start_term, length_term, &mut process),

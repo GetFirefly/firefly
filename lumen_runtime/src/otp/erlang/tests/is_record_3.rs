@@ -4,7 +4,6 @@ use std::sync::{Arc, RwLock};
 
 use num_traits::Num;
 
-use crate::atom::Existence::DoNotCare;
 use crate::environment::{self, Environment};
 use crate::process::IntoProcess;
 

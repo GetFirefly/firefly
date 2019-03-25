@@ -15,7 +15,7 @@ mod with_safe {
         // :erlang.term_to_binary(:atom)
         let binary_term = Term::slice_to_binary(&[131, 100, 0, 4, 97, 116, 111, 109], &mut process);
         let options = Term::cons(
-            Term::str_to_atom("safe", Existence::DoNotCare, &mut process).unwrap(),
+            Term::str_to_atom("safe", DoNotCare, &mut process).unwrap(),
             Term::EMPTY_LIST,
             &mut process,
         );
@@ -27,7 +27,7 @@ mod with_safe {
 
         assert_eq_in_process!(
             erlang::binary_to_term_2(binary_term, Term::EMPTY_LIST, &mut process),
-            Ok(Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap()),
+            Ok(Term::str_to_atom("atom", DoNotCare, &mut process).unwrap()),
             process
         );
     }
@@ -43,7 +43,7 @@ mod with_safe {
             &mut process,
         );
         let options = Term::cons(
-            Term::str_to_atom("safe", Existence::DoNotCare, &mut process).unwrap(),
+            Term::str_to_atom("safe", DoNotCare, &mut process).unwrap(),
             Term::EMPTY_LIST,
             &mut process,
         );
@@ -56,7 +56,7 @@ mod with_safe {
         assert_eq_in_process!(
             erlang::binary_to_term_2(binary_term, Term::EMPTY_LIST, &mut process),
             Ok(Term::cons(
-                Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("atom", DoNotCare, &mut process).unwrap(),
                 Term::EMPTY_LIST,
                 &mut process
             )),
@@ -73,7 +73,7 @@ mod with_safe {
         let binary_term =
             Term::slice_to_binary(&[131, 104, 1, 100, 0, 4, 97, 116, 111, 109], &mut process);
         let options = Term::cons(
-            Term::str_to_atom("safe", Existence::DoNotCare, &mut process).unwrap(),
+            Term::str_to_atom("safe", DoNotCare, &mut process).unwrap(),
             Term::EMPTY_LIST,
             &mut process,
         );
@@ -86,7 +86,7 @@ mod with_safe {
         assert_eq_in_process!(
             erlang::binary_to_term_2(binary_term, Term::EMPTY_LIST, &mut process),
             Ok(Term::slice_to_tuple(
-                &[Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap()],
+                &[Term::str_to_atom("atom", DoNotCare, &mut process).unwrap()],
                 &mut process
             )),
             process
@@ -101,7 +101,7 @@ mod with_safe {
         // :erlang.term_to_binary(:"😈")
         let binary_term = Term::slice_to_binary(&[131, 119, 4, 240, 159, 152, 136], &mut process);
         let options = Term::cons(
-            Term::str_to_atom("safe", Existence::DoNotCare, &mut process).unwrap(),
+            Term::str_to_atom("safe", DoNotCare, &mut process).unwrap(),
             Term::EMPTY_LIST,
             &mut process,
         );
@@ -113,7 +113,7 @@ mod with_safe {
 
         assert_eq_in_process!(
             erlang::binary_to_term_2(binary_term, Term::EMPTY_LIST, &mut process),
-            Ok(Term::str_to_atom("😈", Existence::DoNotCare, &mut process).unwrap()),
+            Ok(Term::str_to_atom("😈", DoNotCare, &mut process).unwrap()),
             process
         );
     }
@@ -132,12 +132,12 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
         &mut process,
     );
     let options = Term::cons(
-        Term::str_to_atom("used", Existence::DoNotCare, &mut process).unwrap(),
+        Term::str_to_atom("used", DoNotCare, &mut process).unwrap(),
         Term::EMPTY_LIST,
         &mut process,
     );
 
-    let term = Term::str_to_atom("hello", Existence::DoNotCare, &mut process).unwrap();
+    let term = Term::str_to_atom("hello", DoNotCare, &mut process).unwrap();
     let result = erlang::binary_to_term_2(binary_term, options, &mut process);
 
     assert_eq_in_process!(

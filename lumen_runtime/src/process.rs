@@ -7,7 +7,7 @@ use num_bigint::BigInt;
 
 use liblumen_arena::TypedArena;
 
-use crate::atom::{self, Existence};
+use crate::atom::{self, Existence, Existence::*};
 use crate::binary::{heap, sub, Binary};
 use crate::environment::Environment;
 use crate::exception::{self, Exception};
@@ -396,7 +396,7 @@ pub trait IntoProcess<T> {
 
 impl IntoProcess<Term> for bool {
     fn into_process(self, mut process: &mut Process) -> Term {
-        Term::str_to_atom(&self.to_string(), Existence::DoNotCare, &mut process)
+        Term::str_to_atom(&self.to_string(), DoNotCare, &mut process)
             .unwrap()
             .into()
     }
@@ -482,14 +482,8 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
 
             assert_ne!(
-                process
-                    .str_to_atom_index("true", Existence::DoNotCare)
-                    .unwrap()
-                    .0,
-                process
-                    .str_to_atom_index("false", Existence::DoNotCare)
-                    .unwrap()
-                    .0
+                process.str_to_atom_index("true", DoNotCare).unwrap().0,
+                process.str_to_atom_index("false", DoNotCare).unwrap().0
             )
         }
 
@@ -500,14 +494,8 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
 
             assert_eq!(
-                process
-                    .str_to_atom_index("atom", Existence::DoNotCare)
-                    .unwrap()
-                    .0,
-                process
-                    .str_to_atom_index("atom", Existence::DoNotCare)
-                    .unwrap()
-                    .0
+                process.str_to_atom_index("atom", DoNotCare).unwrap().0,
+                process.str_to_atom_index("atom", DoNotCare).unwrap().0
             )
         }
     }

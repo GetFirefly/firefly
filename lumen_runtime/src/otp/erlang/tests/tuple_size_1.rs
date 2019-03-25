@@ -12,7 +12,7 @@ fn with_atom_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let tuple = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+    let tuple = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(erlang::tuple_size_1(tuple, &mut process), &mut process);
 }

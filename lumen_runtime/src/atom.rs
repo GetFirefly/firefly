@@ -15,6 +15,8 @@ pub enum Existence {
     Exists,
 }
 
+use self::Existence::*;
+
 pub struct Index(pub usize);
 
 pub struct Table {
@@ -34,15 +36,12 @@ impl Table {
 
         match (existing_position, existence) {
             (Some(position), _) => Ok(position),
-            (None, Existence::DoNotCare) => {
+            (None, DoNotCare) => {
                 self.names.push(name.to_string());
                 Ok(self.names.len() - 1)
             }
-            (None, Existence::Exists) => {
-                let badarg: Term = self
-                    .str_to_index("badarg", Existence::DoNotCare)
-                    .unwrap()
-                    .into();
+            (None, Exists) => {
+                let badarg: Term = self.str_to_index("badarg", DoNotCare).unwrap().into();
 
                 Err(error!(badarg))
             }

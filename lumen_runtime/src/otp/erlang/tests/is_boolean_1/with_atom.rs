@@ -10,7 +10,7 @@ fn without_true_or_false_is_false() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+    let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
 
     assert_eq_in_process!(
         erlang::is_boolean_1(atom_term, &mut process),

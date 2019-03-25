@@ -8,7 +8,7 @@ use std::num::FpCategory;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use crate::atom::Existence;
+use crate::atom::{Existence, Existence::*};
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
 use crate::exception::Result;
 use crate::float::Float;
@@ -131,11 +131,11 @@ pub fn binary_part_3(binary: Term, start: Term, length: Term, mut process: &mut 
 }
 
 pub fn binary_to_atom_2(binary: Term, encoding: Term, process: &mut Process) -> Result {
-    binary_existence_to_atom(binary, encoding, Existence::DoNotCare, process)
+    binary_existence_to_atom(binary, encoding, DoNotCare, process)
 }
 
 pub fn binary_to_existing_atom_2(binary: Term, encoding: Term, process: &mut Process) -> Result {
-    binary_existence_to_atom(binary, encoding, Existence::Exists, process)
+    binary_existence_to_atom(binary, encoding, Exists, process)
 }
 
 pub fn binary_to_float_1(binary: Term, mut process: &mut Process) -> Result {
@@ -551,7 +551,7 @@ pub fn is_map_key_2(key: Term, map: Term, mut process: &mut Process) -> Result {
         _ => None,
     }
     .ok_or_else(|| {
-        let badmap = Term::str_to_atom("badmap", Existence::DoNotCare, &mut process).unwrap();
+        let badmap = Term::str_to_atom("badmap", DoNotCare, &mut process).unwrap();
         let reason = Term::slice_to_tuple(&[badmap, map], &mut process);
 
         error!(reason)

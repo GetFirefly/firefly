@@ -187,6 +187,33 @@ impl Tuple {
         }
     }
 
+    pub fn setelement(
+        &self,
+        ZeroBasedIndex(index): ZeroBasedIndex,
+        value: Term,
+        mut process: &mut Process,
+    ) -> Result<&'static Tuple, Exception> {
+        let arity_usize = self.arity.arity_to_usize();
+
+        if index < arity_usize {
+            let mut element_vec = Vec::with_capacity(arity_usize);
+
+            for (current_index, current_element) in self.iter().enumerate() {
+                if current_index == index {
+                    element_vec.push(value);
+                } else {
+                    element_vec.push(current_element);
+                }
+            }
+
+            let tuple = Tuple::from_slice(element_vec.as_slice(), &mut process.term_arena);
+
+            Ok(tuple)
+        } else {
+            Err(bad_argument!(&mut process))
+        }
+    }
+
     pub fn size(&self) -> Integer {
         // The `arity` field is not the same as `size` because `size` is a tagged as a small integer
         // while `arity` is tagged as an `arity` to mark the beginning of a tuple.

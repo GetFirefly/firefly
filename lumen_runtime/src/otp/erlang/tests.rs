@@ -51,6 +51,6 @@ mod tl_1;
 mod tuple_size_1;
 
 fn list_term(mut process: &mut Process) -> Term {
-    let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
+    let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
     Term::cons(head_term, Term::EMPTY_LIST, process)
 }

@@ -12,7 +12,7 @@ fn with_atom_returns_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("😈🤘", Existence::DoNotCare, &mut process).unwrap();
+    let atom_term = Term::str_to_atom("😈🤘", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::binary_to_float_1(atom_term, &mut process),

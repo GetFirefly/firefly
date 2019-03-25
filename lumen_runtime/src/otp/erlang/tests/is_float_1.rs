@@ -12,7 +12,7 @@ fn with_atom_is_false() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let term = Term::str_to_atom("number", Existence::DoNotCare, &mut process).unwrap();
+    let term = Term::str_to_atom("number", DoNotCare, &mut process).unwrap();
 
     assert_eq_in_process!(
         erlang::is_float_1(term, &mut process),

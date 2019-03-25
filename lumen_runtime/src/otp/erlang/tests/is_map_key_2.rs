@@ -14,8 +14,8 @@ fn with_atom_errors_bad_map() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let key = Term::str_to_atom("key", Existence::DoNotCare, &mut process).unwrap();
-    let map = Term::str_to_atom("map", Existence::DoNotCare, &mut process).unwrap();
+    let key = Term::str_to_atom("key", DoNotCare, &mut process).unwrap();
+    let map = Term::str_to_atom("map", DoNotCare, &mut process).unwrap();
 
     assert_bad_map!(
         erlang::is_map_key_2(key, map, &mut process),

@@ -13,7 +13,7 @@ fn with_atom_returns_chars_in_list() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let atom_name = "😈🤘";
-    let atom_term = Term::str_to_atom(atom_name, Existence::DoNotCare, &mut process).unwrap();
+    let atom_term = Term::str_to_atom(atom_name, DoNotCare, &mut process).unwrap();
 
     assert_eq_in_process!(
         erlang::atom_to_list_1(atom_term, &mut process),

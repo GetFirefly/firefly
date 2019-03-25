@@ -97,7 +97,7 @@ macro_rules! bad_argument {
 #[macro_export]
 macro_rules! bad_map {
     ($map:expr, $process:expr) => {{
-        use crate::atom::Existence::DoNotCare;
+        use crate::atom::DoNotCare;
         use crate::term::Term;
 
         let badmap = Term::str_to_atom("badmap", DoNotCare, $process).unwrap();

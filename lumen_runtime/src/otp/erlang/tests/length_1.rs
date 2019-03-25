@@ -11,7 +11,7 @@ fn with_atom_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+    let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(erlang::length_1(atom_term, &mut process), &mut process);
 }
@@ -45,8 +45,8 @@ fn with_improper_list_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let head_term = Term::str_to_atom("head", Existence::DoNotCare, &mut process).unwrap();
-    let tail_term = Term::str_to_atom("tail", Existence::DoNotCare, &mut process).unwrap();
+    let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
+    let tail_term = Term::str_to_atom("tail", DoNotCare, &mut process).unwrap();
     let improper_list_term = Term::cons(head_term, tail_term, &mut process);
 
     assert_bad_argument!(

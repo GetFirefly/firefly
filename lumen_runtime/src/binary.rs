@@ -3,7 +3,7 @@ use std::mem::transmute;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use crate::atom::Existence;
+use crate::atom::{Existence, Existence::*};
 use crate::exception::{self, Exception};
 use crate::list::{Cons, ToList};
 use crate::process::{IntoProcess, Process, TryFromInProcess, TryIntoInProcess};
@@ -405,7 +405,7 @@ impl ToTermOptions {
 
                 match option_string.as_ref() {
                     "safe" => {
-                        self.existence = Existence::Exists;
+                        self.existence = Exists;
 
                         Ok(self)
                     }
@@ -450,7 +450,7 @@ impl TryFromInProcess<Term> for ToTermOptions {
 impl Default for ToTermOptions {
     fn default() -> ToTermOptions {
         ToTermOptions {
-            existence: Existence::DoNotCare,
+            existence: DoNotCare,
             used: false,
         }
     }

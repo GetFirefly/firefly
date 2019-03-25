@@ -11,7 +11,7 @@ fn with_atom_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+    let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(erlang::hd_1(atom_term, &mut process), &mut process);
 }
@@ -40,7 +40,7 @@ fn with_list_returns_hd_1() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let hd_1_term = Term::str_to_atom("hd_1", Existence::DoNotCare, &mut process).unwrap();
+    let hd_1_term = Term::str_to_atom("hd_1", DoNotCare, &mut process).unwrap();
     let list_term = Term::cons(hd_1_term, Term::EMPTY_LIST, &mut process);
 
     assert_eq_in_process!(

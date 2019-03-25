@@ -9,9 +9,9 @@ fn with_atom_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(atom_term, from_unit_term, to_unit_term, &mut process),
@@ -25,8 +25,8 @@ fn with_local_reference_errors_badarg() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let time = Term::local_reference(&mut process);
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(time, from_unit_term, to_unit_term, &mut process),
@@ -39,8 +39,8 @@ fn with_empty_list_is_bad_argument() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(Term::EMPTY_LIST, from_unit_term, to_unit_term, &mut process),
@@ -54,8 +54,8 @@ fn with_list_is_bad_argument() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let list_term = list_term(&mut process);
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(list_term, from_unit_term, to_unit_term, &mut process),
@@ -74,9 +74,8 @@ mod with_small_integer {
         let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
         let mut process = process_rw_lock.write().unwrap();
         let small_integer_term: Term = 0.into_process(&mut process);
-        let valid_unit_term =
-            Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-        let invalid_unit_term = Term::str_to_atom("s", Existence::DoNotCare, &mut process).unwrap();
+        let valid_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+        let invalid_unit_term = Term::str_to_atom("s", DoNotCare, &mut process).unwrap();
 
         assert_bad_argument!(
             erlang::convert_time_unit_3(
@@ -124,7 +123,7 @@ mod with_small_integer {
             erlang::convert_time_unit_3(
                 small_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(500_000_000.into_process(&mut process)),
@@ -135,7 +134,7 @@ mod with_small_integer {
             erlang::convert_time_unit_3(
                 small_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
@@ -148,7 +147,7 @@ mod with_small_integer {
             erlang::convert_time_unit_3(
                 small_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("500_000_000_000_000", 10)
@@ -161,7 +160,7 @@ mod with_small_integer {
             erlang::convert_time_unit_3(
                 small_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -176,7 +175,7 @@ mod with_small_integer {
             erlang::convert_time_unit_3(
                 small_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
@@ -189,7 +188,7 @@ mod with_small_integer {
             erlang::convert_time_unit_3(
                 small_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
@@ -202,7 +201,7 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -215,8 +214,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000_usize.into_process(&mut process)),
@@ -226,8 +225,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -239,8 +238,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -252,8 +251,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -267,8 +266,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -280,8 +279,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -294,7 +293,7 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -305,8 +304,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000.into_process(&mut process)),
@@ -316,8 +315,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -327,8 +326,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -340,8 +339,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -353,8 +352,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -364,8 +363,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -376,7 +375,7 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -387,8 +386,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000.into_process(&mut process)),
@@ -398,8 +397,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -409,8 +408,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -422,8 +421,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -435,8 +434,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -446,8 +445,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -458,7 +457,7 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -469,8 +468,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1.into_process(&mut process)),
@@ -480,8 +479,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000.into_process(&mut process)),
@@ -491,8 +490,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000.into_process(&mut process)),
@@ -502,8 +501,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -513,8 +512,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000.into_process(&mut process)),
@@ -524,8 +523,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000.into_process(&mut process)),
@@ -536,7 +535,7 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -547,8 +546,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000.into_process(&mut process)),
@@ -558,8 +557,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -569,8 +568,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -582,8 +581,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -595,8 +594,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -606,8 +605,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -618,7 +617,7 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -629,8 +628,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000.into_process(&mut process)),
@@ -640,8 +639,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -651,8 +650,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -664,8 +663,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -677,8 +676,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -688,8 +687,8 @@ mod with_small_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 small_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -715,9 +714,8 @@ mod with_big_integer {
 
         assert_eq!(big_integer_term.tag(), Boxed);
 
-        let valid_unit_term =
-            Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-        let invalid_unit_term = Term::str_to_atom("s", Existence::DoNotCare, &mut process).unwrap();
+        let valid_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+        let invalid_unit_term = Term::str_to_atom("s", DoNotCare, &mut process).unwrap();
 
         assert_bad_argument!(
             erlang::convert_time_unit_3(
@@ -772,7 +770,7 @@ mod with_big_integer {
             erlang::convert_time_unit_3(
                 big_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -787,7 +785,7 @@ mod with_big_integer {
             erlang::convert_time_unit_3(
                 big_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -802,7 +800,7 @@ mod with_big_integer {
             erlang::convert_time_unit_3(
                 big_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -817,7 +815,7 @@ mod with_big_integer {
             erlang::convert_time_unit_3(
                 big_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -832,7 +830,7 @@ mod with_big_integer {
             erlang::convert_time_unit_3(
                 big_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -847,7 +845,7 @@ mod with_big_integer {
             erlang::convert_time_unit_3(
                 big_integer_term,
                 2_usize.into_process(&mut process),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -862,7 +860,7 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -877,8 +875,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -892,8 +890,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -907,8 +905,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -922,8 +920,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -937,8 +935,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -952,8 +950,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -968,7 +966,7 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -981,8 +979,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -994,8 +992,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1009,8 +1007,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1024,8 +1022,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1039,8 +1037,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1054,8 +1052,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1070,7 +1068,7 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -1083,8 +1081,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -1096,8 +1094,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1111,8 +1109,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1126,8 +1124,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1141,8 +1139,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1156,8 +1154,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1172,7 +1170,7 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -1185,8 +1183,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(1_000_000_000.into_process(&mut process)),
@@ -1196,8 +1194,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -1209,8 +1207,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -1222,8 +1220,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1237,8 +1235,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -1250,8 +1248,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
@@ -1264,7 +1262,7 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -1277,8 +1275,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -1290,8 +1288,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1305,8 +1303,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1320,8 +1318,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1335,8 +1333,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1350,8 +1348,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1366,7 +1364,7 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 5_usize.into_process(&mut process),
                 &mut process
             ),
@@ -1379,8 +1377,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("second", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
@@ -1392,8 +1390,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("millisecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1407,8 +1405,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("microsecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1422,8 +1420,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("nanosecond", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1437,8 +1435,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1452,8 +1450,8 @@ mod with_big_integer {
         assert_eq_in_process!(
             erlang::convert_time_unit_3(
                 big_integer_term,
-                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
-                Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("native", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("perf_counter", DoNotCare, &mut process).unwrap(),
                 &mut process
             ),
             Ok(
@@ -1472,8 +1470,8 @@ fn with_float_returns_bad_argument() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let float_term = 1.0.into_process(&mut process);
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(float_term, from_unit_term, to_unit_term, &mut process),
@@ -1487,8 +1485,8 @@ fn with_local_pid_is_bad_argument() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(local_pid_term, from_unit_term, to_unit_term, &mut process),
@@ -1502,8 +1500,8 @@ fn with_external_pid_is_bad_argument() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(
@@ -1522,8 +1520,8 @@ fn with_tuple_is_bad_argument() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let tuple_term = Term::slice_to_tuple(&[], &mut process);
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(tuple_term, from_unit_term, to_unit_term, &mut process),
@@ -1537,8 +1535,8 @@ fn with_map_is_bad_argument() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let map_term = Term::slice_to_map(&[], &mut process);
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(map_term, from_unit_term, to_unit_term, &mut process),
@@ -1552,8 +1550,8 @@ fn with_heap_binary_is_bad_argument() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let heap_binary_term = Term::slice_to_binary(&[1], &mut process);
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(heap_binary_term, from_unit_term, to_unit_term, &mut process),
@@ -1568,8 +1566,8 @@ fn with_subbinary_is_bad_argument() {
     let mut process = process_rw_lock.write().unwrap();
     let binary_term = Term::slice_to_binary(&[0, 1], &mut process);
     let subbinary_term = Term::subbinary(binary_term, 1, 0, 1, 0, &mut process);
-    let from_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
-    let to_unit_term = Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+    let from_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
+    let to_unit_term = Term::str_to_atom("native", DoNotCare, &mut process).unwrap();
 
     assert_bad_argument!(
         erlang::convert_time_unit_3(subbinary_term, from_unit_term, to_unit_term, &mut process),

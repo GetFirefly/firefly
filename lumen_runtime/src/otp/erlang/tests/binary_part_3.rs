@@ -378,11 +378,11 @@ fn with_heap_binary_with_positive_start_and_negative_length_returns_subbinary() 
     let returned_boxed =
         erlang::binary_part_3(heap_binary_term, start_term, length_term, &mut process).unwrap();
 
-    assert_eq!(returned_boxed.tag(), Tag::Boxed);
+    assert_eq!(returned_boxed.tag(), Boxed);
 
     let returned_unboxed: &Term = returned_boxed.unbox_reference();
 
-    assert_eq!(returned_unboxed.tag(), Tag::Subbinary);
+    assert_eq!(returned_unboxed.tag(), Subbinary);
 }
 
 #[test]
@@ -403,11 +403,11 @@ fn with_heap_binary_with_positive_start_and_positive_length_returns_subbinary() 
     let returned_boxed =
         erlang::binary_part_3(heap_binary_term, start_term, length_term, &mut process).unwrap();
 
-    assert_eq!(returned_boxed.tag(), Tag::Boxed);
+    assert_eq!(returned_boxed.tag(), Boxed);
 
     let returned_unboxed: &Term = returned_boxed.unbox_reference();
 
-    assert_eq!(returned_unboxed.tag(), Tag::Subbinary);
+    assert_eq!(returned_unboxed.tag(), Subbinary);
 }
 
 #[test]
@@ -588,11 +588,11 @@ fn with_subbinary_with_positive_start_and_negative_length_returns_subbinary() {
     let returned_boxed =
         erlang::binary_part_3(subbinary_term, start_term, length_term, &mut process).unwrap();
 
-    assert_eq!(returned_boxed.tag(), Tag::Boxed);
+    assert_eq!(returned_boxed.tag(), Boxed);
 
     let returned_unboxed: &Term = returned_boxed.unbox_reference();
 
-    assert_eq!(returned_unboxed.tag(), Tag::Subbinary);
+    assert_eq!(returned_unboxed.tag(), Subbinary);
 }
 
 #[test]
@@ -615,9 +615,9 @@ fn with_subbinary_with_positive_start_and_positive_length_returns_subbinary() {
     let returned_boxed =
         erlang::binary_part_3(subbinary_term, start_term, length_term, &mut process).unwrap();
 
-    assert_eq!(returned_boxed.tag(), Tag::Boxed);
+    assert_eq!(returned_boxed.tag(), Boxed);
 
     let returned_unboxed: &Term = returned_boxed.unbox_reference();
 
-    assert_eq!(returned_unboxed.tag(), Tag::Subbinary);
+    assert_eq!(returned_unboxed.tag(), Subbinary);
 }

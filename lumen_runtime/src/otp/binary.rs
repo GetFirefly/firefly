@@ -1,7 +1,7 @@
 use crate::binary::{heap, sub, PartToList};
 use crate::exception::Exception;
 use crate::process::Process;
-use crate::term::{Tag, Term};
+use crate::term::{Tag::*, Term};
 
 /// Converts `binary` to a list of bytes, each representing the value of one byte.
 ///
@@ -24,16 +24,16 @@ pub fn bin_to_list(
     mut process: &mut Process,
 ) -> Result<Term, Exception> {
     match binary.tag() {
-        Tag::Boxed => {
+        Boxed => {
             let unboxed: &Term = binary.unbox_reference();
 
             match unboxed.tag() {
-                Tag::HeapBinary => {
+                HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
                     heap_binary.part_to_list(position, length, &mut process)
                 }
-                Tag::Subbinary => {
+                Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
                     subbinary.part_to_list(position, length, &mut process)

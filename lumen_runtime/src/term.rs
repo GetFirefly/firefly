@@ -29,7 +29,7 @@ pub mod external_format;
 
 impl From<&Term> for atom::Index {
     fn from(term: &Term) -> atom::Index {
-        assert_eq!(term.tag(), Tag::Atom);
+        assert_eq!(term.tag(), Atom);
 
         atom::Index(term.tagged >> Tag::ATOM_BIT_COUNT)
     }
@@ -76,6 +76,8 @@ impl Tag {
     pub const SMALL_INTEGER_BIT_COUNT: u8 = 4;
 }
 
+use self::Tag::*;
+
 pub struct TagError {
     tag: usize,
     bit_count: usize,
@@ -103,34 +105,34 @@ impl TryFrom<usize> for Tag {
     fn try_from(bits: usize) -> Result<Self, Self::Error> {
         match bits & Tag::PRIMARY_MASK {
             HEADER_PRIMARY_TAG => match bits & HEADER_PRIMARY_TAG_MASK {
-                0b0000_00 => Ok(Tag::Arity),
-                0b0001_00 => Ok(Tag::BinaryAggregate),
-                0b0010_00 => Ok(Tag::BigInteger),
-                0b0100_00 => Ok(Tag::LocalReference),
-                0b0101_00 => Ok(Tag::Function),
-                0b0110_00 => Ok(Tag::Float),
-                0b0111_00 => Ok(Tag::Export),
-                0b1000_00 => Ok(Tag::ReferenceCountedBinary),
-                0b1001_00 => Ok(Tag::HeapBinary),
-                0b1010_00 => Ok(Tag::Subbinary),
-                0b1100_00 => Ok(Tag::ExternalPid),
-                0b1101_00 => Ok(Tag::ExternalPort),
-                0b1110_00 => Ok(Tag::ExternalReference),
-                0b1111_00 => Ok(Tag::Map),
+                0b0000_00 => Ok(Arity),
+                0b0001_00 => Ok(BinaryAggregate),
+                0b0010_00 => Ok(BigInteger),
+                0b0100_00 => Ok(LocalReference),
+                0b0101_00 => Ok(Function),
+                0b0110_00 => Ok(Float),
+                0b0111_00 => Ok(Export),
+                0b1000_00 => Ok(ReferenceCountedBinary),
+                0b1001_00 => Ok(HeapBinary),
+                0b1010_00 => Ok(Subbinary),
+                0b1100_00 => Ok(ExternalPid),
+                0b1101_00 => Ok(ExternalPort),
+                0b1110_00 => Ok(ExternalReference),
+                0b1111_00 => Ok(Map),
                 tag => Err(TagError { tag, bit_count: 6 }),
             },
-            0b01 => Ok(Tag::List),
-            0b10 => Ok(Tag::Boxed),
+            0b01 => Ok(List),
+            0b10 => Ok(Boxed),
             0b11 => match bits & IMMEDIATE_PRIMARY_TAG_MASK {
-                0b00_11 => Ok(Tag::LocalPid),
-                0b01_11 => Ok(Tag::LocalPort),
+                0b00_11 => Ok(LocalPid),
+                0b01_11 => Ok(LocalPort),
                 0b10_11 => match bits & IMMEDIATE_IMMEDIATE_PRIMARY_TAG_MASK {
-                    0b00_10_11 => Ok(Tag::Atom),
-                    0b01_10_11 => Ok(Tag::CatchPointer),
-                    0b11_10_11 => Ok(Tag::EmptyList),
+                    0b00_10_11 => Ok(Atom),
+                    0b01_10_11 => Ok(CatchPointer),
+                    0b11_10_11 => Ok(EmptyList),
                     tag => Err(TagError { tag, bit_count: 6 }),
                 },
-                0b11_11 => Ok(Tag::SmallInteger),
+                0b11_11 => Ok(SmallInteger),
                 tag => Err(TagError { tag, bit_count: 4 }),
             },
             tag => Err(TagError { tag, bit_count: 2 }),
@@ -152,7 +154,7 @@ impl Term {
     const MAX_HEAP_BINARY_BYTE_COUNT: usize = std::usize::MAX >> Tag::HEAP_BINARY_BIT_COUNT;
 
     pub const EMPTY_LIST: Term = Term {
-        tagged: Tag::EmptyList as usize,
+        tagged: EmptyList as usize,
     };
 
     pub fn arity(arity: usize) -> Term {
@@ -165,7 +167,7 @@ impl Term {
         }
 
         Term {
-            tagged: (arity << Tag::ARITY_BIT_COUNT) | Tag::Arity as usize,
+            tagged: (arity << Tag::ARITY_BIT_COUNT) | Arity as usize,
         }
     }
 
@@ -176,16 +178,16 @@ impl Term {
     pub fn arity_to_usize(&self) -> usize {
         assert_eq!(
             self.tag(),
-            Tag::Arity,
+            Arity,
             "Term ({:#b}) is not a tuple arity",
             self.tagged
         );
 
-        ((self.tagged & !(Tag::Arity as usize)) >> Tag::ARITY_BIT_COUNT)
+        ((self.tagged & !(Arity as usize)) >> Tag::ARITY_BIT_COUNT)
     }
 
     pub unsafe fn as_ref_cons_unchecked(&self) -> &'static Cons {
-        let untagged = self.tagged & !(Tag::List as usize);
+        let untagged = self.tagged & !(List as usize);
         let pointer = untagged as *const Term as *const Cons;
 
         &*pointer
@@ -193,7 +195,7 @@ impl Term {
 
     pub fn atom_to_encoding(&self, mut process: &mut Process) -> Result<Encoding, Exception> {
         match self.tag() {
-            Tag::Atom => {
+            Atom => {
                 let unicode_atom =
                     Term::str_to_atom("unicode", Existence::DoNotCare, &mut process).unwrap();
                 let tagged = self.tagged;
@@ -233,16 +235,16 @@ impl Term {
 
     pub fn byte(&self, index: usize) -> u8 {
         match self.tag() {
-            Tag::Boxed => {
+            Boxed => {
                 let unboxed: &Term = self.unbox_reference();
 
                 match unboxed.tag() {
-                    Tag::HeapBinary => {
+                    HeapBinary => {
                         let heap_binary: &heap::Binary = self.unbox_reference();
 
                         heap_binary.byte(index)
                     }
-                    Tag::ReferenceCountedBinary => unimplemented!(),
+                    ReferenceCountedBinary => unimplemented!(),
                     unboxed_tag => panic!("Cannot get bytes of unboxed {:?}", unboxed_tag),
                 }
             }
@@ -268,7 +270,7 @@ impl Term {
         );
 
         Term {
-            tagged: pointer_bits | (Tag::List as usize),
+            tagged: pointer_bits | (List as usize),
         }
     }
 
@@ -298,17 +300,16 @@ impl Term {
         );
 
         Term {
-            tagged: ((byte_count << Tag::HEAP_BINARY_BIT_COUNT) as usize)
-                | (Tag::HeapBinary as usize),
+            tagged: ((byte_count << Tag::HEAP_BINARY_BIT_COUNT) as usize) | (HeapBinary as usize),
         }
     }
 
     pub fn heap_binary_to_byte_count(&self) -> usize {
-        const TAG_HEAP_BINARY: usize = Tag::HeapBinary as usize;
+        const TAG_HEAP_BINARY: usize = HeapBinary as usize;
 
         assert_eq!(
             self.tag(),
-            Tag::HeapBinary,
+            HeapBinary,
             "Term ({:#b}) is not a heap binary",
             self.tagged
         );
@@ -330,7 +331,7 @@ impl Term {
         Term {
             tagged: (serial << (process::identifier::NUMBER_BIT_COUNT + Tag::LOCAL_PID_BIT_COUNT))
                 | (number << (Tag::LOCAL_PID_BIT_COUNT))
-                | (Tag::LocalPid as usize),
+                | (LocalPid as usize),
         }
     }
 
@@ -346,7 +347,7 @@ impl Term {
     }
 
     pub fn is_empty_list(&self) -> bool {
-        (self.tag() == Tag::EmptyList)
+        (self.tag() == EmptyList)
     }
 
     pub fn pid(
@@ -415,12 +416,12 @@ impl Term {
         );
 
         Term {
-            tagged: pointer_bits | (Tag::Boxed as usize),
+            tagged: pointer_bits | (Boxed as usize),
         }
     }
 
     pub fn unbox_reference<T>(&self) -> &'static T {
-        const TAG_BOXED: usize = Tag::Boxed as usize;
+        const TAG_BOXED: usize = Boxed as usize;
 
         assert_eq!(
             self.tagged & TAG_BOXED,
@@ -441,22 +442,22 @@ impl Term {
     pub unsafe fn small_integer_to_usize(&self) -> usize {
         assert_eq!(
             self.tag(),
-            Tag::SmallInteger,
+            SmallInteger,
             "Term ({:#b}) is not a small integer",
             self.tagged
         );
 
-        ((self.tagged & !(Tag::SmallInteger as usize)) >> Tag::SMALL_INTEGER_BIT_COUNT)
+        ((self.tagged & !(SmallInteger as usize)) >> Tag::SMALL_INTEGER_BIT_COUNT)
     }
 
-    /// Only call if verified `tag` is `Tag::SmallInteger`.
+    /// Only call if verified `tag` is `SmallInteger`.
     pub unsafe fn small_integer_is_negative(&self) -> bool {
         self.tagged & Term::SMALL_INTEGER_SIGN_BIT_MASK == Term::SMALL_INTEGER_SIGN_BIT_MASK
     }
 
     pub const unsafe fn isize_to_small_integer(i: isize) -> Term {
         Term {
-            tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (Tag::SmallInteger as usize),
+            tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (SmallInteger as usize),
         }
     }
 
@@ -472,16 +473,16 @@ impl Term {
 impl DebugInProcess for Term {
     fn format_in_process(&self, process: &Process) -> String {
         match self.tag() {
-            Tag::Arity => format!("Term::arity({})", self.arity_to_usize()),
-            Tag::Atom => format!(
+            Arity => format!("Term::arity({})", self.arity_to_usize()),
+            Atom => format!(
                 "Term::str_to_atom(\"{}\", Existence::DoNotCare, &mut process).unwrap()",
                 self.atom_to_string(process)
             ),
-            Tag::Boxed => {
+            Boxed => {
                 let unboxed: &Term = self.unbox_reference();
 
                 match unboxed.tag() {
-                    Tag::Arity => {
+                    Arity => {
                         let tuple: &Tuple = self.unbox_reference();
 
                         let mut strings: Vec<String> = Vec::new();
@@ -503,7 +504,7 @@ impl DebugInProcess for Term {
 
                         strings.join("")
                     }
-                    Tag::BigInteger => {
+                    BigInteger => {
                         let big_integer: &big::Integer = self.unbox_reference();
 
                         format!(
@@ -511,7 +512,7 @@ impl DebugInProcess for Term {
                             big_integer.inner
                         )
                     }
-                    Tag::ExternalPid => {
+                    ExternalPid => {
                         let external_pid: &process::identifier::External = self.unbox_reference();
 
                         format!(
@@ -519,12 +520,12 @@ impl DebugInProcess for Term {
                             external_pid.node, external_pid.number, external_pid.serial
                         )
                     }
-                    Tag::Float => {
+                    Float => {
                         let float: &Float = self.unbox_reference();
 
                         format!("{}_f64.into_process(&mut process)", float.inner)
                     }
-                    Tag::HeapBinary => {
+                    HeapBinary => {
                         let binary: &heap::Binary = self.unbox_reference();
 
                         let mut strings: Vec<String> = Vec::new();
@@ -546,7 +547,7 @@ impl DebugInProcess for Term {
 
                         strings.join("")
                     }
-                    Tag::LocalReference => {
+                    LocalReference => {
                         let local_reference: &local::Reference = self.unbox_reference();
 
                         format!(
@@ -554,7 +555,7 @@ impl DebugInProcess for Term {
                             local_reference.number
                         )
                     }
-                    Tag::Subbinary => {
+                    Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
 
                         let mut strings: Vec<String> = Vec::new();
@@ -576,8 +577,8 @@ impl DebugInProcess for Term {
                     unboxed_tag => unimplemented!("unboxed {:?}", unboxed_tag),
                 }
             }
-            Tag::EmptyList => "Term::EMPTY_LIST".to_string(),
-            Tag::List => {
+            EmptyList => "Term::EMPTY_LIST".to_string(),
+            List => {
                 let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
 
                 format!(
@@ -586,7 +587,7 @@ impl DebugInProcess for Term {
                     cons.tail().format_in_process(&process)
                 )
             }
-            Tag::SmallInteger => format!("{:?}.into_process(&mut process)", isize::from(self)),
+            SmallInteger => format!("{:?}.into_process(&mut process)", isize::from(self)),
             _ => format!(
                 "Term {{ tagged: 0b{tagged:0bit_count$b} }}",
                 tagged = self.tagged,
@@ -621,8 +622,7 @@ impl From<u8> for Term {
         let untagged: isize = u as isize;
 
         Term {
-            tagged: ((untagged << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
-                | (Tag::SmallInteger as usize),
+            tagged: ((untagged << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (SmallInteger as usize),
         }
     }
 }
@@ -630,7 +630,7 @@ impl From<u8> for Term {
 impl From<&Term> for isize {
     fn from(term: &Term) -> Self {
         match term.tag() {
-            Tag::SmallInteger => (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT,
+            SmallInteger => (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT,
             tag => panic!(
                 "{:?} tagged term {:#b} cannot be converted to isize",
                 tag, term.tagged
@@ -648,44 +648,42 @@ impl<T> From<&T> for Term {
 impl Hash for Term {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self.tag() {
-            Tag::Atom | Tag::EmptyList | Tag::LocalPid | Tag::SmallInteger => {
-                self.tagged.hash(state)
-            }
-            Tag::Boxed => {
+            Atom | EmptyList | LocalPid | SmallInteger => self.tagged.hash(state),
+            Boxed => {
                 let unboxed: &Term = self.unbox_reference();
 
                 match unboxed.tag() {
-                    Tag::Arity => {
+                    Arity => {
                         let tuple: &Tuple = self.unbox_reference();
 
                         tuple.hash(state)
                     }
-                    Tag::BigInteger => {
+                    BigInteger => {
                         let big_integer: &big::Integer = self.unbox_reference();
 
                         big_integer.hash(state)
                     }
-                    Tag::ExternalPid => {
+                    ExternalPid => {
                         let external_pid: &process::identifier::External = self.unbox_reference();
 
                         external_pid.hash(state)
                     }
-                    Tag::Float => {
+                    Float => {
                         let float: &Float = self.unbox_reference();
 
                         float.hash(state)
                     }
-                    Tag::HeapBinary => {
+                    HeapBinary => {
                         let heap_binary: &heap::Binary = self.unbox_reference();
 
                         heap_binary.hash(state)
                     }
-                    Tag::LocalReference => {
+                    LocalReference => {
                         let local_reference: &local::Reference = self.unbox_reference();
 
                         local_reference.hash(state)
                     }
-                    Tag::Subbinary => {
+                    Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
 
                         subbinary.hash(state)
@@ -693,7 +691,7 @@ impl Hash for Term {
                     unboxed_tag => unimplemented!("unboxed tag {:?}", unboxed_tag),
                 }
             }
-            Tag::List => {
+            List => {
                 let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
 
                 cons.hash(state)
@@ -756,7 +754,7 @@ impl IntoProcess<Term> for Integer {
         match self {
             Small(small::Integer(untagged)) => Term {
                 tagged: ((untagged << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
-                    | (Tag::SmallInteger as usize),
+                    | (SmallInteger as usize),
             },
             Big(big_int) => {
                 let process_integer: &big::Integer =
@@ -774,7 +772,7 @@ impl From<atom::Index> for Term {
     fn from(atom_index: atom::Index) -> Self {
         if atom_index.0 <= MAX_ATOM_INDEX {
             Term {
-                tagged: (atom_index.0 << Tag::ATOM_BIT_COUNT) | (Tag::Atom as usize),
+                tagged: (atom_index.0 << Tag::ATOM_BIT_COUNT) | (Atom as usize),
             }
         } else {
             panic!("index ({}) in atom table exceeds max index that can be tagged as an atom in a Term ({})", atom_index.0, MAX_ATOM_INDEX)
@@ -841,24 +839,24 @@ impl PartialEq for Term {
 
         if tag == other.tag() {
             match tag {
-                Tag::Atom | Tag::LocalPid | Tag::SmallInteger => self.tagged == other.tagged,
-                Tag::Boxed => {
+                Atom | LocalPid | SmallInteger => self.tagged == other.tagged,
+                Boxed => {
                     let unboxed: &Term = self.unbox_reference();
 
                     match unboxed.tag() {
-                        Tag::Arity => {
+                        Arity => {
                             let self_tuple: &Tuple = self.unbox_reference();
                             let other_tuple: &Tuple = other.unbox_reference();
 
                             self_tuple == other_tuple
                         }
-                        Tag::BigInteger => {
+                        BigInteger => {
                             let self_big_integer: &big::Integer = self.unbox_reference();
                             let other_big_integer: &big::Integer = other.unbox_reference();
 
                             self_big_integer == other_big_integer
                         }
-                        Tag::ExternalPid => {
+                        ExternalPid => {
                             let self_external_pid: &process::identifier::External =
                                 self.unbox_reference();
                             let other_external_pid: &process::identifier::External =
@@ -866,25 +864,25 @@ impl PartialEq for Term {
 
                             self_external_pid == other_external_pid
                         }
-                        Tag::Float => {
+                        Float => {
                             let self_float: &Float = self.unbox_reference();
                             let other_float: &Float = other.unbox_reference();
 
                             self_float == other_float
                         }
-                        Tag::HeapBinary => {
+                        HeapBinary => {
                             let self_heap_binary: &heap::Binary = self.unbox_reference();
                             let other_heap_binary: &heap::Binary = other.unbox_reference();
 
                             self_heap_binary == other_heap_binary
                         }
-                        Tag::LocalReference => {
+                        LocalReference => {
                             let self_local_reference: &local::Reference = self.unbox_reference();
                             let other_local_reference: &local::Reference = other.unbox_reference();
 
                             self_local_reference == other_local_reference
                         }
-                        Tag::Subbinary => {
+                        Subbinary => {
                             let self_subbinary: &sub::Binary = self.unbox_reference();
                             let other_subbinary: &sub::Binary = other.unbox_reference();
 
@@ -893,8 +891,8 @@ impl PartialEq for Term {
                         unboxed_tag => unimplemented!("unboxed tag ({:?})", unboxed_tag),
                     }
                 }
-                Tag::EmptyList => true,
-                Tag::List => {
+                EmptyList => true,
+                List => {
                     let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
                     let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
 
@@ -915,7 +913,7 @@ impl PartialEq for Term {
 impl TryFromInProcess<Term> for isize {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<isize, Exception> {
         match term.tag() {
-            Tag::SmallInteger => {
+            SmallInteger => {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
                 Ok(term_isize)
             }
@@ -927,11 +925,11 @@ impl TryFromInProcess<Term> for isize {
 impl TryFromInProcess<Term> for u64 {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<u64, Exception> {
         match term.tag() {
-            Tag::Boxed => {
+            Boxed => {
                 let unboxed: &Term = term.unbox_reference();
 
                 match unboxed.tag() {
-                    Tag::LocalReference => {
+                    LocalReference => {
                         let local_reference: &local::Reference = term.unbox_reference();
 
                         Ok(local_reference.number)
@@ -947,7 +945,7 @@ impl TryFromInProcess<Term> for u64 {
 impl TryFromInProcess<Term> for usize {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<usize, Exception> {
         match term.tag() {
-            Tag::SmallInteger => {
+            SmallInteger => {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
 
                 if term_isize < 0 {
@@ -967,7 +965,7 @@ impl TryFromInProcess<Term> for &'static Cons {
         mut process: &mut Process,
     ) -> Result<&'static Cons, Exception> {
         match term.tag() {
-            Tag::List => Ok(unsafe { term.as_ref_cons_unchecked() }),
+            List => Ok(unsafe { term.as_ref_cons_unchecked() }),
             _ => Err(bad_argument!(&mut process)),
         }
     }
@@ -976,16 +974,16 @@ impl TryFromInProcess<Term> for &'static Cons {
 impl TryFromInProcess<Term> for BigInt {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<BigInt, Exception> {
         match term.tag() {
-            Tag::SmallInteger => {
+            SmallInteger => {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
 
                 Ok(term_isize.into())
             }
-            Tag::Boxed => {
+            Boxed => {
                 let unboxed: &Term = term.unbox_reference();
 
                 match unboxed.tag() {
-                    Tag::BigInteger => {
+                    BigInteger => {
                         let big_integer: &big::Integer = term.unbox_reference();
 
                         Ok(big_integer.inner.clone())
@@ -1001,16 +999,16 @@ impl TryFromInProcess<Term> for BigInt {
 impl TryFromInProcess<Term> for String {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<String, Exception> {
         match term.tag() {
-            Tag::Boxed => {
+            Boxed => {
                 let unboxed: &Term = term.unbox_reference();
 
                 match unboxed.tag() {
-                    Tag::HeapBinary => {
+                    HeapBinary => {
                         let heap_binary: &heap::Binary = term.unbox_reference();
 
                         heap_binary.try_into_in_process(&mut process)
                     }
-                    Tag::Subbinary => {
+                    Subbinary => {
                         let subbinary: &sub::Binary = term.unbox_reference();
 
                         subbinary.try_into_in_process(&mut process)
@@ -1030,7 +1028,7 @@ impl TryFromInProcess<Term> for &'static Tuple {
         mut process: &mut Process,
     ) -> Result<&'static Tuple, Exception> {
         match term.tag() {
-            Tag::Boxed => term
+            Boxed => term
                 .unbox_reference::<Term>()
                 .try_into_in_process(&mut process),
             _ => Err(bad_argument!(&mut process)),
@@ -1053,11 +1051,11 @@ impl<'a> TryFromInProcess<&'a Term> for &'a Tuple {
         mut process: &mut Process,
     ) -> Result<&'a Tuple, Exception> {
         match term.tag() {
-            Tag::Arity => {
+            Arity => {
                 let pointer = term as *const Term as *const Tuple;
                 Ok(unsafe { pointer.as_ref() }.unwrap())
             }
-            Tag::Boxed => term
+            Boxed => term
                 .unbox_reference::<Term>()
                 .try_into_in_process(&mut process),
             _ => Err(bad_argument!(&mut process)),
@@ -1089,10 +1087,8 @@ impl OrderInProcess for Term {
     fn cmp_in_process(&self, other: &Self, process: &Process) -> Ordering {
         // in ascending order
         match (self.tag(), other.tag()) {
-            (Tag::Arity, Tag::Arity) | (Tag::HeapBinary, Tag::HeapBinary) => {
-                self.tagged.cmp(&other.tagged)
-            }
-            (Tag::SmallInteger, Tag::SmallInteger) => {
+            (Arity, Arity) | (HeapBinary, HeapBinary) => self.tagged.cmp(&other.tagged),
+            (SmallInteger, SmallInteger) => {
                 if self.tagged == other.tagged {
                     Ordering::Equal
                 } else {
@@ -1101,11 +1097,11 @@ impl OrderInProcess for Term {
                     self_isize.cmp(&other_isize)
                 }
             }
-            (Tag::SmallInteger, Tag::Boxed) => {
+            (SmallInteger, Boxed) => {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    Tag::BigInteger => {
+                    BigInteger => {
                         let self_big_int: BigInt = unsafe { self.small_integer_to_isize() }.into();
 
                         let other_big_integer: &big::Integer = other.unbox_reference();
@@ -1118,10 +1114,10 @@ impl OrderInProcess for Term {
                     }
                 }
             }
-            (Tag::SmallInteger, Tag::Atom) => Ordering::Less,
-            (Tag::SmallInteger, Tag::List) => Ordering::Less,
-            (Tag::Atom, Tag::SmallInteger) => Ordering::Greater,
-            (Tag::Atom, Tag::Atom) => {
+            (SmallInteger, Atom) => Ordering::Less,
+            (SmallInteger, List) => Ordering::Less,
+            (Atom, SmallInteger) => Ordering::Greater,
+            (Atom, Atom) => {
                 if self.tagged == other.tagged {
                     Ordering::Equal
                 } else {
@@ -1131,20 +1127,20 @@ impl OrderInProcess for Term {
                     self_name.cmp(&other_name)
                 }
             }
-            (Tag::Atom, Tag::Boxed) => {
+            (Atom, Boxed) => {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    Tag::Arity => Ordering::Less,
-                    Tag::Subbinary => Ordering::Less,
+                    Arity => Ordering::Less,
+                    Subbinary => Ordering::Less,
                     other_unboxed_tag => unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag),
                 }
             }
-            (Tag::Boxed, Tag::SmallInteger) => {
+            (Boxed, SmallInteger) => {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
-                    Tag::BigInteger => {
+                    BigInteger => {
                         let self_big_integer: &big::Integer = self.unbox_reference();
                         let self_big_int = &self_big_integer.inner;
 
@@ -1153,33 +1149,33 @@ impl OrderInProcess for Term {
 
                         self_big_int.cmp(&other_big_int)
                     }
-                    Tag::Subbinary => Ordering::Greater,
+                    Subbinary => Ordering::Greater,
                     self_unboxed_tag => {
                         unimplemented!("unboxed {:?} cmp SmallInteger", self_unboxed_tag)
                     }
                 }
             }
-            (Tag::Boxed, Tag::Atom) => {
+            (Boxed, Atom) => {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
-                    Tag::Arity => Ordering::Greater,
+                    Arity => Ordering::Greater,
                     self_unboxed_tag => unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag),
                 }
             }
-            (Tag::Boxed, Tag::Boxed) => {
+            (Boxed, Boxed) => {
                 let self_unboxed: &Term = self.unbox_reference();
                 let other_unboxed: &Term = other.unbox_reference();
 
                 // in ascending order
                 match (self_unboxed.tag(), other_unboxed.tag()) {
-                    (Tag::BigInteger, Tag::BigInteger) => {
+                    (BigInteger, BigInteger) => {
                         let self_big_integer: &big::Integer = self.unbox_reference();
                         let other_big_integer: &big::Integer = other.unbox_reference();
 
                         self_big_integer.inner.cmp(&other_big_integer.inner)
                     }
-                    (Tag::Float, Tag::Float) => {
+                    (Float, Float) => {
                         let self_float: &Float = self.unbox_reference();
                         let self_inner = self_float.inner;
 
@@ -1194,7 +1190,7 @@ impl OrderInProcess for Term {
                             )
                         })
                     }
-                    (Tag::LocalReference, Tag::LocalReference) => {
+                    (LocalReference, LocalReference) => {
                         let self_local_reference: &local::Reference = self.unbox_reference();
                         let other_local_reference: &local::Reference = other.unbox_reference();
 
@@ -1202,7 +1198,7 @@ impl OrderInProcess for Term {
                             .number
                             .cmp(&other_local_reference.number)
                     }
-                    (Tag::ExternalPid, Tag::ExternalPid) => {
+                    (ExternalPid, ExternalPid) => {
                         let self_external_pid: &process::identifier::External =
                             self.unbox_reference();
                         let other_external_pid: &process::identifier::External =
@@ -1210,32 +1206,32 @@ impl OrderInProcess for Term {
 
                         self_external_pid.cmp_in_process(other_external_pid, process)
                     }
-                    (Tag::Arity, Tag::Arity) => {
+                    (Arity, Arity) => {
                         let self_tuple: &Tuple = self.unbox_reference();
                         let other_tuple: &Tuple = other.unbox_reference();
 
                         self_tuple.cmp_in_process(other_tuple, process)
                     }
-                    (Tag::Arity, Tag::Float) => Ordering::Greater,
-                    (Tag::Map, Tag::Map) => {
+                    (Arity, Float) => Ordering::Greater,
+                    (Map, Map) => {
                         let self_map: &Map = self.unbox_reference();
                         let other_map: &Map = other.unbox_reference();
 
                         self_map.cmp_in_process(other_map, process)
                     }
-                    (Tag::HeapBinary, Tag::HeapBinary) => {
+                    (HeapBinary, HeapBinary) => {
                         let self_binary: &heap::Binary = self.unbox_reference();
                         let other_binary: &heap::Binary = other.unbox_reference();
 
                         self_binary.cmp_in_process(other_binary, process)
                     }
-                    (Tag::Subbinary, Tag::HeapBinary) => {
+                    (Subbinary, HeapBinary) => {
                         let self_subbinary: &sub::Binary = self.unbox_reference();
                         let other_heap_binary: &heap::Binary = other.unbox_reference();
 
                         self_subbinary.cmp_in_process(other_heap_binary, process)
                     }
-                    (Tag::Subbinary, Tag::Subbinary) => {
+                    (Subbinary, Subbinary) => {
                         let self_subbinary: &sub::Binary = self.unbox_reference();
                         let other_subbinary: &sub::Binary = other.unbox_reference();
 
@@ -1248,38 +1244,38 @@ impl OrderInProcess for Term {
                     ),
                 }
             }
-            (Tag::Boxed, Tag::EmptyList) | (Tag::Boxed, Tag::List) => {
+            (Boxed, EmptyList) | (Boxed, List) => {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
-                    Tag::Arity => Ordering::Less,
-                    Tag::HeapBinary => Ordering::Greater,
+                    Arity => Ordering::Less,
+                    HeapBinary => Ordering::Greater,
                     self_unboxed_tag => unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag),
                 }
             }
-            (Tag::LocalPid, Tag::LocalPid) => self.tagged.cmp(&other.tagged),
-            (Tag::EmptyList, Tag::Boxed) | (Tag::List, Tag::Boxed) => {
+            (LocalPid, LocalPid) => self.tagged.cmp(&other.tagged),
+            (EmptyList, Boxed) | (List, Boxed) => {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    Tag::Arity => Ordering::Greater,
-                    Tag::HeapBinary => Ordering::Less,
+                    Arity => Ordering::Greater,
+                    HeapBinary => Ordering::Less,
                     other_unboxed_tag => {
                         unimplemented!("list() cmp unboxed {:?}", other_unboxed_tag)
                     }
                 }
             }
-            (Tag::EmptyList, Tag::EmptyList) => Ordering::Equal,
-            (Tag::EmptyList, Tag::List) => {
+            (EmptyList, EmptyList) => Ordering::Equal,
+            (EmptyList, List) => {
                 // Empty list is shorter than all lists, so it is lesser.
                 Ordering::Less
             }
-            (Tag::List, Tag::SmallInteger) => Ordering::Greater,
-            (Tag::List, Tag::EmptyList) => {
+            (List, SmallInteger) => Ordering::Greater,
+            (List, EmptyList) => {
                 // Any list is longer than empty lit
                 Ordering::Greater
             }
-            (Tag::List, Tag::List) => {
+            (List, List) => {
                 let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
                 let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
 

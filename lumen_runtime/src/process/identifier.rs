@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
 use crate::process::{OrderInProcess, Process};
-use crate::term::{Tag, Term};
+use crate::term::{Tag, Tag::*, Term};
 
 pub const NUMBER_BIT_COUNT: u8 = 15;
 pub const NUMBER_MAX: usize = (1 << (NUMBER_BIT_COUNT as usize)) - 1;
@@ -24,7 +24,7 @@ impl External {
 
         External {
             header: Term {
-                tagged: (Tag::ExternalPid as usize),
+                tagged: (ExternalPid as usize),
             },
             node,
             serial,

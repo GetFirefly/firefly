@@ -660,6 +660,15 @@ pub fn self_0(process: &Process) -> Term {
     process.pid
 }
 
+pub fn setelement_3(index: Term, tuple: Term, value: Term, mut process: &mut Process) -> Result {
+    let inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
+    let index_zero_based: ZeroBasedIndex = index.try_into_in_process(&mut process)?;
+
+    inner_tuple
+        .setelement(index_zero_based, value, &mut process)
+        .map(|new_inner_tuple| new_inner_tuple.into())
+}
+
 pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
     match binary_or_tuple.tag() {
         Boxed => {

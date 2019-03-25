@@ -192,6 +192,12 @@ impl Tuple {
         // while `arity` is tagged as an `arity` to mark the beginning of a tuple.
         self.arity.arity_to_usize().into()
     }
+
+    pub fn to_list(&self, mut process: &mut Process) -> Term {
+        self.iter().rfold(Term::EMPTY_LIST, |acc, element| {
+            Term::cons(element, acc, &mut process)
+        })
+    }
 }
 
 impl DebugInProcess for Tuple {
@@ -241,6 +247,21 @@ impl Index<usize> for Tuple {
 pub struct Iter {
     pointer: *const Term,
     limit: *const Term,
+}
+
+impl DoubleEndedIterator for Iter {
+    fn next_back(&mut self) -> Option<Term> {
+        if self.pointer == self.limit {
+            None
+        } else {
+            unsafe {
+                // limit is +1 past he actual elements, so pre-decrement unlike `next`, which
+                // post-decrements
+                self.limit = self.limit.offset(-1);
+                self.limit.as_ref().map(|r| *r)
+            }
+        }
+    }
 }
 
 impl Iterator for Iter {

@@ -713,6 +713,24 @@ pub fn tuple_size_1(tuple: Term, mut process: &mut Process) -> Result {
     }
 }
 
+pub fn tuple_to_list_1(tuple: Term, mut process: &mut Process) -> Result {
+    match tuple.tag() {
+        Boxed => {
+            let unboxed: &Term = tuple.unbox_reference();
+
+            match unboxed.tag() {
+                Arity => {
+                    let tuple: &Tuple = tuple.unbox_reference();
+
+                    Ok(tuple.to_list(&mut process))
+                }
+                _ => Err(bad_argument!(&mut process)),
+            }
+        }
+        _ => Err(bad_argument!(&mut process)),
+    }
+}
+
 // Private Functions
 
 fn binary_existence_to_atom(

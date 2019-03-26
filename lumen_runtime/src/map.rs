@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 
 use im_rc::hashmap::HashMap;
 
+use crate::atom::Existence::DoNotCare;
+use crate::exception::Result;
 use crate::process::{OrderInProcess, Process};
 use crate::term::{Tag, Term};
 
@@ -31,6 +33,18 @@ impl Map {
                 tagged: Tag::Map as usize,
             },
             inner,
+        }
+    }
+
+    pub fn get(&self, key: Term, mut process: &mut Process) -> Result {
+        match self.inner.get(&key) {
+            Some(value) => Ok(value.clone()),
+            None => {
+                let badmap = Term::str_to_atom("badkey", DoNotCare, &mut process).unwrap();
+                let reason = Term::slice_to_tuple(&[badmap, key], &mut process);
+
+                Err(error!(reason))
+            }
         }
     }
 

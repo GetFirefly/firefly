@@ -1045,6 +1045,35 @@ impl TryFromInProcess<Term> for BigInt {
     }
 }
 
+impl TryFromInProcess<Term> for &'static Map {
+    fn try_from_in_process(
+        term: Term,
+        mut process: &mut Process,
+    ) -> Result<&'static Map, Exception> {
+        match term.tag() {
+            Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    Map => {
+                        let map: &Map = term.unbox_reference();
+
+                        Some(map)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+        .ok_or_else(|| {
+            let badmap = Term::str_to_atom("badmap", DoNotCare, &mut process).unwrap();
+            let reason = Term::slice_to_tuple(&[badmap, term], &mut process);
+
+            error!(reason)
+        })
+    }
+}
+
 impl TryFromInProcess<Term> for String {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<String, Exception> {
         match term.tag() {

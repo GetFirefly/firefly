@@ -401,6 +401,12 @@ impl Term {
             .into()
     }
 
+    pub fn vec_to_list(vec: &Vec<Term>, initial_tail: Term, mut process: &mut Process) -> Term {
+        vec.iter().rfold(initial_tail, |acc, element| {
+            Term::cons(element.clone(), acc, &mut process)
+        })
+    }
+
     fn box_reference<T>(reference: &T) -> Term {
         let pointer_bits = reference as *const T as usize;
 

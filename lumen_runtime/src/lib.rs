@@ -12,6 +12,8 @@
 #![feature(try_reserve)]
 // for `lumen_runtime::term::Term`
 #![feature(untagged_unions)]
+// for `lumen_runtime::list::Cons::subtract`.
+#![feature(vec_remove_item)]
 
 #[macro_use]
 extern crate cfg_if;

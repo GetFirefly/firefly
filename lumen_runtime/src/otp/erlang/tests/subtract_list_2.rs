@@ -6,193 +6,187 @@ use std::sync::{Arc, RwLock};
 
 use crate::environment::{self, Environment};
 
-// The behavior here is weird to @KronicDeth and @bitwalker, but consistent with BEAM.
-// See https://bugs.erlang.org/browse/ERL-898.
+mod with_empty_list;
+mod with_list;
 
 #[test]
-fn with_atom_returns_atom() {
+fn with_atom_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = Term::str_to_atom("term", DoNotCare, &mut process).unwrap();
+    let minuend = Term::str_to_atom("list", DoNotCare, &mut process).unwrap();
+    let subtrahend = Term::str_to_atom("term", DoNotCare, &mut process).unwrap();
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_local_reference_returns_local_reference() {
+fn with_local_reference_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = Term::local_reference(&mut process);
+    let minuend = Term::local_reference(&mut process);
+    let subtrahend = Term::local_reference(&mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_improper_list_returns_improper_list() {
+fn with_improper_list_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = Term::cons(
+    let minuend = Term::cons(
+        0.into_process(&mut process),
+        1.into_process(&mut process),
+        &mut process,
+    );
+    let subtrahend = Term::cons(
         2.into_process(&mut process),
         3.into_process(&mut process),
         &mut process,
     );
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_small_integer_returns_small_integer() {
+fn with_small_integer_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = 1.into_process(&mut process);
+    let minuend = 0.into_process(&mut process);
+    let subtrahend = 1.into_process(&mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_big_integer_returns_big_integer() {
+fn with_big_integer_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = <BigInt as Num>::from_str_radix("576460752303423490", 10)
+    let minuend = <BigInt as Num>::from_str_radix("576460752303423489", 10)
+        .unwrap()
+        .into_process(&mut process);
+    let subtrahend = <BigInt as Num>::from_str_radix("576460752303423490", 10)
         .unwrap()
         .into_process(&mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_float_returns_float() {
+fn with_float_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = 1.0.into_process(&mut process);
+    let minuend = 1.0.into_process(&mut process);
+    let subtrahend = 2.0.into_process(&mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_local_pid_returns_local_pid() {
+fn with_local_pid_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = Term::local_pid(1, 2, &mut process).unwrap();
+    let minuend = Term::local_pid(0, 1, &mut process).unwrap();
+    let subtrahend = Term::local_pid(1, 2, &mut process).unwrap();
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_external_pid_returns_external_pid() {
+fn with_external_pid_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = Term::external_pid(4, 5, 6, &mut process).unwrap();
+    let minuend = Term::external_pid(1, 2, 3, &mut process).unwrap();
+    let subtrahend = Term::external_pid(4, 5, 6, &mut process).unwrap();
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_tuple_returns_tuple() {
+fn with_tuple_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = Term::slice_to_tuple(&[], &mut process);
+    let minuend = Term::slice_to_tuple(&[], &mut process);
+    let subtrahend = Term::slice_to_tuple(&[], &mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_map_is_returns_map_is() {
+fn with_map_is_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = Term::slice_to_map(&[], &mut process);
+    let minuend = Term::slice_to_map(&[], &mut process);
+    let subtrahend = Term::slice_to_map(&[], &mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_heap_binary_returns_heap_binary() {
+fn with_heap_binary_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let list = Term::EMPTY_LIST;
-    let term = Term::slice_to_binary(&[], &mut process);
+    let minuend = Term::slice_to_binary(&[], &mut process);
+    let subtrahend = Term::slice_to_binary(&[], &mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }
 
 #[test]
-fn with_subbinary_returns_subbinary() {
+fn with_subbinary_errors_badarg() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let binary_term =
         Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-    let list = Term::EMPTY_LIST;
-    let term = Term::subbinary(binary_term, 0, 7, 2, 0, &mut process);
+    let minuend = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+    let subtrahend = Term::subbinary(binary_term, 0, 7, 2, 0, &mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
+    assert_bad_argument!(
+        erlang::subtract_list_2(minuend, subtrahend, &mut process),
         &mut process
     );
 }

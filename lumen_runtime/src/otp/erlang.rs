@@ -711,6 +711,29 @@ pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
     .map(|integer| integer.into_process(&mut process))
 }
 
+pub fn subtract_list_2(minuend: Term, subtrahend: Term, mut process: &mut Process) -> Result {
+    match (minuend.tag(), subtrahend.tag()) {
+        (EmptyList, EmptyList) => Ok(minuend),
+        (EmptyList, List) => {
+            let subtrahend_cons: &Cons = unsafe { subtrahend.as_ref_cons_unchecked() };
+
+            if subtrahend_cons.is_proper() {
+                Ok(minuend)
+            } else {
+                Err(bad_argument!(&mut process))
+            }
+        }
+        (List, EmptyList) => Ok(minuend),
+        (List, List) => {
+            let minuend_cons: &Cons = unsafe { minuend.as_ref_cons_unchecked() };
+            let subtrahend_cons: &Cons = unsafe { subtrahend.as_ref_cons_unchecked() };
+
+            minuend_cons.subtract(subtrahend_cons, &mut process)
+        }
+        _ => Err(bad_argument!(&mut process)),
+    }
+}
+
 pub fn tl_1(list: Term, process: &mut Process) -> Result {
     let cons: &Cons = list.try_into_in_process(process)?;
 

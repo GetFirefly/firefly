@@ -4,8 +4,11 @@ use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 
+use crate::atom::Existence;
 use crate::exception::{self, Exception};
-use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryIntoInProcess};
+use crate::process::{
+    DebugInProcess, IntoProcess, OrderInProcess, Process, TryFromInProcess, TryIntoInProcess,
+};
 use crate::term::{Tag::*, Term};
 
 /// A cons cell in a list
@@ -53,6 +56,18 @@ impl Cons {
             }
             Err(ImproperList { .. }) => Err(bad_argument!(&mut process)),
         }
+    }
+
+    pub fn to_atom(&self, existence: Existence, mut process: &mut Process) -> exception::Result {
+        let string: String = self
+            .into_iter()
+            .map(|result| match result {
+                Ok(term) => char::try_from_in_process(term, &mut process),
+                Err(ImproperList { .. }) => Err(bad_argument!(&mut process)),
+            })
+            .collect::<Result<String, Exception>>()?;
+
+        Term::str_to_atom(&string, existence, process)
     }
 
     pub fn to_pid(&self, mut process: &mut Process) -> exception::Result {

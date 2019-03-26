@@ -647,6 +647,10 @@ pub fn length_1(list: Term, mut process: &mut Process) -> Result {
     }
 }
 
+pub fn list_to_atom_1(string: Term, process: &mut Process) -> Result {
+    list_to_atom(string, DoNotCare, process)
+}
+
 pub fn list_to_pid_1(string: Term, mut process: &mut Process) -> Result {
     let cons: &Cons = string.try_into_in_process(&mut process)?;
 
@@ -829,5 +833,17 @@ fn is_record(
             }
         }
         _ => Ok(false.into_process(&mut process)),
+    }
+}
+
+fn list_to_atom(string: Term, existence: Existence, mut process: &mut Process) -> Result {
+    match string.tag() {
+        EmptyList => Term::str_to_atom("", existence, &mut process),
+        List => {
+            let cons: &Cons = unsafe { string.as_ref_cons_unchecked() };
+
+            cons.to_atom(existence, &mut process)
+        }
+        _ => Err(bad_argument!(&mut process)),
     }
 }

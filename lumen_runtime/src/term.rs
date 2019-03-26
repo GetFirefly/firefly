@@ -8,6 +8,7 @@ use std::mem::size_of;
 use std::str::Chars;
 
 use num_bigint::BigInt;
+use num_traits::cast::ToPrimitive;
 
 use liblumen_arena::TypedArena;
 
@@ -913,12 +914,57 @@ impl PartialEq for Term {
     }
 }
 
+impl TryFromInProcess<Term> for char {
+    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<char, Exception> {
+        let term_u32: u32 = term.try_into_in_process(&mut process)?;
+
+        match std::char::from_u32(term_u32) {
+            Some(c) => Ok(c),
+            None => Err(bad_argument!(&mut process)),
+        }
+    }
+}
+
 impl TryFromInProcess<Term> for isize {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<isize, Exception> {
         match term.tag() {
             SmallInteger => {
-                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
+                let term_isize = unsafe { term.small_integer_to_isize() };
+
                 Ok(term_isize)
+            }
+            _ => Err(bad_argument!(&mut process)),
+        }
+    }
+}
+
+impl TryFromInProcess<Term> for u32 {
+    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<u32, Exception> {
+        match term.tag() {
+            SmallInteger => {
+                let term_isize = unsafe { term.small_integer_to_isize() };
+
+                term_isize
+                    .try_into()
+                    .map_err(|_| bad_argument!(&mut process))
+            }
+            Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger => {
+                        let big_integer: &big::Integer = term.unbox_reference();
+
+                        // does not implement `to_u32` directly
+                        match big_integer.inner.to_u64() {
+                            Some(term_u64) => {
+                                term_u64.try_into().map_err(|_| bad_argument!(&mut process))
+                            }
+                            None => Err(bad_argument!(&mut process)),
+                        }
+                    }
+                    _ => Err(bad_argument!(&mut process)),
+                }
             }
             _ => Err(bad_argument!(&mut process)),
         }
@@ -949,7 +995,7 @@ impl TryFromInProcess<Term> for usize {
     fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<usize, Exception> {
         match term.tag() {
             SmallInteger => {
-                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
+                let term_isize = unsafe { term.small_integer_to_isize() };
 
                 if term_isize < 0 {
                     Err(bad_argument!(&mut process))

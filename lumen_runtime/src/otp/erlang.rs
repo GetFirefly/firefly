@@ -549,26 +549,9 @@ pub fn is_map_1(term: Term, mut process: &mut Process) -> Term {
 }
 
 pub fn is_map_key_2(key: Term, map: Term, mut process: &mut Process) -> Result {
-    match map.tag() {
-        Boxed => {
-            let unboxed_map: &Term = map.unbox_reference();
+    let map_map: &Map = map.try_into_in_process(&mut process)?;
 
-            match unboxed_map.tag() {
-                Map => {
-                    let map_map: &Map = map.unbox_reference();
-                    Some(map_map.is_key(key).into_process(&mut process))
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-    .ok_or_else(|| {
-        let badmap = Term::str_to_atom("badmap", DoNotCare, &mut process).unwrap();
-        let reason = Term::slice_to_tuple(&[badmap, map], &mut process);
-
-        error!(reason)
-    })
+    Ok(map_map.is_key(key).into_process(&mut process))
 }
 
 pub fn is_number_1(term: Term, mut process: &mut Process) -> Term {
@@ -675,6 +658,12 @@ pub fn list_to_tuple_1(list: Term, mut process: &mut Process) -> Result {
 
 pub fn make_ref_0(mut process: &mut Process) -> Term {
     Term::local_reference(&mut process)
+}
+
+pub fn map_get_2(key: Term, map: Term, mut process: &mut Process) -> Result {
+    let map_map: &Map = map.try_into_in_process(&mut process)?;
+
+    map_map.get(key, &mut process)
 }
 
 pub fn self_0(process: &Process) -> Term {

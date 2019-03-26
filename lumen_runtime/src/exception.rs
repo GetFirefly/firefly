@@ -53,6 +53,22 @@ macro_rules! assert_bad_argument {
 }
 
 #[macro_export]
+macro_rules! assert_bad_key {
+    ($left:expr, $key:expr, $process:expr) => {{
+        use crate::atom::Existence::DoNotCare;
+        use crate::term::Term;
+
+        let badkey = Term::str_to_atom("badkey", DoNotCare, $process).unwrap();
+        let reason = Term::slice_to_tuple(&[badkey, $key], $process);
+
+        assert_error!($left, reason, $process)
+    }};
+    ($left:expr, $key:expr, $process:expr,) => {{
+        assert_bad_map($left, $key, $process)
+    }};
+}
+
+#[macro_export]
 macro_rules! assert_bad_map {
     ($left:expr, $map:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;

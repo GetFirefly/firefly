@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
+use std::iter::FusedIterator;
 
 use crate::exception::{self, Exception};
 use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process, TryIntoInProcess};
@@ -28,13 +29,30 @@ impl Cons {
     }
 
     pub fn concatenate(&self, term: Term, mut process: &mut Process) -> exception::Result {
-        let vec: Vec<Term> = self.to_vec(&mut process)?;
+        match self.into_iter().collect::<Result<Vec<Term>, _>>() {
+            Ok(vec) => Ok(Term::vec_to_list(&vec, term, &mut process)),
+            Err(ImproperList { .. }) => Err(bad_argument!(&mut process)),
+        }
+    }
 
-        let final_list = vec.iter().rfold(term, |acc, element| {
-            Term::cons(element.clone(), acc, &mut process)
-        });
+    pub fn is_proper(&self) -> bool {
+        self.into_iter().all(|item| item.is_ok())
+    }
 
-        Ok(final_list)
+    pub fn subtract(&self, subtrahend: &Cons, mut process: &mut Process) -> exception::Result {
+        match self.into_iter().collect::<Result<Vec<Term>, _>>() {
+            Ok(mut self_vec) => {
+                for result in subtrahend.into_iter() {
+                    match result {
+                        Ok(subtrahend_element) => self_vec.remove_item(&subtrahend_element),
+                        Err(ImproperList { .. }) => return Err(bad_argument!(&mut process)),
+                    };
+                }
+
+                Ok(Term::vec_to_list(&self_vec, Term::EMPTY_LIST, &mut process))
+            }
+            Err(ImproperList { .. }) => Err(bad_argument!(&mut process)),
+        }
     }
 
     pub fn to_pid(&self, mut process: &mut Process) -> exception::Result {
@@ -68,7 +86,10 @@ impl Cons {
     }
 
     pub fn to_tuple(&self, mut process: &mut Process) -> exception::Result {
-        let vec: Vec<Term> = self.to_vec(&mut process)?;
+        let vec: Vec<Term> = self
+            .into_iter()
+            .collect::<Result<Vec<Term>, _>>()
+            .map_err(|_| bad_argument!(&mut process))?;
 
         Ok(Term::slice_to_tuple(vec.as_slice(), &mut process))
     }
@@ -158,29 +179,6 @@ impl Cons {
             Err(bad_argument!(&mut process))
         }
     }
-
-    fn to_vec(&self, mut process: &mut Process) -> Result<Vec<Term>, Exception> {
-        let mut vec: Vec<Term> = Vec::new();
-        let mut head = self.head;
-        let mut tail = self.tail;
-
-        loop {
-            vec.push(head);
-
-            match tail.tag() {
-                EmptyList => break,
-                List => {
-                    let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
-
-                    head = cons.head;
-                    tail = cons.tail;
-                }
-                _ => return Err(bad_argument!(&mut process)),
-            }
-        }
-
-        Ok(vec)
-    }
 }
 
 impl DebugInProcess for Cons {
@@ -199,6 +197,68 @@ impl Hash for Cons {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.head.hash(state);
         self.tail.hash(state);
+    }
+}
+
+#[derive(Clone)]
+pub struct ImproperList {
+    tail: Term,
+}
+
+impl IntoIterator for &Cons {
+    type Item = Result<Term, ImproperList>;
+    type IntoIter = Iter;
+
+    fn into_iter(self) -> Iter {
+        Iter {
+            head: Some(Ok(self.head)),
+            tail: Some(self.tail),
+        }
+    }
+}
+
+pub struct Iter {
+    head: Option<Result<Term, ImproperList>>,
+    tail: Option<Term>,
+}
+
+impl FusedIterator for Iter {}
+
+impl Iterator for Iter {
+    type Item = Result<Term, ImproperList>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.head.clone();
+
+        match next {
+            None => (),
+            Some(Err(_)) => {
+                self.head = None;
+                self.tail = None;
+            }
+            _ => {
+                let tail = self.tail.unwrap();
+
+                match tail.tag() {
+                    EmptyList => {
+                        self.head = None;
+                        self.tail = None;
+                    }
+                    List => {
+                        let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
+
+                        self.head = Some(Ok(cons.head));
+                        self.tail = Some(cons.tail);
+                    }
+                    _ => {
+                        self.head = Some(Err(ImproperList { tail }));
+                        self.tail = None;
+                    }
+                }
+            }
+        }
+
+        next
     }
 }
 

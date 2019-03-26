@@ -651,6 +651,10 @@ pub fn list_to_atom_1(string: Term, process: &mut Process) -> Result {
     list_to_atom(string, DoNotCare, process)
 }
 
+pub fn list_to_existing_atom_1(string: Term, process: &mut Process) -> Result {
+    list_to_atom(string, Exists, process)
+}
+
 pub fn list_to_pid_1(string: Term, mut process: &mut Process) -> Result {
     let cons: &Cons = string.try_into_in_process(&mut process)?;
 

@@ -49,6 +49,7 @@ mod list_to_pid_1;
 mod list_to_tuple_1;
 mod make_ref_0;
 mod map_get_2;
+mod map_size_1;
 mod self_0;
 mod setelement_3;
 mod size_1;

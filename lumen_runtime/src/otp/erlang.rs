@@ -666,6 +666,12 @@ pub fn map_get_2(key: Term, map: Term, mut process: &mut Process) -> Result {
     map_map.get(key, &mut process)
 }
 
+pub fn map_size_1(map: Term, mut process: &mut Process) -> Result {
+    let map_map: &Map = map.try_into_in_process(&mut process)?;
+
+    Ok(map_map.size(&mut process))
+}
+
 pub fn self_0(process: &Process) -> Term {
     process.pid
 }

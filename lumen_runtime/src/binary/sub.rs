@@ -75,12 +75,19 @@ impl Binary {
     /// Iterator of the [bit_count] bits.  To get the [byte_count] bytes at the beginning of the
     /// bitstring use [byte_iter].
     pub fn bit_count_iter(&self) -> BitCountIter {
+        let current_byte_offset = self.byte_offset + (self.byte_count as usize);
+        let current_bit_offset = self.bit_offset;
+
+        let improper_bit_offset = current_bit_offset + self.bit_count;
+        let max_byte_offset = current_byte_offset + (improper_bit_offset / 8) as usize;
+        let max_bit_offset = improper_bit_offset % 8;
+
         BitCountIter {
             original: self.original,
-            byte_offset: self.byte_offset + (self.byte_count as usize),
-            bit_offset: self.bit_offset,
-            current_bit_count: 0,
-            max_bit_count: self.bit_count,
+            current_byte_offset,
+            current_bit_offset,
+            max_byte_offset,
+            max_bit_offset,
         }
     }
 
@@ -246,10 +253,10 @@ impl TryFromInProcess<&Binary> for String {
 
 pub struct BitCountIter {
     original: Term,
-    byte_offset: usize,
-    bit_offset: u8,
-    current_bit_count: u8,
-    max_bit_count: u8,
+    current_byte_offset: usize,
+    current_bit_offset: u8,
+    max_byte_offset: usize,
+    max_bit_offset: u8,
 }
 
 pub struct ByteIter {
@@ -283,23 +290,20 @@ impl Iterator for BitCountIter {
     type Item = u8;
 
     fn next(&mut self) -> Option<u8> {
-        if self.current_bit_count == self.max_bit_count {
+        if (self.current_byte_offset == self.max_byte_offset)
+            & (self.current_bit_offset == self.max_bit_offset)
+        {
             None
         } else {
-            let first_index = self.byte_offset;
-            let first_original_byte = self.original.byte(first_index);
+            let byte = self.original.byte(self.current_byte_offset);
+            let bit = (byte >> (7 - self.current_bit_offset)) & 0b1;
 
-            let byte = if 0 < self.bit_offset {
-                let second_original_byte = self.original.byte(first_index + 1);
-                (first_original_byte << self.bit_offset)
-                    | (second_original_byte >> (8 - self.bit_offset))
+            if self.current_bit_offset == 7 {
+                self.current_bit_offset = 0;
+                self.current_byte_offset += 1;
             } else {
-                first_original_byte
-            };
-
-            let bit = (byte >> (7 - self.current_bit_count)) & 0b1;
-
-            self.current_bit_count += 1;
+                self.current_bit_offset += 1;
+            }
 
             Some(bit)
         }

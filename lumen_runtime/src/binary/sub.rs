@@ -414,6 +414,286 @@ impl PartToList<usize, isize> for Binary {
 mod tests {
     use super::*;
 
+    mod bit_count_iter {
+        use super::*;
+
+        use std::sync::{Arc, RwLock};
+
+        use crate::environment::{self, Environment};
+
+        mod with_0_bit_offset {
+            use super::*;
+
+            #[test]
+            fn with_0_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111], &mut process);
+                let subbinary = Binary::new(binary, 0, 0, 1, 0);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_1_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1000_0000], &mut process);
+                let subbinary = Binary::new(binary, 0, 0, 1, 1);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_2_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1100_0000], &mut process);
+                let subbinary = Binary::new(binary, 0, 0, 1, 2);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_3_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1110_0000], &mut process);
+                let subbinary = Binary::new(binary, 0, 0, 1, 3);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_4_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_0000], &mut process);
+                let subbinary = Binary::new(binary, 0, 0, 1, 4);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_5_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1000], &mut process);
+                let subbinary = Binary::new(binary, 0, 0, 1, 5);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_6_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1100], &mut process);
+                let subbinary = Binary::new(binary, 0, 0, 1, 6);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_7_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1110], &mut process);
+                let subbinary = Binary::new(binary, 0, 0, 1, 7);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+        }
+
+        mod with_1_bit_offset {
+            use super::*;
+
+            #[test]
+            fn with_0_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1000_0000], &mut process);
+                let subbinary = Binary::new(binary, 0, 1, 1, 0);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_1_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1100_0000], &mut process);
+                let subbinary = Binary::new(binary, 0, 1, 1, 1);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_2_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1110_0000], &mut process);
+                let subbinary = Binary::new(binary, 0, 1, 1, 2);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_3_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_0000], &mut process);
+                let subbinary = Binary::new(binary, 0, 1, 1, 3);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_4_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1000], &mut process);
+                let subbinary = Binary::new(binary, 0, 1, 1, 4);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_5_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1100], &mut process);
+                let subbinary = Binary::new(binary, 0, 1, 1, 5);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_6_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1110], &mut process);
+                let subbinary = Binary::new(binary, 0, 1, 1, 6);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+
+            #[test]
+            fn with_7_bit_count() {
+                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+                let mut process = process_rw_lock.write().unwrap();
+                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1111], &mut process);
+                let subbinary = Binary::new(binary, 0, 1, 1, 7);
+
+                let mut bit_count_iter = subbinary.bit_count_iter();
+
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), Some(1));
+                assert_eq!(bit_count_iter.next(), None);
+            }
+        }
+    }
+
     mod byte_iter {
         use super::*;
 

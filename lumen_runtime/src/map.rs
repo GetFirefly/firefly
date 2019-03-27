@@ -4,7 +4,7 @@ use im_rc::hashmap::HashMap;
 
 use crate::atom::Existence::DoNotCare;
 use crate::exception::Result;
-use crate::process::{OrderInProcess, Process};
+use crate::process::{IntoProcess, OrderInProcess, Process};
 use crate::term::{Tag, Term};
 
 pub struct Map {
@@ -50,6 +50,10 @@ impl Map {
 
     pub fn is_key(&self, key: Term) -> bool {
         self.inner.contains_key(&key)
+    }
+
+    pub fn size(&self, mut process: &mut Process) -> Term {
+        self.inner.len().into_process(&mut process)
     }
 }
 

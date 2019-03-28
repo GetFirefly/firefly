@@ -1,3 +1,4 @@
+#![no_std]
 #![feature(test)]
 #![feature(alloc)]
 #![feature(dropck_eyepatch)]

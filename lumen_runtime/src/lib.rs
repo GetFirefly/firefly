@@ -1,6 +1,7 @@
+#![deny(warnings)]
 // For allocating multiple contiguous terms, like for Tuples.
 #![feature(allocator_api)]
-#![feature(duration_as_u128)]
+#![feature(bind_by_move_pattern_guards)]
 #![feature(exact_size_is_empty)]
 // For `lumen_runtime::reference::count
 #![feature(integer_atomics)]
@@ -17,6 +18,8 @@
 
 #[macro_use]
 extern crate cfg_if;
+#[macro_use]
+extern crate lazy_static;
 
 #[macro_use]
 mod process;

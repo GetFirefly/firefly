@@ -13,7 +13,7 @@ fn returns_a_unique_reference() {
     let first_reference = erlang::make_ref_0(&mut process);
     let second_reference = erlang::make_ref_0(&mut process);
 
-    assert_eq_in_process!(first_reference, first_reference, process);
-    assert_ne_in_process!(first_reference, second_reference, process);
-    assert_eq_in_process!(second_reference, second_reference, process);
+    assert_eq!(first_reference, first_reference);
+    assert_ne!(first_reference, second_reference);
+    assert_eq!(second_reference, second_reference);
 }

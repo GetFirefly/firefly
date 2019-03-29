@@ -1,4 +1,6 @@
-use std::cmp::Ordering;
+use std::cmp::Ordering::{self, *};
+use std::convert::{TryFrom, TryInto};
+use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 use std::ops::Index;
@@ -7,9 +9,7 @@ use liblumen_arena::TypedArena;
 
 use crate::exception::{self, Exception};
 use crate::integer::Integer;
-use crate::process::{
-    DebugInProcess, IntoProcess, OrderInProcess, Process, TryFromInProcess, TryIntoInProcess,
-};
+use crate::process::Process;
 use crate::term::{Tag::*, Term};
 
 #[repr(C)]
@@ -22,12 +22,11 @@ type TermArena = TypedArena<Term>;
 #[repr(transparent)]
 pub struct ZeroBasedIndex(usize);
 
-impl TryFromInProcess<Term> for ZeroBasedIndex {
-    fn try_from_in_process(
-        term: Term,
-        mut process: &mut Process,
-    ) -> Result<ZeroBasedIndex, Exception> {
-        let OneBasedIndex(one_based_index) = term.try_into_in_process(&mut process)?;
+impl TryFrom<Term> for ZeroBasedIndex {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<ZeroBasedIndex, Exception> {
+        let OneBasedIndex(one_based_index) = term.try_into()?;
 
         Ok(ZeroBasedIndex(one_based_index - 1))
     }
@@ -36,17 +35,16 @@ impl TryFromInProcess<Term> for ZeroBasedIndex {
 #[repr(transparent)]
 pub struct OneBasedIndex(usize);
 
-impl TryFromInProcess<Term> for OneBasedIndex {
-    fn try_from_in_process(
-        term: Term,
-        mut process: &mut Process,
-    ) -> Result<OneBasedIndex, Exception> {
-        let one_based_index_usize: usize = term.try_into_in_process(&mut process)?;
+impl TryFrom<Term> for OneBasedIndex {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<OneBasedIndex, Exception> {
+        let one_based_index_usize: usize = term.try_into()?;
 
         if 1 <= one_based_index_usize {
             Ok(OneBasedIndex(one_based_index_usize))
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 }
@@ -66,8 +64,7 @@ impl Tuple {
     }
 
     pub fn append_element(&self, element: Term, mut term_arena: &mut TermArena) -> &'static Tuple {
-        let arity_usize: usize = self.arity.arity_to_usize();
-        let mut longer_element_vec: Vec<Term> = Vec::with_capacity(arity_usize + 1);
+        let mut longer_element_vec: Vec<Term> = Vec::with_capacity(self.len() + 1);
         longer_element_vec.extend(self.iter());
         longer_element_vec.push(element);
 
@@ -77,11 +74,9 @@ impl Tuple {
     pub fn delete_element(
         &self,
         ZeroBasedIndex(index): ZeroBasedIndex,
-        mut process: &mut Process,
+        process: &mut Process,
     ) -> Result<&'static Tuple, Exception> {
-        let arity_usize = self.arity.arity_to_usize();
-
-        if index < arity_usize {
+        if index < self.len() {
             let smaller_element_vec: Vec<Term> = self
                 .iter()
                 .enumerate()
@@ -98,21 +93,15 @@ impl Tuple {
 
             Ok(smaller_tuple)
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 
-    pub fn element(
-        &self,
-        ZeroBasedIndex(index): ZeroBasedIndex,
-        mut process: &mut Process,
-    ) -> exception::Result {
-        let arity_usize = self.arity.arity_to_usize();
-
-        if index < arity_usize {
+    pub fn element(&self, ZeroBasedIndex(index): ZeroBasedIndex) -> exception::Result {
+        if index < self.len() {
             Ok(self[index])
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 
@@ -120,13 +109,13 @@ impl Tuple {
         &self,
         ZeroBasedIndex(index): ZeroBasedIndex,
         element: Term,
-        mut process: &mut Process,
+        process: &mut Process,
     ) -> Result<&'static Tuple, Exception> {
-        let arity_usize = self.arity.arity_to_usize();
+        let length = self.len();
 
         // can be equal to arity when insertion is at the end
-        if index <= arity_usize {
-            let new_arity_usize = arity_usize + 1;
+        if index <= length {
+            let new_arity_usize = length + 1;
             let mut larger_element_vec = Vec::with_capacity(new_arity_usize);
 
             for (current_index, current_element) in self.iter().enumerate() {
@@ -137,7 +126,7 @@ impl Tuple {
                 larger_element_vec.push(current_element);
             }
 
-            if index == arity_usize {
+            if index == length {
                 larger_element_vec.push(element);
             }
 
@@ -145,39 +134,31 @@ impl Tuple {
 
             Ok(tuple)
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 
-    pub fn is_record(
-        &self,
-        record_tag: Term,
-        size: Option<Term>,
-        mut process: &mut Process,
-    ) -> exception::Result {
+    pub fn is_record(&self, record_tag: Term, size: Option<Term>) -> exception::Result {
         match record_tag.tag() {
             Atom => {
-                let element = self.element(ZeroBasedIndex(0), &mut process)?;
+                let element = self.element(ZeroBasedIndex(0))?;
 
                 match size {
                     Some(size_term) => {
-                        let size_usize: usize = size_term.try_into_in_process(&mut process)?;
+                        let size_usize: usize = size_term.try_into()?;
 
-                        Ok(
-                            ((element == record_tag) & (self.arity.arity_to_usize() == size_usize))
-                                .into_process(&mut process),
-                        )
+                        Ok(((element == record_tag) & (self.len() == size_usize)).into())
                     }
-                    None => Ok((element == record_tag).into_process(&mut process)),
+                    None => Ok((element == record_tag).into()),
                 }
             }
-            _ => Err(bad_argument!(&mut process)),
+            _ => Err(bad_argument!()),
         }
     }
 
     pub fn iter(&self) -> Iter {
         let arity_pointer = self as *const Tuple as *const Term;
-        let arity_isize = self.arity.arity_to_usize() as isize;
+        let arity_isize = self.len() as isize;
 
         unsafe {
             Iter {
@@ -187,16 +168,22 @@ impl Tuple {
         }
     }
 
+    pub fn len(&self) -> usize {
+        // The `arity` field is not the same as `size` because `size` is a tagged as a small integer
+        // while `arity` is tagged as an `arity` to mark the beginning of a tuple.
+        unsafe { self.arity.arity_to_usize() }
+    }
+
     pub fn setelement(
         &self,
         ZeroBasedIndex(index): ZeroBasedIndex,
         value: Term,
-        mut process: &mut Process,
+        process: &mut Process,
     ) -> Result<&'static Tuple, Exception> {
-        let arity_usize = self.arity.arity_to_usize();
+        let length = self.len();
 
-        if index < arity_usize {
-            let mut element_vec = Vec::with_capacity(arity_usize);
+        if index < length {
+            let mut element_vec = Vec::with_capacity(length);
 
             for (current_index, current_element) in self.iter().enumerate() {
                 if current_index == index {
@@ -210,14 +197,12 @@ impl Tuple {
 
             Ok(tuple)
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 
     pub fn size(&self) -> Integer {
-        // The `arity` field is not the same as `size` because `size` is a tagged as a small integer
-        // while `arity` is tagged as an `arity` to mark the beginning of a tuple.
-        self.arity.arity_to_usize().into()
+        self.len().into()
     }
 
     pub fn to_list(&self, mut process: &mut Process) -> Term {
@@ -227,24 +212,21 @@ impl Tuple {
     }
 }
 
-impl DebugInProcess for Tuple {
-    fn format_in_process(&self, process: &Process) -> String {
-        let mut strings: Vec<String> = Vec::new();
-        strings.push("Tuple::from_slice(&[".to_string());
+impl Debug for Tuple {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Tuple::from_slice(&[")?;
 
         let mut iter = self.iter();
 
         if let Some(first_element) = iter.next() {
-            strings.push(first_element.format_in_process(process));
+            write!(f, "{:?}", first_element)?;
 
             for element in iter {
-                strings.push(", ".to_string());
-                strings.push(element.format_in_process(process));
+                write!(f, ", {:?}", element)?;
             }
         }
 
-        strings.push("])".to_string());
-        strings.join("")
+        write!(f, "])")
     }
 }
 
@@ -262,9 +244,9 @@ impl Index<usize> for Tuple {
     type Output = Term;
 
     fn index(&self, index: usize) -> &Term {
-        let arity_usize = self.arity.arity_to_usize();
+        let length = self.len();
 
-        assert!(index < arity_usize);
+        assert!(index < length);
 
         let arity_pointer = self as *const Tuple as *const Term;
         unsafe { arity_pointer.offset(1 + index as isize).as_ref() }.unwrap()
@@ -310,29 +292,6 @@ impl Iterator for Iter {
 
 impl FusedIterator for Iter {}
 
-impl OrderInProcess for Tuple {
-    fn cmp_in_process(&self, other: &Tuple, process: &Process) -> Ordering {
-        match self.arity.cmp_in_process(&other.arity, process) {
-            Ordering::Equal => {
-                let mut final_ordering = Ordering::Equal;
-
-                for (self_element, other_element) in self.iter().zip(other.iter()) {
-                    match self_element.cmp_in_process(&other_element, process) {
-                        Ordering::Equal => continue,
-                        ordering => {
-                            final_ordering = ordering;
-                            break;
-                        }
-                    }
-                }
-
-                final_ordering
-            }
-            ordering => ordering,
-        }
-    }
-}
-
 impl PartialEq for Tuple {
     fn eq(&self, other: &Tuple) -> bool {
         (self.arity.tagged == other.arity.tagged)
@@ -344,6 +303,15 @@ impl PartialEq for Tuple {
 
     fn ne(&self, other: &Tuple) -> bool {
         !self.eq(other)
+    }
+}
+
+impl PartialOrd for Tuple {
+    fn partial_cmp(&self, other: &Tuple) -> Option<Ordering> {
+        match self.len().partial_cmp(&other.len()) {
+            Some(Equal) => self.iter().partial_cmp(other.iter()),
+            partial_ordering => partial_ordering,
+        }
     }
 }
 
@@ -368,7 +336,8 @@ mod tests {
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
-            assert_eq_in_process!(unsafe { *arity_pointer }, Term::arity(0), process);
+            // Avoid need to define Eq for Arity
+            assert_eq!(unsafe { *arity_pointer }.tagged, Term::arity(0).tagged);
         }
 
         #[test]
@@ -380,14 +349,11 @@ mod tests {
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
-            assert_eq_in_process!(unsafe { *arity_pointer }, Term::arity(1), process);
+            // Avoid need to define Eq for Arity
+            assert_eq!(unsafe { *arity_pointer }.tagged, Term::arity(1).tagged);
 
             let element_pointer = unsafe { arity_pointer.offset(1) };
-            assert_eq_in_process!(
-                unsafe { *element_pointer },
-                0.into_process(&mut process),
-                process
-            );
+            assert_eq!(unsafe { *element_pointer }, 0.into_process(&mut process));
         }
     }
 
@@ -406,7 +372,7 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_bad_argument!(tuple.element(ZeroBasedIndex(0), &mut process), &mut process);
+            assert_badarg!(tuple.element(ZeroBasedIndex(0)));
         }
 
         #[test]
@@ -416,10 +382,9 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
-            assert_eq_in_process!(
-                tuple.element(ZeroBasedIndex(0), &mut process),
-                Ok(0.into_process(&mut process)),
-                process
+            assert_eq!(
+                tuple.element(ZeroBasedIndex(0)),
+                Ok(0.into_process(&mut process))
             );
         }
     }
@@ -440,8 +405,8 @@ mod tests {
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
             let equal = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_eq_in_process!(tuple, tuple, process);
-            assert_eq_in_process!(tuple, equal, process);
+            assert_eq!(tuple, tuple);
+            assert_eq!(tuple, equal);
         }
 
         #[test]
@@ -455,7 +420,7 @@ mod tests {
                 &mut process.term_arena,
             );
 
-            assert_ne_in_process!(tuple, unequal, process);
+            assert_ne!(tuple, unequal);
         }
     }
 
@@ -465,7 +430,7 @@ mod tests {
         use std::sync::{Arc, RwLock};
 
         use crate::environment::{self, Environment};
-        use crate::process::{IntoProcess, TryIntoInProcess};
+        use crate::process::IntoProcess;
 
         #[test]
         fn without_elements() {
@@ -476,7 +441,7 @@ mod tests {
 
             assert_eq!(tuple.iter().count(), 0);
 
-            let size_usize: usize = tuple.size().try_into_in_process(&mut process).unwrap();
+            let size_usize: usize = tuple.size().try_into().unwrap();
 
             assert_eq!(tuple.iter().count(), size_usize);
         }
@@ -490,7 +455,7 @@ mod tests {
 
             assert_eq!(tuple.iter().count(), 1);
 
-            let size_usize: usize = tuple.size().try_into_in_process(&mut process).unwrap();
+            let size_usize: usize = tuple.size().try_into().unwrap();
 
             assert_eq!(tuple.iter().count(), size_usize);
         }
@@ -511,7 +476,7 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
             let tuple = Tuple::from_slice(&[], &mut process.term_arena);
 
-            assert_eq_in_process!(tuple.size(), &0.into(), process);
+            assert_eq!(tuple.size(), 0.into());
         }
 
         #[test]
@@ -522,7 +487,7 @@ mod tests {
 
             let tuple = Tuple::from_slice(&[0.into_process(&mut process)], &mut process.term_arena);
 
-            assert_eq_in_process!(tuple.size(), &1.into(), process);
+            assert_eq!(tuple.size(), 1.into());
         }
     }
 }

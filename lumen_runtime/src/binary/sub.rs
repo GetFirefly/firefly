@@ -1,4 +1,6 @@
-use std::cmp::Ordering;
+use std::cmp::Ordering::{self, *};
+use std::convert::{TryFrom, TryInto};
+use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 
@@ -9,7 +11,7 @@ use crate::binary::{
 };
 use crate::exception::{self, Exception};
 use crate::integer::Integer;
-use crate::process::{IntoProcess, OrderInProcess, Process, TryFromInProcess, TryIntoInProcess};
+use crate::process::{IntoProcess, Process};
 use crate::term::{Tag::*, Term};
 
 pub struct Binary {
@@ -37,7 +39,7 @@ impl Binary {
                 match unboxed.tag() {
                     HeapBinary => {
                         let heap_binary: &heap::Binary = original.unbox_reference();
-                        let original_byte_count = heap_binary.byte_size();
+                        let original_byte_count = heap_binary.byte_len();
                         let original_bit_count = original_byte_count * 8;
                         let required_bit_count = byte_offset * 8
                             + (bit_offset as usize)
@@ -92,7 +94,7 @@ impl Binary {
     }
 
     /// The total number of bits including bits in [byte_count] and [bit_count].
-    pub fn bit_size(&self) -> usize {
+    pub fn bit_len(&self) -> usize {
         self.byte_count * 8 + (self.bit_count as usize)
     }
 
@@ -108,7 +110,7 @@ impl Binary {
         }
     }
 
-    pub fn byte_size(&self) -> usize {
+    pub fn byte_len(&self) -> usize {
         self.byte_count + if 0 < self.bit_count { 1 } else { 0 }
     }
 
@@ -122,14 +124,10 @@ impl Binary {
     }
 
     /// Converts to atom only if [bit_count] is `0`.
-    pub fn to_atom_index(
-        &self,
-        existence: Existence,
-        mut process: &mut Process,
-    ) -> Result<atom::Index, Exception> {
-        let string: String = self.try_into_in_process(&mut process)?;
+    pub fn to_atom_index(&self, existence: Existence) -> Result<atom::Index, Exception> {
+        let string: String = self.try_into()?;
 
-        process.str_to_atom_index(&string, existence)
+        atom::str_to_index(&string, existence).ok_or_else(|| bad_argument!())
     }
 
     pub fn to_list(&self, mut process: &mut Process) -> exception::Result {
@@ -140,7 +138,7 @@ impl Binary {
 
             Ok(list)
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 
@@ -168,6 +166,16 @@ impl Binary {
     }
 }
 
+impl Debug for Binary {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Binary::new({:?}, {:?}, {:?}, {:?}, {:?})",
+            self.original, self.byte_offset, self.bit_offset, self.byte_count, self.bit_count
+        )
+    }
+}
+
 impl Eq for Binary {}
 
 impl Hash for Binary {
@@ -184,7 +192,7 @@ impl Hash for Binary {
 
 impl PartialEq for Binary {
     fn eq(&self, other: &Binary) -> bool {
-        (self.bit_size() == other.bit_size())
+        (self.bit_len() == other.bit_len())
             & self
                 .byte_iter()
                 .zip(other.byte_iter())
@@ -216,21 +224,20 @@ impl ToTerm for Binary {
                         Ok(term)
                     }
                 }
-                None => Err(bad_argument!(&mut process)),
+                None => Err(bad_argument!()),
             }
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 }
 
-impl TryFromInProcess<&Binary> for Vec<u8> {
-    fn try_from_in_process(
-        binary: &Binary,
-        mut process: &mut Process,
-    ) -> Result<Vec<u8>, Exception> {
+impl TryFrom<&Binary> for Vec<u8> {
+    type Error = Exception;
+
+    fn try_from(binary: &Binary) -> Result<Vec<u8>, Exception> {
         if 0 < binary.bit_count {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         } else {
             let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_count);
             bytes_vec.extend(binary.byte_iter());
@@ -240,14 +247,13 @@ impl TryFromInProcess<&Binary> for Vec<u8> {
     }
 }
 
-impl TryFromInProcess<&Binary> for String {
-    fn try_from_in_process(
-        binary: &Binary,
-        mut process: &mut Process,
-    ) -> Result<String, Exception> {
-        let byte_vec: Vec<u8> = binary.try_into_in_process(&mut process)?;
+impl TryFrom<&Binary> for String {
+    type Error = Exception;
 
-        String::from_utf8(byte_vec).map_err(|_| bad_argument!(&mut process))
+    fn try_from(binary: &Binary) -> Result<String, Exception> {
+        let byte_vec: Vec<u8> = binary.try_into()?;
+
+        String::from_utf8(byte_vec).map_err(|_| bad_argument!())
     }
 }
 
@@ -346,32 +352,44 @@ impl DoubleEndedIterator for ByteIter {
 
 impl FusedIterator for ByteIter {}
 
-impl OrderInProcess<heap::Binary> for Binary {
+impl PartialEq<heap::Binary> for Binary {
     /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-    fn cmp_in_process(&self, other: &heap::Binary, _process: &Process) -> Ordering {
-        match self.byte_iter().cmp(other.byte_iter()) {
-            Ordering::Equal =>
+    fn eq(&self, other: &heap::Binary) -> bool {
+        (self.bit_count == 0) & self.byte_iter().eq(other.byte_iter())
+    }
+
+    fn ne(&self, other: &heap::Binary) -> bool {
+        !self.eq(other)
+    }
+}
+
+impl PartialOrd<heap::Binary> for Binary {
+    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+    fn partial_cmp(&self, other: &heap::Binary) -> Option<Ordering> {
+        match self.byte_iter().partial_cmp(other.byte_iter()) {
+            Some(Equal) =>
             // a heap::Binary has 0 bit_count, so if the subbinary has any tail bits it is greater
             {
-                if self.bit_count > 0 {
-                    Ordering::Greater
+                if 0 < self.bit_count {
+                    Some(Greater)
                 } else {
-                    Ordering::Equal
+                    Some(Equal)
                 }
             }
-            ordering => ordering,
+            partial_ordering => partial_ordering,
         }
     }
 }
 
-impl OrderInProcess<Binary> for Binary {
+impl PartialOrd<Binary> for Binary {
     /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-    fn cmp_in_process(&self, other: &Binary, _process: &Process) -> Ordering {
-        match self.byte_iter().cmp(other.byte_iter()) {
-            Ordering::Equal => self.bit_count_iter().cmp(other.bit_count_iter()),
-            ordering => ordering,
+    fn partial_cmp(&self, other: &Binary) -> Option<Ordering> {
+        match self.byte_iter().partial_cmp(other.byte_iter()) {
+            Some(Equal) => self.bit_count_iter().partial_cmp(other.bit_count_iter()),
+            partial_ordering => partial_ordering,
         }
     }
 }
@@ -381,12 +399,12 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, &'b Binary> for Binary {
         &'a self,
         start: usize,
         length: isize,
-        mut process: &mut Process,
+        process: &mut Process,
     ) -> Result<&'b Binary, Exception> {
         let PartRange {
             byte_offset,
             byte_count,
-        } = start_length_to_part_range(start, length, self.byte_count, &mut process)?;
+        } = start_length_to_part_range(start, length, self.byte_count)?;
 
         // new subbinary is entire subbinary
         if (self.bit_count == 0) && (byte_offset == 0) && (byte_count == self.byte_count) {
@@ -407,7 +425,7 @@ impl PartToList<usize, isize> for Binary {
         length: isize,
         mut process: &mut Process,
     ) -> Result<Term, Exception> {
-        let part_range = start_length_to_part_range(start, length, self.byte_count, &mut process)?;
+        let part_range = start_length_to_part_range(start, length, self.byte_count)?;
         let list = part_range_to_list(self.byte_iter(), part_range, &mut process);
 
         Ok(list)

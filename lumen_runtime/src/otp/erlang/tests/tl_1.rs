@@ -7,32 +7,18 @@ use std::sync::{Arc, RwLock};
 use crate::environment::{self, Environment};
 
 #[test]
-fn with_atom_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
-
-    assert_bad_argument!(erlang::tl_1(atom_term, &mut process), &mut process);
+fn with_atom_errors_badarg() {
+    errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
 }
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let list = Term::local_reference(&mut process);
-
-    assert_bad_argument!(erlang::tl_1(list, &mut process), &mut process);
+    errors_badarg(|mut process| Term::local_reference(&mut process));
 }
 
 #[test]
-fn with_empty_list_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-
-    assert_bad_argument!(erlang::tl_1(Term::EMPTY_LIST, &mut process), &mut process);
+fn with_empty_list_errors_badarg() {
+    errors_badarg(|_| Term::EMPTY_LIST);
 }
 
 #[test]
@@ -40,106 +26,68 @@ fn with_list_returns_tl_1() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
+    let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
     let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
-    assert_eq_in_process!(
-        erlang::tl_1(list_term, &mut process),
-        Ok(Term::EMPTY_LIST),
-        &mut process
-    );
+    assert_eq!(erlang::tl_1(list_term), Ok(Term::EMPTY_LIST));
 }
 
 #[test]
-fn with_small_integer_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let small_integer_term = 0.into_process(&mut process);
-
-    assert_bad_argument!(erlang::tl_1(small_integer_term, &mut process), &mut process);
+fn with_small_integer_errors_badarg() {
+    errors_badarg(|mut process| 0.into_process(&mut process));
 }
 
 #[test]
-fn with_big_integer_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
-        .unwrap()
-        .into_process(&mut process);
-
-    assert_bad_argument!(erlang::tl_1(big_integer_term, &mut process), &mut process);
+fn with_big_integer_errors_badarg() {
+    errors_badarg(|mut process| {
+        <BigInt as Num>::from_str_radix("576460752303423489", 10)
+            .unwrap()
+            .into_process(&mut process)
+    });
 }
 
 #[test]
-fn with_float_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let float_term = 1.0.into_process(&mut process);
-
-    assert_bad_argument!(erlang::tl_1(float_term, &mut process), &mut process);
+fn with_float_errors_badarg() {
+    errors_badarg(|mut process| 1.0.into_process(&mut process));
 }
 
 #[test]
-fn with_local_pid_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
-
-    assert_bad_argument!(erlang::tl_1(local_pid_term, &mut process), &mut process);
+fn with_local_pid_errors_badarg() {
+    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
 }
 
 #[test]
-fn with_external_pid_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
-
-    assert_bad_argument!(erlang::tl_1(external_pid_term, &mut process), &mut process);
+fn with_external_pid_errors_badarg() {
+    errors_badarg(|mut process| Term::external_pid(1, 0, 0, &mut process).unwrap());
 }
 
 #[test]
-fn with_tuple_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let tuple_term = Term::slice_to_tuple(&[], &mut process);
-
-    assert_bad_argument!(erlang::tl_1(tuple_term, &mut process), &mut process);
+fn with_tuple_errors_badarg() {
+    errors_badarg(|mut process| Term::slice_to_tuple(&[], &mut process));
 }
 
 #[test]
-fn with_map_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let map_term = Term::slice_to_map(&[], &mut process);
-
-    assert_bad_argument!(erlang::tl_1(map_term, &mut process), &mut process);
+fn with_map_errors_badarg() {
+    errors_badarg(|mut process| Term::slice_to_map(&[], &mut process));
 }
 
 #[test]
-fn with_heap_binary_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let heap_binary_term = Term::slice_to_binary(&[], &mut process);
-
-    assert_bad_argument!(erlang::tl_1(heap_binary_term, &mut process), &mut process);
+fn with_heap_binary_errors_badarg() {
+    errors_badarg(|mut process| Term::slice_to_binary(&[], &mut process));
 }
 
 #[test]
-fn with_subbinary_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let binary_term =
-        Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-    let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+fn with_subbinary_errors_badarg() {
+    errors_badarg(|mut process| {
+        let original =
+            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
+        Term::subbinary(original, 0, 7, 2, 1, &mut process)
+    });
+}
 
-    assert_bad_argument!(erlang::tl_1(subbinary_term, &mut process), &mut process);
+fn errors_badarg<F>(list: F)
+where
+    F: FnOnce(&mut Process) -> Term,
+{
+    super::errors_badarg(|mut process| erlang::tl_1(list(&mut process)));
 }

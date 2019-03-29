@@ -13,22 +13,20 @@ fn with_atom_key() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
 
-    let key = Term::str_to_atom("key", DoNotCare, &mut process).unwrap();
-    let value = Term::str_to_atom("value", DoNotCare, &mut process).unwrap();
+    let key = Term::str_to_atom("key", DoNotCare).unwrap();
+    let value = Term::str_to_atom("value", DoNotCare).unwrap();
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
-    let non_key = Term::str_to_atom("non_key", DoNotCare, &mut process).unwrap();
+    let non_key = Term::str_to_atom("non_key", DoNotCare).unwrap();
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -42,18 +40,16 @@ fn with_local_reference_key() {
     let value = Term::local_reference(&mut process);
     let map_with_key = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map_with_key, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let map_without_key = Term::slice_to_map(&[], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map_without_key, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     )
 }
 
@@ -67,18 +63,16 @@ fn with_empty_list_key() {
     let value = Term::EMPTY_LIST;
     let map_with_key = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map_with_key, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let map_without_key = Term::slice_to_map(&[], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map_without_key, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     )
 }
 
@@ -92,18 +86,16 @@ fn with_list_key() {
     let value = Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process);
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let non_key = Term::cons(2.into_process(&mut process), Term::EMPTY_LIST, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -117,18 +109,16 @@ fn with_small_key_integer() {
     let value = 1.into_process(&mut process);
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let non_key = 2.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -146,20 +136,18 @@ fn with_big_key_integer() {
         .into_process(&mut process);
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let non_key = <BigInt as Num>::from_str_radix("576460752303423491", 10)
         .unwrap()
         .into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -173,18 +161,16 @@ fn with_float_key() {
     let value = 2.0.into_process(&mut process);
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let non_key = 3.0.into_process(&mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -194,22 +180,20 @@ fn with_local_key_pid() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
 
-    let key = Term::local_pid(0, 1, &mut process).unwrap();
-    let value = Term::local_pid(2, 3, &mut process).unwrap();
+    let key = Term::local_pid(0, 1).unwrap();
+    let value = Term::local_pid(2, 3).unwrap();
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
-    let non_key = Term::local_pid(4, 5, &mut process).unwrap();
+    let non_key = Term::local_pid(4, 5).unwrap();
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -223,18 +207,16 @@ fn with_external_key_pid() {
     let value = Term::external_pid(4, 5, 6, &mut process).unwrap();
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let non_key = Term::external_pid(7, 8, 9, &mut process).unwrap();
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -248,18 +230,16 @@ fn with_tuple_key() {
     let value = Term::slice_to_tuple(&[1.into_process(&mut process)], &mut process);
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let non_key = Term::slice_to_tuple(&[2.into_process(&mut process)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -273,18 +253,16 @@ fn with_heap_key_binary() {
     let value = Term::slice_to_binary(&[1], &mut process);
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     let non_key = Term::slice_to_binary(&[2], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }
 
@@ -304,19 +282,17 @@ fn with_subbinary_key() {
 
     let map = Term::slice_to_map(&[(key, value)], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(key, map, &mut process),
-        Ok(true.into_process(&mut process)),
-        process
+        Ok(true.into())
     );
 
     // <<5::5, 6>>
     let non_key_original = Term::slice_to_binary(&[40, 0b00110_000], &mut process);
     let non_key = Term::subbinary(non_key_original, 0, 5, 1, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::is_map_key_2(non_key, map, &mut process),
-        Ok(false.into_process(&mut process)),
-        process
+        Ok(false.into())
     );
 }

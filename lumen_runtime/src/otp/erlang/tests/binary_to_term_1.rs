@@ -8,144 +8,62 @@ use crate::environment::{self, Environment};
 use crate::process::IntoProcess;
 
 #[test]
-fn with_atom_returns_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(atom_term, &mut process),
-        &mut process
-    );
+fn with_atom_errors_badarg() {
+    errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
 }
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let binary = Term::local_reference(&mut process);
-
-    assert_bad_argument!(erlang::binary_to_term_1(binary, &mut process), &mut process);
+    errors_badarg(|mut process| Term::local_reference(&mut process));
 }
 
 #[test]
-fn with_empty_list_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(Term::EMPTY_LIST, &mut process),
-        &mut process
-    );
+fn with_empty_list_errors_badarg() {
+    errors_badarg(|_| Term::EMPTY_LIST);
 }
 
 #[test]
-fn with_list_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let list_term = list_term(&mut process);
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(list_term, &mut process),
-        &mut process
-    );
+fn with_list_errors_badarg() {
+    errors_badarg(|mut process| list_term(&mut process));
 }
 
 #[test]
-fn with_small_integer_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let small_integer_term = 0usize.into_process(&mut process);
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(small_integer_term, &mut process),
-        &mut process
-    );
+fn with_small_integer_errors_badarg() {
+    errors_badarg(|mut process| 0usize.into_process(&mut process));
 }
 
 #[test]
-fn with_big_integer_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
-        .unwrap()
-        .into_process(&mut process);
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(big_integer_term, &mut process),
-        &mut process
-    );
+fn with_big_integer_errors_badarg() {
+    errors_badarg(|mut process| {
+        <BigInt as Num>::from_str_radix("576460752303423489", 10)
+            .unwrap()
+            .into_process(&mut process)
+    });
 }
 
 #[test]
-fn with_float_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let float_term = 1.0.into_process(&mut process);
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(float_term, &mut process),
-        &mut process
-    );
+fn with_float_errors_badarg() {
+    errors_badarg(|mut process| 1.0.into_process(&mut process));
 }
 
 #[test]
-fn with_local_pid_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0, &mut process).unwrap();
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(local_pid_term, &mut process),
-        &mut process
-    );
+fn with_local_pid_errors_badarg() {
+    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
 }
 
 #[test]
-fn with_external_pid_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(external_pid_term, &mut process),
-        &mut process
-    );
+fn with_external_pid_errors_badarg() {
+    errors_badarg(|mut process| Term::external_pid(1, 0, 0, &mut process).unwrap());
 }
 
 #[test]
-fn with_tuple_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let tuple_term = Term::slice_to_tuple(&[], &mut process);
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(tuple_term, &mut process),
-        &mut process
-    );
+fn with_tuple_errors_badarg() {
+    errors_badarg(|mut process| Term::slice_to_tuple(&[], &mut process));
 }
 
 #[test]
-fn with_map_is_bad_argument() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let map_term = Term::slice_to_map(&[], &mut process);
-
-    assert_bad_argument!(
-        erlang::binary_to_term_1(map_term, &mut process),
-        &mut process
-    );
+fn with_map_errors_badarg() {
+    errors_badarg(|mut process| Term::slice_to_map(&[], &mut process));
 }
 
 #[test]
@@ -157,10 +75,9 @@ fn with_heap_binary_encoding_atom_returns_atom() {
     let heap_binary_term =
         Term::slice_to_binary(&[131, 100, 0, 4, 97, 116, 111, 109], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Term::str_to_atom("atom", DoNotCare, &mut process),
-        process
+        Ok(Term::str_to_atom("atom", DoNotCare).unwrap())
     );
 }
 
@@ -172,10 +89,9 @@ fn with_heap_binary_encoding_empty_list_returns_empty_list() {
     // :erlang.term_to_binary([])
     let heap_binary_term = Term::slice_to_binary(&[131, 106], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Ok(Term::EMPTY_LIST),
-        process
+        Ok(Term::EMPTY_LIST)
     );
 }
 
@@ -185,21 +101,20 @@ fn with_heap_binary_encoding_list_returns_list() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     // :erlang.term_to_binary([:zero, 1])
-    let heap_binary_term = Term::slice_to_binary(
+    let binary = Term::slice_to_binary(
         &[
             131, 108, 0, 0, 0, 2, 100, 0, 4, 122, 101, 114, 111, 97, 1, 106,
         ],
         &mut process,
     );
 
-    assert_eq_in_process!(
-        erlang::binary_to_term_1(heap_binary_term, &mut process),
+    assert_eq!(
+        erlang::binary_to_term_1(binary, &mut process),
         Ok(Term::cons(
-            Term::str_to_atom("zero", DoNotCare, &mut process).unwrap(),
+            Term::str_to_atom("zero", DoNotCare).unwrap(),
             Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
             &mut process
-        )),
-        process
+        ))
     );
 }
 
@@ -209,12 +124,11 @@ fn with_heap_binary_encoding_small_integer_returns_small_integer() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     // :erlang.term_to_binary(0)
-    let heap_binary_term = Term::slice_to_binary(&[131, 97, 0], &mut process);
+    let binary = Term::slice_to_binary(&[131, 97, 0], &mut process);
 
-    assert_eq_in_process!(
-        erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Ok(0.into_process(&mut process)),
-        process
+    assert_eq!(
+        erlang::binary_to_term_1(binary, &mut process),
+        Ok(0.into_process(&mut process))
     );
 }
 
@@ -224,12 +138,11 @@ fn with_heap_binary_encoding_integer_returns_integer() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     // :erlang.term_to_binary(-2147483648)
-    let heap_binary_term = Term::slice_to_binary(&[131, 98, 128, 0, 0, 0], &mut process);
+    let binary = Term::slice_to_binary(&[131, 98, 128, 0, 0, 0], &mut process);
 
-    assert_eq_in_process!(
-        erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Ok((-2147483648_isize).into_process(&mut process)),
-        process
+    assert_eq!(
+        erlang::binary_to_term_1(binary, &mut process),
+        Ok((-2147483648_isize).into_process(&mut process))
     );
 }
 
@@ -239,13 +152,11 @@ fn with_heap_binary_encoding_new_float_returns_float() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     // :erlang.term_to_binary(1.0)
-    let heap_binary_term =
-        Term::slice_to_binary(&[131, 70, 63, 240, 0, 0, 0, 0, 0, 0], &mut process);
+    let binary = Term::slice_to_binary(&[131, 70, 63, 240, 0, 0, 0, 0, 0, 0], &mut process);
 
-    assert_eq_in_process!(
-        erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Ok(1.0.into_process(&mut process)),
-        process
+    assert_eq!(
+        erlang::binary_to_term_1(binary, &mut process),
+        Ok(1.0.into_process(&mut process))
     );
 }
 
@@ -255,21 +166,20 @@ fn with_heap_binary_encoding_small_tuple_returns_tuple() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     // :erlang.term_to_binary({:zero, 1})
-    let heap_binary_term = Term::slice_to_binary(
+    let binary = Term::slice_to_binary(
         &[131, 104, 2, 100, 0, 4, 122, 101, 114, 111, 97, 1],
         &mut process,
     );
 
-    assert_eq_in_process!(
-        erlang::binary_to_term_1(heap_binary_term, &mut process),
+    assert_eq!(
+        erlang::binary_to_term_1(binary, &mut process),
         Ok(Term::slice_to_tuple(
             &[
-                Term::str_to_atom("zero", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("zero", DoNotCare).unwrap(),
                 1.into_process(&mut process)
             ],
             &mut process
-        )),
-        process
+        ))
     );
 }
 
@@ -279,10 +189,10 @@ fn with_heap_binary_encoding_byte_list_returns_list() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     // :erlang.term_to_binary([?0, ?1])
-    let heap_binary_term = Term::slice_to_binary(&[131, 107, 0, 2, 48, 49], &mut process);
+    let binary = Term::slice_to_binary(&[131, 107, 0, 2, 48, 49], &mut process);
 
-    assert_eq_in_process!(
-        erlang::binary_to_term_1(heap_binary_term, &mut process),
+    assert_eq!(
+        erlang::binary_to_term_1(binary, &mut process),
         Ok(Term::cons(
             48.into_process(&mut process),
             Term::cons(
@@ -291,8 +201,7 @@ fn with_heap_binary_encoding_byte_list_returns_list() {
                 &mut process
             ),
             &mut process
-        )),
-        process
+        ))
     );
 }
 
@@ -304,10 +213,9 @@ fn with_heap_binary_encoding_binary_returns_binary() {
     // :erlang.term_to_binary(<<0, 1>>)
     let heap_binary_term = Term::slice_to_binary(&[131, 109, 0, 0, 0, 2, 0, 1], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Ok(Term::slice_to_binary(&[0, 1], &mut process)),
-        process
+        Ok(Term::slice_to_binary(&[0, 1], &mut process))
     );
 }
 
@@ -320,10 +228,9 @@ fn with_heap_binary_encoding_small_big_integer_returns_big_integer() {
     let heap_binary_term =
         Term::slice_to_binary(&[131, 110, 4, 0, 255, 255, 255, 255], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Ok(4294967295_usize.into_process(&mut process)),
-        process
+        Ok(4294967295_usize.into_process(&mut process))
     );
 }
 
@@ -335,7 +242,7 @@ fn with_heap_binary_encoding_bit_string_returns_subbinary() {
     // :erlang.term_to_binary(<<1, 2::3>>)
     let heap_binary_term = Term::slice_to_binary(&[131, 77, 0, 0, 0, 2, 3, 1, 64], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
         Ok(Term::subbinary(
             Term::slice_to_binary(&[1, 0b010_00000], &mut process),
@@ -344,8 +251,7 @@ fn with_heap_binary_encoding_bit_string_returns_subbinary() {
             1,
             3,
             &mut process
-        )),
-        process,
+        ))
     );
 }
 
@@ -357,10 +263,9 @@ fn with_heap_binary_encoding_small_atom_utf8_returns_atom() {
     // :erlang.term_to_binary(:"😈")
     let heap_binary_term = Term::slice_to_binary(&[131, 119, 4, 240, 159, 152, 136], &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(heap_binary_term, &mut process),
-        Ok(Term::str_to_atom("😈", DoNotCare, &mut process).unwrap()),
-        process,
+        Ok(Term::str_to_atom("😈", DoNotCare).unwrap())
     );
 }
 
@@ -376,10 +281,9 @@ fn with_subbinary_encoding_atom_returns_atom() {
     );
     let subbinary_term = Term::subbinary(original_term, 0, 1, 8, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Term::str_to_atom("atom", DoNotCare, &mut process),
-        process
+        Ok(Term::str_to_atom("atom", DoNotCare).unwrap())
     );
 }
 
@@ -392,10 +296,9 @@ fn with_subbinary_encoding_empty_list_returns_empty_list() {
     let original_term = Term::slice_to_binary(&[193, 181, 0b0000_0000], &mut process);
     let subbinary_term = Term::subbinary(original_term, 0, 1, 2, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Ok(Term::EMPTY_LIST),
-        process
+        Ok(Term::EMPTY_LIST)
     );
 }
 
@@ -413,14 +316,13 @@ fn with_subbinary_encoding_list_returns_list() {
     );
     let subbinary_term = Term::subbinary(original_term, 0, 1, 16, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
         Ok(Term::cons(
-            Term::str_to_atom("zero", DoNotCare, &mut process).unwrap(),
+            Term::str_to_atom("zero", DoNotCare).unwrap(),
             Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
             &mut process
-        )),
-        process
+        ))
     );
 }
 
@@ -433,10 +335,9 @@ fn with_subbinary_encoding_small_integer_returns_small_integer() {
     let original_term = Term::slice_to_binary(&[193, 176, 128, 0], &mut process);
     let subbinary_term = Term::subbinary(original_term, 0, 1, 3, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Ok(0.into_process(&mut process)),
-        process
+        Ok(0.into_process(&mut process))
     );
 }
 
@@ -449,10 +350,9 @@ fn with_subbinary_encoding_integer_returns_integer() {
     let original_term = Term::slice_to_binary(&[193, 177, 64, 0, 0, 0, 0], &mut process);
     let subbinary_term = Term::subbinary(original_term, 0, 1, 6, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Ok((-2147483648_isize).into_process(&mut process)),
-        process
+        Ok((-2147483648_isize).into_process(&mut process))
     );
 }
 
@@ -466,10 +366,9 @@ fn with_subbinary_encoding_new_float_returns_float() {
         Term::slice_to_binary(&[193, 163, 31, 248, 0, 0, 0, 0, 0, 0, 0], &mut process);
     let subbinary_term = Term::subbinary(original_term, 0, 1, 10, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Ok(1.0.into_process(&mut process)),
-        process
+        Ok(1.0.into_process(&mut process))
     );
 }
 
@@ -499,16 +398,15 @@ fn with_subbinary_encoding_small_tuple_returns_tuple() {
     );
     let subbinary_term = Term::subbinary(original_term, 0, 1, 12, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
         Ok(Term::slice_to_tuple(
             &[
-                Term::str_to_atom("zero", DoNotCare, &mut process).unwrap(),
+                Term::str_to_atom("zero", DoNotCare).unwrap(),
                 1.into_process(&mut process)
             ],
             &mut process
-        )),
-        process
+        ))
     );
 }
 
@@ -522,7 +420,7 @@ fn with_subbinary_encoding_byte_list_returns_list() {
         Term::slice_to_binary(&[193, 181, 128, 1, 24, 24, 0b1000_0000], &mut process);
     let subbinary_term = Term::subbinary(original_term, 0, 1, 6, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
         Ok(Term::cons(
             48.into_process(&mut process),
@@ -532,8 +430,7 @@ fn with_subbinary_encoding_byte_list_returns_list() {
                 &mut process
             ),
             &mut process
-        )),
-        process
+        ))
     );
 }
 
@@ -547,10 +444,9 @@ fn with_subbinary_encoding_binary_returns_binary() {
         Term::slice_to_binary(&[193, 182, 128, 0, 0, 1, 0, 0, 0b1000_0000], &mut process);
     let subbinary_term = Term::subbinary(original_term, 0, 1, 8, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Ok(Term::slice_to_binary(&[0, 1], &mut process)),
-        process
+        Ok(Term::slice_to_binary(&[0, 1], &mut process))
     );
 }
 
@@ -566,10 +462,9 @@ fn with_subbinary_encoding_small_big_integer_returns_big_integer() {
     );
     let subbinary_term = Term::subbinary(original_term, 0, 1, 8, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Ok(4294967295_usize.into_process(&mut process)),
-        process
+        Ok(4294967295_usize.into_process(&mut process))
     );
 }
 
@@ -583,7 +478,7 @@ fn with_subbinary_encoding_bit_string_returns_subbinary() {
         Term::slice_to_binary(&[193, 166, 128, 0, 0, 1, 1, 128, 160, 0], &mut process);
     let subbinary_term = Term::subbinary(original_term, 0, 1, 9, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
         Ok(Term::subbinary(
             Term::slice_to_binary(&[1, 0b010_00000], &mut process),
@@ -592,8 +487,7 @@ fn with_subbinary_encoding_bit_string_returns_subbinary() {
             1,
             3,
             &mut process
-        )),
-        process,
+        ))
     );
 }
 
@@ -606,9 +500,17 @@ fn with_subbinary_encoding_small_atom_utf8_returns_atom() {
     let original_term = Term::slice_to_binary(&[193, 187, 130, 120, 79, 204, 68, 0], &mut process);
     let subbinary_term = Term::subbinary(original_term, 0, 1, 7, 0, &mut process);
 
-    assert_eq_in_process!(
+    assert_eq!(
         erlang::binary_to_term_1(subbinary_term, &mut process),
-        Ok(Term::str_to_atom("😈", DoNotCare, &mut process).unwrap()),
-        process,
+        Ok(Term::str_to_atom("😈", DoNotCare).unwrap())
     );
+}
+
+fn errors_badarg<F>(binary: F)
+where
+    F: FnOnce(&mut Process) -> Term,
+{
+    super::errors_badarg(|mut process| {
+        erlang::binary_to_term_1(binary(&mut process), &mut process)
+    });
 }

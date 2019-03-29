@@ -33,80 +33,89 @@ impl Debug for Exception {
     }
 }
 
+impl Eq for Exception {}
+
+impl PartialEq for Exception {
+    /// `file`, `line`, and `column` don't count for equality as they are for `Debug` only to help
+    /// track down exceptions.
+    fn eq(&self, other: &Exception) -> bool {
+        (self.class == other.class)
+            & (self.reason == other.reason)
+            & (self.arguments == other.arguments)
+    }
+
+    fn ne(&self, other: &Exception) -> bool {
+        !self.eq(other)
+    }
+}
+
 pub type Result = std::result::Result<Term, Exception>;
 
 #[macro_export]
-macro_rules! assert_bad_argument {
-    ($left:expr, $process:expr) => {{
+macro_rules! assert_badarg {
+    ($left:expr) => {{
         use crate::atom::Existence::DoNotCare;
         use crate::term::Term;
 
-        assert_error!(
-            $left,
-            Term::str_to_atom("badarg", DoNotCare, $process).unwrap(),
-            $process
-        )
-    }};
-    ($left:expr, $process:expr,) => {{
-        assert_bad_argument!($left, $process)
+        assert_error!($left, Term::str_to_atom("badarg", DoNotCare).unwrap())
     }};
 }
 
 #[macro_export]
-macro_rules! assert_bad_key {
+macro_rules! assert_badkey {
     ($left:expr, $key:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
         use crate::term::Term;
 
-        let badkey = Term::str_to_atom("badkey", DoNotCare, $process).unwrap();
+        let badkey = Term::str_to_atom("badkey", DoNotCare).unwrap();
         let reason = Term::slice_to_tuple(&[badkey, $key], $process);
 
-        assert_error!($left, reason, $process)
+        assert_error!($left, reason)
     }};
     ($left:expr, $key:expr, $process:expr,) => {{
-        assert_bad_map($left, $key, $process)
+        assert_badkey!($left, $key, $process)
     }};
 }
 
 #[macro_export]
-macro_rules! assert_bad_map {
+macro_rules! assert_badmap {
     ($left:expr, $map:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
         use crate::term::Term;
 
-        let badmap = Term::str_to_atom("badmap", DoNotCare, $process).unwrap();
+        let badmap = Term::str_to_atom("badmap", DoNotCare).unwrap();
         let reason = Term::slice_to_tuple(&[badmap, $map], $process);
 
-        assert_error!($left, reason, $process)
+        assert_error!($left, reason)
     }};
     ($left:expr, $map:expr, $process:expr,) => {{
-        assert_bad_map($left, $map, $process)
+        assert_badmap($left, $map, $process)
     }};
 }
 
 #[macro_export]
 macro_rules! assert_error {
-    ($left:expr, $reason:expr, $process:expr) => {
-        assert_eq_in_process!($left, Err(error!($reason)), $process)
+    ($left:expr, $reason:expr) => {
+        assert_eq!($left, Err(error!($reason)))
     };
-    ($left:expr, $reason:expr, $process:expr,) => {
-        assert_eq_in_process!($left, Err(error!($reason)), $process)
+    ($left:expr, $reason:expr,) => {
+        assert_eq!($left, Err(error!($reason)))
     };
-    ($left:expr, $reason:expr, $arguments:expr, $process:expr) => {
-        assert_eq_in_process!($left, Err(error!($reason, $arguments)), $process)
+    ($left:expr, $reason:expr, $arguments:expr) => {
+        assert_eq!($left, Err(error!($reason, $arguments)))
     };
-    ($left:expr, $reason:expr, $arguments:expr, $process:expr,) => {
-        assert_eq_in_process!($left, Err(error!($reason, $arguments)), $process)
+    ($left:expr, $reason:expr, $arguments:expr,) => {
+        assert_eq!($left, Err(error!($reason, $arguments)))
     };
 }
 
 #[macro_export]
 macro_rules! bad_argument {
-    ($process:expr) => {{
+    () => {{
         use crate::atom::Existence::DoNotCare;
         use crate::term::Term;
 
-        error!(Term::str_to_atom("badarg", DoNotCare, $process).unwrap())
+        error!(Term::str_to_atom("badarg", DoNotCare).unwrap())
     }};
 }
 
@@ -164,36 +173,27 @@ mod tests {
     mod error {
         use super::*;
 
-        use std::sync::{Arc, RwLock};
-
         use crate::atom::Existence::DoNotCare;
-        use crate::environment::{self, Environment};
 
         #[test]
         fn without_arguments_stores_none() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let reason = Term::str_to_atom("badarg", DoNotCare, &mut process).unwrap();
+            let reason = Term::str_to_atom("badarg", DoNotCare).unwrap();
 
             let error = error!(reason);
 
-            assert_eq_in_process!(error.reason, reason, &mut process);
-            assert_eq_in_process!(error.arguments, None, &mut process);
+            assert_eq!(error.reason, reason);
+            assert_eq!(error.arguments, None);
         }
 
         #[test]
         fn without_arguments_stores_some() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let reason = Term::str_to_atom("badarg", DoNotCare, &mut process).unwrap();
+            let reason = Term::str_to_atom("badarg", DoNotCare).unwrap();
             let arguments = Term::EMPTY_LIST;
 
             let error = error!(reason, arguments);
 
-            assert_eq_in_process!(error.reason, reason, &mut process);
-            assert_eq_in_process!(error.arguments, Some(arguments), &mut process);
+            assert_eq!(error.reason, reason);
+            assert_eq!(error.arguments, Some(arguments));
         }
     }
 }

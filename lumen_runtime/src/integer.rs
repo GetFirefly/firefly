@@ -1,10 +1,10 @@
 use std::cmp::Ordering;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
+use std::fmt::{self, Debug};
 
 use num_bigint::BigInt;
 
 use crate::exception::Exception;
-use crate::process::{DebugInProcess, OrderInProcess, Process, TryFromInProcess};
 
 pub mod big;
 pub mod small;
@@ -16,14 +16,16 @@ pub enum Integer {
     Big(BigInt),
 }
 
-impl DebugInProcess for Integer {
-    fn format_in_process(&self, _process: &Process) -> String {
+impl Debug for Integer {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Integer::Small(_) => unimplemented!(),
             Integer::Big(_) => unimplemented!(),
         }
     }
 }
+
+impl Eq for Integer {}
 
 impl From<char> for Integer {
     fn from(c: char) -> Integer {
@@ -63,18 +65,6 @@ impl From<usize> for Integer {
     }
 }
 
-impl OrderInProcess for Integer {
-    fn cmp_in_process(&self, other: &Self, _process: &Process) -> Ordering {
-        match (self, other) {
-            (
-                Integer::Small(small::Integer(self_isize)),
-                Integer::Small(small::Integer(other_isize)),
-            ) => self_isize.cmp(other_isize),
-            (_, _) => unimplemented!(),
-        }
-    }
-}
-
 impl From<BigInt> for Integer {
     fn from(big_int: BigInt) -> Integer {
         let small_min_big_int: BigInt = small::MIN.into();
@@ -93,16 +83,49 @@ impl From<BigInt> for Integer {
     }
 }
 
-impl TryFromInProcess<Integer> for usize {
-    fn try_from_in_process(
-        integer: Integer,
-        mut process: &mut Process,
-    ) -> Result<usize, Exception> {
+impl Ord for Integer {
+    fn cmp(&self, other: &Integer) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialEq for Integer {
+    fn eq(&self, other: &Integer) -> bool {
+        match (self, other) {
+            (
+                Integer::Small(small::Integer(self_isize)),
+                Integer::Small(small::Integer(other_isize)),
+            ) => self_isize == other_isize,
+            (_, _) => unimplemented!(),
+        }
+    }
+
+    fn ne(&self, other: &Integer) -> bool {
+        !self.eq(other)
+    }
+}
+
+impl PartialOrd for Integer {
+    fn partial_cmp(&self, other: &Integer) -> Option<Ordering> {
+        match (self, other) {
+            (
+                Integer::Small(small::Integer(self_isize)),
+                Integer::Small(small::Integer(other_isize)),
+            ) => self_isize.partial_cmp(other_isize),
+            (_, _) => unimplemented!(),
+        }
+    }
+}
+
+impl TryFrom<Integer> for usize {
+    type Error = Exception;
+
+    fn try_from(integer: Integer) -> Result<usize, Exception> {
         match integer {
             Integer::Small(small::Integer(untagged)) => {
-                untagged.try_into().map_err(|_| bad_argument!(&mut process))
+                untagged.try_into().map_err(|_| bad_argument!())
             }
-            Integer::Big(big_int) => big_int_to_usize(&big_int, &mut process),
+            Integer::Big(big_int) => big_int_to_usize(&big_int),
         }
     }
 }

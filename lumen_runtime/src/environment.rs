@@ -3,40 +3,24 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::atom::{self, Existence};
-use crate::exception::Exception;
 use crate::process::{self, Process};
 use crate::term::Term;
 
 pub struct Environment {
     pid_counter: process::identifier::LocalCounter,
-    atom_table: atom::Table,
     pub process_by_pid_tagged: HashMap<usize, Arc<RwLock<Process>>>,
 }
 
 impl Environment {
     pub fn new() -> Environment {
         Environment {
-            atom_table: atom::Table::new(),
             pid_counter: Default::default(),
             process_by_pid_tagged: HashMap::new(),
         }
     }
 
-    pub fn atom_index_to_string(&self, atom_index: atom::Index) -> String {
-        self.atom_table.name(atom_index)
-    }
-
     pub fn next_pid(&mut self) -> Term {
         self.pid_counter.next().into()
-    }
-
-    pub fn str_to_atom_index(
-        &mut self,
-        name: &str,
-        existence: Existence,
-    ) -> Result<atom::Index, Exception> {
-        self.atom_table.str_to_index(name, existence)
     }
 }
 
@@ -62,35 +46,4 @@ pub fn process(environment_rw_lock: Arc<RwLock<Environment>>) -> Arc<RwLock<Proc
     }
 
     process_rw_lock
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod str_to_atom_index {
-        use super::*;
-
-        use crate::atom::Existence::*;
-
-        #[test]
-        fn without_same_string_have_different_index() {
-            let mut environment = Environment::new();
-
-            assert_ne!(
-                environment.str_to_atom_index("true", DoNotCare).unwrap().0,
-                environment.str_to_atom_index("false", DoNotCare).unwrap().0
-            )
-        }
-
-        #[test]
-        fn with_same_string_have_same_index() {
-            let mut environment = Environment::new();
-
-            assert_eq!(
-                environment.str_to_atom_index("atom", DoNotCare).unwrap().0,
-                environment.str_to_atom_index("atom", DoNotCare).unwrap().0
-            )
-        }
-    }
 }

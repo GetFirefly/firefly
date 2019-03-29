@@ -1,10 +1,11 @@
-use std::cmp::Ordering;
+use std::cmp::Ordering::{self, *};
 
 use im_rc::hashmap::HashMap;
 
 use crate::atom::Existence::DoNotCare;
 use crate::exception::Result;
-use crate::process::{IntoProcess, OrderInProcess, Process};
+use crate::integer::Integer;
+use crate::process::Process;
 use crate::term::{Tag, Term};
 
 pub struct Map {
@@ -40,7 +41,7 @@ impl Map {
         match self.inner.get(&key) {
             Some(value) => Ok(value.clone()),
             None => {
-                let badmap = Term::str_to_atom("badkey", DoNotCare, &mut process).unwrap();
+                let badmap = Term::str_to_atom("badkey", DoNotCare).unwrap();
                 let reason = Term::slice_to_tuple(&[badmap, key], &mut process);
 
                 Err(error!(reason))
@@ -52,54 +53,101 @@ impl Map {
         self.inner.contains_key(&key)
     }
 
-    pub fn size(&self, mut process: &mut Process) -> Term {
-        self.inner.len().into_process(&mut process)
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    pub fn size(&self) -> Integer {
+        self.len().into()
+    }
+
+    // Private
+
+    fn sorted_keys(&self) -> Vec<Term> {
+        let mut key_vec: Vec<Term> = Vec::new();
+        key_vec.extend(self.inner.keys());
+        key_vec.sort_unstable_by(|key1, key2| key1.cmp(&key2));
+
+        key_vec
     }
 }
 
-impl OrderInProcess for Map {
+impl Eq for Map {}
+
+impl Ord for Map {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialEq for Map {
+    fn eq(&self, other: &Map) -> bool {
+        match self.len().eq(&other.len()) {
+            true => {
+                let self_key_vec = self.sorted_keys();
+                let other_key_vec = other.sorted_keys();
+
+                match self_key_vec.eq(&other_key_vec) {
+                    true => {
+                        let self_inner = &self.inner;
+                        let other_inner = &other.inner;
+
+                        self_key_vec.iter().all(|key| {
+                            self_inner
+                                .get(&key)
+                                .unwrap()
+                                .eq(other_inner.get(&key).unwrap())
+                        })
+                    }
+                    eq => eq,
+                }
+            }
+            eq => eq,
+        }
+    }
+
+    fn ne(&self, other: &Map) -> bool {
+        !self.eq(other)
+    }
+}
+
+impl PartialOrd for Map {
     /// > * Maps are compared by size, then by keys in ascending term order,
     /// >   then by values in key order.   In the specific case of maps' key
     /// >   ordering, integers are always considered to be less than floats.
-    fn cmp_in_process(&self, other: &Map, process: &Process) -> Ordering {
-        let self_inner = &self.inner;
-        let other_inner = &other.inner;
+    fn partial_cmp(&self, other: &Map) -> Option<Ordering> {
+        match self.len().partial_cmp(&other.len()) {
+            Some(Equal) => {
+                let self_key_vec = self.sorted_keys();
+                let other_key_vec = other.sorted_keys();
 
-        match self_inner.len().cmp(&other_inner.len()) {
-            Ordering::Equal => {
-                let mut self_key_vec: Vec<Term> = Vec::new();
-                self_key_vec.extend(self_inner.keys());
-                self_key_vec.sort_unstable_by(|key1, key2| key1.cmp_in_process(key2, process));
-
-                let mut other_key_vec: Vec<Term> = Vec::new();
-                other_key_vec.extend(other_inner.keys());
-                other_key_vec.sort_unstable_by(|key1, key2| key1.cmp_in_process(key2, process));
-
-                match self_key_vec.cmp_in_process(&other_key_vec, process) {
-                    Ordering::Equal => {
-                        let mut final_ordering = Ordering::Equal;
+                match self_key_vec.partial_cmp(&other_key_vec) {
+                    Some(Equal) => {
+                        let self_inner = &self.inner;
+                        let other_inner = &other.inner;
+                        let mut final_partial_ordering = Some(Equal);
 
                         for key in self_key_vec {
                             match self_inner
                                 .get(&key)
                                 .unwrap()
-                                .cmp_in_process(other_inner.get(&key).unwrap(), &process)
+                                .partial_cmp(other_inner.get(&key).unwrap())
                             {
-                                Ordering::Equal => continue,
-                                ordering => {
-                                    final_ordering = ordering;
+                                Some(Equal) => continue,
+                                partial_ordering => {
+                                    final_partial_ordering = partial_ordering;
 
                                     break;
                                 }
                             }
                         }
 
-                        final_ordering
+                        final_partial_ordering
                     }
-                    ordering => ordering,
+                    partial_ordering => partial_ordering,
                 }
             }
-            ordering => ordering,
+            partial_ordering => partial_ordering,
         }
     }
 }

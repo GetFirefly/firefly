@@ -1,5 +1,9 @@
 use super::*;
 
+use std::sync::{Arc, RwLock};
+
+use crate::environment::{self, Environment};
+use crate::exception::Result;
 use crate::otp::erlang;
 
 mod abs_1;
@@ -58,7 +62,25 @@ mod tl_1;
 mod tuple_size_1;
 mod tuple_to_list_1;
 
-fn list_term(mut process: &mut Process) -> Term {
-    let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
+fn errors_badarg<F>(actual: F)
+where
+    F: FnOnce(&mut Process) -> Result,
+{
+    with_process(|mut process| assert_badarg!(actual(&mut process)))
+}
+
+fn list_term(process: &mut Process) -> Term {
+    let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
     Term::cons(head_term, Term::EMPTY_LIST, process)
+}
+
+fn with_process<F>(f: F)
+where
+    F: FnOnce(&mut Process) -> (),
+{
+    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
+    let mut process = process_rw_lock.write().unwrap();
+
+    f(&mut process)
 }

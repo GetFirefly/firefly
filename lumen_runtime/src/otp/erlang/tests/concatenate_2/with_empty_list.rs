@@ -15,13 +15,9 @@ fn with_atom_returns_atom() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let list = Term::EMPTY_LIST;
-    let term = Term::str_to_atom("term", DoNotCare, &mut process).unwrap();
+    let term = Term::str_to_atom("term", DoNotCare).unwrap();
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -32,11 +28,7 @@ fn with_local_reference_returns_local_reference() {
     let list = Term::EMPTY_LIST;
     let term = Term::local_reference(&mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -51,11 +43,7 @@ fn with_improper_list_returns_improper_list() {
         &mut process,
     );
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -66,11 +54,7 @@ fn with_small_integer_returns_small_integer() {
     let list = Term::EMPTY_LIST;
     let term = 1.into_process(&mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -83,11 +67,7 @@ fn with_big_integer_returns_big_integer() {
         .unwrap()
         .into_process(&mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -98,11 +78,7 @@ fn with_float_returns_float() {
     let list = Term::EMPTY_LIST;
     let term = 1.0.into_process(&mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -111,13 +87,9 @@ fn with_local_pid_returns_local_pid() {
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
     let list = Term::EMPTY_LIST;
-    let term = Term::local_pid(1, 2, &mut process).unwrap();
+    let term = Term::local_pid(1, 2).unwrap();
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -128,11 +100,7 @@ fn with_external_pid_returns_external_pid() {
     let list = Term::EMPTY_LIST;
     let term = Term::external_pid(4, 5, 6, &mut process).unwrap();
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -143,11 +111,7 @@ fn with_tuple_returns_tuple() {
     let list = Term::EMPTY_LIST;
     let term = Term::slice_to_tuple(&[], &mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -158,11 +122,7 @@ fn with_map_is_returns_map_is() {
     let list = Term::EMPTY_LIST;
     let term = Term::slice_to_map(&[], &mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -173,11 +133,7 @@ fn with_heap_binary_returns_heap_binary() {
     let list = Term::EMPTY_LIST;
     let term = Term::slice_to_binary(&[], &mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }
 
 #[test]
@@ -190,9 +146,5 @@ fn with_subbinary_returns_subbinary() {
     let list = Term::EMPTY_LIST;
     let term = Term::subbinary(binary_term, 0, 7, 2, 0, &mut process);
 
-    assert_eq_in_process!(
-        erlang::concatenate_2(list, term, &mut process),
-        Ok(term),
-        &mut process
-    );
+    assert_eq!(erlang::concatenate_2(list, term, &mut process), Ok(term));
 }

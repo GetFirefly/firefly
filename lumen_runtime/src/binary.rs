@@ -1,3 +1,4 @@
+use std::convert::{TryFrom, TryInto};
 use std::mem::transmute;
 
 use num_bigint::BigInt;
@@ -6,7 +7,7 @@ use num_traits::Zero;
 use crate::atom::{Existence, Existence::*};
 use crate::exception::{self, Exception};
 use crate::list::{Cons, ToList};
-use crate::process::{IntoProcess, Process, TryFromInProcess, TryIntoInProcess};
+use crate::process::{IntoProcess, Process, TryIntoInProcess};
 use crate::term::{self, Tag::*, Term};
 
 pub mod heap;
@@ -99,14 +100,11 @@ where
         }
     }
 
-    fn next_atom(&mut self, existence: Existence, mut process: &mut Process) -> Option<Term> {
+    fn next_atom(&mut self, existence: Existence) -> Option<Term> {
         self.next_u16()
             .and_then(|length| self.next_byte_vec(length as usize))
             .and_then(|byte_vec| match String::from_utf8(byte_vec) {
-                Ok(string) => match Term::str_to_atom(&string, existence, &mut process) {
-                    Ok(term) => Some(term),
-                    Err(_) => None,
-                },
+                Ok(string) => Term::str_to_atom(&string, existence),
                 Err(_) => None,
             })
     }
@@ -192,18 +190,11 @@ where
             .map(|inner| inner.into_process(&mut process))
     }
 
-    fn next_small_atom_utf8(
-        &mut self,
-        existence: Existence,
-        mut process: &mut Process,
-    ) -> Option<Term> {
+    fn next_small_atom_utf8(&mut self, existence: Existence) -> Option<Term> {
         self.next()
             .and_then(|length| self.next_byte_vec(length as usize))
             .and_then(|byte_vec| match String::from_utf8(byte_vec) {
-                Ok(string) => match Term::str_to_atom(&string, existence, &mut process) {
-                    Ok(term) => Some(term),
-                    Err(_) => None,
-                },
+                Ok(string) => Term::str_to_atom(&string, existence),
                 Err(_) => None,
             })
     }
@@ -255,7 +246,7 @@ where
                     use crate::term::external_format::Tag::*;
 
                     match tag {
-                        Atom => self.next_atom(existence, &mut process),
+                        Atom => self.next_atom(existence),
                         Binary => self.next_binary(&mut process),
                         BitBinary => self.next_bit_binary(&mut process),
                         ByteList => self.next_byte_list(&mut process),
@@ -263,7 +254,7 @@ where
                         Integer => self.next_integer(&mut process),
                         List => self.next_list(existence, &mut process),
                         NewFloat => self.next_new_float(&mut process),
-                        SmallAtomUTF8 => self.next_small_atom_utf8(existence, &mut process),
+                        SmallAtomUTF8 => self.next_small_atom_utf8(existence),
                         SmallBigInteger => self.next_small_big_integer(&mut process),
                         SmallInteger => self.next_small_integer(),
                         SmallTuple => self.next_small_tuple(existence, &mut process),
@@ -342,7 +333,6 @@ fn start_length_to_part_range(
     start: usize,
     length: isize,
     available_byte_count: usize,
-    mut process: &mut Process,
 ) -> Result<PartRange, Exception> {
     if length >= 0 {
         let non_negative_length = length as usize;
@@ -353,7 +343,7 @@ fn start_length_to_part_range(
                 byte_count: non_negative_length,
             })
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     } else {
         let start_isize = start as isize;
@@ -367,7 +357,7 @@ fn start_length_to_part_range(
                 byte_count,
             })
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 }
@@ -394,16 +384,12 @@ pub struct ToTermOptions {
 }
 
 impl ToTermOptions {
-    fn put_option_term(
-        &mut self,
-        option: Term,
-        mut process: &mut Process,
-    ) -> Result<&ToTermOptions, Exception> {
+    fn put_option_term(&mut self, option: Term) -> Result<&ToTermOptions, Exception> {
         match option.tag() {
             Atom => {
-                let option_string = option.atom_to_string(process);
+                let option_string = unsafe { option.atom_to_string() };
 
-                match option_string.as_ref() {
+                match option_string.as_ref().as_ref() {
                     "safe" => {
                         self.existence = Exists;
 
@@ -414,19 +400,18 @@ impl ToTermOptions {
 
                         Ok(self)
                     }
-                    _ => Err(bad_argument!(&mut process)),
+                    _ => Err(bad_argument!()),
                 }
             }
-            _ => Err(bad_argument!(&mut process)),
+            _ => Err(bad_argument!()),
         }
     }
 }
 
-impl TryFromInProcess<Term> for ToTermOptions {
-    fn try_from_in_process(
-        term: Term,
-        mut process: &mut Process,
-    ) -> Result<ToTermOptions, Exception> {
+impl TryFrom<Term> for ToTermOptions {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<ToTermOptions, Exception> {
         let mut options: ToTermOptions = Default::default();
         let mut options_term = term;
 
@@ -434,14 +419,14 @@ impl TryFromInProcess<Term> for ToTermOptions {
             match options_term.tag() {
                 EmptyList => return Ok(options),
                 List => {
-                    let cons: &Cons = options_term.try_into_in_process(&mut process).unwrap();
+                    let cons: &Cons = options_term.try_into().unwrap();
 
-                    options.put_option_term(cons.head(), process)?;
+                    options.put_option_term(cons.head())?;
                     options_term = cons.tail();
 
                     continue;
                 }
-                _ => return Err(bad_argument!(&mut process)),
+                _ => return Err(bad_argument!()),
             };
         }
     }

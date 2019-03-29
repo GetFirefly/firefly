@@ -1,7 +1,6 @@
-use std::cmp::Ordering;
+use std::cmp::Ordering::{self, *};
 use std::hash::{Hash, Hasher};
 
-use crate::process::{OrderInProcess, Process};
 use crate::term::{Tag, Tag::*, Term};
 
 pub const NUMBER_BIT_COUNT: u8 = 15;
@@ -33,6 +32,8 @@ impl External {
     }
 }
 
+impl Eq for External {}
+
 impl Hash for External {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.node.hash(state);
@@ -41,15 +42,9 @@ impl Hash for External {
     }
 }
 
-impl OrderInProcess for External {
-    fn cmp_in_process(&self, other: &External, _process: &Process) -> Ordering {
-        match self.node.cmp(&other.node) {
-            Ordering::Equal => match self.serial.cmp(&other.serial) {
-                Ordering::Equal => self.number.cmp(&other.number),
-                ordering => ordering,
-            },
-            ordering => ordering,
-        }
+impl Ord for External {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
@@ -60,6 +55,18 @@ impl PartialEq for External {
 
     fn ne(&self, other: &External) -> bool {
         !self.eq(other)
+    }
+}
+
+impl PartialOrd for External {
+    fn partial_cmp(&self, other: &External) -> Option<Ordering> {
+        match self.node.partial_cmp(&other.node) {
+            Some(Equal) => match self.serial.partial_cmp(&other.serial) {
+                Some(Equal) => self.number.partial_cmp(&other.number),
+                partial_ordering => partial_ordering,
+            },
+            partial_ordering => partial_ordering,
+        }
     }
 }
 

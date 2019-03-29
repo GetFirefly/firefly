@@ -1,11 +1,12 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use std::cmp::Ordering;
+use std::cmp::Ordering::{self, *};
 use std::convert::{TryFrom, TryInto};
-use std::fmt::{self, Display};
+use std::fmt::{self, Debug, Display};
 use std::hash::{Hash, Hasher};
 use std::mem::size_of;
 use std::str::Chars;
+use std::sync::Arc;
 
 use num_bigint::BigInt;
 use num_traits::cast::ToPrimitive;
@@ -20,9 +21,7 @@ use crate::integer::Integer::{self, Big, Small};
 use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::map::Map;
-use crate::process::{
-    self, DebugInProcess, IntoProcess, OrderInProcess, Process, TryFromInProcess, TryIntoInProcess,
-};
+use crate::process::{self, IntoProcess, Process, TryFromInProcess, TryIntoInProcess};
 use crate::reference::local;
 use crate::tuple::Tuple;
 
@@ -172,18 +171,11 @@ impl Term {
         }
     }
 
-    pub fn arity_to_integer(&self, mut process: &mut Process) -> Term {
+    pub unsafe fn arity_to_integer(&self, mut process: &mut Process) -> Term {
         self.arity_to_usize().into_process(&mut process)
     }
 
-    pub fn arity_to_usize(&self) -> usize {
-        assert_eq!(
-            self.tag(),
-            Arity,
-            "Term ({:#b}) is not a tuple arity",
-            self.tagged
-        );
-
+    pub unsafe fn arity_to_usize(&self) -> usize {
         ((self.tagged & !(Arity as usize)) >> Tag::ARITY_BIT_COUNT)
     }
 
@@ -194,37 +186,36 @@ impl Term {
         &*pointer
     }
 
-    pub fn atom_to_encoding(&self, mut process: &mut Process) -> Result<Encoding, Exception> {
+    pub fn atom_to_encoding(&self) -> Result<Encoding, Exception> {
         match self.tag() {
             Atom => {
-                let unicode_atom = Term::str_to_atom("unicode", DoNotCare, &mut process).unwrap();
+                let unicode_atom = Term::str_to_atom("unicode", DoNotCare).unwrap();
                 let tagged = self.tagged;
 
                 if tagged == unicode_atom.tagged {
                     Ok(Encoding::Unicode)
                 } else {
-                    let utf8_atom = Term::str_to_atom("utf8", DoNotCare, &mut process).unwrap();
+                    let utf8_atom = Term::str_to_atom("utf8", DoNotCare).unwrap();
 
                     if tagged == utf8_atom.tagged {
                         Ok(Encoding::Utf8)
                     } else {
-                        let latin1_atom =
-                            Term::str_to_atom("latin1", DoNotCare, &mut process).unwrap();
+                        let latin1_atom = Term::str_to_atom("latin1", DoNotCare).unwrap();
 
                         if tagged == latin1_atom.tagged {
                             Ok(Encoding::Latin1)
                         } else {
-                            Err(bad_argument!(&mut process))
+                            Err(bad_argument!())
                         }
                     }
                 }
             }
-            _ => Err(bad_argument!(&mut process)),
+            _ => Err(bad_argument!()),
         }
     }
 
-    pub fn atom_to_string(&self, process: &Process) -> String {
-        process.atom_index_to_string(self.try_into().unwrap())
+    pub unsafe fn atom_to_string(&self) -> Arc<String> {
+        atom::index_to_string(self.try_into().unwrap()).unwrap()
     }
 
     pub fn alloc_slice(slice: &[Term], term_arena: &mut TypedArena<Term>) -> *const Term {
@@ -276,7 +267,7 @@ impl Term {
         node: usize,
         number: usize,
         serial: usize,
-        mut process: &mut Process,
+        process: &mut Process,
     ) -> exception::Result {
         if (number <= process::identifier::NUMBER_MAX)
             && (serial <= process::identifier::SERIAL_MAX)
@@ -285,7 +276,7 @@ impl Term {
                 process.external_pid(node, number, serial),
             ))
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 
@@ -302,26 +293,17 @@ impl Term {
         }
     }
 
-    pub fn heap_binary_to_byte_count(&self) -> usize {
-        const TAG_HEAP_BINARY: usize = HeapBinary as usize;
-
-        assert_eq!(
-            self.tag(),
-            HeapBinary,
-            "Term ({:#b}) is not a heap binary",
-            self.tagged
-        );
-
-        (self.tagged & !(TAG_HEAP_BINARY)) >> Tag::HEAP_BINARY_BIT_COUNT
+    pub unsafe fn heap_binary_to_byte_count(&self) -> usize {
+        (self.tagged & !(HeapBinary as usize)) >> Tag::HEAP_BINARY_BIT_COUNT
     }
 
-    pub fn local_pid(number: usize, serial: usize, mut process: &mut Process) -> exception::Result {
+    pub fn local_pid(number: usize, serial: usize) -> exception::Result {
         if (number <= process::identifier::NUMBER_MAX)
             && (serial <= process::identifier::SERIAL_MAX)
         {
             Ok(unsafe { Self::local_pid_unchecked(number, serial) })
         } else {
-            Err(bad_argument!(&mut process))
+            Err(bad_argument!())
         }
     }
 
@@ -355,7 +337,7 @@ impl Term {
         process: &mut Process,
     ) -> exception::Result {
         if node == 0 {
-            Self::local_pid(number, serial, process)
+            Self::local_pid(number, serial)
         } else {
             Self::external_pid(node, number, serial, process)
         }
@@ -373,14 +355,8 @@ impl Term {
         process.slice_to_tuple(slice).into()
     }
 
-    pub fn str_to_atom(
-        name: &str,
-        existence: Existence,
-        process: &mut Process,
-    ) -> exception::Result {
-        process
-            .str_to_atom_index(name, existence)
-            .map(|atom_index| atom_index.into())
+    pub fn str_to_atom(name: &str, existence: Existence) -> Option<Term> {
+        atom::str_to_index(name, existence).map(|atom_index| atom_index.into())
     }
 
     pub fn str_to_char_list(name: &str, mut process: &mut Process) -> Term {
@@ -474,14 +450,13 @@ impl Term {
     }
 }
 
-impl DebugInProcess for Term {
-    fn format_in_process(&self, process: &Process) -> String {
+impl Debug for Term {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.tag() {
-            Arity => format!("Term::arity({})", self.arity_to_usize()),
-            Atom => format!(
-                "Term::str_to_atom(\"{}\", DoNotCare, &mut process).unwrap()",
-                self.atom_to_string(process)
-            ),
+            Arity => write!(f, "Term::arity({})", unsafe { self.arity_to_usize() }),
+            Atom => write!(f, "Term::str_to_atom(\"{}\", DoNotCare).unwrap()", unsafe {
+                self.atom_to_string()
+            }),
             Boxed => {
                 let unboxed: &Term = self.unbox_reference();
 
@@ -489,29 +464,25 @@ impl DebugInProcess for Term {
                     Arity => {
                         let tuple: &Tuple = self.unbox_reference();
 
-                        let mut strings: Vec<String> = Vec::new();
-
-                        strings.push("Term::slice_to_tuple(&[".to_string());
+                        write!(f, "Term::slice_to_tuple(&[")?;
 
                         let mut iter = tuple.iter();
 
                         if let Some(first_element) = iter.next() {
-                            strings.push(first_element.format_in_process(process));
+                            write!(f, "{:?}", first_element)?;
 
                             for element in iter {
-                                strings.push(", ".to_string());
-                                strings.push(element.format_in_process(process));
+                                write!(f, ", {:?}", element)?;
                             }
                         }
 
-                        strings.push("], &mut process)".to_string());
-
-                        strings.join("")
+                        write!(f, "], &mut process)")
                     }
                     BigInteger => {
                         let big_integer: &big::Integer = self.unbox_reference();
 
-                        format!(
+                        write!(
+                            f,
                             "BigInt::parse_bytes(b\"{}\", 10).unwrap().into_process(&mut process)",
                             big_integer.inner
                         )
@@ -519,7 +490,8 @@ impl DebugInProcess for Term {
                     ExternalPid => {
                         let external_pid: &process::identifier::External = self.unbox_reference();
 
-                        format!(
+                        write!(
+                            f,
                             "Term::external_pid({:?}, {:?}, {:?}, &mut process)",
                             external_pid.node, external_pid.number, external_pid.serial
                         )
@@ -527,85 +499,68 @@ impl DebugInProcess for Term {
                     Float => {
                         let float: &Float = self.unbox_reference();
 
-                        format!("{}_f64.into_process(&mut process)", float.inner)
+                        write!(f, "{:?}_f64.into_process(&mut process)", float.inner)
                     }
                     HeapBinary => {
                         let binary: &heap::Binary = self.unbox_reference();
 
-                        let mut strings: Vec<String> = Vec::new();
-
-                        strings.push("Term::slice_to_binary(&[".to_string());
+                        write!(f, "Term::slice_to_binary(&[")?;
 
                         let mut iter = binary.iter();
 
                         if let Some(first_byte) = iter.next() {
-                            strings.push(first_byte.to_string());
+                            write!(f, "{:?}", first_byte)?;
 
                             for byte in iter {
-                                strings.push(", ".to_string());
-                                strings.push(byte.to_string());
+                                write!(f, ", {:?}", byte)?;
                             }
                         }
 
-                        strings.push("], &mut process)".to_string());
-
-                        strings.join("")
+                        write!(f, "], &mut process)")
                     }
                     LocalReference => {
                         let local_reference: &local::Reference = self.unbox_reference();
 
-                        format!(
-                            "Term::u64_to_local_reference({}, &mut process)",
+                        write!(
+                            f,
+                            "Term::u64_to_local_reference({:?}, &mut process)",
                             local_reference.number
                         )
                     }
                     Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
 
-                        let mut strings: Vec<String> = Vec::new();
-
-                        strings.push("Term::subbinary(".to_string());
-                        strings.push(subbinary.original.format_in_process(process));
-                        strings.push(", ".to_string());
-                        strings.push(subbinary.byte_offset.to_string());
-                        strings.push(", ".to_string());
-                        strings.push(subbinary.bit_offset.to_string());
-                        strings.push(", ".to_string());
-                        strings.push(subbinary.byte_count.to_string());
-                        strings.push(", ".to_string());
-                        strings.push(subbinary.bit_count.to_string());
-                        strings.push(", &mut process)".to_string());
-
-                        strings.join("")
+                        write!(
+                            f,
+                            "Term::subbinary({:?}, {:?}, {:?}, {:?}, {:?}, &mut process)",
+                            subbinary.original,
+                            subbinary.byte_offset,
+                            subbinary.bit_offset,
+                            subbinary.byte_count,
+                            subbinary.bit_count
+                        )
                     }
                     unboxed_tag => unimplemented!("unboxed {:?}", unboxed_tag),
                 }
             }
-            EmptyList => "Term::EMPTY_LIST".to_string(),
+            EmptyList => write!(f, "Term::EMPTY_LIST"),
             List => {
                 let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
 
-                format!(
-                    "Term::cons({}, {}, &mut process)",
-                    cons.head().format_in_process(&process),
-                    cons.tail().format_in_process(&process)
+                write!(
+                    f,
+                    "Term::cons({:?}, {:?}, &mut process)",
+                    cons.head(),
+                    cons.tail()
                 )
             }
-            SmallInteger => format!("{:?}.into_process(&mut process)", isize::from(self)),
-            _ => format!(
+            SmallInteger => write!(f, "{:?}.into_process(&mut process)", isize::from(self)),
+            _ => write!(
+                f,
                 "Term {{ tagged: 0b{tagged:0bit_count$b} }}",
                 tagged = self.tagged,
                 bit_count = std::mem::size_of::<usize>() * 8
             ),
-        }
-    }
-}
-
-impl DebugInProcess for Option<Term> {
-    fn format_in_process(&self, process: &Process) -> String {
-        match self {
-            Some(term) => format!("Some({})", term.format_in_process(process)),
-            None => "None".to_string(),
         }
     }
 }
@@ -618,6 +573,12 @@ impl<'a> From<binary::Binary<'a>> for Term {
             binary::Binary::Heap(heap_binary) => Term::box_reference(heap_binary),
             binary::Binary::Sub(sub_binary) => Term::box_reference(sub_binary),
         }
+    }
+}
+
+impl From<bool> for Term {
+    fn from(b: bool) -> Term {
+        Term::str_to_atom(&b.to_string(), DoNotCare).unwrap()
     }
 }
 
@@ -784,10 +745,16 @@ impl From<atom::Index> for Term {
     }
 }
 
+impl Ord for Term {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
 impl<'a> Part<'a, Term, Term, Term> for heap::Binary {
     fn part(&'a self, start: Term, length: Term, mut process: &mut Process) -> exception::Result {
-        let start_usize: usize = start.try_into_in_process(&mut process)?;
-        let length_isize: isize = length.try_into_in_process(&mut process)?;
+        let start_usize: usize = start.try_into()?;
+        let length_isize: isize = length.try_into()?;
 
         let binary = self.part(start_usize, length_isize, &mut process)?;
 
@@ -801,8 +768,8 @@ impl<'a> Part<'a, Term, Term, Term> for heap::Binary {
 
 impl<'a> Part<'a, Term, Term, Term> for sub::Binary {
     fn part(&'a self, start: Term, length: Term, mut process: &mut Process) -> exception::Result {
-        let start_usize: usize = start.try_into_in_process(&mut process)?;
-        let length_isize: isize = length.try_into_in_process(&mut process)?;
+        let start_usize: usize = start.try_into()?;
+        let length_isize: isize = length.try_into()?;
         let new_subbinary = self.part(start_usize, length_isize, &mut process)?;
 
         Ok(new_subbinary.into())
@@ -810,28 +777,18 @@ impl<'a> Part<'a, Term, Term, Term> for sub::Binary {
 }
 
 impl PartToList<Term, Term> for heap::Binary {
-    fn part_to_list(
-        &self,
-        start: Term,
-        length: Term,
-        mut process: &mut Process,
-    ) -> exception::Result {
-        let start_usize: usize = start.try_into_in_process(&mut process)?;
-        let length_isize: isize = length.try_into_in_process(&mut process)?;
+    fn part_to_list(&self, start: Term, length: Term, process: &mut Process) -> exception::Result {
+        let start_usize: usize = start.try_into()?;
+        let length_isize: isize = length.try_into()?;
 
         self.part_to_list(start_usize, length_isize, process)
     }
 }
 
 impl PartToList<Term, Term> for sub::Binary {
-    fn part_to_list(
-        &self,
-        start: Term,
-        length: Term,
-        mut process: &mut Process,
-    ) -> exception::Result {
-        let start_usize: usize = start.try_into_in_process(&mut process)?;
-        let length_isize: isize = length.try_into_in_process(&mut process)?;
+    fn part_to_list(&self, start: Term, length: Term, process: &mut Process) -> exception::Result {
+        let start_usize: usize = start.try_into()?;
+        let length_isize: isize = length.try_into()?;
 
         self.part_to_list(start_usize, length_isize, process)
     }
@@ -839,73 +796,100 @@ impl PartToList<Term, Term> for sub::Binary {
 
 impl PartialEq for Term {
     fn eq(&self, other: &Term) -> bool {
-        let tag = self.tag();
-
-        if tag == other.tag() {
-            match tag {
-                Atom | LocalPid | SmallInteger => self.tagged == other.tagged,
-                Boxed => {
-                    let unboxed: &Term = self.unbox_reference();
-
-                    match unboxed.tag() {
-                        Arity => {
-                            let self_tuple: &Tuple = self.unbox_reference();
-                            let other_tuple: &Tuple = other.unbox_reference();
-
-                            self_tuple == other_tuple
-                        }
-                        BigInteger => {
-                            let self_big_integer: &big::Integer = self.unbox_reference();
-                            let other_big_integer: &big::Integer = other.unbox_reference();
-
-                            self_big_integer == other_big_integer
-                        }
-                        ExternalPid => {
-                            let self_external_pid: &process::identifier::External =
-                                self.unbox_reference();
-                            let other_external_pid: &process::identifier::External =
-                                other.unbox_reference();
-
-                            self_external_pid == other_external_pid
-                        }
-                        Float => {
-                            let self_float: &Float = self.unbox_reference();
-                            let other_float: &Float = other.unbox_reference();
-
-                            self_float == other_float
-                        }
-                        HeapBinary => {
-                            let self_heap_binary: &heap::Binary = self.unbox_reference();
-                            let other_heap_binary: &heap::Binary = other.unbox_reference();
-
-                            self_heap_binary == other_heap_binary
-                        }
-                        LocalReference => {
-                            let self_local_reference: &local::Reference = self.unbox_reference();
-                            let other_local_reference: &local::Reference = other.unbox_reference();
-
-                            self_local_reference == other_local_reference
-                        }
-                        Subbinary => {
-                            let self_subbinary: &sub::Binary = self.unbox_reference();
-                            let other_subbinary: &sub::Binary = other.unbox_reference();
-
-                            self_subbinary == other_subbinary
-                        }
-                        unboxed_tag => unimplemented!("unboxed tag ({:?})", unboxed_tag),
-                    }
-                }
-                EmptyList => true,
-                List => {
-                    let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
-                    let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
-
-                    self_cons == other_cons
-                }
-                _ => unimplemented!("tag ({:?})", tag),
+        match (self.tag(), other.tag()) {
+            (Atom, Atom) | (LocalPid, LocalPid) | (SmallInteger, SmallInteger) => {
+                self.tagged == other.tagged
             }
-        } else {
-            false
+            (Boxed, Boxed) => {
+                let self_unboxed: &Term = self.unbox_reference();
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match (self_unboxed.tag(), other_unboxed.tag()) {
+                    (Arity, Arity) => {
+                        let self_tuple: &Tuple = self.unbox_reference();
+                        let other_tuple: &Tuple = other.unbox_reference();
+
+                        self_tuple == other_tuple
+                    }
+                    (BigInteger, BigInteger) => {
+                        let self_big_integer: &big::Integer = self.unbox_reference();
+                        let other_big_integer: &big::Integer = other.unbox_reference();
+
+                        self_big_integer == other_big_integer
+                    }
+                    (ExternalPid, ExternalPid) => {
+                        let self_external_pid: &process::identifier::External =
+                            self.unbox_reference();
+                        let other_external_pid: &process::identifier::External =
+                            other.unbox_reference();
+
+                        self_external_pid == other_external_pid
+                    }
+                    (Float, Float) => {
+                        let self_float: &Float = self.unbox_reference();
+                        let other_float: &Float = other.unbox_reference();
+
+                        self_float == other_float
+                    }
+                    (HeapBinary, HeapBinary) => {
+                        let self_heap_binary: &heap::Binary = self.unbox_reference();
+                        let other_heap_binary: &heap::Binary = other.unbox_reference();
+
+                        self_heap_binary == other_heap_binary
+                    }
+                    (HeapBinary, Subbinary) => {
+                        let self_heap_binary: &heap::Binary = self.unbox_reference();
+                        let other_subbinary: &sub::Binary = other.unbox_reference();
+
+                        self_heap_binary == other_subbinary
+                    }
+                    (LocalReference, LocalReference) => {
+                        let self_local_reference: &local::Reference = self.unbox_reference();
+                        let other_local_reference: &local::Reference = other.unbox_reference();
+
+                        self_local_reference == other_local_reference
+                    }
+                    (Map, Map) => {
+                        let self_map: &Map = self.unbox_reference();
+                        let other_map: &Map = other.unbox_reference();
+
+                        self_map == other_map
+                    }
+                    (Subbinary, HeapBinary) => {
+                        let self_subbinary: &sub::Binary = self.unbox_reference();
+                        let other_heap_binary: &heap::Binary = other.unbox_reference();
+
+                        self_subbinary == other_heap_binary
+                    }
+                    (Subbinary, Subbinary) => {
+                        let self_subbinary: &sub::Binary = self.unbox_reference();
+                        let other_subbinary: &sub::Binary = other.unbox_reference();
+
+                        self_subbinary == other_subbinary
+                    }
+                    (self_unboxed_tag, other_unboxed_tag)
+                        if self_unboxed_tag == other_unboxed_tag =>
+                    {
+                        unimplemented!(
+                            "unboxed {:?} == unboxed {:?}",
+                            self_unboxed_tag,
+                            other_unboxed_tag
+                        )
+                    }
+                    _ => false,
+                }
+            }
+            (EmptyList, EmptyList) => true,
+            (List, List) => {
+                let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+                let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
+
+                self_cons == other_cons
+            }
+            (self_tag, other_tag) if self_tag == other_tag => {
+                unimplemented!("{:?} == {:?}", self_tag, other_tag)
+            }
+            _ => false,
         }
     }
 
@@ -914,114 +898,231 @@ impl PartialEq for Term {
     }
 }
 
-impl TryFromInProcess<Term> for char {
-    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<char, Exception> {
-        let term_u32: u32 = term.try_into_in_process(&mut process)?;
-
-        match std::char::from_u32(term_u32) {
-            Some(c) => Ok(c),
-            None => Err(bad_argument!(&mut process)),
-        }
-    }
-}
-
-impl TryFromInProcess<Term> for isize {
-    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<isize, Exception> {
-        match term.tag() {
-            SmallInteger => {
-                let term_isize = unsafe { term.small_integer_to_isize() };
-
-                Ok(term_isize)
-            }
-            _ => Err(bad_argument!(&mut process)),
-        }
-    }
-}
-
-impl TryFromInProcess<Term> for u32 {
-    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<u32, Exception> {
-        match term.tag() {
-            SmallInteger => {
-                let term_isize = unsafe { term.small_integer_to_isize() };
-
-                term_isize
-                    .try_into()
-                    .map_err(|_| bad_argument!(&mut process))
-            }
-            Boxed => {
-                let unboxed: &Term = term.unbox_reference();
-
-                match unboxed.tag() {
-                    BigInteger => {
-                        let big_integer: &big::Integer = term.unbox_reference();
-
-                        // does not implement `to_u32` directly
-                        match big_integer.inner.to_u64() {
-                            Some(term_u64) => {
-                                term_u64.try_into().map_err(|_| bad_argument!(&mut process))
-                            }
-                            None => Err(bad_argument!(&mut process)),
-                        }
-                    }
-                    _ => Err(bad_argument!(&mut process)),
-                }
-            }
-            _ => Err(bad_argument!(&mut process)),
-        }
-    }
-}
-
-impl TryFromInProcess<Term> for u64 {
-    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<u64, Exception> {
-        match term.tag() {
-            Boxed => {
-                let unboxed: &Term = term.unbox_reference();
-
-                match unboxed.tag() {
-                    LocalReference => {
-                        let local_reference: &local::Reference = term.unbox_reference();
-
-                        Ok(local_reference.number)
-                    }
-                    _ => Err(bad_argument!(&mut process)),
-                }
-            }
-            _ => Err(bad_argument!(&mut process)),
-        }
-    }
-}
-
-impl TryFromInProcess<Term> for usize {
-    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<usize, Exception> {
-        match term.tag() {
-            SmallInteger => {
-                let term_isize = unsafe { term.small_integer_to_isize() };
-
-                if term_isize < 0 {
-                    Err(bad_argument!(&mut process))
+/// All terms in Erlang and Elixir are completely ordered.
+///
+/// number < atom < reference < function < port < pid < tuple < map < list < bitstring
+///
+/// > When comparing two numbers of different types (a number being either an integer or a float), a
+/// > conversion to the type with greater precision will always occur, unless the comparison
+/// > operator used is either === or !==. A float will be considered more precise than an integer,
+/// > unless the float is greater/less than +/-9007199254740992.0 respectively, at which point all
+/// > the significant figures of the float are to the left of the decimal point. This behavior
+/// > exists so that the comparison of large numbers remains transitive.
+/// >
+/// > The collection types are compared using the following rules:
+/// >
+/// > * Tuples are compared by size, then element by element.
+/// > * Maps are compared by size, then by keys in ascending term order, then by values in key
+/// >   order.   In the specific case of maps' key ordering, integers are always considered to be
+/// >   less than floats.
+/// > * Lists are compared element by element.
+/// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+/// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+impl PartialOrd for Term {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        // in ascending order
+        match (self.tag(), other.tag()) {
+            (Arity, Arity) | (HeapBinary, HeapBinary) => self.tagged.partial_cmp(&other.tagged),
+            (SmallInteger, SmallInteger) => {
+                if self.tagged == other.tagged {
+                    Some(Equal)
                 } else {
-                    Ok(term_isize as usize)
+                    let self_isize: isize = unsafe { self.small_integer_to_isize() };
+                    let other_isize: isize = unsafe { other.small_integer_to_isize() };
+
+                    self_isize.partial_cmp(&other_isize)
                 }
             }
-            _ => Err(bad_argument!(&mut process)),
+            (SmallInteger, Boxed) => {
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match other_unboxed.tag() {
+                    BigInteger => {
+                        let self_big_int: BigInt = unsafe { self.small_integer_to_isize() }.into();
+
+                        let other_big_integer: &big::Integer = other.unbox_reference();
+                        let other_big_int = &other_big_integer.inner;
+
+                        self_big_int.partial_cmp(other_big_int)
+                    }
+                    other_unboxed_tag => {
+                        unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag)
+                    }
+                }
+            }
+            (SmallInteger, Atom) => Some(Less),
+            (SmallInteger, List) => Some(Less),
+            (Atom, SmallInteger) => Some(Greater),
+            (Atom, Atom) => {
+                if self.tagged == other.tagged {
+                    Some(Equal)
+                } else {
+                    // TODO ordinal optimization
+                    let self_name = unsafe { self.atom_to_string() };
+                    let other_name = unsafe { other.atom_to_string() };
+
+                    self_name.partial_cmp(&other_name)
+                }
+            }
+            (Atom, Boxed) => {
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match other_unboxed.tag() {
+                    Arity => Some(Less),
+                    Subbinary => Some(Less),
+                    other_unboxed_tag => unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag),
+                }
+            }
+            (Boxed, SmallInteger) => {
+                let self_unboxed: &Term = self.unbox_reference();
+
+                match self_unboxed.tag() {
+                    BigInteger => {
+                        let self_big_integer: &big::Integer = self.unbox_reference();
+                        let self_big_int = &self_big_integer.inner;
+
+                        let other_big_int: BigInt =
+                            unsafe { other.small_integer_to_isize() }.into();
+
+                        self_big_int.partial_cmp(&other_big_int)
+                    }
+                    Subbinary => Some(Greater),
+                    self_unboxed_tag => {
+                        unimplemented!("unboxed {:?} cmp SmallInteger", self_unboxed_tag)
+                    }
+                }
+            }
+            (Boxed, Atom) => {
+                let self_unboxed: &Term = self.unbox_reference();
+
+                match self_unboxed.tag() {
+                    Arity => Some(Greater),
+                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag),
+                }
+            }
+            (Boxed, Boxed) => {
+                let self_unboxed: &Term = self.unbox_reference();
+                let other_unboxed: &Term = other.unbox_reference();
+
+                // in ascending order
+                match (self_unboxed.tag(), other_unboxed.tag()) {
+                    (BigInteger, BigInteger) => {
+                        let self_big_integer: &big::Integer = self.unbox_reference();
+                        let other_big_integer: &big::Integer = other.unbox_reference();
+
+                        self_big_integer.inner.partial_cmp(&other_big_integer.inner)
+                    }
+                    (Float, Float) => {
+                        let self_float: &Float = self.unbox_reference();
+                        let self_inner = self_float.inner;
+
+                        let other_float: &Float = other.unbox_reference();
+                        let other_inner = other_float.inner;
+
+                        // Erlang doesn't support the floats that can't be compared
+                        self_inner.partial_cmp(&other_inner)
+                    }
+                    (LocalReference, LocalReference) => {
+                        let self_local_reference: &local::Reference = self.unbox_reference();
+                        let other_local_reference: &local::Reference = other.unbox_reference();
+
+                        self_local_reference
+                            .number
+                            .partial_cmp(&other_local_reference.number)
+                    }
+                    (ExternalPid, ExternalPid) => {
+                        let self_external_pid: &process::identifier::External =
+                            self.unbox_reference();
+                        let other_external_pid: &process::identifier::External =
+                            other.unbox_reference();
+
+                        self_external_pid.partial_cmp(other_external_pid)
+                    }
+                    (Arity, Arity) => {
+                        let self_tuple: &Tuple = self.unbox_reference();
+                        let other_tuple: &Tuple = other.unbox_reference();
+
+                        self_tuple.partial_cmp(other_tuple)
+                    }
+                    (Arity, Float) => Some(Greater),
+                    (Map, Map) => {
+                        let self_map: &Map = self.unbox_reference();
+                        let other_map: &Map = other.unbox_reference();
+
+                        self_map.partial_cmp(other_map)
+                    }
+                    (HeapBinary, HeapBinary) => {
+                        let self_binary: &heap::Binary = self.unbox_reference();
+                        let other_binary: &heap::Binary = other.unbox_reference();
+
+                        self_binary.partial_cmp(other_binary)
+                    }
+                    (Subbinary, HeapBinary) => {
+                        let self_subbinary: &sub::Binary = self.unbox_reference();
+                        let other_heap_binary: &heap::Binary = other.unbox_reference();
+
+                        self_subbinary.partial_cmp(other_heap_binary)
+                    }
+                    (Subbinary, Subbinary) => {
+                        let self_subbinary: &sub::Binary = self.unbox_reference();
+                        let other_subbinary: &sub::Binary = other.unbox_reference();
+
+                        self_subbinary.partial_cmp(other_subbinary)
+                    }
+                    (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
+                        "unboxed {:?} cmp unboxed {:?}",
+                        self_unboxed_tag,
+                        other_unboxed_tag
+                    ),
+                }
+            }
+            (Boxed, EmptyList) | (Boxed, List) => {
+                let self_unboxed: &Term = self.unbox_reference();
+
+                match self_unboxed.tag() {
+                    Arity => Some(Less),
+                    HeapBinary => Some(Greater),
+                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag),
+                }
+            }
+            (LocalPid, LocalPid) => self.tagged.partial_cmp(&other.tagged),
+            (EmptyList, Boxed) | (List, Boxed) => {
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match other_unboxed.tag() {
+                    Arity => Some(Greater),
+                    HeapBinary => Some(Less),
+                    other_unboxed_tag => {
+                        unimplemented!("list() cmp unboxed {:?}", other_unboxed_tag)
+                    }
+                }
+            }
+            (EmptyList, EmptyList) => Some(Equal),
+            (EmptyList, List) => {
+                // Empty list is shorter than all lists, so it is lesser.
+                Some(Less)
+            }
+            (List, SmallInteger) => Some(Greater),
+            (List, Atom) => Some(Greater),
+            (List, EmptyList) => {
+                // Any list is longer than empty list
+                Some(Greater)
+            }
+            (List, List) => {
+                let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+                let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
+
+                self_cons.partial_cmp(other_cons)
+            }
+            (self_tag, other_tag) => unimplemented!("{:?} cmp {:?}", self_tag, other_tag),
         }
     }
 }
 
-impl TryFromInProcess<Term> for &'static Cons {
-    fn try_from_in_process(
-        term: Term,
-        mut process: &mut Process,
-    ) -> Result<&'static Cons, Exception> {
-        match term.tag() {
-            List => Ok(unsafe { term.as_ref_cons_unchecked() }),
-            _ => Err(bad_argument!(&mut process)),
-        }
-    }
-}
+impl TryFrom<Term> for BigInt {
+    type Error = Exception;
 
-impl TryFromInProcess<Term> for BigInt {
-    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<BigInt, Exception> {
+    fn try_from(term: Term) -> Result<BigInt, Exception> {
         match term.tag() {
             SmallInteger => {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
@@ -1037,10 +1138,121 @@ impl TryFromInProcess<Term> for BigInt {
 
                         Ok(big_integer.inner.clone())
                     }
-                    _ => Err(bad_argument!(&mut process)),
+                    _ => Err(bad_argument!()),
                 }
             }
-            _ => Err(bad_argument!(&mut process)),
+            _ => Err(bad_argument!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for char {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<char, Exception> {
+        let term_u32: u32 = term.try_into()?;
+
+        match std::char::from_u32(term_u32) {
+            Some(c) => Ok(c),
+            None => Err(bad_argument!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for isize {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<isize, Exception> {
+        match term.tag() {
+            SmallInteger => {
+                let term_isize = unsafe { term.small_integer_to_isize() };
+
+                Ok(term_isize)
+            }
+            _ => Err(bad_argument!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for u32 {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<u32, Exception> {
+        match term.tag() {
+            SmallInteger => {
+                let term_isize = unsafe { term.small_integer_to_isize() };
+
+                term_isize.try_into().map_err(|_| bad_argument!())
+            }
+            Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger => {
+                        let big_integer: &big::Integer = term.unbox_reference();
+
+                        // does not implement `to_u32` directly
+                        match big_integer.inner.to_u64() {
+                            Some(term_u64) => term_u64.try_into().map_err(|_| bad_argument!()),
+                            None => Err(bad_argument!()),
+                        }
+                    }
+                    _ => Err(bad_argument!()),
+                }
+            }
+            _ => Err(bad_argument!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for u64 {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<u64, Exception> {
+        match term.tag() {
+            Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    LocalReference => {
+                        let local_reference: &local::Reference = term.unbox_reference();
+
+                        Ok(local_reference.number)
+                    }
+                    _ => Err(bad_argument!()),
+                }
+            }
+            _ => Err(bad_argument!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for usize {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<usize, Exception> {
+        match term.tag() {
+            SmallInteger => {
+                let term_isize = unsafe { term.small_integer_to_isize() };
+
+                if term_isize < 0 {
+                    Err(bad_argument!())
+                } else {
+                    Ok(term_isize as usize)
+                }
+            }
+            _ => Err(bad_argument!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for &'static Cons {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<&'static Cons, Exception> {
+        match term.tag() {
+            List => Ok(unsafe { term.as_ref_cons_unchecked() }),
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -1066,7 +1278,7 @@ impl TryFromInProcess<Term> for &'static Map {
             _ => None,
         }
         .ok_or_else(|| {
-            let badmap = Term::str_to_atom("badmap", DoNotCare, &mut process).unwrap();
+            let badmap = Term::str_to_atom("badmap", DoNotCare).unwrap();
             let reason = Term::slice_to_tuple(&[badmap, term], &mut process);
 
             error!(reason)
@@ -1074,8 +1286,10 @@ impl TryFromInProcess<Term> for &'static Map {
     }
 }
 
-impl TryFromInProcess<Term> for String {
-    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<String, Exception> {
+impl TryFrom<Term> for String {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<String, Exception> {
         match term.tag() {
             Boxed => {
                 let unboxed: &Term = term.unbox_reference();
@@ -1084,18 +1298,18 @@ impl TryFromInProcess<Term> for String {
                     HeapBinary => {
                         let heap_binary: &heap::Binary = term.unbox_reference();
 
-                        heap_binary.try_into_in_process(&mut process)
+                        heap_binary.try_into()
                     }
                     Subbinary => {
                         let subbinary: &sub::Binary = term.unbox_reference();
 
-                        subbinary.try_into_in_process(&mut process)
+                        subbinary.try_into()
                     }
                     // TODO ReferenceCountedBinary
-                    _ => Err(bad_argument!(&mut process)),
+                    _ => Err(bad_argument!()),
                 }
             }
-            _ => Err(bad_argument!(&mut process)),
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -1109,17 +1323,16 @@ impl TryFromInProcess<Term> for &'static Tuple {
             Boxed => term
                 .unbox_reference::<Term>()
                 .try_into_in_process(&mut process),
-            _ => Err(bad_argument!(&mut process)),
+            _ => Err(bad_argument!()),
         }
     }
 }
 
-impl TryFromInProcess<&Term> for BigInt {
-    fn try_from_in_process(
-        term_ref: &Term,
-        mut process: &mut Process,
-    ) -> Result<BigInt, Exception> {
-        (*term_ref).try_into_in_process(&mut process)
+impl TryFrom<&Term> for BigInt {
+    type Error = Exception;
+
+    fn try_from(term_ref: &Term) -> Result<BigInt, Exception> {
+        (*term_ref).try_into()
     }
 }
 
@@ -1136,242 +1349,7 @@ impl<'a> TryFromInProcess<&'a Term> for &'a Tuple {
             Boxed => term
                 .unbox_reference::<Term>()
                 .try_into_in_process(&mut process),
-            _ => Err(bad_argument!(&mut process)),
-        }
-    }
-}
-
-/// All terms in Erlang and Elixir are completely ordered.
-///
-/// number < atom < reference < function < port < pid < tuple < map < list < bitstring
-///
-/// > When comparing two numbers of different types (a number being either an integer or a float), a
-/// > conversion to the type with greater precision will always occur, unless the comparison
-/// > operator used is either === or !==. A float will be considered more precise than an integer,
-/// > unless the float is greater/less than +/-9007199254740992.0 respectively, at which point all
-/// > the significant figures of the float are to the left of the decimal point. This behavior
-/// > exists so that the comparison of large numbers remains transitive.
-/// >
-/// > The collection types are compared using the following rules:
-/// >
-/// > * Tuples are compared by size, then element by element.
-/// > * Maps are compared by size, then by keys in ascending term order, then by values in key
-/// >   order.   In the specific case of maps' key ordering, integers are always considered to be
-/// >   less than floats.
-/// > * Lists are compared element by element.
-/// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-/// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-impl OrderInProcess for Term {
-    fn cmp_in_process(&self, other: &Self, process: &Process) -> Ordering {
-        // in ascending order
-        match (self.tag(), other.tag()) {
-            (Arity, Arity) | (HeapBinary, HeapBinary) => self.tagged.cmp(&other.tagged),
-            (SmallInteger, SmallInteger) => {
-                if self.tagged == other.tagged {
-                    Ordering::Equal
-                } else {
-                    let self_isize: isize = self.try_into().unwrap();
-                    let other_isize: isize = other.try_into().unwrap();
-                    self_isize.cmp(&other_isize)
-                }
-            }
-            (SmallInteger, Boxed) => {
-                let other_unboxed: &Term = other.unbox_reference();
-
-                match other_unboxed.tag() {
-                    BigInteger => {
-                        let self_big_int: BigInt = unsafe { self.small_integer_to_isize() }.into();
-
-                        let other_big_integer: &big::Integer = other.unbox_reference();
-                        let other_big_int = &other_big_integer.inner;
-
-                        self_big_int.cmp(other_big_int)
-                    }
-                    other_unboxed_tag => {
-                        unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag)
-                    }
-                }
-            }
-            (SmallInteger, Atom) => Ordering::Less,
-            (SmallInteger, List) => Ordering::Less,
-            (Atom, SmallInteger) => Ordering::Greater,
-            (Atom, Atom) => {
-                if self.tagged == other.tagged {
-                    Ordering::Equal
-                } else {
-                    let self_name = self.atom_to_string(process);
-                    let other_name = other.atom_to_string(process);
-
-                    self_name.cmp(&other_name)
-                }
-            }
-            (Atom, Boxed) => {
-                let other_unboxed: &Term = other.unbox_reference();
-
-                match other_unboxed.tag() {
-                    Arity => Ordering::Less,
-                    Subbinary => Ordering::Less,
-                    other_unboxed_tag => unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag),
-                }
-            }
-            (Boxed, SmallInteger) => {
-                let self_unboxed: &Term = self.unbox_reference();
-
-                match self_unboxed.tag() {
-                    BigInteger => {
-                        let self_big_integer: &big::Integer = self.unbox_reference();
-                        let self_big_int = &self_big_integer.inner;
-
-                        let other_big_int: BigInt =
-                            unsafe { other.small_integer_to_isize() }.into();
-
-                        self_big_int.cmp(&other_big_int)
-                    }
-                    Subbinary => Ordering::Greater,
-                    self_unboxed_tag => {
-                        unimplemented!("unboxed {:?} cmp SmallInteger", self_unboxed_tag)
-                    }
-                }
-            }
-            (Boxed, Atom) => {
-                let self_unboxed: &Term = self.unbox_reference();
-
-                match self_unboxed.tag() {
-                    Arity => Ordering::Greater,
-                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag),
-                }
-            }
-            (Boxed, Boxed) => {
-                let self_unboxed: &Term = self.unbox_reference();
-                let other_unboxed: &Term = other.unbox_reference();
-
-                // in ascending order
-                match (self_unboxed.tag(), other_unboxed.tag()) {
-                    (BigInteger, BigInteger) => {
-                        let self_big_integer: &big::Integer = self.unbox_reference();
-                        let other_big_integer: &big::Integer = other.unbox_reference();
-
-                        self_big_integer.inner.cmp(&other_big_integer.inner)
-                    }
-                    (Float, Float) => {
-                        let self_float: &Float = self.unbox_reference();
-                        let self_inner = self_float.inner;
-
-                        let other_float: &Float = other.unbox_reference();
-                        let other_inner = other_float.inner;
-
-                        // Erlang doesn't support the floats that can't be compared
-                        self_inner.partial_cmp(&other_inner).unwrap_or_else(|| {
-                            panic!(
-                                "Comparing these floats ({} and {}) is not supported",
-                                self_inner, other_inner
-                            )
-                        })
-                    }
-                    (LocalReference, LocalReference) => {
-                        let self_local_reference: &local::Reference = self.unbox_reference();
-                        let other_local_reference: &local::Reference = other.unbox_reference();
-
-                        self_local_reference
-                            .number
-                            .cmp(&other_local_reference.number)
-                    }
-                    (ExternalPid, ExternalPid) => {
-                        let self_external_pid: &process::identifier::External =
-                            self.unbox_reference();
-                        let other_external_pid: &process::identifier::External =
-                            other.unbox_reference();
-
-                        self_external_pid.cmp_in_process(other_external_pid, process)
-                    }
-                    (Arity, Arity) => {
-                        let self_tuple: &Tuple = self.unbox_reference();
-                        let other_tuple: &Tuple = other.unbox_reference();
-
-                        self_tuple.cmp_in_process(other_tuple, process)
-                    }
-                    (Arity, Float) => Ordering::Greater,
-                    (Map, Map) => {
-                        let self_map: &Map = self.unbox_reference();
-                        let other_map: &Map = other.unbox_reference();
-
-                        self_map.cmp_in_process(other_map, process)
-                    }
-                    (HeapBinary, HeapBinary) => {
-                        let self_binary: &heap::Binary = self.unbox_reference();
-                        let other_binary: &heap::Binary = other.unbox_reference();
-
-                        self_binary.cmp_in_process(other_binary, process)
-                    }
-                    (Subbinary, HeapBinary) => {
-                        let self_subbinary: &sub::Binary = self.unbox_reference();
-                        let other_heap_binary: &heap::Binary = other.unbox_reference();
-
-                        self_subbinary.cmp_in_process(other_heap_binary, process)
-                    }
-                    (Subbinary, Subbinary) => {
-                        let self_subbinary: &sub::Binary = self.unbox_reference();
-                        let other_subbinary: &sub::Binary = other.unbox_reference();
-
-                        self_subbinary.cmp_in_process(other_subbinary, process)
-                    }
-                    (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
-                        "unboxed {:?} cmp unboxed {:?}",
-                        self_unboxed_tag,
-                        other_unboxed_tag
-                    ),
-                }
-            }
-            (Boxed, EmptyList) | (Boxed, List) => {
-                let self_unboxed: &Term = self.unbox_reference();
-
-                match self_unboxed.tag() {
-                    Arity => Ordering::Less,
-                    HeapBinary => Ordering::Greater,
-                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag),
-                }
-            }
-            (LocalPid, LocalPid) => self.tagged.cmp(&other.tagged),
-            (EmptyList, Boxed) | (List, Boxed) => {
-                let other_unboxed: &Term = other.unbox_reference();
-
-                match other_unboxed.tag() {
-                    Arity => Ordering::Greater,
-                    HeapBinary => Ordering::Less,
-                    other_unboxed_tag => {
-                        unimplemented!("list() cmp unboxed {:?}", other_unboxed_tag)
-                    }
-                }
-            }
-            (EmptyList, EmptyList) => Ordering::Equal,
-            (EmptyList, List) => {
-                // Empty list is shorter than all lists, so it is lesser.
-                Ordering::Less
-            }
-            (List, SmallInteger) => Ordering::Greater,
-            (List, Atom) => Ordering::Greater,
-            (List, EmptyList) => {
-                // Any list is longer than empty list
-                Ordering::Greater
-            }
-            (List, List) => {
-                let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
-                let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
-
-                self_cons.cmp_in_process(other_cons, process)
-            }
-            (self_tag, other_tag) => unimplemented!("{:?} cmp {:?}", self_tag, other_tag),
-        }
-    }
-}
-
-impl OrderInProcess for Option<Term> {
-    fn cmp_in_process(&self, other: &Option<Term>, process: &Process) -> Ordering {
-        match (self, other) {
-            (None, Some(_)) => Ordering::Less,
-            (None, None) => Ordering::Equal,
-            (Some(self_term), Some(other_term)) => self_term.cmp_in_process(other_term, process),
-            (Some(_), None) => Ordering::Greater,
+            _ => Err(bad_argument!()),
         }
     }
 }
@@ -1396,10 +1374,10 @@ mod tests {
                 let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
                 let mut process = process_rw_lock.write().unwrap();
                 let number_term: Term = 0.into_process(&mut process);
-                let atom_term = Term::str_to_atom("0", DoNotCare, &mut process).unwrap();
+                let atom_term = Term::str_to_atom("0", DoNotCare).unwrap();
 
-                assert_cmp_in_process!(number_term, Ordering::Less, atom_term, process);
-                refute_cmp_in_process!(atom_term, Ordering::Less, number_term, process);
+                assert!(number_term < atom_term);
+                assert!(!(atom_term < number_term));
             }
 
             #[test]
@@ -1407,31 +1385,27 @@ mod tests {
                 let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
                 let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
                 let mut process = process_rw_lock.write().unwrap();
-                let atom_term = Term::str_to_atom("0", DoNotCare, &mut process).unwrap();
+                let atom_term = Term::str_to_atom("0", DoNotCare).unwrap();
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
 
-                assert_cmp_in_process!(atom_term, Ordering::Less, tuple_term, process);
-                refute_cmp_in_process!(tuple_term, Ordering::Less, atom_term, process);
+                assert!(atom_term < tuple_term);
+                assert!(!(tuple_term < atom_term));
             }
 
             #[test]
             fn atom_is_less_than_atom_if_name_is_less_than() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let greater_name = "b";
-                let greater_term =
-                    Term::str_to_atom(greater_name, DoNotCare, &mut process).unwrap();
-                let lesser_name = "a";
-                let lesser_term = Term::str_to_atom(lesser_name, DoNotCare, &mut process).unwrap();
+                let greater_name = "bbbbbbbbbbb";
+                let greater_term = Term::str_to_atom(greater_name, DoNotCare).unwrap();
+                let lesser_name = "aaaaaaaaaa";
+                let lesser_term = Term::str_to_atom(lesser_name, DoNotCare).unwrap();
 
                 assert!(lesser_name < greater_name);
-                assert_cmp_in_process!(lesser_term, Ordering::Less, greater_term, process);
+                assert!(lesser_term < greater_term);
                 // it isn't just comparing the atom index
                 assert!(!(lesser_term.tagged < greater_term.tagged));
 
                 assert!(!(greater_name < lesser_name));
-                refute_cmp_in_process!(greater_term, Ordering::Less, lesser_term, process);
+                assert!(!(greater_term < lesser_term));
                 assert!(greater_term.tagged < lesser_term.tagged);
             }
 
@@ -1444,8 +1418,8 @@ mod tests {
                 let longer_tuple =
                     Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
 
-                assert_cmp_in_process!(shorter_tuple, Ordering::Less, longer_tuple, process);
-                refute_cmp_in_process!(longer_tuple, Ordering::Less, shorter_tuple, process);
+                assert!(shorter_tuple < longer_tuple);
+                assert!(!(longer_tuple < shorter_tuple));
             }
 
             #[test]
@@ -1458,8 +1432,8 @@ mod tests {
                 let greater_tuple =
                     Term::slice_to_tuple(&[1.into_process(&mut process)], &mut process);
 
-                assert_cmp_in_process!(lesser_tuple, Ordering::Less, greater_tuple, process);
-                refute_cmp_in_process!(greater_tuple, Ordering::Less, lesser_tuple, process);
+                assert!(lesser_tuple < greater_tuple);
+                assert!(!(greater_tuple < lesser_tuple));
             }
 
             #[test]
@@ -1470,8 +1444,8 @@ mod tests {
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
                 let empty_list_term = Term::EMPTY_LIST;
 
-                assert_cmp_in_process!(tuple_term, Ordering::Less, empty_list_term, process);
-                refute_cmp_in_process!(empty_list_term, Ordering::Less, tuple_term, process);
+                assert!(tuple_term < empty_list_term);
+                assert!(!(empty_list_term < tuple_term));
             }
 
             #[test]
@@ -1482,8 +1456,8 @@ mod tests {
                 let tuple_term = Term::slice_to_tuple(&[], &mut process);
                 let list_term = list_term(&mut process);
 
-                assert_cmp_in_process!(tuple_term, Ordering::Less, list_term, process);
-                refute_cmp_in_process!(list_term, Ordering::Less, tuple_term, process);
+                assert!(tuple_term < list_term);
+                assert!(!(list_term < tuple_term));
             }
         }
 
@@ -1511,9 +1485,9 @@ mod tests {
                     &mut process,
                 );
 
-                assert_eq_in_process!(list_term, list_term, process);
-                assert_eq_in_process!(equal_list_term, equal_list_term, process);
-                assert_ne_in_process!(list_term, unequal_list_term, process);
+                assert_eq!(list_term, list_term);
+                assert_eq!(equal_list_term, equal_list_term);
+                assert_ne!(list_term, unequal_list_term);
             }
 
             #[test]
@@ -1528,9 +1502,9 @@ mod tests {
                 let unequal_list_term =
                     Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process);
 
-                assert_eq_in_process!(list_term, list_term, process);
-                assert_eq_in_process!(list_term, equal_list_term, process);
-                assert_ne_in_process!(list_term, unequal_list_term, process);
+                assert_eq!(list_term, list_term);
+                assert_eq!(list_term, equal_list_term);
+                assert_ne!(list_term, unequal_list_term);
             }
 
             #[test]
@@ -1554,9 +1528,9 @@ mod tests {
                     &mut process,
                 );
 
-                assert_eq_in_process!(list_term, list_term, process);
-                assert_eq_in_process!(list_term, equal_list_term, process);
-                assert_ne_in_process!(list_term, unequal_list_term, process);
+                assert_eq!(list_term, list_term);
+                assert_eq!(list_term, equal_list_term);
+                assert_ne!(list_term, unequal_list_term);
             }
 
             #[test]
@@ -1586,10 +1560,10 @@ mod tests {
                     &mut process,
                 );
 
-                assert_eq_in_process!(list_term, list_term, process);
-                assert_eq_in_process!(list_term, equal_list_term, process);
-                assert_ne_in_process!(list_term, shorter_list_term, process);
-                assert_ne_in_process!(list_term, longer_list_term, process);
+                assert_eq!(list_term, list_term);
+                assert_eq!(list_term, equal_list_term);
+                assert_ne!(list_term, shorter_list_term);
+                assert_ne!(list_term, longer_list_term);
             }
 
             #[test]
@@ -1606,9 +1580,9 @@ mod tests {
                     &mut process,
                 );
 
-                assert_eq_in_process!(tuple_term, tuple_term, process);
-                assert_eq_in_process!(tuple_term, equal_term, process);
-                assert_ne_in_process!(tuple_term, unequal_term, process);
+                assert_eq!(tuple_term, tuple_term);
+                assert_eq!(tuple_term, equal_term);
+                assert_ne!(tuple_term, unequal_term);
             }
 
             #[test]
@@ -1621,10 +1595,10 @@ mod tests {
                 let shorter_heap_binary_term = Term::slice_to_binary(&[0], &mut process);
                 let longer_heap_binary_term = Term::slice_to_binary(&[0, 1, 2], &mut process);
 
-                assert_eq_in_process!(heap_binary_term, heap_binary_term, process);
-                assert_eq_in_process!(heap_binary_term, equal_heap_binary_term, process);
-                assert_ne_in_process!(heap_binary_term, shorter_heap_binary_term, process);
-                assert_ne_in_process!(heap_binary_term, longer_heap_binary_term, process);
+                assert_eq!(heap_binary_term, heap_binary_term);
+                assert_eq!(heap_binary_term, equal_heap_binary_term);
+                assert_ne!(heap_binary_term, shorter_heap_binary_term);
+                assert_ne!(heap_binary_term, longer_heap_binary_term);
             }
         }
     }
@@ -1638,10 +1612,7 @@ mod tests {
 
         #[test]
         fn with_atom_is_false() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let atom_term = Term::str_to_atom("atom", DoNotCare, &mut process).unwrap();
+            let atom_term = Term::str_to_atom("atom", DoNotCare).unwrap();
 
             assert_eq!(atom_term.is_empty_list(), false);
         }
@@ -1656,7 +1627,7 @@ mod tests {
             let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
             let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
             let mut process = process_rw_lock.write().unwrap();
-            let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
+            let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
             let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
 
             assert_eq!(list_term.is_empty_list(), false);
@@ -1707,10 +1678,10 @@ mod tests {
             let mut process = process_rw_lock.write().unwrap();
 
             let original = Term::local_reference(&mut process);
-            let original_u64: u64 = original.try_into_in_process(&mut process).unwrap();
+            let original_u64: u64 = original.try_into().unwrap();
             let from_u64 = Term::u64_to_local_reference(original_u64, &mut process);
 
-            assert_eq_in_process!(original, from_u64, process);
+            assert_eq!(original, from_u64);
         }
     }
 
@@ -1718,8 +1689,8 @@ mod tests {
         signed_size.into_process(&mut process)
     }
 
-    fn list_term(mut process: &mut Process) -> Term {
-        let head_term = Term::str_to_atom("head", DoNotCare, &mut process).unwrap();
+    fn list_term(process: &mut Process) -> Term {
+        let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
         Term::cons(head_term, Term::EMPTY_LIST, process)
     }
 

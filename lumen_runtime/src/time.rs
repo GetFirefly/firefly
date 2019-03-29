@@ -1,11 +1,12 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
+use std::convert::{TryFrom, TryInto};
+
 use num_bigint::BigInt;
 use num_traits::Zero;
 
 use crate::exception::Exception;
 use crate::integer::big;
-use crate::process::{Process, TryFromInProcess, TryIntoInProcess};
 use crate::term::{Tag::*, Term};
 
 pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
@@ -59,11 +60,13 @@ impl Unit {
     }
 }
 
-impl TryFromInProcess<Term> for Unit {
-    fn try_from_in_process(term: Term, mut process: &mut Process) -> Result<Unit, Exception> {
+impl TryFrom<Term> for Unit {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<Unit, Exception> {
         match term.tag() {
             SmallInteger => {
-                let hertz: usize = term.try_into_in_process(&mut process)?;
+                let hertz: usize = term.try_into()?;
 
                 Ok(Unit::Hertz(hertz))
             }
@@ -73,17 +76,16 @@ impl TryFromInProcess<Term> for Unit {
                 match unboxed.tag() {
                     BigInteger => {
                         let big_integer: &big::Integer = term.unbox_reference();
-                        let big_integer_usize: usize =
-                            big_integer.try_into_in_process(&mut process)?;
+                        let big_integer_usize: usize = big_integer.try_into()?;
 
                         Ok(Unit::Hertz(big_integer_usize))
                     }
-                    _ => Err(bad_argument!(&mut process)),
+                    _ => Err(bad_argument!()),
                 }
             }
             Atom => {
-                let term_string = term.atom_to_string(process);
-                let mut result = Err(bad_argument!(&mut process));
+                let term_string = unsafe { term.atom_to_string() };
+                let mut result = Err(bad_argument!());
 
                 for (s, unit) in [
                     ("second", Unit::Second),
@@ -99,7 +101,7 @@ impl TryFromInProcess<Term> for Unit {
                 ]
                 .iter()
                 {
-                    if term_string == *s {
+                    if term_string.as_ref() == s {
                         result = Ok(*unit);
                         break;
                     }
@@ -107,7 +109,7 @@ impl TryFromInProcess<Term> for Unit {
 
                 result
             }
-            _ => Err(bad_argument!(&mut process)),
+            _ => Err(bad_argument!()),
         }
     }
 }

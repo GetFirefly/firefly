@@ -30,6 +30,7 @@ mod delete_element_2;
 mod element_2;
 mod error_1;
 mod error_2;
+mod exit_1;
 mod hd_1;
 mod insert_element_3;
 mod is_atom_1;

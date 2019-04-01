@@ -19,7 +19,7 @@ fn with_atom_errors_with_atom_reason() {
         &mut process,
     );
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments,);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -30,7 +30,7 @@ fn with_list_reference_errors_with_list_reference_reason() {
     let reason = Term::local_reference(&mut process);
     let arguments = Term::EMPTY_LIST;
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn with_empty_list_errors_with_empty_list_reason() {
     let reason = Term::EMPTY_LIST;
     let arguments = Term::EMPTY_LIST;
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -49,7 +49,7 @@ fn with_list_errors_with_list_reason() {
     let reason = list_term(&mut process);
     let arguments = Term::cons(list_term(&mut process), Term::EMPTY_LIST, &mut process);
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn with_small_integer_errors_with_small_integer_reason() {
     let reason = 0usize.into_process(&mut process);
     let arguments = Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process);
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn with_big_integer_errors_with_big_integer_reason() {
         &mut process,
     );
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn with_float_errors_with_float_reason() {
         &mut process,
     );
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn with_local_pid_errors_with_local_pid_reason() {
         &mut process,
     );
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn with_external_pid_errors_with_external_pid_reason() {
         &mut process,
     );
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn with_tuple_errors_with_tuple_reason() {
         &mut process,
     );
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -166,7 +166,7 @@ fn with_map_errors_with_map_reason() {
         &mut process,
     );
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -181,7 +181,7 @@ fn with_heap_binary_errors_with_heap_binary_reason() {
         &mut process,
     );
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }
 
 #[test]
@@ -199,5 +199,5 @@ fn with_subbinary_errors_with_subbinary_reason() {
     let argument = Term::subbinary(argument_original, 0, 2, 1, 0, &mut process);
     let arguments = Term::cons(argument, Term::EMPTY_LIST, &mut process);
 
-    assert_error!(erlang::error_2(reason, arguments), reason, arguments);
+    assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));
 }

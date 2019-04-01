@@ -97,6 +97,16 @@ macro_rules! assert_exit {
 }
 
 #[macro_export]
+macro_rules! assert_throw {
+    ($left:expr, $reason:expr) => {
+        assert_eq!($left, Err(throw!($reason)))
+    };
+    ($left:expr, $reason:expr,) => {
+        assert_throw($left, $reason)
+    };
+}
+
+#[macro_export]
 macro_rules! bad_argument {
     () => {{
         use crate::atom::Existence::DoNotCare;
@@ -164,6 +174,15 @@ macro_rules! exit {
         use crate::exception::{Class::Exit, Exception};
 
         exception!(Exit, $reason)
+    }};
+}
+
+#[macro_export]
+macro_rules! throw {
+    ($reason:expr) => {{
+        use crate::exception::{Class::Throw, Exception};
+
+        exception!(Throw, $reason)
     }};
 }
 

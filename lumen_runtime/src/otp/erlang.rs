@@ -741,6 +741,10 @@ pub fn subtract_list_2(minuend: Term, subtrahend: Term, mut process: &mut Proces
     }
 }
 
+pub fn throw_1(reason: Term) -> Result {
+    Err(throw!(reason))
+}
+
 pub fn tl_1(list: Term) -> Result {
     let cons: &Cons = list.try_into()?;
 

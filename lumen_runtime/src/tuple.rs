@@ -300,10 +300,6 @@ impl PartialEq for Tuple {
                 .zip(other.iter())
                 .all(|(self_element, other_element)| self_element == other_element)
     }
-
-    fn ne(&self, other: &Tuple) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl PartialOrd for Tuple {

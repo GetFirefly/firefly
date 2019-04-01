@@ -43,10 +43,6 @@ impl PartialEq for Exception {
             & (self.reason == other.reason)
             & (self.arguments == other.arguments)
     }
-
-    fn ne(&self, other: &Exception) -> bool {
-        !self.eq(other)
-    }
 }
 
 pub type Result = std::result::Result<Term, Exception>;

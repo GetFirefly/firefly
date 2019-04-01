@@ -31,8 +31,4 @@ impl PartialEq for Float {
     fn eq(&self, other: &Float) -> bool {
         self.inner == other.inner
     }
-
-    fn ne(&self, other: &Float) -> bool {
-        !self.eq(other)
-    }
 }

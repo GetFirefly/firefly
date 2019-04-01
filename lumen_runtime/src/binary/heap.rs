@@ -222,10 +222,6 @@ impl PartialEq for Binary {
             eq => eq,
         }
     }
-
-    fn ne(&self, other: &Binary) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl PartialEq<sub::Binary> for Binary {
@@ -233,10 +229,6 @@ impl PartialEq<sub::Binary> for Binary {
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
     fn eq(&self, other: &sub::Binary) -> bool {
         (other.bit_count == 0) & self.byte_iter().eq(other.byte_iter())
-    }
-
-    fn ne(&self, other: &sub::Binary) -> bool {
-        !self.eq(other)
     }
 }
 

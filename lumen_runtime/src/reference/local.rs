@@ -36,10 +36,6 @@ impl PartialEq for Reference {
     fn eq(&self, other: &Reference) -> bool {
         self.number == other.number
     }
-
-    fn ne(&self, other: &Reference) -> bool {
-        !self.eq(other)
-    }
 }
 
 // References are always 64-bits even on 32-bit platforms

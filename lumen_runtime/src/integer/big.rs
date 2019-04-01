@@ -35,10 +35,6 @@ impl PartialEq for Integer {
     fn eq(&self, other: &Integer) -> bool {
         self.inner == other.inner
     }
-
-    fn ne(&self, other: &Integer) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl TryFrom<Integer> for usize {

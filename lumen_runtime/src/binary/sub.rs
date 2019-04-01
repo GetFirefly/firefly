@@ -202,10 +202,6 @@ impl PartialEq for Binary {
                 .zip(other.bit_count_iter())
                 .all(|(self_bit, other_bit)| self_bit == other_bit)
     }
-
-    fn ne(&self, other: &Binary) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl ToTerm for Binary {
@@ -357,10 +353,6 @@ impl PartialEq<heap::Binary> for Binary {
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
     fn eq(&self, other: &heap::Binary) -> bool {
         (self.bit_count == 0) & self.byte_iter().eq(other.byte_iter())
-    }
-
-    fn ne(&self, other: &heap::Binary) -> bool {
-        !self.eq(other)
     }
 }
 

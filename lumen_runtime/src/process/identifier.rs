@@ -52,10 +52,6 @@ impl PartialEq for External {
     fn eq(&self, other: &External) -> bool {
         (self.node == other.node) & (self.serial == other.serial) & (self.number == other.number)
     }
-
-    fn ne(&self, other: &External) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl PartialOrd for External {

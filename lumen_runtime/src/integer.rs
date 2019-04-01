@@ -99,10 +99,6 @@ impl PartialEq for Integer {
             (_, _) => unimplemented!(),
         }
     }
-
-    fn ne(&self, other: &Integer) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl PartialOrd for Integer {

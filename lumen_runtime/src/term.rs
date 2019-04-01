@@ -13,7 +13,7 @@ use num_traits::cast::ToPrimitive;
 
 use liblumen_arena::TypedArena;
 
-use crate::atom::{self, Encoding, Existence, Existence::*};
+use crate::atom::{self, Encoding, Existence, Existence::*, Index};
 use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::exception::{self, Exception};
 use crate::float::Float;
@@ -26,14 +26,6 @@ use crate::reference::local;
 use crate::tuple::Tuple;
 
 pub mod external_format;
-
-impl From<&Term> for atom::Index {
-    fn from(term: &Term) -> atom::Index {
-        assert_eq!(term.tag(), Atom);
-
-        atom::Index(term.tagged >> Tag::ATOM_BIT_COUNT)
-    }
-}
 
 #[derive(Debug, PartialEq)]
 // MUST be `repr(u*)` so that size and layout is fixed for direct LLVM IR checking of tags
@@ -214,8 +206,12 @@ impl Term {
         }
     }
 
+    pub unsafe fn atom_to_index(&self) -> Index {
+        Index(self.tagged >> Tag::ATOM_BIT_COUNT)
+    }
+
     pub unsafe fn atom_to_string(&self) -> Arc<String> {
-        atom::index_to_string(self.try_into().unwrap()).unwrap()
+        atom::index_to_string(self.atom_to_index()).unwrap()
     }
 
     pub fn alloc_slice(slice: &[Term], term_arena: &mut TypedArena<Term>) -> *const Term {
@@ -892,10 +888,6 @@ impl PartialEq for Term {
             _ => false,
         }
     }
-
-    fn ne(&self, other: &Term) -> bool {
-        !self.eq(other)
-    }
 }
 
 /// All terms in Erlang and Elixir are completely ordered.
@@ -957,11 +949,10 @@ impl PartialOrd for Term {
                 if self.tagged == other.tagged {
                     Some(Equal)
                 } else {
-                    // TODO ordinal optimization
-                    let self_name = unsafe { self.atom_to_string() };
-                    let other_name = unsafe { other.atom_to_string() };
+                    let self_index = unsafe { self.atom_to_index() };
+                    let other_index = unsafe { other.atom_to_index() };
 
-                    self_name.partial_cmp(&other_name)
+                    self_index.partial_cmp(&other_index)
                 }
             }
             (Atom, Boxed) => {

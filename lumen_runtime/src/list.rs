@@ -280,10 +280,6 @@ impl PartialEq for Cons {
     fn eq(&self, other: &Cons) -> bool {
         self.head == other.head && self.tail == other.tail
     }
-
-    fn ne(&self, other: &Cons) -> bool {
-        !self.eq(other)
-    }
 }
 
 pub trait ToList {

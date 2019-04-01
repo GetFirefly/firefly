@@ -105,10 +105,6 @@ impl PartialEq for Map {
             eq => eq,
         }
     }
-
-    fn ne(&self, other: &Map) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl PartialOrd for Map {

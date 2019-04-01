@@ -1,36 +1,19 @@
-use std::fmt::{self, Debug};
-
 use crate::term::Term;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Class {
-    Error,
+    Error { arguments: Option<Term> },
     Exit,
     Throw,
 }
 
+#[derive(Debug)]
 pub struct Exception {
     pub class: Class,
     pub reason: Term,
-    pub arguments: Option<Term>,
     pub file: &'static str,
     pub line: u32,
     pub column: u32,
-}
-
-// Needed to support `std::result::Result.unwrap`
-impl Debug for Exception {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            formatter,
-            "Exception {{ class: {:?}, reason: Term {{ tagged: {:#b} }}, file: {:?}, line: {:?}, column: {:?} }}",
-            self.class,
-            self.reason.tagged,
-            self.file,
-            self.line,
-            self.column
-        )
-    }
 }
 
 impl Eq for Exception {}
@@ -39,9 +22,7 @@ impl PartialEq for Exception {
     /// `file`, `line`, and `column` don't count for equality as they are for `Debug` only to help
     /// track down exceptions.
     fn eq(&self, other: &Exception) -> bool {
-        (self.class == other.class)
-            & (self.reason == other.reason)
-            & (self.arguments == other.arguments)
+        (self.class == other.class) & (self.reason == other.reason)
     }
 }
 
@@ -106,6 +87,16 @@ macro_rules! assert_error {
 }
 
 #[macro_export]
+macro_rules! assert_exit {
+    ($left:expr, $reason:expr) => {
+        assert_eq!($left, Err(exit!($reason)))
+    };
+    ($left:expr, $reason:expr,) => {
+        assert_exit($left, $reason)
+    };
+}
+
+#[macro_export]
 macro_rules! bad_argument {
     () => {{
         use crate::atom::Existence::DoNotCare;
@@ -134,31 +125,45 @@ macro_rules! bad_map {
 #[macro_export]
 macro_rules! error {
     ($reason:expr) => {{
-        use crate::exception::{Class::Error, Exception};
-
-        Exception {
-            class: Error,
-            reason: $reason,
-            arguments: None,
-            file: file!(),
-            line: line!(),
-            column: column!(),
-        }
+        error!($reason, None)
     }};
     ($reason:expr, $arguments:expr) => {{
         use crate::exception::{Class::Error, Exception};
 
+        exception!(
+            Error {
+                arguments: $arguments
+            },
+            $reason
+        )
+    }};
+    ($reason:expr, $arguments:expr,) => {{
+        error!($reason, $arguments)
+    }};
+}
+
+#[macro_export]
+macro_rules! exception {
+    ($class:expr, $reason:expr) => {{
         Exception {
-            class: Error,
+            class: $class,
             reason: $reason,
-            arguments: Some($arguments),
             file: file!(),
             line: line!(),
             column: column!(),
         }
     }};
-    ($reason:expr, $arguments:expr,) => {{
-        error!($reason, $arguments)
+    ($class:expr, $reason:expr,) => {{
+        exception!($class, $reason)
+    }};
+}
+
+#[macro_export]
+macro_rules! exit {
+    ($reason:expr) => {{
+        use crate::exception::{Class::Exit, Exception};
+
+        exception!(Exit, $reason)
     }};
 }
 
@@ -167,6 +172,7 @@ mod tests {
     use super::*;
 
     mod error {
+        use super::Class::*;
         use super::*;
 
         use crate::atom::Existence::DoNotCare;
@@ -178,7 +184,7 @@ mod tests {
             let error = error!(reason);
 
             assert_eq!(error.reason, reason);
-            assert_eq!(error.arguments, None);
+            assert_eq!(error.class, Error { arguments: None });
         }
 
         #[test]
@@ -186,10 +192,15 @@ mod tests {
             let reason = Term::str_to_atom("badarg", DoNotCare).unwrap();
             let arguments = Term::EMPTY_LIST;
 
-            let error = error!(reason, arguments);
+            let error = error!(reason, Some(arguments));
 
             assert_eq!(error.reason, reason);
-            assert_eq!(error.arguments, Some(arguments));
+            assert_eq!(
+                error.class,
+                Error {
+                    arguments: Some(arguments)
+                }
+            );
         }
     }
 }

@@ -440,7 +440,11 @@ pub fn error_1(reason: Term) -> Result {
 }
 
 pub fn error_2(reason: Term, arguments: Term) -> Result {
-    Err(error!(reason, arguments))
+    Err(error!(reason, Some(arguments)))
+}
+
+pub fn exit_1(reason: Term) -> Result {
+    Err(exit!(reason))
 }
 
 pub fn hd_1(list: Term) -> Result {

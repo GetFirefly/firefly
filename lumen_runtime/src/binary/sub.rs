@@ -348,6 +348,12 @@ impl DoubleEndedIterator for ByteIter {
 
 impl FusedIterator for ByteIter {}
 
+impl Ord for Binary {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
 impl PartialEq<heap::Binary> for Binary {
     /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering

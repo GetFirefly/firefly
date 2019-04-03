@@ -748,6 +748,11 @@ pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
     .map(|integer| integer.into_process(&mut process))
 }
 
+/// `-/2` infix operator
+pub fn subtract_2(minuend: Term, subtrahend: Term, mut process: &mut Process) -> Result {
+    infix_operator!(minuend, subtrahend, process, checked_sub, -)
+}
+
 pub fn subtract_list_2(minuend: Term, subtrahend: Term, mut process: &mut Process) -> Result {
     match (minuend.tag(), subtrahend.tag()) {
         (EmptyList, EmptyList) => Ok(minuend),

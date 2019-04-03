@@ -25,6 +25,28 @@ impl Integer {
 
 impl Eq for Integer {}
 
+impl From<Integer> for f64 {
+    fn from(integer: Integer) -> f64 {
+        (&integer).into()
+    }
+}
+
+impl From<&Integer> for f64 {
+    fn from(integer_ref: &Integer) -> f64 {
+        let big_int = &integer_ref.inner;
+
+        let (sign, bytes) = big_int.to_bytes_be();
+        let unsigned_f64 = bytes
+            .iter()
+            .fold(0_f64, |acc, byte| 256.0 * acc + (*byte as f64));
+
+        match sign {
+            Minus => -1.0 * unsigned_f64,
+            _ => unsigned_f64,
+        }
+    }
+}
+
 impl Hash for Integer {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.inner.hash(state)

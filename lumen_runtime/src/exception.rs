@@ -42,6 +42,16 @@ macro_rules! assert_badarg {
 }
 
 #[macro_export]
+macro_rules! assert_badarith {
+    ($left:expr) => {{
+        use crate::atom::Existence::DoNotCare;
+        use crate::term::Term;
+
+        assert_error!($left, Term::str_to_atom("badarith", DoNotCare).unwrap())
+    }};
+}
+
+#[macro_export]
 macro_rules! assert_badkey {
     ($left:expr, $key:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -126,6 +136,16 @@ macro_rules! bad_argument {
         use crate::term::Term;
 
         error!(Term::str_to_atom("badarg", DoNotCare).unwrap())
+    }};
+}
+
+#[macro_export]
+macro_rules! badarith {
+    () => {{
+        use crate::atom::Existence::DoNotCare;
+        use crate::term::Term;
+
+        error!(Term::str_to_atom("badarith", DoNotCare).unwrap())
     }};
 }
 

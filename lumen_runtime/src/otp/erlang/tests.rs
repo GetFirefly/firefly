@@ -7,6 +7,7 @@ use crate::exception::Result;
 use crate::otp::erlang;
 
 mod abs_1;
+mod add_2;
 mod append_element_2;
 mod atom_to_binary_2;
 mod atom_to_list_1;

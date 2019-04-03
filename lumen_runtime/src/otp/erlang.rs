@@ -83,6 +83,139 @@ pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
     }
 }
 
+/// `+/2` infix operator
+pub fn add_2(augend: Term, addend: Term, mut process: &mut Process) -> Result {
+    match (augend.tag(), addend.tag()) {
+        (SmallInteger, SmallInteger) => {
+            let augend_isize = unsafe { augend.small_integer_to_isize() };
+            let addend_isize = unsafe { addend.small_integer_to_isize() };
+
+            match augend_isize.checked_add(addend_isize) {
+                Some(sum_isize) => Ok(sum_isize.into_process(&mut process)),
+                None => {
+                    let augend_big_int: BigInt = augend_isize.into();
+                    let addend_big_int: BigInt = addend_isize.into();
+
+                    let sum_big_int = augend_big_int + addend_big_int;
+
+                    Ok(sum_big_int.into_process(&mut process))
+                }
+            }
+        }
+        (SmallInteger, Boxed) => {
+            let unboxed_addend: &Term = addend.unbox_reference();
+
+            match unboxed_addend.tag() {
+                BigInteger => {
+                    let augend_isize = unsafe { augend.small_integer_to_isize() };
+                    let augend_big_int: BigInt = augend_isize.into();
+
+                    let addend_big_integer: &big::Integer = addend.unbox_reference();
+                    let addend_big_int = &addend_big_integer.inner;
+
+                    let sum_big_int = augend_big_int + addend_big_int;
+
+                    Ok(sum_big_int.into_process(&mut process))
+                }
+                Float => {
+                    let augend_isize = unsafe { augend.small_integer_to_isize() };
+                    let augend_f64: f64 = augend_isize as f64;
+
+                    let addend_float: &Float = addend.unbox_reference();
+                    let addend_f64 = addend_float.inner;
+
+                    let sum_f64 = augend_f64 + addend_f64;
+
+                    Ok(sum_f64.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        (Boxed, SmallInteger) => {
+            let unboxed_augend: &Term = augend.unbox_reference();
+
+            match unboxed_augend.tag() {
+                BigInteger => {
+                    let augend_big_integer: &big::Integer = augend.unbox_reference();
+                    let augend_big_int = &augend_big_integer.inner;
+
+                    let addend_isize = unsafe { addend.small_integer_to_isize() };
+                    let addend_big_int: BigInt = addend_isize.into();
+
+                    let sum_big_int = augend_big_int + addend_big_int;
+
+                    Ok(sum_big_int.into_process(&mut process))
+                }
+                Float => {
+                    let augend_float: &Float = augend.unbox_reference();
+                    let augend_f64 = augend_float.inner;
+
+                    let addend_isize = unsafe { addend.small_integer_to_isize() };
+                    let addend_f64: f64 = addend_isize as f64;
+
+                    let sum_f64 = augend_f64 + addend_f64;
+
+                    Ok(sum_f64.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        (Boxed, Boxed) => {
+            let unboxed_augend: &Term = augend.unbox_reference();
+            let unboxed_addend: &Term = addend.unbox_reference();
+
+            match (unboxed_augend.tag(), unboxed_addend.tag()) {
+                (BigInteger, BigInteger) => {
+                    let augend_big_integer: &big::Integer = augend.unbox_reference();
+                    let augend_big_int = &augend_big_integer.inner;
+
+                    let addend_big_integer: &big::Integer = addend.unbox_reference();
+                    let addend_big_int = &addend_big_integer.inner;
+
+                    let sum_big_int = augend_big_int + addend_big_int;
+
+                    Ok(sum_big_int.into_process(&mut process))
+                }
+                (BigInteger, Float) => {
+                    let augend_big_integer: &big::Integer = augend.unbox_reference();
+                    let augend_f64: f64 = augend_big_integer.into();
+
+                    let addend_float: &Float = addend.unbox_reference();
+                    let addend_f64 = addend_float.inner;
+
+                    let sum_f64 = augend_f64 + addend_f64;
+
+                    Ok(sum_f64.into_process(&mut process))
+                }
+                (Float, BigInteger) => {
+                    let augend_float: &Float = augend.unbox_reference();
+                    let augend_f64 = augend_float.inner;
+
+                    let addend_big_intger: &big::Integer = addend.unbox_reference();
+                    let addend_f64: f64 = addend_big_intger.into();
+
+                    let sum_f64 = augend_f64 + addend_f64;
+
+                    Ok(sum_f64.into_process(&mut process))
+                }
+                (Float, Float) => {
+                    let augend_float: &Float = augend.unbox_reference();
+                    let augend_f64 = augend_float.inner;
+
+                    let addend_float: &Float = addend.unbox_reference();
+                    let addend_f64 = addend_float.inner;
+
+                    let sum_f64 = augend_f64 + addend_f64;
+
+                    Ok(sum_f64.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        _ => Err(badarith!()),
+    }
+}
+
 pub fn append_element_2(tuple: Term, element: Term, mut process: &mut Process) -> Result {
     let internal: &Tuple = tuple.try_into_in_process(&mut process)?;
     let new_tuple = internal.append_element(element, &mut process.term_arena);

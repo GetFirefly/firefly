@@ -468,6 +468,11 @@ pub fn insert_element_3(
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
+/// Distribution is not supported at this time.  Always returns `false`.
+pub fn is_alive_0() -> Term {
+    false.into()
+}
+
 pub fn is_atom_1(term: Term) -> Term {
     term.is_atom().into()
 }

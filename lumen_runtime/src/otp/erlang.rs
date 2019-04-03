@@ -11,13 +11,14 @@ use num_traits::Zero;
 
 use crate::atom::{Existence, Existence::*};
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
-use crate::exception::Result;
+use crate::exception::{Class, Result};
 use crate::float::Float;
 use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::map::Map;
 use crate::otp;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
+use crate::stacktrace;
 use crate::term::{Tag, Tag::*, Term};
 use crate::time;
 use crate::tuple::{Tuple, ZeroBasedIndex};
@@ -468,7 +469,7 @@ pub fn insert_element_3(
 }
 
 pub fn is_atom_1(term: Term) -> Term {
-    (term.tag() == Atom).into()
+    term.is_atom().into()
 }
 
 pub fn is_binary_1(term: Term) -> Term {
@@ -674,6 +675,16 @@ pub fn map_size_1(map: Term, mut process: &mut Process) -> Result {
     let map_map: &Map = map.try_into_in_process(&mut process)?;
 
     Ok(map_map.size().into_process(&mut process))
+}
+
+pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
+    let class_class: Class = class.try_into()?;
+
+    if stacktrace::is(stacktrace) {
+        Err(raise!(class_class, reason, Some(stacktrace)))
+    } else {
+        Err(bad_argument!())
+    }
 }
 
 pub fn self_0(process: &Process) -> Term {

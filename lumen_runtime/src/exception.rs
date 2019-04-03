@@ -11,6 +11,7 @@ pub enum Class {
 pub struct Exception {
     pub class: Class,
     pub reason: Term,
+    pub stacktrace: Option<Term>,
     pub file: &'static str,
     pub line: u32,
     pub column: u32,
@@ -22,7 +23,9 @@ impl PartialEq for Exception {
     /// `file`, `line`, and `column` don't count for equality as they are for `Debug` only to help
     /// track down exceptions.
     fn eq(&self, other: &Exception) -> bool {
-        (self.class == other.class) & (self.reason == other.reason)
+        (self.class == other.class)
+            & (self.reason == other.reason)
+            & (self.stacktrace == other.stacktrace)
     }
 }
 
@@ -97,6 +100,16 @@ macro_rules! assert_exit {
 }
 
 #[macro_export]
+macro_rules! assert_raises {
+    ($left:expr, $class:expr, $reason:expr, $stacktrace:expr) => {
+        assert_eq!($left, Err(raise!($class, $reason, $stacktrace)))
+    };
+    ($left:expr, $class:expr, $reason:expr, $stacktrace:expr,) => {
+        assert_raises!($left, $class, $reason, $stacktrace)
+    };
+}
+
+#[macro_export]
 macro_rules! assert_throw {
     ($left:expr, $reason:expr) => {
         assert_eq!($left, Err(throw!($reason)))
@@ -138,7 +151,7 @@ macro_rules! error {
         error!($reason, None)
     }};
     ($reason:expr, $arguments:expr) => {{
-        use crate::exception::{Class::Error, Exception};
+        use crate::exception::Class::Error;
 
         exception!(
             Error {
@@ -154,33 +167,52 @@ macro_rules! error {
 
 #[macro_export]
 macro_rules! exception {
-    ($class:expr, $reason:expr) => {{
+    ($class:expr, $reason:expr) => {
+        exception!($class, $reason, None)
+    };
+    ($class:expr, $reason:expr,) => {
+        exception!($class, $reason)
+    };
+    ($class:expr, $reason:expr, $stacktrace:expr) => {{
+        use crate::exception::Exception;
+
         Exception {
             class: $class,
             reason: $reason,
+            stacktrace: $stacktrace,
             file: file!(),
             line: line!(),
             column: column!(),
         }
     }};
-    ($class:expr, $reason:expr,) => {{
-        exception!($class, $reason)
-    }};
+    ($class:expr, $reason:expr, $stacktrace:expr) => {
+        exception!($class, $reason, $stacktrace)
+    };
 }
 
 #[macro_export]
 macro_rules! exit {
     ($reason:expr) => {{
-        use crate::exception::{Class::Exit, Exception};
+        use crate::exception::Class::Exit;
 
         exception!(Exit, $reason)
     }};
 }
 
 #[macro_export]
+macro_rules! raise {
+    ($class:expr, $reason:expr, $stacktrace:expr) => {
+        exception!($class, $reason, $stacktrace)
+    };
+    ($class:expr, $reason:expr, $stacktrace:expr,) => {
+        exception!($class, $reason, $stacktrace)
+    };
+}
+
+#[macro_export]
 macro_rules! throw {
     ($reason:expr) => {{
-        use crate::exception::{Class::Throw, Exception};
+        use crate::exception::Class::Throw;
 
         exception!(Throw, $reason)
     }};

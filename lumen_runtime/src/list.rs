@@ -42,6 +42,13 @@ impl Cons {
         self.into_iter().all(|item| item.is_ok())
     }
 
+    pub fn is_char_list(&self) -> bool {
+        self.into_iter().all(|result| match result {
+            Ok(term) => char::try_from(term).is_ok(),
+            Err(_) => false,
+        })
+    }
+
     pub fn subtract(&self, subtrahend: &Cons, mut process: &mut Process) -> exception::Result {
         match self.into_iter().collect::<Result<Vec<Term>, _>>() {
             Ok(mut self_vec) => {

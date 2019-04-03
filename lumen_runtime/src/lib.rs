@@ -39,6 +39,7 @@ mod logging;
 mod map;
 mod otp;
 mod reference;
+mod stacktrace;
 mod system;
 mod term;
 mod time;

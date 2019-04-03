@@ -15,7 +15,7 @@ use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding, Existence, Existence::*, Index};
 use crate::binary::{self, heap, sub, Part, PartToList};
-use crate::exception::{self, Exception};
+use crate::exception::{self, Class, Exception};
 use crate::float::Float;
 use crate::integer::Integer::{self, Big, Small};
 use crate::integer::{big, small};
@@ -322,8 +322,35 @@ impl Term {
         }
     }
 
+    pub fn is_atom(&self) -> bool {
+        self.tag() == Atom
+    }
+
+    pub fn is_char_list(&self) -> bool {
+        match self.tag() {
+            EmptyList => true,
+            List => {
+                let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+
+                cons.is_char_list()
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_empty_list(&self) -> bool {
         (self.tag() == EmptyList)
+    }
+
+    pub fn is_function(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                unboxed.tag() == Function
+            }
+            _ => false,
+        }
     }
 
     pub fn pid(
@@ -1132,6 +1159,24 @@ impl TryFrom<Term> for BigInt {
                     _ => Err(bad_argument!()),
                 }
             }
+            _ => Err(bad_argument!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for Class {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> std::result::Result<Class, Exception> {
+        use self::Class::*;
+
+        match term.tag() {
+            Atom => match unsafe { term.atom_to_string() }.as_ref().as_ref() {
+                "error" => Ok(Error { arguments: None }),
+                "exit" => Ok(Exit),
+                "throw" => Ok(Throw),
+                _ => Err(bad_argument!()),
+            },
             _ => Err(bad_argument!()),
         }
     }

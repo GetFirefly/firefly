@@ -33,6 +33,7 @@ mod error_2;
 mod exit_1;
 mod hd_1;
 mod insert_element_3;
+mod is_alive_0;
 mod is_atom_1;
 mod is_binary_1;
 mod is_boolean_1;

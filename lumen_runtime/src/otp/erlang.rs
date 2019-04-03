@@ -682,6 +682,10 @@ pub fn map_size_1(map: Term, mut process: &mut Process) -> Result {
     Ok(map_map.size().into_process(&mut process))
 }
 
+pub fn node_0() -> Term {
+    Term::str_to_atom("nonode@nohost", DoNotCare).unwrap()
+}
+
 pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
     let class_class: Class = class.try_into()?;
 

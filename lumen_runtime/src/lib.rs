@@ -26,6 +26,8 @@ mod process;
 #[macro_use]
 mod exception;
 #[macro_use]
+mod number;
+#[macro_use]
 mod support;
 
 mod atom;

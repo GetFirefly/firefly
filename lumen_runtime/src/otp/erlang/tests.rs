@@ -56,6 +56,7 @@ mod list_to_tuple_1;
 mod make_ref_0;
 mod map_get_2;
 mod map_size_1;
+mod multiply_2;
 mod node_0;
 mod raise_3;
 mod self_0;
@@ -72,6 +73,13 @@ where
     F: FnOnce(&mut Process) -> Result,
 {
     with_process(|mut process| assert_badarg!(actual(&mut process)))
+}
+
+fn errors_badarith<F>(actual: F)
+where
+    F: FnOnce(&mut Process) -> Result,
+{
+    with_process(|mut process| assert_badarith!(actual(&mut process)))
 }
 
 fn list_term(process: &mut Process) -> Term {

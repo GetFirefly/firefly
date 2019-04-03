@@ -682,6 +682,139 @@ pub fn map_size_1(map: Term, mut process: &mut Process) -> Result {
     Ok(map_map.size().into_process(&mut process))
 }
 
+/// `*/2` infix operator
+pub fn multiply_2(multiplier: Term, multiplicand: Term, mut process: &mut Process) -> Result {
+    match (multiplier.tag(), multiplicand.tag()) {
+        (SmallInteger, SmallInteger) => {
+            let multiplier_isize = unsafe { multiplier.small_integer_to_isize() };
+            let multiplicand_isize = unsafe { multiplicand.small_integer_to_isize() };
+
+            match multiplier_isize.checked_mul(multiplicand_isize) {
+                Some(product_isize) => Ok(product_isize.into_process(&mut process)),
+                None => {
+                    let multiplier_big_int: BigInt = multiplier_isize.into();
+                    let multiplicand_big_int: BigInt = multiplicand_isize.into();
+
+                    let product_big_int = multiplier_big_int * multiplicand_big_int;
+
+                    Ok(product_big_int.into_process(&mut process))
+                }
+            }
+        }
+        (SmallInteger, Boxed) => {
+            let unboxed_multiplicand: &Term = multiplicand.unbox_reference();
+
+            match unboxed_multiplicand.tag() {
+                BigInteger => {
+                    let multiplier_isize = unsafe { multiplier.small_integer_to_isize() };
+                    let multiplier_big_int: BigInt = multiplier_isize.into();
+
+                    let multiplicand_big_integer: &big::Integer = multiplicand.unbox_reference();
+                    let multiplicand_big_int = &multiplicand_big_integer.inner;
+
+                    let product_big_int = multiplier_big_int * multiplicand_big_int;
+
+                    Ok(product_big_int.into_process(&mut process))
+                }
+                Float => {
+                    let multiplier_isize = unsafe { multiplier.small_integer_to_isize() };
+                    let multiplier_f64: f64 = multiplier_isize as f64;
+
+                    let multiplicand_float: &Float = multiplicand.unbox_reference();
+                    let multiplicand_f64 = multiplicand_float.inner;
+
+                    let product_f64 = multiplier_f64 * multiplicand_f64;
+
+                    Ok(product_f64.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        (Boxed, SmallInteger) => {
+            let unboxed_multiplier: &Term = multiplier.unbox_reference();
+
+            match unboxed_multiplier.tag() {
+                BigInteger => {
+                    let multiplier_big_integer: &big::Integer = multiplier.unbox_reference();
+                    let multiplier_big_int = &multiplier_big_integer.inner;
+
+                    let multiplicand_isize = unsafe { multiplicand.small_integer_to_isize() };
+                    let multiplicand_big_int: BigInt = multiplicand_isize.into();
+
+                    let product_big_int = multiplier_big_int * multiplicand_big_int;
+
+                    Ok(product_big_int.into_process(&mut process))
+                }
+                Float => {
+                    let multiplier_float: &Float = multiplier.unbox_reference();
+                    let multiplier_f64 = multiplier_float.inner;
+
+                    let multiplicand_isize = unsafe { multiplicand.small_integer_to_isize() };
+                    let multiplicand_f64: f64 = multiplicand_isize as f64;
+
+                    let product_f64 = multiplier_f64 * multiplicand_f64;
+
+                    Ok(product_f64.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        (Boxed, Boxed) => {
+            let unboxed_multiplier: &Term = multiplier.unbox_reference();
+            let unboxed_multiplicand: &Term = multiplicand.unbox_reference();
+
+            match (unboxed_multiplier.tag(), unboxed_multiplicand.tag()) {
+                (BigInteger, BigInteger) => {
+                    let multiplier_big_integer: &big::Integer = multiplier.unbox_reference();
+                    let multiplier_big_int = &multiplier_big_integer.inner;
+
+                    let multiplicand_big_integer: &big::Integer = multiplicand.unbox_reference();
+                    let multiplicand_big_int = &multiplicand_big_integer.inner;
+
+                    let product_big_int = multiplier_big_int * multiplicand_big_int;
+
+                    Ok(product_big_int.into_process(&mut process))
+                }
+                (BigInteger, Float) => {
+                    let multiplier_big_integer: &big::Integer = multiplier.unbox_reference();
+                    let multiplier_f64: f64 = multiplier_big_integer.into();
+
+                    let multiplicand_float: &Float = multiplicand.unbox_reference();
+                    let multiplicand_f64 = multiplicand_float.inner;
+
+                    let product_f64 = multiplier_f64 * multiplicand_f64;
+
+                    Ok(product_f64.into_process(&mut process))
+                }
+                (Float, BigInteger) => {
+                    let multiplier_float: &Float = multiplier.unbox_reference();
+                    let multiplier_f64 = multiplier_float.inner;
+
+                    let multiplicand_big_intger: &big::Integer = multiplicand.unbox_reference();
+                    let multiplicand_f64: f64 = multiplicand_big_intger.into();
+
+                    let product_f64 = multiplier_f64 * multiplicand_f64;
+
+                    Ok(product_f64.into_process(&mut process))
+                }
+                (Float, Float) => {
+                    let multiplier_float: &Float = multiplier.unbox_reference();
+                    let multiplier_f64 = multiplier_float.inner;
+
+                    let multiplicand_float: &Float = multiplicand.unbox_reference();
+                    let multiplicand_f64 = multiplicand_float.inner;
+
+                    let product_f64 = multiplier_f64 * multiplicand_f64;
+
+                    Ok(product_f64.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        _ => Err(badarith!()),
+    }
+}
+
 pub fn node_0() -> Term {
     Term::str_to_atom("nonode@nohost", DoNotCare).unwrap()
 }

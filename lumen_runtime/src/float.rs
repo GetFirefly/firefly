@@ -9,12 +9,22 @@ pub struct Float {
 }
 
 impl Float {
-    pub fn new(inner: f64) -> Self {
+    pub fn new(overflowing_inner: f64) -> Self {
         Float {
             header: Term {
                 tagged: Tag::Float as usize,
             },
-            inner,
+            inner: Self::clamp_inner(overflowing_inner),
+        }
+    }
+
+    fn clamp_inner(overflowing: f64) -> f64 {
+        if overflowing == std::f64::NEG_INFINITY {
+            std::f64::MIN
+        } else if overflowing == std::f64::INFINITY {
+            std::f64::MAX
+        } else {
+            overflowing
         }
     }
 }

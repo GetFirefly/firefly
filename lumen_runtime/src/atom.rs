@@ -130,7 +130,6 @@ impl Atom {
     fn new(name: Arc<String>) -> Self {
         let name = name.clone();
         let ordinal = Self::ordinal(name.as_bytes());
-        println!("ordinal = {:?}", ordinal);
 
         // See https://github.com/erlang/otp/blob/be44d6827e2374a43068b35de85ed16441c771be/erts/emulator/beam/atom.c#L175-L192
         Atom { ordinal, name }

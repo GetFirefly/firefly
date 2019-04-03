@@ -27,7 +27,7 @@ fn with_list_multiplicand_errors_badarith() {
 }
 
 #[test]
-fn with_small_integer_multiplicand_with_returns_big_integer() {
+fn with_small_integer_multiplicand_returns_big_integer() {
     with(|multiplier, mut process| {
         let multiplicand = crate::integer::small::MIN.into_process(&mut process);
 

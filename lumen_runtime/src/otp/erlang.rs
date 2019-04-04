@@ -434,6 +434,21 @@ pub fn delete_element_2(tuple: Term, index: Term, mut process: &mut Process) -> 
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
+/// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
+/// `float`.
+pub fn divide_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Result {
+    let dividend_f64: f64 = dividend.try_into()?;
+    let divisor_f64: f64 = divisor.try_into()?;
+
+    if divisor_f64 == 0.0 {
+        Err(badarith!())
+    } else {
+        let quotient_f64 = dividend_f64 / divisor_f64;
+
+        Ok(quotient_f64.into_process(&mut process))
+    }
+}
+
 pub fn element_2(tuple: Term, index: Term, mut process: &mut Process) -> Result {
     let inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;

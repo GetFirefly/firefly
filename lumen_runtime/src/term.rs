@@ -1195,6 +1195,40 @@ impl TryFrom<Term> for char {
     }
 }
 
+impl TryFrom<Term> for f64 {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<f64, Exception> {
+        match term.tag() {
+            SmallInteger => {
+                let term_isize: isize = unsafe { term.small_integer_to_isize() };
+                let term_f64: f64 = term_isize as f64;
+
+                Ok(term_f64)
+            }
+            Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger => {
+                        let big_integer: &big::Integer = term.unbox_reference();
+                        let term_f64: f64 = big_integer.into();
+
+                        Ok(term_f64)
+                    }
+                    Float => {
+                        let float: &Float = term.unbox_reference();
+
+                        Ok(float.inner)
+                    }
+                    _ => Err(badarith!()),
+                }
+            }
+            _ => Err(badarith!()),
+        }
+    }
+}
+
 impl TryFrom<Term> for isize {
     type Error = Exception;
 

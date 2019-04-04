@@ -86,6 +86,6 @@ pub fn big_int_to_usize(big_int: &BigInt) -> Result<usize, Exception> {
             Ok(integer_usize)
         }
         NoSign => Ok(0),
-        Minus => Err(bad_argument!()),
+        Minus => Err(badarg!()),
     }
 }

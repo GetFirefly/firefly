@@ -118,9 +118,7 @@ impl TryFrom<Integer> for usize {
 
     fn try_from(integer: Integer) -> Result<usize, Exception> {
         match integer {
-            Integer::Small(small::Integer(untagged)) => {
-                untagged.try_into().map_err(|_| bad_argument!())
-            }
+            Integer::Small(small::Integer(untagged)) => untagged.try_into().map_err(|_| badarg!()),
             Integer::Big(big_int) => big_int_to_usize(&big_int),
         }
     }

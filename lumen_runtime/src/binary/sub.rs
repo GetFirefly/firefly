@@ -127,7 +127,7 @@ impl Binary {
     pub fn to_atom_index(&self, existence: Existence) -> Result<atom::Index, Exception> {
         let string: String = self.try_into()?;
 
-        atom::str_to_index(&string, existence).ok_or_else(|| bad_argument!())
+        atom::str_to_index(&string, existence).ok_or_else(|| badarg!())
     }
 
     pub fn to_list(&self, mut process: &mut Process) -> exception::Result {
@@ -138,7 +138,7 @@ impl Binary {
 
             Ok(list)
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -220,10 +220,10 @@ impl ToTerm for Binary {
                         Ok(term)
                     }
                 }
-                None => Err(bad_argument!()),
+                None => Err(badarg!()),
             }
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 }
@@ -233,7 +233,7 @@ impl TryFrom<&Binary> for Vec<u8> {
 
     fn try_from(binary: &Binary) -> Result<Vec<u8>, Exception> {
         if 0 < binary.bit_count {
-            Err(bad_argument!())
+            Err(badarg!())
         } else {
             let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_count);
             bytes_vec.extend(binary.byte_iter());
@@ -249,7 +249,7 @@ impl TryFrom<&Binary> for String {
     fn try_from(binary: &Binary) -> Result<String, Exception> {
         let byte_vec: Vec<u8> = binary.try_into()?;
 
-        String::from_utf8(byte_vec).map_err(|_| bad_argument!())
+        String::from_utf8(byte_vec).map_err(|_| badarg!())
     }
 }
 

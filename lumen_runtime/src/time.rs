@@ -80,12 +80,12 @@ impl TryFrom<Term> for Unit {
 
                         Ok(Unit::Hertz(big_integer_usize))
                     }
-                    _ => Err(bad_argument!()),
+                    _ => Err(badarg!()),
                 }
             }
             Atom => {
                 let term_string = unsafe { term.atom_to_string() };
-                let mut result = Err(bad_argument!());
+                let mut result = Err(badarg!());
 
                 for (s, unit) in [
                     ("second", Unit::Second),
@@ -109,7 +109,7 @@ impl TryFrom<Term> for Unit {
 
                 result
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }

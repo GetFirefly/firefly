@@ -76,10 +76,10 @@ pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
                         _ => Ok(number),
                     }
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -96,7 +96,7 @@ pub fn atom_to_binary_2(atom: Term, encoding: Term, mut process: &mut Process) -
         let string = unsafe { atom.atom_to_string() };
         Ok(Term::slice_to_binary(string.as_bytes(), &mut process))
     } else {
-        Err(bad_argument!())
+        Err(badarg!())
     }
 }
 
@@ -105,7 +105,7 @@ pub fn atom_to_list_1(atom: Term, mut process: &mut Process) -> Result {
         let string = unsafe { atom.atom_to_string() };
         Ok(Term::chars_to_list(string.chars(), &mut process))
     } else {
-        Err(bad_argument!())
+        Err(badarg!())
     }
 }
 
@@ -125,10 +125,10 @@ pub fn binary_part_3(binary: Term, start: Term, length: Term, mut process: &mut 
 
                     subbinary.part(start, length, &mut process)
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -150,20 +150,20 @@ pub fn binary_to_float_1(binary: Term, mut process: &mut Process) -> Result {
                 // unlike Rust, Erlang requires float strings to have a decimal point
                 {
                     if (inner.fract() == 0.0) & !string.chars().any(|b| b == '.') {
-                        Err(bad_argument!())
+                        Err(badarg!())
                     } else {
                         Ok(inner.into_process(&mut process))
                     }
                 }
                 // Erlang has no support for Nan, +inf or -inf
-                FpCategory::Nan | FpCategory::Infinite => Err(bad_argument!()),
+                FpCategory::Nan | FpCategory::Infinite => Err(badarg!()),
                 FpCategory::Zero => {
                     // Erlang does not track the difference without +0 and -0.
                     Ok(inner.abs().into_process(&mut process))
                 }
             }
         }
-        Err(_) => Err(bad_argument!()),
+        Err(_) => Err(badarg!()),
     }
 }
 
@@ -177,7 +177,7 @@ pub fn binary_to_integer_1(binary: Term, mut process: &mut Process) -> Result {
 
             Ok(term)
         }
-        None => Err(bad_argument!()),
+        None => Err(badarg!()),
     }
 }
 
@@ -194,10 +194,10 @@ pub fn binary_to_integer_2(binary: Term, base: Term, mut process: &mut Process) 
 
                 Ok(term)
             }
-            None => Err(bad_argument!()),
+            None => Err(badarg!()),
         }
     } else {
-        Err(bad_argument!())
+        Err(badarg!())
     }
 }
 
@@ -217,10 +217,10 @@ pub fn binary_to_list_1(binary: Term, mut process: &mut Process) -> Result {
 
                     subbinary.to_list(&mut process)
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -251,10 +251,10 @@ pub fn binary_to_list_3(
                 &mut process,
             )
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     } else {
-        Err(bad_argument!())
+        Err(badarg!())
     }
 }
 
@@ -280,10 +280,10 @@ pub fn binary_to_term_2(binary: Term, options: Term, mut process: &mut Process) 
 
                     subbinary.to_term(to_term_options, &mut process)
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -303,10 +303,10 @@ pub fn bit_size_1(bit_string: Term, mut process: &mut Process) -> Result {
 
                     Ok(subbinary.bit_len())
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
     .map(|bit_size_usize| bit_size_usize.into_process(&mut process))
 }
@@ -327,10 +327,10 @@ pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Resul
 
                     Ok(subbinary.to_bitstring_list(&mut process))
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -350,10 +350,10 @@ pub fn byte_size_1(bit_string: Term, mut process: &mut Process) -> Result {
 
                     Ok(subbinary.byte_len())
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
     .map(|byte_size_usize| byte_size_usize.into_process(&mut process))
 }
@@ -385,10 +385,10 @@ pub fn ceil_1(number: Term, mut process: &mut Process) -> Result {
 
                     Ok(ceil_term)
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -401,7 +401,7 @@ pub fn concatenate_2(list: Term, term: Term, mut process: &mut Process) -> Resul
 
             cons.concatenate(term, &mut process)
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -635,7 +635,7 @@ pub fn length_1(list: Term, mut process: &mut Process) -> Result {
                 tail = crate::otp::erlang::tl_1(tail).unwrap();
                 length += 1;
             }
-            _ => break Err(bad_argument!()),
+            _ => break Err(badarg!()),
         }
     }
 }
@@ -662,7 +662,7 @@ pub fn list_to_tuple_1(list: Term, mut process: &mut Process) -> Result {
 
             cons.to_tuple(&mut process)
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -825,7 +825,7 @@ pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
     if stacktrace::is(stacktrace) {
         Err(raise!(class_class, reason, Some(stacktrace)))
     } else {
-        Err(bad_argument!())
+        Err(badarg!())
     }
 }
 
@@ -863,10 +863,10 @@ pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
 
                     Ok(subbinary.size())
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
     .map(|integer| integer.into_process(&mut process))
 }
@@ -880,7 +880,7 @@ pub fn subtract_list_2(minuend: Term, subtrahend: Term, mut process: &mut Proces
             if subtrahend_cons.is_proper() {
                 Ok(minuend)
             } else {
-                Err(bad_argument!())
+                Err(badarg!())
             }
         }
         (List, EmptyList) => Ok(minuend),
@@ -890,7 +890,7 @@ pub fn subtract_list_2(minuend: Term, subtrahend: Term, mut process: &mut Proces
 
             minuend_cons.subtract(subtrahend_cons, &mut process)
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -915,10 +915,10 @@ pub fn tuple_size_1(tuple: Term, mut process: &mut Process) -> Result {
 
                     Ok(tuple.size().into_process(&mut process))
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -933,10 +933,10 @@ pub fn tuple_to_list_1(tuple: Term, mut process: &mut Process) -> Result {
 
                     Ok(tuple.to_list(&mut process))
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }
 
@@ -955,17 +955,17 @@ fn binary_existence_to_atom(binary: Term, encoding: Term, existence: Existence) 
 
                     heap_binary
                         .to_atom_index(existence)
-                        .ok_or_else(|| bad_argument!())
+                        .ok_or_else(|| badarg!())
                 }
                 Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
                     subbinary.to_atom_index(existence)
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
     .map(|atom_index| atom_index.into())
 }
@@ -990,12 +990,12 @@ fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> Result {
 
 fn list_to_atom(string: Term, existence: Existence) -> Result {
     match string.tag() {
-        EmptyList => Term::str_to_atom("", existence).ok_or_else(|| bad_argument!()),
+        EmptyList => Term::str_to_atom("", existence).ok_or_else(|| badarg!()),
         List => {
             let cons: &Cons = unsafe { string.as_ref_cons_unchecked() };
 
             cons.to_atom(existence)
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }

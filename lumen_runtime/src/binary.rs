@@ -343,7 +343,7 @@ fn start_length_to_part_range(
                 byte_count: non_negative_length,
             })
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     } else {
         let start_isize = start as isize;
@@ -357,7 +357,7 @@ fn start_length_to_part_range(
                 byte_count,
             })
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 }
@@ -400,10 +400,10 @@ impl ToTermOptions {
 
                         Ok(self)
                     }
-                    _ => Err(bad_argument!()),
+                    _ => Err(badarg!()),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -426,7 +426,7 @@ impl TryFrom<Term> for ToTermOptions {
 
                     continue;
                 }
-                _ => return Err(bad_argument!()),
+                _ => return Err(badarg!()),
             };
         }
     }

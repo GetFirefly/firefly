@@ -34,7 +34,7 @@ impl Cons {
     pub fn concatenate(&self, term: Term, mut process: &mut Process) -> exception::Result {
         match self.into_iter().collect::<Result<Vec<Term>, _>>() {
             Ok(vec) => Ok(Term::vec_to_list(&vec, term, &mut process)),
-            Err(ImproperList { .. }) => Err(bad_argument!()),
+            Err(ImproperList { .. }) => Err(badarg!()),
         }
     }
 
@@ -55,13 +55,13 @@ impl Cons {
                 for result in subtrahend.into_iter() {
                     match result {
                         Ok(subtrahend_element) => self_vec.remove_item(&subtrahend_element),
-                        Err(ImproperList { .. }) => return Err(bad_argument!()),
+                        Err(ImproperList { .. }) => return Err(badarg!()),
                     };
                 }
 
                 Ok(Term::vec_to_list(&self_vec, Term::EMPTY_LIST, &mut process))
             }
-            Err(ImproperList { .. }) => Err(bad_argument!()),
+            Err(ImproperList { .. }) => Err(badarg!()),
         }
     }
 
@@ -70,11 +70,11 @@ impl Cons {
             .into_iter()
             .map(|result| match result {
                 Ok(term) => char::try_from(term),
-                Err(ImproperList { .. }) => Err(bad_argument!()),
+                Err(ImproperList { .. }) => Err(badarg!()),
             })
             .collect::<Result<String, Exception>>()?;
 
-        Term::str_to_atom(&string, existence).ok_or_else(|| bad_argument!())
+        Term::str_to_atom(&string, existence).ok_or_else(|| badarg!())
     }
 
     pub fn to_pid(&self, mut process: &mut Process) -> exception::Result {
@@ -101,7 +101,7 @@ impl Cons {
         if suffix_tail.is_empty_list() {
             Term::pid(node, number, serial, &mut process)
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -109,7 +109,7 @@ impl Cons {
         let vec: Vec<Term> = self
             .into_iter()
             .collect::<Result<Vec<Term>, _>>()
-            .map_err(|_| bad_argument!())?;
+            .map_err(|_| badarg!())?;
 
         Ok(Term::slice_to_tuple(vec.as_slice(), &mut process))
     }
@@ -162,13 +162,13 @@ impl Cons {
 
                     match c.to_digit(10) {
                         Some(digit) => Ok((digit as u8, self.tail)),
-                        None => Err(bad_argument!()),
+                        None => Err(badarg!()),
                     }
                 } else {
-                    Err(bad_argument!())
+                    Err(badarg!())
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 
@@ -176,7 +176,7 @@ impl Cons {
         if self.head.tagged == Self::PID_PREFIX.tagged {
             Ok(self.tail)
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -184,7 +184,7 @@ impl Cons {
         if self.head.tagged == Self::PID_SEPARATOR.tagged {
             Ok(self.tail)
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -192,7 +192,7 @@ impl Cons {
         if self.head.tagged == Self::PID_SUFFIX.tagged {
             Ok(self.tail)
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 }

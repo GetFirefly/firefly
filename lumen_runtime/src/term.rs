@@ -197,12 +197,12 @@ impl Term {
                         if tagged == latin1_atom.tagged {
                             Ok(Encoding::Latin1)
                         } else {
-                            Err(bad_argument!())
+                            Err(badarg!())
                         }
                     }
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 
@@ -272,7 +272,7 @@ impl Term {
                 process.external_pid(node, number, serial),
             ))
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -299,7 +299,7 @@ impl Term {
         {
             Ok(unsafe { Self::local_pid_unchecked(number, serial) })
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -1156,10 +1156,10 @@ impl TryFrom<Term> for BigInt {
 
                         Ok(big_integer.inner.clone())
                     }
-                    _ => Err(bad_argument!()),
+                    _ => Err(badarg!()),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1175,9 +1175,9 @@ impl TryFrom<Term> for Class {
                 "error" => Ok(Error { arguments: None }),
                 "exit" => Ok(Exit),
                 "throw" => Ok(Throw),
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             },
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1190,7 +1190,7 @@ impl TryFrom<Term> for char {
 
         match std::char::from_u32(term_u32) {
             Some(c) => Ok(c),
-            None => Err(bad_argument!()),
+            None => Err(badarg!()),
         }
     }
 }
@@ -1205,7 +1205,7 @@ impl TryFrom<Term> for isize {
 
                 Ok(term_isize)
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1218,7 +1218,7 @@ impl TryFrom<Term> for u32 {
             SmallInteger => {
                 let term_isize = unsafe { term.small_integer_to_isize() };
 
-                term_isize.try_into().map_err(|_| bad_argument!())
+                term_isize.try_into().map_err(|_| badarg!())
             }
             Boxed => {
                 let unboxed: &Term = term.unbox_reference();
@@ -1229,14 +1229,14 @@ impl TryFrom<Term> for u32 {
 
                         // does not implement `to_u32` directly
                         match big_integer.inner.to_u64() {
-                            Some(term_u64) => term_u64.try_into().map_err(|_| bad_argument!()),
-                            None => Err(bad_argument!()),
+                            Some(term_u64) => term_u64.try_into().map_err(|_| badarg!()),
+                            None => Err(badarg!()),
                         }
                     }
-                    _ => Err(bad_argument!()),
+                    _ => Err(badarg!()),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1255,10 +1255,10 @@ impl TryFrom<Term> for u64 {
 
                         Ok(local_reference.number)
                     }
-                    _ => Err(bad_argument!()),
+                    _ => Err(badarg!()),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1272,12 +1272,12 @@ impl TryFrom<Term> for usize {
                 let term_isize = unsafe { term.small_integer_to_isize() };
 
                 if term_isize < 0 {
-                    Err(bad_argument!())
+                    Err(badarg!())
                 } else {
                     Ok(term_isize as usize)
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1288,7 +1288,7 @@ impl TryFrom<Term> for &'static Cons {
     fn try_from(term: Term) -> Result<&'static Cons, Exception> {
         match term.tag() {
             List => Ok(unsafe { term.as_ref_cons_unchecked() }),
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1342,10 +1342,10 @@ impl TryFrom<Term> for String {
                         subbinary.try_into()
                     }
                     // TODO ReferenceCountedBinary
-                    _ => Err(bad_argument!()),
+                    _ => Err(badarg!()),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1359,7 +1359,7 @@ impl TryFromInProcess<Term> for &'static Tuple {
             Boxed => term
                 .unbox_reference::<Term>()
                 .try_into_in_process(&mut process),
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }
@@ -1385,7 +1385,7 @@ impl<'a> TryFromInProcess<&'a Term> for &'a Tuple {
             Boxed => term
                 .unbox_reference::<Term>()
                 .try_into_in_process(&mut process),
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 }

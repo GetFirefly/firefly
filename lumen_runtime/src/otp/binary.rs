@@ -38,9 +38,9 @@ pub fn bin_to_list(
 
                     subbinary.part_to_list(position, length, &mut process)
                 }
-                _ => Err(bad_argument!()),
+                _ => Err(badarg!()),
             }
         }
-        _ => Err(bad_argument!()),
+        _ => Err(badarg!()),
     }
 }

@@ -130,7 +130,7 @@ macro_rules! assert_throw {
 }
 
 #[macro_export]
-macro_rules! bad_argument {
+macro_rules! badarg {
     () => {{
         use crate::atom::Existence::DoNotCare;
         use crate::term::Term;
@@ -150,7 +150,7 @@ macro_rules! badarith {
 }
 
 #[macro_export]
-macro_rules! bad_map {
+macro_rules! badmap {
     ($map:expr, $process:expr) => {{
         use crate::atom::DoNotCare;
         use crate::term::Term;

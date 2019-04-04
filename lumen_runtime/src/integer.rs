@@ -123,3 +123,83 @@ impl TryFrom<Integer> for usize {
         }
     }
 }
+
+macro_rules! integer_infix_operator {
+    ($left:ident, $right:ident, $process:ident, $infix:tt) => {
+        match ($left.tag(), $right.tag()) {
+            (SmallInteger, SmallInteger) => {
+                let left_isize = unsafe { $left.small_integer_to_isize() };
+                let right_isize = unsafe { $right.small_integer_to_isize() };
+
+                if right_isize == 0 {
+                    Err(badarith!())
+                } else {
+                    let quotient = left_isize $infix right_isize;
+
+                    Ok(quotient.into_process(&mut $process))
+                }
+            }
+            (SmallInteger, Boxed) => {
+                let right_unboxed: &Term = $right.unbox_reference();
+
+                match right_unboxed.tag() {
+                    BigInteger => {
+                        let left_isize = unsafe { $left.small_integer_to_isize() };
+                        let left_big_int: &BigInt = &left_isize.into();
+
+                        let right_big_integer: &big::Integer = $right.unbox_reference();
+                        let right_big_int = &right_big_integer.inner;
+
+                        let quotient = left_big_int $infix right_big_int;
+
+                        Ok(quotient.into_process(&mut $process))
+                    }
+                    _ => Err(badarith!()),
+                }
+            }
+            (Boxed, SmallInteger) => {
+                let left_unboxed: &Term = $left.unbox_reference();
+
+                match left_unboxed.tag() {
+                    BigInteger => {
+                        let left_big_integer: &big::Integer = $left.unbox_reference();
+                        let left_big_int = &left_big_integer.inner;
+
+                        let right_isize = unsafe { $right.small_integer_to_isize() };
+
+                        if right_isize == 0 {
+                            Err(badarith!())
+                        } else {
+                            let right_big_int: &BigInt = &right_isize.into();
+
+                            let quotient = left_big_int $infix right_big_int;
+
+                            Ok(quotient.into_process(&mut $process))
+                        }
+                    }
+                    _ => Err(badarith!()),
+                }
+            }
+            (Boxed, Boxed) => {
+                let left_unboxed: &Term = $left.unbox_reference();
+                let right_unboxed: &Term = $right.unbox_reference();
+
+                match (left_unboxed.tag(), right_unboxed.tag()) {
+                    (BigInteger, BigInteger) => {
+                        let left_big_integer: &big::Integer = $left.unbox_reference();
+                        let left_big_int = &left_big_integer.inner;
+
+                        let right_big_integer: &big::Integer = $right.unbox_reference();
+                        let right_big_int = &right_big_integer.inner;
+
+                        let quotient = left_big_int $infix right_big_int;
+
+                        Ok(quotient.into_process(&mut $process))
+                    }
+                    _ => Err(badarith!()),
+                }
+            }
+            _ => Err(badarith!()),
+        }
+    };
+}

@@ -62,6 +62,7 @@ mod map_size_1;
 mod multiply_2;
 mod node_0;
 mod raise_3;
+mod rem_2;
 mod self_0;
 mod setelement_3;
 mod size_1;

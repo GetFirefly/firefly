@@ -1,4 +1,4 @@
-macro_rules! infix_operator {
+macro_rules! number_infix_operator {
     ($left:ident, $right:ident, $process:ident, $checked:ident, $infix:tt) => {
         match ($left.tag(), $right.tag()) {
             (SmallInteger, SmallInteger) => {

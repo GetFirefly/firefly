@@ -66,7 +66,7 @@ pub fn index_to_string(Index(index): Index) -> Result<Arc<String>, Exception> {
 
     match readable_table.atoms.get(index) {
         Some(Atom { name, .. }) => Ok(name.clone()),
-        None => Err(bad_argument!()),
+        None => Err(badarg!()),
     }
 }
 

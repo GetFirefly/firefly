@@ -284,7 +284,7 @@ impl ToTerm for Binary {
                     Ok(term)
                 }
             }
-            None => Err(bad_argument!()),
+            None => Err(badarg!()),
         }
     }
 }
@@ -295,7 +295,7 @@ impl TryFrom<&Binary> for String {
     fn try_from(binary: &Binary) -> Result<String, Exception> {
         let byte_vec: Vec<u8> = binary.into();
 
-        String::from_utf8(byte_vec).map_err(|_| bad_argument!())
+        String::from_utf8(byte_vec).map_err(|_| badarg!())
     }
 }
 

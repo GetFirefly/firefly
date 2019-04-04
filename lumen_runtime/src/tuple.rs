@@ -44,7 +44,7 @@ impl TryFrom<Term> for OneBasedIndex {
         if 1 <= one_based_index_usize {
             Ok(OneBasedIndex(one_based_index_usize))
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 }
@@ -93,7 +93,7 @@ impl Tuple {
 
             Ok(smaller_tuple)
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -101,7 +101,7 @@ impl Tuple {
         if index < self.len() {
             Ok(self[index])
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -134,7 +134,7 @@ impl Tuple {
 
             Ok(tuple)
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 
@@ -152,7 +152,7 @@ impl Tuple {
                     None => Ok((element == record_tag).into()),
                 }
             }
-            _ => Err(bad_argument!()),
+            _ => Err(badarg!()),
         }
     }
 
@@ -197,7 +197,7 @@ impl Tuple {
 
             Ok(tuple)
         } else {
-            Err(bad_argument!())
+            Err(badarg!())
         }
     }
 

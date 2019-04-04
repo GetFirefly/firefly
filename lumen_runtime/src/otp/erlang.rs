@@ -85,7 +85,7 @@ pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
 
 /// `+/2` infix operator
 pub fn add_2(augend: Term, addend: Term, mut process: &mut Process) -> Result {
-    infix_operator!(augend, addend, process, checked_add, +)
+    number_infix_operator!(augend, addend, process, checked_add, +)
 }
 
 pub fn append_element_2(tuple: Term, element: Term, mut process: &mut Process) -> Result {
@@ -436,81 +436,7 @@ pub fn delete_element_2(tuple: Term, index: Term, mut process: &mut Process) -> 
 
 /// `div/2` infix operator.  Integer division.
 pub fn div_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Result {
-    match (dividend.tag(), divisor.tag()) {
-        (SmallInteger, SmallInteger) => {
-            let dividend_isize = unsafe { dividend.small_integer_to_isize() };
-            let divisor_isize = unsafe { divisor.small_integer_to_isize() };
-
-            if divisor_isize == 0 {
-                Err(badarith!())
-            } else {
-                let quotient = dividend_isize / divisor_isize;
-
-                Ok(quotient.into_process(&mut process))
-            }
-        }
-        (SmallInteger, Boxed) => {
-            let divisor_unboxed: &Term = divisor.unbox_reference();
-
-            match divisor_unboxed.tag() {
-                BigInteger => {
-                    let dividend_isize = unsafe { dividend.small_integer_to_isize() };
-                    let dividend_big_int: &BigInt = &dividend_isize.into();
-
-                    let divisor_big_integer: &big::Integer = divisor.unbox_reference();
-                    let divisor_big_int = &divisor_big_integer.inner;
-
-                    let quotient = dividend_big_int / divisor_big_int;
-
-                    Ok(quotient.into_process(&mut process))
-                }
-                _ => Err(badarith!()),
-            }
-        }
-        (Boxed, SmallInteger) => {
-            let dividend_unboxed: &Term = dividend.unbox_reference();
-
-            match dividend_unboxed.tag() {
-                BigInteger => {
-                    let dividend_big_integer: &big::Integer = dividend.unbox_reference();
-                    let dividend_big_int = &dividend_big_integer.inner;
-
-                    let divisor_isize = unsafe { divisor.small_integer_to_isize() };
-
-                    if divisor_isize == 0 {
-                        Err(badarith!())
-                    } else {
-                        let divisor_big_int: &BigInt = &divisor_isize.into();
-
-                        let quotient = dividend_big_int / divisor_big_int;
-
-                        Ok(quotient.into_process(&mut process))
-                    }
-                }
-                _ => Err(badarith!()),
-            }
-        }
-        (Boxed, Boxed) => {
-            let dividend_unboxed: &Term = dividend.unbox_reference();
-            let divisor_unboxed: &Term = divisor.unbox_reference();
-
-            match (dividend_unboxed.tag(), divisor_unboxed.tag()) {
-                (BigInteger, BigInteger) => {
-                    let dividend_big_integer: &big::Integer = dividend.unbox_reference();
-                    let dividend_big_int = &dividend_big_integer.inner;
-
-                    let divisor_big_integer: &big::Integer = divisor.unbox_reference();
-                    let divisor_big_int = &divisor_big_integer.inner;
-
-                    let quotient = dividend_big_int / divisor_big_int;
-
-                    Ok(quotient.into_process(&mut process))
-                }
-                _ => Err(badarith!()),
-            }
-        }
-        _ => Err(badarith!()),
-    }
+    integer_infix_operator!(dividend, divisor, process, /)
 }
 
 /// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
@@ -783,7 +709,7 @@ pub fn map_size_1(map: Term, mut process: &mut Process) -> Result {
 
 /// `*/2` infix operator
 pub fn multiply_2(multiplier: Term, multiplicand: Term, mut process: &mut Process) -> Result {
-    infix_operator!(multiplier, multiplicand, process, checked_mul, *)
+    number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)
 }
 
 pub fn node_0() -> Term {
@@ -798,6 +724,11 @@ pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
     } else {
         Err(badarg!())
     }
+}
+
+/// `rem/2` infix operator.  Integer remainder.
+pub fn rem_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Result {
+    integer_infix_operator!(dividend, divisor, process, %)
 }
 
 pub fn self_0(process: &Process) -> Term {
@@ -844,7 +775,7 @@ pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
 
 /// `-/2` infix operator
 pub fn subtract_2(minuend: Term, subtrahend: Term, mut process: &mut Process) -> Result {
-    infix_operator!(minuend, subtrahend, process, checked_sub, -)
+    number_infix_operator!(minuend, subtrahend, process, checked_sub, -)
 }
 
 pub fn subtract_list_2(minuend: Term, subtrahend: Term, mut process: &mut Process) -> Result {

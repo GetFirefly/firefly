@@ -26,6 +26,8 @@ mod process;
 #[macro_use]
 mod exception;
 #[macro_use]
+mod integer;
+#[macro_use]
 mod number;
 #[macro_use]
 mod support;
@@ -35,7 +37,6 @@ mod binary;
 mod config;
 mod environment;
 mod float;
-mod integer;
 mod list;
 mod logging;
 mod map;

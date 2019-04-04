@@ -434,6 +434,85 @@ pub fn delete_element_2(tuple: Term, index: Term, mut process: &mut Process) -> 
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
+/// `div/2` infix operator.  Integer division.
+pub fn div_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Result {
+    match (dividend.tag(), divisor.tag()) {
+        (SmallInteger, SmallInteger) => {
+            let dividend_isize = unsafe { dividend.small_integer_to_isize() };
+            let divisor_isize = unsafe { divisor.small_integer_to_isize() };
+
+            if divisor_isize == 0 {
+                Err(badarith!())
+            } else {
+                let quotient = dividend_isize / divisor_isize;
+
+                Ok(quotient.into_process(&mut process))
+            }
+        }
+        (SmallInteger, Boxed) => {
+            let divisor_unboxed: &Term = divisor.unbox_reference();
+
+            match divisor_unboxed.tag() {
+                BigInteger => {
+                    let dividend_isize = unsafe { dividend.small_integer_to_isize() };
+                    let dividend_big_int: &BigInt = &dividend_isize.into();
+
+                    let divisor_big_integer: &big::Integer = divisor.unbox_reference();
+                    let divisor_big_int = &divisor_big_integer.inner;
+
+                    let quotient = dividend_big_int / divisor_big_int;
+
+                    Ok(quotient.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        (Boxed, SmallInteger) => {
+            let dividend_unboxed: &Term = dividend.unbox_reference();
+
+            match dividend_unboxed.tag() {
+                BigInteger => {
+                    let dividend_big_integer: &big::Integer = dividend.unbox_reference();
+                    let dividend_big_int = &dividend_big_integer.inner;
+
+                    let divisor_isize = unsafe { divisor.small_integer_to_isize() };
+
+                    if divisor_isize == 0 {
+                        Err(badarith!())
+                    } else {
+                        let divisor_big_int: &BigInt = &divisor_isize.into();
+
+                        let quotient = dividend_big_int / divisor_big_int;
+
+                        Ok(quotient.into_process(&mut process))
+                    }
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        (Boxed, Boxed) => {
+            let dividend_unboxed: &Term = dividend.unbox_reference();
+            let divisor_unboxed: &Term = divisor.unbox_reference();
+
+            match (dividend_unboxed.tag(), divisor_unboxed.tag()) {
+                (BigInteger, BigInteger) => {
+                    let dividend_big_integer: &big::Integer = dividend.unbox_reference();
+                    let dividend_big_int = &dividend_big_integer.inner;
+
+                    let divisor_big_integer: &big::Integer = divisor.unbox_reference();
+                    let divisor_big_int = &divisor_big_integer.inner;
+
+                    let quotient = dividend_big_int / divisor_big_int;
+
+                    Ok(quotient.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        _ => Err(badarith!()),
+    }
+}
+
 /// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
 /// `float`.
 pub fn divide_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Result {

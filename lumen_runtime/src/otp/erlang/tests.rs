@@ -60,6 +60,7 @@ mod make_ref_0;
 mod map_get_2;
 mod map_size_1;
 mod multiply_2;
+mod negate_1;
 mod node_0;
 mod number_or_badarith_1;
 mod raise_3;

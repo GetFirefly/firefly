@@ -700,6 +700,38 @@ pub fn multiply_2(multiplier: Term, multiplicand: Term, mut process: &mut Proces
     number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)
 }
 
+/// `-/1` prefix operator.
+pub fn negate_1(number: Term, mut process: &mut Process) -> Result {
+    match number.tag() {
+        SmallInteger => {
+            let number_isize = unsafe { number.small_integer_to_isize() };
+            let negated_isize = -number_isize;
+
+            Ok(negated_isize.into_process(&mut process))
+        }
+        Boxed => {
+            let unboxed: &Term = number.unbox_reference();
+
+            match unboxed.tag() {
+                BigInteger => {
+                    let big_integer: &big::Integer = number.unbox_reference();
+                    let negated_big_int = -&big_integer.inner;
+
+                    Ok(negated_big_int.into_process(&mut process))
+                }
+                Float => {
+                    let float: &Float = number.unbox_reference();
+                    let negated_f64 = -float.inner;
+
+                    Ok(negated_f64.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        _ => Err(badarith!()),
+    }
+}
+
 pub fn node_0() -> Term {
     Term::str_to_atom("nonode@nohost", DoNotCare).unwrap()
 }

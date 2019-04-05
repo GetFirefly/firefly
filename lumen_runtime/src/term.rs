@@ -385,6 +385,16 @@ impl Term {
         process.slice_to_binary(slice).into()
     }
 
+    pub fn slice_to_list(slice: &[Term], mut process: &mut Process) -> Term {
+        Self::slice_to_improper_list(slice, Term::EMPTY_LIST, &mut process)
+    }
+
+    pub fn slice_to_improper_list(slice: &[Term], tail: Term, mut process: &mut Process) -> Term {
+        slice.iter().rfold(tail, |acc, element| {
+            Term::cons(element.clone(), acc, &mut process)
+        })
+    }
+
     pub fn slice_to_map(slice: &[(Term, Term)], process: &mut Process) -> Term {
         process.slice_to_map(slice).into()
     }

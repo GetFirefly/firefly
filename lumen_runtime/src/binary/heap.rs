@@ -38,6 +38,10 @@ impl Binary {
         }
     }
 
+    pub fn as_slice(&self) -> &'static [u8] {
+        unsafe { std::slice::from_raw_parts(self.bytes, self.header.heap_binary_to_byte_count()) }
+    }
+
     pub fn bit_len(&self) -> usize {
         self.byte_len() * 8
     }
@@ -85,9 +89,7 @@ impl Binary {
     }
 
     pub fn to_atom_index(&self, existence: Existence) -> Option<atom::Index> {
-        let bytes = unsafe {
-            std::slice::from_raw_parts(self.bytes, Term::heap_binary_to_byte_count(&self.header))
-        };
+        let bytes = self.as_slice();
 
         atom::str_to_index(std::str::from_utf8(bytes).unwrap(), existence)
     }

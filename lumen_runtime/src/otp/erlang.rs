@@ -114,6 +114,28 @@ pub fn atom_to_list_1(atom: Term, mut process: &mut Process) -> Result {
     }
 }
 
+pub fn binary_part_2(binary: Term, start_length: Term, mut process: &mut Process) -> Result {
+    match start_length.tag() {
+        Boxed => {
+            let unboxed: &Term = start_length.unbox_reference();
+
+            match unboxed.tag() {
+                Arity => {
+                    let tuple: &Tuple = start_length.unbox_reference();
+
+                    if tuple.len() == 2 {
+                        binary_part_3(binary, tuple[0], tuple[1], &mut process)
+                    } else {
+                        Err(badarg!())
+                    }
+                }
+                _ => Err(badarg!()),
+            }
+        }
+        _ => Err(badarg!()),
+    }
+}
+
 pub fn binary_part_3(binary: Term, start: Term, length: Term, mut process: &mut Process) -> Result {
     match binary.tag() {
         Boxed => {

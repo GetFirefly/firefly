@@ -544,6 +544,21 @@ pub fn is_binary_1(term: Term) -> Term {
     .into()
 }
 
+pub fn is_bitstring_1(term: Term) -> Term {
+    match term.tag() {
+        Boxed => {
+            let unboxed: &Term = term.unbox_reference();
+
+            match unboxed.tag() {
+                HeapBinary | Subbinary => true,
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+    .into()
+}
+
 pub fn is_boolean_1(term: Term) -> Term {
     match term.tag() {
         Atom => match unsafe { term.atom_to_string() }.as_ref().as_ref() {

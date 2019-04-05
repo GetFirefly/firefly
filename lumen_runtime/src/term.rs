@@ -353,6 +353,21 @@ impl Term {
         }
     }
 
+    pub fn is_number(&self) -> bool {
+        match self.tag() {
+            SmallInteger => true,
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger | Float => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     pub fn pid(
         node: usize,
         number: usize,

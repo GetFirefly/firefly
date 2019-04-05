@@ -591,19 +591,7 @@ pub fn is_map_key_2(key: Term, map: Term, mut process: &mut Process) -> Result {
 }
 
 pub fn is_number_1(term: Term) -> Term {
-    match term.tag() {
-        SmallInteger => true,
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                BigInteger | Float => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_number().into()
 }
 
 pub fn is_pid_1(term: Term) -> Term {
@@ -714,6 +702,15 @@ pub fn multiply_2(multiplier: Term, multiplicand: Term, mut process: &mut Proces
 
 pub fn node_0() -> Term {
     Term::str_to_atom("nonode@nohost", DoNotCare).unwrap()
+}
+
+/// `+/1` prefix operator.
+pub fn number_or_badarith_1(term: Term) -> Result {
+    if term.is_number() {
+        Ok(term)
+    } else {
+        Err(badarith!())
+    }
 }
 
 pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {

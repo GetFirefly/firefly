@@ -698,6 +698,69 @@ pub fn list_to_existing_atom_1(string: Term) -> Result {
     list_to_atom(string, Exists)
 }
 
+pub fn list_to_binary_1(iolist: Term, mut process: &mut Process) -> Result {
+    match iolist.tag() {
+        EmptyList | List => {
+            let mut byte_vec: Vec<u8> = Vec::new();
+            let mut stack: Vec<Term> = vec![iolist];
+
+            while let Some(top) = stack.pop() {
+                match top.tag() {
+                    SmallInteger => {
+                        let top_isize = unsafe { top.small_integer_to_isize() };
+                        let top_byte = top_isize.try_into().map_err(|_| badarg!())?;
+
+                        byte_vec.push(top_byte);
+                    }
+                    EmptyList => (),
+                    List => {
+                        let cons: &Cons = unsafe { top.as_ref_cons_unchecked() };
+
+                        // @type iolist :: maybe_improper_list(byte() | binary() | iolist(),
+                        // binary() | []) means that `byte()` isn't allowed
+                        // for `tail`s unlike `head`.
+
+                        let tail = cons.tail();
+
+                        if tail.tag() == SmallInteger {
+                            return Err(badarg!());
+                        } else {
+                            stack.push(tail);
+                        }
+
+                        stack.push(cons.head());
+                    }
+                    Boxed => {
+                        let unboxed: &Term = top.unbox_reference();
+
+                        match unboxed.tag() {
+                            HeapBinary => {
+                                let heap_binary: &heap::Binary = top.unbox_reference();
+
+                                byte_vec.extend_from_slice(heap_binary.as_slice());
+                            }
+                            Subbinary => {
+                                let subbinary: &sub::Binary = top.unbox_reference();
+
+                                if subbinary.bit_count == 0 {
+                                    byte_vec.extend(subbinary.byte_iter());
+                                } else {
+                                    return Err(badarg!());
+                                }
+                            }
+                            _ => return Err(badarg!()),
+                        }
+                    }
+                    _ => return Err(badarg!()),
+                }
+            }
+
+            Ok(Term::slice_to_binary(byte_vec.as_slice(), &mut process))
+        }
+        _ => Err(badarg!()),
+    }
+}
+
 pub fn list_to_pid_1(string: Term, mut process: &mut Process) -> Result {
     let cons: &Cons = string.try_into()?;
 

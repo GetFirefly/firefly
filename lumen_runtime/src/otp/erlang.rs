@@ -682,7 +682,8 @@ pub fn length_1(list: Term, mut process: &mut Process) -> Result {
         match tail.tag() {
             EmptyList => break Ok(length.into_process(&mut process)),
             List => {
-                tail = crate::otp::erlang::tl_1(tail).unwrap();
+                let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
+                tail = cons.tail();
                 length += 1;
             }
             _ => break Err(badarg!()),

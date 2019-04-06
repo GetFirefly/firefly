@@ -1,5 +1,6 @@
 use std::cmp::Ordering::{self, *};
 use std::convert::{TryFrom, TryInto};
+#[cfg(test)]
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
@@ -166,6 +167,7 @@ impl Binary {
     }
 }
 
+#[cfg(test)]
 impl Debug for Binary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(

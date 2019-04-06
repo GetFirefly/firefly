@@ -1,4 +1,4 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::mem::transmute;
 
 use num_bigint::BigInt;
@@ -419,7 +419,7 @@ impl TryFrom<Term> for ToTermOptions {
             match options_term.tag() {
                 EmptyList => return Ok(options),
                 List => {
-                    let cons: &Cons = options_term.try_into().unwrap();
+                    let cons: &Cons = unsafe { options_term.as_ref_cons_unchecked() };
 
                     options.put_option_term(cons.head())?;
                     options_term = cons.tail();

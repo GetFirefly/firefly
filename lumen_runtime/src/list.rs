@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering::{self, *};
 use std::convert::{TryFrom, TryInto};
+#[cfg(test)]
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
@@ -197,6 +198,7 @@ impl Cons {
     }
 }
 
+#[cfg(test)]
 impl Debug for Cons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Cons::new({:?}, {:?})", self.head, self.tail)

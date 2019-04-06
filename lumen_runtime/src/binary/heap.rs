@@ -1,5 +1,6 @@
 use std::cmp::Ordering::{self, *};
 use std::convert::TryFrom;
+#[cfg(test)]
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 
@@ -105,6 +106,7 @@ impl Binary {
     }
 }
 
+#[cfg(test)]
 impl Debug for Binary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Binary::from_slice(&[")?;

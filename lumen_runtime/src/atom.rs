@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering::{self, *};
 use std::collections::HashMap;
+#[cfg(test)]
 use std::fmt::{self, Debug};
 use std::mem::size_of;
 use std::sync::{Arc, RwLock};
@@ -150,6 +151,7 @@ impl Atom {
     }
 }
 
+#[cfg(test)]
 impl Debug for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Atom::new({:?})", self.name)

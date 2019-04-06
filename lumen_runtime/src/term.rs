@@ -1,5 +1,3 @@
-#![cfg_attr(not(test), allow(dead_code))]
-
 use std::cmp::Ordering::{self, *};
 use std::convert::{TryFrom, TryInto};
 #[cfg(test)]
@@ -72,7 +70,9 @@ impl Tag {
 use self::Tag::*;
 
 pub struct TagError {
+    #[cfg_attr(not(test), allow(dead_code))]
     tag: usize,
+    #[cfg_attr(not(test), allow(dead_code))]
     bit_count: usize,
 }
 

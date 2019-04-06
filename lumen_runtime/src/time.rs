@@ -1,5 +1,3 @@
-#![cfg_attr(not(test), allow(dead_code))]
-
 use std::convert::{TryFrom, TryInto};
 
 use num_bigint::BigInt;

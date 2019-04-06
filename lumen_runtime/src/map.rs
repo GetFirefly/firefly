@@ -11,7 +11,6 @@ use crate::term::{Tag, Term};
 pub struct Map {
     #[allow(dead_code)]
     header: Term,
-    #[allow(dead_code)]
     inner: HashMap<Term, Term>,
 }
 

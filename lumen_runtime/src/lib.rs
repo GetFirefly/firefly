@@ -42,7 +42,7 @@ mod float;
 mod list;
 mod logging;
 mod map;
-mod otp;
+pub mod otp;
 mod reference;
 mod stacktrace;
 mod system;

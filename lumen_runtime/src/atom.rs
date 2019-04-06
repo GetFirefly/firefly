@@ -1,5 +1,3 @@
-#![cfg_attr(not(test), allow(dead_code))]
-
 use std::cmp::Ordering::{self, *};
 use std::collections::HashMap;
 #[cfg(test)]

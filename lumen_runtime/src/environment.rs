@@ -1,5 +1,3 @@
-#![cfg_attr(not(test), allow(dead_code))]
-
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -31,6 +29,7 @@ impl Default for Environment {
     }
 }
 
+#[cfg(test)]
 pub fn process(environment_rw_lock: Arc<RwLock<Environment>>) -> Arc<RwLock<Process>> {
     let process = Process::new(Arc::clone(&environment_rw_lock));
     let pid = process.pid;
@@ -42,7 +41,7 @@ pub fn process(environment_rw_lock: Arc<RwLock<Environment>>) -> Arc<RwLock<Proc
         .process_by_pid_tagged
         .insert(pid.tagged, Arc::clone(&process_rw_lock))
     {
-        panic!("Process already registerd with pid");
+        panic!("Process already registered with pid");
     }
 
     process_rw_lock

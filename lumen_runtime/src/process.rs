@@ -1,4 +1,3 @@
-#![cfg_attr(not(test), allow(dead_code))]
 ///! The memory specific to a process in the VM.
 use std::sync::{Arc, RwLock, Weak};
 

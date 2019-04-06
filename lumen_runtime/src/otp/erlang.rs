@@ -1,7 +1,5 @@
 //! Mirrors [erlang](http://erlang::org/doc/man/erlang::html) module
 
-#![cfg_attr(not(test), allow(dead_code))]
-
 use std::cmp::Ordering;
 use std::convert::TryInto;
 use std::num::FpCategory;

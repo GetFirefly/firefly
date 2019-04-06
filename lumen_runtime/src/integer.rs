@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
+#[cfg(test)]
 use std::fmt::{self, Debug};
 
 use num_bigint::BigInt;
@@ -16,6 +17,7 @@ pub enum Integer {
     Big(BigInt),
 }
 
+#[cfg(test)]
 impl Debug for Integer {
     fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
         match self {

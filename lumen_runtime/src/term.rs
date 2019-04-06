@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering::{self, *};
 use std::convert::{TryFrom, TryInto};
+#[cfg(test)]
 use std::fmt::{self, Debug, Display};
 use std::hash::{Hash, Hasher};
 use std::mem::size_of;
@@ -75,6 +76,7 @@ pub struct TagError {
     bit_count: usize,
 }
 
+#[cfg(test)]
 impl Display for TagError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -210,6 +212,17 @@ impl Term {
         Index(self.tagged >> Tag::ATOM_BIT_COUNT)
     }
 
+
+    #[cfg(not(test))]
+    pub unsafe fn atom_to_string(&self) -> Arc<String> {
+        // bypass need to define `Debug` Term
+        match atom::index_to_string(self.atom_to_index()) {
+            Ok(string ) => string,
+            Err(_) => panic!("Atom not in table")
+        }
+    }
+
+    #[cfg(test)]
     pub unsafe fn atom_to_string(&self) -> Arc<String> {
         atom::index_to_string(self.atom_to_index()).unwrap()
     }
@@ -498,6 +511,7 @@ impl Term {
     }
 }
 
+#[cfg(test)]
 impl Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.tag() {

@@ -13,8 +13,11 @@ pub struct Exception {
     pub class: Class,
     pub reason: Term,
     pub stacktrace: Option<Term>,
+    #[cfg(debug_assertions)]
     pub file: &'static str,
+    #[cfg(debug_assertions)]
     pub line: u32,
+    #[cfg(debug_assertions)]
     pub column: u32,
 }
 
@@ -196,8 +199,11 @@ macro_rules! exception {
             class: $class,
             reason: $reason,
             stacktrace: $stacktrace,
+            #[cfg(debug_assertions)]
             file: file!(),
+            #[cfg(debug_assertions)]
             line: line!(),
+            #[cfg(debug_assertions)]
             column: column!(),
         }
     }};

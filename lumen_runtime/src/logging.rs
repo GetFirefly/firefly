@@ -52,7 +52,7 @@ impl Logger {
     fn log_plain(record: &Record) {
         let msg = format!(
             "{} {:<5} [{}] {}",
-            system::time::system_time().as_millis(),
+            system::time::system_time().as_secs(),
             record.level(),
             record.module_path().unwrap_or_default(),
             record.args()

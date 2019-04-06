@@ -1,4 +1,7 @@
 #![deny(warnings)]
+// `rand` has link errors
+#![allow(intra_doc_link_resolution_failure)]
+
 // For allocating multiple contiguous terms, like for Tuples.
 #![feature(allocator_api)]
 #![feature(bind_by_move_pattern_guards)]

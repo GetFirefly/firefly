@@ -32,7 +32,7 @@ impl PartialEq for Exception {
 
 pub type Result = std::result::Result<Term, Exception>;
 
-#[macro_export]
+#[cfg(test)]
 macro_rules! assert_badarg {
     ($left:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -42,7 +42,7 @@ macro_rules! assert_badarg {
     }};
 }
 
-#[macro_export]
+#[cfg(test)]
 macro_rules! assert_badarith {
     ($left:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -52,7 +52,7 @@ macro_rules! assert_badarith {
     }};
 }
 
-#[macro_export]
+#[cfg(test)]
 macro_rules! assert_badkey {
     ($left:expr, $key:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -68,7 +68,7 @@ macro_rules! assert_badkey {
     }};
 }
 
-#[macro_export]
+#[cfg(test)]
 macro_rules! assert_badmap {
     ($left:expr, $map:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -84,7 +84,7 @@ macro_rules! assert_badmap {
     }};
 }
 
-#[macro_export]
+#[cfg(test)]
 macro_rules! assert_error {
     ($left:expr, $reason:expr) => {
         assert_eq!($left, Err(error!($reason)))
@@ -100,7 +100,7 @@ macro_rules! assert_error {
     };
 }
 
-#[macro_export]
+#[cfg(test)]
 macro_rules! assert_exit {
     ($left:expr, $reason:expr) => {
         assert_eq!($left, Err(exit!($reason)))
@@ -110,7 +110,7 @@ macro_rules! assert_exit {
     };
 }
 
-#[macro_export]
+#[cfg(test)]
 macro_rules! assert_raises {
     ($left:expr, $class:expr, $reason:expr, $stacktrace:expr) => {
         assert_eq!($left, Err(raise!($class, $reason, $stacktrace)))
@@ -120,7 +120,7 @@ macro_rules! assert_raises {
     };
 }
 
-#[macro_export]
+#[cfg(test)]
 macro_rules! assert_throw {
     ($left:expr, $reason:expr) => {
         assert_eq!($left, Err(throw!($reason)))
@@ -130,7 +130,6 @@ macro_rules! assert_throw {
     };
 }
 
-#[macro_export]
 macro_rules! badarg {
     () => {{
         use crate::atom::Existence::DoNotCare;
@@ -140,7 +139,6 @@ macro_rules! badarg {
     }};
 }
 
-#[macro_export]
 macro_rules! badarith {
     () => {{
         use crate::atom::Existence::DoNotCare;
@@ -150,14 +148,13 @@ macro_rules! badarith {
     }};
 }
 
-#[macro_export]
 macro_rules! badmap {
     ($map:expr, $process:expr) => {{
-        use crate::atom::DoNotCare;
+        use crate::atom::Existence::DoNotCare;
         use crate::term::Term;
 
-        let badmap = Term::str_to_atom("badmap", DoNotCare, $process).unwrap();
-        let reason = Term::slice_to_tuple(&[badmap, map], $process);
+        let badmap = Term::str_to_atom("badmap", DoNotCare).unwrap();
+        let reason = Term::slice_to_tuple(&[badmap, $map], $process);
 
         error!(reason)
     }};
@@ -166,7 +163,6 @@ macro_rules! badmap {
     }};
 }
 
-#[macro_export]
 macro_rules! error {
     ($reason:expr) => {{
         error!($reason, None)
@@ -186,7 +182,6 @@ macro_rules! error {
     }};
 }
 
-#[macro_export]
 macro_rules! exception {
     ($class:expr, $reason:expr) => {
         exception!($class, $reason, None)
@@ -211,7 +206,6 @@ macro_rules! exception {
     };
 }
 
-#[macro_export]
 macro_rules! exit {
     ($reason:expr) => {{
         use crate::exception::Class::Exit;
@@ -220,7 +214,6 @@ macro_rules! exit {
     }};
 }
 
-#[macro_export]
 macro_rules! raise {
     ($class:expr, $reason:expr, $stacktrace:expr) => {
         exception!($class, $reason, $stacktrace)
@@ -230,7 +223,6 @@ macro_rules! raise {
     };
 }
 
-#[macro_export]
 macro_rules! throw {
     ($reason:expr) => {{
         use crate::exception::Class::Throw;

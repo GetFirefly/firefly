@@ -212,13 +212,12 @@ impl Term {
         Index(self.tagged >> Tag::ATOM_BIT_COUNT)
     }
 
-
     #[cfg(not(test))]
     pub unsafe fn atom_to_string(&self) -> Arc<String> {
         // bypass need to define `Debug` Term
         match atom::index_to_string(self.atom_to_index()) {
-            Ok(string ) => string,
-            Err(_) => panic!("Atom not in table")
+            Ok(string) => string,
+            Err(_) => panic!("Atom not in table"),
         }
     }
 
@@ -1386,12 +1385,7 @@ impl TryFromInProcess<Term> for &'static Map {
             }
             _ => None,
         }
-        .ok_or_else(|| {
-            let badmap = Term::str_to_atom("badmap", DoNotCare).unwrap();
-            let reason = Term::slice_to_tuple(&[badmap, term], &mut process);
-
-            error!(reason)
-        })
+        .ok_or_else(|| badmap!(term, &mut process))
     }
 }
 

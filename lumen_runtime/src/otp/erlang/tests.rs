@@ -56,6 +56,7 @@ mod is_tuple_1;
 mod length_1;
 mod list_to_atom_1;
 mod list_to_binary_1;
+mod list_to_bitstring_1;
 mod list_to_existing_atom_1;
 mod list_to_pid_1;
 mod list_to_tuple_1;

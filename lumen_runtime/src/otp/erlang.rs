@@ -760,6 +760,122 @@ pub fn list_to_binary_1(iolist: Term, mut process: &mut Process) -> Result {
     }
 }
 
+pub fn list_to_bitstring_1(iolist: Term, mut process: &mut Process) -> Result {
+    match iolist.tag() {
+        EmptyList | List => {
+            let mut byte_vec: Vec<u8> = Vec::new();
+            let mut bit_offset = 0;
+            let mut tail_byte = 0;
+            let mut stack: Vec<Term> = vec![iolist];
+
+            while let Some(top) = stack.pop() {
+                match top.tag() {
+                    SmallInteger => {
+                        let top_isize = unsafe { top.small_integer_to_isize() };
+                        let top_byte = top_isize.try_into().map_err(|_| badarg!())?;
+
+                        if bit_offset == 0 {
+                            byte_vec.push(top_byte);
+                        } else {
+                            tail_byte |= top_byte >> bit_offset;
+                            byte_vec.push(tail_byte);
+
+                            tail_byte = top_byte << (8 - bit_offset);
+                        }
+                    }
+                    EmptyList => (),
+                    List => {
+                        let cons: &Cons = unsafe { top.as_ref_cons_unchecked() };
+
+                        // @type bitstring_list ::
+                        //   maybe_improper_list(byte() | bitstring() | bitstring_list(),
+                        //                       bitstring() | [])
+                        // means that `byte()` isn't allowed for `tail`s unlike `head`.
+
+                        let tail = cons.tail();
+
+                        if tail.tag() == SmallInteger {
+                            return Err(badarg!());
+                        } else {
+                            stack.push(tail);
+                        }
+
+                        stack.push(cons.head());
+                    }
+                    Boxed => {
+                        let unboxed: &Term = top.unbox_reference();
+
+                        match unboxed.tag() {
+                            HeapBinary => {
+                                let heap_binary: &heap::Binary = top.unbox_reference();
+
+                                if bit_offset == 0 {
+                                    byte_vec.extend_from_slice(heap_binary.as_slice());
+                                } else {
+                                    for byte in heap_binary.byte_iter() {
+                                        tail_byte |= byte >> bit_offset;
+                                        byte_vec.push(tail_byte);
+
+                                        tail_byte = byte << (8 - bit_offset);
+                                    }
+                                }
+                            }
+                            Subbinary => {
+                                let subbinary: &sub::Binary = top.unbox_reference();
+
+                                if bit_offset == 0 {
+                                    byte_vec.extend(subbinary.byte_iter());
+                                } else {
+                                    for byte in subbinary.byte_iter() {
+                                        tail_byte |= byte >> bit_offset;
+                                        byte_vec.push(tail_byte);
+
+                                        tail_byte = byte << (8 - bit_offset);
+                                    }
+                                }
+
+                                if 0 < subbinary.bit_count {
+                                    for bit in subbinary.bit_count_iter() {
+                                        tail_byte |= bit << (7 - bit_offset);
+
+                                        if bit_offset == 7 {
+                                            byte_vec.push(tail_byte);
+                                            bit_offset = 0;
+                                            tail_byte = 0;
+                                        } else {
+                                            bit_offset += 1;
+                                        }
+                                    }
+                                }
+                            }
+                            _ => return Err(badarg!()),
+                        }
+                    }
+                    _ => return Err(badarg!()),
+                }
+            }
+
+            if bit_offset == 0 {
+                Ok(Term::slice_to_binary(byte_vec.as_slice(), &mut process))
+            } else {
+                let byte_count = byte_vec.len();
+                byte_vec.push(tail_byte);
+                let original = Term::slice_to_binary(byte_vec.as_slice(), &mut process);
+
+                Ok(Term::subbinary(
+                    original,
+                    0,
+                    0,
+                    byte_count,
+                    bit_offset,
+                    &mut process,
+                ))
+            }
+        }
+        _ => Err(badarg!()),
+    }
+}
+
 pub fn list_to_pid_1(string: Term, mut process: &mut Process) -> Result {
     let cons: &Cons = string.try_into()?;
 

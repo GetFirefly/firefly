@@ -26,6 +26,7 @@ mod binary_to_term_2;
 mod bit_size_1;
 mod bitstring_to_list_1;
 mod bor_2;
+mod bxor_2;
 mod byte_size_1;
 mod ceil_1;
 mod concatenate_2;

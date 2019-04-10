@@ -72,6 +72,7 @@ mod rem_2;
 mod self_0;
 mod setelement_3;
 mod size_1;
+mod split_binary_2;
 mod subtract_2;
 mod subtract_list_2;
 mod throw_1;

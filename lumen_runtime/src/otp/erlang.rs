@@ -112,6 +112,11 @@ pub fn atom_to_list_1(atom: Term, mut process: &mut Process) -> Result {
     }
 }
 
+// `band/2` infix operator.
+pub fn band_2(left_integer: Term, right_integer: Term, mut process: &mut Process) -> Result {
+    bitwise_infix_operator!(left_integer, right_integer, process, &)
+}
+
 pub fn binary_part_2(binary: Term, start_length: Term, mut process: &mut Process) -> Result {
     match start_length.tag() {
         Boxed => {

@@ -41,14 +41,7 @@ fn with_proper_list_returns_binary() {
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 255, 0], &mut process),
-                0,
-                0,
-                2,
-                1,
-                &mut process,
-            ))
+            Ok(bitstring!(1, 255, 0 :: 1, &mut process))
         );
     })
 }
@@ -104,14 +97,7 @@ fn with_heap_binary_returns_bitstring() {
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 129, 130, 0 << (8 - 1)], &mut process),
-                0,
-                0,
-                1 + 2,
-                1,
-                &mut process,
-            ))
+            Ok(bitstring!(1, 129, 130, 0 :: 1, &mut process))
         );
     })
 }
@@ -126,14 +112,7 @@ fn with_subbinary_with_bit_count_0_returns_binary() {
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 0b1_0000000 | 0b0000000_1, 0b0_0000000], &mut process),
-                0,
-                0,
-                1 + 1,
-                1 + 0,
-                &mut process,
-            ))
+            Ok(bitstring!(1, 0b1_0000000 | 0b0000000_1, 0b0 :: 1, &mut process))
         );
     });
 }
@@ -141,21 +120,12 @@ fn with_subbinary_with_bit_count_0_returns_binary() {
 #[test]
 fn with_subbinary_with_bit_count_1_returns_subbinary() {
     with(|head, mut process| {
-        let original = Term::slice_to_binary(&[0b0000_0010, 0b1 << (8 - 1)], &mut process);
-        let tail = Term::subbinary(original, 0, 0, 1, 1, &mut process);
-
+        let tail = bitstring!(0b0000_0010, 0b1 :: 1, &mut process);
         let iolist = Term::cons(head, tail, &mut process);
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 129, 1 << (8 - 2)], &mut process),
-                0,
-                0,
-                1 + 1,
-                1 + 1,
-                &mut process,
-            ))
+            Ok(bitstring!(1, 129, 1 :: 2, &mut process))
         );
     });
 }
@@ -163,21 +133,12 @@ fn with_subbinary_with_bit_count_1_returns_subbinary() {
 #[test]
 fn with_subbinary_with_bit_count_2_returns_subbinary() {
     with(|head, mut process| {
-        let original = Term::slice_to_binary(&[0b0000_0010, 0b01 << (8 - 2)], &mut process);
-        let tail = Term::subbinary(original, 0, 0, 1, 2, &mut process);
-
+        let tail = bitstring!(0b0000_0010, 0b01 :: 2, &mut process);
         let iolist = Term::cons(head, tail, &mut process);
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 129, 1 << (8 - 3)], &mut process),
-                0,
-                0,
-                1 + 1,
-                1 + 2,
-                &mut process
-            ))
+            Ok(bitstring!(1, 129, 1 :: 3, &mut process))
         );
     });
 }
@@ -185,21 +146,12 @@ fn with_subbinary_with_bit_count_2_returns_subbinary() {
 #[test]
 fn with_subbinary_with_bit_count_3_returns_subbinary() {
     with(|head, mut process| {
-        let original = Term::slice_to_binary(&[0b0000_0010, 0b101 << (8 - 3)], &mut process);
-        let tail = Term::subbinary(original, 0, 0, 1, 3, &mut process);
-
+        let tail = bitstring!(0b0000_0010, 0b101 :: 3, &mut process);
         let iolist = Term::cons(head, tail, &mut process);
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 129, 5 << (8 - 4)], &mut process),
-                0,
-                0,
-                1 + 1,
-                1 + 3,
-                &mut process
-            ))
+            Ok(bitstring!(1, 129, 5 :: 4, &mut process))
         );
     });
 }
@@ -207,21 +159,12 @@ fn with_subbinary_with_bit_count_3_returns_subbinary() {
 #[test]
 fn with_subbinary_with_bit_count_4_returns_subbinary() {
     with(|head, mut process| {
-        let original = Term::slice_to_binary(&[0b0000_0010, 0b0101 << (8 - 4)], &mut process);
-        let tail = Term::subbinary(original, 0, 0, 1, 4, &mut process);
-
+        let tail = bitstring!(0b0000_0010, 0b0101 :: 4, &mut process);
         let iolist = Term::cons(head, tail, &mut process);
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 129, 5 << (8 - 5)], &mut process),
-                0,
-                0,
-                1 + 1,
-                1 + 4,
-                &mut process
-            ))
+            Ok(bitstring!(1, 129, 5 :: 5, &mut process))
         );
     });
 }
@@ -229,21 +172,12 @@ fn with_subbinary_with_bit_count_4_returns_subbinary() {
 #[test]
 fn with_subbinary_with_bit_count_5_returns_subbinary() {
     with(|head, mut process| {
-        let original = Term::slice_to_binary(&[0b0000_0010, 0b10101 << (8 - 5)], &mut process);
-        let tail = Term::subbinary(original, 0, 0, 1, 5, &mut process);
-
+        let tail = bitstring!(0b0000_0010, 0b10101 :: 5, &mut process);
         let iolist = Term::cons(head, tail, &mut process);
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 129, 21 << (8 - 6)], &mut process),
-                0,
-                0,
-                1 + 1,
-                1 + 5,
-                &mut process
-            ))
+            Ok(bitstring!(1, 129, 21 :: 6, &mut process))
         );
     });
 }
@@ -251,21 +185,12 @@ fn with_subbinary_with_bit_count_5_returns_subbinary() {
 #[test]
 fn with_subbinary_with_bit_count_6_returns_subbinary() {
     with(|head, mut process| {
-        let original = Term::slice_to_binary(&[0b0000_0010, 0b010101 << (8 - 6)], &mut process);
-        let tail = Term::subbinary(original, 0, 0, 1, 6, &mut process);
-
+        let tail = bitstring!(0b0000_0010, 0b010101 :: 6, &mut process);
         let iolist = Term::cons(head, tail, &mut process);
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::subbinary(
-                Term::slice_to_binary(&[1, 129, 21 << (8 - 7)], &mut process),
-                0,
-                0,
-                1 + 1,
-                1 + 6,
-                &mut process
-            ))
+            Ok(bitstring!(1, 129, 21 :: 7, &mut process))
         );
     });
 }
@@ -273,9 +198,7 @@ fn with_subbinary_with_bit_count_6_returns_subbinary() {
 #[test]
 fn with_subbinary_with_bit_count_7_returns_subbinary() {
     with(|head, mut process| {
-        let original = Term::slice_to_binary(&[0b0000_0010, 0b1010101 << (8 - 7)], &mut process);
-        let tail = Term::subbinary(original, 0, 0, 1, 7, &mut process);
-
+        let tail = bitstring!(0b0000_0010, 0b1010101 :: 7, &mut process);
         let iolist = Term::cons(head, tail, &mut process);
 
         assert_eq!(
@@ -301,8 +224,7 @@ where
     F: FnOnce(Term, &mut Process) -> (),
 {
     with_process(|mut process| {
-        let original = Term::slice_to_binary(&[1, 0b1 << (8 - 1)], &mut process);
-        let head = Term::subbinary(original, 0, 0, 1, 1, &mut process);
+        let head = bitstring!(1, 0b1 :: 1, &mut process);
 
         f(head, &mut process);
     })

@@ -10,8 +10,10 @@ use crate::list::{Cons, ToList};
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
 use crate::term::{self, Tag::*, Term};
 
-pub mod heap;
+#[macro_use]
 pub mod sub;
+
+pub mod heap;
 
 pub enum Binary<'a> {
     Heap(&'a heap::Binary),

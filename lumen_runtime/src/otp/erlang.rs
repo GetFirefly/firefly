@@ -364,6 +364,11 @@ pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Resul
     }
 }
 
+// `bor/2` infix operator.
+pub fn bor_2(left_integer: Term, right_integer: Term, mut process: &mut Process) -> Result {
+    bitwise_infix_operator!(left_integer, right_integer, process, |)
+}
+
 pub fn byte_size_1(bit_string: Term, mut process: &mut Process) -> Result {
     match bit_string.tag() {
         Boxed => {

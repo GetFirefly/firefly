@@ -105,23 +105,15 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let original = Term::slice_to_binary(&[0, 1, 0b010], &mut process);
-    let bit_string = Term::subbinary(original, 0, 0, 2, 3, &mut process);
+    let bitstring = bitstring!(0, 1, 0b010 :: 3, &mut process);
 
     assert_eq!(
-        erlang::bitstring_to_list_1(bit_string, &mut process),
+        erlang::bitstring_to_list_1(bitstring, &mut process),
         Ok(Term::cons(
             0.into_process(&mut process),
             Term::cons(
                 1.into_process(&mut process),
-                Term::subbinary(
-                    Term::slice_to_binary(&[0, 1, 2], &mut process),
-                    2,
-                    0,
-                    0,
-                    3,
-                    &mut process
-                ),
+                bitstring!(0b010 :: 3, &mut process),
                 &mut process
             ),
             &mut process

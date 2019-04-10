@@ -83,11 +83,10 @@ fn with_subbinary_is_eight_times_byte_count_plus_bit_count() {
     let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
     let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
     let mut process = process_rw_lock.write().unwrap();
-    let binary_term = Term::slice_to_binary(&[0, 1, 0b010], &mut process);
-    let subbinary_term = Term::subbinary(binary_term, 0, 0, 2, 3, &mut process);
+    let bitstring = bitstring!(0, 1, 0b010 :: 3, &mut process);
 
     assert_eq!(
-        erlang::bit_size_1(subbinary_term, &mut process),
+        erlang::bit_size_1(bitstring, &mut process),
         Ok(19.into_process(&mut process))
     );
 }

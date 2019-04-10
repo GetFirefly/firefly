@@ -1017,6 +1017,115 @@ pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
     .map(|integer| integer.into_process(&mut process))
 }
 
+pub fn split_binary_2(binary: Term, position: Term, mut process: &mut Process) -> Result {
+    let index: usize = position.try_into()?;
+
+    match binary.tag() {
+        Boxed => {
+            let unboxed: &Term = binary.unbox_reference();
+
+            match unboxed.tag() {
+                HeapBinary => {
+                    if index == 0 {
+                        let empty_prefix = Term::subbinary(binary, index, 0, 0, 0, &mut process);
+
+                        // Don't make a subbinary of the suffix since it is the same as the
+                        // `binary`.
+                        Ok(Term::slice_to_tuple(&[empty_prefix, binary], &mut process))
+                    } else {
+                        let heap_binary: &heap::Binary = binary.unbox_reference();
+                        let byte_length = heap_binary.byte_len();
+
+                        if index < byte_length {
+                            let prefix = Term::subbinary(binary, 0, 0, index, 0, &mut process);
+                            let suffix = Term::subbinary(
+                                binary,
+                                index,
+                                0,
+                                byte_length - index,
+                                0,
+                                &mut process,
+                            );
+
+                            Ok(Term::slice_to_tuple(&[prefix, suffix], &mut process))
+                        } else if index == byte_length {
+                            let empty_suffix =
+                                Term::subbinary(binary, index, 0, 0, 0, &mut process);
+
+                            // Don't make a subbinary of the prefix since it is the same as the
+                            // `binary`.
+                            Ok(Term::slice_to_tuple(&[binary, empty_suffix], &mut process))
+                        } else {
+                            Err(badarg!())
+                        }
+                    }
+                }
+                Subbinary => {
+                    let subbinary: &sub::Binary = binary.unbox_reference();
+
+                    if index == 0 {
+                        let empty_prefix = Term::subbinary(
+                            subbinary.original,
+                            subbinary.byte_offset + index,
+                            subbinary.bit_offset,
+                            0,
+                            0,
+                            &mut process,
+                        );
+
+                        // Don't make a subbinary of the suffix since it is the same as the
+                        // `binary`.
+                        Ok(Term::slice_to_tuple(&[empty_prefix, binary], &mut process))
+                    } else {
+                        // byte_length includes +1 byte if bits
+                        let byte_length = subbinary.byte_len();
+
+                        if index < byte_length {
+                            let original = subbinary.original;
+                            let byte_offset = subbinary.byte_offset;
+                            let bit_offset = subbinary.bit_offset;
+                            let prefix = Term::subbinary(
+                                original,
+                                byte_offset,
+                                bit_offset,
+                                index,
+                                0,
+                                &mut process,
+                            );
+                            let suffix = Term::subbinary(
+                                original,
+                                byte_offset + index,
+                                bit_offset,
+                                // byte_count does not include bits
+                                subbinary.byte_count - index,
+                                subbinary.bit_count,
+                                &mut process,
+                            );
+
+                            Ok(Term::slice_to_tuple(&[prefix, suffix], &mut process))
+                        } else if (index == byte_length) & (subbinary.bit_count == 0) {
+                            let empty_suffix = Term::subbinary(
+                                subbinary.original,
+                                subbinary.byte_offset + index,
+                                subbinary.bit_offset,
+                                0,
+                                0,
+                                &mut process,
+                            );
+
+                            Ok(Term::slice_to_tuple(&[binary, empty_suffix], &mut process))
+                        } else {
+                            Err(badarg!())
+                        }
+                    }
+                }
+                _ => Err(badarg!()),
+            }
+        }
+        _ => Err(badarg!()),
+    }
+}
+
 /// `-/2` infix operator
 pub fn subtract_2(minuend: Term, subtrahend: Term, mut process: &mut Process) -> Result {
     number_infix_operator!(minuend, subtrahend, process, checked_sub, -)

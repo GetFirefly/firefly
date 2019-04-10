@@ -11,6 +11,7 @@ mod add_2;
 mod append_element_2;
 mod atom_to_binary_2;
 mod atom_to_list_1;
+mod band_2;
 mod binary_part_2;
 mod binary_part_3;
 mod binary_to_atom_2;

@@ -87,6 +87,7 @@ mod throw_1;
 mod tl_1;
 mod tuple_size_1;
 mod tuple_to_list_1;
+mod xor_2;
 
 fn errors_badarg<F>(actual: F)
 where

@@ -9,8 +9,6 @@
 #![feature(integer_atomics)]
 // For `lumen_runtime::binary::heap::<Iter as Iterator>.size_hint`
 #![feature(ptr_offset_from)]
-// for conversion of `usize` to `lumen_runtime::term::Tag`
-#![feature(try_from)]
 // For allocation multiple contiguous terms in `Term::alloc_count`.
 #![feature(try_reserve)]
 // for `lumen_runtime::term::Term`

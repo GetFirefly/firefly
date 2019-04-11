@@ -86,6 +86,13 @@ pub fn add_2(augend: Term, addend: Term, mut process: &mut Process) -> Result {
     number_infix_operator!(augend, addend, process, checked_add, +)
 }
 
+/// `and/2` infix operator.
+///
+/// **NOTE: NOT SHORT-CIRCUITING!**
+pub fn and_2(left_boolean: Term, right_boolean: Term) -> Result {
+    boolean_infix_operator!(left_boolean, right_boolean, &)
+}
+
 pub fn append_element_2(tuple: Term, element: Term, mut process: &mut Process) -> Result {
     let internal: &Tuple = tuple.try_into_in_process(&mut process)?;
     let new_tuple = internal.append_element(element, &mut process.term_arena);

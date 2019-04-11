@@ -74,6 +74,7 @@ mod multiply_2;
 mod negate_1;
 mod node_0;
 mod number_or_badarith_1;
+mod or_2;
 mod raise_3;
 mod rem_2;
 mod self_0;

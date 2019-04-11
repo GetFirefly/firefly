@@ -1021,6 +1021,13 @@ pub fn number_or_badarith_1(term: Term) -> Result {
     }
 }
 
+/// `or/2` infix operator.
+///
+/// **NOTE: NOT SHORT-CIRCUITING!**
+pub fn or_2(left_boolean: Term, right_boolean: Term) -> Result {
+    boolean_infix_operator!(left_boolean, right_boolean, |)
+}
+
 pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
     let class_class: Class = class.try_into()?;
 

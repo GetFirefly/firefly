@@ -391,12 +391,80 @@ pub fn bnot_1(integer: Term, mut process: &mut Process) -> Result {
     }
 }
 
-// `bor/2` infix operator.
+/// `bor/2` infix operator.
 pub fn bor_2(left_integer: Term, right_integer: Term, mut process: &mut Process) -> Result {
     bitwise_infix_operator!(left_integer, right_integer, process, |)
 }
 
-// `bxor/2` infix operator.
+pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
+
+/// `bsl/2` infix operator.
+pub fn bsl_2(integer: Term, shift: Term, mut process: &mut Process) -> Result {
+    match integer.tag() {
+        SmallInteger => {
+            let integer_isize: isize = integer.try_into()?;
+            let shift_isize: isize = shift.try_into().map_err(|_| badarith!())?;
+
+            // Rust doesn't support negative shift, so negative left shifts need to be right shifts
+            if 0 <= shift_isize {
+                let shift_usize = shift_isize as usize;
+
+                if shift_usize <= MAX_SHIFT {
+                    let shifted = integer_isize << shift_usize;
+
+                    Ok(shifted.into_process(&mut process))
+                } else {
+                    let big_int: BigInt = integer_isize.into();
+                    let shifted = big_int << shift_usize;
+
+                    Ok(shifted.into_process(&mut process))
+                }
+            } else {
+                let shift_usize = (-shift_isize) as usize;
+
+                if shift_usize <= MAX_SHIFT {
+                    let shifted = integer_isize >> shift_usize;
+
+                    Ok(shifted.into_process(&mut process))
+                } else {
+                    let big_int: BigInt = integer_isize.into();
+                    let shifted = big_int >> shift_usize;
+
+                    Ok(shifted.into_process(&mut process))
+                }
+            }
+        }
+        Boxed => {
+            let unboxed_integer: &Term = integer.unbox_reference();
+
+            match unboxed_integer.tag() {
+                BigInteger => {
+                    let big_integer: &big::Integer = integer.unbox_reference();
+                    let big_int: &BigInt = &big_integer.inner;
+                    let shift_isize: isize = shift.try_into().map_err(|_| badarith!())?;
+
+                    // Rust doesn't support negative shift, so negative left shifts need to be right
+                    // shifts
+                    let shifted = if 0 <= shift_isize {
+                        let shift_usize = shift_isize as usize;
+
+                        big_int << shift_usize
+                    } else {
+                        let shift_usize = (-shift_isize) as usize;
+
+                        big_int >> shift_usize
+                    };
+
+                    Ok(shifted.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        _ => Err(badarith!()),
+    }
+}
+
+/// `bxor/2` infix operator.
 pub fn bxor_2(left_integer: Term, right_integer: Term, mut process: &mut Process) -> Result {
     bitwise_infix_operator!(left_integer, right_integer, process, ^)
 }

@@ -9,9 +9,6 @@ jobs:
       - run:
           name: Version Information
           command: rustc --version; cargo --version; rustup --version
-      - run:
-          name: Calculate Dependencies
-          command: cargo generate-lockfile
       - restore_cache:
           keys:
             - v1-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
@@ -55,9 +52,6 @@ jobs:
       - run:
           name: Version Information
           command: rustc --version; cargo --version; rustup --version
-      - run:
-          name: Calculate Dependencies
-          command: cargo generate-lockfile
       - restore_cache:
           keys:
             - v1-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}

@@ -73,6 +73,7 @@ mod map_size_1;
 mod multiply_2;
 mod negate_1;
 mod node_0;
+mod not_1;
 mod number_or_badarith_1;
 mod or_2;
 mod raise_3;

@@ -1012,6 +1012,14 @@ pub fn node_0() -> Term {
     Term::str_to_atom("nonode@nohost", DoNotCare).unwrap()
 }
 
+/// `not/1` prefix operator.
+pub fn not_1(boolean: Term) -> Result {
+    let boolean_bool: bool = boolean.try_into()?;
+    let output = !boolean_bool;
+
+    Ok(output.into())
+}
+
 /// `+/1` prefix operator.
 pub fn number_or_badarith_1(term: Term) -> Result {
     if term.is_number() {

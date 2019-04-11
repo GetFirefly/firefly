@@ -88,9 +88,25 @@ pub fn add_2(augend: Term, addend: Term, mut process: &mut Process) -> Result {
 
 /// `and/2` infix operator.
 ///
-/// **NOTE: NOT SHORT-CIRCUITING!**
+/// **NOTE: NOT SHORT-CIRCUITING!**  Use `andalso/2` for short-circuiting, but it doesn't enforce
+/// that `right` is boolean.
 pub fn and_2(left_boolean: Term, right_boolean: Term) -> Result {
     boolean_infix_operator!(left_boolean, right_boolean, &)
+}
+
+/// `andalso/2` infix operator.
+///
+/// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
+/// both operands, use `and_2`.
+pub fn andalso_2(boolean: Term, term: Term) -> Result {
+    let boolean_bool: bool = boolean.try_into()?;
+
+    if boolean_bool {
+        Ok(term)
+    } else {
+        // always `false.into()`, but this is faster
+        Ok(boolean)
+    }
 }
 
 pub fn append_element_2(tuple: Term, element: Term, mut process: &mut Process) -> Result {

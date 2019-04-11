@@ -1268,6 +1268,13 @@ pub fn tuple_to_list_1(tuple: Term, mut process: &mut Process) -> Result {
     }
 }
 
+/// `xor/2` infix operator.
+///
+/// **NOTE: NOT SHORT-CIRCUITING!**
+pub fn xor_2(left_boolean: Term, right_boolean: Term) -> Result {
+    boolean_infix_operator!(left_boolean, right_boolean, ^)
+}
+
 // Private Functions
 
 fn binary_existence_to_atom(binary: Term, encoding: Term, existence: Existence) -> Result {

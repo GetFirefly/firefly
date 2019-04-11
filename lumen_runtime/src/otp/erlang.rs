@@ -364,6 +364,33 @@ pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Resul
     }
 }
 
+// `bnot/1` prefix operator.
+pub fn bnot_1(integer: Term, mut process: &mut Process) -> Result {
+    match integer.tag() {
+        SmallInteger => {
+            let integer_isize = unsafe { integer.small_integer_to_isize() };
+            let output = !integer_isize;
+
+            Ok(output.into_process(&mut process))
+        }
+        Boxed => {
+            let unboxed: &Term = integer.unbox_reference();
+
+            match unboxed.tag() {
+                BigInteger => {
+                    let big_integer: &big::Integer = integer.unbox_reference();
+                    let big_int = &big_integer.inner;
+                    let output_big_int = !big_int;
+
+                    Ok(output_big_int.into_process(&mut process))
+                }
+                _ => Err(badarith!()),
+            }
+        }
+        _ => Err(badarith!()),
+    }
+}
+
 // `bor/2` infix operator.
 pub fn bor_2(left_integer: Term, right_integer: Term, mut process: &mut Process) -> Result {
     bitwise_infix_operator!(left_integer, right_integer, process, |)

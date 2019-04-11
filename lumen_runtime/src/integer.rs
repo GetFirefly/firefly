@@ -80,6 +80,75 @@ macro_rules! bitwise_infix_operator {
     };
 }
 
+macro_rules! bitshift_infix_operator {
+    ($integer:ident, $shift:ident, $process:ident, $positive:tt, $negative:tt) => {{
+        pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
+
+        match $integer.tag() {
+            SmallInteger => {
+                let integer_isize: isize = $integer.try_into()?;
+                let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
+
+                // Rust doesn't support negative shift, so negative left shifts need to be right shifts
+                if 0 <= shift_isize {
+                    let shift_usize = shift_isize as usize;
+
+                    if shift_usize <= MAX_SHIFT {
+                        let shifted = integer_isize $positive shift_usize;
+
+                        Ok(shifted.into_process(&mut $process))
+                    } else {
+                        let big_int: BigInt = integer_isize.into();
+                        let shifted = big_int $positive shift_usize;
+
+                        Ok(shifted.into_process(&mut $process))
+                    }
+                } else {
+                    let shift_usize = (-shift_isize) as usize;
+
+                    if shift_usize <= MAX_SHIFT {
+                        let shifted = integer_isize $negative shift_usize;
+
+                        Ok(shifted.into_process(&mut $process))
+                    } else {
+                        let big_int: BigInt = integer_isize.into();
+                        let shifted = big_int $negative shift_usize;
+
+                        Ok(shifted.into_process(&mut $process))
+                    }
+                }
+            }
+            Boxed => {
+                let unboxed_integer: &Term = $integer.unbox_reference();
+
+                match unboxed_integer.tag() {
+                    BigInteger => {
+                        let big_integer: &big::Integer = $integer.unbox_reference();
+                        let big_int: &BigInt = &big_integer.inner;
+                        let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
+
+                        // Rust doesn't support negative shift, so negative left shifts need to be right
+                        // shifts
+                        let shifted = if 0 <= shift_isize {
+                            let shift_usize = shift_isize as usize;
+
+                            big_int $positive shift_usize
+                        } else {
+                            let shift_usize = (-shift_isize) as usize;
+
+                            big_int $negative shift_usize
+                        };
+
+                        Ok(shifted.into_process(&mut $process))
+                    }
+                    _ => Err(badarith!()),
+                }
+            }
+            _ => Err(badarith!()),
+        }
+    }};
+}
+
 use crate::integer::big::big_int_to_usize;
 
 pub enum Integer {

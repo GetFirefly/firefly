@@ -558,6 +558,21 @@ pub fn element_2(tuple: Term, index: Term, mut process: &mut Process) -> Result 
     inner_tuple.element(index_zero_based)
 }
 
+/// `orelse/2` infix operator.
+///
+/// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
+/// both operands, use `or_2`.
+pub fn orelse_2(boolean: Term, term: Term) -> Result {
+    let boolean_bool: bool = boolean.try_into()?;
+
+    if boolean_bool {
+        // always `true.into()`, but this is faster
+        Ok(boolean)
+    } else {
+        Ok(term)
+    }
+}
+
 pub fn error_1(reason: Term) -> Result {
     Err(error!(reason))
 }

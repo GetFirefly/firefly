@@ -26,6 +26,8 @@ mod process;
 #[macro_use]
 mod exception;
 #[macro_use]
+mod atom;
+#[macro_use]
 mod binary;
 #[macro_use]
 mod integer;
@@ -34,7 +36,6 @@ mod number;
 #[macro_use]
 mod support;
 
-mod atom;
 mod config;
 mod environment;
 mod float;

@@ -1220,6 +1220,21 @@ impl TryFrom<Term> for Class {
     }
 }
 
+impl TryFrom<Term> for bool {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<bool, Exception> {
+        match term.tag() {
+            Atom => match unsafe { term.atom_to_string() }.as_ref().as_ref() {
+                "false" => Ok(false),
+                "true" => Ok(true),
+                _ => Err(badarg!()),
+            },
+            _ => Err(badarg!()),
+        }
+    }
+}
+
 impl TryFrom<Term> for char {
     type Error = Exception;
 

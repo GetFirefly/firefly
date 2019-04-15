@@ -15,9 +15,12 @@ use liblumen_arena::TypedArena;
 use crate::atom::{self, Encoding, Existence, Existence::*, Index};
 use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::exception::{self, Class, Exception};
-use crate::float::Float;
+use crate::float::{self, Float};
 use crate::integer::Integer::{self, Big, Small};
-use crate::integer::{big, small};
+use crate::integer::{
+    big::{self, integral_f64_to_big_int},
+    small,
+};
 use crate::list::Cons;
 use crate::map::Map;
 use crate::process::{self, IntoProcess, Process, TryFromInProcess, TryIntoInProcess};
@@ -268,6 +271,106 @@ impl Term {
 
         Term {
             tagged: pointer_bits | (List as usize),
+        }
+    }
+
+    /// Converts integers and floats and only do conversion when not `eq`.
+    pub fn eq_after_conversion(&self, right: &Term) -> bool {
+        (self.eq(right) | {
+            match (self.tag(), right.tag()) {
+                (SmallInteger, Boxed) => {
+                    let right_unboxed: &Term = right.unbox_reference();
+
+                    match right_unboxed.tag() {
+                        Float => unsafe {
+                            Self::small_integer_eq_float_after_conversion(self, right)
+                        },
+                        _ => false,
+                    }
+                }
+                (Boxed, SmallInteger) => {
+                    let left_unboxed: &Term = self.unbox_reference();
+
+                    match left_unboxed.tag() {
+                        Float => unsafe {
+                            Self::small_integer_eq_float_after_conversion(right, self)
+                        },
+                        _ => false,
+                    }
+                }
+                (Boxed, Boxed) => {
+                    let left_unboxed: &Term = self.unbox_reference();
+                    let right_unbox: &Term = right.unbox_reference();
+
+                    match (left_unboxed.tag(), right_unbox.tag()) {
+                        (BigInteger, Float) => unsafe {
+                            Self::big_integer_eq_float_after_conversion(self, right)
+                        },
+                        (Float, BigInteger) => unsafe {
+                            Self::big_integer_eq_float_after_conversion(right, self)
+                        },
+                        _ => false,
+                    }
+                }
+                _ => false,
+            }
+        })
+    }
+
+    unsafe fn small_integer_eq_float_after_conversion(
+        small_integer: &Term,
+        float_term: &Term,
+    ) -> bool {
+        let float: &Float = float_term.unbox_reference();
+        let float_f64 = float.inner;
+
+        (float_f64.fract() == 0.0) & {
+            let small_integer_isize = small_integer.small_integer_to_isize();
+
+            // float is out-of-range of SmallInteger, so it can't be equal
+            if (float_f64 < (small::MIN as f64)) | ((small::MAX as f64) < float_f64) {
+                false
+            } else {
+                let float_isize = float_f64 as isize;
+
+                small_integer_isize == float_isize
+            }
+        }
+    }
+
+    // See https://github.com/erlang/otp/blob/741c5a5e1dbffd32d0478d4941ab0f725d709086/erts/emulator/beam/utils.c#L3196-L3221
+    unsafe fn big_integer_eq_float_after_conversion(
+        big_integer_term: &Term,
+        float_term: &Term,
+    ) -> bool {
+        let float: &Float = float_term.unbox_reference();
+        let float_f64 = float.inner;
+
+        (float_f64.fract() == 0.0) & {
+            // Float fits in small integer range, so it can't be a BigInt
+            // https://github.com/erlang/otp/blob/741c5a5e1dbffd32d0478d4941ab0f725d709086/erts/emulator/beam/utils.c#L3199-L3202
+            if (((small::MIN - 1) as f64) < float_f64) | (float_f64 < ((small::MAX + 1) as f64)) {
+                false
+            } else {
+                let big_integer: &big::Integer = big_integer_term.unbox_reference();
+                let big_integer_big_int = &big_integer.inner;
+
+                // big_int can't fit in float
+                if (std::f64::MAX_EXP as usize) < big_integer_big_int.bits() {
+                    false
+                // > A float is more precise than an integer until all
+                // > significant figures of the float are to the left of the
+                // > decimal point.
+                } else if (float::INTEGRAL_MIN <= float_f64) & (float_f64 <= float::INTEGRAL_MAX) {
+                    let big_integer_f64: f64 = big_integer.into();
+
+                    big_integer_f64 == float_f64
+                } else {
+                    let float_big_int = integral_f64_to_big_int(float_f64);
+
+                    big_integer_big_int == &float_big_int
+                }
+            }
         }
     }
 

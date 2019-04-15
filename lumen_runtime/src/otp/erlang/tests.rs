@@ -14,6 +14,7 @@ mod append_element_2;
 mod are_equal_after_conversion_2;
 mod are_exactly_equal_2;
 mod are_exactly_not_equal_2;
+mod are_not_equal_after_conversion_2;
 mod atom_to_binary_2;
 mod atom_to_list_1;
 mod band_2;

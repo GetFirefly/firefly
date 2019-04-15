@@ -121,6 +121,11 @@ pub fn are_exactly_equal_2(left: Term, right: Term) -> Term {
     left.eq(&right).into()
 }
 
+/// `=/=/2` infix operator.  Unlike `!=`, does not convert between floats and integers.
+pub fn are_exactly_not_equal_2(left: Term, right: Term) -> Term {
+    left.ne(&right).into()
+}
+
 pub fn atom_to_binary_2(atom: Term, encoding: Term, mut process: &mut Process) -> Result {
     if atom.tag() == Atom {
         encoding.atom_to_encoding()?;

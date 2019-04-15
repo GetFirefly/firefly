@@ -116,6 +116,11 @@ pub fn append_element_2(tuple: Term, element: Term, mut process: &mut Process) -
     Ok(new_tuple.into())
 }
 
+/// `==/2` infix operator.  Unlike `=:=`, converts between floats and integers.
+pub fn are_equal_after_conversion_2(left: Term, right: Term) -> Term {
+    left.eq_after_conversion(&right).into()
+}
+
 /// `=:=/2` infix operator.  Unlike `==`, does not convert between floats and integers.
 pub fn are_exactly_equal_2(left: Term, right: Term) -> Term {
     left.eq(&right).into()

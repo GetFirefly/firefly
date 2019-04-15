@@ -2,6 +2,11 @@ use std::hash::{Hash, Hasher};
 
 use crate::term::{Tag, Term};
 
+#[cfg(test)]
+pub const INTEGRAL_MIN: f64 = -9007199254740992.0;
+#[cfg(test)]
+pub const INTEGRAL_MAX: f64 = 9007199254740992.0;
+
 pub struct Float {
     #[allow(dead_code)]
     header: Term,

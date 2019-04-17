@@ -695,6 +695,11 @@ pub fn is_float_1(term: Term) -> Term {
     .into()
 }
 
+/// `>/2` infix operator.  Floats and integers are converted.
+pub fn is_greater_than_2(left: Term, right: Term) -> Term {
+    left.gt(&right).into()
+}
+
 pub fn is_integer_1(term: Term) -> Term {
     match term.tag() {
         SmallInteger => true,

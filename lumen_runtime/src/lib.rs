@@ -1,8 +1,32 @@
-mod config;
-mod logging;
-mod system;
+// For allocating multiple contiguous terms, like for Tuples.
+#![feature(allocator_api)]
+#![feature(exact_size_is_empty)]
+// For `lumen_runtime::binary::heap::<Iter as Iterator>.size_hint`
+#![feature(ptr_offset_from)]
+// for conversion of `usize` to `lumen_runtime::term::Tag`
+#![feature(try_from)]
+// For allocation multiple contiguous terms in `Term::alloc_count`.
+#![feature(try_reserve)]
+// for `lumen_runtime::term::Term`
+#![feature(untagged_unions)]
+
+#[macro_use]
+mod process;
 #[macro_use]
 mod support;
+
+mod atom;
+mod binary;
+mod config;
+mod environment;
+mod float;
+mod integer;
+mod list;
+mod logging;
+mod otp;
+mod system;
+mod term;
+mod tuple;
 
 use self::config::Config;
 use self::logging::Logger;

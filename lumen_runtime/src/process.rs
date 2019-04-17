@@ -89,6 +89,15 @@ impl Process {
         unsafe { &*pointer }
     }
 
+    #[cfg(test)]
+    pub fn number_to_local_reference(&mut self, number: u64) -> &'static local::Reference {
+        let pointer = self
+            .local_reference_arena
+            .alloc(local::Reference::new(number)) as *const local::Reference;
+
+        unsafe { &*pointer }
+    }
+
     pub fn num_bigint_big_in_to_big_integer(&self, big_int: BigInt) -> &'static big::Integer {
         let pointer =
             self.big_integer_arena.alloc(big::Integer::new(big_int)) as *const big::Integer;

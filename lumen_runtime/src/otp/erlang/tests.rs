@@ -54,6 +54,7 @@ mod is_atom_1;
 mod is_binary_1;
 mod is_bitstring_1;
 mod is_boolean_1;
+mod is_equal_or_less_than_2;
 mod is_float_1;
 mod is_greater_than_2;
 mod is_greater_than_or_equal_2;

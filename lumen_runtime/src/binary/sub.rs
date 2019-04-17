@@ -421,7 +421,13 @@ impl PartialOrd<heap::Binary> for Binary {
 
                     break;
                 }
-                (None, None) => break,
+                (None, None) => {
+                    if 0 < self.bit_count {
+                        partial_ordering = Some(Greater);
+                    }
+
+                    break;
+                }
             }
         }
 

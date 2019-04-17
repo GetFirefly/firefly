@@ -74,10 +74,10 @@ fn with_list_right_returns_true() {
 }
 
 #[test]
-fn with_prefix_heap_binary_right_returns_false() {
+fn with_prefix_heap_binary_right_returns_true() {
     is_greater_than(
         |_, mut process| Term::slice_to_binary(&[1], &mut process),
-        false,
+        true,
     );
 }
 
@@ -104,7 +104,11 @@ fn with_same_heap_binary_right_returns_false() {
 
 #[test]
 fn with_same_value_heap_binary_right_returns_false() {
-    is_greater_than(
+    super::is_greater_than(
+        |mut process| {
+            let original = Term::slice_to_binary(&[1], &mut process);
+            Term::subbinary(original, 0, 0, 1, 0, &mut process)
+        },
         |_, mut process| Term::slice_to_binary(&[1], &mut process),
         false,
     )

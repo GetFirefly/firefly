@@ -680,6 +680,14 @@ pub fn is_boolean_1(term: Term) -> Term {
     .into()
 }
 
+/// `=</2` infix operator.  Floats and integers are converted.
+///
+/// **NOTE: `=</2` is not a typo.  Unlike `>=/2`, which has the `=` second, Erlang put the `=` first
+/// for `=</2`, instead of the more common `<=`.
+pub fn is_equal_or_less_than_2(left: Term, right: Term) -> Term {
+    left.le(&right).into()
+}
+
 pub fn is_float_1(term: Term) -> Term {
     match term.tag() {
         Boxed => {

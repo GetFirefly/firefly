@@ -395,18 +395,37 @@ impl PartialOrd<heap::Binary> for Binary {
     /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
     fn partial_cmp(&self, other: &heap::Binary) -> Option<Ordering> {
-        match self.byte_iter().partial_cmp(other.byte_iter()) {
-            Some(Equal) =>
-            // a heap::Binary has 0 bit_count, so if the subbinary has any tail bits it is greater
-            {
-                if 0 < self.bit_count {
-                    Some(Greater)
-                } else {
-                    Some(Equal)
+        let mut self_byte_iter = self.byte_iter();
+        let mut other_byte_iter = other.byte_iter();
+        let mut partial_ordering = Some(Equal);
+
+        while let Some(Equal) = partial_ordering {
+            match (self_byte_iter.next(), other_byte_iter.next()) {
+                (Some(self_byte), Some(other_byte)) => {
+                    partial_ordering = self_byte.partial_cmp(&other_byte)
                 }
+                (None, Some(other_byte)) => {
+                    let bit_count = self.bit_count;
+
+                    partial_ordering = if bit_count > 0 {
+                        self.bit_count_iter()
+                            .partial_cmp(heap::Binary::bit_count_iter(other_byte, bit_count))
+                    } else {
+                        Some(Less)
+                    };
+
+                    break;
+                }
+                (Some(_), None) => {
+                    partial_ordering = Some(Greater);
+
+                    break;
+                }
+                (None, None) => break,
             }
-            partial_ordering => partial_ordering,
         }
+
+        partial_ordering
     }
 }
 

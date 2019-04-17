@@ -1,4 +1,4 @@
-use std::cmp::Ordering::{self, *};
+use std::cmp::Ordering;
 use std::convert::TryFrom;
 #[cfg(test)]
 use std::fmt::{self, Debug};
@@ -41,6 +41,14 @@ impl Binary {
 
     pub fn as_slice(&self) -> &'static [u8] {
         unsafe { std::slice::from_raw_parts(self.bytes, self.header.heap_binary_to_byte_count()) }
+    }
+
+    pub fn bit_count_iter(byte: u8, bit_count: u8) -> BitCountIter {
+        BitCountIter {
+            byte,
+            current_bit_offset: 0,
+            max_bit_offset: bit_count,
+        }
     }
 
     pub fn bit_len(&self) -> usize {
@@ -106,6 +114,12 @@ impl Binary {
     }
 }
 
+pub struct BitCountIter {
+    byte: u8,
+    current_bit_offset: u8,
+    max_bit_offset: u8,
+}
+
 #[cfg(test)]
 impl Debug for Binary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -143,6 +157,22 @@ pub struct Iter {
 impl ByteIterator for Iter {}
 
 impl ExactSizeIterator for Iter {}
+
+impl Iterator for BitCountIter {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        if self.current_bit_offset == self.max_bit_offset {
+            None
+        } else {
+            let bit = (self.byte >> (7 - self.current_bit_offset)) & 0b1;
+
+            self.current_bit_offset += 1;
+
+            Some(bit)
+        }
+    }
+}
 
 impl Iterator for Iter {
     type Item = u8;
@@ -238,10 +268,15 @@ impl PartialEq<sub::Binary> for Binary {
 
 impl PartialOrd for Binary {
     fn partial_cmp(&self, other: &Binary) -> Option<Ordering> {
-        match self.len().partial_cmp(&other.len()) {
-            Some(Equal) => self.iter().partial_cmp(other.iter()),
-            partial_ordering => partial_ordering,
-        }
+        self.byte_iter().partial_cmp(other.byte_iter())
+    }
+}
+
+impl PartialOrd<sub::Binary> for Binary {
+    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+    fn partial_cmp(&self, other: &sub::Binary) -> Option<Ordering> {
+        other.partial_cmp(self).map(|ordering| ordering.reverse())
     }
 }
 

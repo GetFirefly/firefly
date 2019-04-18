@@ -3,6 +3,8 @@ use std::hash::{Hash, Hasher};
 
 use crate::term::{Tag, Tag::*, Term};
 
+pub mod local;
+
 pub const NUMBER_BIT_COUNT: u8 = 15;
 pub const NUMBER_MAX: usize = (1 << (NUMBER_BIT_COUNT as usize)) - 1;
 
@@ -62,35 +64,6 @@ impl PartialOrd for External {
                 partial_ordering => partial_ordering,
             },
             partial_ordering => partial_ordering,
-        }
-    }
-}
-
-pub struct LocalCounter {
-    serial: usize,
-    number: usize,
-}
-
-impl LocalCounter {
-    pub fn next(&mut self) -> Term {
-        let local_pid = unsafe { Term::local_pid_unchecked(self.number, self.serial) };
-
-        if NUMBER_MAX <= self.number {
-            self.serial += 1;
-            self.number = 0;
-        } else {
-            self.number += 1;
-        }
-
-        local_pid
-    }
-}
-
-impl Default for LocalCounter {
-    fn default() -> LocalCounter {
-        LocalCounter {
-            serial: 0,
-            number: 0,
         }
     }
 }

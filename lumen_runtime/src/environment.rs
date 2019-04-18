@@ -1,24 +1,17 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::process::{self, Process};
-use crate::term::Term;
+use crate::process::Process;
 
 pub struct Environment {
-    pid_counter: process::identifier::LocalCounter,
     pub process_by_pid_tagged: HashMap<usize, Arc<RwLock<Process>>>,
 }
 
 impl Environment {
     pub fn new() -> Environment {
         Environment {
-            pid_counter: Default::default(),
             process_by_pid_tagged: HashMap::new(),
         }
-    }
-
-    pub fn next_pid(&mut self) -> Term {
-        self.pid_counter.next().into()
     }
 }
 
@@ -45,4 +38,27 @@ pub fn process(environment_rw_lock: Arc<RwLock<Environment>>) -> Arc<RwLock<Proc
     }
 
     process_rw_lock
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::otp::erlang;
+
+    #[test]
+    fn different_processes_in_same_environment_have_different_pids() {
+        let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
+
+        let first_process_rw_lock = process(Arc::clone(&environment_rw_lock));
+        let first_process = first_process_rw_lock.write().unwrap();
+
+        let second_process_rw_lock = process(Arc::clone(&environment_rw_lock));
+        let second_process = second_process_rw_lock.write().unwrap();
+
+        assert_ne!(
+            erlang::self_0(&first_process),
+            erlang::self_0(&second_process)
+        );
+    }
 }

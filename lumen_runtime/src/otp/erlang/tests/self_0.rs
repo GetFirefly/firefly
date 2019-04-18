@@ -11,5 +11,4 @@ fn returns_process_pid() {
     let process = process_rw_lock.write().unwrap();
 
     assert_eq!(erlang::self_0(&process), process.pid);
-    assert_eq!(erlang::self_0(&process), Term::local_pid(0, 0).unwrap());
 }

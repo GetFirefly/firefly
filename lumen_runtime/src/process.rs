@@ -40,7 +40,7 @@ impl Process {
     pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
         Process {
             environment: Arc::downgrade(&Arc::clone(&environment)),
-            pid: environment.write().unwrap().next_pid(),
+            pid: identifier::local::next(),
             big_integer_arena: Default::default(),
             byte_arena: Default::default(),
             cons_arena: Default::default(),
@@ -174,58 +174,5 @@ impl IntoProcess<Term> for BigInt {
         let integer: integer::Integer = self.into();
 
         integer.into_process(&mut process)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod pid {
-        use super::*;
-
-        use crate::environment;
-        use crate::otp::erlang;
-
-        #[test]
-        fn different_processes_in_same_environment_have_different_pids() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-
-            let first_process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let first_process = first_process_rw_lock.write().unwrap();
-
-            let second_process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let second_process = second_process_rw_lock.write().unwrap();
-
-            assert_ne!(
-                erlang::self_0(&first_process),
-                erlang::self_0(&second_process)
-            );
-            assert_eq!(
-                erlang::self_0(&first_process),
-                Term::local_pid(0, 0).unwrap()
-            );
-            assert_eq!(
-                erlang::self_0(&second_process),
-                Term::local_pid(1, 0).unwrap()
-            );
-        }
-
-        #[test]
-        fn number_rolling_over_increments_serial() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-
-            let _ = environment::process(Arc::clone(&environment_rw_lock));
-
-            let mut final_pid = None;
-
-            for _ in 0..identifier::NUMBER_MAX + 1 {
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let process = process_rw_lock.read().unwrap();
-                final_pid = Some(erlang::self_0(&process))
-            }
-
-            assert_eq!(final_pid.unwrap(), Term::local_pid(0, 1).unwrap());
-        }
     }
 }

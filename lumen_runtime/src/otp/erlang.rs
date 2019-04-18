@@ -1045,6 +1045,11 @@ pub fn map_size_1(map: Term, mut process: &mut Process) -> Result {
     Ok(map_map.size().into_process(&mut process))
 }
 
+/// `min/2`
+pub fn min_2(term1: Term, term2: Term) -> Term {
+    term1.min(term2)
+}
+
 /// `*/2` infix operator
 pub fn multiply_2(multiplier: Term, multiplicand: Term, mut process: &mut Process) -> Result {
     number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)

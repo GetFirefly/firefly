@@ -79,6 +79,7 @@ mod list_to_tuple_1;
 mod make_ref_0;
 mod map_get_2;
 mod map_size_1;
+mod min_2;
 mod multiply_2;
 mod negate_1;
 mod node_0;
@@ -99,6 +100,11 @@ mod tl_1;
 mod tuple_size_1;
 mod tuple_to_list_1;
 mod xor_2;
+
+enum FirstSecond {
+    First,
+    Second,
+}
 
 fn errors_badarg<F>(actual: F)
 where

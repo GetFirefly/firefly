@@ -1045,7 +1045,18 @@ pub fn map_size_1(map: Term, mut process: &mut Process) -> Result {
     Ok(map_map.size().into_process(&mut process))
 }
 
+/// `max/2`
+///
+/// Returns the largest of `Term1` and `Term2`. If the terms are equal, `Term1` is returned.
+pub fn max_2(term1: Term, term2: Term) -> Term {
+    // Flip the order because for Rust `max` returns the second argument when equal, but Erlang
+    // returns the first
+    term2.max(term1)
+}
+
 /// `min/2`
+///
+/// Returns the smallest of `Term1` and `Term2`. If the terms are equal, `Term1` is returned.
 pub fn min_2(term1: Term, term2: Term) -> Term {
     term1.min(term2)
 }

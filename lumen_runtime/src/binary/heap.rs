@@ -20,14 +20,17 @@ pub struct Binary {
 }
 
 impl Binary {
-    pub fn from_slice(bytes: &[u8], process: &mut Process) -> &'static Self {
+    pub fn from_slice(bytes: &[u8], process: &Process) -> &'static Self {
         let arena_bytes: &[u8] = if bytes.len() != 0 {
             process.byte_arena.alloc_slice(bytes)
         } else {
             &[]
         };
 
-        let pointer = process.heap_binary_arena.alloc(Binary::new(arena_bytes)) as *const Binary;
+        let pointer = process
+            .heap_binary_arena
+            .borrow_mut()
+            .alloc(Binary::new(arena_bytes)) as *const Binary;
 
         unsafe { &*pointer }
     }
@@ -103,13 +106,13 @@ impl Binary {
         atom::str_to_index(std::str::from_utf8(bytes).unwrap(), existence)
     }
 
-    pub fn to_list(&self, mut process: &mut Process) -> Term {
+    pub fn to_list(&self, process: &Process) -> Term {
         self.iter().rfold(Term::EMPTY_LIST, |acc, byte| {
-            Term::cons(byte.into_process(&mut process), acc, &mut process)
+            Term::cons(byte.into_process(&process), acc, &process)
         })
     }
 
-    pub fn to_bitstring_list(&self, process: &mut Process) -> Term {
+    pub fn to_bitstring_list(&self, process: &Process) -> Term {
         self.to_list(process)
     }
 }
@@ -217,7 +220,7 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
         &'a self,
         start: usize,
         length: isize,
-        process: &mut Process,
+        process: &Process,
     ) -> Result<binary::Binary<'b>, Exception> {
         let available_byte_count = self.byte_len();
         let PartRange {
@@ -285,11 +288,11 @@ impl PartToList<usize, isize> for Binary {
         &self,
         start: usize,
         length: isize,
-        mut process: &mut Process,
+        process: &Process,
     ) -> Result<Term, Exception> {
         let available_byte_count = self.byte_len();
         let part_range = start_length_to_part_range(start, length, available_byte_count)?;
-        let list = part_range_to_list(self.iter(), part_range, &mut process);
+        let list = part_range_to_list(self.iter(), part_range, &process);
 
         Ok(list)
     }
@@ -305,20 +308,16 @@ impl From<&Binary> for Vec<u8> {
 }
 
 impl ToTerm for Binary {
-    fn to_term(
-        &self,
-        options: ToTermOptions,
-        mut process: &mut Process,
-    ) -> Result<Term, Exception> {
+    fn to_term(&self, options: ToTermOptions, process: &Process) -> Result<Term, Exception> {
         let mut iter = self.iter();
 
-        match iter.next_versioned_term(options.existence, &mut process) {
+        match iter.next_versioned_term(options.existence, &process) {
             Some(term) => {
                 if options.used {
                     let used = self.byte_len() - iter.len();
-                    let used_term: Term = used.into_process(&mut process);
+                    let used_term: Term = used.into_process(&process);
 
-                    Ok(Term::slice_to_tuple(&[term, used_term], &mut process))
+                    Ok(Term::slice_to_tuple(&[term, used_term], &process))
                 } else {
                     Ok(term)
                 }
@@ -342,31 +341,25 @@ impl TryFrom<&Binary> for String {
 mod tests {
     use super::*;
 
+    use crate::process;
+
     mod from_slice {
         use super::*;
 
-        use std::sync::{Arc, RwLock};
-
-        use crate::environment::{self, Environment};
-
         #[test]
         fn without_bytes() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
+            let process = process::local::new();
 
-            let binary = Binary::from_slice(&[], &mut process);
+            let binary = Binary::from_slice(&[], &process);
 
             assert_eq!(binary.header.tagged, Term::heap_binary(0).tagged);
         }
 
         #[test]
         fn with_bytes() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
+            let process = process::local::new();
 
-            let binary = Binary::from_slice(&[0, 1, 2, 3], &mut process);
+            let binary = Binary::from_slice(&[0, 1, 2, 3], &process);
 
             assert_eq!(binary.header.tagged, Term::heap_binary(4).tagged);
             assert_eq!(unsafe { *binary.bytes.offset(0) }, 0);
@@ -379,17 +372,11 @@ mod tests {
     mod eq {
         use super::*;
 
-        use std::sync::{Arc, RwLock};
-
-        use crate::environment::{self, Environment};
-
         #[test]
         fn without_elements() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[], &mut process);
-            let equal = Binary::from_slice(&[], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[], &process);
+            let equal = Binary::from_slice(&[], &process);
 
             assert_eq!(binary, binary);
             assert_eq!(binary, equal);
@@ -397,22 +384,18 @@ mod tests {
 
         #[test]
         fn without_equal_length() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[0], &mut process);
-            let unequal = Binary::from_slice(&[0, 1], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[0], &process);
+            let unequal = Binary::from_slice(&[0, 1], &process);
 
             assert_ne!(binary, unequal);
         }
 
         #[test]
         fn with_equal_length_without_same_byte() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[0], &mut process);
-            let unequal = Binary::from_slice(&[1], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[0], &process);
+            let unequal = Binary::from_slice(&[1], &process);
 
             assert_eq!(binary, binary);
             assert_ne!(binary, unequal);
@@ -420,11 +403,9 @@ mod tests {
 
         #[test]
         fn with_equal_length_with_same_bytes() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[0], &mut process);
-            let unequal = Binary::from_slice(&[0], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[0], &process);
+            let unequal = Binary::from_slice(&[0], &process);
 
             assert_eq!(binary, unequal);
         }
@@ -434,16 +415,11 @@ mod tests {
         use super::*;
 
         use std::convert::TryInto;
-        use std::sync::{Arc, RwLock};
-
-        use crate::environment::{self, Environment};
 
         #[test]
         fn without_elements() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[], &process);
 
             assert_eq!(binary.iter().count(), 0);
 
@@ -455,10 +431,8 @@ mod tests {
 
         #[test]
         fn with_elements() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[0], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[0], &process);
 
             assert_eq!(binary.iter().count(), 1);
 
@@ -470,10 +444,8 @@ mod tests {
 
         #[test]
         fn is_double_ended() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[0, 1, 2], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[0, 1, 2], &process);
 
             let mut iter = binary.iter();
 
@@ -504,26 +476,18 @@ mod tests {
     mod size {
         use super::*;
 
-        use std::sync::{Arc, RwLock};
-
-        use crate::environment::{self, Environment};
-
         #[test]
         fn without_elements() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[], &process);
 
             assert_eq!(binary.size(), 0.into());
         }
 
         #[test]
         fn with_elements() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let binary = Binary::from_slice(&[0], &mut process);
+            let process = process::local::new();
+            let binary = Binary::from_slice(&[0], &process);
 
             assert_eq!(binary.size(), 1.into());
         }

@@ -9,20 +9,19 @@ fn with_atom_errors_badarith() {
 
 #[test]
 fn with_local_reference_errors_badarith() {
-    errors_badarith(|mut process| Term::local_reference(&mut process));
+    errors_badarith(|process| Term::local_reference(&process));
 }
 
 #[test]
 fn with_heap_binary_errors_badarith() {
-    errors_badarith(|mut process| Term::slice_to_binary(&[0], &mut process));
+    errors_badarith(|process| Term::slice_to_binary(&[0], &process));
 }
 
 #[test]
 fn with_subbinary_errors_badarith() {
-    errors_badarith(|mut process| {
-        let original =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-        Term::subbinary(original, 0, 7, 2, 1, &mut process)
+    errors_badarith(|process| {
+        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
+        Term::subbinary(original, 0, 7, 2, 1, &process)
     });
 }
 
@@ -33,30 +32,30 @@ fn with_empty_list_errors_badarith() {
 
 #[test]
 fn with_list_errors_badarith() {
-    errors_badarith(|mut process| list_term(&mut process));
+    errors_badarith(|process| list_term(&process));
 }
 
 #[test]
 fn with_small_integer_returns_small_integer() {
-    with_process(|mut process| {
-        let integer = 0b10.into_process(&mut process);
+    with_process(|process| {
+        let integer = 0b10.into_process(&process);
 
         assert_eq!(
-            erlang::bnot_1(integer, &mut process),
-            Ok((-3).into_process(&mut process))
+            erlang::bnot_1(integer, &process),
+            Ok((-3).into_process(&process))
         );
     });
 }
 
 #[test]
 fn with_big_integer_returns_big_integer() {
-    with_process(|mut process| {
+    with_process(|process| {
         let integer = <BigInt as Num>::from_str_radix(
             "1010101010101010101010101010101010101010101010101010101010101010",
             2,
         )
         .unwrap()
-        .into_process(&mut process);
+        .into_process(&process);
 
         assert_eq!(integer.tag(), Boxed);
 
@@ -65,11 +64,11 @@ fn with_big_integer_returns_big_integer() {
         assert_eq!(unboxed_integer.tag(), BigInteger);
 
         assert_eq!(
-            erlang::bnot_1(integer, &mut process),
+            erlang::bnot_1(integer, &process),
             Ok(
                 <BigInt as Num>::from_str_radix("-12297829382473034411", 10,)
                     .unwrap()
-                    .into_process(&mut process)
+                    .into_process(&process)
             )
         );
     });
@@ -77,7 +76,7 @@ fn with_big_integer_returns_big_integer() {
 
 #[test]
 fn with_float_that_is_negative_returns_positive() {
-    errors_badarith(|mut process| 1.0.into_process(&mut process));
+    errors_badarith(|process| 1.0.into_process(&process));
 }
 
 #[test]
@@ -87,22 +86,22 @@ fn with_local_pid_errors_badarith() {
 
 #[test]
 fn with_external_pid_errors_badarith() {
-    errors_badarith(|mut process| Term::external_pid(1, 0, 0, &mut process).unwrap());
+    errors_badarith(|process| Term::external_pid(1, 0, 0, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_errors_badarith() {
-    errors_badarith(|mut process| Term::slice_to_tuple(&[], &mut process));
+    errors_badarith(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_errors_badarith() {
-    errors_badarith(|mut process| Term::slice_to_map(&[], &mut process));
+    errors_badarith(|process| Term::slice_to_map(&[], &process));
 }
 
 fn errors_badarith<I>(integer: I)
 where
-    I: FnOnce(&mut Process) -> Term,
+    I: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|mut process| erlang::bnot_1(integer(&mut process), &mut process));
+    super::errors_badarith(|process| erlang::bnot_1(integer(&process), &process));
 }

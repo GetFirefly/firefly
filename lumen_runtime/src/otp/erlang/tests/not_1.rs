@@ -17,17 +17,17 @@ fn with_true_returns_false() {
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    errors_badarg(|mut process| Term::local_reference(&mut process));
+    errors_badarg(|process| Term::local_reference(&process));
 }
 
 #[test]
 fn with_heap_binary_errors_badarg() {
-    errors_badarg(|mut process| Term::slice_to_binary(&[0], &mut process));
+    errors_badarg(|process| Term::slice_to_binary(&[0], &process));
 }
 
 #[test]
 fn with_subbinary_errors_badarg() {
-    errors_badarg(|mut process| bitstring!(1 :: 1, &mut process));
+    errors_badarg(|process| bitstring!(1 :: 1, &process));
 }
 
 #[test]
@@ -37,22 +37,22 @@ fn with_empty_list_errors_badarg() {
 
 #[test]
 fn with_list_errors_badarg() {
-    errors_badarg(|mut process| list_term(&mut process));
+    errors_badarg(|process| list_term(&process));
 }
 
 #[test]
 fn with_small_integer_errors_badarg() {
-    errors_badarg(|mut process| 1.into_process(&mut process));
+    errors_badarg(|process| 1.into_process(&process));
 }
 
 #[test]
 fn with_big_integer_errors_badarg() {
-    errors_badarg(|mut process| (crate::integer::small::MAX + 1).into_process(&mut process));
+    errors_badarg(|process| (crate::integer::small::MAX + 1).into_process(&process));
 }
 
 #[test]
 fn with_float_errors_badarg() {
-    errors_badarg(|mut process| 1.0.into_process(&mut process));
+    errors_badarg(|process| 1.0.into_process(&process));
 }
 
 #[test]
@@ -62,22 +62,22 @@ fn with_local_pid_errors_badarg() {
 
 #[test]
 fn with_external_pid_errors_badarg() {
-    errors_badarg(|mut process| Term::external_pid(1, 0, 0, &mut process).unwrap());
+    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_errors_badarg() {
-    errors_badarg(|mut process| Term::slice_to_tuple(&[], &mut process));
+    errors_badarg(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_errors_badarg() {
-    errors_badarg(|mut process| Term::slice_to_map(&[], &mut process));
+    errors_badarg(|process| Term::slice_to_map(&[], &process));
 }
 
 fn errors_badarg<I>(integer: I)
 where
-    I: FnOnce(&mut Process) -> Term,
+    I: FnOnce(&Process) -> Term,
 {
-    super::errors_badarg(|mut process| erlang::not_1(integer(&mut process)));
+    super::errors_badarg(|process| erlang::not_1(integer(&process)));
 }

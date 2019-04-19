@@ -1,45 +1,41 @@
 ///! The memory specific to a process in the VM.
-use std::sync::{Arc, RwLock, Weak};
+use std::cell::RefCell;
 
 use num_bigint::BigInt;
 
 use liblumen_arena::TypedArena;
 
 use crate::binary::{heap, sub, Binary};
-use crate::environment::Environment;
 use crate::exception::Exception;
 use crate::float::Float;
 use crate::integer::{self, big};
 use crate::list::Cons;
 use crate::map::Map;
-use crate::reference::local;
+use crate::reference;
 use crate::term::Term;
 use crate::tuple::Tuple;
 
 pub mod identifier;
+pub mod local;
 
 pub struct Process {
-    // parent pointer, so must be held weakly to prevent cycle with this field and
-    // `Environment.process_by_pid`.
-    #[allow(dead_code)]
-    environment: Weak<RwLock<Environment>>,
     pub pid: Term,
     big_integer_arena: TypedArena<big::Integer>,
     pub byte_arena: TypedArena<u8>,
     cons_arena: TypedArena<Cons>,
     external_pid_arena: TypedArena<identifier::External>,
     float_arena: TypedArena<Float>,
-    pub heap_binary_arena: TypedArena<heap::Binary>,
+    pub heap_binary_arena: RefCell<TypedArena<heap::Binary>>,
     pub map_arena: TypedArena<Map>,
-    local_reference_arena: TypedArena<local::Reference>,
+    local_reference_arena: TypedArena<reference::local::Reference>,
     pub subbinary_arena: TypedArena<sub::Binary>,
-    pub term_arena: TypedArena<Term>,
+    pub term_arena: RefCell<TypedArena<Term>>,
 }
 
 impl Process {
-    pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
+    #[cfg(test)]
+    fn new() -> Self {
         Process {
-            environment: Arc::downgrade(&Arc::clone(&environment)),
             pid: identifier::local::next(),
             big_integer_arena: Default::default(),
             byte_arena: Default::default(),
@@ -56,14 +52,14 @@ impl Process {
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
     /// is a list `Term` (`Term.tag` is `List`) or empty list (`Term.tag` is `EmptyList`).
-    pub fn cons(&mut self, head: Term, tail: Term) -> &'static Cons {
+    pub fn cons(&self, head: Term, tail: Term) -> &'static Cons {
         let pointer = self.cons_arena.alloc(Cons::new(head, tail)) as *const Cons;
 
         unsafe { &*pointer }
     }
 
     pub fn external_pid(
-        &mut self,
+        &self,
         node: usize,
         number: usize,
         serial: usize,
@@ -82,18 +78,21 @@ impl Process {
         unsafe { &*pointer }
     }
 
-    pub fn local_reference(&mut self) -> &'static local::Reference {
-        let pointer =
-            self.local_reference_arena.alloc(local::Reference::next()) as *const local::Reference;
+    pub fn local_reference(&self) -> &'static reference::local::Reference {
+        let pointer = self
+            .local_reference_arena
+            .alloc(reference::local::Reference::next())
+            as *const reference::local::Reference;
 
         unsafe { &*pointer }
     }
 
     #[cfg(test)]
-    pub fn number_to_local_reference(&mut self, number: u64) -> &'static local::Reference {
+    pub fn number_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
         let pointer = self
             .local_reference_arena
-            .alloc(local::Reference::new(number)) as *const local::Reference;
+            .alloc(reference::local::Reference::new(number))
+            as *const reference::local::Reference;
 
         unsafe { &*pointer }
     }
@@ -124,55 +123,59 @@ impl Process {
         unsafe { &*pointer }
     }
 
-    pub fn slice_to_binary(&mut self, slice: &[u8]) -> Binary {
+    pub fn slice_to_binary(&self, slice: &[u8]) -> Binary {
         Binary::from_slice(slice, self)
     }
 
-    pub fn slice_to_map(&mut self, slice: &[(Term, Term)]) -> &Map {
+    pub fn slice_to_map(&self, slice: &[(Term, Term)]) -> &Map {
         Map::from_slice(slice, self)
     }
 
-    pub fn slice_to_tuple(&mut self, slice: &[Term]) -> &Tuple {
-        Tuple::from_slice(slice, &mut self.term_arena)
+    pub fn slice_to_tuple(&self, slice: &[Term]) -> &Tuple {
+        Tuple::from_slice(slice, &mut self.term_arena.borrow_mut())
     }
 
-    pub fn u64_to_local_reference(&mut self, number: u64) -> &'static local::Reference {
+    pub fn u64_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
         let pointer = self
             .local_reference_arena
-            .alloc(local::Reference::new(number)) as *const local::Reference;
+            .alloc(reference::local::Reference::new(number))
+            as *const reference::local::Reference;
 
         unsafe { &*pointer }
     }
 }
 
+unsafe impl Send for Process {}
+unsafe impl Sync for Process {}
+
 pub trait TryFromInProcess<T>: Sized {
-    fn try_from_in_process(value: T, process: &mut Process) -> Result<Self, Exception>;
+    fn try_from_in_process(value: T, process: &Process) -> Result<Self, Exception>;
 }
 
 pub trait TryIntoInProcess<T>: Sized {
-    fn try_into_in_process(self, process: &mut Process) -> Result<T, Exception>;
+    fn try_into_in_process(self, process: &Process) -> Result<T, Exception>;
 }
 
 impl<T, U> TryIntoInProcess<U> for T
 where
     U: TryFromInProcess<T>,
 {
-    fn try_into_in_process(self, process: &mut Process) -> Result<U, Exception> {
+    fn try_into_in_process(self, process: &Process) -> Result<U, Exception> {
         U::try_from_in_process(self, process)
     }
 }
 
-/// Like `std::convert::Into`, but additionally takes `&mut Process` in case it is needed to
+/// Like `std::convert::Into`, but additionally takes `&Process` in case it is needed to
 /// lookup or create new values in the `Process`.
 pub trait IntoProcess<T> {
     /// Performs the conversion.
-    fn into_process(self, process: &mut Process) -> T;
+    fn into_process(self, process: &Process) -> T;
 }
 
 impl IntoProcess<Term> for BigInt {
-    fn into_process(self, mut process: &mut Process) -> Term {
+    fn into_process(self, process: &Process) -> Term {
         let integer: integer::Integer = self.into();
 
-        integer.into_process(&mut process)
+        integer.into_process(process)
     }
 }

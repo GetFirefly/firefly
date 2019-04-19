@@ -2,20 +2,20 @@ use super::*;
 
 #[test]
 fn with_small_integer_second_returns_first() {
-    max(|_, mut process| 0.into_process(&mut process), First)
+    max(|_, process| 0.into_process(&process), First)
 }
 
 #[test]
 fn with_big_integer_second_returns_first() {
     max(
-        |_, mut process| (crate::integer::small::MAX + 1).into_process(&mut process),
+        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
         First,
     )
 }
 
 #[test]
 fn with_float_second_returns_first() {
-    max(|_, mut process| 0.0.into_process(&mut process), First)
+    max(|_, process| 0.0.into_process(&process), First)
 }
 
 #[test]
@@ -28,7 +28,7 @@ fn with_atom_returns_first() {
 
 #[test]
 fn with_local_reference_second_returns_first() {
-    max(|_, mut process| Term::local_reference(&mut process), First);
+    max(|_, process| Term::local_reference(&process), First);
 }
 
 #[test]
@@ -39,29 +39,26 @@ fn with_local_pid_second_returns_first() {
 #[test]
 fn with_external_pid_second_returns_first() {
     max(
-        |_, mut process| Term::external_pid(1, 2, 3, &mut process).unwrap(),
+        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
         First,
     );
 }
 
 #[test]
 fn with_tuple_second_returns_first() {
-    max(
-        |_, mut process| Term::slice_to_tuple(&[], &mut process),
-        First,
-    );
+    max(|_, process| Term::slice_to_tuple(&[], &process), First);
 }
 
 #[test]
 fn with_smaller_map_second_returns_first() {
     max(
-        |_, mut process| {
+        |_, process| {
             Term::slice_to_map(
                 &[(
                     Term::str_to_atom("a", DoNotCare).unwrap(),
-                    1.into_process(&mut process),
+                    1.into_process(&process),
                 )],
-                &mut process,
+                &process,
             )
         },
         First,
@@ -71,19 +68,19 @@ fn with_smaller_map_second_returns_first() {
 #[test]
 fn with_same_size_map_with_lesser_keys_returns_first() {
     max(
-        |_, mut process| {
+        |_, process| {
             Term::slice_to_map(
                 &[
                     (
                         Term::str_to_atom("a", DoNotCare).unwrap(),
-                        2.into_process(&mut process),
+                        2.into_process(&process),
                     ),
                     (
                         Term::str_to_atom("b", DoNotCare).unwrap(),
-                        3.into_process(&mut process),
+                        3.into_process(&process),
                     ),
                 ],
-                &mut process,
+                &process,
             )
         },
         First,
@@ -93,19 +90,19 @@ fn with_same_size_map_with_lesser_keys_returns_first() {
 #[test]
 fn with_same_size_map_with_same_keys_with_lesser_values_returns_first() {
     max(
-        |_, mut process| {
+        |_, process| {
             Term::slice_to_map(
                 &[
                     (
                         Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&mut process),
+                        2.into_process(&process),
                     ),
                     (
                         Term::str_to_atom("c", DoNotCare).unwrap(),
-                        2.into_process(&mut process),
+                        2.into_process(&process),
                     ),
                 ],
-                &mut process,
+                &process,
             )
         },
         First,
@@ -120,19 +117,19 @@ fn with_same_map_returns_first() {
 #[test]
 fn with_same_value_map_returns_first() {
     max(
-        |_, mut process| {
+        |_, process| {
             Term::slice_to_map(
                 &[
                     (
                         Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&mut process),
+                        2.into_process(&process),
                     ),
                     (
                         Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&mut process),
+                        3.into_process(&process),
                     ),
                 ],
-                &mut process,
+                &process,
             )
         },
         First,
@@ -142,19 +139,19 @@ fn with_same_value_map_returns_first() {
 #[test]
 fn with_same_size_map_with_same_keys_with_greater_values_returns_second() {
     max(
-        |_, mut process| {
+        |_, process| {
             Term::slice_to_map(
                 &[
                     (
                         Term::str_to_atom("b", DoNotCare).unwrap(),
-                        3.into_process(&mut process),
+                        3.into_process(&process),
                     ),
                     (
                         Term::str_to_atom("c", DoNotCare).unwrap(),
-                        4.into_process(&mut process),
+                        4.into_process(&process),
                     ),
                 ],
-                &mut process,
+                &process,
             )
         },
         Second,
@@ -164,19 +161,19 @@ fn with_same_size_map_with_same_keys_with_greater_values_returns_second() {
 #[test]
 fn with_same_size_map_with_greater_keys_returns_second() {
     max(
-        |_, mut process| {
+        |_, process| {
             Term::slice_to_map(
                 &[
                     (
                         Term::str_to_atom("c", DoNotCare).unwrap(),
-                        2.into_process(&mut process),
+                        2.into_process(&process),
                     ),
                     (
                         Term::str_to_atom("d", DoNotCare).unwrap(),
-                        3.into_process(&mut process),
+                        3.into_process(&process),
                     ),
                 ],
-                &mut process,
+                &process,
             )
         },
         Second,
@@ -186,23 +183,23 @@ fn with_same_size_map_with_greater_keys_returns_second() {
 #[test]
 fn with_greater_size_map_returns_second() {
     max(
-        |_, mut process| {
+        |_, process| {
             Term::slice_to_map(
                 &[
                     (
                         Term::str_to_atom("a", DoNotCare).unwrap(),
-                        1.into_process(&mut process),
+                        1.into_process(&process),
                     ),
                     (
                         Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&mut process),
+                        2.into_process(&process),
                     ),
                     (
                         Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&mut process),
+                        3.into_process(&process),
                     ),
                 ],
-                &mut process,
+                &process,
             )
         },
         Second,
@@ -211,10 +208,7 @@ fn with_greater_size_map_returns_second() {
 
 #[test]
 fn with_map_second_returns_first() {
-    max(
-        |_, mut process| Term::slice_to_map(&[], &mut process),
-        First,
-    );
+    max(|_, process| Term::slice_to_map(&[], &process), First);
 }
 
 #[test]
@@ -225,48 +219,39 @@ fn with_empty_list_second_returns_second() {
 #[test]
 fn with_list_second_returns_second() {
     max(
-        |_, mut process| {
-            Term::cons(
-                0.into_process(&mut process),
-                1.into_process(&mut process),
-                &mut process,
-            )
-        },
+        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
         Second,
     );
 }
 
 #[test]
 fn with_heap_binary_second_returns_second() {
-    max(
-        |_, mut process| Term::slice_to_binary(&[], &mut process),
-        Second,
-    );
+    max(|_, process| Term::slice_to_binary(&[], &process), Second);
 }
 
 #[test]
 fn with_subbinary_second_returns_second() {
-    max(|_, mut process| bitstring!(1 :: 1, &mut process), Second);
+    max(|_, process| bitstring!(1 :: 1, &process), Second);
 }
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &mut Process) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::max(
-        |mut process| {
+        |process| {
             Term::slice_to_map(
                 &[
                     (
                         Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&mut process),
+                        2.into_process(&process),
                     ),
                     (
                         Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&mut process),
+                        3.into_process(&process),
                     ),
                 ],
-                &mut process,
+                &process,
             )
         },
         second,

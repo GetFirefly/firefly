@@ -1,10 +1,9 @@
 use super::*;
 
-use std::sync::{Arc, RwLock};
-
-use crate::environment::{self, Environment};
 use crate::exception::Result;
+use crate::integer;
 use crate::otp::erlang;
+use crate::process;
 
 mod abs_1;
 mod add_2;
@@ -109,30 +108,26 @@ enum FirstSecond {
 
 fn errors_badarg<F>(actual: F)
 where
-    F: FnOnce(&mut Process) -> Result,
+    F: FnOnce(&Process) -> Result,
 {
-    with_process(|mut process| assert_badarg!(actual(&mut process)))
+    with_process(|process| assert_badarg!(actual(&process)))
 }
 
 fn errors_badarith<F>(actual: F)
 where
-    F: FnOnce(&mut Process) -> Result,
+    F: FnOnce(&Process) -> Result,
 {
-    with_process(|mut process| assert_badarith!(actual(&mut process)))
+    with_process(|process| assert_badarith!(actual(&process)))
 }
 
-fn list_term(process: &mut Process) -> Term {
+fn list_term(process: &Process) -> Term {
     let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
     Term::cons(head_term, Term::EMPTY_LIST, process)
 }
 
 fn with_process<F>(f: F)
 where
-    F: FnOnce(&mut Process) -> (),
+    F: FnOnce(&Process) -> (),
 {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-
-    f(&mut process)
+    f(&process::local::new())
 }

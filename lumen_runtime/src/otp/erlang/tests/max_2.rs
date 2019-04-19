@@ -17,12 +17,12 @@ mod with_tuple_first;
 
 fn max<F, S>(first: F, second: S, which: FirstSecond)
 where
-    F: FnOnce(&mut Process) -> Term,
-    S: FnOnce(Term, &mut Process) -> Term,
+    F: FnOnce(&Process) -> Term,
+    S: FnOnce(Term, &Process) -> Term,
 {
-    with_process(|mut process| {
-        let first = first(&mut process);
-        let second = second(first, &mut process);
+    with_process(|process| {
+        let first = first(&process);
+        let second = second(first, &process);
 
         let max = erlang::max_2(first, second);
 

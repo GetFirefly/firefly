@@ -11,7 +11,7 @@ fn with_atom_multiplier_errors_badarith() {
 
 #[test]
 fn with_local_reference_multiplier_errors_badarith() {
-    with_multiplier_errors_badarith(|mut process| Term::local_reference(&mut process));
+    with_multiplier_errors_badarith(|process| Term::local_reference(&process));
 }
 
 #[test]
@@ -21,12 +21,8 @@ fn with_empty_list_multiplier_errors_badarith() {
 
 #[test]
 fn with_list_multiplier_errors_badarith() {
-    with_multiplier_errors_badarith(|mut process| {
-        Term::cons(
-            0.into_process(&mut process),
-            1.into_process(&mut process),
-            &mut process,
-        )
+    with_multiplier_errors_badarith(|process| {
+        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
     });
 }
 
@@ -37,43 +33,40 @@ fn with_local_pid_multiplier_errors_badarith() {
 
 #[test]
 fn with_external_pid_multiplier_errors_badarith() {
-    with_multiplier_errors_badarith(|mut process| {
-        Term::external_pid(1, 2, 3, &mut process).unwrap()
-    });
+    with_multiplier_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_multiplier_errors_badarith() {
-    with_multiplier_errors_badarith(|mut process| Term::slice_to_tuple(&[], &mut process));
+    with_multiplier_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_is_multiplier_errors_badarith() {
-    with_multiplier_errors_badarith(|mut process| Term::slice_to_map(&[], &mut process));
+    with_multiplier_errors_badarith(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_multiplier_errors_badarith() {
-    with_multiplier_errors_badarith(|mut process| Term::slice_to_binary(&[], &mut process));
+    with_multiplier_errors_badarith(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
 fn with_subbinary_multiplier_errors_badarith() {
-    with_multiplier_errors_badarith(|mut process| {
-        let original =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-        Term::subbinary(original, 0, 7, 2, 1, &mut process)
+    with_multiplier_errors_badarith(|process| {
+        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
+        Term::subbinary(original, 0, 7, 2, 1, &process)
     });
 }
 
 fn with_multiplier_errors_badarith<M>(multiplier: M)
 where
-    M: FnOnce(&mut Process) -> Term,
+    M: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|mut process| {
-        let multiplier = multiplier(&mut process);
-        let multiplicand = 0.into_process(&mut process);
+    super::errors_badarith(|process| {
+        let multiplier = multiplier(&process);
+        let multiplicand = 0.into_process(&process);
 
-        erlang::multiply_2(multiplier, multiplicand, &mut process)
+        erlang::multiply_2(multiplier, multiplicand, &process)
     });
 }

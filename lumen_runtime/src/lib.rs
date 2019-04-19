@@ -37,7 +37,6 @@ mod number;
 mod support;
 
 mod config;
-mod environment;
 mod float;
 mod list;
 mod logging;

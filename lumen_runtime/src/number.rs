@@ -6,14 +6,14 @@ macro_rules! number_infix_operator {
                 let right_isize = unsafe { $right.small_integer_to_isize() };
 
                 match left_isize.$checked(right_isize) {
-                    Some(sum_isize) => Ok(sum_isize.into_process(&mut $process)),
+                    Some(sum_isize) => Ok(sum_isize.into_process(&$process)),
                     None => {
                         let left_big_int: BigInt = left_isize.into();
                         let right_big_int: BigInt = right_isize.into();
 
                         let sum_big_int = left_big_int $infix right_big_int;
 
-                        Ok(sum_big_int.into_process(&mut $process))
+                        Ok(sum_big_int.into_process(&$process))
                     }
                 }
             }
@@ -30,7 +30,7 @@ macro_rules! number_infix_operator {
 
                         let sum_big_int = left_big_int $infix right_big_int;
 
-                        Ok(sum_big_int.into_process(&mut $process))
+                        Ok(sum_big_int.into_process(&$process))
                     }
                     Float => {
                         let left_isize = unsafe { $left.small_integer_to_isize() };
@@ -41,7 +41,7 @@ macro_rules! number_infix_operator {
 
                         let sum_f64 = left_f64 $infix right_f64;
 
-                        Ok(sum_f64.into_process(&mut $process))
+                        Ok(sum_f64.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }
@@ -59,7 +59,7 @@ macro_rules! number_infix_operator {
 
                         let sum_big_int = left_big_int $infix right_big_int;
 
-                        Ok(sum_big_int.into_process(&mut $process))
+                        Ok(sum_big_int.into_process(&$process))
                     }
                     Float => {
                         let left_float: &Float = $left.unbox_reference();
@@ -70,7 +70,7 @@ macro_rules! number_infix_operator {
 
                         let sum_f64 = left_f64 $infix right_f64;
 
-                        Ok(sum_f64.into_process(&mut $process))
+                        Ok(sum_f64.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }
@@ -89,7 +89,7 @@ macro_rules! number_infix_operator {
 
                         let sum_big_int = left_big_int $infix right_big_int;
 
-                        Ok(sum_big_int.into_process(&mut $process))
+                        Ok(sum_big_int.into_process(&$process))
                     }
                     (BigInteger, Float) => {
                         let left_big_integer: &big::Integer = $left.unbox_reference();
@@ -100,7 +100,7 @@ macro_rules! number_infix_operator {
 
                         let sum_f64 = left_f64 $infix right_f64;
 
-                        Ok(sum_f64.into_process(&mut $process))
+                        Ok(sum_f64.into_process(&$process))
                     }
                     (Float, BigInteger) => {
                         let left_float: &Float = $left.unbox_reference();
@@ -111,7 +111,7 @@ macro_rules! number_infix_operator {
 
                         let sum_f64 = left_f64 $infix right_f64;
 
-                        Ok(sum_f64.into_process(&mut $process))
+                        Ok(sum_f64.into_process(&$process))
                     }
                     (Float, Float) => {
                         let left_float: &Float = $left.unbox_reference();
@@ -122,7 +122,7 @@ macro_rules! number_infix_operator {
 
                         let sum_f64 = left_f64 $infix right_f64;
 
-                        Ok(sum_f64.into_process(&mut $process))
+                        Ok(sum_f64.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }

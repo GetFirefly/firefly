@@ -18,7 +18,7 @@ macro_rules! bitwise_infix_operator {
                 let right_isize = unsafe { $right.small_integer_to_isize() };
                 let output = left_isize $infix right_isize;
 
-                Ok(output.into_process(&mut $process))
+                Ok(output.into_process(&$process))
             }
             (SmallInteger, Boxed) => {
                 let unboxed_right: &Term = $right.unbox_reference();
@@ -33,7 +33,7 @@ macro_rules! bitwise_infix_operator {
 
                         let output_big_int = left_big_int $infix right_big_int;
 
-                        Ok(output_big_int.into_process(&mut $process))
+                        Ok(output_big_int.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }
@@ -51,7 +51,7 @@ macro_rules! bitwise_infix_operator {
 
                         let output_big_int = left_big_int $infix right_big_int;
 
-                        Ok(output_big_int.into_process(&mut $process))
+                        Ok(output_big_int.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }
@@ -70,7 +70,7 @@ macro_rules! bitwise_infix_operator {
 
                         let output_big_int = left_big_int $infix right_big_int;
 
-                        Ok(output_big_int.into_process(&mut $process))
+                        Ok(output_big_int.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }
@@ -96,12 +96,12 @@ macro_rules! bitshift_infix_operator {
                     if shift_usize <= MAX_SHIFT {
                         let shifted = integer_isize $positive shift_usize;
 
-                        Ok(shifted.into_process(&mut $process))
+                        Ok(shifted.into_process(&$process))
                     } else {
                         let big_int: BigInt = integer_isize.into();
                         let shifted = big_int $positive shift_usize;
 
-                        Ok(shifted.into_process(&mut $process))
+                        Ok(shifted.into_process(&$process))
                     }
                 } else {
                     let shift_usize = (-shift_isize) as usize;
@@ -109,12 +109,12 @@ macro_rules! bitshift_infix_operator {
                     if shift_usize <= MAX_SHIFT {
                         let shifted = integer_isize $negative shift_usize;
 
-                        Ok(shifted.into_process(&mut $process))
+                        Ok(shifted.into_process(&$process))
                     } else {
                         let big_int: BigInt = integer_isize.into();
                         let shifted = big_int $negative shift_usize;
 
-                        Ok(shifted.into_process(&mut $process))
+                        Ok(shifted.into_process(&$process))
                     }
                 }
             }
@@ -139,7 +139,7 @@ macro_rules! bitshift_infix_operator {
                             big_int $negative shift_usize
                         };
 
-                        Ok(shifted.into_process(&mut $process))
+                        Ok(shifted.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }
@@ -277,7 +277,7 @@ macro_rules! integer_infix_operator {
                 } else {
                     let quotient = left_isize $infix right_isize;
 
-                    Ok(quotient.into_process(&mut $process))
+                    Ok(quotient.into_process(&$process))
                 }
             }
             (SmallInteger, Boxed) => {
@@ -293,7 +293,7 @@ macro_rules! integer_infix_operator {
 
                         let quotient = left_big_int $infix right_big_int;
 
-                        Ok(quotient.into_process(&mut $process))
+                        Ok(quotient.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }
@@ -315,7 +315,7 @@ macro_rules! integer_infix_operator {
 
                             let quotient = left_big_int $infix right_big_int;
 
-                            Ok(quotient.into_process(&mut $process))
+                            Ok(quotient.into_process(&$process))
                         }
                     }
                     _ => Err(badarith!()),
@@ -335,7 +335,7 @@ macro_rules! integer_infix_operator {
 
                         let quotient = left_big_int $infix right_big_int;
 
-                        Ok(quotient.into_process(&mut $process))
+                        Ok(quotient.into_process(&$process))
                     }
                     _ => Err(badarith!()),
                 }

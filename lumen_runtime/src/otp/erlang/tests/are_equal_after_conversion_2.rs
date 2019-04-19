@@ -16,12 +16,12 @@ mod with_tuple_left;
 
 fn are_equal_after_conversion<L, R>(left: L, right: R, expected: bool)
 where
-    L: FnOnce(&mut Process) -> Term,
-    R: FnOnce(Term, &mut Process) -> Term,
+    L: FnOnce(&Process) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
-    with_process(|mut process| {
-        let left = left(&mut process);
-        let right = right(left, &mut process);
+    with_process(|process| {
+        let left = left(&process);
+        let right = right(left, &process);
 
         assert_eq!(
             erlang::are_equal_after_conversion_2(left, right),

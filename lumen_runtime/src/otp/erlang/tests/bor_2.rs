@@ -10,7 +10,7 @@ fn with_atom_left_errors_badarith() {
 
 #[test]
 fn with_local_reference_left_errors_badarith() {
-    with_left_errors_badarith(|mut process| Term::local_reference(&mut process));
+    with_left_errors_badarith(|process| Term::local_reference(&process));
 }
 
 #[test]
@@ -20,18 +20,14 @@ fn with_empty_list_left_errors_badarith() {
 
 #[test]
 fn with_list_left_errors_badarith() {
-    with_left_errors_badarith(|mut process| {
-        Term::cons(
-            0.into_process(&mut process),
-            1.into_process(&mut process),
-            &mut process,
-        )
+    with_left_errors_badarith(|process| {
+        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
     });
 }
 
 #[test]
 fn with_float_errors_badarith() {
-    with_left_errors_badarith(|mut process| 1.0.into_process(&mut process));
+    with_left_errors_badarith(|process| 1.0.into_process(&process));
 }
 
 #[test]
@@ -41,37 +37,37 @@ fn with_local_pid_left_errors_badarith() {
 
 #[test]
 fn with_external_pid_left_errors_badarith() {
-    with_left_errors_badarith(|mut process| Term::external_pid(1, 2, 3, &mut process).unwrap());
+    with_left_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_left_errors_badarith() {
-    with_left_errors_badarith(|mut process| Term::slice_to_tuple(&[], &mut process));
+    with_left_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_is_left_errors_badarith() {
-    with_left_errors_badarith(|mut process| Term::slice_to_map(&[], &mut process));
+    with_left_errors_badarith(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_left_errors_badarith() {
-    with_left_errors_badarith(|mut process| Term::slice_to_binary(&[], &mut process));
+    with_left_errors_badarith(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
 fn with_subbinary_left_errors_badarith() {
-    with_left_errors_badarith(|mut process| bitstring!(1 ::1, &mut process));
+    with_left_errors_badarith(|process| bitstring!(1 ::1, &process));
 }
 
 fn with_left_errors_badarith<L>(left: L)
 where
-    L: FnOnce(&mut Process) -> Term,
+    L: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|mut process| {
-        let left = left(&mut process);
-        let right = 0.into_process(&mut process);
+    super::errors_badarith(|process| {
+        let left = left(&process);
+        let right = 0.into_process(&process);
 
-        erlang::bor_2(left, right, &mut process)
+        erlang::bor_2(left, right, &process)
     });
 }

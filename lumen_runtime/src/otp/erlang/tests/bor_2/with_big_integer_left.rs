@@ -11,7 +11,7 @@ fn with_atom_right_errors_badarith() {
 
 #[test]
 fn with_local_reference_right_errors_badarith() {
-    with_right_errors_badarith(|mut process| Term::local_reference(&mut process));
+    with_right_errors_badarith(|process| Term::local_reference(&process));
 }
 
 #[test]
@@ -21,23 +21,19 @@ fn with_empty_list_right_errors_badarith() {
 
 #[test]
 fn with_list_right_errors_badarith() {
-    with_right_errors_badarith(|mut process| {
-        Term::cons(
-            0.into_process(&mut process),
-            1.into_process(&mut process),
-            &mut process,
-        )
+    with_right_errors_badarith(|process| {
+        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
     });
 }
 
 #[test]
 fn with_small_integer_right_returns_big_integer() {
-    with(|left, mut process| {
-        let right: Term = 0b1010_1010_1010_1010_1010_1010_1010.into_process(&mut process);
+    with(|left, process| {
+        let right: Term = 0b1010_1010_1010_1010_1010_1010_1010.into_process(&process);
 
         assert_eq!(right.tag(), SmallInteger);
 
-        let result = erlang::bor_2(left, right, &mut process);
+        let result = erlang::bor_2(left, right, &process);
 
         assert!(result.is_ok());
 
@@ -53,20 +49,20 @@ fn with_small_integer_right_returns_big_integer() {
 
 #[test]
 fn with_same_big_integer_right_returns_same_big_integer() {
-    with(|left, mut process| {
-        assert_eq!(erlang::bor_2(left, left, &mut process), Ok(left));
+    with(|left, process| {
+        assert_eq!(erlang::bor_2(left, left, &process), Ok(left));
     })
 }
 
 #[test]
 fn with_big_integer_right_returns_big_integer() {
-    with(|left, mut process| {
+    with(|left, process| {
         let right = <BigInt as Num>::from_str_radix(
             "1010".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
             2,
         )
         .unwrap()
-        .into_process(&mut process);
+        .into_process(&process);
 
         assert_eq!(right.tag(), Boxed);
 
@@ -74,7 +70,7 @@ fn with_big_integer_right_returns_big_integer() {
 
         assert_eq!(unboxed_right.tag(), BigInteger);
 
-        let result = erlang::bor_2(left, right, &mut process);
+        let result = erlang::bor_2(left, right, &process);
 
         assert!(result.is_ok());
 
@@ -94,14 +90,14 @@ fn with_big_integer_right_returns_big_integer() {
                 2
             )
             .unwrap()
-            .into_process(&mut process)
+            .into_process(&process)
         );
     })
 }
 
 #[test]
 fn with_float_right_errors_badarith() {
-    with_right_errors_badarith(|mut process| 1.0.into_process(&mut process));
+    with_right_errors_badarith(|process| 1.0.into_process(&process));
 }
 
 #[test]
@@ -111,51 +107,51 @@ fn with_local_pid_right_errors_badarith() {
 
 #[test]
 fn with_external_pid_right_errors_badarith() {
-    with_right_errors_badarith(|mut process| Term::external_pid(1, 2, 3, &mut process).unwrap());
+    with_right_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_right_errors_badarith() {
-    with_right_errors_badarith(|mut process| Term::slice_to_tuple(&[], &mut process));
+    with_right_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_is_right_errors_badarith() {
-    with_right_errors_badarith(|mut process| Term::slice_to_map(&[], &mut process));
+    with_right_errors_badarith(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_right_errors_badarith() {
-    with_right_errors_badarith(|mut process| Term::slice_to_binary(&[], &mut process));
+    with_right_errors_badarith(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
 fn with_subbinary_right_errors_badarith() {
-    with_right_errors_badarith(|mut process| bitstring!(1 :: 1, &mut process));
+    with_right_errors_badarith(|process| bitstring!(1 :: 1, &process));
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &mut Process) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
-    with_process(|mut process| {
+    with_process(|process| {
         let left = <BigInt as Num>::from_str_radix(
             "1100".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
             2,
         )
         .unwrap()
-        .into_process(&mut process);
+        .into_process(&process);
 
-        f(left, &mut process)
+        f(left, &process)
     })
 }
 
 fn with_right_errors_badarith<M>(right: M)
 where
-    M: FnOnce(&mut Process) -> Term,
+    M: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|mut process| {
-        let left = (crate::integer::small::MAX + 1).into_process(&mut process);
+    super::errors_badarith(|process| {
+        let left = (crate::integer::small::MAX + 1).into_process(&process);
 
         assert_eq!(left.tag(), Boxed);
 
@@ -163,8 +159,8 @@ where
 
         assert_eq!(unboxed_left.tag(), BigInteger);
 
-        let right = right(&mut process);
+        let right = right(&process);
 
-        erlang::bor_2(left, right, &mut process)
+        erlang::bor_2(left, right, &process)
     });
 }

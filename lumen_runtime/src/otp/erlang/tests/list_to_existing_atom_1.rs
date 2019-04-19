@@ -1,11 +1,5 @@
 use super::*;
 
-use num_traits::Num;
-
-use std::sync::{Arc, RwLock};
-
-use crate::environment::{self, Environment};
-
 #[test]
 fn with_atom_errors_badarg() {
     errors_badarg(|_| Term::str_to_atom("list", DoNotCare).unwrap());
@@ -13,7 +7,7 @@ fn with_atom_errors_badarg() {
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    errors_badarg(|mut process| Term::local_reference(&mut process));
+    errors_badarg(|process| Term::local_reference(&process));
 }
 
 #[test]
@@ -28,87 +22,81 @@ fn with_empty_list() {
 
 #[test]
 fn with_improper_list_errors_badarg() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         Term::cons(
-            'a'.into_process(&mut process),
-            'b'.into_process(&mut process),
-            &mut process,
+            'a'.into_process(&process),
+            'b'.into_process(&process),
+            &process,
         )
     });
 }
 
 #[test]
 fn with_list_encoding_utf8() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
+    with_process(|process| {
+        let string1 = format!("{}:{}:atom", file!(), line!());
+        let char_list1 = Term::str_to_char_list(&string1, &process);
 
-    let string1 = format!("{}:{}:atom", file!(), line!());
-    let char_list1 = Term::str_to_char_list(&string1, &mut process);
+        assert_badarg!(erlang::list_to_existing_atom_1(char_list1));
 
-    assert_badarg!(erlang::list_to_existing_atom_1(char_list1));
+        let existing_atom1 = Term::str_to_atom(&string1, DoNotCare).unwrap();
 
-    let existing_atom1 = Term::str_to_atom(&string1, DoNotCare).unwrap();
+        assert_eq!(
+            erlang::list_to_existing_atom_1(char_list1),
+            Ok(existing_atom1)
+        );
 
-    assert_eq!(
-        erlang::list_to_existing_atom_1(char_list1),
-        Ok(existing_atom1)
-    );
+        let string2 = format!("{}:{}:José", file!(), line!());
+        let char_list2 = Term::str_to_char_list(&string2, &process);
 
-    let string2 = format!("{}:{}:José", file!(), line!());
-    let char_list2 = Term::str_to_char_list(&string2, &mut process);
+        assert_badarg!(erlang::list_to_existing_atom_1(char_list2));
 
-    assert_badarg!(erlang::list_to_existing_atom_1(char_list2));
+        let existing_atom2 = Term::str_to_atom(&string2, DoNotCare).unwrap();
 
-    let existing_atom2 = Term::str_to_atom(&string2, DoNotCare).unwrap();
+        assert_eq!(
+            erlang::list_to_existing_atom_1(char_list2),
+            Ok(existing_atom2)
+        );
 
-    assert_eq!(
-        erlang::list_to_existing_atom_1(char_list2),
-        Ok(existing_atom2)
-    );
+        let string3 = format!("{}:{}:😈", file!(), line!());
+        let char_list3 = Term::str_to_char_list(&string3, &process);
 
-    let string3 = format!("{}:{}:😈", file!(), line!());
-    let char_list3 = Term::str_to_char_list(&string3, &mut process);
+        assert_badarg!(erlang::list_to_existing_atom_1(char_list3));
 
-    assert_badarg!(erlang::list_to_existing_atom_1(char_list3));
+        let existing_atom3 = Term::str_to_atom(&string3, DoNotCare).unwrap();
 
-    let existing_atom3 = Term::str_to_atom(&string3, DoNotCare).unwrap();
-
-    assert_eq!(
-        erlang::list_to_existing_atom_1(char_list3),
-        Ok(existing_atom3)
-    );
+        assert_eq!(
+            erlang::list_to_existing_atom_1(char_list3),
+            Ok(existing_atom3)
+        );
+    });
 }
 
 #[test]
 fn with_list_not_encoding_ut8() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         Term::cons(
             // from https://doc.rust-lang.org/std/char/fn.from_u32.html
-            0x110000.into_process(&mut process),
+            0x110000.into_process(&process),
             Term::EMPTY_LIST,
-            &mut process,
+            &process,
         )
     });
 }
 
 #[test]
 fn with_small_integer_errors_badarg() {
-    errors_badarg(|mut process| 0.into_process(&mut process));
+    errors_badarg(|process| 0.into_process(&process));
 }
 
 #[test]
 fn with_big_integer_errors_badarg() {
-    errors_badarg(|mut process| {
-        <BigInt as Num>::from_str_radix("576460752303423489", 10)
-            .unwrap()
-            .into_process(&mut process)
-    });
+    errors_badarg(|process| (integer::small::MAX + 1).into_process(&process));
 }
 
 #[test]
 fn with_float_errors_badarg() {
-    errors_badarg(|mut process| 1.0.into_process(&mut process));
+    errors_badarg(|process| 1.0.into_process(&process));
 }
 
 #[test]
@@ -118,36 +106,35 @@ fn with_local_pid_errors_badarg() {
 
 #[test]
 fn with_external_pid_errors_badarg() {
-    errors_badarg(|mut process| Term::external_pid(1, 0, 0, &mut process).unwrap());
+    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_errors_badarg() {
-    errors_badarg(|mut process| Term::slice_to_tuple(&[], &mut process));
+    errors_badarg(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_errors_badarg() {
-    errors_badarg(|mut process| Term::slice_to_map(&[], &mut process));
+    errors_badarg(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_errors_badmap() {
-    errors_badarg(|mut process| Term::slice_to_binary(&[], &mut process));
+    errors_badarg(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
 fn with_subbinary_errors_badmap() {
-    errors_badarg(|mut process| {
-        let original =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-        Term::subbinary(original, 0, 7, 2, 1, &mut process)
+    errors_badarg(|process| {
+        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
+        Term::subbinary(original, 0, 7, 2, 1, &process)
     });
 }
 
 fn errors_badarg<F>(string: F)
 where
-    F: FnOnce(&mut Process) -> Term,
+    F: FnOnce(&Process) -> Term,
 {
-    super::errors_badarg(|mut process| erlang::list_to_existing_atom_1(string(&mut process)));
+    super::errors_badarg(|process| erlang::list_to_existing_atom_1(string(&process)));
 }

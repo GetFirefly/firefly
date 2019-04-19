@@ -3,6 +3,8 @@ use std::hash::{Hash, Hasher};
 
 use crate::term::{Tag, Tag::*, Term};
 
+// Not really test-only, but dead otherwise for now.
+#[cfg(test)]
 pub mod local;
 
 pub const NUMBER_BIT_COUNT: u8 = 15;

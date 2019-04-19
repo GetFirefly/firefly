@@ -7,7 +7,7 @@ fn with_atom_subtrahend_errors_badarith() {
 
 #[test]
 fn with_local_reference_subtrahend_errors_badarith() {
-    with_subtrahend_errors_badarith(|mut process| Term::local_reference(&mut process));
+    with_subtrahend_errors_badarith(|process| Term::local_reference(&process));
 }
 
 #[test]
@@ -17,23 +17,19 @@ fn with_empty_list_subtrahend_errors_badarith() {
 
 #[test]
 fn with_list_subtrahend_errors_badarith() {
-    with_subtrahend_errors_badarith(|mut process| {
-        Term::cons(
-            0.into_process(&mut process),
-            1.into_process(&mut process),
-            &mut process,
-        )
+    with_subtrahend_errors_badarith(|process| {
+        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
     });
 }
 
 #[test]
 fn with_small_integer_subtrahend_returns_big_integer() {
-    with(|minuend, mut process| {
-        let subtrahend = crate::integer::small::MIN.into_process(&mut process);
+    with(|minuend, process| {
+        let subtrahend = crate::integer::small::MIN.into_process(&process);
 
         assert_eq!(subtrahend.tag(), SmallInteger);
 
-        let result = erlang::subtract_2(minuend, subtrahend, &mut process);
+        let result = erlang::subtract_2(minuend, subtrahend, &process);
 
         assert!(result.is_ok());
 
@@ -49,8 +45,8 @@ fn with_small_integer_subtrahend_returns_big_integer() {
 
 #[test]
 fn with_big_integer_subtrahend_with_underflow_returns_small_integer() {
-    with(|minuend, mut process| {
-        let subtrahend = (crate::integer::small::MAX + 1).into_process(&mut process);
+    with(|minuend, process| {
+        let subtrahend = (crate::integer::small::MAX + 1).into_process(&process);
 
         assert_eq!(subtrahend.tag(), Boxed);
 
@@ -58,7 +54,7 @@ fn with_big_integer_subtrahend_with_underflow_returns_small_integer() {
 
         assert_eq!(unboxed_subtrahend.tag(), BigInteger);
 
-        let result = erlang::subtract_2(minuend, subtrahend, &mut process);
+        let result = erlang::subtract_2(minuend, subtrahend, &process);
 
         assert!(result.is_ok());
 
@@ -70,8 +66,8 @@ fn with_big_integer_subtrahend_with_underflow_returns_small_integer() {
 
 #[test]
 fn with_big_integer_subtrahend_returns_big_integer() {
-    with(|minuend, mut process| {
-        let subtrahend = (crate::integer::small::MIN - 1).into_process(&mut process);
+    with(|minuend, process| {
+        let subtrahend = (crate::integer::small::MIN - 1).into_process(&process);
 
         assert_eq!(subtrahend.tag(), Boxed);
 
@@ -79,7 +75,7 @@ fn with_big_integer_subtrahend_returns_big_integer() {
 
         assert_eq!(unboxed_subtrahend.tag(), BigInteger);
 
-        let result = erlang::subtract_2(minuend, subtrahend, &mut process);
+        let result = erlang::subtract_2(minuend, subtrahend, &process);
 
         assert!(result.is_ok());
 
@@ -95,10 +91,10 @@ fn with_big_integer_subtrahend_returns_big_integer() {
 
 #[test]
 fn with_float_subtrahend_without_underflow_or_overflow_returns_float() {
-    with(|minuend, mut process| {
-        let subtrahend = 3.0.into_process(&mut process);
+    with(|minuend, process| {
+        let subtrahend = 3.0.into_process(&process);
 
-        let result = erlang::subtract_2(minuend, subtrahend, &mut process);
+        let result = erlang::subtract_2(minuend, subtrahend, &process);
 
         assert!(result.is_ok());
 
@@ -114,24 +110,24 @@ fn with_float_subtrahend_without_underflow_or_overflow_returns_float() {
 
 #[test]
 fn with_float_subtrahend_with_underflow_returns_min_float() {
-    with(|minuend, mut process| {
-        let subtrahend = std::f64::MAX.into_process(&mut process);
+    with(|minuend, process| {
+        let subtrahend = std::f64::MAX.into_process(&process);
 
         assert_eq!(
-            erlang::subtract_2(minuend, subtrahend, &mut process),
-            Ok(std::f64::MIN.into_process(&mut process))
+            erlang::subtract_2(minuend, subtrahend, &process),
+            Ok(std::f64::MIN.into_process(&process))
         );
     })
 }
 
 #[test]
 fn with_float_subtrahend_with_overflow_returns_max_float() {
-    with(|minuend, mut process| {
-        let subtrahend = std::f64::MIN.into_process(&mut process);
+    with(|minuend, process| {
+        let subtrahend = std::f64::MIN.into_process(&process);
 
         assert_eq!(
-            erlang::subtract_2(minuend, subtrahend, &mut process),
-            Ok(std::f64::MAX.into_process(&mut process))
+            erlang::subtract_2(minuend, subtrahend, &process),
+            Ok(std::f64::MAX.into_process(&process))
         );
     })
 }
@@ -143,41 +139,38 @@ fn with_local_pid_subtrahend_errors_badarith() {
 
 #[test]
 fn with_external_pid_subtrahend_errors_badarith() {
-    with_subtrahend_errors_badarith(|mut process| {
-        Term::external_pid(1, 2, 3, &mut process).unwrap()
-    });
+    with_subtrahend_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_subtrahend_errors_badarith() {
-    with_subtrahend_errors_badarith(|mut process| Term::slice_to_tuple(&[], &mut process));
+    with_subtrahend_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_is_subtrahend_errors_badarith() {
-    with_subtrahend_errors_badarith(|mut process| Term::slice_to_map(&[], &mut process));
+    with_subtrahend_errors_badarith(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_subtrahend_errors_badarith() {
-    with_subtrahend_errors_badarith(|mut process| Term::slice_to_binary(&[], &mut process));
+    with_subtrahend_errors_badarith(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
 fn with_subbinary_subtrahend_errors_badarith() {
-    with_subtrahend_errors_badarith(|mut process| {
-        let original =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-        Term::subbinary(original, 0, 7, 2, 1, &mut process)
+    with_subtrahend_errors_badarith(|process| {
+        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
+        Term::subbinary(original, 0, 7, 2, 1, &process)
     });
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &mut Process) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
-    with_process(|mut process| {
-        let minuend: Term = (crate::integer::small::MAX + 1).into_process(&mut process);
+    with_process(|process| {
+        let minuend: Term = (crate::integer::small::MAX + 1).into_process(&process);
 
         assert_eq!(minuend.tag(), Boxed);
 
@@ -185,16 +178,16 @@ where
 
         assert_eq!(unboxed_minuend.tag(), BigInteger);
 
-        f(minuend, &mut process)
+        f(minuend, &process)
     })
 }
 
 fn with_subtrahend_errors_badarith<M>(subtrahend: M)
 where
-    M: FnOnce(&mut Process) -> Term,
+    M: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|mut process| {
-        let minuend: Term = (crate::integer::small::MAX + 1).into_process(&mut process);
+    super::errors_badarith(|process| {
+        let minuend: Term = (crate::integer::small::MAX + 1).into_process(&process);
 
         assert_eq!(minuend.tag(), Boxed);
 
@@ -202,8 +195,8 @@ where
 
         assert_eq!(unboxed_minuend.tag(), BigInteger);
 
-        let subtrahend = subtrahend(&mut process);
+        let subtrahend = subtrahend(&process);
 
-        erlang::subtract_2(minuend, subtrahend, &mut process)
+        erlang::subtract_2(minuend, subtrahend, &process)
     });
 }

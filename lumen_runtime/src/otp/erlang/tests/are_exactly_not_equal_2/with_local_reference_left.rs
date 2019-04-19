@@ -12,7 +12,7 @@ fn with_same_local_reference_right_returns_false() {
 
 #[test]
 fn with_different_local_reference_right_returns_true() {
-    are_exactly_not_equal(|_, mut process| Term::local_reference(&mut process), true);
+    are_exactly_not_equal(|_, process| Term::local_reference(&process), true);
 }
 
 #[test]
@@ -23,33 +23,27 @@ fn with_empty_list_right_returns_true() {
 #[test]
 fn with_list_right_returns_true() {
     are_exactly_not_equal(
-        |_, mut process| {
-            Term::cons(
-                0.into_process(&mut process),
-                1.into_process(&mut process),
-                &mut process,
-            )
-        },
+        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
         true,
     );
 }
 
 #[test]
 fn with_small_integer_right_returns_true() {
-    are_exactly_not_equal(|_, mut process| 0.into_process(&mut process), true)
+    are_exactly_not_equal(|_, process| 0.into_process(&process), true)
 }
 
 #[test]
 fn with_big_integer_right_returns_true() {
     are_exactly_not_equal(
-        |_, mut process| (crate::integer::small::MAX + 1).into_process(&mut process),
+        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
         true,
     )
 }
 
 #[test]
 fn with_float_right_returns_true() {
-    are_exactly_not_equal(|_, mut process| 0.0.into_process(&mut process), true)
+    are_exactly_not_equal(|_, process| 0.0.into_process(&process), true)
 }
 
 #[test]
@@ -60,44 +54,34 @@ fn with_local_pid_right_returns_true() {
 #[test]
 fn with_external_pid_right_returns_true() {
     are_exactly_not_equal(
-        |_, mut process| Term::external_pid(1, 2, 3, &mut process).unwrap(),
+        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
         true,
     );
 }
 
 #[test]
 fn with_tuple_right_returns_true() {
-    are_exactly_not_equal(
-        |_, mut process| Term::slice_to_tuple(&[], &mut process),
-        true,
-    );
+    are_exactly_not_equal(|_, process| Term::slice_to_tuple(&[], &process), true);
 }
 
 #[test]
 fn with_map_right_returns_true() {
-    are_exactly_not_equal(|_, mut process| Term::slice_to_map(&[], &mut process), true);
+    are_exactly_not_equal(|_, process| Term::slice_to_map(&[], &process), true);
 }
 
 #[test]
 fn with_heap_binary_right_returns_true() {
-    are_exactly_not_equal(
-        |_, mut process| Term::slice_to_binary(&[], &mut process),
-        true,
-    );
+    are_exactly_not_equal(|_, process| Term::slice_to_binary(&[], &process), true);
 }
 
 #[test]
 fn with_subbinary_right_returns_true() {
-    are_exactly_not_equal(|_, mut process| bitstring!(1 :: 1, &mut process), true);
+    are_exactly_not_equal(|_, process| bitstring!(1 :: 1, &process), true);
 }
 
 fn are_exactly_not_equal<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &mut Process) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
-    super::are_exactly_not_equal(
-        |mut process| Term::local_reference(&mut process),
-        right,
-        expected,
-    );
+    super::are_exactly_not_equal(|process| Term::local_reference(&process), right, expected);
 }

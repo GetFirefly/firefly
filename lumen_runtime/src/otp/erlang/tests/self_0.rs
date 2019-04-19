@@ -1,14 +1,10 @@
 use super::*;
 
-use std::sync::{Arc, RwLock};
-
-use crate::environment::{self, Environment};
+use crate::process;
 
 #[test]
 fn returns_process_pid() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let process = process_rw_lock.write().unwrap();
+    let process = process::local::new();
 
     assert_eq!(erlang::self_0(&process), process.pid);
 }

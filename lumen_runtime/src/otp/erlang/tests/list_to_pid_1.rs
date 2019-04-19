@@ -1,220 +1,148 @@
 use super::*;
 
-use num_traits::Num;
-
-use std::sync::{Arc, RwLock};
-
-use crate::environment::{self, Environment};
-
 #[test]
 fn with_atom_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let atom_term = Term::str_to_atom("atom", DoNotCare).unwrap();
-
-    assert_badarg!(erlang::list_to_pid_1(atom_term, &mut process));
+    errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
 }
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let list = Term::local_reference(&mut process);
-
-    assert_badarg!(erlang::list_to_pid_1(list, &mut process));
+    errors_badarg(|process| Term::local_reference(&process));
 }
 
 #[test]
 fn with_empty_list_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-
-    assert_badarg!(erlang::list_to_pid_1(Term::EMPTY_LIST, &mut process));
+    errors_badarg(|_| Term::EMPTY_LIST);
 }
 
 #[test]
 fn with_list_encoding_local_pid() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
+    let process = process::local::new();
 
     assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<", &mut process),
-        &mut process
+        Term::str_to_char_list("<", &process),
+        &process
     ));
     assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0", &mut process),
-        &mut process
+        Term::str_to_char_list("<0", &process),
+        &process
     ));
     assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.", &mut process),
-        &mut process
+        Term::str_to_char_list("<0.", &process),
+        &process
     ));
     assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.1", &mut process),
-        &mut process
+        Term::str_to_char_list("<0.1", &process),
+        &process
     ));
     assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.1.", &mut process),
-        &mut process
+        Term::str_to_char_list("<0.1.", &process),
+        &process
     ));
     assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.1.2", &mut process),
-        &mut process
+        Term::str_to_char_list("<0.1.2", &process),
+        &process
     ));
 
     assert_eq!(
-        erlang::list_to_pid_1(
-            Term::str_to_char_list("<0.1.2>", &mut process),
-            &mut process
-        ),
+        erlang::list_to_pid_1(Term::str_to_char_list("<0.1.2>", &process), &process),
         Term::local_pid(1, 2)
     );
 
     assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.1.2>?", &mut process),
-        &mut process
+        Term::str_to_char_list("<0.1.2>?", &process),
+        &process
     ));
 }
 
 #[test]
 fn with_list_encoding_external_pid() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
+    with_process(|process| {
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<1", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<1.", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<1.2", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<1.2.", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<1.2.3", &process),
+            &process
+        ));
 
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<", &mut process),
-        &mut process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<1", &mut process),
-        &mut process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<1.", &mut process),
-        &mut process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<1.2", &mut process),
-        &mut process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<1.2.", &mut process),
-        &mut process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<1.2.3", &mut process),
-        &mut process
-    ));
+        assert_eq!(
+            erlang::list_to_pid_1(Term::str_to_char_list("<1.2.3>", &process), &process),
+            Term::external_pid(1, 2, 3, &process)
+        );
 
-    assert_eq!(
-        erlang::list_to_pid_1(
-            Term::str_to_char_list("<1.2.3>", &mut process),
-            &mut process
-        ),
-        Term::external_pid(1, 2, 3, &mut process)
-    );
-
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<1.2.3>?", &mut process),
-        &mut process
-    ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<1.2.3>?", &process),
+            &process
+        ));
+    });
 }
 
 #[test]
 fn with_small_integer_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let small_integer_term = 0.into_process(&mut process);
-
-    assert_badarg!(erlang::list_to_pid_1(small_integer_term, &mut process));
+    errors_badarg(|process| 0.into_process(&process));
 }
 
 #[test]
 fn with_big_integer_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let big_integer_term = <BigInt as Num>::from_str_radix("576460752303423489", 10)
-        .unwrap()
-        .into_process(&mut process);
-
-    assert_badarg!(erlang::list_to_pid_1(big_integer_term, &mut process));
+    errors_badarg(|process| (integer::small::MAX + 1).into_process(&process));
 }
 
 #[test]
 fn with_float_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let float_term = 1.0.into_process(&mut process);
-
-    assert_badarg!(erlang::list_to_pid_1(float_term, &mut process));
+    errors_badarg(|process| 1.0.into_process(&process));
 }
 
 #[test]
 fn with_local_pid_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let local_pid_term = Term::local_pid(0, 0).unwrap();
-
-    assert_badarg!(erlang::list_to_pid_1(local_pid_term, &mut process));
+    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
 }
 
 #[test]
 fn with_external_pid_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let external_pid_term = Term::external_pid(1, 0, 0, &mut process).unwrap();
-
-    assert_badarg!(erlang::list_to_pid_1(external_pid_term, &mut process));
+    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let tuple_term = Term::slice_to_tuple(&[], &mut process);
-
-    assert_badarg!(erlang::list_to_pid_1(tuple_term, &mut process));
+    errors_badarg(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_errors_badarg() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let map_term = Term::slice_to_map(&[], &mut process);
-
-    assert_badarg!(erlang::list_to_pid_1(map_term, &mut process));
+    errors_badarg(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_is_false() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let heap_binary_term = Term::slice_to_binary(&[], &mut process);
-
-    assert_badarg!(erlang::list_to_pid_1(heap_binary_term, &mut process));
+    errors_badarg(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
-fn with_subbinary_is_false() {
-    let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-    let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-    let mut process = process_rw_lock.write().unwrap();
-    let binary_term =
-        Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-    let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
+fn with_subbinary_errors_badarg() {
+    errors_badarg(|process| bitstring!(1 :: 1, &process));
+}
 
-    assert_badarg!(erlang::list_to_pid_1(subbinary_term, &mut process));
+fn errors_badarg<S>(string: S)
+where
+    S: FnOnce(&Process) -> Term,
+{
+    super::errors_badarg(|process| erlang::list_to_pid_1(string(&process), &process))
 }

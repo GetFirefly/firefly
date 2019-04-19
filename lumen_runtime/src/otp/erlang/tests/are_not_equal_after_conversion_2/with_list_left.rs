@@ -7,7 +7,7 @@ fn with_atom_right_returns_true() {
 
 #[test]
 fn with_local_reference_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| Term::local_reference(&mut process), true);
+    are_not_equal_after_conversion(|_, process| Term::local_reference(&process), true);
 }
 
 #[test]
@@ -23,13 +23,7 @@ fn with_same_list_right_returns_false() {
 #[test]
 fn with_same_value_list_right_returns_false() {
     are_not_equal_after_conversion(
-        |_, mut process| {
-            Term::cons(
-                0.into_process(&mut process),
-                1.into_process(&mut process),
-                &mut process,
-            )
-        },
+        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
         false,
     );
 }
@@ -37,33 +31,27 @@ fn with_same_value_list_right_returns_false() {
 #[test]
 fn with_different_list_right_returns_true() {
     are_not_equal_after_conversion(
-        |_, mut process| {
-            Term::cons(
-                2.into_process(&mut process),
-                3.into_process(&mut process),
-                &mut process,
-            )
-        },
+        |_, process| Term::cons(2.into_process(&process), 3.into_process(&process), &process),
         true,
     );
 }
 
 #[test]
 fn with_small_integer_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| 0.into_process(&mut process), true)
+    are_not_equal_after_conversion(|_, process| 0.into_process(&process), true)
 }
 
 #[test]
 fn with_big_integer_right_returns_true() {
     are_not_equal_after_conversion(
-        |_, mut process| (crate::integer::small::MAX + 1).into_process(&mut process),
+        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
         true,
     )
 }
 
 #[test]
 fn with_float_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| 0.0.into_process(&mut process), true)
+    are_not_equal_after_conversion(|_, process| 0.0.into_process(&process), true)
 }
 
 #[test]
@@ -74,49 +62,37 @@ fn with_local_pid_right_returns_true() {
 #[test]
 fn with_external_pid_right_returns_true() {
     are_not_equal_after_conversion(
-        |_, mut process| Term::external_pid(1, 2, 3, &mut process).unwrap(),
+        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
         true,
     );
 }
 
 #[test]
 fn with_tuple_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, mut process| Term::slice_to_tuple(&[], &mut process),
-        true,
-    );
+    are_not_equal_after_conversion(|_, process| Term::slice_to_tuple(&[], &process), true);
 }
 
 #[test]
 fn with_map_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| Term::slice_to_map(&[], &mut process), true);
+    are_not_equal_after_conversion(|_, process| Term::slice_to_map(&[], &process), true);
 }
 
 #[test]
 fn with_heap_binary_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, mut process| Term::slice_to_binary(&[], &mut process),
-        true,
-    );
+    are_not_equal_after_conversion(|_, process| Term::slice_to_binary(&[], &process), true);
 }
 
 #[test]
 fn with_subbinary_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| bitstring!(1 :: 1, &mut process), true);
+    are_not_equal_after_conversion(|_, process| bitstring!(1 :: 1, &process), true);
 }
 
 fn are_not_equal_after_conversion<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &mut Process) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::are_not_equal_after_conversion(
-        |mut process| {
-            Term::cons(
-                0.into_process(&mut process),
-                1.into_process(&mut process),
-                &mut process,
-            )
-        },
+        |process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
         right,
         expected,
     );

@@ -22,7 +22,7 @@ pub enum Tag {
 }
 
 impl TryFromInProcess<u8> for Tag {
-    fn try_from_in_process(tag_byte: u8, _process: &mut Process) -> Result<Tag, Exception> {
+    fn try_from_in_process(tag_byte: u8, _process: &Process) -> Result<Tag, Exception> {
         use crate::term::external_format::Tag::*;
 
         match tag_byte {

@@ -9,7 +9,7 @@ fn with_atom_shift_errors_badarith() {
 
 #[test]
 fn with_local_reference_shift_errors_badarith() {
-    with_shift_errors_badarith(|mut process| Term::local_reference(&mut process));
+    with_shift_errors_badarith(|process| Term::local_reference(&process));
 }
 
 #[test]
@@ -19,21 +19,17 @@ fn with_empty_list_shift_errors_badarith() {
 
 #[test]
 fn with_list_shift_errors_badarith() {
-    with_shift_errors_badarith(|mut process| {
-        Term::cons(
-            0.into_process(&mut process),
-            1.into_process(&mut process),
-            &mut process,
-        )
+    with_shift_errors_badarith(|process| {
+        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
     });
 }
 
 #[test]
 fn with_negative_without_big_integer_underflow_shifts_right_and_returns_big_integer() {
-    with(|integer, mut process| {
-        let shift = (-1).into_process(&mut process);
+    with(|integer, process| {
+        let shift = (-1).into_process(&process);
 
-        let result = erlang::bsl_2(integer, shift, &mut process);
+        let result = erlang::bsl_2(integer, shift, &process);
 
         assert!(result.is_ok());
 
@@ -52,7 +48,7 @@ fn with_negative_without_big_integer_underflow_shifts_right_and_returns_big_inte
                 2
             )
             .unwrap()
-            .into_process(&mut process)
+            .into_process(&process)
         );
     });
 }
@@ -60,37 +56,37 @@ fn with_negative_without_big_integer_underflow_shifts_right_and_returns_big_inte
 #[test]
 fn with_negative_with_big_integer_underflow_without_small_integer_underflow_shifts_right_and_returns_small_integer(
 ) {
-    with(|integer, mut process| {
-        let shift = (-69).into_process(&mut process);
+    with(|integer, process| {
+        let shift = (-69).into_process(&process);
 
-        let result = erlang::bsl_2(integer, shift, &mut process);
+        let result = erlang::bsl_2(integer, shift, &process);
 
         assert!(result.is_ok());
 
         let shifted = result.unwrap();
 
         assert_eq!(shifted.tag(), SmallInteger);
-        assert_eq!(shifted, 0b101.into_process(&mut process));
+        assert_eq!(shifted, 0b101.into_process(&process));
     });
 }
 
 #[test]
 fn with_negative_with_underflow_returns_zero() {
-    with(|integer, mut process| {
-        let shift = (-74).into_process(&mut process);
+    with(|integer, process| {
+        let shift = (-74).into_process(&process);
 
         assert_eq!(
-            erlang::bsl_2(integer, shift, &mut process),
-            Ok(0b0.into_process(&mut process))
+            erlang::bsl_2(integer, shift, &process),
+            Ok(0b0.into_process(&process))
         );
     });
 }
 
 #[test]
 fn with_zero_returns_same_big_integer() {
-    with(|integer, mut process| {
+    with(|integer, process| {
         assert_eq!(
-            erlang::bsl_2(integer, 0.into_process(&mut process), &mut process),
+            erlang::bsl_2(integer, 0.into_process(&process), &process),
             Ok(integer)
         );
     });
@@ -98,10 +94,10 @@ fn with_zero_returns_same_big_integer() {
 
 #[test]
 fn with_positive_returns_big_integer() {
-    with(|integer, mut process| {
-        let shift = 1.into_process(&mut process);
+    with(|integer, process| {
+        let shift = 1.into_process(&process);
 
-        let result = erlang::bsl_2(integer, shift, &mut process);
+        let result = erlang::bsl_2(integer, shift, &process);
 
         assert!(result.is_ok());
 
@@ -119,14 +115,14 @@ fn with_positive_returns_big_integer() {
                 2
             )
             .unwrap()
-            .into_process(&mut process)
+            .into_process(&process)
         );
     });
 }
 
 #[test]
 fn with_float_shift_errors_badarith() {
-    with_shift_errors_badarith(|mut process| 1.0.into_process(&mut process));
+    with_shift_errors_badarith(|process| 1.0.into_process(&process));
 }
 
 #[test]
@@ -136,40 +132,40 @@ fn with_local_pid_shift_errors_badarith() {
 
 #[test]
 fn with_external_pid_shift_errors_badarith() {
-    with_shift_errors_badarith(|mut process| Term::external_pid(1, 2, 3, &mut process).unwrap());
+    with_shift_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_shift_errors_badarith() {
-    with_shift_errors_badarith(|mut process| Term::slice_to_tuple(&[], &mut process));
+    with_shift_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_is_shift_errors_badarith() {
-    with_shift_errors_badarith(|mut process| Term::slice_to_map(&[], &mut process));
+    with_shift_errors_badarith(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_shift_errors_badarith() {
-    with_shift_errors_badarith(|mut process| Term::slice_to_binary(&[], &mut process));
+    with_shift_errors_badarith(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
 fn with_subbinary_shift_errors_badarith() {
-    with_shift_errors_badarith(|mut process| bitstring!(1 :: 1, &mut process));
+    with_shift_errors_badarith(|process| bitstring!(1 :: 1, &process));
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &mut Process) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
-    with_process(|mut process| {
+    with_process(|process| {
         let integer = <BigInt as Num>::from_str_radix(
             "101100111000111100001111100000111111000000111111100000001111111100000000",
             2,
         )
         .unwrap()
-        .into_process(&mut process);
+        .into_process(&process);
 
         assert_eq!(integer.tag(), Boxed);
 
@@ -177,21 +173,21 @@ where
 
         assert_eq!(integer_unboxed.tag(), BigInteger);
 
-        f(integer, &mut process)
+        f(integer, &process)
     })
 }
 
 fn with_shift_errors_badarith<S>(shift: S)
 where
-    S: FnOnce(&mut Process) -> Term,
+    S: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|mut process| {
+    super::errors_badarith(|process| {
         let integer = <BigInt as Num>::from_str_radix(
             "101100111000111100001111100000111111000000111111100000001111111100000000",
             2,
         )
         .unwrap()
-        .into_process(&mut process);
+        .into_process(&process);
 
         assert_eq!(integer.tag(), Boxed);
 
@@ -199,8 +195,8 @@ where
 
         assert_eq!(integer_unboxed.tag(), BigInteger);
 
-        let shift = shift(&mut process);
+        let shift = shift(&process);
 
-        erlang::bsl_2(integer, shift, &mut process)
+        erlang::bsl_2(integer, shift, &process)
     });
 }

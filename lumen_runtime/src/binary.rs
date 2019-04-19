@@ -21,9 +21,9 @@ pub enum Binary<'a> {
 }
 
 impl<'a> Binary<'a> {
-    pub fn from_slice(bytes: &[u8], mut process: &mut Process) -> Self {
+    pub fn from_slice(bytes: &[u8], process: &Process) -> Self {
         // TODO use reference counted binaries for bytes.len() > 64
-        let heap_binary = heap::Binary::from_slice(bytes, &mut process);
+        let heap_binary = heap::Binary::from_slice(bytes, &process);
 
         Binary::Heap(heap_binary)
     }
@@ -111,18 +111,18 @@ where
             })
     }
 
-    fn next_binary(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_binary(&mut self, process: &Process) -> Option<Term> {
         self.next_u32()
             .and_then(|length| self.next_byte_vec(length as usize))
-            .map(|byte_vec| Term::slice_to_binary(byte_vec.as_slice(), &mut process))
+            .map(|byte_vec| Term::slice_to_binary(byte_vec.as_slice(), &process))
     }
 
-    fn next_bit_binary(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_bit_binary(&mut self, process: &Process) -> Option<Term> {
         self.next_u32().and_then(|binary_byte_count| {
             self.next().and_then(|bit_count| {
                 self.next_byte_vec(binary_byte_count as usize)
                     .map(|byte_vec| {
-                        let original = Term::slice_to_binary(byte_vec.as_slice(), &mut process);
+                        let original = Term::slice_to_binary(byte_vec.as_slice(), &process);
 
                         Term::subbinary(
                             original,
@@ -130,19 +130,19 @@ where
                             0,
                             (binary_byte_count - 1) as usize,
                             bit_count,
-                            &mut process,
+                            &process,
                         )
                     })
             })
         })
     }
 
-    fn next_byte_list(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_byte_list(&mut self, process: &Process) -> Option<Term> {
         self.next_u16()
             .and_then(|length| self.next_byte_vec(length as usize))
             .map(|byte_vec| {
                 byte_vec.iter().rfold(Term::EMPTY_LIST, |acc, element| {
-                    Term::cons(element.into_process(&mut process), acc, &mut process)
+                    Term::cons(element.into_process(&process), acc, &process)
                 })
             })
     }
@@ -168,28 +168,25 @@ where
         self.next().map(|byte| byte.into())
     }
 
-    fn next_integer(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_integer(&mut self, process: &Process) -> Option<Term> {
         self.next_i32()
-            .map(|integer| integer.into_process(&mut process))
+            .map(|integer| integer.into_process(&process))
     }
 
-    fn next_list(&mut self, existence: Existence, mut process: &mut Process) -> Option<Term> {
+    fn next_list(&mut self, existence: Existence, process: &Process) -> Option<Term> {
         self.next_u32()
-            .and_then(|element_count| {
-                self.next_terms(existence, element_count as usize, &mut process)
-            })
+            .and_then(|element_count| self.next_terms(existence, element_count as usize, &process))
             .and_then(|element_vec| {
-                self.next_term(existence, &mut process).map(|tail_term| {
+                self.next_term(existence, &process).map(|tail_term| {
                     element_vec.iter().rfold(tail_term, |acc, element| {
-                        Term::cons(*element, acc, &mut process)
+                        Term::cons(*element, acc, &process)
                     })
                 })
             })
     }
 
-    fn next_new_float(&mut self, mut process: &mut Process) -> Option<Term> {
-        self.next_f64()
-            .map(|inner| inner.into_process(&mut process))
+    fn next_new_float(&mut self, process: &Process) -> Option<Term> {
+        self.next_f64().map(|inner| inner.into_process(&process))
     }
 
     fn next_small_atom_utf8(&mut self, existence: Existence) -> Option<Term> {
@@ -201,7 +198,7 @@ where
             })
     }
 
-    fn next_small_big_integer(&mut self, mut process: &mut Process) -> Option<Term> {
+    fn next_small_big_integer(&mut self, process: &Process) -> Option<Term> {
         self.next().and_then(|count| {
             self.next().and_then(|sign| {
                 let mut big_int: BigInt = Zero::zero();
@@ -225,41 +222,37 @@ where
                 } else {
                     let signed_big_int = if sign == 0 { big_int } else { -1 * big_int };
 
-                    Some(signed_big_int.into_process(&mut process))
+                    Some(signed_big_int.into_process(&process))
                 }
             })
         })
     }
 
-    fn next_small_tuple(
-        &mut self,
-        existence: Existence,
-        mut process: &mut Process,
-    ) -> Option<Term> {
+    fn next_small_tuple(&mut self, existence: Existence, process: &Process) -> Option<Term> {
         self.next()
-            .and_then(|arity| self.next_terms(existence, arity as usize, &mut process))
-            .map(|element_vec| Term::slice_to_tuple(element_vec.as_slice(), &mut process))
+            .and_then(|arity| self.next_terms(existence, arity as usize, &process))
+            .map(|element_vec| Term::slice_to_tuple(element_vec.as_slice(), &process))
     }
 
-    fn next_term(&mut self, existence: Existence, mut process: &mut Process) -> Option<Term> {
+    fn next_term(&mut self, existence: Existence, process: &Process) -> Option<Term> {
         match self.next() {
-            Some(tag_byte) => match tag_byte.try_into_in_process(&mut process) {
+            Some(tag_byte) => match tag_byte.try_into_in_process(&process) {
                 Ok(tag) => {
                     use crate::term::external_format::Tag::*;
 
                     match tag {
                         Atom => self.next_atom(existence),
-                        Binary => self.next_binary(&mut process),
-                        BitBinary => self.next_bit_binary(&mut process),
-                        ByteList => self.next_byte_list(&mut process),
+                        Binary => self.next_binary(&process),
+                        BitBinary => self.next_bit_binary(&process),
+                        ByteList => self.next_byte_list(&process),
                         EmptyList => Some(Term::EMPTY_LIST),
-                        Integer => self.next_integer(&mut process),
-                        List => self.next_list(existence, &mut process),
-                        NewFloat => self.next_new_float(&mut process),
+                        Integer => self.next_integer(&process),
+                        List => self.next_list(existence, &process),
+                        NewFloat => self.next_new_float(&process),
                         SmallAtomUTF8 => self.next_small_atom_utf8(existence),
-                        SmallBigInteger => self.next_small_big_integer(&mut process),
+                        SmallBigInteger => self.next_small_big_integer(&process),
                         SmallInteger => self.next_small_integer(),
-                        SmallTuple => self.next_small_tuple(existence, &mut process),
+                        SmallTuple => self.next_small_tuple(existence, &process),
                     }
                 }
                 _ => None,
@@ -272,12 +265,12 @@ where
         &mut self,
         existence: Existence,
         count: usize,
-        mut process: &mut Process,
+        process: &Process,
     ) -> Option<Vec<Term>> {
         let mut element_vec: Vec<Term> = Vec::with_capacity(count);
 
         for _ in 0..count {
-            match self.next_term(existence, &mut process) {
+            match self.next_term(existence, &process) {
                 Some(term) => element_vec.push(term),
                 None => break,
             }
@@ -290,13 +283,9 @@ where
         }
     }
 
-    fn next_versioned_term(
-        &mut self,
-        existence: Existence,
-        mut process: &mut Process,
-    ) -> Option<Term> {
+    fn next_versioned_term(&mut self, existence: Existence, process: &Process) -> Option<Term> {
         match self.next() {
-            Some(term::external_format::VERSION_NUMBER) => self.next_term(existence, &mut process),
+            Some(term::external_format::VERSION_NUMBER) => self.next_term(existence, &process),
             Some(version) => panic!("Unknown version number ({})", version),
             None => None,
         }
@@ -323,7 +312,7 @@ where
 }
 
 pub trait Part<'a, S, L, T> {
-    fn part(&'a self, start: S, length: L, process: &mut Process) -> Result<T, Exception>;
+    fn part(&'a self, start: S, length: L, process: &Process) -> Result<T, Exception>;
 }
 
 pub struct PartRange {
@@ -367,17 +356,17 @@ fn start_length_to_part_range(
 fn part_range_to_list<T: ByteIterator>(
     mut byte_iterator: T,
     part_range: PartRange,
-    mut process: &mut Process,
+    process: &Process,
 ) -> Term {
-    byte_iterator.part_range(part_range).to_list(&mut process)
+    byte_iterator.part_range(part_range).to_list(&process)
 }
 
 pub trait PartToList<S, L> {
-    fn part_to_list(&self, start: S, length: L, process: &mut Process) -> exception::Result;
+    fn part_to_list(&self, start: S, length: L, process: &Process) -> exception::Result;
 }
 
 pub trait ToTerm {
-    fn to_term(&self, options: ToTermOptions, process: &mut Process) -> exception::Result;
+    fn to_term(&self, options: ToTermOptions, process: &Process) -> exception::Result;
 }
 
 pub struct ToTermOptions {

@@ -21,7 +21,7 @@ pub fn bin_to_list(
     binary: Term,
     position: Term,
     length: Term,
-    mut process: &mut Process,
+    process: &Process,
 ) -> Result<Term, Exception> {
     match binary.tag() {
         Boxed => {
@@ -31,12 +31,12 @@ pub fn bin_to_list(
                 HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
-                    heap_binary.part_to_list(position, length, &mut process)
+                    heap_binary.part_to_list(position, length, &process)
                 }
                 Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
-                    subbinary.part_to_list(position, length, &mut process)
+                    subbinary.part_to_list(position, length, &process)
                 }
                 _ => Err(badarg!()),
             }

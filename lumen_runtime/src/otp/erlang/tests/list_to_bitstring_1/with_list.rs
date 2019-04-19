@@ -13,111 +13,87 @@ mod with_heap_binary;
 
 #[test]
 fn with_atom_errors_badarg() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         Term::cons(
             Term::str_to_atom("", DoNotCare).unwrap(),
             Term::EMPTY_LIST,
-            &mut process,
+            &process,
         )
     })
 }
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    errors_badarg(|mut process| {
-        Term::cons(
-            Term::local_reference(&mut process),
-            Term::EMPTY_LIST,
-            &mut process,
-        )
-    })
+    errors_badarg(|process| Term::cons(Term::local_reference(&process), Term::EMPTY_LIST, &process))
 }
 
 #[test]
 fn with_empty_list_returns_empty_binary() {
-    with_process(|mut process| {
-        let iolist = Term::cons(Term::EMPTY_LIST, Term::EMPTY_LIST, &mut process);
+    with_process(|process| {
+        let iolist = Term::cons(Term::EMPTY_LIST, Term::EMPTY_LIST, &process);
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &mut process),
-            Ok(Term::slice_to_binary(&[], &mut process))
+            erlang::list_to_bitstring_1(iolist, &process),
+            Ok(Term::slice_to_binary(&[], &process))
         );
     })
 }
 
 #[test]
 fn with_small_integer_with_byte_overflow_errors_badarg() {
-    errors_badarg(|mut process| {
-        Term::cons(
-            256.into_process(&mut process),
-            Term::EMPTY_LIST,
-            &mut process,
-        )
-    })
+    errors_badarg(|process| Term::cons(256.into_process(&process), Term::EMPTY_LIST, &process))
 }
 
 #[test]
 fn with_big_integer_errors_badarg() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         Term::cons(
-            (crate::integer::small::MAX + 1).into_process(&mut process),
+            (crate::integer::small::MAX + 1).into_process(&process),
             Term::EMPTY_LIST,
-            &mut process,
+            &process,
         )
     })
 }
 
 #[test]
 fn with_float_errors_badarg() {
-    errors_badarg(|mut process| {
-        Term::cons(
-            1.0.into_process(&mut process),
-            Term::EMPTY_LIST,
-            &mut process,
-        )
-    })
+    errors_badarg(|process| Term::cons(1.0.into_process(&process), Term::EMPTY_LIST, &process))
 }
 
 #[test]
 fn with_local_pid_errors_badarg() {
-    errors_badarg(|mut process| {
-        Term::cons(
-            Term::local_pid(0, 0).unwrap(),
-            Term::EMPTY_LIST,
-            &mut process,
-        )
-    })
+    errors_badarg(|process| Term::cons(Term::local_pid(0, 0).unwrap(), Term::EMPTY_LIST, &process))
 }
 
 #[test]
 fn with_external_pid_errors_badarg() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         Term::cons(
-            Term::external_pid(1, 0, 0, &mut process).unwrap(),
+            Term::external_pid(1, 0, 0, &process).unwrap(),
             Term::EMPTY_LIST,
-            &mut process,
+            &process,
         )
     })
 }
 
 #[test]
 fn with_tuple_errors_badarg() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         Term::cons(
-            Term::slice_to_tuple(&[], &mut process),
+            Term::slice_to_tuple(&[], &process),
             Term::EMPTY_LIST,
-            &mut process,
+            &process,
         )
     })
 }
 
 #[test]
 fn with_map_errors_badarg() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         Term::cons(
-            Term::slice_to_map(&[], &mut process),
+            Term::slice_to_map(&[], &process),
             Term::EMPTY_LIST,
-            &mut process,
+            &process,
         )
     })
 }

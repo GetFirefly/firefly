@@ -15,7 +15,7 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn from_slice(slice: &[(Term, Term)], process: &mut Process) -> &'static Self {
+    pub fn from_slice(slice: &[(Term, Term)], process: &Process) -> &'static Self {
         let mut inner: HashMap<Term, Term> = HashMap::new();
 
         for (key, value) in slice {
@@ -36,12 +36,12 @@ impl Map {
         }
     }
 
-    pub fn get(&self, key: Term, mut process: &mut Process) -> Result {
+    pub fn get(&self, key: Term, process: &Process) -> Result {
         match self.inner.get(&key) {
             Some(value) => Ok(value.clone()),
             None => {
                 let badmap = Term::str_to_atom("badkey", DoNotCare).unwrap();
-                let reason = Term::slice_to_tuple(&[badmap, key], &mut process);
+                let reason = Term::slice_to_tuple(&[badmap, key], &process);
 
                 Err(error!(reason))
             }

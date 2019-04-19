@@ -24,7 +24,7 @@ use crate::tuple::{Tuple, ZeroBasedIndex};
 #[cfg(test)]
 mod tests;
 
-pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
+pub fn abs_1(number: Term, process: &Process) -> Result {
     match number.tag() {
         SmallInteger => {
             if unsafe { number.small_integer_is_negative() } {
@@ -53,7 +53,7 @@ pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
                     let positive_term: Term = if big_int < zero_big_int {
                         let positive_big_int: BigInt = -1 * big_int;
 
-                        positive_big_int.into_process(&mut process)
+                        positive_big_int.into_process(&process)
                     } else {
                         number
                     };
@@ -67,7 +67,7 @@ pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
                     match inner.partial_cmp(&0.0).unwrap() {
                         Ordering::Less => {
                             let positive_inner = inner.abs();
-                            let positive_number: Term = positive_inner.into_process(&mut process);
+                            let positive_number: Term = positive_inner.into_process(&process);
 
                             Ok(positive_number)
                         }
@@ -82,7 +82,7 @@ pub fn abs_1(number: Term, mut process: &mut Process) -> Result {
 }
 
 /// `+/2` infix operator
-pub fn add_2(augend: Term, addend: Term, mut process: &mut Process) -> Result {
+pub fn add_2(augend: Term, addend: Term, process: &Process) -> Result {
     number_infix_operator!(augend, addend, process, checked_add, +)
 }
 
@@ -109,9 +109,9 @@ pub fn andalso_2(boolean: Term, term: Term) -> Result {
     }
 }
 
-pub fn append_element_2(tuple: Term, element: Term, mut process: &mut Process) -> Result {
-    let internal: &Tuple = tuple.try_into_in_process(&mut process)?;
-    let new_tuple = internal.append_element(element, &mut process.term_arena);
+pub fn append_element_2(tuple: Term, element: Term, process: &Process) -> Result {
+    let internal: &Tuple = tuple.try_into_in_process(&process)?;
+    let new_tuple = internal.append_element(element, &mut process.term_arena.borrow_mut());
 
     Ok(new_tuple.into())
 }
@@ -136,31 +136,31 @@ pub fn are_not_equal_after_conversion_2(left: Term, right: Term) -> Term {
     (!left.eq_after_conversion(&right)).into()
 }
 
-pub fn atom_to_binary_2(atom: Term, encoding: Term, mut process: &mut Process) -> Result {
+pub fn atom_to_binary_2(atom: Term, encoding: Term, process: &Process) -> Result {
     if atom.tag() == Atom {
         encoding.atom_to_encoding()?;
         let string = unsafe { atom.atom_to_string() };
-        Ok(Term::slice_to_binary(string.as_bytes(), &mut process))
+        Ok(Term::slice_to_binary(string.as_bytes(), &process))
     } else {
         Err(badarg!())
     }
 }
 
-pub fn atom_to_list_1(atom: Term, mut process: &mut Process) -> Result {
+pub fn atom_to_list_1(atom: Term, process: &Process) -> Result {
     if atom.tag() == Atom {
         let string = unsafe { atom.atom_to_string() };
-        Ok(Term::chars_to_list(string.chars(), &mut process))
+        Ok(Term::chars_to_list(string.chars(), &process))
     } else {
         Err(badarg!())
     }
 }
 
 // `band/2` infix operator.
-pub fn band_2(left_integer: Term, right_integer: Term, mut process: &mut Process) -> Result {
+pub fn band_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {
     bitwise_infix_operator!(left_integer, right_integer, process, &)
 }
 
-pub fn binary_part_2(binary: Term, start_length: Term, mut process: &mut Process) -> Result {
+pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Result {
     match start_length.tag() {
         Boxed => {
             let unboxed: &Term = start_length.unbox_reference();
@@ -170,7 +170,7 @@ pub fn binary_part_2(binary: Term, start_length: Term, mut process: &mut Process
                     let tuple: &Tuple = start_length.unbox_reference();
 
                     if tuple.len() == 2 {
-                        binary_part_3(binary, tuple[0], tuple[1], &mut process)
+                        binary_part_3(binary, tuple[0], tuple[1], &process)
                     } else {
                         Err(badarg!())
                     }
@@ -182,7 +182,7 @@ pub fn binary_part_2(binary: Term, start_length: Term, mut process: &mut Process
     }
 }
 
-pub fn binary_part_3(binary: Term, start: Term, length: Term, mut process: &mut Process) -> Result {
+pub fn binary_part_3(binary: Term, start: Term, length: Term, process: &Process) -> Result {
     match binary.tag() {
         Boxed => {
             let unboxed: &Term = binary.unbox_reference();
@@ -191,12 +191,12 @@ pub fn binary_part_3(binary: Term, start: Term, length: Term, mut process: &mut 
                 HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
-                    heap_binary.part(start, length, &mut process)
+                    heap_binary.part(start, length, &process)
                 }
                 Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
-                    subbinary.part(start, length, &mut process)
+                    subbinary.part(start, length, &process)
                 }
                 _ => Err(badarg!()),
             }
@@ -213,7 +213,7 @@ pub fn binary_to_existing_atom_2(binary: Term, encoding: Term) -> Result {
     binary_existence_to_atom(binary, encoding, Exists)
 }
 
-pub fn binary_to_float_1(binary: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_float_1(binary: Term, process: &Process) -> Result {
     let string: String = binary.try_into()?;
 
     match string.parse::<f64>() {
@@ -225,14 +225,14 @@ pub fn binary_to_float_1(binary: Term, mut process: &mut Process) -> Result {
                     if (inner.fract() == 0.0) & !string.chars().any(|b| b == '.') {
                         Err(badarg!())
                     } else {
-                        Ok(inner.into_process(&mut process))
+                        Ok(inner.into_process(&process))
                     }
                 }
                 // Erlang has no support for Nan, +inf or -inf
                 FpCategory::Nan | FpCategory::Infinite => Err(badarg!()),
                 FpCategory::Zero => {
                     // Erlang does not track the difference without +0 and -0.
-                    Ok(inner.abs().into_process(&mut process))
+                    Ok(inner.abs().into_process(&process))
                 }
             }
         }
@@ -240,13 +240,13 @@ pub fn binary_to_float_1(binary: Term, mut process: &mut Process) -> Result {
     }
 }
 
-pub fn binary_to_integer_1(binary: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_integer_1(binary: Term, process: &Process) -> Result {
     let string: String = binary.try_into()?;
     let bytes = string.as_bytes();
 
     match BigInt::parse_bytes(bytes, 10) {
         Some(big_int) => {
-            let term: Term = big_int.into_process(&mut process);
+            let term: Term = big_int.into_process(&process);
 
             Ok(term)
         }
@@ -254,7 +254,7 @@ pub fn binary_to_integer_1(binary: Term, mut process: &mut Process) -> Result {
     }
 }
 
-pub fn binary_to_integer_2(binary: Term, base: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_integer_2(binary: Term, base: Term, process: &Process) -> Result {
     let string: String = binary.try_into()?;
     let radix: usize = base.try_into()?;
 
@@ -263,7 +263,7 @@ pub fn binary_to_integer_2(binary: Term, base: Term, mut process: &mut Process) 
 
         match BigInt::parse_bytes(bytes, radix as u32) {
             Some(big_int) => {
-                let term: Term = big_int.into_process(&mut process);
+                let term: Term = big_int.into_process(&process);
 
                 Ok(term)
             }
@@ -274,7 +274,7 @@ pub fn binary_to_integer_2(binary: Term, base: Term, mut process: &mut Process) 
     }
 }
 
-pub fn binary_to_list_1(binary: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_list_1(binary: Term, process: &Process) -> Result {
     match binary.tag() {
         Boxed => {
             let unboxed: &Term = binary.unbox_reference();
@@ -283,12 +283,12 @@ pub fn binary_to_list_1(binary: Term, mut process: &mut Process) -> Result {
                 HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
-                    Ok(heap_binary.to_list(&mut process))
+                    Ok(heap_binary.to_list(&process))
                 }
                 Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
-                    subbinary.to_list(&mut process)
+                    subbinary.to_list(&process)
                 }
                 _ => Err(badarg!()),
             }
@@ -300,12 +300,7 @@ pub fn binary_to_list_1(binary: Term, mut process: &mut Process) -> Result {
 /// The one-based indexing for binaries used by this function is deprecated. New code is to use
 /// [crate::otp::binary::bin_to_list] instead. All functions in module [crate::otp::binary]
 /// consistently use zero-based indexing.
-pub fn binary_to_list_3(
-    binary: Term,
-    start: Term,
-    stop: Term,
-    mut process: &mut Process,
-) -> Result {
+pub fn binary_to_list_3(binary: Term, start: Term, stop: Term, process: &Process) -> Result {
     let one_based_start_usize: usize = start.try_into()?;
 
     if 1 <= one_based_start_usize {
@@ -319,9 +314,9 @@ pub fn binary_to_list_3(
 
             otp::binary::bin_to_list(
                 binary,
-                zero_based_start_usize.into_process(&mut process),
-                length_usize.into_process(&mut process),
-                &mut process,
+                zero_based_start_usize.into_process(&process),
+                length_usize.into_process(&process),
+                &process,
             )
         } else {
             Err(badarg!())
@@ -331,11 +326,11 @@ pub fn binary_to_list_3(
     }
 }
 
-pub fn binary_to_term_1(binary: Term, process: &mut Process) -> Result {
+pub fn binary_to_term_1(binary: Term, process: &Process) -> Result {
     binary_to_term_2(binary, Term::EMPTY_LIST, process)
 }
 
-pub fn binary_to_term_2(binary: Term, options: Term, mut process: &mut Process) -> Result {
+pub fn binary_to_term_2(binary: Term, options: Term, process: &Process) -> Result {
     let to_term_options: ToTermOptions = options.try_into()?;
 
     match binary.tag() {
@@ -346,12 +341,12 @@ pub fn binary_to_term_2(binary: Term, options: Term, mut process: &mut Process) 
                 HeapBinary => {
                     let heap_binary: &heap::Binary = binary.unbox_reference();
 
-                    heap_binary.to_term(to_term_options, &mut process)
+                    heap_binary.to_term(to_term_options, &process)
                 }
                 Subbinary => {
                     let subbinary: &sub::Binary = binary.unbox_reference();
 
-                    subbinary.to_term(to_term_options, &mut process)
+                    subbinary.to_term(to_term_options, &process)
                 }
                 _ => Err(badarg!()),
             }
@@ -360,7 +355,7 @@ pub fn binary_to_term_2(binary: Term, options: Term, mut process: &mut Process) 
     }
 }
 
-pub fn bit_size_1(bit_string: Term, mut process: &mut Process) -> Result {
+pub fn bit_size_1(bit_string: Term, process: &Process) -> Result {
     match bit_string.tag() {
         Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
@@ -381,10 +376,10 @@ pub fn bit_size_1(bit_string: Term, mut process: &mut Process) -> Result {
         }
         _ => Err(badarg!()),
     }
-    .map(|bit_size_usize| bit_size_usize.into_process(&mut process))
+    .map(|bit_size_usize| bit_size_usize.into_process(&process))
 }
 
-pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Result {
+pub fn bitstring_to_list_1(bit_string: Term, process: &Process) -> Result {
     match bit_string.tag() {
         Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
@@ -393,12 +388,12 @@ pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Resul
                 HeapBinary => {
                     let heap_binary: &heap::Binary = bit_string.unbox_reference();
 
-                    Ok(heap_binary.to_bitstring_list(&mut process))
+                    Ok(heap_binary.to_bitstring_list(&process))
                 }
                 Subbinary => {
                     let subbinary: &sub::Binary = bit_string.unbox_reference();
 
-                    Ok(subbinary.to_bitstring_list(&mut process))
+                    Ok(subbinary.to_bitstring_list(&process))
                 }
                 _ => Err(badarg!()),
             }
@@ -408,13 +403,13 @@ pub fn bitstring_to_list_1(bit_string: Term, mut process: &mut Process) -> Resul
 }
 
 // `bnot/1` prefix operator.
-pub fn bnot_1(integer: Term, mut process: &mut Process) -> Result {
+pub fn bnot_1(integer: Term, process: &Process) -> Result {
     match integer.tag() {
         SmallInteger => {
             let integer_isize = unsafe { integer.small_integer_to_isize() };
             let output = !integer_isize;
 
-            Ok(output.into_process(&mut process))
+            Ok(output.into_process(&process))
         }
         Boxed => {
             let unboxed: &Term = integer.unbox_reference();
@@ -425,7 +420,7 @@ pub fn bnot_1(integer: Term, mut process: &mut Process) -> Result {
                     let big_int = &big_integer.inner;
                     let output_big_int = !big_int;
 
-                    Ok(output_big_int.into_process(&mut process))
+                    Ok(output_big_int.into_process(&process))
                 }
                 _ => Err(badarith!()),
             }
@@ -435,28 +430,28 @@ pub fn bnot_1(integer: Term, mut process: &mut Process) -> Result {
 }
 
 /// `bor/2` infix operator.
-pub fn bor_2(left_integer: Term, right_integer: Term, mut process: &mut Process) -> Result {
+pub fn bor_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {
     bitwise_infix_operator!(left_integer, right_integer, process, |)
 }
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 /// `bsl/2` infix operator.
-pub fn bsl_2(integer: Term, shift: Term, mut process: &mut Process) -> Result {
+pub fn bsl_2(integer: Term, shift: Term, process: &Process) -> Result {
     bitshift_infix_operator!(integer, shift, process, <<, >>)
 }
 
 /// `bsr/2` infix operator.
-pub fn bsr_2(integer: Term, shift: Term, mut process: &mut Process) -> Result {
+pub fn bsr_2(integer: Term, shift: Term, process: &Process) -> Result {
     bitshift_infix_operator!(integer, shift, process, >>, <<)
 }
 
 /// `bxor/2` infix operator.
-pub fn bxor_2(left_integer: Term, right_integer: Term, mut process: &mut Process) -> Result {
+pub fn bxor_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {
     bitwise_infix_operator!(left_integer, right_integer, process, ^)
 }
 
-pub fn byte_size_1(bit_string: Term, mut process: &mut Process) -> Result {
+pub fn byte_size_1(bit_string: Term, process: &Process) -> Result {
     match bit_string.tag() {
         Boxed => {
             let unboxed: &Term = bit_string.unbox_reference();
@@ -477,10 +472,10 @@ pub fn byte_size_1(bit_string: Term, mut process: &mut Process) -> Result {
         }
         _ => Err(badarg!()),
     }
-    .map(|byte_size_usize| byte_size_usize.into_process(&mut process))
+    .map(|byte_size_usize| byte_size_usize.into_process(&process))
 }
 
-pub fn ceil_1(number: Term, mut process: &mut Process) -> Result {
+pub fn ceil_1(number: Term, process: &Process) -> Result {
     match number.tag() {
         SmallInteger => Ok(number),
         Boxed => {
@@ -496,13 +491,13 @@ pub fn ceil_1(number: Term, mut process: &mut Process) -> Result {
                     // skip creating a rug::Integer if float can fit in small integer.
                     let ceil_term =
                         if (small::MIN as f64) <= ceil_inner && ceil_inner <= (small::MAX as f64) {
-                            (ceil_inner as usize).into_process(&mut process)
+                            (ceil_inner as usize).into_process(&process)
                         } else {
                             let ceil_string = ceil_inner.to_string();
                             let ceil_bytes = ceil_string.as_bytes();
                             let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
 
-                            big_int.into_process(&mut process)
+                            big_int.into_process(&process)
                         };
 
                     Ok(ceil_term)
@@ -515,13 +510,13 @@ pub fn ceil_1(number: Term, mut process: &mut Process) -> Result {
 }
 
 /// `++/2`
-pub fn concatenate_2(list: Term, term: Term, mut process: &mut Process) -> Result {
+pub fn concatenate_2(list: Term, term: Term, process: &Process) -> Result {
     match list.tag() {
         EmptyList => Ok(term),
         List => {
             let cons: &Cons = unsafe { list.as_ref_cons_unchecked() };
 
-            cons.concatenate(term, &mut process)
+            cons.concatenate(term, &process)
         }
         _ => Err(badarg!()),
     }
@@ -531,34 +526,34 @@ pub fn convert_time_unit_3(
     time: Term,
     from_unit: Term,
     to_unit: Term,
-    mut process: &mut Process,
+    process: &Process,
 ) -> Result {
     let time_big_int: BigInt = time.try_into()?;
     let from_unit_unit: crate::time::Unit = from_unit.try_into()?;
     let to_unit_unit: crate::time::Unit = to_unit.try_into()?;
     let converted =
-        time::convert(time_big_int, from_unit_unit, to_unit_unit).into_process(&mut process);
+        time::convert(time_big_int, from_unit_unit, to_unit_unit).into_process(&process);
 
     Ok(converted)
 }
 
-pub fn delete_element_2(tuple: Term, index: Term, mut process: &mut Process) -> Result {
-    let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
+pub fn delete_element_2(tuple: Term, index: Term, process: &Process) -> Result {
+    let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
     initial_inner_tuple
-        .delete_element(index_zero_based, &mut process)
+        .delete_element(index_zero_based, &process)
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
 /// `div/2` infix operator.  Integer division.
-pub fn div_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Result {
+pub fn div_2(dividend: Term, divisor: Term, process: &Process) -> Result {
     integer_infix_operator!(dividend, divisor, process, /)
 }
 
 /// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
 /// `float`.
-pub fn divide_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Result {
+pub fn divide_2(dividend: Term, divisor: Term, process: &Process) -> Result {
     let dividend_f64: f64 = dividend.try_into()?;
     let divisor_f64: f64 = divisor.try_into()?;
 
@@ -567,12 +562,12 @@ pub fn divide_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Res
     } else {
         let quotient_f64 = dividend_f64 / divisor_f64;
 
-        Ok(quotient_f64.into_process(&mut process))
+        Ok(quotient_f64.into_process(&process))
     }
 }
 
-pub fn element_2(tuple: Term, index: Term, mut process: &mut Process) -> Result {
-    let inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
+pub fn element_2(tuple: Term, index: Term, process: &Process) -> Result {
+    let inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
     inner_tuple.element(index_zero_based)
@@ -611,17 +606,12 @@ pub fn hd_1(list: Term) -> Result {
     Ok(cons.head())
 }
 
-pub fn insert_element_3(
-    tuple: Term,
-    index: Term,
-    element: Term,
-    mut process: &mut Process,
-) -> Result {
-    let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
+pub fn insert_element_3(index: Term, tuple: Term, element: Term, process: &Process) -> Result {
+    let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
     initial_inner_tuple
-        .insert_element(index_zero_based, element, &mut process)
+        .insert_element(index_zero_based, element, &process)
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
@@ -754,8 +744,8 @@ pub fn is_map_1(term: Term) -> Term {
     .into()
 }
 
-pub fn is_map_key_2(key: Term, map: Term, mut process: &mut Process) -> Result {
-    let map_map: &Map = map.try_into_in_process(&mut process)?;
+pub fn is_map_key_2(key: Term, map: Term, process: &Process) -> Result {
+    let map_map: &Map = map.try_into_in_process(&process)?;
 
     Ok(map_map.is_key(key).into())
 }
@@ -807,13 +797,13 @@ pub fn is_tuple_1(term: Term) -> Term {
     (term.tag() == Boxed && term.unbox_reference::<Term>().tag() == Arity).into()
 }
 
-pub fn length_1(list: Term, mut process: &mut Process) -> Result {
+pub fn length_1(list: Term, process: &Process) -> Result {
     let mut length: usize = 0;
     let mut tail = list;
 
     loop {
         match tail.tag() {
-            EmptyList => break Ok(length.into_process(&mut process)),
+            EmptyList => break Ok(length.into_process(&process)),
             List => {
                 let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
                 tail = cons.tail();
@@ -832,7 +822,7 @@ pub fn list_to_existing_atom_1(string: Term) -> Result {
     list_to_atom(string, Exists)
 }
 
-pub fn list_to_binary_1(iolist: Term, mut process: &mut Process) -> Result {
+pub fn list_to_binary_1(iolist: Term, process: &Process) -> Result {
     match iolist.tag() {
         EmptyList | List => {
             let mut byte_vec: Vec<u8> = Vec::new();
@@ -889,13 +879,13 @@ pub fn list_to_binary_1(iolist: Term, mut process: &mut Process) -> Result {
                 }
             }
 
-            Ok(Term::slice_to_binary(byte_vec.as_slice(), &mut process))
+            Ok(Term::slice_to_binary(byte_vec.as_slice(), &process))
         }
         _ => Err(badarg!()),
     }
 }
 
-pub fn list_to_bitstring_1(iolist: Term, mut process: &mut Process) -> Result {
+pub fn list_to_bitstring_1(iolist: Term, process: &Process) -> Result {
     match iolist.tag() {
         EmptyList | List => {
             let mut byte_vec: Vec<u8> = Vec::new();
@@ -991,19 +981,14 @@ pub fn list_to_bitstring_1(iolist: Term, mut process: &mut Process) -> Result {
             }
 
             if bit_offset == 0 {
-                Ok(Term::slice_to_binary(byte_vec.as_slice(), &mut process))
+                Ok(Term::slice_to_binary(byte_vec.as_slice(), &process))
             } else {
                 let byte_count = byte_vec.len();
                 byte_vec.push(tail_byte);
-                let original = Term::slice_to_binary(byte_vec.as_slice(), &mut process);
+                let original = Term::slice_to_binary(byte_vec.as_slice(), &process);
 
                 Ok(Term::subbinary(
-                    original,
-                    0,
-                    0,
-                    byte_count,
-                    bit_offset,
-                    &mut process,
+                    original, 0, 0, byte_count, bit_offset, &process,
                 ))
             }
         }
@@ -1011,38 +996,38 @@ pub fn list_to_bitstring_1(iolist: Term, mut process: &mut Process) -> Result {
     }
 }
 
-pub fn list_to_pid_1(string: Term, mut process: &mut Process) -> Result {
+pub fn list_to_pid_1(string: Term, process: &Process) -> Result {
     let cons: &Cons = string.try_into()?;
 
-    cons.to_pid(&mut process)
+    cons.to_pid(&process)
 }
 
-pub fn list_to_tuple_1(list: Term, mut process: &mut Process) -> Result {
+pub fn list_to_tuple_1(list: Term, process: &Process) -> Result {
     match list.tag() {
-        EmptyList => Ok(Term::slice_to_tuple(&[], &mut process)),
+        EmptyList => Ok(Term::slice_to_tuple(&[], &process)),
         List => {
             let cons: &Cons = unsafe { list.as_ref_cons_unchecked() };
 
-            cons.to_tuple(&mut process)
+            cons.to_tuple(&process)
         }
         _ => Err(badarg!()),
     }
 }
 
-pub fn make_ref_0(mut process: &mut Process) -> Term {
-    Term::local_reference(&mut process)
+pub fn make_ref_0(process: &Process) -> Term {
+    Term::local_reference(&process)
 }
 
-pub fn map_get_2(key: Term, map: Term, mut process: &mut Process) -> Result {
-    let map_map: &Map = map.try_into_in_process(&mut process)?;
+pub fn map_get_2(key: Term, map: Term, process: &Process) -> Result {
+    let map_map: &Map = map.try_into_in_process(&process)?;
 
-    map_map.get(key, &mut process)
+    map_map.get(key, &process)
 }
 
-pub fn map_size_1(map: Term, mut process: &mut Process) -> Result {
-    let map_map: &Map = map.try_into_in_process(&mut process)?;
+pub fn map_size_1(map: Term, process: &Process) -> Result {
+    let map_map: &Map = map.try_into_in_process(&process)?;
 
-    Ok(map_map.size().into_process(&mut process))
+    Ok(map_map.size().into_process(&process))
 }
 
 /// `max/2`
@@ -1062,18 +1047,18 @@ pub fn min_2(term1: Term, term2: Term) -> Term {
 }
 
 /// `*/2` infix operator
-pub fn multiply_2(multiplier: Term, multiplicand: Term, mut process: &mut Process) -> Result {
+pub fn multiply_2(multiplier: Term, multiplicand: Term, process: &Process) -> Result {
     number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)
 }
 
 /// `-/1` prefix operator.
-pub fn negate_1(number: Term, mut process: &mut Process) -> Result {
+pub fn negate_1(number: Term, process: &Process) -> Result {
     match number.tag() {
         SmallInteger => {
             let number_isize = unsafe { number.small_integer_to_isize() };
             let negated_isize = -number_isize;
 
-            Ok(negated_isize.into_process(&mut process))
+            Ok(negated_isize.into_process(&process))
         }
         Boxed => {
             let unboxed: &Term = number.unbox_reference();
@@ -1083,13 +1068,13 @@ pub fn negate_1(number: Term, mut process: &mut Process) -> Result {
                     let big_integer: &big::Integer = number.unbox_reference();
                     let negated_big_int = -&big_integer.inner;
 
-                    Ok(negated_big_int.into_process(&mut process))
+                    Ok(negated_big_int.into_process(&process))
                 }
                 Float => {
                     let float: &Float = number.unbox_reference();
                     let negated_f64 = -float.inner;
 
-                    Ok(negated_f64.into_process(&mut process))
+                    Ok(negated_f64.into_process(&process))
                 }
                 _ => Err(badarith!()),
             }
@@ -1137,7 +1122,7 @@ pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
 }
 
 /// `rem/2` infix operator.  Integer remainder.
-pub fn rem_2(dividend: Term, divisor: Term, mut process: &mut Process) -> Result {
+pub fn rem_2(dividend: Term, divisor: Term, process: &Process) -> Result {
     integer_infix_operator!(dividend, divisor, process, %)
 }
 
@@ -1145,16 +1130,16 @@ pub fn self_0(process: &Process) -> Term {
     process.pid
 }
 
-pub fn setelement_3(index: Term, tuple: Term, value: Term, mut process: &mut Process) -> Result {
-    let inner_tuple: &Tuple = tuple.try_into_in_process(&mut process)?;
+pub fn setelement_3(index: Term, tuple: Term, value: Term, process: &Process) -> Result {
+    let inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
     inner_tuple
-        .setelement(index_zero_based, value, &mut process)
+        .setelement(index_zero_based, value, &process)
         .map(|new_inner_tuple| new_inner_tuple.into())
 }
 
-pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
+pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
     match binary_or_tuple.tag() {
         Boxed => {
             let unboxed: &Term = binary_or_tuple.unbox_reference();
@@ -1180,10 +1165,10 @@ pub fn size_1(binary_or_tuple: Term, mut process: &mut Process) -> Result {
         }
         _ => Err(badarg!()),
     }
-    .map(|integer| integer.into_process(&mut process))
+    .map(|integer| integer.into_process(&process))
 }
 
-pub fn split_binary_2(binary: Term, position: Term, mut process: &mut Process) -> Result {
+pub fn split_binary_2(binary: Term, position: Term, process: &Process) -> Result {
     let index: usize = position.try_into()?;
 
     match binary.tag() {
@@ -1193,34 +1178,27 @@ pub fn split_binary_2(binary: Term, position: Term, mut process: &mut Process) -
             match unboxed.tag() {
                 HeapBinary => {
                     if index == 0 {
-                        let empty_prefix = Term::subbinary(binary, index, 0, 0, 0, &mut process);
+                        let empty_prefix = Term::subbinary(binary, index, 0, 0, 0, &process);
 
                         // Don't make a subbinary of the suffix since it is the same as the
                         // `binary`.
-                        Ok(Term::slice_to_tuple(&[empty_prefix, binary], &mut process))
+                        Ok(Term::slice_to_tuple(&[empty_prefix, binary], &process))
                     } else {
                         let heap_binary: &heap::Binary = binary.unbox_reference();
                         let byte_length = heap_binary.byte_len();
 
                         if index < byte_length {
-                            let prefix = Term::subbinary(binary, 0, 0, index, 0, &mut process);
-                            let suffix = Term::subbinary(
-                                binary,
-                                index,
-                                0,
-                                byte_length - index,
-                                0,
-                                &mut process,
-                            );
+                            let prefix = Term::subbinary(binary, 0, 0, index, 0, &process);
+                            let suffix =
+                                Term::subbinary(binary, index, 0, byte_length - index, 0, &process);
 
-                            Ok(Term::slice_to_tuple(&[prefix, suffix], &mut process))
+                            Ok(Term::slice_to_tuple(&[prefix, suffix], &process))
                         } else if index == byte_length {
-                            let empty_suffix =
-                                Term::subbinary(binary, index, 0, 0, 0, &mut process);
+                            let empty_suffix = Term::subbinary(binary, index, 0, 0, 0, &process);
 
                             // Don't make a subbinary of the prefix since it is the same as the
                             // `binary`.
-                            Ok(Term::slice_to_tuple(&[binary, empty_suffix], &mut process))
+                            Ok(Term::slice_to_tuple(&[binary, empty_suffix], &process))
                         } else {
                             Err(badarg!())
                         }
@@ -1236,12 +1214,12 @@ pub fn split_binary_2(binary: Term, position: Term, mut process: &mut Process) -
                             subbinary.bit_offset,
                             0,
                             0,
-                            &mut process,
+                            &process,
                         );
 
                         // Don't make a subbinary of the suffix since it is the same as the
                         // `binary`.
-                        Ok(Term::slice_to_tuple(&[empty_prefix, binary], &mut process))
+                        Ok(Term::slice_to_tuple(&[empty_prefix, binary], &process))
                     } else {
                         // byte_length includes +1 byte if bits
                         let byte_length = subbinary.byte_len();
@@ -1256,7 +1234,7 @@ pub fn split_binary_2(binary: Term, position: Term, mut process: &mut Process) -
                                 bit_offset,
                                 index,
                                 0,
-                                &mut process,
+                                &process,
                             );
                             let suffix = Term::subbinary(
                                 original,
@@ -1265,10 +1243,10 @@ pub fn split_binary_2(binary: Term, position: Term, mut process: &mut Process) -
                                 // byte_count does not include bits
                                 subbinary.byte_count - index,
                                 subbinary.bit_count,
-                                &mut process,
+                                &process,
                             );
 
-                            Ok(Term::slice_to_tuple(&[prefix, suffix], &mut process))
+                            Ok(Term::slice_to_tuple(&[prefix, suffix], &process))
                         } else if (index == byte_length) & (subbinary.bit_count == 0) {
                             let empty_suffix = Term::subbinary(
                                 subbinary.original,
@@ -1276,10 +1254,10 @@ pub fn split_binary_2(binary: Term, position: Term, mut process: &mut Process) -
                                 subbinary.bit_offset,
                                 0,
                                 0,
-                                &mut process,
+                                &process,
                             );
 
-                            Ok(Term::slice_to_tuple(&[binary, empty_suffix], &mut process))
+                            Ok(Term::slice_to_tuple(&[binary, empty_suffix], &process))
                         } else {
                             Err(badarg!())
                         }
@@ -1293,11 +1271,11 @@ pub fn split_binary_2(binary: Term, position: Term, mut process: &mut Process) -
 }
 
 /// `-/2` infix operator
-pub fn subtract_2(minuend: Term, subtrahend: Term, mut process: &mut Process) -> Result {
+pub fn subtract_2(minuend: Term, subtrahend: Term, process: &Process) -> Result {
     number_infix_operator!(minuend, subtrahend, process, checked_sub, -)
 }
 
-pub fn subtract_list_2(minuend: Term, subtrahend: Term, mut process: &mut Process) -> Result {
+pub fn subtract_list_2(minuend: Term, subtrahend: Term, process: &Process) -> Result {
     match (minuend.tag(), subtrahend.tag()) {
         (EmptyList, EmptyList) => Ok(minuend),
         (EmptyList, List) => {
@@ -1314,7 +1292,7 @@ pub fn subtract_list_2(minuend: Term, subtrahend: Term, mut process: &mut Proces
             let minuend_cons: &Cons = unsafe { minuend.as_ref_cons_unchecked() };
             let subtrahend_cons: &Cons = unsafe { subtrahend.as_ref_cons_unchecked() };
 
-            minuend_cons.subtract(subtrahend_cons, &mut process)
+            minuend_cons.subtract(subtrahend_cons, &process)
         }
         _ => Err(badarg!()),
     }
@@ -1330,7 +1308,7 @@ pub fn tl_1(list: Term) -> Result {
     Ok(cons.tail())
 }
 
-pub fn tuple_size_1(tuple: Term, mut process: &mut Process) -> Result {
+pub fn tuple_size_1(tuple: Term, process: &Process) -> Result {
     match tuple.tag() {
         Boxed => {
             let unboxed: &Term = tuple.unbox_reference();
@@ -1339,7 +1317,7 @@ pub fn tuple_size_1(tuple: Term, mut process: &mut Process) -> Result {
                 Arity => {
                     let tuple: &Tuple = tuple.unbox_reference();
 
-                    Ok(tuple.size().into_process(&mut process))
+                    Ok(tuple.size().into_process(&process))
                 }
                 _ => Err(badarg!()),
             }
@@ -1348,7 +1326,7 @@ pub fn tuple_size_1(tuple: Term, mut process: &mut Process) -> Result {
     }
 }
 
-pub fn tuple_to_list_1(tuple: Term, mut process: &mut Process) -> Result {
+pub fn tuple_to_list_1(tuple: Term, process: &Process) -> Result {
     match tuple.tag() {
         Boxed => {
             let unboxed: &Term = tuple.unbox_reference();
@@ -1357,7 +1335,7 @@ pub fn tuple_to_list_1(tuple: Term, mut process: &mut Process) -> Result {
                 Arity => {
                     let tuple: &Tuple = tuple.unbox_reference();
 
-                    Ok(tuple.to_list(&mut process))
+                    Ok(tuple.to_list(&process))
                 }
                 _ => Err(badarg!()),
             }

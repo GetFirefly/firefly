@@ -30,9 +30,9 @@ impl Cons {
         self.tail
     }
 
-    pub fn concatenate(&self, term: Term, mut process: &mut Process) -> exception::Result {
+    pub fn concatenate(&self, term: Term, process: &Process) -> exception::Result {
         match self.into_iter().collect::<Result<Vec<Term>, _>>() {
-            Ok(vec) => Ok(Term::vec_to_list(&vec, term, &mut process)),
+            Ok(vec) => Ok(Term::vec_to_list(&vec, term, &process)),
             Err(ImproperList { .. }) => Err(badarg!()),
         }
     }
@@ -48,7 +48,7 @@ impl Cons {
         })
     }
 
-    pub fn subtract(&self, subtrahend: &Cons, mut process: &mut Process) -> exception::Result {
+    pub fn subtract(&self, subtrahend: &Cons, process: &Process) -> exception::Result {
         match self.into_iter().collect::<Result<Vec<Term>, _>>() {
             Ok(mut self_vec) => {
                 for result in subtrahend.into_iter() {
@@ -58,7 +58,7 @@ impl Cons {
                     };
                 }
 
-                Ok(Term::vec_to_list(&self_vec, Term::EMPTY_LIST, &mut process))
+                Ok(Term::vec_to_list(&self_vec, Term::EMPTY_LIST, &process))
             }
             Err(ImproperList { .. }) => Err(badarg!()),
         }
@@ -76,7 +76,7 @@ impl Cons {
         Term::str_to_atom(&string, existence).ok_or_else(|| badarg!())
     }
 
-    pub fn to_pid(&self, mut process: &mut Process) -> exception::Result {
+    pub fn to_pid(&self, process: &Process) -> exception::Result {
         let prefix_tail = self.skip_pid_prefix()?;
         let prefix_tail_cons: &Cons = prefix_tail.try_into()?;
 
@@ -98,19 +98,19 @@ impl Cons {
         let suffix_tail = serial_tail_cons.skip_pid_suffix()?;
 
         if suffix_tail.is_empty_list() {
-            Term::pid(node, number, serial, &mut process)
+            Term::pid(node, number, serial, &process)
         } else {
             Err(badarg!())
         }
     }
 
-    pub fn to_tuple(&self, mut process: &mut Process) -> exception::Result {
+    pub fn to_tuple(&self, process: &Process) -> exception::Result {
         let vec: Vec<Term> = self
             .into_iter()
             .collect::<Result<Vec<Term>, _>>()
             .map_err(|_| badarg!())?;
 
-        Ok(Term::slice_to_tuple(vec.as_slice(), &mut process))
+        Ok(Term::slice_to_tuple(vec.as_slice(), &process))
     }
 
     const PID_PREFIX: Term = unsafe { Term::isize_to_small_integer('<' as isize) };
@@ -290,16 +290,16 @@ impl PartialEq for Cons {
 }
 
 pub trait ToList {
-    fn to_list(&mut self, process: &mut Process) -> Term;
+    fn to_list(&mut self, process: &Process) -> Term;
 }
 
 impl<T> ToList for T
 where
     T: DoubleEndedIterator + Iterator<Item = u8>,
 {
-    fn to_list(&mut self, mut process: &mut Process) -> Term {
+    fn to_list(&mut self, process: &Process) -> Term {
         self.rfold(Term::EMPTY_LIST, |acc, byte| {
-            Term::cons(byte.into_process(&mut process), acc, &mut process)
+            Term::cons(byte.into_process(&process), acc, &process)
         })
     }
 }
@@ -308,22 +308,19 @@ where
 mod tests {
     use super::*;
 
+    use crate::process;
+
     mod eq {
         use super::*;
 
-        use std::sync::{Arc, RwLock};
-
-        use crate::environment::{self, Environment};
         use crate::process::IntoProcess;
 
         #[test]
         fn with_proper() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let cons = Cons::new(0.into_process(&mut process), Term::EMPTY_LIST);
-            let equal = Cons::new(0.into_process(&mut process), Term::EMPTY_LIST);
-            let unequal = Cons::new(1.into_process(&mut process), Term::EMPTY_LIST);
+            let process = process::local::new();
+            let cons = Cons::new(0.into_process(&process), Term::EMPTY_LIST);
+            let equal = Cons::new(0.into_process(&process), Term::EMPTY_LIST);
+            let unequal = Cons::new(1.into_process(&process), Term::EMPTY_LIST);
 
             assert_eq!(cons, cons);
             assert_eq!(cons, equal);
@@ -332,12 +329,10 @@ mod tests {
 
         #[test]
         fn with_improper() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let cons = Cons::new(0.into_process(&mut process), 1.into_process(&mut process));
-            let equal = Cons::new(0.into_process(&mut process), 1.into_process(&mut process));
-            let unequal = Cons::new(1.into_process(&mut process), 0.into_process(&mut process));
+            let process = process::local::new();
+            let cons = Cons::new(0.into_process(&process), 1.into_process(&process));
+            let equal = Cons::new(0.into_process(&process), 1.into_process(&process));
+            let unequal = Cons::new(1.into_process(&process), 0.into_process(&process));
 
             assert_eq!(cons, cons);
             assert_eq!(cons, equal);

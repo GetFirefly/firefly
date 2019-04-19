@@ -169,8 +169,8 @@ impl Term {
         }
     }
 
-    pub unsafe fn arity_to_integer(&self, mut process: &mut Process) -> Term {
-        self.arity_to_usize().into_process(&mut process)
+    pub unsafe fn arity_to_integer(&self, process: &Process) -> Term {
+        self.arity_to_usize().into_process(&process)
     }
 
     pub unsafe fn arity_to_usize(&self) -> usize {
@@ -253,13 +253,13 @@ impl Term {
         }
     }
 
-    pub fn chars_to_list(chars: Chars, mut process: &mut Process) -> Term {
+    pub fn chars_to_list(chars: Chars, process: &Process) -> Term {
         chars.rfold(Self::EMPTY_LIST, |acc, character| {
-            Term::cons(character.into_process(&mut process), acc, &mut process)
+            Term::cons(character.into_process(&process), acc, &process)
         })
     }
 
-    pub fn cons(head: Term, tail: Term, process: &mut Process) -> Term {
+    pub fn cons(head: Term, tail: Term, process: &Process) -> Term {
         let pointer_bits = process.cons(head, tail) as *const Cons as usize;
 
         assert_eq!(
@@ -468,7 +468,7 @@ impl Term {
         node: usize,
         number: usize,
         serial: usize,
-        process: &mut Process,
+        process: &Process,
     ) -> exception::Result {
         if (number <= process::identifier::NUMBER_MAX)
             && (serial <= process::identifier::SERIAL_MAX)
@@ -516,12 +516,12 @@ impl Term {
         }
     }
 
-    pub fn local_reference(process: &mut Process) -> Term {
+    pub fn local_reference(process: &Process) -> Term {
         Term::box_reference(process.local_reference())
     }
 
     #[cfg(test)]
-    pub fn number_to_local_reference(number: u64, process: &mut Process) -> Term {
+    pub fn number_to_local_reference(number: u64, process: &Process) -> Term {
         Term::box_reference(process.number_to_local_reference(number))
     }
 
@@ -578,12 +578,7 @@ impl Term {
         }
     }
 
-    pub fn pid(
-        node: usize,
-        number: usize,
-        serial: usize,
-        process: &mut Process,
-    ) -> exception::Result {
+    pub fn pid(node: usize, number: usize, serial: usize, process: &Process) -> exception::Result {
         if node == 0 {
             Self::local_pid(number, serial)
         } else {
@@ -591,25 +586,25 @@ impl Term {
         }
     }
 
-    pub fn slice_to_binary(slice: &[u8], process: &mut Process) -> Term {
+    pub fn slice_to_binary(slice: &[u8], process: &Process) -> Term {
         process.slice_to_binary(slice).into()
     }
 
-    pub fn slice_to_list(slice: &[Term], mut process: &mut Process) -> Term {
-        Self::slice_to_improper_list(slice, Term::EMPTY_LIST, &mut process)
+    pub fn slice_to_list(slice: &[Term], process: &Process) -> Term {
+        Self::slice_to_improper_list(slice, Term::EMPTY_LIST, &process)
     }
 
-    pub fn slice_to_improper_list(slice: &[Term], tail: Term, mut process: &mut Process) -> Term {
+    pub fn slice_to_improper_list(slice: &[Term], tail: Term, process: &Process) -> Term {
         slice.iter().rfold(tail, |acc, element| {
-            Term::cons(element.clone(), acc, &mut process)
+            Term::cons(element.clone(), acc, &process)
         })
     }
 
-    pub fn slice_to_map(slice: &[(Term, Term)], process: &mut Process) -> Term {
+    pub fn slice_to_map(slice: &[(Term, Term)], process: &Process) -> Term {
         process.slice_to_map(slice).into()
     }
 
-    pub fn slice_to_tuple(slice: &[Term], process: &mut Process) -> Term {
+    pub fn slice_to_tuple(slice: &[Term], process: &Process) -> Term {
         process.slice_to_tuple(slice).into()
     }
 
@@ -617,9 +612,9 @@ impl Term {
         atom::str_to_index(name, existence).map(|atom_index| atom_index.into())
     }
 
-    pub fn str_to_char_list(name: &str, mut process: &mut Process) -> Term {
+    pub fn str_to_char_list(name: &str, process: &Process) -> Term {
         name.chars().rfold(Term::EMPTY_LIST, |acc, c| {
-            Term::cons(c.into_process(&mut process), acc, &mut process)
+            Term::cons(c.into_process(&process), acc, &process)
         })
     }
 
@@ -629,16 +624,16 @@ impl Term {
         bit_offset: u8,
         byte_count: usize,
         bit_count: u8,
-        process: &mut Process,
+        process: &Process,
     ) -> Term {
         process
             .subbinary(original, byte_offset, bit_offset, byte_count, bit_count)
             .into()
     }
 
-    pub fn vec_to_list(vec: &Vec<Term>, initial_tail: Term, mut process: &mut Process) -> Term {
+    pub fn vec_to_list(vec: &Vec<Term>, initial_tail: Term, process: &Process) -> Term {
         vec.iter().rfold(initial_tail, |acc, element| {
-            Term::cons(element.clone(), acc, &mut process)
+            Term::cons(element.clone(), acc, &process)
         })
     }
 
@@ -731,7 +726,7 @@ impl Term {
         (self.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT
     }
 
-    pub fn u64_to_local_reference(number: u64, process: &mut Process) -> Term {
+    pub fn u64_to_local_reference(number: u64, process: &Process) -> Term {
         Term::box_reference(process.u64_to_local_reference(number))
     }
 }
@@ -763,14 +758,14 @@ impl Debug for Term {
                             }
                         }
 
-                        write!(f, "], &mut process)")
+                        write!(f, "], &process)")
                     }
                     BigInteger => {
                         let big_integer: &big::Integer = self.unbox_reference();
 
                         write!(
                             f,
-                            "BigInt::parse_bytes(b\"{}\", 10).unwrap().into_process(&mut process)",
+                            "BigInt::parse_bytes(b\"{}\", 10).unwrap().into_process(&process)",
                             big_integer.inner
                         )
                     }
@@ -779,14 +774,14 @@ impl Debug for Term {
 
                         write!(
                             f,
-                            "Term::external_pid({:?}, {:?}, {:?}, &mut process)",
+                            "Term::external_pid({:?}, {:?}, {:?}, &process)",
                             external_pid.node, external_pid.number, external_pid.serial
                         )
                     }
                     Float => {
                         let float: &Float = self.unbox_reference();
 
-                        write!(f, "{:?}_f64.into_process(&mut process)", float.inner)
+                        write!(f, "{:?}_f64.into_process(&process)", float.inner)
                     }
                     HeapBinary => {
                         let binary: &heap::Binary = self.unbox_reference();
@@ -803,14 +798,14 @@ impl Debug for Term {
                             }
                         }
 
-                        write!(f, "], &mut process)")
+                        write!(f, "], &process)")
                     }
                     LocalReference => {
                         let local_reference: &local::Reference = self.unbox_reference();
 
                         write!(
                             f,
-                            "Term::u64_to_local_reference({:?}, &mut process)",
+                            "Term::u64_to_local_reference({:?}, &process)",
                             local_reference.number
                         )
                     }
@@ -819,7 +814,7 @@ impl Debug for Term {
 
                         write!(
                             f,
-                            "Term::subbinary({:?}, {:?}, {:?}, {:?}, {:?}, &mut process)",
+                            "Term::subbinary({:?}, {:?}, {:?}, {:?}, {:?}, &process)",
                             subbinary.original,
                             subbinary.byte_offset,
                             subbinary.bit_offset,
@@ -836,12 +831,12 @@ impl Debug for Term {
 
                 write!(
                     f,
-                    "Term::cons({:?}, {:?}, &mut process)",
+                    "Term::cons({:?}, {:?}, &process)",
                     cons.head(),
                     cons.tail()
                 )
             }
-            SmallInteger => write!(f, "{:?}.into_process(&mut process)", isize::from(self)),
+            SmallInteger => write!(f, "{:?}.into_process(&process)", isize::from(self)),
             _ => write!(
                 f,
                 "Term {{ tagged: 0b{tagged:0bit_count$b} }}",
@@ -954,15 +949,15 @@ impl Hash for Term {
 }
 
 impl IntoProcess<Term> for char {
-    fn into_process(self, mut process: &mut Process) -> Term {
+    fn into_process(self, process: &Process) -> Term {
         let integer: Integer = self.into();
 
-        integer.into_process(&mut process)
+        integer.into_process(&process)
     }
 }
 
 impl IntoProcess<Term> for f64 {
-    fn into_process(self, process: &mut Process) -> Term {
+    fn into_process(self, process: &Process) -> Term {
         let process_float: &Float = process.f64_to_float(self);
 
         Term::box_reference(process_float)
@@ -970,39 +965,39 @@ impl IntoProcess<Term> for f64 {
 }
 
 impl IntoProcess<Term> for i32 {
-    fn into_process(self, mut process: &mut Process) -> Term {
+    fn into_process(self, process: &Process) -> Term {
         let integer: Integer = self.into();
 
-        integer.into_process(&mut process)
+        integer.into_process(&process)
     }
 }
 
 impl IntoProcess<Term> for isize {
-    fn into_process(self, mut process: &mut Process) -> Term {
+    fn into_process(self, process: &Process) -> Term {
         let integer: Integer = self.into();
 
-        integer.into_process(&mut process)
+        integer.into_process(&process)
     }
 }
 
 impl IntoProcess<Term> for u8 {
-    fn into_process(self, mut process: &mut Process) -> Term {
+    fn into_process(self, process: &Process) -> Term {
         let integer: Integer = self.into();
 
-        integer.into_process(&mut process)
+        integer.into_process(&process)
     }
 }
 
 impl IntoProcess<Term> for usize {
-    fn into_process(self, mut process: &mut Process) -> Term {
+    fn into_process(self, process: &Process) -> Term {
         let integer: Integer = self.into();
 
-        integer.into_process(&mut process)
+        integer.into_process(process)
     }
 }
 
 impl IntoProcess<Term> for Integer {
-    fn into_process(self, process: &mut Process) -> Term {
+    fn into_process(self, process: &Process) -> Term {
         match self {
             Small(small::Integer(untagged)) => Term {
                 tagged: ((untagged << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
@@ -1039,11 +1034,11 @@ impl Ord for Term {
 }
 
 impl<'a> Part<'a, Term, Term, Term> for heap::Binary {
-    fn part(&'a self, start: Term, length: Term, mut process: &mut Process) -> exception::Result {
+    fn part(&'a self, start: Term, length: Term, process: &Process) -> exception::Result {
         let start_usize: usize = start.try_into()?;
         let length_isize: isize = length.try_into()?;
 
-        let binary = self.part(start_usize, length_isize, &mut process)?;
+        let binary = self.part(start_usize, length_isize, &process)?;
 
         match binary {
             // a heap binary is only returned if it is the same
@@ -1054,17 +1049,17 @@ impl<'a> Part<'a, Term, Term, Term> for heap::Binary {
 }
 
 impl<'a> Part<'a, Term, Term, Term> for sub::Binary {
-    fn part(&'a self, start: Term, length: Term, mut process: &mut Process) -> exception::Result {
+    fn part(&'a self, start: Term, length: Term, process: &Process) -> exception::Result {
         let start_usize: usize = start.try_into()?;
         let length_isize: isize = length.try_into()?;
-        let new_subbinary = self.part(start_usize, length_isize, &mut process)?;
+        let new_subbinary = self.part(start_usize, length_isize, &process)?;
 
         Ok(new_subbinary.into())
     }
 }
 
 impl PartToList<Term, Term> for heap::Binary {
-    fn part_to_list(&self, start: Term, length: Term, process: &mut Process) -> exception::Result {
+    fn part_to_list(&self, start: Term, length: Term, process: &Process) -> exception::Result {
         let start_usize: usize = start.try_into()?;
         let length_isize: isize = length.try_into()?;
 
@@ -1073,7 +1068,7 @@ impl PartToList<Term, Term> for heap::Binary {
 }
 
 impl PartToList<Term, Term> for sub::Binary {
-    fn part_to_list(&self, start: Term, length: Term, process: &mut Process) -> exception::Result {
+    fn part_to_list(&self, start: Term, length: Term, process: &Process) -> exception::Result {
         let start_usize: usize = start.try_into()?;
         let length_isize: isize = length.try_into()?;
 
@@ -1674,10 +1669,7 @@ impl TryFrom<Term> for &'static Cons {
 }
 
 impl TryFromInProcess<Term> for &'static Map {
-    fn try_from_in_process(
-        term: Term,
-        mut process: &mut Process,
-    ) -> Result<&'static Map, Exception> {
+    fn try_from_in_process(term: Term, process: &Process) -> Result<&'static Map, Exception> {
         match term.tag() {
             Boxed => {
                 let unboxed: &Term = term.unbox_reference();
@@ -1693,7 +1685,7 @@ impl TryFromInProcess<Term> for &'static Map {
             }
             _ => None,
         }
-        .ok_or_else(|| badmap!(term, &mut process))
+        .ok_or_else(|| badmap!(term, &process))
     }
 }
 
@@ -1726,14 +1718,9 @@ impl TryFrom<Term> for String {
 }
 
 impl TryFromInProcess<Term> for &'static Tuple {
-    fn try_from_in_process(
-        term: Term,
-        mut process: &mut Process,
-    ) -> Result<&'static Tuple, Exception> {
+    fn try_from_in_process(term: Term, process: &Process) -> Result<&'static Tuple, Exception> {
         match term.tag() {
-            Boxed => term
-                .unbox_reference::<Term>()
-                .try_into_in_process(&mut process),
+            Boxed => term.unbox_reference::<Term>().try_into_in_process(&process),
             _ => Err(badarg!()),
         }
     }
@@ -1748,18 +1735,13 @@ impl TryFrom<&Term> for BigInt {
 }
 
 impl<'a> TryFromInProcess<&'a Term> for &'a Tuple {
-    fn try_from_in_process(
-        term: &'a Term,
-        mut process: &mut Process,
-    ) -> Result<&'a Tuple, Exception> {
+    fn try_from_in_process(term: &'a Term, process: &Process) -> Result<&'a Tuple, Exception> {
         match term.tag() {
             Arity => {
                 let pointer = term as *const Term as *const Tuple;
                 Ok(unsafe { pointer.as_ref() }.unwrap())
             }
-            Boxed => term
-                .unbox_reference::<Term>()
-                .try_into_in_process(&mut process),
+            Boxed => term.unbox_reference::<Term>().try_into_in_process(&process),
             _ => Err(badarg!()),
         }
     }
@@ -1769,22 +1751,18 @@ impl<'a> TryFromInProcess<&'a Term> for &'a Tuple {
 mod tests {
     use super::*;
 
+    use crate::process;
+
     mod cmp_in_process {
         use super::*;
-
-        use std::sync::{Arc, RwLock};
-
-        use crate::environment::{self, Environment};
 
         mod less {
             use super::*;
 
             #[test]
             fn number_is_less_than_atom() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let number_term: Term = 0.into_process(&mut process);
+                let process = process::local::new();
+                let number_term: Term = 0.into_process(&process);
                 let atom_term = Term::str_to_atom("0", DoNotCare).unwrap();
 
                 assert!(number_term < atom_term);
@@ -1793,11 +1771,9 @@ mod tests {
 
             #[test]
             fn atom_is_less_than_tuple() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
+                let process = process::local::new();
                 let atom_term = Term::str_to_atom("0", DoNotCare).unwrap();
-                let tuple_term = Term::slice_to_tuple(&[], &mut process);
+                let tuple_term = Term::slice_to_tuple(&[], &process);
 
                 assert!(atom_term < tuple_term);
                 assert!(!(tuple_term < atom_term));
@@ -1822,12 +1798,9 @@ mod tests {
 
             #[test]
             fn shorter_tuple_is_less_than_longer_tuple() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let shorter_tuple = Term::slice_to_tuple(&[], &mut process);
-                let longer_tuple =
-                    Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
+                let process = process::local::new();
+                let shorter_tuple = Term::slice_to_tuple(&[], &process);
+                let longer_tuple = Term::slice_to_tuple(&[0.into_process(&process)], &process);
 
                 assert!(shorter_tuple < longer_tuple);
                 assert!(!(longer_tuple < shorter_tuple));
@@ -1835,13 +1808,9 @@ mod tests {
 
             #[test]
             fn same_length_tuples_with_lesser_elements_is_lesser() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let lesser_tuple =
-                    Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
-                let greater_tuple =
-                    Term::slice_to_tuple(&[1.into_process(&mut process)], &mut process);
+                let process = process::local::new();
+                let lesser_tuple = Term::slice_to_tuple(&[0.into_process(&process)], &process);
+                let greater_tuple = Term::slice_to_tuple(&[1.into_process(&process)], &process);
 
                 assert!(lesser_tuple < greater_tuple);
                 assert!(!(greater_tuple < lesser_tuple));
@@ -1849,10 +1818,8 @@ mod tests {
 
             #[test]
             fn tuple_is_less_than_empty_list() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let tuple_term = Term::slice_to_tuple(&[], &mut process);
+                let process = process::local::new();
+                let tuple_term = Term::slice_to_tuple(&[], &process);
                 let empty_list_term = Term::EMPTY_LIST;
 
                 assert!(tuple_term < empty_list_term);
@@ -1861,11 +1828,9 @@ mod tests {
 
             #[test]
             fn tuple_is_less_than_list() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let tuple_term = Term::slice_to_tuple(&[], &mut process);
-                let list_term = list_term(&mut process);
+                let process = process::local::new();
+                let tuple_term = Term::slice_to_tuple(&[], &process);
+                let list_term = list_term(&process);
 
                 assert!(tuple_term < list_term);
                 assert!(!(list_term < tuple_term));
@@ -1877,24 +1842,13 @@ mod tests {
 
             #[test]
             fn with_improper_list() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let list_term = Term::cons(
-                    0.into_process(&mut process),
-                    1.into_process(&mut process),
-                    &mut process,
-                );
-                let equal_list_term = Term::cons(
-                    0.into_process(&mut process),
-                    1.into_process(&mut process),
-                    &mut process,
-                );
-                let unequal_list_term = Term::cons(
-                    1.into_process(&mut process),
-                    0.into_process(&mut process),
-                    &mut process,
-                );
+                let process = process::local::new();
+                let list_term =
+                    Term::cons(0.into_process(&process), 1.into_process(&process), &process);
+                let equal_list_term =
+                    Term::cons(0.into_process(&process), 1.into_process(&process), &process);
+                let unequal_list_term =
+                    Term::cons(1.into_process(&process), 0.into_process(&process), &process);
 
                 assert_eq!(list_term, list_term);
                 assert_eq!(equal_list_term, equal_list_term);
@@ -1903,15 +1857,12 @@ mod tests {
 
             #[test]
             fn with_proper_list() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let list_term =
-                    Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process);
+                let process = process::local::new();
+                let list_term = Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
                 let equal_list_term =
-                    Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process);
+                    Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
                 let unequal_list_term =
-                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process);
+                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process);
 
                 assert_eq!(list_term, list_term);
                 assert_eq!(list_term, equal_list_term);
@@ -1920,23 +1871,21 @@ mod tests {
 
             #[test]
             fn with_nested_list() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
+                let process = process::local::new();
                 let list_term = Term::cons(
-                    0.into_process(&mut process),
-                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
-                    &mut process,
+                    0.into_process(&process),
+                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
+                    &process,
                 );
                 let equal_list_term = Term::cons(
-                    0.into_process(&mut process),
-                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
-                    &mut process,
+                    0.into_process(&process),
+                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
+                    &process,
                 );
                 let unequal_list_term = Term::cons(
-                    1.into_process(&mut process),
-                    Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process),
-                    &mut process,
+                    1.into_process(&process),
+                    Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process),
+                    &process,
                 );
 
                 assert_eq!(list_term, list_term);
@@ -1946,29 +1895,27 @@ mod tests {
 
             #[test]
             fn with_lists_of_unequal_length() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
+                let process = process::local::new();
                 let list_term = Term::cons(
-                    0.into_process(&mut process),
-                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
-                    &mut process,
+                    0.into_process(&process),
+                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
+                    &process,
                 );
                 let equal_list_term = Term::cons(
-                    0.into_process(&mut process),
-                    Term::cons(1.into_process(&mut process), Term::EMPTY_LIST, &mut process),
-                    &mut process,
+                    0.into_process(&process),
+                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
+                    &process,
                 );
                 let shorter_list_term =
-                    Term::cons(0.into_process(&mut process), Term::EMPTY_LIST, &mut process);
+                    Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
                 let longer_list_term = Term::cons(
-                    0.into_process(&mut process),
+                    0.into_process(&process),
                     Term::cons(
-                        1.into_process(&mut process),
-                        Term::cons(2.into_process(&mut process), Term::EMPTY_LIST, &mut process),
-                        &mut process,
+                        1.into_process(&process),
+                        Term::cons(2.into_process(&process), Term::EMPTY_LIST, &process),
+                        &process,
                     ),
-                    &mut process,
+                    &process,
                 );
 
                 assert_eq!(list_term, list_term);
@@ -1979,16 +1926,12 @@ mod tests {
 
             #[test]
             fn with_tuples_of_unequal_length() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let tuple_term =
-                    Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
-                let equal_term =
-                    Term::slice_to_tuple(&[0.into_process(&mut process)], &mut process);
+                let process = process::local::new();
+                let tuple_term = Term::slice_to_tuple(&[0.into_process(&process)], &process);
+                let equal_term = Term::slice_to_tuple(&[0.into_process(&process)], &process);
                 let unequal_term = Term::slice_to_tuple(
-                    &[0.into_process(&mut process), 1.into_process(&mut process)],
-                    &mut process,
+                    &[0.into_process(&process), 1.into_process(&process)],
+                    &process,
                 );
 
                 assert_eq!(tuple_term, tuple_term);
@@ -1998,13 +1941,11 @@ mod tests {
 
             #[test]
             fn with_heap_binaries_of_unequal_length() {
-                let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-                let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-                let mut process = process_rw_lock.write().unwrap();
-                let heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
-                let equal_heap_binary_term = Term::slice_to_binary(&[0, 1], &mut process);
-                let shorter_heap_binary_term = Term::slice_to_binary(&[0], &mut process);
-                let longer_heap_binary_term = Term::slice_to_binary(&[0, 1, 2], &mut process);
+                let process = process::local::new();
+                let heap_binary_term = Term::slice_to_binary(&[0, 1], &process);
+                let equal_heap_binary_term = Term::slice_to_binary(&[0, 1], &process);
+                let shorter_heap_binary_term = Term::slice_to_binary(&[0], &process);
+                let longer_heap_binary_term = Term::slice_to_binary(&[0, 1, 2], &process);
 
                 assert_eq!(heap_binary_term, heap_binary_term);
                 assert_eq!(heap_binary_term, equal_heap_binary_term);
@@ -2016,10 +1957,6 @@ mod tests {
 
     mod is_empty_list {
         use super::*;
-
-        use std::sync::{Arc, RwLock};
-
-        use crate::environment::{self, Environment};
 
         #[test]
         fn with_atom_is_false() {
@@ -2035,41 +1972,33 @@ mod tests {
 
         #[test]
         fn with_list_is_false() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
+            let process = process::local::new();
             let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
-            let list_term = Term::cons(head_term, Term::EMPTY_LIST, &mut process);
+            let list_term = Term::cons(head_term, Term::EMPTY_LIST, &process);
 
             assert_eq!(list_term.is_empty_list(), false);
         }
 
         #[test]
         fn with_small_integer_is_false() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let small_integer_term = small_integer_term(&mut process, 0);
+            let process = process::local::new();
+            let small_integer_term = small_integer_term(&process, 0);
 
             assert_eq!(small_integer_term.is_empty_list(), false);
         }
 
         #[test]
         fn with_tuple_is_false() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let tuple_term = tuple_term(&mut process);
+            let process = process::local::new();
+            let tuple_term = tuple_term(&process);
 
             assert_eq!(tuple_term.is_empty_list(), false);
         }
 
         #[test]
         fn with_heap_binary_is_false() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
-            let heap_binary_term = Term::slice_to_binary(&[], &mut process);
+            let process = process::local::new();
+            let heap_binary_term = Term::slice_to_binary(&[], &process);
 
             assert_eq!(heap_binary_term.is_empty_list(), false);
         }
@@ -2078,34 +2007,28 @@ mod tests {
     mod u64_to_local_reference {
         use super::*;
 
-        use std::sync::{Arc, RwLock};
-
-        use crate::environment::{self, Environment};
-
         #[test]
         fn round_trips_with_local_reference() {
-            let environment_rw_lock: Arc<RwLock<Environment>> = Default::default();
-            let process_rw_lock = environment::process(Arc::clone(&environment_rw_lock));
-            let mut process = process_rw_lock.write().unwrap();
+            let process = process::local::new();
 
-            let original = Term::local_reference(&mut process);
+            let original = Term::local_reference(&process);
             let original_u64: u64 = original.try_into().unwrap();
-            let from_u64 = Term::u64_to_local_reference(original_u64, &mut process);
+            let from_u64 = Term::u64_to_local_reference(original_u64, &process);
 
             assert_eq!(original, from_u64);
         }
     }
 
-    fn small_integer_term(mut process: &mut Process, signed_size: isize) -> Term {
-        signed_size.into_process(&mut process)
+    fn small_integer_term(process: &Process, signed_size: isize) -> Term {
+        signed_size.into_process(&process)
     }
 
-    fn list_term(process: &mut Process) -> Term {
+    fn list_term(process: &Process) -> Term {
         let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
         Term::cons(head_term, Term::EMPTY_LIST, process)
     }
 
-    fn tuple_term(process: &mut Process) -> Term {
+    fn tuple_term(process: &Process) -> Term {
         Term::slice_to_tuple(&[], process)
     }
 }

@@ -10,7 +10,7 @@ fn with_atom_integer_errors_badarith() {
 
 #[test]
 fn with_local_reference_integer_errors_badarith() {
-    with_integer_errors_badarith(|mut process| Term::local_reference(&mut process));
+    with_integer_errors_badarith(|process| Term::local_reference(&process));
 }
 
 #[test]
@@ -20,18 +20,14 @@ fn with_empty_list_integer_errors_badarith() {
 
 #[test]
 fn with_list_integer_errors_badarith() {
-    with_integer_errors_badarith(|mut process| {
-        Term::cons(
-            0.into_process(&mut process),
-            1.into_process(&mut process),
-            &mut process,
-        )
+    with_integer_errors_badarith(|process| {
+        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
     });
 }
 
 #[test]
 fn with_float_errors_badarith() {
-    with_integer_errors_badarith(|mut process| 1.0.into_process(&mut process));
+    with_integer_errors_badarith(|process| 1.0.into_process(&process));
 }
 
 #[test]
@@ -41,37 +37,37 @@ fn with_local_pid_integer_errors_badarith() {
 
 #[test]
 fn with_external_pid_integer_errors_badarith() {
-    with_integer_errors_badarith(|mut process| Term::external_pid(1, 2, 3, &mut process).unwrap());
+    with_integer_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_integer_errors_badarith() {
-    with_integer_errors_badarith(|mut process| Term::slice_to_tuple(&[], &mut process));
+    with_integer_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_is_integer_errors_badarith() {
-    with_integer_errors_badarith(|mut process| Term::slice_to_map(&[], &mut process));
+    with_integer_errors_badarith(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_integer_errors_badarith() {
-    with_integer_errors_badarith(|mut process| Term::slice_to_binary(&[], &mut process));
+    with_integer_errors_badarith(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
 fn with_subbinary_integer_errors_badarith() {
-    with_integer_errors_badarith(|mut process| bitstring!(1 ::1, &mut process));
+    with_integer_errors_badarith(|process| bitstring!(1 ::1, &process));
 }
 
 fn with_integer_errors_badarith<I>(integer: I)
 where
-    I: FnOnce(&mut Process) -> Term,
+    I: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|mut process| {
-        let integer = integer(&mut process);
-        let shift = 0.into_process(&mut process);
+    super::errors_badarith(|process| {
+        let integer = integer(&process);
+        let shift = 0.into_process(&process);
 
-        erlang::bsl_2(integer, shift, &mut process)
+        erlang::bsl_2(integer, shift, &process)
     });
 }

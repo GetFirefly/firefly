@@ -7,7 +7,7 @@ fn with_atom_returns_true() {
 
 #[test]
 fn with_local_reference_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| Term::local_reference(&mut process), true);
+    are_not_equal_after_conversion(|_, process| Term::local_reference(&process), true);
 }
 
 #[test]
@@ -18,13 +18,7 @@ fn with_empty_list_right_returns_true() {
 #[test]
 fn with_list_right_returns_true() {
     are_not_equal_after_conversion(
-        |_, mut process| {
-            Term::cons(
-                0.into_process(&mut process),
-                1.into_process(&mut process),
-                &mut process,
-            )
-        },
+        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
         true,
     );
 }
@@ -36,12 +30,12 @@ fn with_same_small_integer_right_returns_false() {
 
 #[test]
 fn with_same_value_small_integer_right_returns_false() {
-    are_not_equal_after_conversion(|_, mut process| 0.into_process(&mut process), false)
+    are_not_equal_after_conversion(|_, process| 0.into_process(&process), false)
 }
 
 #[test]
 fn with_different_small_integer_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| 1.into_process(&mut process), true)
+    are_not_equal_after_conversion(|_, process| 1.into_process(&process), true)
 }
 
 #[test]
@@ -51,8 +45,8 @@ fn with_same_value_big_integer_right_returns_false() {
 
     if f < crate::float::INTEGRAL_MAX {
         super::are_not_equal_after_conversion(
-            |mut process| f.into_process(&mut process),
-            |_, mut process| i.into_process(&mut process),
+            |process| f.into_process(&process),
+            |_, process| i.into_process(&process),
             false,
         )
     }
@@ -61,19 +55,19 @@ fn with_same_value_big_integer_right_returns_false() {
 #[test]
 fn with_different_value_big_integer_right_returns_true() {
     are_not_equal_after_conversion(
-        |_, mut process| (crate::integer::small::MAX + 1).into_process(&mut process),
+        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
         true,
     )
 }
 
 #[test]
 fn with_same_value_float_right_returns_false() {
-    are_not_equal_after_conversion(|_, mut process| 0.0.into_process(&mut process), false)
+    are_not_equal_after_conversion(|_, process| 0.0.into_process(&process), false)
 }
 
 #[test]
 fn with_different_value_float_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| 1.0.into_process(&mut process), true)
+    are_not_equal_after_conversion(|_, process| 1.0.into_process(&process), true)
 }
 
 #[test]
@@ -84,44 +78,34 @@ fn with_local_pid_right_returns_true() {
 #[test]
 fn with_external_pid_right_returns_true() {
     are_not_equal_after_conversion(
-        |_, mut process| Term::external_pid(1, 2, 3, &mut process).unwrap(),
+        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
         true,
     );
 }
 
 #[test]
 fn with_tuple_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, mut process| Term::slice_to_tuple(&[], &mut process),
-        true,
-    );
+    are_not_equal_after_conversion(|_, process| Term::slice_to_tuple(&[], &process), true);
 }
 
 #[test]
 fn with_map_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| Term::slice_to_map(&[], &mut process), true);
+    are_not_equal_after_conversion(|_, process| Term::slice_to_map(&[], &process), true);
 }
 
 #[test]
 fn with_heap_binary_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, mut process| Term::slice_to_binary(&[], &mut process),
-        true,
-    );
+    are_not_equal_after_conversion(|_, process| Term::slice_to_binary(&[], &process), true);
 }
 
 #[test]
 fn with_subbinary_right_returns_true() {
-    are_not_equal_after_conversion(|_, mut process| bitstring!(1 :: 1, &mut process), true);
+    are_not_equal_after_conversion(|_, process| bitstring!(1 :: 1, &process), true);
 }
 
 fn are_not_equal_after_conversion<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &mut Process) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
-    super::are_not_equal_after_conversion(
-        |mut process| 0.into_process(&mut process),
-        right,
-        expected,
-    );
+    super::are_not_equal_after_conversion(|process| 0.into_process(&process), right, expected);
 }

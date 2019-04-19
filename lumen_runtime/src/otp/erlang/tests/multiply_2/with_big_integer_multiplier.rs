@@ -7,7 +7,7 @@ fn with_atom_multiplicand_errors_badarith() {
 
 #[test]
 fn with_local_reference_multiplicand_errors_badarith() {
-    with_multiplicand_errors_badarith(|mut process| Term::local_reference(&mut process));
+    with_multiplicand_errors_badarith(|process| Term::local_reference(&process));
 }
 
 #[test]
@@ -17,23 +17,19 @@ fn with_empty_list_multiplicand_errors_badarith() {
 
 #[test]
 fn with_list_multiplicand_errors_badarith() {
-    with_multiplicand_errors_badarith(|mut process| {
-        Term::cons(
-            0.into_process(&mut process),
-            1.into_process(&mut process),
-            &mut process,
-        )
+    with_multiplicand_errors_badarith(|process| {
+        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
     });
 }
 
 #[test]
 fn with_small_integer_multiplicand_returns_big_integer() {
-    with(|multiplier, mut process| {
-        let multiplicand = crate::integer::small::MIN.into_process(&mut process);
+    with(|multiplier, process| {
+        let multiplicand = crate::integer::small::MIN.into_process(&process);
 
         assert_eq!(multiplicand.tag(), SmallInteger);
 
-        let result = erlang::multiply_2(multiplier, multiplicand, &mut process);
+        let result = erlang::multiply_2(multiplier, multiplicand, &process);
 
         assert!(result.is_ok());
 
@@ -49,8 +45,8 @@ fn with_small_integer_multiplicand_returns_big_integer() {
 
 #[test]
 fn with_big_integer_multiplicand_returns_big_integer() {
-    with(|multiplier, mut process| {
-        let multiplicand = (crate::integer::small::MAX + 1).into_process(&mut process);
+    with(|multiplier, process| {
+        let multiplicand = (crate::integer::small::MAX + 1).into_process(&process);
 
         assert_eq!(multiplicand.tag(), Boxed);
 
@@ -58,7 +54,7 @@ fn with_big_integer_multiplicand_returns_big_integer() {
 
         assert_eq!(unboxed_multiplicand.tag(), BigInteger);
 
-        let result = erlang::multiply_2(multiplier, multiplicand, &mut process);
+        let result = erlang::multiply_2(multiplier, multiplicand, &process);
 
         assert!(result.is_ok());
 
@@ -74,10 +70,10 @@ fn with_big_integer_multiplicand_returns_big_integer() {
 
 #[test]
 fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
-    with(|multiplier, mut process| {
-        let multiplicand = 3.0.into_process(&mut process);
+    with(|multiplier, process| {
+        let multiplicand = 3.0.into_process(&process);
 
-        let result = erlang::multiply_2(multiplier, multiplicand, &mut process);
+        let result = erlang::multiply_2(multiplier, multiplicand, &process);
 
         assert!(result.is_ok());
 
@@ -93,24 +89,24 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 
 #[test]
 fn with_float_multiplicand_with_underflow_returns_min_float() {
-    with(|multiplier, mut process| {
-        let multiplicand = std::f64::MIN.into_process(&mut process);
+    with(|multiplier, process| {
+        let multiplicand = std::f64::MIN.into_process(&process);
 
         assert_eq!(
-            erlang::multiply_2(multiplier, multiplicand, &mut process),
-            Ok(std::f64::MIN.into_process(&mut process))
+            erlang::multiply_2(multiplier, multiplicand, &process),
+            Ok(std::f64::MIN.into_process(&process))
         );
     })
 }
 
 #[test]
 fn with_float_multiplicand_with_overflow_returns_max_float() {
-    with(|multiplier, mut process| {
-        let multiplicand = std::f64::MAX.into_process(&mut process);
+    with(|multiplier, process| {
+        let multiplicand = std::f64::MAX.into_process(&process);
 
         assert_eq!(
-            erlang::multiply_2(multiplier, multiplicand, &mut process),
-            Ok(std::f64::MAX.into_process(&mut process))
+            erlang::multiply_2(multiplier, multiplicand, &process),
+            Ok(std::f64::MAX.into_process(&process))
         );
     })
 }
@@ -122,41 +118,38 @@ fn with_local_pid_multiplicand_errors_badarith() {
 
 #[test]
 fn with_external_pid_multiplicand_errors_badarith() {
-    with_multiplicand_errors_badarith(|mut process| {
-        Term::external_pid(1, 2, 3, &mut process).unwrap()
-    });
+    with_multiplicand_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
 }
 
 #[test]
 fn with_tuple_multiplicand_errors_badarith() {
-    with_multiplicand_errors_badarith(|mut process| Term::slice_to_tuple(&[], &mut process));
+    with_multiplicand_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
 }
 
 #[test]
 fn with_map_is_multiplicand_errors_badarith() {
-    with_multiplicand_errors_badarith(|mut process| Term::slice_to_map(&[], &mut process));
+    with_multiplicand_errors_badarith(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]
 fn with_heap_binary_multiplicand_errors_badarith() {
-    with_multiplicand_errors_badarith(|mut process| Term::slice_to_binary(&[], &mut process));
+    with_multiplicand_errors_badarith(|process| Term::slice_to_binary(&[], &process));
 }
 
 #[test]
 fn with_subbinary_multiplicand_errors_badarith() {
-    with_multiplicand_errors_badarith(|mut process| {
-        let original =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-        Term::subbinary(original, 0, 7, 2, 1, &mut process)
+    with_multiplicand_errors_badarith(|process| {
+        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
+        Term::subbinary(original, 0, 7, 2, 1, &process)
     });
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &mut Process) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
-    with_process(|mut process| {
-        let multiplier: Term = (crate::integer::small::MAX + 1).into_process(&mut process);
+    with_process(|process| {
+        let multiplier: Term = (crate::integer::small::MAX + 1).into_process(&process);
 
         assert_eq!(multiplier.tag(), Boxed);
 
@@ -164,16 +157,16 @@ where
 
         assert_eq!(unboxed_multiplier.tag(), BigInteger);
 
-        f(multiplier, &mut process)
+        f(multiplier, &process)
     })
 }
 
 fn with_multiplicand_errors_badarith<M>(multiplicand: M)
 where
-    M: FnOnce(&mut Process) -> Term,
+    M: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|mut process| {
-        let multiplier: Term = (crate::integer::small::MAX + 1).into_process(&mut process);
+    super::errors_badarith(|process| {
+        let multiplier: Term = (crate::integer::small::MAX + 1).into_process(&process);
 
         assert_eq!(multiplier.tag(), Boxed);
 
@@ -181,8 +174,8 @@ where
 
         assert_eq!(unboxed_multiplier.tag(), BigInteger);
 
-        let multiplicand = multiplicand(&mut process);
+        let multiplicand = multiplicand(&process);
 
-        erlang::multiply_2(multiplier, multiplicand, &mut process)
+        erlang::multiply_2(multiplier, multiplicand, &process)
     });
 }

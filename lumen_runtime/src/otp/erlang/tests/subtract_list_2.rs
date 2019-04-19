@@ -17,9 +17,9 @@ fn with_atom_errors_badarg() {
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    errors_badarg(|mut process| {
-        let minuend = Term::local_reference(&mut process);
-        let subtrahend = Term::local_reference(&mut process);
+    errors_badarg(|process| {
+        let minuend = Term::local_reference(&process);
+        let subtrahend = Term::local_reference(&process);
 
         (minuend, subtrahend)
     });
@@ -27,17 +27,9 @@ fn with_local_reference_errors_badarg() {
 
 #[test]
 fn with_improper_list_errors_badarg() {
-    errors_badarg(|mut process| {
-        let minuend = Term::cons(
-            0.into_process(&mut process),
-            1.into_process(&mut process),
-            &mut process,
-        );
-        let subtrahend = Term::cons(
-            2.into_process(&mut process),
-            3.into_process(&mut process),
-            &mut process,
-        );
+    errors_badarg(|process| {
+        let minuend = Term::cons(0.into_process(&process), 1.into_process(&process), &process);
+        let subtrahend = Term::cons(2.into_process(&process), 3.into_process(&process), &process);
 
         (minuend, subtrahend)
     });
@@ -45,9 +37,9 @@ fn with_improper_list_errors_badarg() {
 
 #[test]
 fn with_small_integer_errors_badarg() {
-    errors_badarg(|mut process| {
-        let minuend = 0.into_process(&mut process);
-        let subtrahend = 1.into_process(&mut process);
+    errors_badarg(|process| {
+        let minuend = 0.into_process(&process);
+        let subtrahend = 1.into_process(&process);
 
         (minuend, subtrahend)
     });
@@ -55,13 +47,13 @@ fn with_small_integer_errors_badarg() {
 
 #[test]
 fn with_big_integer_errors_badarg() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         let minuend = <BigInt as Num>::from_str_radix("576460752303423489", 10)
             .unwrap()
-            .into_process(&mut process);
+            .into_process(&process);
         let subtrahend = <BigInt as Num>::from_str_radix("576460752303423490", 10)
             .unwrap()
-            .into_process(&mut process);
+            .into_process(&process);
 
         (minuend, subtrahend)
     });
@@ -69,9 +61,9 @@ fn with_big_integer_errors_badarg() {
 
 #[test]
 fn with_float_errors_badarg() {
-    errors_badarg(|mut process| {
-        let minuend = 1.0.into_process(&mut process);
-        let subtrahend = 2.0.into_process(&mut process);
+    errors_badarg(|process| {
+        let minuend = 1.0.into_process(&process);
+        let subtrahend = 2.0.into_process(&process);
 
         (minuend, subtrahend)
     });
@@ -89,9 +81,9 @@ fn with_local_pid_errors_badarg() {
 
 #[test]
 fn with_external_pid_errors_badarg() {
-    errors_badarg(|mut process| {
-        let minuend = Term::external_pid(1, 2, 3, &mut process).unwrap();
-        let subtrahend = Term::external_pid(4, 5, 6, &mut process).unwrap();
+    errors_badarg(|process| {
+        let minuend = Term::external_pid(1, 2, 3, &process).unwrap();
+        let subtrahend = Term::external_pid(4, 5, 6, &process).unwrap();
 
         (minuend, subtrahend)
     });
@@ -99,9 +91,9 @@ fn with_external_pid_errors_badarg() {
 
 #[test]
 fn with_tuple_errors_badarg() {
-    errors_badarg(|mut process| {
-        let minuend = Term::slice_to_tuple(&[], &mut process);
-        let subtrahend = Term::slice_to_tuple(&[], &mut process);
+    errors_badarg(|process| {
+        let minuend = Term::slice_to_tuple(&[], &process);
+        let subtrahend = Term::slice_to_tuple(&[], &process);
 
         (minuend, subtrahend)
     });
@@ -109,9 +101,9 @@ fn with_tuple_errors_badarg() {
 
 #[test]
 fn with_map_is_errors_badarg() {
-    errors_badarg(|mut process| {
-        let minuend = Term::slice_to_map(&[], &mut process);
-        let subtrahend = Term::slice_to_map(&[], &mut process);
+    errors_badarg(|process| {
+        let minuend = Term::slice_to_map(&[], &process);
+        let subtrahend = Term::slice_to_map(&[], &process);
 
         (minuend, subtrahend)
     });
@@ -119,9 +111,9 @@ fn with_map_is_errors_badarg() {
 
 #[test]
 fn with_heap_binary_errors_badarg() {
-    errors_badarg(|mut process| {
-        let minuend = Term::slice_to_binary(&[], &mut process);
-        let subtrahend = Term::slice_to_binary(&[], &mut process);
+    errors_badarg(|process| {
+        let minuend = Term::slice_to_binary(&[], &process);
+        let subtrahend = Term::slice_to_binary(&[], &process);
 
         (minuend, subtrahend)
     });
@@ -129,11 +121,11 @@ fn with_heap_binary_errors_badarg() {
 
 #[test]
 fn with_subbinary_errors_badarg() {
-    errors_badarg(|mut process| {
+    errors_badarg(|process| {
         let binary_term =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &mut process);
-        let minuend = Term::subbinary(binary_term, 0, 7, 2, 1, &mut process);
-        let subtrahend = Term::subbinary(binary_term, 0, 7, 2, 0, &mut process);
+            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
+        let minuend = Term::subbinary(binary_term, 0, 7, 2, 1, &process);
+        let subtrahend = Term::subbinary(binary_term, 0, 7, 2, 0, &process);
 
         (minuend, subtrahend)
     });
@@ -141,11 +133,11 @@ fn with_subbinary_errors_badarg() {
 
 fn errors_badarg<F>(minuend_subtrahend: F)
 where
-    F: FnOnce(&mut Process) -> (Term, Term),
+    F: FnOnce(&Process) -> (Term, Term),
 {
-    super::errors_badarg(|mut process| {
-        let (minuend, subtrahend) = minuend_subtrahend(&mut process);
+    super::errors_badarg(|process| {
+        let (minuend, subtrahend) = minuend_subtrahend(&process);
 
-        erlang::subtract_list_2(minuend, subtrahend, &mut process)
+        erlang::subtract_list_2(minuend, subtrahend, &process)
     });
 }

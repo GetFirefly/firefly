@@ -1,6 +1,4 @@
 ///! The memory specific to a process in the VM.
-use std::cell::RefCell;
-
 use im_rc::hashmap::HashMap;
 use num_bigint::BigInt;
 
@@ -26,11 +24,11 @@ pub struct Process {
     cons_arena: TypedArena<Cons>,
     external_pid_arena: TypedArena<identifier::External>,
     float_arena: TypedArena<Float>,
-    heap_binary_arena: RefCell<TypedArena<heap::Binary>>,
+    heap_binary_arena: TypedArena<heap::Binary>,
     map_arena: TypedArena<Map>,
     local_reference_arena: TypedArena<reference::local::Reference>,
     subbinary_arena: TypedArena<sub::Binary>,
-    term_arena: RefCell<TypedArena<Term>>,
+    term_arena: TypedArena<Term>,
 }
 
 impl Process {
@@ -52,7 +50,7 @@ impl Process {
     }
 
     pub fn alloc_term_slice(&self, slice: &[Term]) -> *const Term {
-        self.term_arena.borrow_mut().alloc_slice(slice).as_ptr()
+        self.term_arena.alloc_slice(slice).as_ptr()
     }
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
@@ -171,7 +169,6 @@ impl Process {
 
         let pointer = self
             .heap_binary_arena
-            .borrow_mut()
             .alloc(heap::Binary::new(arena_bytes)) as *const heap::Binary;
 
         unsafe { &*pointer }

@@ -10,8 +10,6 @@ use std::sync::Arc;
 use num_bigint::{BigInt, Sign::*};
 use num_traits::cast::ToPrimitive;
 
-use liblumen_arena::TypedArena;
-
 use crate::atom::{self, Encoding, Existence, Existence::*, Index};
 use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::exception::{self, Class, Exception};
@@ -228,10 +226,6 @@ impl Term {
     #[cfg(test)]
     pub unsafe fn atom_to_string(&self) -> Arc<String> {
         atom::index_to_string(self.atom_to_index()).unwrap()
-    }
-
-    pub fn alloc_slice(slice: &[Term], term_arena: &mut TypedArena<Term>) -> *const Term {
-        term_arena.alloc_slice(slice).as_ptr()
     }
 
     pub fn byte(&self, index: usize) -> u8 {

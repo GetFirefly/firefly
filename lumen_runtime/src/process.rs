@@ -1,6 +1,7 @@
 ///! The memory specific to a process in the VM.
 use std::cell::RefCell;
 
+use im_rc::hashmap::HashMap;
 use num_bigint::BigInt;
 
 use liblumen_arena::TypedArena;
@@ -21,15 +22,15 @@ pub mod local;
 pub struct Process {
     pub pid: Term,
     big_integer_arena: TypedArena<big::Integer>,
-    pub byte_arena: TypedArena<u8>,
+    byte_arena: TypedArena<u8>,
     cons_arena: TypedArena<Cons>,
     external_pid_arena: TypedArena<identifier::External>,
     float_arena: TypedArena<Float>,
-    pub heap_binary_arena: RefCell<TypedArena<heap::Binary>>,
-    pub map_arena: TypedArena<Map>,
+    heap_binary_arena: RefCell<TypedArena<heap::Binary>>,
+    map_arena: TypedArena<Map>,
     local_reference_arena: TypedArena<reference::local::Reference>,
-    pub subbinary_arena: TypedArena<sub::Binary>,
-    pub term_arena: RefCell<TypedArena<Term>>,
+    subbinary_arena: TypedArena<sub::Binary>,
+    term_arena: RefCell<TypedArena<Term>>,
 }
 
 impl Process {
@@ -48,6 +49,10 @@ impl Process {
             subbinary_arena: Default::default(),
             term_arena: Default::default(),
         }
+    }
+
+    pub fn alloc_term_slice(&self, slice: &[Term]) -> *const Term {
+        self.term_arena.borrow_mut().alloc_slice(slice).as_ptr()
     }
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
@@ -124,15 +129,26 @@ impl Process {
     }
 
     pub fn slice_to_binary(&self, slice: &[u8]) -> Binary {
-        Binary::from_slice(slice, self)
+        // TODO use reference counted binaries for bytes.len() > 64
+        let heap_binary = self.slice_to_heap_binary(slice);
+
+        Binary::Heap(heap_binary)
     }
 
     pub fn slice_to_map(&self, slice: &[(Term, Term)]) -> &Map {
-        Map::from_slice(slice, self)
+        let mut inner: HashMap<Term, Term> = HashMap::new();
+
+        for (key, value) in slice {
+            inner.insert(key.clone(), value.clone());
+        }
+
+        let pointer = self.map_arena.alloc(Map::new(inner)) as *const Map;
+
+        unsafe { &*pointer }
     }
 
     pub fn slice_to_tuple(&self, slice: &[Term]) -> &Tuple {
-        Tuple::from_slice(slice, &mut self.term_arena.borrow_mut())
+        Tuple::from_slice(slice, &self)
     }
 
     pub fn u64_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
@@ -140,6 +156,23 @@ impl Process {
             .local_reference_arena
             .alloc(reference::local::Reference::new(number))
             as *const reference::local::Reference;
+
+        unsafe { &*pointer }
+    }
+
+    // Private
+
+    fn slice_to_heap_binary(&self, bytes: &[u8]) -> &'static heap::Binary {
+        let arena_bytes: &[u8] = if bytes.len() != 0 {
+            self.byte_arena.alloc_slice(bytes)
+        } else {
+            &[]
+        };
+
+        let pointer = self
+            .heap_binary_arena
+            .borrow_mut()
+            .alloc(heap::Binary::new(arena_bytes)) as *const heap::Binary;
 
         unsafe { &*pointer }
     }

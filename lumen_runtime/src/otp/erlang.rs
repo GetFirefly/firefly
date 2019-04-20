@@ -111,7 +111,7 @@ pub fn andalso_2(boolean: Term, term: Term) -> Result {
 
 pub fn append_element_2(tuple: Term, element: Term, process: &Process) -> Result {
     let internal: &Tuple = tuple.try_into_in_process(&process)?;
-    let new_tuple = internal.append_element(element, &mut process.term_arena.borrow_mut());
+    let new_tuple = internal.append_element(element, &process);
 
     Ok(new_tuple.into())
 }

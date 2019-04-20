@@ -20,15 +20,6 @@ pub enum Binary<'a> {
     Sub(&'a sub::Binary),
 }
 
-impl<'a> Binary<'a> {
-    pub fn from_slice(bytes: &[u8], process: &Process) -> Self {
-        // TODO use reference counted binaries for bytes.len() > 64
-        let heap_binary = heap::Binary::from_slice(bytes, &process);
-
-        Binary::Heap(heap_binary)
-    }
-}
-
 trait ByteIterator: ExactSizeIterator + DoubleEndedIterator + Iterator<Item = u8>
 where
     Self: Sized,

@@ -6,8 +6,6 @@ use std::hash::{Hash, Hasher};
 use std::iter::FusedIterator;
 use std::ops::Index;
 
-use liblumen_arena::TypedArena;
-
 use crate::exception::{self, Exception};
 use crate::integer::Integer;
 use crate::process::Process;
@@ -17,8 +15,6 @@ use crate::term::{Tag::*, Term};
 pub struct Tuple {
     arity: Term, // the elements follow, but can't be represented in Rust
 }
-
-type TermArena = TypedArena<Term>;
 
 #[repr(transparent)]
 pub struct ZeroBasedIndex(usize);
@@ -51,7 +47,7 @@ impl TryFrom<Term> for OneBasedIndex {
 }
 
 impl Tuple {
-    pub fn from_slice(element_slice: &[Term], term_arena: &mut TermArena) -> &'static Tuple {
+    pub fn from_slice(element_slice: &[Term], process: &Process) -> &'static Tuple {
         let arity = element_slice.len();
         let arity_term = Term::arity(arity);
         let mut term_vector = Vec::with_capacity(1 + arity);
@@ -59,17 +55,17 @@ impl Tuple {
         term_vector.push(arity_term);
         term_vector.extend_from_slice(element_slice);
 
-        let pointer = Term::alloc_slice(term_vector.as_slice(), term_arena) as *const Tuple;
+        let pointer = process.alloc_term_slice(term_vector.as_slice()) as *const Tuple;
 
         unsafe { &*pointer }
     }
 
-    pub fn append_element(&self, element: Term, mut term_arena: &mut TermArena) -> &'static Tuple {
+    pub fn append_element(&self, element: Term, process: &Process) -> &'static Tuple {
         let mut longer_element_vec: Vec<Term> = Vec::with_capacity(self.len() + 1);
         longer_element_vec.extend(self.iter());
         longer_element_vec.push(element);
 
-        Tuple::from_slice(longer_element_vec.as_slice(), &mut term_arena)
+        Tuple::from_slice(longer_element_vec.as_slice(), &process)
     }
 
     pub fn delete_element(
@@ -89,10 +85,7 @@ impl Tuple {
                     }
                 })
                 .collect();
-            let smaller_tuple = Tuple::from_slice(
-                smaller_element_vec.as_slice(),
-                &mut process.term_arena.borrow_mut(),
-            );
+            let smaller_tuple = Tuple::from_slice(smaller_element_vec.as_slice(), &process);
 
             Ok(smaller_tuple)
         } else {
@@ -133,10 +126,7 @@ impl Tuple {
                 larger_element_vec.push(element);
             }
 
-            let tuple = Tuple::from_slice(
-                larger_element_vec.as_slice(),
-                &mut process.term_arena.borrow_mut(),
-            );
+            let tuple = Tuple::from_slice(larger_element_vec.as_slice(), &process);
 
             Ok(tuple)
         } else {
@@ -199,8 +189,7 @@ impl Tuple {
                 }
             }
 
-            let tuple =
-                Tuple::from_slice(element_vec.as_slice(), &mut process.term_arena.borrow_mut());
+            let tuple = Tuple::from_slice(element_vec.as_slice(), &process);
 
             Ok(tuple)
         } else {
@@ -333,7 +322,7 @@ mod tests {
         #[test]
         fn without_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &mut process.term_arena.borrow_mut());
+            let tuple = Tuple::from_slice(&[], &process);
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
@@ -344,10 +333,7 @@ mod tests {
         #[test]
         fn with_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(
-                &[0.into_process(&process)],
-                &mut process.term_arena.borrow_mut(),
-            );
+            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
@@ -367,7 +353,7 @@ mod tests {
         #[test]
         fn without_valid_index() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &mut process.term_arena.borrow_mut());
+            let tuple = Tuple::from_slice(&[], &process);
 
             assert_badarg!(tuple.element(ZeroBasedIndex(0)));
         }
@@ -375,10 +361,7 @@ mod tests {
         #[test]
         fn with_valid_index() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(
-                &[0.into_process(&process)],
-                &mut process.term_arena.borrow_mut(),
-            );
+            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
 
             assert_eq!(
                 tuple.element(ZeroBasedIndex(0)),
@@ -395,8 +378,8 @@ mod tests {
         #[test]
         fn without_element() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &mut process.term_arena.borrow_mut());
-            let equal = Tuple::from_slice(&[], &mut process.term_arena.borrow_mut());
+            let tuple = Tuple::from_slice(&[], &process);
+            let equal = Tuple::from_slice(&[], &process);
 
             assert_eq!(tuple, tuple);
             assert_eq!(tuple, equal);
@@ -405,13 +388,10 @@ mod tests {
         #[test]
         fn with_unequal_length() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(
-                &[0.into_process(&process)],
-                &mut process.term_arena.borrow_mut(),
-            );
+            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
             let unequal = Tuple::from_slice(
                 &[0.into_process(&process), 1.into_process(&process)],
-                &mut process.term_arena.borrow_mut(),
+                &process,
             );
 
             assert_ne!(tuple, unequal);
@@ -426,7 +406,7 @@ mod tests {
         #[test]
         fn without_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &mut process.term_arena.borrow_mut());
+            let tuple = Tuple::from_slice(&[], &process);
 
             assert_eq!(tuple.iter().count(), 0);
 
@@ -438,10 +418,7 @@ mod tests {
         #[test]
         fn with_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(
-                &[0.into_process(&process)],
-                &mut process.term_arena.borrow_mut(),
-            );
+            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
 
             assert_eq!(tuple.iter().count(), 1);
 
@@ -459,7 +436,7 @@ mod tests {
         #[test]
         fn without_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &mut process.term_arena.borrow_mut());
+            let tuple = Tuple::from_slice(&[], &process);
 
             assert_eq!(tuple.size(), 0.into());
         }
@@ -468,10 +445,7 @@ mod tests {
         fn with_elements() {
             let process = process::local::new();
 
-            let tuple = Tuple::from_slice(
-                &[0.into_process(&process)],
-                &mut process.term_arena.borrow_mut(),
-            );
+            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
 
             assert_eq!(tuple.size(), 1.into());
         }

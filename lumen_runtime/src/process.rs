@@ -1,5 +1,7 @@
 ///! The memory specific to a process in the VM.
-use im_rc::hashmap::HashMap;
+use std::sync::Mutex;
+
+use im::hashmap::HashMap;
 use num_bigint::BigInt;
 
 use liblumen_arena::TypedArena;
@@ -19,16 +21,16 @@ pub mod local;
 
 pub struct Process {
     pub pid: Term,
-    big_integer_arena: TypedArena<big::Integer>,
-    byte_arena: TypedArena<u8>,
-    cons_arena: TypedArena<Cons>,
-    external_pid_arena: TypedArena<identifier::External>,
-    float_arena: TypedArena<Float>,
-    heap_binary_arena: TypedArena<heap::Binary>,
-    map_arena: TypedArena<Map>,
-    local_reference_arena: TypedArena<reference::local::Reference>,
-    subbinary_arena: TypedArena<sub::Binary>,
-    term_arena: TypedArena<Term>,
+    big_integer_arena: Mutex<TypedArena<big::Integer>>,
+    byte_arena: Mutex<TypedArena<u8>>,
+    cons_arena: Mutex<TypedArena<Cons>>,
+    external_pid_arena: Mutex<TypedArena<identifier::External>>,
+    float_arena: Mutex<TypedArena<Float>>,
+    heap_binary_arena: Mutex<TypedArena<heap::Binary>>,
+    map_arena: Mutex<TypedArena<Map>>,
+    local_reference_arena: Mutex<TypedArena<reference::local::Reference>>,
+    subbinary_arena: Mutex<TypedArena<sub::Binary>>,
+    term_arena: Mutex<TypedArena<Term>>,
 }
 
 impl Process {
@@ -50,13 +52,13 @@ impl Process {
     }
 
     pub fn alloc_term_slice(&self, slice: &[Term]) -> *const Term {
-        self.term_arena.alloc_slice(slice).as_ptr()
+        self.term_arena.lock().unwrap().alloc_slice(slice).as_ptr()
     }
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
     /// is a list `Term` (`Term.tag` is `List`) or empty list (`Term.tag` is `EmptyList`).
     pub fn cons(&self, head: Term, tail: Term) -> &'static Cons {
-        let pointer = self.cons_arena.alloc(Cons::new(head, tail)) as *const Cons;
+        let pointer = self.cons_arena.lock().unwrap().alloc(Cons::new(head, tail)) as *const Cons;
 
         unsafe { &*pointer }
     }
@@ -69,6 +71,8 @@ impl Process {
     ) -> &'static identifier::External {
         let pointer = self
             .external_pid_arena
+            .lock()
+            .unwrap()
             .alloc(identifier::External::new(node, number, serial))
             as *const identifier::External;
 
@@ -76,7 +80,7 @@ impl Process {
     }
 
     pub fn f64_to_float(&self, f: f64) -> &'static Float {
-        let pointer = self.float_arena.alloc(Float::new(f)) as *const Float;
+        let pointer = self.float_arena.lock().unwrap().alloc(Float::new(f)) as *const Float;
 
         unsafe { &*pointer }
     }
@@ -84,6 +88,8 @@ impl Process {
     pub fn local_reference(&self) -> &'static reference::local::Reference {
         let pointer = self
             .local_reference_arena
+            .lock()
+            .unwrap()
             .alloc(reference::local::Reference::next())
             as *const reference::local::Reference;
 
@@ -94,6 +100,8 @@ impl Process {
     pub fn number_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
         let pointer = self
             .local_reference_arena
+            .lock()
+            .unwrap()
             .alloc(reference::local::Reference::new(number))
             as *const reference::local::Reference;
 
@@ -101,8 +109,11 @@ impl Process {
     }
 
     pub fn num_bigint_big_in_to_big_integer(&self, big_int: BigInt) -> &'static big::Integer {
-        let pointer =
-            self.big_integer_arena.alloc(big::Integer::new(big_int)) as *const big::Integer;
+        let pointer = self
+            .big_integer_arena
+            .lock()
+            .unwrap()
+            .alloc(big::Integer::new(big_int)) as *const big::Integer;
 
         unsafe { &*pointer }
     }
@@ -115,7 +126,7 @@ impl Process {
         byte_count: usize,
         bit_count: u8,
     ) -> &'static sub::Binary {
-        let pointer = self.subbinary_arena.alloc(sub::Binary::new(
+        let pointer = self.subbinary_arena.lock().unwrap().alloc(sub::Binary::new(
             original,
             byte_offset,
             bit_offset,
@@ -140,7 +151,7 @@ impl Process {
             inner.insert(key.clone(), value.clone());
         }
 
-        let pointer = self.map_arena.alloc(Map::new(inner)) as *const Map;
+        let pointer = self.map_arena.lock().unwrap().alloc(Map::new(inner)) as *const Map;
 
         unsafe { &*pointer }
     }
@@ -152,6 +163,8 @@ impl Process {
     pub fn u64_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
         let pointer = self
             .local_reference_arena
+            .lock()
+            .unwrap()
             .alloc(reference::local::Reference::new(number))
             as *const reference::local::Reference;
 
@@ -161,22 +174,23 @@ impl Process {
     // Private
 
     fn slice_to_heap_binary(&self, bytes: &[u8]) -> &'static heap::Binary {
+        let locked_byte_arena = self.byte_arena.lock().unwrap();
+
         let arena_bytes: &[u8] = if bytes.len() != 0 {
-            self.byte_arena.alloc_slice(bytes)
+            locked_byte_arena.alloc_slice(bytes)
         } else {
             &[]
         };
 
         let pointer = self
             .heap_binary_arena
+            .lock()
+            .unwrap()
             .alloc(heap::Binary::new(arena_bytes)) as *const heap::Binary;
 
         unsafe { &*pointer }
     }
 }
-
-unsafe impl Send for Process {}
-unsafe impl Sync for Process {}
 
 pub trait TryFromInProcess<T>: Sized {
     fn try_from_in_process(value: T, process: &Process) -> Result<Self, Exception>;

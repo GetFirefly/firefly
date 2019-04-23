@@ -1,6 +1,6 @@
 use std::cmp::Ordering::{self, *};
 
-use im_rc::hashmap::HashMap;
+use im::hashmap::HashMap;
 
 use crate::atom::Existence::DoNotCare;
 use crate::exception::Result;

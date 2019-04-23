@@ -200,6 +200,15 @@ impl DoubleEndedIterator for Iter {
     }
 }
 
+impl From<&Binary> for Vec<u8> {
+    fn from(binary: &Binary) -> Vec<u8> {
+        let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_len());
+        bytes_vec.extend(binary.byte_iter());
+
+        bytes_vec
+    }
+}
+
 impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
     fn part(
         &'a self,
@@ -283,14 +292,9 @@ impl PartToList<usize, isize> for Binary {
     }
 }
 
-impl From<&Binary> for Vec<u8> {
-    fn from(binary: &Binary) -> Vec<u8> {
-        let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_len());
-        bytes_vec.extend(binary.byte_iter());
-
-        bytes_vec
-    }
-}
+// A `Binary` is immutable after creation, so the fact that it contains a `*const u8` which is not
+// `Send` should not matter
+unsafe impl Send for Binary {}
 
 impl ToTerm for Binary {
     fn to_term(&self, options: ToTermOptions, process: &Process) -> Result<Term, Exception> {

@@ -1422,6 +1422,20 @@ pub fn unregister_1(name: Term) -> Result {
     }
 }
 
+pub fn whereis_1(name: Term) -> Result {
+    match name.tag() {
+        Atom => {
+            let readable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.read().unwrap();
+
+            match readable_registry.get(&name) {
+                Some(Registered::Process(process_arc)) => Ok(process_arc.pid),
+                None => Ok(Term::str_to_atom("undefined", DoNotCare).unwrap()),
+            }
+        }
+        _ => Err(badarg!()),
+    }
+}
+
 /// `xor/2` infix operator.
 ///
 /// **NOTE: NOT SHORT-CIRCUITING!**

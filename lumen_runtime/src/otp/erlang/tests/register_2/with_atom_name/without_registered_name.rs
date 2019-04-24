@@ -1,7 +1,5 @@
 use super::*;
 
-use std::sync::atomic::AtomicUsize;
-
 mod with_local_pid;
 
 #[test]
@@ -61,20 +59,6 @@ fn with_heap_binary_pid_or_process_errors_badarg() {
 #[test]
 fn with_subbinary_pid_or_process_errors_badarg() {
     with_pid_or_port_errors_badarg(|process| bitstring!(1 :: 1, &process));
-}
-
-static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-fn registered_name() -> Term {
-    Term::str_to_atom(
-        format!(
-            "registered{}",
-            REGISTERED_NAME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-        )
-        .as_ref(),
-        DoNotCare,
-    )
-    .unwrap()
 }
 
 fn with_pid_or_port_errors_badarg<P>(pid_or_port: P)

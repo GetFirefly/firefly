@@ -1,5 +1,7 @@
 use super::*;
 
+use std::sync::atomic::AtomicUsize;
+
 use crate::exception::Result;
 use crate::integer;
 use crate::otp::erlang;
@@ -101,6 +103,7 @@ mod throw_1;
 mod tl_1;
 mod tuple_size_1;
 mod tuple_to_list_1;
+mod unregister_1;
 mod xor_2;
 
 enum FirstSecond {
@@ -125,6 +128,20 @@ where
 fn list_term(process: &Process) -> Term {
     let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
     Term::cons(head_term, Term::EMPTY_LIST, process)
+}
+
+static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+fn registered_name() -> Term {
+    Term::str_to_atom(
+        format!(
+            "registered{}",
+            REGISTERED_NAME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        )
+        .as_ref(),
+        DoNotCare,
+    )
+    .unwrap()
 }
 
 fn with_process<F>(f: F)

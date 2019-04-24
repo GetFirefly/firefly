@@ -1403,6 +1403,25 @@ pub fn tuple_to_list_1(tuple: Term, process: &Process) -> Result {
     }
 }
 
+pub fn unregister_1(name: Term) -> Result {
+    match name.tag() {
+        Atom => {
+            let mut writable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.write().unwrap();
+
+            match writable_registry.remove(&name) {
+                Some(Registered::Process(process_arc)) => {
+                    let mut locked_registerd_name = process_arc.registered_name.lock().unwrap();
+                    *locked_registerd_name = None;
+
+                    Ok(true.into())
+                }
+                None => Err(badarg!()),
+            }
+        }
+        _ => Err(badarg!()),
+    }
+}
+
 /// `xor/2` infix operator.
 ///
 /// **NOTE: NOT SHORT-CIRCUITING!**

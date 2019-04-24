@@ -104,6 +104,7 @@ mod tl_1;
 mod tuple_size_1;
 mod tuple_to_list_1;
 mod unregister_1;
+mod whereis_1;
 mod xor_2;
 
 enum FirstSecond {

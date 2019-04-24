@@ -1,4 +1,6 @@
 ///! The memory specific to a process in the VM.
+#[cfg(test)]
+use std::fmt::{self, Debug};
 use std::sync::Mutex;
 
 use im::hashmap::HashMap;
@@ -21,6 +23,7 @@ pub mod local;
 
 pub struct Process {
     pub pid: Term,
+    pub registered_name: Mutex<Option<Term>>,
     big_integer_arena: Mutex<TypedArena<big::Integer>>,
     byte_arena: Mutex<TypedArena<u8>>,
     cons_arena: Mutex<TypedArena<Cons>>,
@@ -38,6 +41,7 @@ impl Process {
     fn new() -> Self {
         Process {
             pid: identifier::local::next(),
+            registered_name: Default::default(),
             big_integer_arena: Default::default(),
             byte_arena: Default::default(),
             cons_arena: Default::default(),
@@ -189,6 +193,20 @@ impl Process {
             .alloc(heap::Binary::new(arena_bytes)) as *const heap::Binary;
 
         unsafe { &*pointer }
+    }
+}
+
+#[cfg(test)]
+impl Debug for Process {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.pid)
+    }
+}
+
+#[cfg(test)]
+impl PartialEq for Process {
+    fn eq(&self, other: &Process) -> bool {
+        self.pid == other.pid
     }
 }
 

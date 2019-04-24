@@ -8,6 +8,13 @@ lazy_static! {
     static ref RW_LOCK_ARC_PROCESS_BY_PID: RwLock<HashMap<Term, Arc<Process>>> = Default::default();
 }
 
+pub fn pid_to_process(pid: Term) -> Option<Arc<Process>> {
+    match RW_LOCK_ARC_PROCESS_BY_PID.read().unwrap().get(&pid) {
+        Some(ref process_arc) => Some(Arc::clone(process_arc)),
+        None => None,
+    }
+}
+
 #[cfg(test)]
 pub fn new() -> Arc<Process> {
     let process = Process::new();

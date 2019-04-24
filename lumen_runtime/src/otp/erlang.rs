@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 use std::convert::TryInto;
 use std::num::FpCategory;
+use std::sync::Arc;
 
 use num_bigint::BigInt;
 use num_traits::Zero;
@@ -15,7 +16,9 @@ use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::map::Map;
 use crate::otp;
+use crate::process::local::pid_to_process;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
+use crate::registry::{self, Registered};
 use crate::stacktrace;
 use crate::term::{Tag, Tag::*, Term};
 use crate::time;
@@ -1118,6 +1121,52 @@ pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
         Err(raise!(class_class, reason, Some(stacktrace)))
     } else {
         Err(badarg!())
+    }
+}
+
+pub fn register_2(name: Term, pid_or_port: Term, process_arc: Arc<Process>) -> Result {
+    match name.tag() {
+        Atom => match unsafe { name.atom_to_string() }.as_ref().as_ref() {
+            "undefined" => Err(badarg!()),
+            _ => {
+                let mut writable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.write().unwrap();
+
+                if !writable_registry.contains_key(&name) {
+                    match pid_or_port.tag() {
+                        LocalPid => {
+                            let pid_process_arc = if pid_or_port.tagged == process_arc.pid.tagged {
+                                process_arc
+                            } else {
+                                match pid_to_process(pid_or_port) {
+                                    Some(pid_process_arc) => pid_process_arc,
+                                    _ => return Err(badarg!()),
+                                }
+                            };
+
+                            let mut locked_registered_name =
+                                pid_process_arc.registered_name.lock().unwrap();
+
+                            match *locked_registered_name {
+                                None => {
+                                    writable_registry.insert(
+                                        name,
+                                        Registered::Process(Arc::clone(&pid_process_arc)),
+                                    );
+                                    *locked_registered_name = Some(name);
+
+                                    Ok(true.into())
+                                }
+                                Some(_) => Err(badarg!()),
+                            }
+                        }
+                        _ => Err(badarg!()),
+                    }
+                } else {
+                    Err(badarg!())
+                }
+            }
+        },
+        _ => Err(badarg!()),
     }
 }
 

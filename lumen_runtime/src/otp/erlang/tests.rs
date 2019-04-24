@@ -88,6 +88,7 @@ mod number_or_badarith_1;
 mod or_2;
 mod orelse_2;
 mod raise_3;
+mod register_2;
 mod rem_2;
 mod self_0;
 mod setelement_3;
@@ -130,4 +131,11 @@ where
     F: FnOnce(&Process) -> (),
 {
     f(&process::local::new())
+}
+
+fn with_process_arc<F>(f: F)
+where
+    F: FnOnce(Arc<Process>) -> (),
+{
+    f(process::local::new())
 }

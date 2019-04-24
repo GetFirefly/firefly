@@ -43,6 +43,7 @@ mod logging;
 mod map;
 pub mod otp;
 mod reference;
+mod registry;
 mod stacktrace;
 mod system;
 mod term;

@@ -37,6 +37,13 @@ impl Cons {
         }
     }
 
+    pub fn contains(&self, term: Term) -> bool {
+        self.into_iter().any(|result| match result {
+            Ok(ref element) => element == &term,
+            _ => false,
+        })
+    }
+
     pub fn is_proper(&self) -> bool {
         self.into_iter().all(|item| item.is_ok())
     }

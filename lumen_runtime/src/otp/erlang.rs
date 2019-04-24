@@ -1170,6 +1170,16 @@ pub fn register_2(name: Term, pid_or_port: Term, process_arc: Arc<Process>) -> R
     }
 }
 
+pub fn registered_0(process: &Process) -> Term {
+    registry::RW_LOCK_REGISTERED_BY_NAME
+        .read()
+        .unwrap()
+        .keys()
+        .fold(Term::EMPTY_LIST, |acc, name| {
+            Term::cons(name.clone(), acc, process)
+        })
+}
+
 /// `rem/2` infix operator.  Integer remainder.
 pub fn rem_2(dividend: Term, divisor: Term, process: &Process) -> Result {
     integer_infix_operator!(dividend, divisor, process, %)

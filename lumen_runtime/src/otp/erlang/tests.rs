@@ -89,6 +89,7 @@ mod or_2;
 mod orelse_2;
 mod raise_3;
 mod register_2;
+mod registered_0;
 mod rem_2;
 mod self_0;
 mod setelement_3;

@@ -14,6 +14,7 @@ use crate::atom::{self, Encoding, Existence, Existence::*, Index};
 use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::exception::{self, Class, Exception};
 use crate::float::{self, Float};
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer::{self, Big, Small};
 use crate::integer::{
     big::{self, integral_f64_to_big_int},
@@ -254,7 +255,11 @@ impl Term {
     }
 
     pub fn cons(head: Term, tail: Term, process: &Process) -> Term {
-        let pointer_bits = process.cons(head, tail) as *const Cons as usize;
+        Self::heap_cons(head, tail, &process.heap.lock().unwrap())
+    }
+
+    pub fn heap_cons(head: Term, tail: Term, heap: &Heap) -> Term {
+        let pointer_bits = heap.cons(head, tail) as *const Cons as usize;
 
         assert_eq!(
             pointer_bits & Tag::LIST_MASK,
@@ -725,6 +730,75 @@ impl Term {
     }
 }
 
+impl CloneIntoHeap for Term {
+    fn clone_into_heap(&self, heap: &Heap) -> Term {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Arity => {
+                        let tuple: &Tuple = self.unbox_reference();
+                        let heap_tuple = tuple.clone_into_heap(heap);
+
+                        Term::box_reference(heap_tuple)
+                    }
+                    BigInteger => {
+                        let big_integer: &big::Integer = self.unbox_reference();
+                        let heap_big_integer = big_integer.clone_into_heap(heap);
+
+                        Term::box_reference(heap_big_integer)
+                    }
+                    ExternalPid => {
+                        let external_pid: &process::identifier::External = self.unbox_reference();
+                        let heap_external_pid = external_pid.clone_into_heap(heap);
+
+                        Term::box_reference(heap_external_pid)
+                    }
+                    Float => {
+                        let float: &Float = self.unbox_reference();
+                        let heap_float = float.clone_into_heap(heap);
+
+                        Term::box_reference(heap_float)
+                    }
+                    HeapBinary => {
+                        let heap_binary: &heap::Binary = self.unbox_reference();
+                        let heap_heap_binary = heap_binary.clone_into_heap(heap);
+
+                        Term::box_reference(heap_heap_binary)
+                    }
+                    LocalReference => {
+                        let local_reference: &local::Reference = self.unbox_reference();
+                        let heap_local_reference = local_reference.clone_into_heap(heap);
+
+                        Term::box_reference(heap_local_reference)
+                    }
+                    Map => {
+                        let map: &Map = self.unbox_reference();
+                        let heap_map = map.clone_into_heap(heap);
+
+                        Term::box_reference(heap_map)
+                    }
+                    Subbinary => {
+                        let subbinary: &sub::Binary = self.unbox_reference();
+                        let heap_subbinary = subbinary.clone_into_heap(heap);
+
+                        Term::box_reference(heap_subbinary)
+                    }
+                    unboxed_tag => unimplemented!("Cloning unboxed {:?} into Heap", unboxed_tag),
+                }
+            }
+            EmptyList | LocalPid | SmallInteger => self.clone(),
+            List => {
+                let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+
+                cons.clone_into_heap(heap)
+            }
+            tag => unimplemented!("Cloning {:?} into Heap", tag),
+        }
+    }
+}
+
 #[cfg(test)]
 impl Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -998,8 +1072,7 @@ impl IntoProcess<Term> for Integer {
                     | (SmallInteger as usize),
             },
             Big(big_int) => {
-                let process_integer: &big::Integer =
-                    process.num_bigint_big_in_to_big_integer(big_int);
+                let process_integer: &big::Integer = process.num_bigint_big_to_big_integer(big_int);
 
                 Term::box_reference(process_integer)
             }

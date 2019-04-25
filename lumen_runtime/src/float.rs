@@ -1,5 +1,6 @@
 use std::hash::{Hash, Hasher};
 
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::term::{Tag, Term};
 
 pub const INTEGRAL_MIN: f64 = -9007199254740992.0;
@@ -29,6 +30,12 @@ impl Float {
         } else {
             overflowing
         }
+    }
+}
+
+impl CloneIntoHeap for &'static Float {
+    fn clone_into_heap(&self, heap: &Heap) -> &'static Float {
+        heap.f64_to_float(self.inner)
     }
 }
 

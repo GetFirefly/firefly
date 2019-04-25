@@ -25,7 +25,7 @@ fn with_same_process() {
             erlang::register_2(name, pid_or_port, process_arc.clone()),
             Ok(true.into())
         );
-        assert_eq!(*process_arc.registered_name.lock().unwrap(), Some(name));
+        assert_eq!(*process_arc.registered_name.read().unwrap(), Some(name));
         assert_eq!(
             registry::RW_LOCK_REGISTERED_BY_NAME
                 .read()
@@ -49,7 +49,7 @@ fn with_different_process() {
             Ok(true.into())
         );
         assert_eq!(
-            *another_process_arc.registered_name.lock().unwrap(),
+            *another_process_arc.registered_name.read().unwrap(),
             Some(name)
         );
         assert_eq!(

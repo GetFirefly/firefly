@@ -38,9 +38,12 @@ mod support;
 
 mod config;
 mod float;
+mod heap;
 mod list;
 mod logging;
+mod mailbox;
 mod map;
+mod message;
 pub mod otp;
 mod reference;
 mod registry;

@@ -113,8 +113,8 @@ pub fn andalso_2(boolean: Term, term: Term) -> Result {
 }
 
 pub fn append_element_2(tuple: Term, element: Term, process: &Process) -> Result {
-    let internal: &Tuple = tuple.try_into_in_process(&process)?;
-    let new_tuple = internal.append_element(element, &process);
+    let internal: &Tuple = tuple.try_into_in_process(process)?;
+    let new_tuple = internal.append_element(element, &process.heap.lock().unwrap());
 
     Ok(new_tuple.into())
 }
@@ -545,7 +545,7 @@ pub fn delete_element_2(tuple: Term, index: Term, process: &Process) -> Result {
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
     initial_inner_tuple
-        .delete_element(index_zero_based, &process)
+        .delete_element(index_zero_based, &process.heap.lock().unwrap())
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
@@ -614,7 +614,7 @@ pub fn insert_element_3(index: Term, tuple: Term, element: Term, process: &Proce
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
     initial_inner_tuple
-        .insert_element(index_zero_based, element, &process)
+        .insert_element(index_zero_based, element, &process.heap.lock().unwrap())
         .map(|final_inner_tuple| final_inner_tuple.into())
 }
 
@@ -1086,8 +1086,10 @@ pub fn negate_1(number: Term, process: &Process) -> Result {
     }
 }
 
+const DEAD_NODE: &str = "nonode@nohost";
+
 pub fn node_0() -> Term {
-    Term::str_to_atom("nonode@nohost", DoNotCare).unwrap()
+    Term::str_to_atom(DEAD_NODE, DoNotCare).unwrap()
 }
 
 /// `not/1` prefix operator.
@@ -1143,16 +1145,16 @@ pub fn register_2(name: Term, pid_or_port: Term, process_arc: Arc<Process>) -> R
                                 }
                             };
 
-                            let mut locked_registered_name =
-                                pid_process_arc.registered_name.lock().unwrap();
+                            let mut writable_registered_name =
+                                pid_process_arc.registered_name.write().unwrap();
 
-                            match *locked_registered_name {
+                            match *writable_registered_name {
                                 None => {
                                     writable_registry.insert(
                                         name,
                                         Registered::Process(Arc::clone(&pid_process_arc)),
                                     );
-                                    *locked_registered_name = Some(name);
+                                    *writable_registered_name = Some(name);
 
                                     Ok(true.into())
                                 }
@@ -1189,12 +1191,68 @@ pub fn self_0(process: &Process) -> Term {
     process.pid
 }
 
+pub fn send_2(destination: Term, message: Term, process: &Process) -> Result {
+    match destination.tag() {
+        Atom => send_to_name(destination, message, process),
+        Boxed => {
+            let unboxed_destination: &Term = destination.unbox_reference();
+
+            match unboxed_destination.tag() {
+                Arity => {
+                    let tuple: &Tuple = destination.unbox_reference();
+
+                    if tuple.len() == 2 {
+                        let name = tuple[0];
+
+                        match name.tag() {
+                            Atom => {
+                                let node = tuple[1];
+
+                                match node.tag() {
+                                    Atom => {
+                                        match unsafe { node.atom_to_string() }.as_ref().as_ref() {
+                                            DEAD_NODE => send_to_name(name, message, process),
+                                            _ => unimplemented!("distribution"),
+                                        }
+                                    }
+                                    _ => Err(badarg!()),
+                                }
+                            }
+                            _ => Err(badarg!()),
+                        }
+                    } else {
+                        Err(badarg!())
+                    }
+                }
+                _ => Err(badarg!()),
+            }
+        }
+        LocalPid => {
+            if destination.tagged == process.pid.tagged {
+                process.send_from_self(message);
+
+                Ok(message)
+            } else {
+                match pid_to_process(destination) {
+                    Some(destination_process_arc) => {
+                        destination_process_arc.send_from_other(message);
+
+                        Ok(message)
+                    }
+                    None => Ok(message),
+                }
+            }
+        }
+        _ => Err(badarg!()),
+    }
+}
+
 pub fn setelement_3(index: Term, tuple: Term, value: Term, process: &Process) -> Result {
     let inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
     inner_tuple
-        .setelement(index_zero_based, value, &process)
+        .setelement(index_zero_based, value, &process.heap.lock().unwrap())
         .map(|new_inner_tuple| new_inner_tuple.into())
 }
 
@@ -1410,8 +1468,8 @@ pub fn unregister_1(name: Term) -> Result {
 
             match writable_registry.remove(&name) {
                 Some(Registered::Process(process_arc)) => {
-                    let mut locked_registerd_name = process_arc.registered_name.lock().unwrap();
-                    *locked_registerd_name = None;
+                    let mut writable_registerd_name = process_arc.registered_name.write().unwrap();
+                    *writable_registerd_name = None;
 
                     Ok(true.into())
                 }
@@ -1500,5 +1558,24 @@ fn list_to_atom(string: Term, existence: Existence) -> Result {
             cons.to_atom(existence)
         }
         _ => Err(badarg!()),
+    }
+}
+
+fn send_to_name(destination: Term, message: Term, process: &Process) -> Result {
+    if *process.registered_name.read().unwrap() == Some(destination) {
+        process.send_from_self(message);
+
+        Ok(message)
+    } else {
+        let readable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.read().unwrap();
+
+        match readable_registry.get(&destination) {
+            Some(Registered::Process(destination_process_arc)) => {
+                destination_process_arc.send_from_other(message);
+
+                Ok(message)
+            }
+            None => Err(badarg!()),
+        }
     }
 }

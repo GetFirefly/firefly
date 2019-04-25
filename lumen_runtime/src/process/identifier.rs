@@ -1,6 +1,7 @@
 use std::cmp::Ordering::{self, *};
 use std::hash::{Hash, Hasher};
 
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::term::{Tag, Tag::*, Term};
 
 // Not really test-only, but dead otherwise for now.
@@ -33,6 +34,12 @@ impl External {
             serial,
             number,
         }
+    }
+}
+
+impl CloneIntoHeap for &'static External {
+    fn clone_into_heap(&self, heap: &Heap) -> &'static External {
+        heap.external_pid(self.node, self.number, self.serial)
     }
 }
 

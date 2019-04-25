@@ -4,6 +4,7 @@ use im::hashmap::HashMap;
 
 use crate::atom::Existence::DoNotCare;
 use crate::exception::Result;
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer;
 use crate::process::Process;
 use crate::term::{Tag, Term};
@@ -56,6 +57,18 @@ impl Map {
         key_vec.sort_unstable_by(|key1, key2| key1.cmp(&key2));
 
         key_vec
+    }
+}
+
+impl CloneIntoHeap for &'static Map {
+    fn clone_into_heap(&self, heap: &Heap) -> &'static Map {
+        let mut heap_inner: HashMap<Term, Term> = HashMap::new();
+
+        for (key, value) in &self.inner {
+            heap_inner.insert(key.clone_into_heap(heap), value.clone_into_heap(heap));
+        }
+
+        heap.im_hash_map_to_map(heap_inner)
     }
 }
 

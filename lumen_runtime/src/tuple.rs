@@ -7,6 +7,7 @@ use std::iter::FusedIterator;
 use std::ops::Index;
 
 use crate::exception::{self, Exception};
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer;
 use crate::process::Process;
 use crate::term::{Tag::*, Term};
@@ -47,7 +48,7 @@ impl TryFrom<Term> for OneBasedIndex {
 }
 
 impl Tuple {
-    pub fn from_slice(element_slice: &[Term], process: &Process) -> &'static Tuple {
+    pub fn from_slice(element_slice: &[Term], heap: &Heap) -> &'static Tuple {
         let arity = element_slice.len();
         let arity_term = Term::arity(arity);
         let mut term_vector = Vec::with_capacity(1 + arity);
@@ -55,23 +56,23 @@ impl Tuple {
         term_vector.push(arity_term);
         term_vector.extend_from_slice(element_slice);
 
-        let pointer = process.alloc_term_slice(term_vector.as_slice()) as *const Tuple;
+        let pointer = heap.alloc_term_slice(term_vector.as_slice()) as *const Tuple;
 
         unsafe { &*pointer }
     }
 
-    pub fn append_element(&self, element: Term, process: &Process) -> &'static Tuple {
+    pub fn append_element(&self, element: Term, heap: &Heap) -> &'static Tuple {
         let mut longer_element_vec: Vec<Term> = Vec::with_capacity(self.len() + 1);
         longer_element_vec.extend(self.iter());
         longer_element_vec.push(element);
 
-        Tuple::from_slice(longer_element_vec.as_slice(), &process)
+        Tuple::from_slice(longer_element_vec.as_slice(), heap)
     }
 
     pub fn delete_element(
         &self,
         ZeroBasedIndex(index): ZeroBasedIndex,
-        process: &Process,
+        heap: &Heap,
     ) -> Result<&'static Tuple, Exception> {
         if index < self.len() {
             let smaller_element_vec: Vec<Term> = self
@@ -85,7 +86,7 @@ impl Tuple {
                     }
                 })
                 .collect();
-            let smaller_tuple = Tuple::from_slice(smaller_element_vec.as_slice(), &process);
+            let smaller_tuple = Tuple::from_slice(smaller_element_vec.as_slice(), heap);
 
             Ok(smaller_tuple)
         } else {
@@ -105,7 +106,7 @@ impl Tuple {
         &self,
         ZeroBasedIndex(index): ZeroBasedIndex,
         element: Term,
-        process: &Process,
+        heap: &Heap,
     ) -> Result<&'static Tuple, Exception> {
         let length = self.len();
 
@@ -126,7 +127,7 @@ impl Tuple {
                 larger_element_vec.push(element);
             }
 
-            let tuple = Tuple::from_slice(larger_element_vec.as_slice(), &process);
+            let tuple = Tuple::from_slice(larger_element_vec.as_slice(), heap);
 
             Ok(tuple)
         } else {
@@ -174,7 +175,7 @@ impl Tuple {
         &self,
         ZeroBasedIndex(index): ZeroBasedIndex,
         value: Term,
-        process: &Process,
+        heap: &Heap,
     ) -> Result<&'static Tuple, Exception> {
         let length = self.len();
 
@@ -189,7 +190,7 @@ impl Tuple {
                 }
             }
 
-            let tuple = Tuple::from_slice(element_vec.as_slice(), &process);
+            let tuple = Tuple::from_slice(element_vec.as_slice(), heap);
 
             Ok(tuple)
         } else {
@@ -205,6 +206,24 @@ impl Tuple {
         self.iter().rfold(Term::EMPTY_LIST, |acc, element| {
             Term::cons(element, acc, &process)
         })
+    }
+}
+
+impl CloneIntoHeap for &'static Tuple {
+    fn clone_into_heap(&self, heap: &Heap) -> &'static Tuple {
+        let arity = self.len();
+        let arity_term = self.arity.clone();
+        let mut term_vector = Vec::with_capacity(1 + arity);
+
+        term_vector.push(arity_term);
+
+        for term in self.iter() {
+            term_vector.push(term.clone_into_heap(heap))
+        }
+
+        let pointer = heap.alloc_term_slice(term_vector.as_slice()) as *const Tuple;
+
+        unsafe { &*pointer }
     }
 }
 
@@ -322,7 +341,7 @@ mod tests {
         #[test]
         fn without_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &process);
+            let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
@@ -333,7 +352,8 @@ mod tests {
         #[test]
         fn with_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
+            let tuple =
+                Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
 
             let tuple_pointer = tuple as *const Tuple;
             let arity_pointer = tuple_pointer as *const Term;
@@ -353,7 +373,7 @@ mod tests {
         #[test]
         fn without_valid_index() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &process);
+            let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             assert_badarg!(tuple.element(ZeroBasedIndex(0)));
         }
@@ -361,7 +381,8 @@ mod tests {
         #[test]
         fn with_valid_index() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
+            let tuple =
+                Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
 
             assert_eq!(
                 tuple.element(ZeroBasedIndex(0)),
@@ -378,8 +399,8 @@ mod tests {
         #[test]
         fn without_element() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &process);
-            let equal = Tuple::from_slice(&[], &process);
+            let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
+            let equal = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             assert_eq!(tuple, tuple);
             assert_eq!(tuple, equal);
@@ -388,10 +409,11 @@ mod tests {
         #[test]
         fn with_unequal_length() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
+            let tuple =
+                Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
             let unequal = Tuple::from_slice(
                 &[0.into_process(&process), 1.into_process(&process)],
-                &process,
+                &process.heap.lock().unwrap(),
             );
 
             assert_ne!(tuple, unequal);
@@ -406,7 +428,7 @@ mod tests {
         #[test]
         fn without_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &process);
+            let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             assert_eq!(tuple.iter().count(), 0);
 
@@ -418,7 +440,8 @@ mod tests {
         #[test]
         fn with_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
+            let tuple =
+                Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
 
             assert_eq!(tuple.iter().count(), 1);
 
@@ -436,7 +459,7 @@ mod tests {
         #[test]
         fn without_elements() {
             let process = process::local::new();
-            let tuple = Tuple::from_slice(&[], &process);
+            let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             assert_eq!(tuple.size(), 0.into());
         }
@@ -445,7 +468,8 @@ mod tests {
         fn with_elements() {
             let process = process::local::new();
 
-            let tuple = Tuple::from_slice(&[0.into_process(&process)], &process);
+            let tuple =
+                Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
 
             assert_eq!(tuple.size(), 1.into());
         }

@@ -11,7 +11,7 @@ fn with_same_process_returns_true() {
             Ok(true.into())
         );
 
-        assert_eq!(*process_arc.registered_name.lock().unwrap(), Some(name));
+        assert_eq!(*process_arc.registered_name.read().unwrap(), Some(name));
         assert_eq!(
             registry::RW_LOCK_REGISTERED_BY_NAME
                 .read()
@@ -22,7 +22,7 @@ fn with_same_process_returns_true() {
 
         assert_eq!(erlang::unregister_1(name), Ok(true.into()));
 
-        assert_eq!(*process_arc.registered_name.lock().unwrap(), None);
+        assert_eq!(*process_arc.registered_name.read().unwrap(), None);
         assert_eq!(
             registry::RW_LOCK_REGISTERED_BY_NAME
                 .read()
@@ -46,9 +46,9 @@ fn with_different_process_returns_true() {
             Ok(true.into())
         );
 
-        assert_eq!(*process_arc.registered_name.lock().unwrap(), None);
+        assert_eq!(*process_arc.registered_name.read().unwrap(), None);
         assert_eq!(
-            *another_process_arc.registered_name.lock().unwrap(),
+            *another_process_arc.registered_name.read().unwrap(),
             Some(name)
         );
         assert_eq!(
@@ -61,7 +61,7 @@ fn with_different_process_returns_true() {
 
         assert_eq!(erlang::unregister_1(name), Ok(true.into()));
 
-        assert_eq!(*another_process_arc.registered_name.lock().unwrap(), None);
+        assert_eq!(*another_process_arc.registered_name.read().unwrap(), None);
         assert_eq!(
             registry::RW_LOCK_REGISTERED_BY_NAME
                 .read()

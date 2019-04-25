@@ -7,6 +7,7 @@ use std::iter::FusedIterator;
 
 use crate::atom::Existence;
 use crate::exception::{self, Exception};
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::process::{IntoProcess, Process};
 use crate::term::{Tag::*, Term};
 
@@ -28,6 +29,22 @@ impl Cons {
 
     pub fn tail(&self) -> Term {
         self.tail
+    }
+
+    pub fn clone_into_heap(&self, heap: &Heap) -> Term {
+        let mut vec: Vec<Term> = Vec::new();
+        let mut initial = Term::EMPTY_LIST;
+
+        for result in self {
+            match result {
+                Ok(term) => vec.push(term),
+                Err(ImproperList { tail }) => initial = tail.clone_into_heap(heap),
+            }
+        }
+
+        vec.iter().rfold(initial, |acc, term| {
+            Term::heap_cons(term.clone_into_heap(heap), acc, &heap)
+        })
     }
 
     pub fn concatenate(&self, term: Term, process: &Process) -> exception::Result {

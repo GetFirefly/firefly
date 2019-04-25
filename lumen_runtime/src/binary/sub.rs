@@ -11,6 +11,7 @@ use crate::binary::{
     PartToList, ToTerm, ToTermOptions,
 };
 use crate::exception::{self, Exception};
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer;
 use crate::process::{IntoProcess, Process};
 use crate::term::{Tag::*, Term};
@@ -190,6 +191,20 @@ impl Binary {
             0,
             self.bit_count,
             &process,
+        )
+    }
+}
+
+impl CloneIntoHeap for &'static Binary {
+    fn clone_into_heap(&self, heap: &Heap) -> &'static Binary {
+        let heap_original = self.original.clone_into_heap(heap);
+
+        heap.subbinary(
+            heap_original,
+            self.byte_count,
+            self.bit_offset,
+            self.byte_count,
+            self.bit_count,
         )
     }
 }

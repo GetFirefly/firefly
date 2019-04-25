@@ -5,6 +5,7 @@ use num_bigint::{BigInt, Sign::*};
 use num_traits::Float;
 
 use crate::exception::Exception;
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::term::{Tag::BigInteger, Term};
 
 pub struct Integer {
@@ -21,6 +22,12 @@ impl Integer {
             },
             inner,
         }
+    }
+}
+
+impl CloneIntoHeap for &'static Integer {
+    fn clone_into_heap(&self, heap: &Heap) -> &'static Integer {
+        heap.num_bigint_big_to_big_integer(self.inner.clone())
     }
 }
 

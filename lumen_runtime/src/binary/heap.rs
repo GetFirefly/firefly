@@ -10,6 +10,7 @@ use crate::binary::{
     PartToList, ToTerm, ToTermOptions,
 };
 use crate::exception::Exception;
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer;
 use crate::process::{IntoProcess, Process};
 use crate::term::Term;
@@ -106,6 +107,12 @@ pub struct BitCountIter {
     byte: u8,
     current_bit_offset: u8,
     max_bit_offset: u8,
+}
+
+impl CloneIntoHeap for &'static Binary {
+    fn clone_into_heap(&self, heap: &Heap) -> &'static Binary {
+        heap.slice_to_heap_binary(self.as_slice())
+    }
 }
 
 #[cfg(test)]

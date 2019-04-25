@@ -15,10 +15,12 @@ use crate::float::Float;
 use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::map::Map;
+use crate::node;
 use crate::otp;
 use crate::process::local::pid_to_process;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
 use crate::registry::{self, Registered};
+use crate::send::{self, send, Sent};
 use crate::stacktrace;
 use crate::term::{Tag, Tag::*, Term};
 use crate::time;
@@ -1086,10 +1088,8 @@ pub fn negate_1(number: Term, process: &Process) -> Result {
     }
 }
 
-const DEAD_NODE: &str = "nonode@nohost";
-
 pub fn node_0() -> Term {
-    Term::str_to_atom(DEAD_NODE, DoNotCare).unwrap()
+    Term::str_to_atom(node::DEAD, DoNotCare).unwrap()
 }
 
 /// `not/1` prefix operator.
@@ -1192,59 +1192,22 @@ pub fn self_0(process: &Process) -> Term {
 }
 
 pub fn send_2(destination: Term, message: Term, process: &Process) -> Result {
-    match destination.tag() {
-        Atom => send_to_name(destination, message, process),
-        Boxed => {
-            let unboxed_destination: &Term = destination.unbox_reference();
+    send(destination, message, Default::default(), process).map(|sent| match sent {
+        Sent::Sent => message,
+        _ => unreachable!(),
+    })
+}
 
-            match unboxed_destination.tag() {
-                Arity => {
-                    let tuple: &Tuple = destination.unbox_reference();
+// `send(destination, message, [nosuspend])` is used in `gen.erl`, which is used by `gen_server.erl`
+// See https://github.com/erlang/otp/blob/8f6d45ddc8b2b12376c252a30b267a822cad171a/lib/stdlib/src/gen.erl#L167
+pub fn send_3(destination: Term, message: Term, options: Term, process: &Process) -> Result {
+    let send_options: send::Options = options.try_into()?;
 
-                    if tuple.len() == 2 {
-                        let name = tuple[0];
-
-                        match name.tag() {
-                            Atom => {
-                                let node = tuple[1];
-
-                                match node.tag() {
-                                    Atom => {
-                                        match unsafe { node.atom_to_string() }.as_ref().as_ref() {
-                                            DEAD_NODE => send_to_name(name, message, process),
-                                            _ => unimplemented!("distribution"),
-                                        }
-                                    }
-                                    _ => Err(badarg!()),
-                                }
-                            }
-                            _ => Err(badarg!()),
-                        }
-                    } else {
-                        Err(badarg!())
-                    }
-                }
-                _ => Err(badarg!()),
-            }
-        }
-        LocalPid => {
-            if destination.tagged == process.pid.tagged {
-                process.send_from_self(message);
-
-                Ok(message)
-            } else {
-                match pid_to_process(destination) {
-                    Some(destination_process_arc) => {
-                        destination_process_arc.send_from_other(message);
-
-                        Ok(message)
-                    }
-                    None => Ok(message),
-                }
-            }
-        }
-        _ => Err(badarg!()),
-    }
+    send(destination, message, send_options, process).map(|sent| match sent {
+        Sent::Sent => Term::str_to_atom("ok", DoNotCare).unwrap(),
+        Sent::ConnectRequired => Term::str_to_atom("noconnect", DoNotCare).unwrap(),
+        Sent::SuspendRequired => Term::str_to_atom("nosuspend", DoNotCare).unwrap(),
+    })
 }
 
 pub fn setelement_3(index: Term, tuple: Term, value: Term, process: &Process) -> Result {
@@ -1501,7 +1464,7 @@ pub fn xor_2(left_boolean: Term, right_boolean: Term) -> Result {
     boolean_infix_operator!(left_boolean, right_boolean, ^)
 }
 
-// Private Functions
+// Private
 
 fn binary_existence_to_atom(binary: Term, encoding: Term, existence: Existence) -> Result {
     encoding.atom_to_encoding()?;
@@ -1558,24 +1521,5 @@ fn list_to_atom(string: Term, existence: Existence) -> Result {
             cons.to_atom(existence)
         }
         _ => Err(badarg!()),
-    }
-}
-
-fn send_to_name(destination: Term, message: Term, process: &Process) -> Result {
-    if *process.registered_name.read().unwrap() == Some(destination) {
-        process.send_from_self(message);
-
-        Ok(message)
-    } else {
-        let readable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.read().unwrap();
-
-        match readable_registry.get(&destination) {
-            Some(Registered::Process(destination_process_arc)) => {
-                destination_process_arc.send_from_other(message);
-
-                Ok(message)
-            }
-            None => Err(badarg!()),
-        }
     }
 }

@@ -95,6 +95,7 @@ mod registered_0;
 mod rem_2;
 mod self_0;
 mod send_2;
+mod send_3;
 mod setelement_3;
 mod size_1;
 mod split_binary_2;

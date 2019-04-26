@@ -23,7 +23,7 @@ use crate::registry::{self, Registered};
 use crate::send::{self, send, Sent};
 use crate::stacktrace;
 use crate::term::{Tag, Tag::*, Term};
-use crate::time;
+use crate::time::{self, monotonic, Unit::*};
 use crate::tuple::{Tuple, ZeroBasedIndex};
 
 #[cfg(test)]
@@ -1049,6 +1049,10 @@ pub fn max_2(term1: Term, term2: Term) -> Term {
 /// Returns the smallest of `Term1` and `Term2`. If the terms are equal, `Term1` is returned.
 pub fn min_2(term1: Term, term2: Term) -> Term {
     term1.min(term2)
+}
+
+pub fn monotonic_time_0(process: &Process) -> Term {
+    monotonic::time(Native).into_process(process)
 }
 
 /// `*/2` infix operator

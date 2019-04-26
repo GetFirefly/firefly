@@ -1,4 +1,4 @@
-use super::FirstSecond::*;
+use super::FirstSecond::{First, Second};
 use super::*;
 
 mod with_atom_first;

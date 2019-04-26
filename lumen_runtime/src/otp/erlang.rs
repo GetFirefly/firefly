@@ -1055,6 +1055,12 @@ pub fn monotonic_time_0(process: &Process) -> Term {
     monotonic::time(Native).into_process(process)
 }
 
+pub fn monotonic_time_1(unit: Term, process: &Process) -> Result {
+    let unit_unit: crate::time::Unit = unit.try_into()?;
+
+    Ok(monotonic::time(unit_unit).into_process(process))
+}
+
 /// `*/2` infix operator
 pub fn multiply_2(multiplier: Term, multiplicand: Term, process: &Process) -> Result {
     number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)

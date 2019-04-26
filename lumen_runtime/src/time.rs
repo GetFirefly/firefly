@@ -33,6 +33,7 @@ pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Debug))]
 pub enum Unit {
     Hertz(usize),
     Second,
@@ -68,7 +69,11 @@ impl TryFrom<Term> for Unit {
             SmallInteger => {
                 let hertz: usize = term.try_into()?;
 
-                Ok(Unit::Hertz(hertz))
+                if 0 < hertz {
+                    Ok(Unit::Hertz(hertz))
+                } else {
+                    Err(badarg!())
+                }
             }
             Boxed => {
                 let unboxed: &Term = term.unbox_reference();
@@ -110,6 +115,27 @@ impl TryFrom<Term> for Unit {
                 result
             }
             _ => Err(badarg!()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod unit {
+        use super::*;
+
+        use crate::process::{self, IntoProcess};
+
+        #[test]
+        fn zero_errors_badarg() {
+            let process_arc = process::local::new();
+            let term: Term = 0.into_process(&process_arc);
+
+            let result: Result<Unit, Exception> = term.try_into();
+
+            assert_badarg!(result);
         }
     }
 }

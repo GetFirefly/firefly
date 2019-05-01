@@ -4,14 +4,18 @@ use std::sync::{Arc, RwLock};
 use crate::process::Process;
 use crate::term::Term;
 
-lazy_static! {
-    static ref RW_LOCK_ARC_PROCESS_BY_PID: RwLock<HashMap<Term, Arc<Process>>> = Default::default();
-}
-
 pub fn pid_to_process(pid: Term) -> Option<Arc<Process>> {
     match RW_LOCK_ARC_PROCESS_BY_PID.read().unwrap().get(&pid) {
         Some(ref process_arc) => Some(Arc::clone(process_arc)),
         None => None,
+    }
+}
+
+pub fn pid_to_self_or_process(pid: Term, process_arc: &Arc<Process>) -> Option<Arc<Process>> {
+    if process_arc.pid.tagged == pid.tagged {
+        Some(process_arc.clone())
+    } else {
+        pid_to_process(pid)
     }
 }
 
@@ -30,6 +34,10 @@ pub fn new() -> Arc<Process> {
     }
 
     process_arc
+}
+
+lazy_static! {
+    static ref RW_LOCK_ARC_PROCESS_BY_PID: RwLock<HashMap<Term, Arc<Process>>> = Default::default();
 }
 
 #[cfg(test)]

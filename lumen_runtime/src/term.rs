@@ -1,7 +1,8 @@
 use std::cmp::Ordering::{self, *};
 use std::convert::{TryFrom, TryInto};
 #[cfg(test)]
-use std::fmt::{self, Debug, Display};
+use std::fmt::Display;
+use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::mem::size_of;
 use std::str::Chars;
@@ -562,6 +563,18 @@ impl Term {
         }
     }
 
+    pub fn is_integer(&self) -> bool {
+        match self.tag() {
+            SmallInteger => true,
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                unboxed.tag() == BigInteger
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_number(&self) -> bool {
         match self.tag() {
             SmallInteger => true,
@@ -788,7 +801,7 @@ impl CloneIntoHeap for Term {
                     unboxed_tag => unimplemented!("Cloning unboxed {:?} into Heap", unboxed_tag),
                 }
             }
-            EmptyList | LocalPid | SmallInteger => self.clone(),
+            Atom | EmptyList | LocalPid | SmallInteger => self.clone(),
             List => {
                 let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
 
@@ -799,7 +812,6 @@ impl CloneIntoHeap for Term {
     }
 }
 
-#[cfg(test)]
 impl Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.tag() {
@@ -874,8 +886,25 @@ impl Debug for Term {
                         write!(
                             f,
                             "Term::u64_to_local_reference({:?}, &process)",
-                            local_reference.number
+                            local_reference.number()
                         )
+                    }
+                    Map => {
+                        let map: &Map = self.unbox_reference();
+
+                        write!(f, "Term::slice_to_map(&[")?;
+
+                        let mut iter = map.iter();
+
+                        if let Some(item) = iter.next() {
+                            write!(f, "{:?}", item)?;
+
+                            for item in iter {
+                                write!(f, ", {:?}", item)?;
+                            }
+                        }
+
+                        write!(f, "], &process)")
                     }
                     Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
@@ -1061,6 +1090,14 @@ impl IntoProcess<Term> for usize {
         let integer: Integer = self.into();
 
         integer.into_process(process)
+    }
+}
+
+impl IntoProcess<Term> for u64 {
+    fn into_process(self, process: &Process) -> Term {
+        let big_int: BigInt = self.into();
+
+        big_int.into_process(process)
     }
 }
 
@@ -1370,8 +1407,8 @@ impl PartialOrd for Term {
                         let other_local_reference: &local::Reference = other.unbox_reference();
 
                         self_local_reference
-                            .number
-                            .partial_cmp(&other_local_reference.number)
+                            .number()
+                            .partial_cmp(&other_local_reference.number())
                     }
                     (LocalReference, LocalPid)
                     | (LocalReference, ExternalPid)
@@ -1688,6 +1725,15 @@ impl TryFrom<Term> for u64 {
 
     fn try_from(term: Term) -> Result<u64, Exception> {
         match term.tag() {
+            SmallInteger => {
+                let i: isize = unsafe { term.small_integer_to_isize() };
+
+                if 0 <= i {
+                    Ok(i as u64)
+                } else {
+                    Err(badarg!())
+                }
+            }
             Boxed => {
                 let unboxed: &Term = term.unbox_reference();
 
@@ -1695,8 +1741,35 @@ impl TryFrom<Term> for u64 {
                     LocalReference => {
                         let local_reference: &local::Reference = term.unbox_reference();
 
-                        Ok(local_reference.number)
+                        Ok(local_reference.number())
                     }
+                    _ => Err(badarg!()),
+                }
+            }
+            _ => Err(badarg!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for u128 {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<u128, Exception> {
+        match term.tag() {
+            SmallInteger => {
+                let i: isize = unsafe { term.small_integer_to_isize() };
+
+                if 0 <= i {
+                    Ok(i as u128)
+                } else {
+                    Err(badarg!())
+                }
+            }
+            Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger => unimplemented!(),
                     _ => Err(badarg!()),
                 }
             }

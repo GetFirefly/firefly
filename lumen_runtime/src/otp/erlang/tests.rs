@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicUsize;
 
 use crate::exception::Result;
 use crate::integer;
+use crate::message::Message;
 use crate::otp::erlang;
 use crate::process;
 
@@ -101,6 +102,7 @@ mod send_3;
 mod setelement_3;
 mod size_1;
 mod split_binary_2;
+mod start_timer_3;
 mod subtract_2;
 mod subtract_list_2;
 mod throw_1;
@@ -128,6 +130,37 @@ where
     F: FnOnce(&Process) -> Result,
 {
     with_process(|process| assert_badarith!(actual(&process)))
+}
+
+fn has_message(process: &Process, message: Term) -> bool {
+    process
+        .mailbox
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|mailbox_message| {
+            println!("mailbox_message = {:?}", mailbox_message);
+
+            match mailbox_message {
+                Message::Process(process_message) => process_message == &message,
+                Message::Heap {
+                    message: heap_message,
+                    ..
+                } => heap_message == &message,
+            }
+        })
+}
+
+fn has_process_message(process: &Process, message: Term) -> bool {
+    process
+        .mailbox
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|mailbox_message| match mailbox_message {
+            Message::Process(process_message) => process_message == &message,
+            _ => false,
+        })
 }
 
 fn list_term(process: &Process) -> Term {

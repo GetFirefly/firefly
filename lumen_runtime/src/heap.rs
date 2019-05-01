@@ -1,3 +1,5 @@
+use std::fmt::{self, Debug};
+
 use im::hashmap::HashMap;
 use num_bigint::BigInt;
 
@@ -158,6 +160,12 @@ impl Heap {
 
 pub trait CloneIntoHeap {
     fn clone_into_heap(&self, heap: &Heap) -> Self;
+}
+
+impl Debug for Heap {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Heap {{ ... }}")
+    }
 }
 
 impl Default for Heap {

@@ -1,5 +1,4 @@
 ///! The memory specific to a process in the VM.
-#[cfg(test)]
 use std::fmt::{self, Debug};
 use std::sync::{Mutex, RwLock};
 
@@ -78,6 +77,13 @@ impl Process {
             .num_bigint_big_to_big_integer(big_int)
     }
 
+    pub fn send_heap_message(&self, heap: Heap, message: Term) {
+        self.mailbox
+            .lock()
+            .unwrap()
+            .push(Message::Heap { heap, message });
+    }
+
     pub fn send_from_self(&self, message: Term) {
         self.mailbox.lock().unwrap().push(Message::Process(message));
     }
@@ -96,10 +102,7 @@ impl Process {
                 let heap: Heap = Default::default();
                 let heap_message = message.clone_into_heap(&heap);
 
-                self.mailbox.lock().unwrap().push(Message::Heap {
-                    heap,
-                    message: heap_message,
-                });
+                self.send_heap_message(heap, heap_message);
             }
         }
     }
@@ -138,7 +141,6 @@ impl Process {
     }
 }
 
-#[cfg(test)]
 impl Debug for Process {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.pid)

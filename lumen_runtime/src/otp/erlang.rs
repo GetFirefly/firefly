@@ -29,6 +29,7 @@ use crate::time::{
     Unit::*,
 };
 use crate::timer;
+use crate::timer::start::ReferenceFrame;
 use crate::tuple::{Tuple, ZeroBasedIndex};
 
 #[cfg(test)]
@@ -1356,34 +1357,19 @@ pub fn start_timer_3(
     message: Term,
     process_arc: Arc<Process>,
 ) -> Result {
-    if time.is_integer() {
-        let relative_milliseconds: Milliseconds = time.try_into()?;
-        let absolute_milliseconds = monotonic::time_in_milliseconds() + relative_milliseconds;
+    start_timer(time, destination, message, Default::default(), process_arc)
+}
 
-        match destination.tag() {
-            // Registered names are looked up at time of send
-            Atom => Ok(timer::start(
-                absolute_milliseconds,
-                timer::Destination::Name(destination),
-                message,
-                &process_arc,
-            )),
-            // PIDs are looked up at time of create.  If they don't exist, they still return a
-            // LocalReference.
-            LocalPid => match pid_to_self_or_process(destination, &process_arc) {
-                Some(pid_process_arc) => Ok(timer::start(
-                    absolute_milliseconds,
-                    timer::Destination::Process(Arc::downgrade(&pid_process_arc)),
-                    message,
-                    &process_arc,
-                )),
-                None => Ok(Term::local_reference(&process_arc)),
-            },
-            _ => Err(badarg!()),
-        }
-    } else {
-        Err(badarg!())
-    }
+pub fn start_timer_4(
+    time: Term,
+    destination: Term,
+    message: Term,
+    options: Term,
+    process_arc: Arc<Process>,
+) -> Result {
+    let timer_start_options: timer::start::Options = options.try_into()?;
+
+    start_timer(time, destination, message, timer_start_options, process_arc)
 }
 
 /// `-/2` infix operator
@@ -1557,5 +1543,48 @@ fn list_to_atom(string: Term, existence: Existence) -> Result {
             cons.to_atom(existence)
         }
         _ => Err(badarg!()),
+    }
+}
+
+fn start_timer(
+    time: Term,
+    destination: Term,
+    message: Term,
+    options: timer::start::Options,
+    process_arc: Arc<Process>,
+) -> Result {
+    if time.is_integer() {
+        let reference_frame_milliseconds: Milliseconds = time.try_into()?;
+
+        let absolute_milliseconds = match options.reference_frame {
+            ReferenceFrame::Relative => {
+                monotonic::time_in_milliseconds() + reference_frame_milliseconds
+            }
+            ReferenceFrame::Absolute => reference_frame_milliseconds,
+        };
+
+        match destination.tag() {
+            // Registered names are looked up at time of send
+            Atom => Ok(timer::start(
+                absolute_milliseconds,
+                timer::Destination::Name(destination),
+                message,
+                &process_arc,
+            )),
+            // PIDs are looked up at time of create.  If they don't exist, they still return a
+            // LocalReference.
+            LocalPid => match pid_to_self_or_process(destination, &process_arc) {
+                Some(pid_process_arc) => Ok(timer::start(
+                    absolute_milliseconds,
+                    timer::Destination::Process(Arc::downgrade(&pid_process_arc)),
+                    message,
+                    &process_arc,
+                )),
+                None => Ok(Term::local_reference(&process_arc)),
+            },
+            _ => Err(badarg!()),
+        }
+    } else {
+        Err(badarg!())
     }
 }

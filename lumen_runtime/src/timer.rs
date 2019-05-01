@@ -13,6 +13,8 @@ use crate::registry::{self, Registered};
 use crate::term::Term;
 use crate::time::monotonic::{self, Milliseconds};
 
+pub mod start;
+
 pub fn start(
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,

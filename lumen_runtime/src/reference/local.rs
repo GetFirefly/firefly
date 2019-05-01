@@ -4,14 +4,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::heap::{CloneIntoHeap, Heap};
 use crate::term::{Tag::LocalReference, Term};
 
+pub type Number = u64;
+
 pub struct Reference {
     #[allow(dead_code)]
     header: Term,
-    pub number: u64,
+    number: Number,
 }
 
 impl Reference {
-    pub fn new(number: u64) -> Reference {
+    pub fn new(number: Number) -> Reference {
         Reference {
             header: Term {
                 tagged: LocalReference as usize,
@@ -22,6 +24,10 @@ impl Reference {
 
     pub fn next() -> Reference {
         Self::new(COUNT.fetch_add(1, Ordering::SeqCst))
+    }
+
+    pub fn number(&self) -> Number {
+        self.number
     }
 }
 

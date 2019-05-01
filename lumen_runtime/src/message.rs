@@ -1,6 +1,7 @@
 use crate::heap;
 use crate::term::Term;
 
+#[cfg_attr(test, derive(Debug))]
 pub enum Message {
     /// A message whose `Term` is allocated inside the receiving `Process`'s `Heap`.
     Process(Term),

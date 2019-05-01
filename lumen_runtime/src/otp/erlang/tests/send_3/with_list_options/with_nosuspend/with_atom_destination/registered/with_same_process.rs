@@ -105,14 +105,6 @@ where
             Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
 
-        assert!(process_arc
-            .mailbox
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|mailbox_message| match mailbox_message {
-                Message::Process(process_message) => process_message == &message,
-                _ => false,
-            }))
+        assert!(has_process_message(&process_arc, message));
     })
 }

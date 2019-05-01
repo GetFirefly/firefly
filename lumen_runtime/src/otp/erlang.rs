@@ -17,13 +17,18 @@ use crate::list::Cons;
 use crate::map::Map;
 use crate::node;
 use crate::otp;
-use crate::process::local::pid_to_process;
+use crate::process::local::pid_to_self_or_process;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
 use crate::registry::{self, Registered};
 use crate::send::{self, send, Sent};
 use crate::stacktrace;
 use crate::term::{Tag, Tag::*, Term};
-use crate::time::{self, monotonic, Unit::*};
+use crate::time::{
+    self,
+    monotonic::{self, Milliseconds},
+    Unit::*,
+};
+use crate::timer;
 use crate::tuple::{Tuple, ZeroBasedIndex};
 
 #[cfg(test)]
@@ -709,16 +714,7 @@ pub fn is_greater_than_or_equal_2(left: Term, right: Term) -> Term {
 }
 
 pub fn is_integer_1(term: Term) -> Term {
-    match term.tag() {
-        SmallInteger => true,
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            unboxed.tag() == BigInteger
-        }
-        _ => false,
-    }
-    .into()
+    term.is_integer().into()
 }
 
 /// `</2` infix operator.  Floats and integers are converted.
@@ -1145,32 +1141,26 @@ pub fn register_2(name: Term, pid_or_port: Term, process_arc: Arc<Process>) -> R
 
                 if !writable_registry.contains_key(&name) {
                     match pid_or_port.tag() {
-                        LocalPid => {
-                            let pid_process_arc = if pid_or_port.tagged == process_arc.pid.tagged {
-                                process_arc
-                            } else {
-                                match pid_to_process(pid_or_port) {
-                                    Some(pid_process_arc) => pid_process_arc,
-                                    _ => return Err(badarg!()),
+                        LocalPid => match pid_to_self_or_process(pid_or_port, &process_arc) {
+                            Some(pid_process_arc) => {
+                                let mut writable_registered_name =
+                                    pid_process_arc.registered_name.write().unwrap();
+
+                                match *writable_registered_name {
+                                    None => {
+                                        writable_registry.insert(
+                                            name,
+                                            Registered::Process(Arc::clone(&pid_process_arc)),
+                                        );
+                                        *writable_registered_name = Some(name);
+
+                                        Ok(true.into())
+                                    }
+                                    Some(_) => Err(badarg!()),
                                 }
-                            };
-
-                            let mut writable_registered_name =
-                                pid_process_arc.registered_name.write().unwrap();
-
-                            match *writable_registered_name {
-                                None => {
-                                    writable_registry.insert(
-                                        name,
-                                        Registered::Process(Arc::clone(&pid_process_arc)),
-                                    );
-                                    *writable_registered_name = Some(name);
-
-                                    Ok(true.into())
-                                }
-                                Some(_) => Err(badarg!()),
                             }
-                        }
+                            None => Err(badarg!()),
+                        },
                         _ => Err(badarg!()),
                     }
                 } else {
@@ -1357,6 +1347,42 @@ pub fn split_binary_2(binary: Term, position: Term, process: &Process) -> Result
             }
         }
         _ => Err(badarg!()),
+    }
+}
+
+pub fn start_timer_3(
+    time: Term,
+    destination: Term,
+    message: Term,
+    process_arc: Arc<Process>,
+) -> Result {
+    if time.is_integer() {
+        let relative_milliseconds: Milliseconds = time.try_into()?;
+        let absolute_milliseconds = monotonic::time_in_milliseconds() + relative_milliseconds;
+
+        match destination.tag() {
+            // Registered names are looked up at time of send
+            Atom => Ok(timer::start(
+                absolute_milliseconds,
+                timer::Destination::Name(destination),
+                message,
+                &process_arc,
+            )),
+            // PIDs are looked up at time of create.  If they don't exist, they still return a
+            // LocalReference.
+            LocalPid => match pid_to_self_or_process(destination, &process_arc) {
+                Some(pid_process_arc) => Ok(timer::start(
+                    absolute_milliseconds,
+                    timer::Destination::Process(Arc::downgrade(&pid_process_arc)),
+                    message,
+                    &process_arc,
+                )),
+                None => Ok(Term::local_reference(&process_arc)),
+            },
+            _ => Err(badarg!()),
+        }
+    } else {
+        Err(badarg!())
     }
 }
 

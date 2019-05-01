@@ -1,6 +1,6 @@
 use std::cmp::Ordering::{self, *};
 
-use im::hashmap::HashMap;
+use im::hashmap::{HashMap, Iter};
 
 use crate::atom::Existence::DoNotCare;
 use crate::exception::Result;
@@ -35,6 +35,10 @@ impl Map {
                 Err(error!(reason))
             }
         }
+    }
+
+    pub fn iter(&self) -> Iter<Term, Term> {
+        self.inner.iter()
     }
 
     pub fn is_key(&self, key: Term) -> bool {

@@ -53,6 +53,8 @@ mod stacktrace;
 mod system;
 mod term;
 mod time;
+// Public so that external code can all `timer::expire` to expire timers
+pub mod timer;
 mod tuple;
 
 use self::config::Config;

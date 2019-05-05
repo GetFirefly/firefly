@@ -17,7 +17,7 @@ fn with_different_atom_returns_true() {
 
 #[test]
 fn with_local_reference_right_returns_true() {
-    are_exactly_not_equal(|_, process| Term::local_reference(&process), true);
+    are_exactly_not_equal(|_, process| Term::next_local_reference(process), true);
 }
 
 #[test]

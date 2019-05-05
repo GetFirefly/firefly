@@ -25,7 +25,7 @@ fn with_atom_returns_second() {
 
 #[test]
 fn with_local_reference_second_returns_second() {
-    min(|_, process| Term::local_reference(&process), Second);
+    min(|_, process| Term::next_local_reference(process), Second);
 }
 
 #[test]

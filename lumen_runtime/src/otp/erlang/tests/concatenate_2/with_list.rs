@@ -15,7 +15,7 @@ fn with_atom_return_improper_list_with_atom_as_tail() {
 #[test]
 fn with_local_reference_returns_improper_list_with_local_reference_as_tail() {
     with(|element, list, process| {
-        let term = Term::local_reference(&process);
+        let term = Term::next_local_reference(process);
 
         assert_eq!(
             erlang::concatenate_2(list, term, &process),

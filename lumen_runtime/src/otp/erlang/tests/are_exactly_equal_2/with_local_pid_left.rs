@@ -7,7 +7,7 @@ fn with_atom_right_returns_false() {
 
 #[test]
 fn with_local_reference_right_returns_false() {
-    are_exactly_equal(|_, process| Term::local_reference(&process), false);
+    are_exactly_equal(|_, process| Term::next_local_reference(process), false);
 }
 
 #[test]

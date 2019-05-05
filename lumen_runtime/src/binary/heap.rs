@@ -337,44 +337,46 @@ impl TryFrom<&Binary> for String {
 mod tests {
     use super::*;
 
+    use crate::scheduler::with_process;
+
     mod process {
         use super::*;
 
         mod slice_to_binary {
             use super::*;
 
-            use crate::{binary, process};
+            use crate::binary;
 
             #[test]
             fn without_bytes() {
-                let process = process::local::new();
+                with_process(|process| {
+                    let binary = process.slice_to_binary(&[]);
 
-                let binary = process.slice_to_binary(&[]);
-
-                match binary {
-                    binary::Binary::Heap(ref heap_binary) => {
-                        assert_eq!(heap_binary.header.tagged, Term::heap_binary(0).tagged)
+                    match binary {
+                        binary::Binary::Heap(ref heap_binary) => {
+                            assert_eq!(heap_binary.header.tagged, Term::heap_binary(0).tagged)
+                        }
+                        _ => panic!("Wrong type of binary"),
                     }
-                    _ => panic!("Wrong type of binary"),
-                }
+                });
             }
 
             #[test]
             fn with_bytes() {
-                let process = process::local::new();
+                with_process(|process| {
+                    let binary = process.slice_to_binary(&[0, 1, 2, 3]);
 
-                let binary = process.slice_to_binary(&[0, 1, 2, 3]);
-
-                match binary {
-                    binary::Binary::Heap(ref heap_binary) => {
-                        assert_eq!(heap_binary.header.tagged, Term::heap_binary(4).tagged);
-                        assert_eq!(unsafe { *heap_binary.bytes.offset(0) }, 0);
-                        assert_eq!(unsafe { *heap_binary.bytes.offset(1) }, 1);
-                        assert_eq!(unsafe { *heap_binary.bytes.offset(2) }, 2);
-                        assert_eq!(unsafe { *heap_binary.bytes.offset(3) }, 3);
+                    match binary {
+                        binary::Binary::Heap(ref heap_binary) => {
+                            assert_eq!(heap_binary.header.tagged, Term::heap_binary(4).tagged);
+                            assert_eq!(unsafe { *heap_binary.bytes.offset(0) }, 0);
+                            assert_eq!(unsafe { *heap_binary.bytes.offset(1) }, 1);
+                            assert_eq!(unsafe { *heap_binary.bytes.offset(2) }, 2);
+                            assert_eq!(unsafe { *heap_binary.bytes.offset(3) }, 3);
+                        }
+                        _ => panic!("Wrong type of binary"),
                     }
-                    _ => panic!("Wrong type of binary"),
-                }
+                });
             }
         }
     }
@@ -382,76 +384,78 @@ mod tests {
     mod eq {
         use super::*;
 
-        use crate::process;
-
         #[test]
         fn without_elements() {
-            let process = process::local::new();
-            let binary = process.slice_to_binary(&[]);
-            let equal_binary = process.slice_to_binary(&[]);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[]);
+                let equal_binary = process.slice_to_binary(&[]);
 
-            match (binary, equal_binary) {
-                (
-                    binary::Binary::Heap(ref heap_binary),
-                    binary::Binary::Heap(ref equal_heap_binary),
-                ) => {
-                    assert_eq!(heap_binary, heap_binary);
-                    assert_eq!(heap_binary, equal_heap_binary);
+                match (binary, equal_binary) {
+                    (
+                        binary::Binary::Heap(ref heap_binary),
+                        binary::Binary::Heap(ref equal_heap_binary),
+                    ) => {
+                        assert_eq!(heap_binary, heap_binary);
+                        assert_eq!(heap_binary, equal_heap_binary);
+                    }
+                    _ => panic!("Not heap binaries"),
                 }
-                _ => panic!("Not heap binaries"),
-            }
+            });
         }
 
         #[test]
         fn without_equal_length() {
-            let process = process::local::new();
-            let binary = process.slice_to_binary(&[0]);
-            let unequal_binary = process.slice_to_binary(&[0, 1]);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0]);
+                let unequal_binary = process.slice_to_binary(&[0, 1]);
 
-            match (binary, unequal_binary) {
-                (
-                    binary::Binary::Heap(ref heap_binary),
-                    binary::Binary::Heap(ref unequal_heap_binary),
-                ) => {
-                    assert_ne!(heap_binary, unequal_heap_binary);
+                match (binary, unequal_binary) {
+                    (
+                        binary::Binary::Heap(ref heap_binary),
+                        binary::Binary::Heap(ref unequal_heap_binary),
+                    ) => {
+                        assert_ne!(heap_binary, unequal_heap_binary);
+                    }
+                    _ => panic!("Not heap binaries"),
                 }
-                _ => panic!("Not heap binaries"),
-            }
+            });
         }
 
         #[test]
         fn with_equal_length_without_same_byte() {
-            let process = process::local::new();
-            let binary = process.slice_to_binary(&[0]);
-            let unequal_binary = process.slice_to_binary(&[1]);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0]);
+                let unequal_binary = process.slice_to_binary(&[1]);
 
-            match (binary, unequal_binary) {
-                (
-                    binary::Binary::Heap(ref heap_binary),
-                    binary::Binary::Heap(ref unequal_heap_binary),
-                ) => {
-                    assert_eq!(heap_binary, heap_binary);
-                    assert_ne!(heap_binary, unequal_heap_binary);
+                match (binary, unequal_binary) {
+                    (
+                        binary::Binary::Heap(ref heap_binary),
+                        binary::Binary::Heap(ref unequal_heap_binary),
+                    ) => {
+                        assert_eq!(heap_binary, heap_binary);
+                        assert_ne!(heap_binary, unequal_heap_binary);
+                    }
+                    _ => panic!("Not heap binaries"),
                 }
-                _ => panic!("Not heap binaries"),
-            }
+            });
         }
 
         #[test]
         fn with_equal_length_with_same_bytes() {
-            let process = process::local::new();
-            let binary = process.slice_to_binary(&[0]);
-            let unequal_binary = process.slice_to_binary(&[0]);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0]);
+                let unequal_binary = process.slice_to_binary(&[0]);
 
-            match (binary, unequal_binary) {
-                (
-                    binary::Binary::Heap(ref heap_binary),
-                    binary::Binary::Heap(ref unequal_heap_binary),
-                ) => {
-                    assert_eq!(heap_binary, unequal_heap_binary);
+                match (binary, unequal_binary) {
+                    (
+                        binary::Binary::Heap(ref heap_binary),
+                        binary::Binary::Heap(ref unequal_heap_binary),
+                    ) => {
+                        assert_eq!(heap_binary, unequal_heap_binary);
+                    }
+                    _ => panic!("Not heap binaries"),
                 }
-                _ => panic!("Not heap binaries"),
-            }
+            });
         }
     }
 
@@ -460,106 +464,104 @@ mod tests {
 
         use std::convert::TryInto;
 
-        use crate::process;
-
         #[test]
         fn without_elements() {
-            let process = process::local::new();
-            let binary = process.slice_to_binary(&[]);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[]);
 
-            match binary {
-                binary::Binary::Heap(ref heap_binary) => {
-                    assert_eq!(heap_binary.iter().count(), 0);
+                match binary {
+                    binary::Binary::Heap(ref heap_binary) => {
+                        assert_eq!(heap_binary.iter().count(), 0);
 
-                    let size_integer: Integer = heap_binary.size();
-                    let size_usize: usize = size_integer.try_into().unwrap();
+                        let size_integer: Integer = heap_binary.size();
+                        let size_usize: usize = size_integer.try_into().unwrap();
 
-                    assert_eq!(heap_binary.iter().count(), size_usize);
+                        assert_eq!(heap_binary.iter().count(), size_usize);
+                    }
+                    _ => panic!("Not a heap binary"),
                 }
-                _ => panic!("Not a heap binary"),
-            }
+            });
         }
 
         #[test]
         fn with_elements() {
-            let process = process::local::new();
-            let binary = process.slice_to_binary(&[0]);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0]);
 
-            match binary {
-                binary::Binary::Heap(ref heap_binary) => {
-                    assert_eq!(heap_binary.iter().count(), 1);
+                match binary {
+                    binary::Binary::Heap(ref heap_binary) => {
+                        assert_eq!(heap_binary.iter().count(), 1);
 
-                    let size_integer: Integer = heap_binary.size();
-                    let size_usize: usize = size_integer.try_into().unwrap();
+                        let size_integer: Integer = heap_binary.size();
+                        let size_usize: usize = size_integer.try_into().unwrap();
 
-                    assert_eq!(heap_binary.iter().count(), size_usize);
+                        assert_eq!(heap_binary.iter().count(), size_usize);
+                    }
+                    _ => panic!("Not a heap binary"),
                 }
-                _ => panic!("Not a heap binary"),
-            }
+            });
         }
 
         #[test]
         fn is_double_ended() {
-            let process = process::local::new();
-            let binary = process.slice_to_binary(&[0, 1, 2]);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0, 1, 2]);
 
-            match binary {
-                binary::Binary::Heap(ref heap_binary) => {
-                    let mut iter = heap_binary.iter();
+                match binary {
+                    binary::Binary::Heap(ref heap_binary) => {
+                        let mut iter = heap_binary.iter();
 
-                    assert_eq!(iter.next(), Some(0));
-                    assert_eq!(iter.next(), Some(1));
-                    assert_eq!(iter.next(), Some(2));
-                    assert_eq!(iter.next(), None);
-                    assert_eq!(iter.next(), None);
+                        assert_eq!(iter.next(), Some(0));
+                        assert_eq!(iter.next(), Some(1));
+                        assert_eq!(iter.next(), Some(2));
+                        assert_eq!(iter.next(), None);
+                        assert_eq!(iter.next(), None);
 
-                    let mut rev_iter = heap_binary.iter();
+                        let mut rev_iter = heap_binary.iter();
 
-                    assert_eq!(rev_iter.next_back(), Some(2));
-                    assert_eq!(rev_iter.next_back(), Some(1));
-                    assert_eq!(rev_iter.next_back(), Some(0));
-                    assert_eq!(rev_iter.next_back(), None);
-                    assert_eq!(rev_iter.next_back(), None);
+                        assert_eq!(rev_iter.next_back(), Some(2));
+                        assert_eq!(rev_iter.next_back(), Some(1));
+                        assert_eq!(rev_iter.next_back(), Some(0));
+                        assert_eq!(rev_iter.next_back(), None);
+                        assert_eq!(rev_iter.next_back(), None);
 
-                    let mut double_ended_iter = heap_binary.iter();
+                        let mut double_ended_iter = heap_binary.iter();
 
-                    assert_eq!(double_ended_iter.next(), Some(0));
-                    assert_eq!(double_ended_iter.next_back(), Some(2));
-                    assert_eq!(double_ended_iter.next(), Some(1));
-                    assert_eq!(double_ended_iter.next_back(), None);
-                    assert_eq!(double_ended_iter.next(), None);
+                        assert_eq!(double_ended_iter.next(), Some(0));
+                        assert_eq!(double_ended_iter.next_back(), Some(2));
+                        assert_eq!(double_ended_iter.next(), Some(1));
+                        assert_eq!(double_ended_iter.next_back(), None);
+                        assert_eq!(double_ended_iter.next(), None);
+                    }
+                    _ => panic!("Not a heap binary"),
                 }
-                _ => panic!("Not a heap binary"),
-            }
+            });
         }
     }
 
     mod size {
         use super::*;
 
-        use crate::process;
-
         #[test]
         fn without_elements() {
-            let process = process::local::new();
-            let binary = process.slice_to_binary(&[]);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[]);
 
-            match binary {
-                binary::Binary::Heap(ref heap_binary) => {
-                    assert_eq!(heap_binary.size(), 0.into());
+                match binary {
+                    binary::Binary::Heap(ref heap_binary) => {
+                        assert_eq!(heap_binary.size(), 0.into());
+                    }
+                    _ => panic!("Not a heap binary"),
                 }
-                _ => panic!("Not a heap binary"),
-            }
+            });
         }
 
         #[test]
         fn with_elements() {
-            let process = process::local::new();
-
-            match process.slice_to_binary(&[0]) {
+            with_process(|process| match process.slice_to_binary(&[0]) {
                 binary::Binary::Heap(ref heap_binary) => assert_eq!(heap_binary.size(), 1.into()),
                 _ => panic!("Wrong type of binary"),
-            }
+            });
         }
     }
 }

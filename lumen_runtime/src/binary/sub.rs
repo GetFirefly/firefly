@@ -503,7 +503,7 @@ impl PartToList<usize, isize> for Binary {
 mod tests {
     use super::*;
 
-    use crate::process;
+    use crate::scheduler::with_process;
 
     mod bit_count_iter {
         use super::*;
@@ -513,118 +513,126 @@ mod tests {
 
             #[test]
             fn with_0_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111], &process);
-                let subbinary = Binary::new(binary, 0, 0, 1, 0);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111], process);
+                    let subbinary = Binary::new(binary, 0, 0, 1, 0);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_1_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1000_0000], &process);
-                let subbinary = Binary::new(binary, 0, 0, 1, 1);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1000_0000], process);
+                    let subbinary = Binary::new(binary, 0, 0, 1, 1);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_2_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1100_0000], &process);
-                let subbinary = Binary::new(binary, 0, 0, 1, 2);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1100_0000], process);
+                    let subbinary = Binary::new(binary, 0, 0, 1, 2);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_3_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1110_0000], &process);
-                let subbinary = Binary::new(binary, 0, 0, 1, 3);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1110_0000], process);
+                    let subbinary = Binary::new(binary, 0, 0, 1, 3);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_4_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_0000], &process);
-                let subbinary = Binary::new(binary, 0, 0, 1, 4);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_0000], process);
+                    let subbinary = Binary::new(binary, 0, 0, 1, 4);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_5_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1000], &process);
-                let subbinary = Binary::new(binary, 0, 0, 1, 5);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1000], process);
+                    let subbinary = Binary::new(binary, 0, 0, 1, 5);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_6_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1100], &process);
-                let subbinary = Binary::new(binary, 0, 0, 1, 6);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1100], process);
+                    let subbinary = Binary::new(binary, 0, 0, 1, 6);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_7_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1110], &process);
-                let subbinary = Binary::new(binary, 0, 0, 1, 7);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1110], process);
+                    let subbinary = Binary::new(binary, 0, 0, 1, 7);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
         }
 
@@ -633,118 +641,126 @@ mod tests {
 
             #[test]
             fn with_0_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1000_0000], &process);
-                let subbinary = Binary::new(binary, 0, 1, 1, 0);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1000_0000], process);
+                    let subbinary = Binary::new(binary, 0, 1, 1, 0);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_1_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1100_0000], &process);
-                let subbinary = Binary::new(binary, 0, 1, 1, 1);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1100_0000], process);
+                    let subbinary = Binary::new(binary, 0, 1, 1, 1);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_2_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1110_0000], &process);
-                let subbinary = Binary::new(binary, 0, 1, 1, 2);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1110_0000], process);
+                    let subbinary = Binary::new(binary, 0, 1, 1, 2);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_3_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_0000], &process);
-                let subbinary = Binary::new(binary, 0, 1, 1, 3);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_0000], process);
+                    let subbinary = Binary::new(binary, 0, 1, 1, 3);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_4_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1000], &process);
-                let subbinary = Binary::new(binary, 0, 1, 1, 4);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1000], process);
+                    let subbinary = Binary::new(binary, 0, 1, 1, 4);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_5_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1100], &process);
-                let subbinary = Binary::new(binary, 0, 1, 1, 5);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1100], process);
+                    let subbinary = Binary::new(binary, 0, 1, 1, 5);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_6_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1110], &process);
-                let subbinary = Binary::new(binary, 0, 1, 1, 6);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1110], process);
+                    let subbinary = Binary::new(binary, 0, 1, 1, 6);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
 
             #[test]
             fn with_7_bit_count() {
-                let process = process::local::new();
-                let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1111], &process);
-                let subbinary = Binary::new(binary, 0, 1, 1, 7);
+                with_process(|process| {
+                    let binary = Term::slice_to_binary(&[0b1111_1111, 0b1111_1111], process);
+                    let subbinary = Binary::new(binary, 0, 1, 1, 7);
 
-                let mut bit_count_iter = subbinary.bit_count_iter();
+                    let mut bit_count_iter = subbinary.bit_count_iter();
 
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), Some(1));
-                assert_eq!(bit_count_iter.next(), None);
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), Some(1));
+                    assert_eq!(bit_count_iter.next(), None);
+                });
             }
         }
     }
@@ -754,34 +770,35 @@ mod tests {
 
         #[test]
         fn is_double_ended() {
-            let process = process::local::new();
-            // <<1::1, 0, 1, 2>>
-            let binary = Term::slice_to_binary(&[128, 0, 129, 0b0000_0000], &process);
-            let subbinary = Binary::new(binary, 0, 1, 3, 0);
+            with_process(|process| {
+                // <<1::1, 0, 1, 2>>
+                let binary = Term::slice_to_binary(&[128, 0, 129, 0b0000_0000], process);
+                let subbinary = Binary::new(binary, 0, 1, 3, 0);
 
-            let mut iter = subbinary.byte_iter();
+                let mut iter = subbinary.byte_iter();
 
-            assert_eq!(iter.next(), Some(0));
-            assert_eq!(iter.next(), Some(1));
-            assert_eq!(iter.next(), Some(2));
-            assert_eq!(iter.next(), None);
-            assert_eq!(iter.next(), None);
+                assert_eq!(iter.next(), Some(0));
+                assert_eq!(iter.next(), Some(1));
+                assert_eq!(iter.next(), Some(2));
+                assert_eq!(iter.next(), None);
+                assert_eq!(iter.next(), None);
 
-            let mut rev_iter = subbinary.byte_iter();
+                let mut rev_iter = subbinary.byte_iter();
 
-            assert_eq!(rev_iter.next_back(), Some(2));
-            assert_eq!(rev_iter.next_back(), Some(1));
-            assert_eq!(rev_iter.next_back(), Some(0));
-            assert_eq!(rev_iter.next_back(), None);
-            assert_eq!(rev_iter.next_back(), None);
+                assert_eq!(rev_iter.next_back(), Some(2));
+                assert_eq!(rev_iter.next_back(), Some(1));
+                assert_eq!(rev_iter.next_back(), Some(0));
+                assert_eq!(rev_iter.next_back(), None);
+                assert_eq!(rev_iter.next_back(), None);
 
-            let mut double_ended_iter = subbinary.byte_iter();
+                let mut double_ended_iter = subbinary.byte_iter();
 
-            assert_eq!(double_ended_iter.next(), Some(0));
-            assert_eq!(double_ended_iter.next_back(), Some(2));
-            assert_eq!(double_ended_iter.next(), Some(1));
-            assert_eq!(double_ended_iter.next_back(), None);
-            assert_eq!(double_ended_iter.next(), None);
+                assert_eq!(double_ended_iter.next(), Some(0));
+                assert_eq!(double_ended_iter.next_back(), Some(2));
+                assert_eq!(double_ended_iter.next(), Some(1));
+                assert_eq!(double_ended_iter.next_back(), None);
+                assert_eq!(double_ended_iter.next(), None);
+            });
         }
     }
 }

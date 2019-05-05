@@ -332,35 +332,36 @@ where
 mod tests {
     use super::*;
 
-    use crate::process;
-
     mod eq {
         use super::*;
 
         use crate::process::IntoProcess;
+        use crate::scheduler::with_process;
 
         #[test]
         fn with_proper() {
-            let process = process::local::new();
-            let cons = Cons::new(0.into_process(&process), Term::EMPTY_LIST);
-            let equal = Cons::new(0.into_process(&process), Term::EMPTY_LIST);
-            let unequal = Cons::new(1.into_process(&process), Term::EMPTY_LIST);
+            with_process(|process| {
+                let cons = Cons::new(0.into_process(process), Term::EMPTY_LIST);
+                let equal = Cons::new(0.into_process(process), Term::EMPTY_LIST);
+                let unequal = Cons::new(1.into_process(process), Term::EMPTY_LIST);
 
-            assert_eq!(cons, cons);
-            assert_eq!(cons, equal);
-            assert_ne!(cons, unequal);
+                assert_eq!(cons, cons);
+                assert_eq!(cons, equal);
+                assert_ne!(cons, unequal);
+            });
         }
 
         #[test]
         fn with_improper() {
-            let process = process::local::new();
-            let cons = Cons::new(0.into_process(&process), 1.into_process(&process));
-            let equal = Cons::new(0.into_process(&process), 1.into_process(&process));
-            let unequal = Cons::new(1.into_process(&process), 0.into_process(&process));
+            with_process(|process| {
+                let cons = Cons::new(0.into_process(process), 1.into_process(process));
+                let equal = Cons::new(0.into_process(process), 1.into_process(process));
+                let unequal = Cons::new(1.into_process(process), 0.into_process(process));
 
-            assert_eq!(cons, cons);
-            assert_eq!(cons, equal);
-            assert_ne!(cons, unequal);
+                assert_eq!(cons, cons);
+                assert_eq!(cons, equal);
+                assert_ne!(cons, unequal);
+            });
         }
     }
 }

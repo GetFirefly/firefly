@@ -24,7 +24,13 @@ fn with_atom_errors_badarg() {
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::cons(Term::local_reference(&process), Term::EMPTY_LIST, &process))
+    errors_badarg(|process| {
+        Term::cons(
+            Term::next_local_reference(process),
+            Term::EMPTY_LIST,
+            &process,
+        )
+    })
 }
 
 #[test]

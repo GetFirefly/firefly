@@ -22,7 +22,9 @@ fn with_big_integer_message_sends_timeout_message_when_timer_expires() {
 
 #[test]
 fn with_local_reference_message_sends_timeout_message_when_timer_expires() {
-    with_message_sends_timeout_message_when_timer_expires(|process| Term::local_reference(process));
+    with_message_sends_timeout_message_when_timer_expires(|process| {
+        Term::next_local_reference(process)
+    });
 }
 
 #[test]
@@ -95,19 +97,11 @@ where
 
         assert_eq!(unboxed_timer_reference.tag(), LocalReference);
 
-        let timeout_message = Term::slice_to_tuple(
-            &[
-                Term::str_to_atom("timeout", DoNotCare).unwrap(),
-                timer_reference,
-                message,
-            ],
-            &process_arc,
-        );
+        let timeout_message = timeout_message(timer_reference, message, &process_arc);
 
         assert!(!has_message(&process_arc, timeout_message));
 
         thread::sleep(Duration::from_millis(milliseconds + 1));
-
         timer::timeout();
 
         assert!(has_message(&process_arc, timeout_message));

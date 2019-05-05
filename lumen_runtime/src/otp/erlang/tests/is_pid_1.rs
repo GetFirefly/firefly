@@ -9,7 +9,7 @@ fn with_atom_is_false() {
 
 #[test]
 fn with_local_reference_is_false() {
-    is_pid(|process| Term::local_reference(&process), false);
+    is_pid(|process| Term::next_local_reference(process), false);
 }
 
 #[test]

@@ -67,7 +67,7 @@ fn with_atom_second_returns_second() {
 
 #[test]
 fn with_local_reference_second_returns_second() {
-    max(|_, process| Term::local_reference(&process), Second);
+    max(|_, process| Term::next_local_reference(process), Second);
 }
 
 #[test]

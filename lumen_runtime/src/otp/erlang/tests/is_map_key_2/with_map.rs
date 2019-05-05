@@ -25,8 +25,8 @@ fn with_atom_key() {
 #[test]
 fn with_local_reference_key() {
     with_process(|process| {
-        let key = Term::local_reference(&process);
-        let value = Term::local_reference(&process);
+        let key = Term::next_local_reference(process);
+        let value = Term::next_local_reference(process);
         let map_with_key = Term::slice_to_map(&[(key, value)], &process);
 
         assert_eq!(

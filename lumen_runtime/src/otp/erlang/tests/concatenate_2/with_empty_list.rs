@@ -10,7 +10,7 @@ fn with_atom_returns_atom() {
 
 #[test]
 fn with_local_reference_returns_local_reference() {
-    returns_term(|process| Term::local_reference(&process));
+    returns_term(|process| Term::next_local_reference(process));
 }
 
 #[test]

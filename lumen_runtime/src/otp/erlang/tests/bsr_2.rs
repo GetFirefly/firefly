@@ -10,7 +10,7 @@ fn with_atom_integer_errors_badarith() {
 
 #[test]
 fn with_local_reference_integer_errors_badarith() {
-    with_integer_errors_badarith(|process| Term::local_reference(&process));
+    with_integer_errors_badarith(|process| Term::next_local_reference(process));
 }
 
 #[test]

@@ -9,7 +9,7 @@ fn with_atom_errors_badmap() {
 
 #[test]
 fn with_local_reference_errors_badmap() {
-    errors_badmap(|process| Term::local_reference(&process));
+    errors_badmap(|process| Term::next_local_reference(process));
 }
 
 #[test]

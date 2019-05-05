@@ -11,7 +11,7 @@ fn with_atom_dividend_errors_badarith() {
 
 #[test]
 fn with_local_reference_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::local_reference(&process));
+    with_dividend_errors_badarith(|process| Term::next_local_reference(process));
 }
 
 #[test]

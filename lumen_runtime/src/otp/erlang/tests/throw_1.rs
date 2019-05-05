@@ -11,7 +11,7 @@ fn with_atom_throws_with_atom_reason() {
 
 #[test]
 fn with_local_reference_throws_with_local_reference() {
-    throws(|process| Term::local_reference(&process));
+    throws(|process| Term::next_local_reference(process));
 }
 
 #[test]

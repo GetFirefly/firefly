@@ -12,6 +12,7 @@ use crate::list::Cons;
 use crate::map::Map;
 use crate::process::identifier;
 use crate::reference;
+use crate::scheduler;
 use crate::term::Term;
 use crate::tuple::Tuple;
 
@@ -67,20 +68,14 @@ impl Heap {
         unsafe { &*pointer }
     }
 
-    pub fn local_reference(&self) -> &'static reference::local::Reference {
+    pub fn local_reference(
+        &self,
+        scheduler_id: &scheduler::ID,
+        number: reference::local::Number,
+    ) -> &'static reference::local::Reference {
         let pointer = self
             .local_reference_arena
-            .alloc(reference::local::Reference::next())
-            as *const reference::local::Reference;
-
-        unsafe { &*pointer }
-    }
-
-    #[cfg(test)]
-    pub fn number_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
-        let pointer = self
-            .local_reference_arena
-            .alloc(reference::local::Reference::new(number))
+            .alloc(reference::local::Reference::new(scheduler_id, number))
             as *const reference::local::Reference;
 
         unsafe { &*pointer }
@@ -146,15 +141,6 @@ impl Heap {
 
     pub fn slice_to_tuple(&self, slice: &[Term]) -> &'static Tuple {
         Tuple::from_slice(slice, &self)
-    }
-
-    pub fn u64_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
-        let pointer = self
-            .local_reference_arena
-            .alloc(reference::local::Reference::new(number))
-            as *const reference::local::Reference;
-
-        unsafe { &*pointer }
     }
 }
 

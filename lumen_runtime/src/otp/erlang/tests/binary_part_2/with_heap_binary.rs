@@ -9,7 +9,7 @@ fn with_atom_start_length_errors_badarg() {
 
 #[test]
 fn with_local_reference_start_length_errors_badarg() {
-    with_start_length_errors_badarg(|process| Term::local_reference(&process));
+    with_start_length_errors_badarg(|process| Term::next_local_reference(process));
 }
 
 #[test]

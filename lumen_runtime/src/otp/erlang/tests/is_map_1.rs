@@ -12,7 +12,7 @@ fn with_atom_is_false() {
 #[test]
 fn with_local_reference_is_false() {
     with_process(|process| {
-        let term = Term::local_reference(&process);
+        let term = Term::next_local_reference(process);
 
         assert_eq!(erlang::is_map_1(term), false.into());
     });

@@ -7,7 +7,7 @@ fn with_atom_errors_badarg() {
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    with_tail_errors_badarg(|process| Term::local_reference(&process));
+    with_tail_errors_badarg(|process| Term::next_local_reference(process));
 }
 
 #[test]

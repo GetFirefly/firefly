@@ -17,7 +17,7 @@ fn with_different_atom_returns_false() {
 
 #[test]
 fn with_local_reference_right_returns_false() {
-    are_equal_after_conversion(|_, process| Term::local_reference(&process), false);
+    are_equal_after_conversion(|_, process| Term::next_local_reference(process), false);
 }
 
 #[test]

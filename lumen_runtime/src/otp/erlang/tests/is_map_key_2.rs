@@ -15,8 +15,8 @@ fn with_atom_errors_bad_map() {
 #[test]
 fn with_local_reference_errors_badmap() {
     with_key_and_map_errors_badmap(
-        |process| Term::local_reference(&process),
-        |process| Term::local_reference(&process),
+        |process| Term::next_local_reference(process),
+        |process| Term::next_local_reference(process),
     );
 }
 

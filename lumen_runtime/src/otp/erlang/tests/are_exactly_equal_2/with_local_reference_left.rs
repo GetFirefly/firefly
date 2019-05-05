@@ -12,7 +12,7 @@ fn with_same_local_reference_right_returns_true() {
 
 #[test]
 fn with_different_local_reference_right_returns_false() {
-    are_exactly_equal(|_, process| Term::local_reference(&process), false);
+    are_exactly_equal(|_, process| Term::next_local_reference(process), false);
 }
 
 #[test]
@@ -83,5 +83,9 @@ fn are_exactly_equal<R>(right: R, expected: bool)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::are_exactly_equal(|process| Term::local_reference(&process), right, expected);
+    super::are_exactly_equal(
+        |process| Term::next_local_reference(process),
+        right,
+        expected,
+    );
 }

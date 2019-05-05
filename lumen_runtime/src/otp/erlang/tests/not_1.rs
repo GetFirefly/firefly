@@ -17,7 +17,7 @@ fn with_true_returns_false() {
 
 #[test]
 fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::local_reference(&process));
+    errors_badarg(|process| Term::next_local_reference(process));
 }
 
 #[test]

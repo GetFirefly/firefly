@@ -18,7 +18,7 @@ fn with_atom_record_tag() {
 
 #[test]
 fn with_local_reference_record_tag_errors_badarg() {
-    with_record_tag_errors_badarg(|process| Term::local_reference(&process));
+    with_record_tag_errors_badarg(|process| Term::next_local_reference(process));
 }
 
 #[test]

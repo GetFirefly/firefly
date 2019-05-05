@@ -11,7 +11,7 @@ fn with_atom_augend_errors_badarith() {
 
 #[test]
 fn with_local_reference_augend_errors_badarith() {
-    with_augend_errors_badarith(|process| Term::local_reference(&process));
+    with_augend_errors_badarith(|process| Term::next_local_reference(process));
 }
 
 #[test]

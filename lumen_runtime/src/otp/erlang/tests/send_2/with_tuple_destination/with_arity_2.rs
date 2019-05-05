@@ -4,7 +4,7 @@ mod with_atom_name;
 
 #[test]
 fn with_local_reference_name_errors_badarg() {
-    with_name_errors_badarg(|process| Term::local_reference(&process));
+    with_name_errors_badarg(|process| Term::next_local_reference(process));
 }
 
 #[test]

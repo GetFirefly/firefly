@@ -19,6 +19,7 @@ use crate::node;
 use crate::otp;
 use crate::process::local::pid_to_self_or_process;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
+use crate::reference;
 use crate::registry::{self, Registered};
 use crate::send::{self, send, Sent};
 use crate::stacktrace;
@@ -484,6 +485,32 @@ pub fn byte_size_1(bit_string: Term, process: &Process) -> Result {
         _ => Err(badarg!()),
     }
     .map(|byte_size_usize| byte_size_usize.into_process(&process))
+}
+
+pub fn cancel_timer_1(timer_reference: Term, process: &Process) -> Result {
+    match timer_reference.tag() {
+        Boxed => {
+            let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
+
+            match unboxed_timer_reference.tag() {
+                LocalReference => {
+                    let local_reference: &reference::local::Reference =
+                        timer_reference.unbox_reference();
+
+                    let term = match timer::cancel(local_reference) {
+                        Some(milliseconds_remaining) => {
+                            milliseconds_remaining.into_process(process)
+                        }
+                        None => false.into(),
+                    };
+
+                    Ok(term)
+                }
+                _ => Err(badarg!()),
+            }
+        }
+        _ => Err(badarg!()),
+    }
 }
 
 pub fn ceil_1(number: Term, process: &Process) -> Result {
@@ -1017,7 +1044,7 @@ pub fn list_to_tuple_1(list: Term, process: &Process) -> Result {
 }
 
 pub fn make_ref_0(process: &Process) -> Term {
-    Term::local_reference(&process)
+    Term::next_local_reference(&process)
 }
 
 pub fn map_get_2(key: Term, map: Term, process: &Process) -> Result {
@@ -1580,7 +1607,7 @@ fn start_timer(
                     message,
                     &process_arc,
                 )),
-                None => Ok(Term::local_reference(&process_arc)),
+                None => Ok(Term::next_local_reference(&process_arc)),
             },
             _ => Err(badarg!()),
         }

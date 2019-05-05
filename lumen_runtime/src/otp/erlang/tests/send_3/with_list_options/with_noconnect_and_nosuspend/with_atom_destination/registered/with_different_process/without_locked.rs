@@ -2,12 +2,16 @@ use super::*;
 
 #[test]
 fn with_atom_adds_process_message_to_mailbox_and_returns_ok() {
-    with_adds_process_message_to_mailbox_and_returns_ok(|process| Term::local_reference(&process));
+    with_adds_process_message_to_mailbox_and_returns_ok(|process| {
+        Term::next_local_reference(process)
+    });
 }
 
 #[test]
 fn with_local_reference_adds_process_message_to_mailbox_and_returns_ok() {
-    with_adds_process_message_to_mailbox_and_returns_ok(|process| Term::local_reference(&process));
+    with_adds_process_message_to_mailbox_and_returns_ok(|process| {
+        Term::next_local_reference(process)
+    });
 }
 
 #[test]

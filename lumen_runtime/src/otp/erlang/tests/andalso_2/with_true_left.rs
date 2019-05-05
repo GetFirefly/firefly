@@ -17,7 +17,7 @@ fn with_true_right_returns_right() {
 
 #[test]
 fn with_local_reference_right_returns_right() {
-    with_right_returns_right(|process| Term::local_reference(&process));
+    with_right_returns_right(|process| Term::next_local_reference(process));
 }
 
 #[test]

@@ -25,7 +25,7 @@ fn with_atom_returns_false() {
 
 #[test]
 fn with_local_reference_right_returns_false() {
-    is_equal_or_less_than(|_, process| Term::local_reference(&process), false);
+    is_equal_or_less_than(|_, process| Term::next_local_reference(process), false);
 }
 
 #[test]

@@ -7,7 +7,7 @@ fn with_atom_divisor_errors_badarith() {
 
 #[test]
 fn with_local_reference_divisor_errors_badarith() {
-    with_divisor_errors_badarith(|process| Term::local_reference(&process));
+    with_divisor_errors_badarith(|process| Term::next_local_reference(process));
 }
 
 #[test]

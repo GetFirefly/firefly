@@ -18,8 +18,8 @@ fn with_atom_errors_badarg() {
 #[test]
 fn with_local_reference_errors_badarg() {
     errors_badarg(|process| {
-        let list = Term::local_reference(&process);
-        let term = Term::local_reference(&process);
+        let list = Term::next_local_reference(process);
+        let term = Term::next_local_reference(process);
 
         (list, term)
     });

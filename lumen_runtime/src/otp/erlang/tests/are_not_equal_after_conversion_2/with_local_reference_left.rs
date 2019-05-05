@@ -12,7 +12,7 @@ fn with_same_local_reference_right_returns_false() {
 
 #[test]
 fn with_different_local_reference_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::local_reference(&process), true);
+    are_not_equal_after_conversion(|_, process| Term::next_local_reference(process), true);
 }
 
 #[test]
@@ -84,7 +84,7 @@ where
     R: FnOnce(Term, &Process) -> Term,
 {
     super::are_not_equal_after_conversion(
-        |process| Term::local_reference(&process),
+        |process| Term::next_local_reference(process),
         right,
         expected,
     );

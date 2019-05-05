@@ -19,7 +19,7 @@ fn with_atom_errors_with_atom_reason() {
 #[test]
 fn with_list_reference_errors_with_list_reference_reason() {
     with_process(|process| {
-        let reason = Term::local_reference(&process);
+        let reason = Term::next_local_reference(process);
         let arguments = Term::EMPTY_LIST;
 
         assert_error!(erlang::error_2(reason, arguments), reason, Some(arguments));

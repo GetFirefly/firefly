@@ -20,7 +20,7 @@ fn with_big_integer_message_does_not_panic_when_timer_expires() {
 
 #[test]
 fn with_local_reference_message_does_not_panic_when_timer_expires() {
-    does_not_panic_when_timer_expires(|process| Term::local_reference(process));
+    does_not_panic_when_timer_expires(|process| Term::next_local_reference(process));
 }
 
 #[test]

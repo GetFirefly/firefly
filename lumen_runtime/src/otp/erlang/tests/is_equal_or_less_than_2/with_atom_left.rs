@@ -40,7 +40,7 @@ fn with_greater_atom_returns_true() {
 
 #[test]
 fn with_local_reference_right_returns_true() {
-    is_equal_or_less_than(|_, process| Term::local_reference(&process), true);
+    is_equal_or_less_than(|_, process| Term::next_local_reference(process), true);
 }
 
 #[test]

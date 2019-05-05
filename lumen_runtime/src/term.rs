@@ -25,6 +25,7 @@ use crate::list::Cons;
 use crate::map::Map;
 use crate::process::{self, IntoProcess, Process, TryFromInProcess, TryIntoInProcess};
 use crate::reference::local;
+use crate::scheduler::Scheduler;
 use crate::tuple::Tuple;
 
 pub mod external_format;
@@ -516,13 +517,12 @@ impl Term {
         }
     }
 
-    pub fn local_reference(process: &Process) -> Term {
-        Term::box_reference(process.local_reference())
+    pub fn local_reference(number: local::Number, process: &Process) -> Term {
+        Term::box_reference(Scheduler::current().reference(number, process))
     }
 
-    #[cfg(test)]
-    pub fn number_to_local_reference(number: u64, process: &Process) -> Term {
-        Term::box_reference(process.number_to_local_reference(number))
+    pub fn next_local_reference(process: &Process) -> Term {
+        Term::box_reference(Scheduler::current().next_reference(process))
     }
 
     pub fn tag(&self) -> Tag {
@@ -737,10 +737,6 @@ impl Term {
     pub unsafe fn small_integer_to_isize(&self) -> isize {
         (self.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT
     }
-
-    pub fn u64_to_local_reference(number: u64, process: &Process) -> Term {
-        Term::box_reference(process.u64_to_local_reference(number))
-    }
 }
 
 impl CloneIntoHeap for Term {
@@ -885,7 +881,8 @@ impl Debug for Term {
 
                         write!(
                             f,
-                            "Term::u64_to_local_reference({:?}, &process)",
+                            "Term::local_reference({:?}, {:?}, &process)",
+                            local_reference.scheduler_id(),
                             local_reference.number()
                         )
                     }
@@ -1094,6 +1091,14 @@ impl IntoProcess<Term> for usize {
 }
 
 impl IntoProcess<Term> for u64 {
+    fn into_process(self, process: &Process) -> Term {
+        let big_int: BigInt = self.into();
+
+        big_int.into_process(process)
+    }
+}
+
+impl IntoProcess<Term> for u128 {
     fn into_process(self, process: &Process) -> Term {
         let big_int: BigInt = self.into();
 
@@ -1734,18 +1739,6 @@ impl TryFrom<Term> for u64 {
                     Err(badarg!())
                 }
             }
-            Boxed => {
-                let unboxed: &Term = term.unbox_reference();
-
-                match unboxed.tag() {
-                    LocalReference => {
-                        let local_reference: &local::Reference = term.unbox_reference();
-
-                        Ok(local_reference.number())
-                    }
-                    _ => Err(badarg!()),
-                }
-            }
             _ => Err(badarg!()),
         }
     }
@@ -2141,21 +2134,6 @@ mod tests {
             let heap_binary_term = Term::slice_to_binary(&[], &process);
 
             assert_eq!(heap_binary_term.is_empty_list(), false);
-        }
-    }
-
-    mod u64_to_local_reference {
-        use super::*;
-
-        #[test]
-        fn round_trips_with_local_reference() {
-            let process = process::local::new();
-
-            let original = Term::local_reference(&process);
-            let original_u64: u64 = original.try_into().unwrap();
-            let from_u64 = Term::u64_to_local_reference(original_u64, &process);
-
-            assert_eq!(original, from_u64);
         }
     }
 

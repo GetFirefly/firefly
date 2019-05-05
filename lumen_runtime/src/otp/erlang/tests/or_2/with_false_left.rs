@@ -21,7 +21,7 @@ fn with_true_right_returns_true() {
 
 #[test]
 fn with_local_reference_right_errors_badarg() {
-    with_right_errors_badarg(|process| Term::local_reference(&process));
+    with_right_errors_badarg(|process| Term::next_local_reference(process));
 }
 
 #[test]

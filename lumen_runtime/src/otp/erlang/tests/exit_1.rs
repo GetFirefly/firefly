@@ -11,7 +11,7 @@ fn with_atom_exits_with_atom_reason() {
 
 #[test]
 fn with_local_reference_exits_with_local_reference() {
-    exits(|process| Term::local_reference(&process));
+    exits(|process| Term::next_local_reference(process));
 }
 
 #[test]

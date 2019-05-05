@@ -1,13 +1,30 @@
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Weak};
 
 use crate::process::Process;
 use crate::term::Term;
 
+#[cfg(test)]
+pub fn new() -> Arc<Process> {
+    crate::scheduler::Scheduler::current().new_process()
+}
+
 pub fn pid_to_process(pid: Term) -> Option<Arc<Process>> {
-    match RW_LOCK_ARC_PROCESS_BY_PID.read().unwrap().get(&pid) {
-        Some(ref process_arc) => Some(Arc::clone(process_arc)),
-        None => None,
+    RW_LOCK_WEAK_PROCESS_BY_PID
+        .read()
+        .unwrap()
+        .get(&pid)
+        .and_then(|weak_process| weak_process.clone().upgrade())
+}
+
+#[cfg(test)]
+pub fn put_pid_to_process(process: Arc<Process>) {
+    if let Some(_) = RW_LOCK_WEAK_PROCESS_BY_PID
+        .write()
+        .unwrap()
+        .insert(process.pid, Arc::downgrade(&process))
+    {
+        panic!("Process already registerd with pid");
     }
 }
 
@@ -19,41 +36,7 @@ pub fn pid_to_self_or_process(pid: Term, process_arc: &Arc<Process>) -> Option<A
     }
 }
 
-#[cfg(test)]
-pub fn new() -> Arc<Process> {
-    let process = Process::new();
-    let pid = process.pid;
-    let process_arc = Arc::new(process);
-
-    if let Some(_) = RW_LOCK_ARC_PROCESS_BY_PID
-        .write()
-        .unwrap()
-        .insert(pid, process_arc.clone())
-    {
-        panic!("Process already registered with pid");
-    }
-
-    process_arc
-}
-
 lazy_static! {
-    static ref RW_LOCK_ARC_PROCESS_BY_PID: RwLock<HashMap<Term, Arc<Process>>> = Default::default();
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use crate::otp::erlang;
-
-    #[test]
-    fn different_processes_in_same_environment_have_different_pids() {
-        let first_process = new();
-        let second_process = new();
-
-        assert_ne!(
-            erlang::self_0(&first_process),
-            erlang::self_0(&second_process)
-        );
-    }
+    // Strong references are owned by the schedulers
+    static ref RW_LOCK_WEAK_PROCESS_BY_PID: RwLock<HashMap<Term, Weak<Process>>> = Default::default();
 }

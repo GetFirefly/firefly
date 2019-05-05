@@ -7,6 +7,7 @@ use crate::integer;
 use crate::message::Message;
 use crate::otp::erlang;
 use crate::process;
+use crate::scheduler::{with_process, with_process_arc};
 
 mod abs_1;
 mod add_2;
@@ -39,6 +40,7 @@ mod bsl_2;
 mod bsr_2;
 mod bxor_2;
 mod byte_size_1;
+mod cancel_timer_1;
 mod ceil_1;
 mod concatenate_2;
 mod convert_time_unit_3;
@@ -139,16 +141,12 @@ fn has_message(process: &Process, message: Term) -> bool {
         .lock()
         .unwrap()
         .iter()
-        .any(|mailbox_message| {
-            println!("mailbox_message = {:?}", mailbox_message);
-
-            match mailbox_message {
-                Message::Process(process_message) => process_message == &message,
-                Message::Heap {
-                    message: heap_message,
-                    ..
-                } => heap_message == &message,
-            }
+        .any(|mailbox_message| match mailbox_message {
+            Message::Process(process_message) => process_message == &message,
+            Message::Heap {
+                message: heap_message,
+                ..
+            } => heap_message == &message,
         })
 }
 
@@ -169,6 +167,14 @@ fn list_term(process: &Process) -> Term {
     Term::cons(head_term, Term::EMPTY_LIST, process)
 }
 
+fn receive_message(process: &Process) -> Option<Term> {
+    // always lock `heap` before `mailbox`
+    let unlocked_heap = process.heap.lock().unwrap();
+    let mut unlocked_mailbox = process.mailbox.lock().unwrap();
+
+    unlocked_mailbox.receive(unlocked_heap)
+}
+
 static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 fn registered_name() -> Term {
@@ -183,16 +189,13 @@ fn registered_name() -> Term {
     .unwrap()
 }
 
-fn with_process<F>(f: F)
-where
-    F: FnOnce(&Process) -> (),
-{
-    f(&process::local::new())
-}
-
-fn with_process_arc<F>(f: F)
-where
-    F: FnOnce(Arc<Process>) -> (),
-{
-    f(process::local::new())
+fn timeout_message(timer_reference: Term, message: Term, process: &Process) -> Term {
+    Term::slice_to_tuple(
+        &[
+            Term::str_to_atom("timeout", DoNotCare).unwrap(),
+            timer_reference,
+            message,
+        ],
+        process,
+    )
 }

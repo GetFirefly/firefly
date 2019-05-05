@@ -2,12 +2,12 @@ use super::*;
 
 #[test]
 fn with_atom_message_returns_noconnect() {
-    with_message_returns_noconnect(|process| Term::local_reference(&process));
+    with_message_returns_noconnect(|process| Term::next_local_reference(process));
 }
 
 #[test]
 fn with_local_reference_message_returns_noconnect() {
-    with_message_returns_noconnect(|process| Term::local_reference(&process));
+    with_message_returns_noconnect(|process| Term::next_local_reference(process));
 }
 
 #[test]

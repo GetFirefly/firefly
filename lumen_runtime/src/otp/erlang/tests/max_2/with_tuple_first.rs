@@ -28,7 +28,7 @@ fn with_atom_returns_first() {
 
 #[test]
 fn with_local_reference_second_returns_first() {
-    max(|_, process| Term::local_reference(&process), First);
+    max(|_, process| Term::next_local_reference(process), First);
 }
 
 #[test]

@@ -9,7 +9,7 @@ fn with_atom_errors_atom_reason() {
 
 #[test]
 fn with_local_reference_errors_local_reference() {
-    errors(|process| Term::local_reference(&process));
+    errors(|process| Term::next_local_reference(process));
 }
 
 #[test]

@@ -17,7 +17,7 @@ fn with_atom_time_errors_badarg() {
 
 #[test]
 fn with_local_reference_time_errors_badarg() {
-    with_time_errors_badarg(|process| Term::local_reference(&process));
+    with_time_errors_badarg(|process| Term::next_local_reference(process));
 }
 
 #[test]

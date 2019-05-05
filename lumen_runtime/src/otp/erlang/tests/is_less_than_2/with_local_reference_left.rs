@@ -25,10 +25,7 @@ fn with_atom_returns_false() {
 
 #[test]
 fn with_lesser_local_reference_right_returns_false() {
-    is_less_than(
-        |_, process| Term::number_to_local_reference(0, &process),
-        false,
-    );
+    is_less_than(|_, process| Term::local_reference(0, process), false);
 }
 
 #[test]
@@ -38,18 +35,12 @@ fn with_same_local_reference_right_returns_false() {
 
 #[test]
 fn with_same_value_local_reference_right_returns_false() {
-    is_less_than(
-        |_, process| Term::number_to_local_reference(1, &process),
-        false,
-    );
+    is_less_than(|_, process| Term::local_reference(1, process), false);
 }
 
 #[test]
 fn with_greater_local_reference_right_returns_true() {
-    is_less_than(
-        |_, process| Term::number_to_local_reference(2, &process),
-        true,
-    );
+    is_less_than(|_, process| Term::local_reference(2, process), true);
 }
 
 #[test]
@@ -102,9 +93,5 @@ fn is_less_than<R>(right: R, expected: bool)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::is_less_than(
-        |process| Term::number_to_local_reference(1, &process),
-        right,
-        expected,
-    );
+    super::is_less_than(|process| Term::local_reference(1, process), right, expected);
 }

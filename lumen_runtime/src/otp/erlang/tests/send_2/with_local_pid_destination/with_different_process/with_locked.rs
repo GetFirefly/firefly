@@ -3,14 +3,14 @@ use super::*;
 #[test]
 fn with_atom_adds_heap_message_to_mailbox_and_returns_message() {
     with_adds_heap_message_to_mailbox_and_returns_message(|process| {
-        Term::local_reference(&process)
+        Term::next_local_reference(process)
     });
 }
 
 #[test]
 fn with_local_reference_adds_heap_message_to_mailbox_and_returns_message() {
     with_adds_heap_message_to_mailbox_and_returns_message(|process| {
-        Term::local_reference(&process)
+        Term::next_local_reference(process)
     });
 }
 

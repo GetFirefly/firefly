@@ -14,6 +14,7 @@ use crate::mailbox::Mailbox;
 use crate::map::Map;
 use crate::message::Message;
 use crate::reference;
+use crate::scheduler;
 use crate::term::Term;
 use crate::tuple::Tuple;
 
@@ -29,7 +30,7 @@ pub struct Process {
 
 impl Process {
     #[cfg(test)]
-    fn new() -> Self {
+    pub fn new() -> Self {
         Process {
             pid: identifier::local::next(),
             registered_name: Default::default(),
@@ -61,13 +62,15 @@ impl Process {
         self.heap.lock().unwrap().f64_to_float(f)
     }
 
-    pub fn local_reference(&self) -> &'static reference::local::Reference {
-        self.heap.lock().unwrap().local_reference()
-    }
-
-    #[cfg(test)]
-    pub fn number_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
-        self.heap.lock().unwrap().number_to_local_reference(number)
+    pub fn local_reference(
+        &self,
+        scheduler_id: &scheduler::ID,
+        number: reference::local::Number,
+    ) -> &'static reference::local::Reference {
+        self.heap
+            .lock()
+            .unwrap()
+            .local_reference(scheduler_id, number)
     }
 
     pub fn num_bigint_big_to_big_integer(&self, big_int: BigInt) -> &'static big::Integer {
@@ -134,10 +137,6 @@ impl Process {
 
     pub fn slice_to_tuple(&self, slice: &[Term]) -> &'static Tuple {
         self.heap.lock().unwrap().slice_to_tuple(slice)
-    }
-
-    pub fn u64_to_local_reference(&self, number: u64) -> &'static reference::local::Reference {
-        self.heap.lock().unwrap().u64_to_local_reference(number)
     }
 }
 

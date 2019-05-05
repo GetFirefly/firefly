@@ -25,10 +25,7 @@ fn with_atom_returns_second() {
 
 #[test]
 fn with_lesser_local_reference_second_returns_second() {
-    min(
-        |_, process| Term::number_to_local_reference(0, &process),
-        Second,
-    );
+    min(|_, process| Term::local_reference(0, process), Second);
 }
 
 #[test]
@@ -38,18 +35,12 @@ fn with_same_local_reference_second_returns_first() {
 
 #[test]
 fn with_same_value_local_reference_second_returns_first() {
-    min(
-        |_, process| Term::number_to_local_reference(1, &process),
-        First,
-    );
+    min(|_, process| Term::local_reference(1, process), First);
 }
 
 #[test]
 fn with_greater_local_reference_second_returns_first() {
-    min(
-        |_, process| Term::number_to_local_reference(2, &process),
-        First,
-    );
+    min(|_, process| Term::local_reference(2, process), First);
 }
 
 #[test]
@@ -102,9 +93,5 @@ fn min<R>(second: R, which: FirstSecond)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::min(
-        |process| Term::number_to_local_reference(1, &process),
-        second,
-        which,
-    );
+    super::min(|process| Term::local_reference(1, process), second, which);
 }

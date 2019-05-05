@@ -9,7 +9,7 @@ fn with_atom_shift_errors_badarith() {
 
 #[test]
 fn with_local_reference_shift_errors_badarith() {
-    with_shift_errors_badarith(|process| Term::local_reference(&process));
+    with_shift_errors_badarith(|process| Term::next_local_reference(process));
 }
 
 #[test]

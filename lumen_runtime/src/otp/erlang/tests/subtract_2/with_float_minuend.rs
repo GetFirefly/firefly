@@ -7,7 +7,7 @@ fn with_atom_subtrahend_errors_badarith() {
 
 #[test]
 fn with_local_reference_subtrahend_errors_badarith() {
-    with_subtrahend_errors_badarith(|process| Term::local_reference(&process));
+    with_subtrahend_errors_badarith(|process| Term::next_local_reference(process));
 }
 
 #[test]

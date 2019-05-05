@@ -11,7 +11,7 @@ fn with_atom_is_false() {
 
 #[test]
 fn with_local_reference_is_false() {
-    is_not_record_with_term(|process| Term::local_reference(&process));
+    is_not_record_with_term(|process| Term::next_local_reference(process));
 }
 
 #[test]

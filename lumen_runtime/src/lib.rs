@@ -48,6 +48,7 @@ mod node;
 pub mod otp;
 mod reference;
 mod registry;
+mod scheduler;
 mod send;
 mod stacktrace;
 mod system;

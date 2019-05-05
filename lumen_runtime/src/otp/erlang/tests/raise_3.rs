@@ -8,7 +8,7 @@ mod with_atom_class;
 
 #[test]
 fn with_local_reference_class_errors_badarg() {
-    with_class_errors_badarg(|process| Term::local_reference(&process));
+    with_class_errors_badarg(|process| Term::next_local_reference(process));
 }
 
 #[test]

@@ -11,7 +11,7 @@ fn with_atom_multiplier_errors_badarith() {
 
 #[test]
 fn with_local_reference_multiplier_errors_badarith() {
-    with_multiplier_errors_badarith(|process| Term::local_reference(&process));
+    with_multiplier_errors_badarith(|process| Term::next_local_reference(process));
 }
 
 #[test]

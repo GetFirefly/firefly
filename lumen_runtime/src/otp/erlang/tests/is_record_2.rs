@@ -13,7 +13,7 @@ fn with_atom_is_false() {
 #[test]
 fn with_local_reference_is_false() {
     let process = process::local::new();
-    let term = Term::local_reference(&process);
+    let term = Term::next_local_reference(&process);
     let record_tag = Term::str_to_atom("record_tag", DoNotCare).unwrap();
 
     assert_eq!(erlang::is_record_2(term, record_tag), Ok(false.into()));

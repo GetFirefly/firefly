@@ -15,6 +15,7 @@ use crate::term::Term;
 use crate::time::monotonic::{self, Milliseconds};
 
 pub mod cancel;
+pub mod read;
 pub mod start;
 
 pub fn cancel(timer_reference: &reference::local::Reference) -> Option<Milliseconds> {
@@ -24,6 +25,16 @@ pub fn cancel(timer_reference: &reference::local::Reference) -> Option<Milliseco
             .lock()
             .unwrap()
             .cancel(timer_reference.number())
+    })
+}
+
+pub fn read(timer_reference: &reference::local::Reference) -> Option<Milliseconds> {
+    timer_reference.scheduler().and_then(|scheduler| {
+        scheduler
+            .hierarchy
+            .lock()
+            .unwrap()
+            .read(timer_reference.number())
     })
 }
 
@@ -111,6 +122,15 @@ impl Hierarchy {
         } else {
             Position::LongTerm
         }
+    }
+
+    fn read(&self, timer_reference_number: reference::local::Number) -> Option<Milliseconds> {
+        self.timer_by_reference_number
+            .get(&timer_reference_number)
+            .and_then(|weak_timer| weak_timer.upgrade())
+            .map(|rc_timer| {
+                rc_timer.monotonic_time_milliseconds - monotonic::time_in_milliseconds()
+            })
     }
 
     fn start(

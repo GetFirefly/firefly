@@ -1144,6 +1144,10 @@ pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
     }
 }
 
+pub fn read_timer_1(timer_reference: Term, process: &Process) -> Result {
+    read_timer(timer_reference, Default::default(), process)
+}
+
 pub fn register_2(name: Term, pid_or_port: Term, process_arc: Arc<Process>) -> Result {
     match name.tag() {
         Atom => match unsafe { name.atom_to_string() }.as_ref().as_ref() {
@@ -1604,6 +1608,50 @@ fn list_to_atom(string: Term, existence: Existence) -> Result {
             let cons: &Cons = unsafe { string.as_ref_cons_unchecked() };
 
             cons.to_atom(existence)
+        }
+        _ => Err(badarg!()),
+    }
+}
+
+fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Process) -> Result {
+    match timer_reference.tag() {
+        Boxed => {
+            let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
+
+            match unboxed_timer_reference.tag() {
+                LocalReference => {
+                    let local_reference: &reference::local::Reference =
+                        timer_reference.unbox_reference();
+
+                    let read = timer::read(local_reference);
+
+                    let read_term = match read {
+                        Some(milliseconds_remaining) => {
+                            milliseconds_remaining.into_process(process)
+                        }
+                        None => false.into(),
+                    };
+
+                    let term = if options.r#async {
+                        let read_timer_message = Term::slice_to_tuple(
+                            &[
+                                Term::str_to_atom("read_timer", DoNotCare).unwrap(),
+                                timer_reference,
+                                read_term,
+                            ],
+                            process,
+                        );
+                        process.send_from_self(read_timer_message);
+
+                        Term::str_to_atom("ok", DoNotCare).unwrap()
+                    } else {
+                        read_term
+                    };
+
+                    Ok(term)
+                }
+                _ => Err(badarg!()),
+            }
         }
         _ => Err(badarg!()),
     }

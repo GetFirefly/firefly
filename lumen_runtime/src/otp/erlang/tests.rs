@@ -96,6 +96,7 @@ mod number_or_badarith_1;
 mod or_2;
 mod orelse_2;
 mod raise_3;
+mod read_timer_1;
 mod register_2;
 mod registered_0;
 mod rem_2;

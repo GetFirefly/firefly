@@ -488,29 +488,13 @@ pub fn byte_size_1(bit_string: Term, process: &Process) -> Result {
 }
 
 pub fn cancel_timer_1(timer_reference: Term, process: &Process) -> Result {
-    match timer_reference.tag() {
-        Boxed => {
-            let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
+    cancel_timer(timer_reference, Default::default(), process)
+}
 
-            match unboxed_timer_reference.tag() {
-                LocalReference => {
-                    let local_reference: &reference::local::Reference =
-                        timer_reference.unbox_reference();
+pub fn cancel_timer_2(timer_reference: Term, options: Term, process: &Process) -> Result {
+    let cancel_timer_options: timer::cancel::Options = options.try_into()?;
 
-                    let term = match timer::cancel(local_reference) {
-                        Some(milliseconds_remaining) => {
-                            milliseconds_remaining.into_process(process)
-                        }
-                        None => false.into(),
-                    };
-
-                    Ok(term)
-                }
-                _ => Err(badarg!()),
-            }
-        }
-        _ => Err(badarg!()),
-    }
+    cancel_timer(timer_reference, cancel_timer_options, process)
 }
 
 pub fn ceil_1(number: Term, process: &Process) -> Result {
@@ -1541,6 +1525,58 @@ fn binary_existence_to_atom(binary: Term, encoding: Term, existence: Existence) 
         _ => Err(badarg!()),
     }
     .map(|atom_index| atom_index.into())
+}
+
+fn cancel_timer(
+    timer_reference: Term,
+    options: timer::cancel::Options,
+    process: &Process,
+) -> Result {
+    match timer_reference.tag() {
+        Boxed => {
+            let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
+
+            match unboxed_timer_reference.tag() {
+                LocalReference => {
+                    let local_reference: &reference::local::Reference =
+                        timer_reference.unbox_reference();
+
+                    let canceled = timer::cancel(local_reference);
+
+                    let term = if options.info {
+                        let canceled_term = match canceled {
+                            Some(milliseconds_remaining) => {
+                                milliseconds_remaining.into_process(process)
+                            }
+                            None => false.into(),
+                        };
+
+                        if options.r#async {
+                            let cancel_timer_message = Term::slice_to_tuple(
+                                &[
+                                    Term::str_to_atom("cancel_timer", DoNotCare).unwrap(),
+                                    timer_reference,
+                                    canceled_term,
+                                ],
+                                process,
+                            );
+                            process.send_from_self(cancel_timer_message);
+
+                            Term::str_to_atom("ok", DoNotCare).unwrap()
+                        } else {
+                            canceled_term
+                        }
+                    } else {
+                        Term::str_to_atom("ok", DoNotCare).unwrap()
+                    };
+
+                    Ok(term)
+                }
+                _ => Err(badarg!()),
+            }
+        }
+        _ => Err(badarg!()),
+    }
 }
 
 fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> Result {

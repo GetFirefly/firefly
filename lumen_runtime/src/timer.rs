@@ -14,6 +14,7 @@ use crate::scheduler::{self, Scheduler};
 use crate::term::Term;
 use crate::time::monotonic::{self, Milliseconds};
 
+pub mod cancel;
 pub mod start;
 
 pub fn cancel(timer_reference: &reference::local::Reference) -> Option<Milliseconds> {

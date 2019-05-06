@@ -41,6 +41,7 @@ mod bsr_2;
 mod bxor_2;
 mod byte_size_1;
 mod cancel_timer_1;
+mod cancel_timer_2;
 mod ceil_1;
 mod concatenate_2;
 mod convert_time_unit_3;
@@ -119,6 +120,17 @@ mod xor_2;
 enum FirstSecond {
     First,
     Second,
+}
+
+fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
+    Term::slice_to_tuple(
+        &[
+            Term::str_to_atom("cancel_timer", DoNotCare).unwrap(),
+            timer_reference,
+            result,
+        ],
+        process,
+    )
 }
 
 fn errors_badarg<F>(actual: F)

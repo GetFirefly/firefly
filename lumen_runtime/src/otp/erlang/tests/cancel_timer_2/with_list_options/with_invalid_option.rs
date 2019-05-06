@@ -69,15 +69,14 @@ fn with_subbinary_option_errors_badarg() {
     with_option_errors_badarg(|process| bitstring!(1 :: 1, &process));
 }
 
-fn with_option_errors_badarg<D>(option: D)
+fn with_option_errors_badarg<O>(option: O)
 where
-    D: FnOnce(&Process) -> Term,
+    O: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
-        let destination = process.pid;
-        let message = Term::str_to_atom("message", DoNotCare).unwrap();
+        let timer_reference = Term::next_local_reference(process);
         let options = Term::cons(option(process), Term::EMPTY_LIST, process);
 
-        assert_badarg!(erlang::send_3(destination, message, options, process));
+        assert_badarg!(erlang::cancel_timer_2(timer_reference, options, process));
     });
 }

@@ -15,7 +15,8 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(!has_message(process, timeout_message));
 
         let milliseconds_remaining =
-            erlang::cancel_timer_1(timer_reference, process).expect("Timer could not be cancelled");
+            erlang::cancel_timer_2(timer_reference, options(process), process)
+                .expect("Timer could not be cancelled");
 
         assert!(milliseconds_remaining.is_integer());
         assert!(0.into_process(process) < milliseconds_remaining);
@@ -23,7 +24,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         // again before timeout
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
+            erlang::cancel_timer_2(timer_reference, options(process), process),
             Ok(false.into())
         );
 
@@ -33,7 +34,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         // again after timeout
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
+            erlang::cancel_timer_2(timer_reference, options(process), process),
             Ok(false.into())
         );
     });
@@ -56,13 +57,13 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
         );
 
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
+            erlang::cancel_timer_2(timer_reference, options(process), process),
             Ok(false.into())
         );
 
         // again
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
+            erlang::cancel_timer_2(timer_reference, options(process), process),
             Ok(false.into())
         );
     });

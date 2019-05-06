@@ -14,17 +14,15 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         assert!(!has_message(process, timeout_message));
 
-        let milliseconds_remaining =
-            erlang::cancel_timer_1(timer_reference, process).expect("Timer could not be cancelled");
-
-        assert!(milliseconds_remaining.is_integer());
-        assert!(0.into_process(process) < milliseconds_remaining);
-        assert!(milliseconds_remaining <= (milliseconds / 2).into_process(process));
+        assert_eq!(
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+        );
 
         // again before timeout
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
 
         timeout_after_half(milliseconds, barrier);
@@ -33,8 +31,8 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         // again after timeout
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
     });
 }
@@ -56,14 +54,14 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
         );
 
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
 
         // again
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
     });
 }

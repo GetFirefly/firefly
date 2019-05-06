@@ -22,7 +22,7 @@ impl ID {
 
 pub struct Scheduler {
     pub id: ID,
-    pub hierarchy: Mutex<Hierarchy>,
+    pub hierarchy: RwLock<Hierarchy>,
     pub process_by_pid: RwLock<HashMap<Term, Arc<Process>>>,
     // References are always 64-bits even on 32-bit platforms
     reference_count: AtomicU64,

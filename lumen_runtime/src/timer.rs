@@ -1,12 +1,12 @@
 use std::cmp::Ordering::{self, *};
 use std::collections::HashMap;
 use std::ops::{Index, IndexMut, RangeBounds};
-use std::rc::{self, Rc};
-use std::sync;
+use std::sync::{Arc, Mutex, Weak};
 use std::vec::Drain;
 
 use crate::atom::Existence::DoNotCare;
 use crate::heap::{CloneIntoHeap, Heap};
+use crate::message;
 use crate::process::Process;
 use crate::reference;
 use crate::registry::{self, Registered};
@@ -22,7 +22,7 @@ pub fn cancel(timer_reference: &reference::local::Reference) -> Option<Milliseco
     timer_reference.scheduler().and_then(|scheduler| {
         scheduler
             .hierarchy
-            .lock()
+            .write()
             .unwrap()
             .cancel(timer_reference.number())
     })
@@ -32,7 +32,7 @@ pub fn read(timer_reference: &reference::local::Reference) -> Option<Millisecond
     timer_reference.scheduler().and_then(|scheduler| {
         scheduler
             .hierarchy
-            .lock()
+            .read()
             .unwrap()
             .read(timer_reference.number())
     })
@@ -45,7 +45,7 @@ pub fn start(
     process: &Process,
 ) -> Term {
     let scheduler = Scheduler::current();
-    let reference = scheduler.hierarchy.lock().unwrap().start(
+    let reference = scheduler.hierarchy.write().unwrap().start(
         monotonic_time_milliseconds,
         destination,
         process_message,
@@ -61,13 +61,13 @@ pub fn start(
 pub fn timeout() {
     let scheduler = Scheduler::current();
 
-    scheduler.hierarchy.lock().unwrap().timeout(&scheduler.id);
+    scheduler.hierarchy.write().unwrap().timeout(&scheduler.id);
 }
 
 #[derive(Clone, Debug)]
 pub enum Destination {
     Name(Term),
-    Process(sync::Weak<Process>),
+    Process(Weak<Process>),
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -76,7 +76,7 @@ pub struct Hierarchy {
     soon: Wheel,
     later: Wheel,
     long_term: Slot,
-    timer_by_reference_number: HashMap<reference::local::Number, rc::Weak<Timer>>,
+    timer_by_reference_number: HashMap<reference::local::Number, Weak<Timer>>,
 }
 
 impl Hierarchy {
@@ -91,10 +91,10 @@ impl Hierarchy {
         self.timer_by_reference_number
             .remove(&timer_reference_number)
             .and_then(|weak_timer| weak_timer.upgrade())
-            .map(|rc_timer| {
+            .map(|arc_timer| {
                 use Position::*;
 
-                match rc_timer.position {
+                match *arc_timer.position.lock().unwrap() {
                     // can't be found in O(1), mark as canceled for later cleanup
                     AtOnce => self.at_once.cancel(timer_reference_number),
                     Soon { slot_index } => self.soon.cancel(slot_index, timer_reference_number),
@@ -102,7 +102,7 @@ impl Hierarchy {
                     LongTerm => self.long_term.cancel(timer_reference_number),
                 };
 
-                rc_timer.monotonic_time_milliseconds - monotonic::time_in_milliseconds()
+                arc_timer.monotonic_time_milliseconds - monotonic::time_in_milliseconds()
             })
     }
 
@@ -151,14 +151,13 @@ impl Hierarchy {
             reference_number,
             monotonic_time_milliseconds,
             destination,
-            heap,
-            message,
-            position,
+            message_heap: Mutex::new(message::Heap { heap, message }),
+            position: Mutex::new(position),
         };
 
-        let rc_timer = Rc::new(timer);
-        let timeoutable = Rc::clone(&rc_timer);
-        let cancellable = Rc::downgrade(&rc_timer);
+        let arc_timer = Arc::new(timer);
+        let timeoutable = Arc::clone(&arc_timer);
+        let cancellable = Arc::downgrade(&arc_timer);
 
         match position {
             Position::AtOnce => self.at_once.start(timeoutable),
@@ -209,30 +208,30 @@ impl Hierarchy {
     }
 
     fn timeout_at_once(&mut self, scheduler_id: &scheduler::ID) {
-        for rc_timer in self.at_once.drain(..) {
+        for arc_timer in self.at_once.drain(..) {
             self.timer_by_reference_number
-                .remove(&rc_timer.reference_number);
+                .remove(&arc_timer.reference_number);
 
-            Rc::try_unwrap(rc_timer).unwrap().timeout(scheduler_id)
+            Arc::try_unwrap(arc_timer).unwrap().timeout(scheduler_id)
         }
     }
 
     fn timeout_soon_slot(&mut self, scheduler_id: &scheduler::ID) {
-        for rc_timer in self.soon.drain(..) {
+        for arc_timer in self.soon.drain(..) {
             self.timer_by_reference_number
-                .remove(&rc_timer.reference_number);
+                .remove(&arc_timer.reference_number);
 
-            Rc::try_unwrap(rc_timer).unwrap().timeout(scheduler_id)
+            Arc::try_unwrap(arc_timer).unwrap().timeout(scheduler_id)
         }
     }
 
-    fn transfer(&mut self, mut transferable_rc_timer: Rc<Timer>, wheel_name: WheelName) {
+    fn transfer(&mut self, mut transferable_arc_timer: Arc<Timer>, wheel_name: WheelName) {
         let wheel = match wheel_name {
             WheelName::Soon => &mut self.soon,
             WheelName::Later => &mut self.later,
         };
 
-        let slot_index = wheel.slot_index(transferable_rc_timer.monotonic_time_milliseconds);
+        let slot_index = wheel.slot_index(transferable_arc_timer.monotonic_time_milliseconds);
 
         let position = match wheel_name {
             WheelName::Soon => Position::Soon { slot_index },
@@ -240,13 +239,17 @@ impl Hierarchy {
         };
 
         // Remove weak reference to allow `get_mut`.
-        let reference_number = transferable_rc_timer.reference_number;
+        let reference_number = transferable_arc_timer.reference_number;
         self.timer_by_reference_number.remove(&reference_number);
 
-        Rc::get_mut(&mut transferable_rc_timer).unwrap().position = position;
+        *Arc::get_mut(&mut transferable_arc_timer)
+            .unwrap()
+            .position
+            .lock()
+            .unwrap() = position;
 
-        let timeoutable = Rc::clone(&transferable_rc_timer);
-        let cancellable = Rc::downgrade(&transferable_rc_timer);
+        let timeoutable = Arc::clone(&transferable_arc_timer);
+        let cancellable = Arc::downgrade(&transferable_arc_timer);
 
         wheel.start(slot_index, timeoutable);
         self.timer_by_reference_number
@@ -254,24 +257,24 @@ impl Hierarchy {
     }
 
     fn transfer_later_to_soon(&mut self, soon_max_monotonic_time_milliseconds: Milliseconds) {
-        let transferable_rc_timers: Vec<Rc<Timer>> = self
+        let transferable_arc_timers: Vec<Arc<Timer>> = self
             .later
             .drain_before_or_at(soon_max_monotonic_time_milliseconds)
             .collect();
 
-        for rc_timer in transferable_rc_timers {
-            self.transfer(rc_timer, WheelName::Soon)
+        for arc_timer in transferable_arc_timers {
+            self.transfer(arc_timer, WheelName::Soon)
         }
     }
 
     fn transfer_long_term_to_later(&mut self, later_max_monotonic_time_milliseconds: Milliseconds) {
-        let transferable_rc_timers: Vec<Rc<Timer>> = self
+        let transferable_arc_timers: Vec<Arc<Timer>> = self
             .long_term
             .drain_before_or_at(later_max_monotonic_time_milliseconds)
             .collect();
 
-        for rc_timer in transferable_rc_timers {
-            self.transfer(rc_timer, WheelName::Later);
+        for arc_timer in transferable_arc_timers {
+            self.transfer(arc_timer, WheelName::Later);
         }
     }
 }
@@ -320,9 +323,6 @@ impl Default for Hierarchy {
     }
 }
 
-// Caller must guarantee to only ever use locked hierarchies associated with Scheduler
-unsafe impl Send for Hierarchy {}
-
 #[derive(Debug)]
 struct Timer {
     // Can't be a `Boxed` `LocalReference` `Term` because those are boxed and the original Process
@@ -330,10 +330,8 @@ struct Timer {
     reference_number: reference::local::Number,
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,
-    #[allow(dead_code)]
-    heap: Heap,
-    message: Term,
-    position: Position,
+    message_heap: Mutex<message::Heap>,
+    position: Mutex<Position>,
 }
 
 impl Timer {
@@ -344,36 +342,38 @@ impl Timer {
 
                 match readable_registry.get(name) {
                     Some(Registered::Process(destination_process_arc)) => {
-                        let timeout_message = self.timeout_message(scheduler_id);
+                        let (heap, timeout_message) = self.timeout_message(scheduler_id);
 
-                        destination_process_arc.send_heap_message(self.heap, timeout_message);
+                        destination_process_arc.send_heap_message(heap, timeout_message);
                     }
                     None => (),
                 }
             }
             Destination::Process(destination_process_weak) => {
                 if let Some(destination_process_arc) = destination_process_weak.upgrade() {
-                    let timeout_message = self.timeout_message(scheduler_id);
+                    let (heap, timeout_message) = self.timeout_message(scheduler_id);
 
-                    destination_process_arc.send_heap_message(self.heap, timeout_message);
+                    destination_process_arc.send_heap_message(heap, timeout_message);
                 }
             }
         }
     }
 
-    fn timeout_message(&self, scheduler_id: &scheduler::ID) -> Term {
-        let reference = self
+    fn timeout_message(self, scheduler_id: &scheduler::ID) -> (Heap, Term) {
+        let message_heap = self.message_heap.into_inner().unwrap();
+
+        let reference = message_heap
             .heap
             .local_reference(&scheduler_id, self.reference_number);
         let reference_term = Term::box_reference(reference);
 
-        let tuple = self.heap.slice_to_tuple(&[
+        let tuple = message_heap.heap.slice_to_tuple(&[
             Term::str_to_atom("timeout", DoNotCare).unwrap(),
             reference_term,
-            self.message,
+            message_heap.message,
         ]);
 
-        Term::box_reference(tuple)
+        (message_heap.heap, Term::box_reference(tuple))
     }
 }
 
@@ -414,17 +414,17 @@ enum Position {
 /// `later`).
 #[cfg_attr(test, derive(Debug))]
 #[derive(Clone, Default)]
-struct Slot(Vec<Rc<Timer>>);
+struct Slot(Vec<Arc<Timer>>);
 
 impl Slot {
-    fn cancel(&mut self, reference_number: reference::local::Number) -> Option<Rc<Timer>> {
+    fn cancel(&mut self, reference_number: reference::local::Number) -> Option<Arc<Timer>> {
         self.0
             .iter()
             .position(|timer_rc| timer_rc.reference_number == reference_number)
             .map(|index| self.0.remove(index))
     }
 
-    fn drain<R>(&mut self, range: R) -> Drain<Rc<Timer>>
+    fn drain<R>(&mut self, range: R) -> Drain<Arc<Timer>>
     where
         R: RangeBounds<usize>,
     {
@@ -434,7 +434,7 @@ impl Slot {
     fn drain_before_or_at(
         &mut self,
         max_monotonic_time_milliseconds: Milliseconds,
-    ) -> Drain<Rc<Timer>> {
+    ) -> Drain<Arc<Timer>> {
         let exclusive_end_bound = self
             .0
             .binary_search_by(|timer_rc| {
@@ -455,24 +455,24 @@ impl Slot {
         self.0.is_empty()
     }
 
-    fn start(&mut self, rc_timer: Rc<Timer>) {
+    fn start(&mut self, arc_timer: Arc<Timer>) {
         let index = self
             .0
             .binary_search_by_key(
                 &(
-                    rc_timer.monotonic_time_milliseconds,
-                    rc_timer.reference_number,
+                    arc_timer.monotonic_time_milliseconds,
+                    arc_timer.reference_number,
                 ),
-                |existing_rc_timer| {
+                |existing_arc_timer| {
                     (
-                        existing_rc_timer.monotonic_time_milliseconds,
-                        existing_rc_timer.reference_number,
+                        existing_arc_timer.monotonic_time_milliseconds,
+                        existing_arc_timer.reference_number,
                     )
                 },
             )
             .unwrap_err();
 
-        self.0.insert(index, rc_timer)
+        self.0.insert(index, arc_timer)
     }
 }
 
@@ -513,11 +513,11 @@ impl Wheel {
         &mut self,
         slot_index: SlotIndex,
         reference_number: reference::local::Number,
-    ) -> Option<Rc<Timer>> {
+    ) -> Option<Arc<Timer>> {
         self.slots[slot_index as usize].cancel(reference_number)
     }
 
-    fn drain<R>(&mut self, range: R) -> Drain<Rc<Timer>>
+    fn drain<R>(&mut self, range: R) -> Drain<Arc<Timer>>
     where
         R: RangeBounds<usize>,
     {
@@ -527,7 +527,7 @@ impl Wheel {
     fn drain_before_or_at(
         &mut self,
         max_monotonic_time_milliseconds: Milliseconds,
-    ) -> Drain<Rc<Timer>> {
+    ) -> Drain<Arc<Timer>> {
         self.slots[self.slot_index as usize].drain_before_or_at(max_monotonic_time_milliseconds)
     }
 
@@ -557,8 +557,8 @@ impl Wheel {
         (self.slot_index + slots) % Wheel::LENGTH
     }
 
-    fn start(&mut self, slot_index: SlotIndex, rc_timer: Rc<Timer>) {
-        self.slots[slot_index as usize].start(rc_timer)
+    fn start(&mut self, slot_index: SlotIndex, arc_timer: Arc<Timer>) {
+        self.slots[slot_index as usize].start(arc_timer)
     }
 }
 

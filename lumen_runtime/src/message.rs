@@ -9,3 +9,9 @@ pub enum Message {
     /// `Process` because the `Process`'s `Heap` was locked.
     Heap { heap: heap::Heap, message: Term },
 }
+
+#[derive(Debug)]
+pub struct Heap {
+    pub heap: heap::Heap,
+    pub message: Term,
+}

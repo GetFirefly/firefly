@@ -14,18 +14,42 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         assert!(!has_message(process, timeout_message));
 
-        let milliseconds_remaining =
-            erlang::cancel_timer_1(timer_reference, process).expect("Timer could not be cancelled");
+        assert_eq!(
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+        );
+
+        let received_message = receive_message(process).unwrap();
+
+        assert_eq!(received_message.tag(), Boxed);
+
+        let unboxed_received_message: &Term = received_message.unbox_reference();
+
+        assert_eq!(unboxed_received_message.tag(), Arity);
+
+        let received_tuple: &Tuple = received_message.unbox_reference();
+
+        assert_eq!(
+            received_tuple[0],
+            Term::str_to_atom("cancel_timer", DoNotCare).unwrap()
+        );
+        assert_eq!(received_tuple[1], timer_reference);
+
+        let milliseconds_remaining = received_tuple[2];
 
         assert!(milliseconds_remaining.is_integer());
         assert!(0.into_process(process) < milliseconds_remaining);
         assert!(milliseconds_remaining <= (milliseconds / 2).into_process(process));
 
+        let false_cancel_timer_message =
+            cancel_timer_message(timer_reference, false.into(), process);
+
         // again before timeout
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
+        assert_eq!(receive_message(process), Some(false_cancel_timer_message));
 
         timeout_after_half(milliseconds, barrier);
 
@@ -33,14 +57,15 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         // again after timeout
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
+        assert_eq!(receive_message(process), Some(false_cancel_timer_message))
     });
 }
 
 #[test]
-fn with_timeout_returns_false_after_timeout_message_was_sent() {
+fn with_timeout_returns_ok_after_timeout_message_was_sent() {
     with_timer(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
         timeout_after_half(milliseconds, barrier);
@@ -48,23 +73,22 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
         let message = Term::str_to_atom("different", DoNotCare).unwrap();
         let timeout_message = timeout_message(timer_reference, message, process);
 
-        assert!(
-            has_message(process, timeout_message),
-            "Mailbox does not contain {:?} and instead contains {:?}",
-            timeout_message,
-            process.mailbox.lock().unwrap()
-        );
+        assert_eq!(receive_message(process), Some(timeout_message));
+
+        let cancel_timer_message = cancel_timer_message(timer_reference, false.into(), process);
 
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
+        assert_eq!(receive_message(process), Some(cancel_timer_message));
 
         // again
         assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
+            erlang::cancel_timer_2(timer_reference, options(process), process),
+            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
+        assert_eq!(receive_message(process), Some(cancel_timer_message));
     });
 }
 

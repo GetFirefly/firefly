@@ -1,0 +1,57 @@
+[package]
+name = "liblumen_alloc"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+publish = false
+edition = "2018"
+
+build = "build.rs"
+
+[dependencies]
+cfg-if = "0.1"
+lazy_static = "1.2"
+thread_local = "0.3"
+
+[dependencies.bitvec]
+git = "https://github.com/bitwalker/bitvec"
+default-features = false
+features = ["alloc"]
+
+[dependencies.intrusive-collections]
+version = "0.7"
+features = ["nightly"]
+
+[dependencies.parking_lot]
+version = "0.7"
+features = ["nightly"]
+
+[dependencies.lock_api]
+version = "0.1"
+
+# We use libc for all platforms except Windows and WebAssembly
+[target.'cfg(all(unix, not(target_arch = "wasm32")))'.dependencies.libc]
+default-features = false
+features = ["align"]
+version = "0.2"
+
+# Except when targeting emscripten, in which case we do
+[target.'cfg(all(unix, target_os = "emscripten"))'.dependencies.libc]
+default-features = false
+features = ["align"]
+version = "0.2"
+
+# We make use of libc on Windows for malloc/free
+[target.'cfg(windows)'.dependencies.libc]
+default-features = false
+features = ["align"]
+version = "0.2"
+
+# Windows also requires additional APis for implementing mmap
+[target.'cfg(windows)'.dependencies.winapi]
+features = ["memoryapi", "synchapi", "winbase", "sysinfoapi"]
+version = "0.3"
+
+# Use dlmalloc on top of wasm primitives when not targeting emscripten
+[target.'cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))'.dependencies.dlmalloc]
+version = "0.1"
+features = ["allocator-api"]

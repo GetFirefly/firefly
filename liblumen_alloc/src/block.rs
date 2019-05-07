@@ -416,25 +416,25 @@ impl BlockFooter {
 /// order in which free blocks are selected for use by a carrier during allocation.
 pub struct FreeBlockTree {
     // address-ordered tree
-    atree: RBTree<SortedKeyAdapter<FreeBlock<RBTreeLink>>>,
+    addr_tree: RBTree<SortedKeyAdapter<FreeBlock<RBTreeLink>>>,
     // custom-ordered tree
-    stree: RBTree<SortedKeyAdapter<FreeBlock<RBTreeLink>>>,
-    // the ordering used by `stree`
+    user_tree: RBTree<SortedKeyAdapter<FreeBlock<RBTreeLink>>>,
+    // the ordering used by `user_tree`
     order: SortOrder,
 }
 impl FreeBlockTree {
     #[inline]
     pub fn new(order: SortOrder) -> Self {
         Self {
-            atree: RBTree::new(SortedKeyAdapter::new(SortOrder::AddressOrder)),
-            stree: RBTree::new(SortedKeyAdapter::new(order)),
+            addr_tree: RBTree::new(SortedKeyAdapter::new(SortOrder::AddressOrder)),
+            user_tree: RBTree::new(SortedKeyAdapter::new(order)),
             order,
         }
     }
 
     /// Lookup a free block which is the best fit for the given requested size
     pub fn find_best_fit(&mut self, layout: &Layout) -> Option<&FreeBlock<RBTreeLink>> {
-        let mut cursor = self.stree.front();
+        let mut cursor = self.user_tree.front();
         let mut result = None;
         let mut best_size = 0;
 
@@ -482,19 +482,19 @@ impl FreeBlockTree {
 
     /// Inserts the given block into this tree
     pub unsafe fn insert(&mut self, block: *const FreeBlock<RBTreeLink>) {
-        let _ = self.atree.insert(UnsafeRef::from_raw(block));
-        let _ = self.stree.insert(UnsafeRef::from_raw(block));
+        let _ = self.addr_tree.insert(UnsafeRef::from_raw(block));
+        let _ = self.user_tree.insert(UnsafeRef::from_raw(block));
     }
 
     /// Removes the given block from this tree
     pub unsafe fn remove(&mut self, block: *const FreeBlock<RBTreeLink>) {
         // remove from address-ordered tree
-        let mut cursor = self.atree.cursor_mut_from_ptr(block);
+        let mut cursor = self.addr_tree.cursor_mut_from_ptr(block);
         let removed = cursor.remove();
         assert!(removed.is_some());
 
         // remove from user-ordered tree
-        let mut cursor = self.stree.cursor_mut_from_ptr(block);
+        let mut cursor = self.user_tree.cursor_mut_from_ptr(block);
         let removed = cursor.remove();
         assert!(removed.is_some());
     }

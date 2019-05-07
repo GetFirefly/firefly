@@ -1248,6 +1248,25 @@ pub fn send_after_3(
     )
 }
 
+pub fn send_after_4(
+    time: Term,
+    destination: Term,
+    message: Term,
+    options: Term,
+    process_arc: Arc<Process>,
+) -> Result {
+    let timer_start_options: timer::start::Options = options.try_into()?;
+
+    start_timer(
+        time,
+        destination,
+        Timeout::Message,
+        message,
+        timer_start_options,
+        process_arc,
+    )
+}
+
 pub fn setelement_3(index: Term, tuple: Term, value: Term, process: &Process) -> Result {
     let inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;

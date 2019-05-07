@@ -97,6 +97,7 @@ mod or_2;
 mod orelse_2;
 mod raise_3;
 mod read_timer_1;
+mod read_timer_2;
 mod register_2;
 mod registered_0;
 mod rem_2;
@@ -124,14 +125,7 @@ enum FirstSecond {
 }
 
 fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
-    Term::slice_to_tuple(
-        &[
-            Term::str_to_atom("cancel_timer", DoNotCare).unwrap(),
-            timer_reference,
-            result,
-        ],
-        process,
-    )
+    timer_message("cancel_timer", timer_reference, result, process)
 }
 
 fn errors_badarg<F>(actual: F)
@@ -195,6 +189,10 @@ fn list_term(process: &Process) -> Term {
     Term::cons(head_term, Term::EMPTY_LIST, process)
 }
 
+fn read_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
+    timer_message("read_timer", timer_reference, result, process)
+}
+
 fn receive_message(process: &Process) -> Option<Term> {
     // always lock `heap` before `mailbox`
     let unlocked_heap = process.heap.lock().unwrap();
@@ -218,9 +216,13 @@ fn registered_name() -> Term {
 }
 
 fn timeout_message(timer_reference: Term, message: Term, process: &Process) -> Term {
+    timer_message("timeout", timer_reference, message, process)
+}
+
+fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
     Term::slice_to_tuple(
         &[
-            Term::str_to_atom("timeout", DoNotCare).unwrap(),
+            Term::str_to_atom(tag, DoNotCare).unwrap(),
             timer_reference,
             message,
         ],

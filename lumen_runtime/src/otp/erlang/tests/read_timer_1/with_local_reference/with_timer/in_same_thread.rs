@@ -8,7 +8,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
     with_timer(|milliseconds, message, timer_reference, process| {
         let half_milliseconds = milliseconds / 2;
 
-        thread::sleep(Duration::from_millis(half_milliseconds));
+        thread::sleep(Duration::from_millis(half_milliseconds + 1));
         timer::timeout();
 
         let timeout_message = timeout_message(timer_reference, message, process);
@@ -29,7 +29,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(second_milliseconds_remaining.is_integer());
         assert!(second_milliseconds_remaining <= first_milliseconds_remaining);
 
-        thread::sleep(Duration::from_millis(half_milliseconds));
+        thread::sleep(Duration::from_millis(half_milliseconds + 1));
         timer::timeout();
 
         assert!(has_message(process, timeout_message));

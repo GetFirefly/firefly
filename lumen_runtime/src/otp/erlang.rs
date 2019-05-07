@@ -1148,6 +1148,12 @@ pub fn read_timer_1(timer_reference: Term, process: &Process) -> Result {
     read_timer(timer_reference, Default::default(), process)
 }
 
+pub fn read_timer_2(timer_reference: Term, options: Term, process: &Process) -> Result {
+    let read_timer_options: timer::read::Options = options.try_into()?;
+
+    read_timer(timer_reference, read_timer_options, process)
+}
+
 pub fn register_2(name: Term, pid_or_port: Term, process_arc: Arc<Process>) -> Result {
     match name.tag() {
         Atom => match unsafe { name.atom_to_string() }.as_ref().as_ref() {

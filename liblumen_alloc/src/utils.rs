@@ -63,6 +63,18 @@ pub fn round_up_to_alignment(size: usize, align: usize) -> usize {
 #[inline(always)]
 pub fn round_down_to_alignment(size: usize, align: usize) -> usize {
     assert!(align.is_power_of_two());
+    // This trick works by masking the low bits in `size`
+    // up to (but not including) `align`, the result is
+    // the value of `size` rounded down to the next nearest
+    // number which is aligned to `align`
+    //
+    // EXAMPLE: given `size = 1048` and `align = 1024`, the result
+    // is `1024`, which can be seen with the following 16bit representation:
+    //
+    //     size:                0000010000011000
+    //     align - 1:           0000001111111111
+    //     !align - 1:          1111110000000000
+    //     size & !(align - 1): 0000010000000000
     size & !(align - 1)
 }
 

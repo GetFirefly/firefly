@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::message::Message;
-
 mod with_atom_destination;
 mod with_local_pid_destination;
 mod with_tuple_destination;

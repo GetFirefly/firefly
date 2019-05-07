@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 ///! This module provides a reusable sorted key adapter for use
 ///! with intrusive collections, namely `RBTree`.
 ///!
@@ -5,16 +6,14 @@
 ///! either used by `SortedKeyAdapter` or by types which need to
 ///! be stored in a collection managed by that adapter.
 use core::marker::PhantomData;
-use core::cmp::Ordering;
 
-use intrusive_collections::{UnsafeRef, Adapter, KeyAdapter};
-use intrusive_collections::{RBTreeLink, LinkedListLink};
+use intrusive_collections::{Adapter, KeyAdapter, UnsafeRef};
+use intrusive_collections::{LinkedListLink, RBTreeLink};
 
 /// A simple marker trait for intrusive collection links
 pub trait Link {}
 impl Link for RBTreeLink {}
 impl Link for LinkedListLink {}
-
 
 /// This trait is used to make the sorted key adapter more general
 /// by delegating some of the work to the type being stored in the
@@ -68,14 +67,12 @@ impl Ord for SortKey {
     #[inline]
     fn cmp(&self, other: &SortKey) -> Ordering {
         match self.0 {
-            SortOrder::AddressOrder =>
-                self.2.cmp(&other.2),
-            SortOrder::SizeAddressOrder =>
-                match self.1.cmp(&other.1) {
-                    Ordering::Equal => self.2.cmp(&other.2),
-                    Ordering::Less => Ordering::Greater,
-                    Ordering::Greater => Ordering::Less,
-                },
+            SortOrder::AddressOrder => self.2.cmp(&other.2),
+            SortOrder::SizeAddressOrder => match self.1.cmp(&other.1) {
+                Ordering::Equal => self.2.cmp(&other.2),
+                Ordering::Less => Ordering::Greater,
+                Ordering::Greater => Ordering::Less,
+            },
         }
     }
 }
@@ -85,7 +82,6 @@ impl PartialOrd for SortKey {
         Some(self.cmp(other))
     }
 }
-
 
 /// This struct is the primary point of this module; an adapter
 /// for sorted intrusive collections that allows reacting to
@@ -98,7 +94,7 @@ where
     T: Sortable,
 {
     order: SortOrder,
-    _phantom: PhantomData<UnsafeRef<T>>
+    _phantom: PhantomData<UnsafeRef<T>>,
 }
 
 impl<T> SortedKeyAdapter<T>
@@ -106,17 +102,17 @@ where
     T: Sortable,
 {
     pub fn new(order: SortOrder) -> Self {
-        Self { order, _phantom: PhantomData }
+        Self {
+            order,
+            _phantom: PhantomData,
+        }
     }
 }
 
 unsafe impl<T> Send for SortedKeyAdapter<T> where T: Sortable {}
 unsafe impl<T> Sync for SortedKeyAdapter<T> where T: Sortable {}
 
-impl<T> Copy for SortedKeyAdapter<T>
-where
-    T: Sortable + Copy,
-{}
+impl<T> Copy for SortedKeyAdapter<T> where T: Sortable + Copy {}
 
 impl<T> Clone for SortedKeyAdapter<T>
 where
@@ -124,7 +120,10 @@ where
 {
     fn clone(&self) -> Self {
         let order = self.order;
-        SortedKeyAdapter { order, _phantom: PhantomData }
+        SortedKeyAdapter {
+            order,
+            _phantom: PhantomData,
+        }
     }
 }
 

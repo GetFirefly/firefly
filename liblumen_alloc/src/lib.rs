@@ -8,13 +8,14 @@
 
 extern crate alloc;
 
-#[macro_use] pub mod utils;
-mod sys;
-mod mmap;
+#[macro_use]
+pub mod utils;
 mod block;
 mod carriers;
-mod sys_alloc;
+mod mmap;
 mod sorted;
+mod sys;
+mod sys_alloc;
 //mod size_classes;
 mod std_alloc;
 //mod fixed_alloc;

@@ -1,17 +1,17 @@
 #![allow(unused)]
-use core::mem;
-use core::ptr::{self, NonNull};
-use core::alloc::{Layout, AllocErr};
+use core::alloc::{AllocErr, Layout};
 use core::default::Default;
 use core::intrinsics::unlikely;
+use core::mem;
+use core::ptr::{self, NonNull};
 
 use intrusive_collections::container_of;
-use intrusive_collections::{UnsafeRef, RBTree, RBTreeLink};
+use intrusive_collections::{RBTree, RBTreeLink, UnsafeRef};
 
-use crate::utils;
 use crate::sorted::Link;
-use crate::sorted::{Sortable, SortOrder, SortKey};
 use crate::sorted::SortedKeyAdapter;
+use crate::sorted::{SortKey, SortOrder, Sortable};
+use crate::utils;
 
 /// This struct is used to represent the header of a block,
 /// at a minimum it contains both the block size, and three
@@ -77,21 +77,15 @@ where
 
     fn get_value(link: *const Self::Link, order: SortOrder) -> *const Self {
         match order {
-            SortOrder::AddressOrder => {
-                unsafe { container_of!(link, Self, addr_link) }
-            }
-            SortOrder::SizeAddressOrder => {
-                unsafe { container_of!(link, Self, user_link) }
-            }
+            SortOrder::AddressOrder => unsafe { container_of!(link, Self, addr_link) },
+            SortOrder::SizeAddressOrder => unsafe { container_of!(link, Self, user_link) },
         }
     }
 
     fn get_link(value: *const Self, order: SortOrder) -> *const Self::Link {
         match order {
-            SortOrder::AddressOrder =>
-                unsafe {  &(*value).addr_link as *const Self::Link },
-            SortOrder::SizeAddressOrder =>
-                unsafe {  &(*value).user_link as *const Self::Link },
+            SortOrder::AddressOrder => unsafe { &(*value).addr_link as *const Self::Link },
+            SortOrder::SizeAddressOrder => unsafe { &(*value).user_link as *const Self::Link },
         }
     }
 
@@ -193,9 +187,7 @@ impl Block {
         let size = self.usable_size();
         let ptr = unsafe { self.data() };
 
-        Some(unsafe {
-            NonNull::new_unchecked(ptr.offset(size as isize) as *mut Block)
-        })
+        Some(unsafe { NonNull::new_unchecked(ptr.offset(size as isize) as *mut Block) })
     }
 
     /// Locates the block footer for this block, if it exists.
@@ -323,10 +315,7 @@ impl Block {
         unsafe {
             let ptr = self.data();
             let footer_ptr = ptr.offset(offset as isize) as *mut BlockFooter;
-            ptr::write(
-                footer_ptr,
-                BlockFooter(size),
-            );
+            ptr::write(footer_ptr, BlockFooter(size));
         }
     }
 
@@ -363,11 +352,7 @@ impl Block {
         // Write the pattern over all bytes in the block except those
         // containing the block header itself
         unsafe {
-            ptr::write_bytes(
-                ptr as *mut u8,
-                Self::FREE_PATTERN,
-                self.usable_size()
-            );
+            ptr::write_bytes(ptr as *mut u8, Self::FREE_PATTERN, self.usable_size());
         }
     }
 
@@ -407,7 +392,6 @@ impl BlockFooter {
         NonNull::new_unchecked(raw.offset(header_offset) as *mut Block)
     }
 }
-
 
 /// This struct maintains an ordered tree of free blocks.
 ///
@@ -465,8 +449,9 @@ impl FreeBlockTree {
             }
             SortOrder::SizeAddressOrder => {
                 while let Some(block) = cursor.get() {
-                    // A best fit can be found as the previous neighbor of the first block which is too small
-                    // or the last block in the tree, if all blocks are of adequate size
+                    // A best fit can be found as the previous neighbor of the first block which is
+                    // too small or the last block in the tree, if all blocks
+                    // are of adequate size
                     let usable = unsafe { block.usable_size() };
                     if usable < requested {
                         break;
@@ -502,9 +487,9 @@ impl FreeBlockTree {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::mmap;
     use crate::sys;
-    use super::*;
 
     #[test]
     fn basic_block_api() {
@@ -514,12 +499,9 @@ mod tests {
         let ptr = unsafe { mmap::map(layout.clone()).expect("unable to map memory") };
         let raw = ptr.as_ptr() as *mut Block;
         unsafe {
-            ptr::write(
-                raw,
-                Block(usable),
-            );
+            ptr::write(raw, Block(usable));
         }
-        let mut block = unsafe {  &mut *raw };
+        let mut block = unsafe { &mut *raw };
         // Set attributes for this block
         block.set_allocated();
         assert!(!block.is_free());
@@ -551,10 +533,7 @@ mod tests {
         let ptr = unsafe { mmap::map(layout.clone()).expect("unable to map memory") };
         let raw = ptr.as_ptr() as *mut Block;
         unsafe {
-            ptr::write(
-                raw,
-                Block(usable),
-            );
+            ptr::write(raw, Block(usable));
         }
         let mut block = unsafe { &mut *raw };
         // Block is free, and last
@@ -597,7 +576,9 @@ mod tests {
         let ptr = unsafe { mmap::map(layout.clone()).expect("unable to map memory") };
         // Get pointers to both blocks
         let raw = ptr.as_ptr() as *mut FreeBlock<RBTreeLink>;
-        let raw2 = unsafe { (raw as *mut u8).offset(sys::pagesize() as isize) as *mut FreeBlock<RBTreeLink> };
+        let raw2 = unsafe {
+            (raw as *mut u8).offset(sys::pagesize() as isize) as *mut FreeBlock<RBTreeLink>
+        };
         // Write block headers
         unsafe {
             let mut block1 = Block(usable);
@@ -612,7 +593,7 @@ mod tests {
                     header: block1,
                     addr_link: RBTreeLink::new(),
                     user_link: RBTreeLink::new(),
-                }
+                },
             );
             ptr::write(
                 raw2,
@@ -620,7 +601,7 @@ mod tests {
                     header: block2,
                     addr_link: RBTreeLink::new(),
                     user_link: RBTreeLink::new(),
-                }
+                },
             );
         }
         // Get blocks
@@ -641,7 +622,8 @@ mod tests {
             // smallest block which fits the request, and our tree should be sorted by
             // size
             let req_size = 1024;
-            let request_layout = Layout::from_size_align(req_size, mem::size_of::<usize>()).unwrap();
+            let request_layout =
+                Layout::from_size_align(req_size, mem::size_of::<usize>()).unwrap();
             let result = tree.find_best_fit(&request_layout);
             assert!(result.is_some());
             let result_block = result.unwrap();

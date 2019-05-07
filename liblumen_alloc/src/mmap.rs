@@ -1,8 +1,8 @@
 #[cfg(has_mmap)]
 mod internal {
-    use core::ptr::{self, NonNull};
-    use core::alloc::{Layout, AllocErr};
     use crate::sys::mmap;
+    use core::alloc::{AllocErr, Layout};
+    use core::ptr::{self, NonNull};
 
     #[inline]
     pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
@@ -23,9 +23,9 @@ mod internal {
 
 #[cfg(not(has_mmap))]
 mod internal {
-    use core::ptr::{self, NonNull};
-    use core::alloc::{Layout, AllocErr};
     use crate::sys;
+    use core::alloc::{AllocErr, Layout};
+    use core::ptr::{self, NonNull};
 
     #[inline]
     pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
@@ -44,8 +44,4 @@ mod internal {
     pub unsafe fn uncommit(ptr: *mut u8, size: usize) {}
 }
 
-pub use self::internal::{
-    map,
-    unmap,
-    uncommit,
-};
+pub use self::internal::{map, uncommit, unmap};

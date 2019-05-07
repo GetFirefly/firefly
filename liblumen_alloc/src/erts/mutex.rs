@@ -1,7 +1,7 @@
-use core::sync::atomic::{AtomicBool, Ordering};
 use core::sync::atomic::spin_loop_hint;
+use core::sync::atomic::{AtomicBool, Ordering};
 
-use lock_api::{RawMutex, GuardSend};
+use lock_api::{GuardSend, RawMutex};
 
 /// A re-entrant mutex.
 /// See docs for `parking_lot::ReentrantMutex<T>` for details

@@ -1,11 +1,11 @@
+use core::alloc::Layout;
 use core::mem;
 use core::ptr::{self, NonNull};
-use core::alloc::Layout;
 
 use intrusive_collections::container_of;
 
 use crate::block::{Block, FreeBlockTree};
-use crate::sorted::{Link, Sortable, SortOrder, SortKey};
+use crate::sorted::{Link, SortKey, SortOrder, Sortable};
 
 /// This struct is the carrier type for large allocations that
 /// exceed a given threshold, typically anything larger than
@@ -53,9 +53,7 @@ where
     #[allow(unused)]
     #[inline]
     pub unsafe fn data<T>(&self) -> *const T {
-        let (_layout, data_offset) = Layout::new::<Self>()
-            .extend(self.layout.clone())
-            .unwrap();
+        let (_layout, data_offset) = Layout::new::<Self>().extend(self.layout.clone()).unwrap();
 
         let ptr = self as *const _ as *const u8;
         ptr.offset(data_offset as isize) as *const T
@@ -179,7 +177,12 @@ where
     }
 
     #[inline]
-    pub unsafe fn realloc_block(&self, ptr: *mut u8, layout: &Layout, new_size: usize) -> Option<NonNull<u8>> {
+    pub unsafe fn realloc_block(
+        &self,
+        ptr: *mut u8,
+        layout: &Layout,
+        new_size: usize,
+    ) -> Option<NonNull<u8>> {
         let old_size = layout.size();
         // Locate the current block
         let mut result = Some(self.head());
@@ -271,7 +274,7 @@ where
     }
 
     fn get_link(value: *const Self, _order: SortOrder) -> *const L {
-        unsafe {  &(*value).link as *const L }
+        unsafe { &(*value).link as *const L }
     }
 
     fn sort_key(&self, order: SortOrder) -> SortKey {

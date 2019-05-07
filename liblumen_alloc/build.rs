@@ -11,12 +11,10 @@ fn main() {
     println!("cargo:rustc-cfg=has_mmap");
 }
 
-
 #[cfg(all(unix, not(target_arch = "wasm32")))]
 fn main() {
     println!("cargo:rustc-cfg=has_mmap");
 }
 
 #[cfg(target_arch = "wasm32")]
-fn main() {
-}
+fn main() {}

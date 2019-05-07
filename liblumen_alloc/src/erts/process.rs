@@ -1,6 +1,6 @@
+use core::alloc::{AllocErr, Layout};
 use core::mem::{self, ManuallyDrop};
 use core::ptr::{self, NonNull};
-use core::alloc::{Layout, AllocErr};
 
 use crate::mmap;
 use crate::std_alloc::StandardAlloc;
@@ -61,7 +61,7 @@ impl ProcessAlloc {
                     heap_top,
                     stack_bottom,
                     stack_top: stack_bottom,
-                }
+                },
             );
         }
 
@@ -75,7 +75,11 @@ impl ProcessAlloc {
     /// TODO: This depends on having roots and GC, so that we can ensure that
     /// terms on the reallocated heap are updated so references point into the
     /// new heap, not the old
-    pub unsafe fn realloc(&mut self, _heap: *mut ProcessHeap, _new_size: usize) -> Result<*mut ProcessHeap, AllocErr> {
+    pub unsafe fn realloc(
+        &mut self,
+        _heap: *mut ProcessHeap,
+        _new_size: usize,
+    ) -> Result<*mut ProcessHeap, AllocErr> {
         unimplemented!()
     }
 

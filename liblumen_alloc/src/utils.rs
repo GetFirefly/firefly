@@ -6,23 +6,23 @@ use core::mem;
 #[allow(unused_macros)]
 #[macro_export]
 macro_rules! assert_word_aligned {
-    ($ptr:expr) => (
+    ($ptr:expr) => {
         assert_aligned_to!($ptr, core::mem::size_of::<usize>())
-    )
+    };
 }
 
 /// Used to assert alignment against an arbitrary size
 #[allow(unused_macros)]
 #[macro_export]
 macro_rules! assert_aligned_to {
-    ($ptr:expr, $align:expr) => (
+    ($ptr:expr, $align:expr) => {
         assert!(
             crate::utils::is_aligned_at($ptr, $align),
             "{:p} is not aligned to {}",
             $ptr,
             $align
         )
-    )
+    };
 }
 
 // A default good size allocation is deduced as the size of `T` rounded up
@@ -57,7 +57,6 @@ pub fn round_up_to_alignment(size: usize, align: usize) -> usize {
     assert!(align.is_power_of_two());
     self::round_up_to_multiple_of(size, align)
 }
-
 
 // Rounds down `size` to a multiple of `align`, which must be a power of two
 #[inline(always)]
@@ -110,7 +109,6 @@ pub fn is_aligned_at<T>(ptr: *const T, align: usize) -> bool {
 pub fn effective_alignment(ptr: *const u8) -> usize {
     1usize << (ptr as usize).trailing_zeros()
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -1,21 +1,21 @@
+use core::alloc::{Alloc, AllocErr, Layout};
 ///! This module provides a general purpose allocator for use with
 ///! the Erlang Runtime System. Specifically it is optimized for
 ///! general usage, where allocation patterns are unpredictable, or
 ///! for allocations where a more specialized allocator is unsuitable
 ///! or unavailable.
 use core::ptr::{self, NonNull};
-use core::alloc::{Alloc, AllocErr, Layout};
 
-use intrusive_collections::{intrusive_adapter, UnsafeRef, Bound};
+use intrusive_collections::{intrusive_adapter, Bound, UnsafeRef};
 use intrusive_collections::{LinkedList, LinkedListLink};
 use intrusive_collections::{RBTree, RBTreeLink};
 
 use crate::mmap;
 //use crate::size_classes;
 use crate::block::{Block, FreeBlockTree};
-use crate::carriers::{SingleBlockCarrier, MultiBlockCarrier};
-use crate::sorted::{SortOrder, SortKey, SortedKeyAdapter};
+use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::erts::SpinLock;
+use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
 
 // Type alias for the list of currently allocated single-block carriers
 type SingleBlockCarrierList = LinkedList<SingleBlockCarrierListAdapter>;
@@ -46,9 +46,9 @@ intrusive_adapter!(SingleBlockCarrierListAdapter = UnsafeRef<SingleBlockCarrier<
 /// size class, also called the "single-block carrier threshold". Currently this is statically set
 /// to the size class already mentioned (32k).
 ///
-/// The primary difference between the carrier types, other than the size of allocations they handle,
-/// is that single-block carriers are always freed, where multi-block carriers are retained and
-/// reused, the allocator effectively maintaining a cache to more efficiently serve allocations.
+/// The primary difference between the carrier types, other than the size of allocations they
+/// handle, is that single-block carriers are always freed, where multi-block carriers are retained
+/// and reused, the allocator effectively maintaining a cache to more efficiently serve allocations.
 ///
 /// The allocator starts with a single multi-block carrier, and additional multi-block carriers are
 /// allocated as needed when the current carriers are unable to satisfy allocation requests. As
@@ -81,7 +81,9 @@ impl StandardAlloc {
     pub fn new() -> Self {
         Self {
             sbc: SpinLock::new(LinkedList::new(SingleBlockCarrierListAdapter::new())),
-            mbc: SpinLock::new(RBTree::new(SortedKeyAdapter::new(SortOrder::SizeAddressOrder))),
+            mbc: SpinLock::new(RBTree::new(SortedKeyAdapter::new(
+                SortOrder::SizeAddressOrder,
+            ))),
             sbc_threshold: Self::MAX_SIZE_CLASS,
         }
     }
@@ -98,9 +100,7 @@ unsafe impl Alloc for StandardAlloc {
         // First, find a carrier large enough to hold the requested allocation
 
         // Ensure allocated region has enough space for carrier header and aligned block
-        let (block_layout, _data_offset) = Layout::new::<Block>()
-            .extend(layout.clone())
-            .unwrap();
+        let (block_layout, _data_offset) = Layout::new::<Block>().extend(layout.clone()).unwrap();
         let block_size = block_layout.size();
 
         // Start with the first carrier with a usable size of at least `size` bytes
@@ -137,7 +137,7 @@ unsafe impl Alloc for StandardAlloc {
                 size,
                 link: RBTreeLink::new(),
                 blocks: FreeBlockTree::new(SortOrder::SizeAddressOrder),
-            }
+            },
         );
         // Cast carrier pointer to UnsafeRef and add to multi-block carrier tree
         // This implicitly mutates the link in the carrier
@@ -153,8 +153,12 @@ unsafe impl Alloc for StandardAlloc {
         Ok(block.unwrap())
     }
 
-
-    unsafe fn realloc(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn realloc(
+        &mut self,
+        ptr: NonNull<u8>,
+        layout: Layout,
+        new_size: usize,
+    ) -> Result<NonNull<u8>, AllocErr> {
         let raw = ptr.as_ptr();
         let size = layout.size();
 
@@ -211,7 +215,8 @@ unsafe impl Alloc for StandardAlloc {
         // Multi-block carriers are always super-aligned, and no larger
         // than the super-aligned size, so we can find the carrier header
         // trivially using the pointer itself
-        let carrier_ptr = Self::superaligned_floor(ptr as usize) as *const MultiBlockCarrier<RBTreeLink>;
+        let carrier_ptr =
+            Self::superaligned_floor(ptr as usize) as *const MultiBlockCarrier<RBTreeLink>;
         let carrier = UnsafeRef::from_raw(carrier_ptr);
 
         // TODO: Perform conditional release of memory back to operating system,
@@ -226,9 +231,7 @@ impl StandardAlloc {
         // Ensure allocated region has enough space for carrier header and aligned block
         let data_layout = layout.clone();
         let carrier_layout = Layout::new::<SingleBlockCarrier<LinkedListLink>>();
-        let (carrier_layout, data_offset) = carrier_layout
-            .extend(data_layout)
-            .unwrap();
+        let (carrier_layout, data_offset) = carrier_layout.extend(data_layout).unwrap();
         // Track total size for carrier metadata
         let size = carrier_layout.size();
         // Allocate region
@@ -242,7 +245,7 @@ impl StandardAlloc {
                 size,
                 layout,
                 link: LinkedListLink::new(),
-            }
+            },
         );
         // Get pointer to data region in allocated carrier+block
         let data = (carrier as *mut u8).offset(data_offset as isize);
@@ -255,9 +258,15 @@ impl StandardAlloc {
         Ok(NonNull::new_unchecked(data))
     }
 
-    unsafe fn realloc_large(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn realloc_large(
+        &mut self,
+        ptr: NonNull<u8>,
+        layout: Layout,
+        new_size: usize,
+    ) -> Result<NonNull<u8>, AllocErr> {
         // Allocate new carrier
-        let new_ptr = self.alloc_large(Layout::from_size_align_unchecked(new_size, layout.align()))?;
+        let new_ptr =
+            self.alloc_large(Layout::from_size_align_unchecked(new_size, layout.align()))?;
         // Copy old data into new carrier
         let old_ptr = ptr.as_ptr();
         let old_size = layout.size();
@@ -288,8 +297,8 @@ impl StandardAlloc {
 
             // Calculate the layout of the allocated carrier
             //   - First, get layout of carrier header
-            //   - Extend the layout with the block layout to
-            //     get the original layout used in `try_alloc`
+            //   - Extend the layout with the block layout to get the original layout used in
+            //     `try_alloc`
             let (layout, _) = Layout::new::<SingleBlockCarrier<LinkedListLink>>()
                 .extend(sbc.layout())
                 .unwrap();

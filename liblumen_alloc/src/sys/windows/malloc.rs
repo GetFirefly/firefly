@@ -7,7 +7,7 @@ use winapi::shared::minwindef::{DWORD, LPVOID};
 
 use crate::sys_alloc::SysAlloc;
 
-#[repr(C)]
+#[repr(transparent)]
 struct Header(*mut u8);
 
 #[inline]

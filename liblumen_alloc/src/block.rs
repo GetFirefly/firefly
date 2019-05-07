@@ -58,8 +58,10 @@ impl Default for Block {
 #[repr(packed)]
 pub struct FreeBlock<L: Link> {
     header: Block,
-    ulink: L,
-    alink: L,
+    // Used for an intrusive link for user-provided orderings
+    user_link: L,
+    // Used for an intrusive link for address-ordered collections
+    addr_link: L,
 }
 impl<L: Link> FreeBlock<L> {
     #[inline]
@@ -76,10 +78,10 @@ where
     fn get_value(link: *const Self::Link, order: SortOrder) -> *const Self {
         match order {
             SortOrder::AddressOrder => {
-                unsafe { container_of!(link, Self, alink) }
+                unsafe { container_of!(link, Self, addr_link) }
             }
             SortOrder::SizeAddressOrder => {
-                unsafe { container_of!(link, Self, ulink) }
+                unsafe { container_of!(link, Self, user_link) }
             }
         }
     }
@@ -87,9 +89,9 @@ where
     fn get_link(value: *const Self, order: SortOrder) -> *const Self::Link {
         match order {
             SortOrder::AddressOrder =>
-                unsafe {  &(*value).alink as *const Self::Link },
+                unsafe {  &(*value).addr_link as *const Self::Link },
             SortOrder::SizeAddressOrder =>
-                unsafe {  &(*value).ulink as *const Self::Link },
+                unsafe {  &(*value).user_link as *const Self::Link },
         }
     }
 
@@ -602,16 +604,16 @@ mod tests {
                 raw,
                 FreeBlock {
                     header: block1,
-                    alink: RBTreeLink::new(),
-                    ulink: RBTreeLink::new(),
+                    addr_link: RBTreeLink::new(),
+                    user_link: RBTreeLink::new(),
                 }
             );
             ptr::write(
                 raw2,
                 FreeBlock {
                     header: block2,
-                    alink: RBTreeLink::new(),
-                    ulink: RBTreeLink::new(),
+                    addr_link: RBTreeLink::new(),
+                    user_link: RBTreeLink::new(),
                 }
             );
         }

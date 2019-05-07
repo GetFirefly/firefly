@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicUsize;
 
 use crate::exception::Result;
 use crate::integer;
-use crate::message::Message;
+use crate::message::{self, Message};
 use crate::otp::erlang;
 use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
@@ -156,10 +156,25 @@ fn has_message(process: &Process, message: Term) -> bool {
         .iter()
         .any(|mailbox_message| match mailbox_message {
             Message::Process(process_message) => process_message == &message,
-            Message::Heap {
+            Message::Heap(message::Heap {
                 message: heap_message,
                 ..
-            } => heap_message == &message,
+            }) => heap_message == &message,
+        })
+}
+
+fn has_heap_message(process: &Process, message: Term) -> bool {
+    process
+        .mailbox
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|mailbox_message| match mailbox_message {
+            Message::Heap(message::Heap {
+                message: heap_message,
+                ..
+            }) => heap_message == &message,
+            _ => false,
         })
 }
 

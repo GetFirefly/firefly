@@ -112,17 +112,6 @@ where
             Ok(message)
         );
 
-        assert!(different_process
-            .mailbox
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|mailbox_message| match mailbox_message {
-                Message::Heap {
-                    message: heap_message,
-                    ..
-                } => heap_message == &message,
-                _ => false,
-            }))
+        assert!(has_heap_message(&different_process, message));
     })
 }

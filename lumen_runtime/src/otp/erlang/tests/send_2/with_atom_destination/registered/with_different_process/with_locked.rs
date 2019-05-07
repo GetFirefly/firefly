@@ -118,10 +118,10 @@ where
             .unwrap()
             .iter()
             .any(|mailbox_message| match mailbox_message {
-                Message::Heap {
+                Message::Heap(message::Heap {
                     message: heap_message,
                     ..
-                } => heap_message == &message,
+                }) => heap_message == &message,
                 _ => false,
             }))
     })

@@ -7,6 +7,8 @@ use std::sync::MutexGuard;
 
 #[cfg(test)]
 use crate::heap::{CloneIntoHeap, Heap};
+#[cfg(test)]
+use crate::message;
 use crate::message::Message;
 #[cfg(test)]
 use crate::term::Term;
@@ -33,10 +35,10 @@ impl Mailbox {
             let singleton: Vec<Message> = self.messages.drain(0..1).collect();
 
             let received = match singleton[0] {
-                Message::Heap {
+                Message::Heap(message::Heap {
                     message: message_heap_message,
                     ..
-                } => message_heap_message.clone_into_heap(&unlocked_heap),
+                }) => message_heap_message.clone_into_heap(&unlocked_heap),
                 Message::Process(process_message) => process_message,
             };
 

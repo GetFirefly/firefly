@@ -12,7 +12,7 @@ use crate::integer::{self, big};
 use crate::list::Cons;
 use crate::mailbox::Mailbox;
 use crate::map::Map;
-use crate::message::Message;
+use crate::message::{self, Message};
 use crate::reference;
 use crate::scheduler;
 use crate::term::Term;
@@ -84,7 +84,7 @@ impl Process {
         self.mailbox
             .lock()
             .unwrap()
-            .push(Message::Heap { heap, message });
+            .push(Message::Heap(message::Heap { heap, message }));
     }
 
     pub fn send_from_self(&self, message: Term) {

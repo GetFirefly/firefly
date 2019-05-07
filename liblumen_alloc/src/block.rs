@@ -117,6 +117,12 @@ impl Block {
     // This is used to drive coalescing of blocks
     const PREV_FREE_FLAG: usize = 1 << (Self::FLAG_SHIFT + 2);
     // The byte pattern used when a block is freed or initialized
+    //
+    // NOTE: This constant is not special, but is intended to be
+    // distinctive when seen in-memory. The value should ideally
+    // be something that is not a common value, so that if this
+    // value is encountered, we know that we have unintentionally
+    // used free memory without initialization.
     const FREE_PATTERN: u8 = 0x57;
 
     #[inline]

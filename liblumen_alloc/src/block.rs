@@ -54,20 +54,12 @@ impl Default for Block {
 /// When a block is allocated, it is unlinked from the trees it
 /// is a member of, and the memory occupied by the link fields
 /// become part of the user data region of the block
+#[derive(Default)]
 #[repr(packed)]
 pub struct FreeBlock<L: Link> {
     header: Block,
     ulink: L,
     alink: L,
-}
-impl<L: Link + Default> Default for FreeBlock<L> {
-    fn default() -> Self {
-        Self {
-            header: Block::default(),
-            ulink: L::default(),
-            alink: L::default(),
-        }
-    }
 }
 impl<L: Link> FreeBlock<L> {
     #[inline]

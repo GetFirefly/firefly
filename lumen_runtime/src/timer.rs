@@ -41,6 +41,7 @@ pub fn read(timer_reference: &reference::local::Reference) -> Option<Millisecond
 pub fn start(
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,
+    timeout: Timeout,
     process_message: Term,
     process: &Process,
 ) -> Term {
@@ -48,6 +49,7 @@ pub fn start(
     let reference = scheduler.hierarchy.write().unwrap().start(
         monotonic_time_milliseconds,
         destination,
+        timeout,
         process_message,
         process,
         &scheduler,
@@ -137,6 +139,7 @@ impl Hierarchy {
         &mut self,
         monotonic_time_milliseconds: Milliseconds,
         destination: Destination,
+        timeout: Timeout,
         process_message: Term,
         process: &Process,
         scheduler: &Scheduler,
@@ -151,6 +154,7 @@ impl Hierarchy {
             reference_number,
             monotonic_time_milliseconds,
             destination,
+            timeout,
             message_heap: Mutex::new(message::Heap { heap, message }),
             position: Mutex::new(position),
         };
@@ -324,6 +328,14 @@ impl Default for Hierarchy {
 }
 
 #[derive(Debug)]
+pub enum Timeout {
+    // Sends only the `Timer` `message`
+    Message,
+    // Sends `{:timeout, timer_reference, message}`
+    TimeoutTuple,
+}
+
+#[derive(Debug)]
 struct Timer {
     // Can't be a `Boxed` `LocalReference` `Term` because those are boxed and the original Process
     // could GC the unboxed `LocalReference` `Term`.
@@ -331,6 +343,7 @@ struct Timer {
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,
     message_heap: Mutex<message::Heap>,
+    timeout: Timeout,
     position: Mutex<Position>,
 }
 
@@ -362,18 +375,25 @@ impl Timer {
     fn timeout_message(self, scheduler_id: &scheduler::ID) -> (Heap, Term) {
         let message_heap = self.message_heap.into_inner().unwrap();
 
-        let reference = message_heap
-            .heap
-            .local_reference(&scheduler_id, self.reference_number);
-        let reference_term = Term::box_reference(reference);
+        let message = match self.timeout {
+            Timeout::Message => message_heap.message,
+            Timeout::TimeoutTuple => {
+                let reference = message_heap
+                    .heap
+                    .local_reference(&scheduler_id, self.reference_number);
+                let reference_term = Term::box_reference(reference);
 
-        let tuple = message_heap.heap.slice_to_tuple(&[
-            Term::str_to_atom("timeout", DoNotCare).unwrap(),
-            reference_term,
-            message_heap.message,
-        ]);
+                let tuple = message_heap.heap.slice_to_tuple(&[
+                    Term::str_to_atom("timeout", DoNotCare).unwrap(),
+                    reference_term,
+                    message_heap.message,
+                ]);
 
-        (message_heap.heap, Term::box_reference(tuple))
+                Term::box_reference(tuple)
+            }
+        };
+
+        (message_heap.heap, message)
     }
 }
 

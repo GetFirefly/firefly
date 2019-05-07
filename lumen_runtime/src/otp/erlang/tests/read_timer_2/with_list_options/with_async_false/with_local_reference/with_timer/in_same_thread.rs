@@ -4,7 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 #[test]
-fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
+fn without_timeout_returns_milliseconds() {
     with_timer(|milliseconds, message, timer_reference, process| {
         let half_milliseconds = milliseconds / 2;
 
@@ -15,30 +15,32 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         assert!(!has_message(process, timeout_message));
 
-        let first_result = erlang::cancel_timer_2(timer_reference, options(process), process);
+        let first_result = erlang::read_timer_2(timer_reference, options(process), process);
 
         assert!(first_result.is_ok());
 
-        let milliseconds_remaining = first_result.unwrap();
+        let first_milliseconds_remaining = first_result.unwrap();
 
-        assert!(milliseconds_remaining.is_integer());
-        assert!(0.into_process(process) < milliseconds_remaining);
-        assert!(milliseconds_remaining <= half_milliseconds.into_process(process));
+        assert!(first_milliseconds_remaining.is_integer());
+        assert!(0.into_process(process) < first_milliseconds_remaining);
+        assert!(first_milliseconds_remaining <= half_milliseconds.into_process(process));
 
         // again before timeout
-        assert_eq!(
-            erlang::cancel_timer_2(timer_reference, options(process), process),
-            Ok(false.into())
-        );
+        let second_milliseconds_remaining =
+            erlang::read_timer_2(timer_reference, options(process), process)
+                .expect("Timer could not be read");
+
+        assert!(second_milliseconds_remaining.is_integer());
+        assert!(second_milliseconds_remaining <= first_milliseconds_remaining);
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
         timer::timeout();
 
-        assert!(!has_message(process, timeout_message));
+        assert!(has_message(process, timeout_message));
 
         // again after timeout
         assert_eq!(
-            erlang::cancel_timer_2(timer_reference, options(process), process),
+            erlang::read_timer_2(timer_reference, options(process), process),
             Ok(false.into())
         );
     })
@@ -59,13 +61,13 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
         );
 
         assert_eq!(
-            erlang::cancel_timer_2(timer_reference, options(process), process),
+            erlang::read_timer_2(timer_reference, options(process), process),
             Ok(false.into())
         );
 
         // again
         assert_eq!(
-            erlang::cancel_timer_2(timer_reference, options(process), process),
+            erlang::read_timer_2(timer_reference, options(process), process),
             Ok(false.into())
         );
     })

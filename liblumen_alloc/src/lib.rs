@@ -1,5 +1,6 @@
 #![cfg_attr(not(test), no_std)]
 #![feature(core_intrinsics)]
+#![feature(alloc)]
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
 #![feature(stmt_expr_attributes)]

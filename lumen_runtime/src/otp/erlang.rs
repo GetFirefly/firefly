@@ -29,8 +29,8 @@ use crate::time::{
     monotonic::{self, Milliseconds},
     Unit::*,
 };
-use crate::timer;
 use crate::timer::start::ReferenceFrame;
+use crate::timer::{self, Timeout};
 use crate::tuple::{Tuple, ZeroBasedIndex};
 
 #[cfg(test)]
@@ -1232,6 +1232,22 @@ pub fn send_3(destination: Term, message: Term, options: Term, process: &Process
     })
 }
 
+pub fn send_after_3(
+    time: Term,
+    destination: Term,
+    message: Term,
+    process_arc: Arc<Process>,
+) -> Result {
+    start_timer(
+        time,
+        destination,
+        Timeout::Message,
+        message,
+        Default::default(),
+        process_arc,
+    )
+}
+
 pub fn setelement_3(index: Term, tuple: Term, value: Term, process: &Process) -> Result {
     let inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
@@ -1378,7 +1394,14 @@ pub fn start_timer_3(
     message: Term,
     process_arc: Arc<Process>,
 ) -> Result {
-    start_timer(time, destination, message, Default::default(), process_arc)
+    start_timer(
+        time,
+        destination,
+        Timeout::TimeoutTuple,
+        message,
+        Default::default(),
+        process_arc,
+    )
 }
 
 pub fn start_timer_4(
@@ -1390,7 +1413,14 @@ pub fn start_timer_4(
 ) -> Result {
     let timer_start_options: timer::start::Options = options.try_into()?;
 
-    start_timer(time, destination, message, timer_start_options, process_arc)
+    start_timer(
+        time,
+        destination,
+        Timeout::TimeoutTuple,
+        message,
+        timer_start_options,
+        process_arc,
+    )
 }
 
 /// `-/2` infix operator
@@ -1666,6 +1696,7 @@ fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Pr
 fn start_timer(
     time: Term,
     destination: Term,
+    timeout: Timeout,
     message: Term,
     options: timer::start::Options,
     process_arc: Arc<Process>,
@@ -1685,6 +1716,7 @@ fn start_timer(
             Atom => Ok(timer::start(
                 absolute_milliseconds,
                 timer::Destination::Name(destination),
+                timeout,
                 message,
                 &process_arc,
             )),
@@ -1694,6 +1726,7 @@ fn start_timer(
                 Some(pid_process_arc) => Ok(timer::start(
                     absolute_milliseconds,
                     timer::Destination::Process(Arc::downgrade(&pid_process_arc)),
+                    timeout,
                     message,
                     &process_arc,
                 )),

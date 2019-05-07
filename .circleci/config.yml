@@ -29,6 +29,7 @@ jobs:
           root: .
           paths:
             - example
+            - liblumen_alloc
             - liblumen_arena
             - liblumen_beam
             - liblumen_codegen

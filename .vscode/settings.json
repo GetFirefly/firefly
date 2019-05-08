@@ -1,0 +1,10 @@
+{
+    "rust-client.channel": "nightly",
+    "rust-client.logToFile": false,
+    "rust-client.updateOnStartup": true,
+    "rust.cfg_test": true,
+    "rust.clippy_preference": "opt-in",
+    "lldb.displayFormat": "auto",
+    "lldb.showDisassembly": "auto",
+    "lldb.dereferencePointers": false,
+}

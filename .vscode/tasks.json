@@ -1,0 +1,54 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558 
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Cargo Build",
+            "type": "cargo",
+            "subcommand": "build",
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "env": {
+                    "LLVM_SYS_70_PREFIX": "${env:HOME}/.local/share/llvmenv/lumen70"
+                }
+            }
+        },
+        {
+            "label": "Cargo Check",
+            "type": "cargo",
+            "subcommand": "check",
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "env": {
+                    "LLVM_SYS_70_PREFIX": "${env:HOME}/.local/share/llvmenv/lumen70"
+                }
+            }
+        },
+        {
+            "label": "Cargo Test",
+            "type": "cargo",
+            "subcommand": "test",
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "options": {
+                "env": {
+                    "LLVM_SYS_70_PREFIX": "${env:HOME}/.local/share/llvmenv/lumen70"
+                }
+            }
+        },
+        {
+            "label": "Cargo Clean",
+            "type": "cargo",
+            "subcommand": "clean",
+            "problemMatcher": [
+                "$rustc"
+            ]
+        }
+    ]
+}

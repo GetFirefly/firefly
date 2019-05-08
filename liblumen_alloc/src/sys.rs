@@ -3,14 +3,14 @@ use lazy_static::lazy_static;
 
 cfg_if! {
     if #[cfg(windows)] {
-        #[path = "sys/windows/mod.rs"]
-        pub(crate) mod arch;
+        mod windows;
+        use self::windows as arch;
     } else if #[cfg(unix)] {
-        #[path = "sys/unix/mod.rs"]
-        pub(crate) mod arch;
+        mod unix;
+        use self::unix as arch;
     } else if #[cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))] {
-        #[path = "sys/wasm32/mod.rs"]
-        pub(crate) mod arch;
+        mod wasm32;
+        use self::wasm32 as arch;
     } else {
         compile_error!("unsupported platform!");
     }

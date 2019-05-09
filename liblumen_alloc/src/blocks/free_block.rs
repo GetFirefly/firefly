@@ -1,16 +1,16 @@
+use core::alloc::{AllocErr, Layout};
+use core::convert::TryFrom;
+use core::intrinsics::unlikely;
 use core::mem;
 use core::ptr::{self, NonNull};
-use core::alloc::{Layout, AllocErr};
-use core::intrinsics::unlikely;
-use core::convert::TryFrom;
 
 use alloc::fmt::{self, Debug, Formatter};
 
 use intrusive_collections::container_of;
 use intrusive_collections::RBTreeLink;
 
+use crate::sorted::{SortKey, SortOrder, Sortable};
 use crate::utils;
-use crate::sorted::{Sortable, SortOrder, SortKey};
 
 use super::{Block, BlockFooter, BlockRef, FreeBlockRef, FreeBlocks};
 
@@ -70,8 +70,8 @@ impl FreeBlock {
     }
 
     /// Updates the usable size metadata for this block
-    /// 
-    /// NOTE: This does not actually change the amount of 
+    ///
+    /// NOTE: This does not actually change the amount of
     /// memory available to this block
     #[inline(always)]
     fn set_size(&mut self, new_size: usize) {
@@ -105,7 +105,7 @@ impl FreeBlock {
     }
 
     /// Returns a `BlockRef` to the next neighboring block, if one exists
-    /// 
+    ///
     /// Returns `None` if this block is the last block
     #[inline(always)]
     pub fn next(&self) -> Option<BlockRef> {
@@ -113,9 +113,9 @@ impl FreeBlock {
     }
 
     /// Returns a `FreeBlockRef` to the previous free block, if possible
-    /// 
+    ///
     /// Returns `None` if the previous block is allocated
-    /// 
+    ///
     /// NOTE: This relies on the presence of the previous free flag being
     /// set to indicate that a block comes before this block. If the flag
     /// is set, then we know that a `BlockFooter` comes right before this
@@ -149,7 +149,10 @@ impl FreeBlock {
     pub fn try_alloc(&mut self, layout: &Layout) -> Result<NonNull<u8>, AllocErr> {
         // This is here as a safety against trying to use a FreeBlock twice
         if unsafe { unlikely(!self.header.is_free()) } {
-            debug_assert!(!self.header.is_free(), "tried to allocate a free block twice");
+            debug_assert!(
+                !self.header.is_free(),
+                "tried to allocate a free block twice"
+            );
             return Err(AllocErr);
         }
 
@@ -204,8 +207,10 @@ impl FreeBlock {
             return None;
         }
         let split_size = usable - padded_size;
-        // Minimum size should provide enough room for free block metadata and have at least one word extra
-        let min_size = mem::size_of::<FreeBlock>() + mem::size_of::<BlockFooter>() + mem::size_of::<usize>();
+        // Minimum size should provide enough room for free block metadata and have at least one
+        // word extra
+        let min_size =
+            mem::size_of::<FreeBlock>() + mem::size_of::<BlockFooter>() + mem::size_of::<usize>();
         let can_split = split_size > min_size;
         if !can_split {
             return None;
@@ -228,14 +233,11 @@ impl FreeBlock {
         let block_ptr = self as *const _ as *mut u8;
         let split_offset = mem::size_of::<Block>() + padded_size;
         let split_ptr = unsafe { block_ptr.offset(split_offset as isize) };
-        unsafe { 
-            ptr::write(
-                split_ptr as *mut FreeBlock, 
-                split_header.into()
-            );
+        unsafe {
+            ptr::write(split_ptr as *mut FreeBlock, split_header.into());
         }
         // Write block footer for split
-        // The offset here will be from the base of the 
+        // The offset here will be from the base of the
         let split_footer_offset = usable_split_size - mem::size_of::<BlockFooter>();
         let split_footer_ptr = unsafe { split_ptr.offset(split_footer_offset as isize) };
         let split_footer = BlockFooter::new(usable_split_size);
@@ -245,16 +247,18 @@ impl FreeBlock {
     }
 
     /// Combines the referenced free block with its neighboring free blocks
-    /// 
+    ///
     /// Returns a `FreeBlockRef` representing the coalesced free block,
     /// if no coalescing operations were needed, the returned ref will
     /// be the same as the input ref
     pub fn coalesce(mut block: FreeBlockRef, free_blocks: &mut FreeBlocks) -> FreeBlockRef {
         if let Some(prev) = block.prev() {
-            // Remove this block from the free block tree 
+            // Remove this block from the free block tree
             // pending the result of the coalesce operation.
             // It will be added back in the later half of this function
-            unsafe { free_blocks.remove(prev); }
+            unsafe {
+                free_blocks.remove(prev);
+            }
             // Move backwards to beginning of contiguous free block range,
             // then start coalesce operation from there
             return Self::coalesce(prev, free_blocks);

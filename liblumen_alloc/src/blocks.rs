@@ -1,24 +1,24 @@
-mod block_ref;
 mod block;
-mod free_block;
 mod block_footer;
+mod block_ref;
+mod free_block;
 mod free_block_tree;
 
-pub use self::block_ref::{BlockRef, FreeBlockRef};
 pub use self::block::Block;
-pub use self::free_block::FreeBlock;
 pub use self::block_footer::BlockFooter;
-pub use self::free_block_tree::{FreeBlocks, FreeBlockTree};
+pub use self::block_ref::{BlockRef, FreeBlockRef};
+pub use self::free_block::FreeBlock;
+pub use self::free_block_tree::{FreeBlockTree, FreeBlocks};
 
 #[cfg(test)]
 mod tests {
+    use core::alloc::Layout;
     use core::mem;
     use core::ptr;
-    use core::alloc::Layout;
 
     use crate::mmap;
-    use crate::sys;
     use crate::sorted::SortOrder;
+    use crate::sys;
 
     use super::*;
 
@@ -116,9 +116,7 @@ mod tests {
         let ptr = unsafe { mmap::map(layout.clone()).expect("unable to map memory") };
         // Get pointers to both blocks
         let raw = ptr.as_ptr() as *mut FreeBlock;
-        let raw2 = unsafe {
-            (raw as *mut u8).offset(sys::pagesize() as isize) as *mut FreeBlock
-        };
+        let raw2 = unsafe { (raw as *mut u8).offset(sys::pagesize() as isize) as *mut FreeBlock };
         // Write block headers
         unsafe {
             let mut block1 = Block::new(usable);
@@ -153,7 +151,10 @@ mod tests {
             let result = tree.find_best_fit(&request_layout);
             assert!(result.is_some());
             let result_block = result.unwrap();
-            assert_eq!(result_block.as_ptr() as *const u8, fblock2.as_ptr() as *const u8);
+            assert_eq!(
+                result_block.as_ptr() as *const u8,
+                fblock2.as_ptr() as *const u8
+            );
         }
         unsafe { mmap::unmap(raw as *mut u8, layout) };
     }

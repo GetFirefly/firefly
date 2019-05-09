@@ -112,7 +112,7 @@ pub fn effective_alignment(ptr: *const u8) -> usize {
     1usize << (ptr as usize).trailing_zeros()
 }
 
-/// Given a reference to an object, formats the reference 
+/// Given a reference to an object, formats the reference
 /// as a hexadecimal memory address
 #[cfg(target_pointer_width = "32")]
 #[inline(always)]
@@ -120,7 +120,7 @@ pub fn format_address_of<T>(ptr: &T) -> String {
     format!("{:#x}", ptr as *const _ as *const u8 as usize)
 }
 
-/// Given a reference to an object, formats the reference 
+/// Given a reference to an object, formats the reference
 /// as a hexadecimal memory address
 #[cfg(target_pointer_width = "64")]
 #[inline(always)]

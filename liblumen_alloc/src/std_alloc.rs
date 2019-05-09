@@ -1,11 +1,11 @@
 use core::alloc::{Alloc, AllocErr, Layout};
+use core::cell::RefCell;
 ///! This module provides a general purpose allocator for use with
 ///! the Erlang Runtime System. Specifically it is optimized for
 ///! general usage, where allocation patterns are unpredictable, or
 ///! for allocations where a more specialized allocator is unsuitable
 ///! or unavailable.
 use core::ptr::{self, NonNull};
-use core::cell::RefCell;
 
 use intrusive_collections::{intrusive_adapter, Bound, UnsafeRef};
 use intrusive_collections::{LinkedList, LinkedListLink};

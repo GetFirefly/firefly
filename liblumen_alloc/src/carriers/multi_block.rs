@@ -1,13 +1,12 @@
 use core::alloc::Layout;
+use core::cell::RefCell;
 use core::mem;
 use core::ptr::{self, NonNull};
-use core::cell::RefCell;
 
 use intrusive_collections::container_of;
 
 use crate::blocks::{Block, BlockRef, FreeBlock, FreeBlocks};
 use crate::sorted::{Link, SortKey, SortOrder, Sortable};
-
 
 /// This struct represents a carrier type which can contain
 /// multiple blocks of variable size, and is designed specifically
@@ -88,7 +87,9 @@ where
         }
         // We have a fit, so allocate the block and update relevant metadata
         let mut allocated = result.unwrap();
-        let ptr = allocated.try_alloc(layout).expect("find_best_fit and try_alloc disagreed!");
+        let ptr = allocated
+            .try_alloc(layout)
+            .expect("find_best_fit and try_alloc disagreed!");
         blocks.remove(allocated);
         // Allocate this block
         // Check if we should split the block first
@@ -281,16 +282,14 @@ mod tests {
         }
         let mbc = unsafe { &mut *carrier };
         // Write initial free block
-        let usable = size - mem::size_of::<Block>() - mem::size_of::<MultiBlockCarrier<RBTreeLink>>();
+        let usable =
+            size - mem::size_of::<Block>() - mem::size_of::<MultiBlockCarrier<RBTreeLink>>();
         let block = unsafe { carrier.offset(1) as *const _ as *mut FreeBlock };
         unsafe {
             let mut header = Block::new(usable);
             header.set_free();
             header.set_last();
-            ptr::write(
-                block,
-                FreeBlock::from(header)
-            );
+            ptr::write(block, FreeBlock::from(header));
             let mut blocks = mbc.blocks.borrow_mut();
             blocks.insert(FreeBlockRef::from_raw(block));
         }
@@ -305,7 +304,9 @@ mod tests {
         assert_eq!(mbc.num_blocks(), 2);
         // Freeing the allocated block will coalesce these blocks into one again
         let block_ref = block.unwrap();
-        unsafe { mbc.free_block(block_ref.as_ptr(), layout); }
+        unsafe {
+            mbc.free_block(block_ref.as_ptr(), layout);
+        }
         assert_eq!(mbc.num_blocks_free(), 1);
         assert_eq!(mbc.num_blocks(), 1);
     }

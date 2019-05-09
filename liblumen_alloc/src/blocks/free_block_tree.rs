@@ -1,9 +1,9 @@
 use core::alloc::Layout;
 
-use intrusive_collections::RBTree;
 use intrusive_collections::rbtree;
+use intrusive_collections::RBTree;
 
-use crate::sorted::{SortedKeyAdapter, SortOrder};
+use crate::sorted::{SortOrder, SortedKeyAdapter};
 
 use super::{FreeBlock, FreeBlockRef};
 
@@ -94,7 +94,8 @@ impl FreeBlocks {
                     // If we've found a better fit, or don't yet have a fit
                     // mark the current node as the current best fit
                     if usable < best_size || result.is_none() {
-                        result = Some(unsafe { FreeBlockRef::from_raw(block as *const _ as *mut _) });
+                        result =
+                            Some(unsafe { FreeBlockRef::from_raw(block as *const _ as *mut _) });
                         best_size = usable;
                     }
 
@@ -145,4 +146,3 @@ impl FreeBlocks {
         }
     }
 }
-

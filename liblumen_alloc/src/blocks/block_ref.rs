@@ -1,7 +1,7 @@
-use core::ptr::NonNull;
-use core::ops::{Deref, DerefMut};
 use core::borrow::{Borrow, BorrowMut};
 use core::convert::TryFrom;
+use core::ops::{Deref, DerefMut};
+use core::ptr::NonNull;
 
 use intrusive_collections::IntrusivePointer;
 use intrusive_collections::UnsafeRef;
@@ -9,14 +9,14 @@ use intrusive_collections::UnsafeRef;
 use super::{Block, FreeBlock};
 
 /// Unchecked shared pointer type
-/// 
+///
 /// This type is essentially equivalent to a reference-counted
 /// smart pointer, e.g. `Rc`/`Arc`, except that no reference count
 /// is maintained. Instead the user of `BlockRef` must make sure
 /// that the object pointed to is freed manually when no longer needed.
-/// 
+///
 /// Guarantees that are expected to be upheld by users of `BlockRef`:
-/// 
+///
 /// - The object pointed to by `BlockRef` is not moved or dropped
 /// while a `BlockRef` points to it. This will result in use-after-free,
 /// or undefined behavior.
@@ -24,13 +24,13 @@ use super::{Block, FreeBlock};
 /// or created while a `BlockRef` pointing to the same object is in use,
 /// unless special care is taken to ensure that only one or the other is
 /// used to access the underlying object at any given time.
-/// 
+///
 /// For example, if you create a `Block`, then create a `BlockRef` pointing
 /// to that block, then subsequently obtain a mutable reference to the block
 /// via the `BlockRef` or using standard means, then it must never be the
 /// case that there are other active references pointing to the same object while
 /// the mutable reference is in use.
-/// 
+///
 /// NOTE: This type is used internally to make block management more ergonomic
 /// while avoiding the use of raw pointers. It can be used in lieu of either
 /// raw pointers or references, as it derefs to the `Block` it points to. Since
@@ -82,7 +82,7 @@ impl From<UnsafeRef<FreeBlock>> for BlockRef {
 
 impl BlockRef {
     /// Creates a new `BlockRef` from a raw pointer.
-    /// 
+    ///
     /// NOTE: This is very unsafe! You must make sure that
     /// the object being pointed to will not live longer than
     /// the `BlockRef` returned, or use-after-free will result.
@@ -153,14 +153,14 @@ unsafe impl Send for BlockRef {}
 unsafe impl Sync for BlockRef {}
 
 /// Same as `BlockRef`, but for `FreeBlock`
-/// 
+///
 /// In many cases, it is fine to use `BlockRef` to
 /// represent references to `FreeBlock`, but for safety
 /// we want to ensure that we don't try to treat a
 /// `Block` as a `FreeBlock` when that block was never
 /// initialized as a free block, or has since been overwritten
 /// with user data.
-/// 
+///
 /// By using `FreeBlockRef` in conjunction with `BlockRef`,
 /// providing safe conversions between them, as well as unsafe
 /// conversions for the few occasions where that is necessary,
@@ -239,11 +239,9 @@ impl TryFrom<BlockRef> for FreeBlockRef {
     }
 }
 
-
-
 impl FreeBlockRef {
     /// Creates a new `FreeBlockRef` from a raw pointer.
-    /// 
+    ///
     /// NOTE: This is very unsafe! You must make sure that
     /// the object being pointed to will not live longer than
     /// the `FreeBlockRef` returned, or use-after-free will result.

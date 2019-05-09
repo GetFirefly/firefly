@@ -1,5 +1,5 @@
-mod single_block;
 mod multi_block;
+mod single_block;
 
-pub use single_block::SingleBlockCarrier;
 pub use multi_block::MultiBlockCarrier;
+pub use single_block::SingleBlockCarrier;

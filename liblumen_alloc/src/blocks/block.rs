@@ -1,12 +1,12 @@
 use core::mem;
 use core::ptr::{self, NonNull};
 
-use alloc::string::String;
 use alloc::fmt::{self, Debug, Formatter};
+use alloc::string::String;
 
 use crate::utils;
 
-use super::{FreeBlock, BlockFooter, BlockRef, FreeBlockRef};
+use super::{BlockFooter, BlockRef, FreeBlock, FreeBlockRef};
 
 /// This struct is used to represent the header of a block,
 /// at a minimum it contains both the block size, and three
@@ -122,7 +122,7 @@ impl Block {
     }
 
     /// Updates the size metadata of this block in bytes
-    /// 
+    ///
     /// NOTE: This doesn't actually change the amount of usable memory
     #[inline(always)]
     pub fn set_size(&mut self, new_size: usize) {
@@ -215,7 +215,7 @@ impl Block {
         let prev_footer_ptr = unsafe { this.offset(-1) as *const usize };
         let usable = unsafe { *prev_footer_ptr };
         let offset = -1isize * (usable + mem::size_of::<Block>()) as isize;
-        let prev_ptr = unsafe {  (prev_footer_ptr as *const u8).offset(offset) as *mut Block };
+        let prev_ptr = unsafe { (prev_footer_ptr as *const u8).offset(offset) as *mut Block };
 
         Some(unsafe { FreeBlockRef::from_raw(prev_ptr as *mut FreeBlock) })
     }
@@ -319,7 +319,9 @@ impl Block {
             ptr = unsafe { ptr.offset(mem::size_of::<FreeBlock>() as isize) };
             // Usable size is total size - sizeof(Block), but a free block
             // is total size - sizeof(FreeBlock) - sizeof(BlockFooter)
-            len = (len + mem::size_of::<Block>()) - mem::size_of::<FreeBlock>() - mem::size_of::<BlockFooter>();
+            len = (len + mem::size_of::<Block>())
+                - mem::size_of::<FreeBlock>()
+                - mem::size_of::<BlockFooter>();
         } else {
             ptr = unsafe { ptr.offset(mem::size_of::<Block>() as isize) };
         }

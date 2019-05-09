@@ -213,11 +213,23 @@ mod tests {
 
     #[test]
     fn effective_alignment_test() {
-        let x: usize = 0;
-        let ptr = &x as *const _ as *const u8;
-        assert_eq!(effective_alignment(ptr), mem::align_of::<usize>());
+        use crate::std_alloc::StandardAlloc;
 
-        let max: usize = 1usize << mem::size_of::<usize>() * 8 - 1;
-        assert_eq!(effective_alignment(max as *const _), max);
+        // This is a real address gathered by testing, should be word-aligned
+        let ptr = 0x70000cf815a8usize as *const u8;
+        let effective = effective_alignment(ptr);
+        assert!(effective.is_power_of_two());
+        assert_eq!(effective, mem::align_of::<usize>());
+
+        // This address is super-aligned size * 400000001
+        // to give us an address in a "normal" range
+        let ptr = 0x5f5e10040000usize as *const u8;
+        let effective = effective_alignment(ptr);
+        assert!(effective.is_power_of_two());
+        assert_eq!(effective, StandardAlloc::SA_CARRIER_SIZE);
+
+        let max = 1usize << mem::size_of::<usize>() * 8 - 1;
+        let effective = effective_alignment(max as *const u8);
+        assert_eq!(effective, max);
     }
 }

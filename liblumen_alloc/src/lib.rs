@@ -5,12 +5,13 @@
 #![feature(alloc_layout_extra)]
 #![feature(stmt_expr_attributes)]
 #![feature(exclusive_range_pattern)]
+#![feature(ptr_offset_from)]
 
 extern crate alloc;
 
 #[macro_use]
 pub mod utils;
-mod block;
+mod blocks;
 mod carriers;
 mod mmap;
 mod sorted;

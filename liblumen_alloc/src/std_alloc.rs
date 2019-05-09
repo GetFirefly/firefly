@@ -5,6 +5,7 @@ use core::alloc::{Alloc, AllocErr, Layout};
 ///! for allocations where a more specialized allocator is unsuitable
 ///! or unavailable.
 use core::ptr::{self, NonNull};
+use core::cell::RefCell;
 
 use intrusive_collections::{intrusive_adapter, Bound, UnsafeRef};
 use intrusive_collections::{LinkedList, LinkedListLink};
@@ -12,7 +13,7 @@ use intrusive_collections::{RBTree, RBTreeLink};
 
 use crate::mmap;
 //use crate::size_classes;
-use crate::block::{Block, FreeBlockTree};
+use crate::blocks::{Block, FreeBlocks};
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::erts::SpinLock;
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
@@ -71,12 +72,12 @@ impl StandardAlloc {
     // The number of bits to shift to find a superaligned carrier address
     const SA_CARRIER_SHIFT: usize = Self::SA_BITS;
     // The size of a superaligned carrier, 262k (262,144 bytes)
-    const SA_CARRIER_SIZE: usize = 1usize << Self::SA_CARRIER_SHIFT;
+    pub(crate) const SA_CARRIER_SIZE: usize = 1usize << Self::SA_CARRIER_SHIFT;
     // The mask needed to go from a pointer in a SA carrier to the carrier
     const SA_CARRIER_MASK: usize = (!0usize) << Self::SA_CARRIER_SHIFT;
 
     // TODO: Switch this back to the constant in `size_classes` when that module is done
-    const MAX_SIZE_CLASS: usize = 32 * 1024;
+    pub(crate) const MAX_SIZE_CLASS: usize = 32 * 1024;
 
     pub fn new() -> Self {
         Self {
@@ -136,7 +137,7 @@ unsafe impl Alloc for StandardAlloc {
             MultiBlockCarrier {
                 size,
                 link: RBTreeLink::new(),
-                blocks: FreeBlockTree::new(SortOrder::SizeAddressOrder),
+                blocks: RefCell::new(FreeBlocks::new(SortOrder::SizeAddressOrder)),
             },
         );
         // Cast carrier pointer to UnsafeRef and add to multi-block carrier tree
@@ -287,20 +288,20 @@ impl StandardAlloc {
             let next = cursor.get();
             debug_assert!(next.is_some(), "invalid free of carrier");
 
-            let sbc = next.unwrap();
-            if !sbc.owns(ptr) {
+            let carrier = next.unwrap();
+            if !carrier.owns(ptr) {
                 cursor.move_next();
                 continue;
             }
 
-            let carrier_ptr = sbc as *const _ as *mut u8;
+            let carrier_ptr = carrier as *const _ as *mut u8;
 
             // Calculate the layout of the allocated carrier
             //   - First, get layout of carrier header
             //   - Extend the layout with the block layout to get the original layout used in
             //     `try_alloc`
             let (layout, _) = Layout::new::<SingleBlockCarrier<LinkedListLink>>()
-                .extend(sbc.layout())
+                .extend(carrier.layout())
                 .unwrap();
             // Unlink the carrier from the linked list
             let _ = cursor.remove();

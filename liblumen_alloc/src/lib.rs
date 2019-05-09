@@ -7,6 +7,7 @@
 #![feature(exclusive_range_pattern)]
 #![feature(ptr_offset_from)]
 
+#[cfg_attr(not(test), macro_use)]
 extern crate alloc;
 
 #[macro_use]

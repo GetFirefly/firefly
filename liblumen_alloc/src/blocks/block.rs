@@ -1,6 +1,7 @@
 use core::mem;
 use core::ptr::{self, NonNull};
 
+use alloc::string::String;
 use alloc::fmt::{self, Debug, Formatter};
 
 use crate::utils;

@@ -2,6 +2,8 @@
 ///! allocator framework provided by this crate.
 use core::mem;
 
+use alloc::string::String;
+
 /// Used to assert alignment against the size of the target pointer width
 #[allow(unused_macros)]
 #[macro_export]

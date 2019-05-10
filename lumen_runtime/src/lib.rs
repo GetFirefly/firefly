@@ -22,23 +22,15 @@ extern crate cfg_if;
 extern crate lazy_static;
 
 #[macro_use]
-mod process;
-#[macro_use]
-mod exception;
-#[macro_use]
-mod atom;
-#[macro_use]
-mod binary;
-#[macro_use]
-mod integer;
-#[macro_use]
-mod number;
-#[macro_use]
-mod support;
+mod macros;
 
+mod atom;
+mod binary;
 mod config;
+mod exception;
 mod float;
 mod heap;
+mod integer;
 mod list;
 mod logging;
 mod mailbox;
@@ -46,6 +38,7 @@ mod map;
 mod message;
 mod node;
 pub mod otp;
+mod process;
 mod reference;
 mod registry;
 mod scheduler;

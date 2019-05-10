@@ -4,11 +4,10 @@ use std::hash::{Hash, Hasher};
 use crate::heap::{CloneIntoHeap, Heap};
 use crate::term::{Tag, Tag::*, Term};
 
-// Not really test-only, but dead otherwise for now.
-#[cfg(test)]
 pub mod local;
 
 pub const NUMBER_BIT_COUNT: u8 = 15;
+pub const NUMBER_MASK: usize = 0b111_1111_1111_1111;
 pub const NUMBER_MAX: usize = (1 << (NUMBER_BIT_COUNT as usize)) - 1;
 
 const SERIAL_BIT_COUNT: u8 = Term::BIT_COUNT - NUMBER_BIT_COUNT - Tag::LOCAL_PID_BIT_COUNT;

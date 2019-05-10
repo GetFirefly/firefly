@@ -1,12 +1,28 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, Weak};
 
+#[cfg(test)]
+use crate::atom::Existence::DoNotCare;
 use crate::process::Process;
+#[cfg(test)]
+use crate::scheduler::Scheduler;
 use crate::term::Term;
 
 #[cfg(test)]
-pub fn new() -> Arc<Process> {
-    crate::scheduler::Scheduler::current().new_process()
+pub fn test_init() -> Arc<Process> {
+    // During test allow multiple unregistered init processes because in tests, the `Scheduler`s
+    // keep getting `Drop`ed as threads end.
+    Scheduler::current().spawn_init()
+}
+
+#[cfg(test)]
+pub fn test(parent_process: &Process) -> Arc<Process> {
+    Scheduler::spawn(
+        parent_process,
+        Term::str_to_atom("erlang", DoNotCare).unwrap(),
+        Term::str_to_atom("exit", DoNotCare).unwrap(),
+        vec![Term::str_to_atom("normal", DoNotCare).unwrap()],
+    )
 }
 
 pub fn pid_to_process(pid: Term) -> Option<Arc<Process>> {
@@ -17,8 +33,7 @@ pub fn pid_to_process(pid: Term) -> Option<Arc<Process>> {
         .and_then(|weak_process| weak_process.clone().upgrade())
 }
 
-#[cfg(test)]
-pub fn put_pid_to_process(process: Arc<Process>) {
+pub fn put_pid_to_process(process: &Arc<Process>) {
     if let Some(_) = RW_LOCK_WEAK_PROCESS_BY_PID
         .write()
         .unwrap()
@@ -37,6 +52,6 @@ pub fn pid_to_self_or_process(pid: Term, process_arc: &Arc<Process>) -> Option<A
 }
 
 lazy_static! {
-    // Strong references are owned by the schedulers
+    // Strong references are owned by the scheduler run queues
     static ref RW_LOCK_WEAK_PROCESS_BY_PID: RwLock<HashMap<Term, Weak<Process>>> = Default::default();
 }

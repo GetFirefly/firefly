@@ -88,11 +88,11 @@ where
     M: FnOnce(&Process) -> Term,
 {
     with_process_arc(|process_arc| {
-        let different_process = process::local::new();
+        let different_process_arc = process::local::test(&process_arc);
         let destination = registered_name();
 
         assert_eq!(
-            erlang::register_2(destination, different_process.pid, process_arc.clone()),
+            erlang::register_2(destination, different_process_arc.pid, process_arc.clone()),
             Ok(true.into())
         );
 
@@ -103,6 +103,6 @@ where
             Ok(message)
         );
 
-        assert!(has_process_message(&different_process, message));
+        assert!(has_process_message(&different_process_arc, message));
     })
 }

@@ -340,7 +340,7 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             let tuple_pointer = tuple as *const Tuple;
@@ -351,7 +351,7 @@ mod tests {
 
         #[test]
         fn with_elements() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple =
                 Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
 
@@ -372,7 +372,7 @@ mod tests {
 
         #[test]
         fn without_valid_index() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             assert_badarg!(tuple.element(ZeroBasedIndex(0)));
@@ -380,7 +380,7 @@ mod tests {
 
         #[test]
         fn with_valid_index() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple =
                 Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
 
@@ -398,7 +398,7 @@ mod tests {
 
         #[test]
         fn without_element() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
             let equal = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
@@ -408,7 +408,7 @@ mod tests {
 
         #[test]
         fn with_unequal_length() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple =
                 Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
             let unequal = Tuple::from_slice(
@@ -427,7 +427,7 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             assert_eq!(tuple.iter().count(), 0);
@@ -439,7 +439,7 @@ mod tests {
 
         #[test]
         fn with_elements() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple =
                 Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());
 
@@ -458,7 +458,7 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
             let tuple = Tuple::from_slice(&[], &process.heap.lock().unwrap());
 
             assert_eq!(tuple.size(), 0.into());
@@ -466,7 +466,7 @@ mod tests {
 
         #[test]
         fn with_elements() {
-            let process = process::local::new();
+            let process = process::local::test(&process::local::test_init());
 
             let tuple =
                 Tuple::from_slice(&[0.into_process(&process)], &process.heap.lock().unwrap());

@@ -517,6 +517,15 @@ impl Term {
         }
     }
 
+    pub unsafe fn decompose_local_pid(&self) -> (usize, usize) {
+        let untagged = self.tagged >> Tag::LOCAL_PID_BIT_COUNT;
+
+        let number = untagged & process::identifier::NUMBER_MASK;
+        let serial = untagged >> process::identifier::NUMBER_BIT_COUNT;
+
+        (number, serial)
+    }
+
     pub fn local_reference(number: local::Number, process: &Process) -> Term {
         Term::box_reference(Scheduler::current().reference(number, process))
     }
@@ -586,6 +595,14 @@ impl Term {
                     _ => false,
                 }
             }
+            _ => false,
+        }
+    }
+
+    pub fn is_proper_list(&self) -> bool {
+        match self.tag() {
+            EmptyList => true,
+            List => unsafe { self.as_ref_cons_unchecked() }.is_proper(),
             _ => false,
         }
     }
@@ -808,6 +825,12 @@ impl CloneIntoHeap for Term {
     }
 }
 
+impl CloneIntoHeap for Vec<Term> {
+    fn clone_into_heap(&self, heap: &Heap) -> Vec<Term> {
+        self.iter().map(|term| term.clone_into_heap(heap)).collect()
+    }
+}
+
 impl Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.tag() {
@@ -929,6 +952,11 @@ impl Debug for Term {
                     cons.head(),
                     cons.tail()
                 )
+            }
+            LocalPid => {
+                let (number, serial) = unsafe { self.decompose_local_pid() };
+
+                write!(f, "Term::local_pid({:?}, {:?}).unwrap()", number, serial)
             }
             SmallInteger => write!(f, "{:?}.into_process(&process)", isize::from(self)),
             _ => write!(
@@ -1790,6 +1818,22 @@ impl TryFrom<Term> for usize {
     }
 }
 
+impl TryFrom<Term> for Vec<Term> {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<Vec<Term>, Exception> {
+        match term.tag() {
+            EmptyList => Ok(Vec::new()),
+            List => {
+                let cons: &Cons = unsafe { term.as_ref_cons_unchecked() };
+
+                cons.try_into()
+            }
+            _ => Err(badarg!()),
+        }
+    }
+}
+
 impl TryFrom<Term> for &'static Cons {
     type Error = Exception;
 
@@ -1884,7 +1928,7 @@ impl<'a> TryFromInProcess<&'a Term> for &'a Tuple {
 mod tests {
     use super::*;
 
-    use crate::process;
+    use crate::scheduler::with_process;
 
     mod cmp_in_process {
         use super::*;
@@ -1894,22 +1938,24 @@ mod tests {
 
             #[test]
             fn number_is_less_than_atom() {
-                let process = process::local::new();
-                let number_term: Term = 0.into_process(&process);
-                let atom_term = Term::str_to_atom("0", DoNotCare).unwrap();
+                with_process(|process| {
+                    let number_term: Term = 0.into_process(&process);
+                    let atom_term = Term::str_to_atom("0", DoNotCare).unwrap();
 
-                assert!(number_term < atom_term);
-                assert!(!(atom_term < number_term));
+                    assert!(number_term < atom_term);
+                    assert!(!(atom_term < number_term));
+                });
             }
 
             #[test]
             fn atom_is_less_than_tuple() {
-                let process = process::local::new();
-                let atom_term = Term::str_to_atom("0", DoNotCare).unwrap();
-                let tuple_term = Term::slice_to_tuple(&[], &process);
+                with_process(|process| {
+                    let atom_term = Term::str_to_atom("0", DoNotCare).unwrap();
+                    let tuple_term = Term::slice_to_tuple(&[], &process);
 
-                assert!(atom_term < tuple_term);
-                assert!(!(tuple_term < atom_term));
+                    assert!(atom_term < tuple_term);
+                    assert!(!(tuple_term < atom_term));
+                });
             }
 
             #[test]
@@ -1931,42 +1977,46 @@ mod tests {
 
             #[test]
             fn shorter_tuple_is_less_than_longer_tuple() {
-                let process = process::local::new();
-                let shorter_tuple = Term::slice_to_tuple(&[], &process);
-                let longer_tuple = Term::slice_to_tuple(&[0.into_process(&process)], &process);
+                with_process(|process| {
+                    let shorter_tuple = Term::slice_to_tuple(&[], &process);
+                    let longer_tuple = Term::slice_to_tuple(&[0.into_process(&process)], &process);
 
-                assert!(shorter_tuple < longer_tuple);
-                assert!(!(longer_tuple < shorter_tuple));
+                    assert!(shorter_tuple < longer_tuple);
+                    assert!(!(longer_tuple < shorter_tuple));
+                });
             }
 
             #[test]
             fn same_length_tuples_with_lesser_elements_is_lesser() {
-                let process = process::local::new();
-                let lesser_tuple = Term::slice_to_tuple(&[0.into_process(&process)], &process);
-                let greater_tuple = Term::slice_to_tuple(&[1.into_process(&process)], &process);
+                with_process(|process| {
+                    let lesser_tuple = Term::slice_to_tuple(&[0.into_process(&process)], &process);
+                    let greater_tuple = Term::slice_to_tuple(&[1.into_process(&process)], &process);
 
-                assert!(lesser_tuple < greater_tuple);
-                assert!(!(greater_tuple < lesser_tuple));
+                    assert!(lesser_tuple < greater_tuple);
+                    assert!(!(greater_tuple < lesser_tuple));
+                });
             }
 
             #[test]
             fn tuple_is_less_than_empty_list() {
-                let process = process::local::new();
-                let tuple_term = Term::slice_to_tuple(&[], &process);
-                let empty_list_term = Term::EMPTY_LIST;
+                with_process(|process| {
+                    let tuple_term = Term::slice_to_tuple(&[], &process);
+                    let empty_list_term = Term::EMPTY_LIST;
 
-                assert!(tuple_term < empty_list_term);
-                assert!(!(empty_list_term < tuple_term));
+                    assert!(tuple_term < empty_list_term);
+                    assert!(!(empty_list_term < tuple_term));
+                });
             }
 
             #[test]
             fn tuple_is_less_than_list() {
-                let process = process::local::new();
-                let tuple_term = Term::slice_to_tuple(&[], &process);
-                let list_term = list_term(&process);
+                with_process(|process| {
+                    let tuple_term = Term::slice_to_tuple(&[], &process);
+                    let list_term = list_term(&process);
 
-                assert!(tuple_term < list_term);
-                assert!(!(list_term < tuple_term));
+                    assert!(tuple_term < list_term);
+                    assert!(!(list_term < tuple_term));
+                });
             }
         }
 
@@ -1975,115 +2025,122 @@ mod tests {
 
             #[test]
             fn with_improper_list() {
-                let process = process::local::new();
-                let list_term =
-                    Term::cons(0.into_process(&process), 1.into_process(&process), &process);
-                let equal_list_term =
-                    Term::cons(0.into_process(&process), 1.into_process(&process), &process);
-                let unequal_list_term =
-                    Term::cons(1.into_process(&process), 0.into_process(&process), &process);
+                with_process(|process| {
+                    let list_term =
+                        Term::cons(0.into_process(&process), 1.into_process(&process), &process);
+                    let equal_list_term =
+                        Term::cons(0.into_process(&process), 1.into_process(&process), &process);
+                    let unequal_list_term =
+                        Term::cons(1.into_process(&process), 0.into_process(&process), &process);
 
-                assert_eq!(list_term, list_term);
-                assert_eq!(equal_list_term, equal_list_term);
-                assert_ne!(list_term, unequal_list_term);
+                    assert_eq!(list_term, list_term);
+                    assert_eq!(equal_list_term, equal_list_term);
+                    assert_ne!(list_term, unequal_list_term);
+                });
             }
 
             #[test]
             fn with_proper_list() {
-                let process = process::local::new();
-                let list_term = Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
-                let equal_list_term =
-                    Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
-                let unequal_list_term =
-                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process);
+                with_process(|process| {
+                    let list_term =
+                        Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
+                    let equal_list_term =
+                        Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
+                    let unequal_list_term =
+                        Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process);
 
-                assert_eq!(list_term, list_term);
-                assert_eq!(list_term, equal_list_term);
-                assert_ne!(list_term, unequal_list_term);
+                    assert_eq!(list_term, list_term);
+                    assert_eq!(list_term, equal_list_term);
+                    assert_ne!(list_term, unequal_list_term);
+                });
             }
 
             #[test]
             fn with_nested_list() {
-                let process = process::local::new();
-                let list_term = Term::cons(
-                    0.into_process(&process),
-                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
-                    &process,
-                );
-                let equal_list_term = Term::cons(
-                    0.into_process(&process),
-                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
-                    &process,
-                );
-                let unequal_list_term = Term::cons(
-                    1.into_process(&process),
-                    Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process),
-                    &process,
-                );
+                with_process(|process| {
+                    let list_term = Term::cons(
+                        0.into_process(&process),
+                        Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
+                        &process,
+                    );
+                    let equal_list_term = Term::cons(
+                        0.into_process(&process),
+                        Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
+                        &process,
+                    );
+                    let unequal_list_term = Term::cons(
+                        1.into_process(&process),
+                        Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process),
+                        &process,
+                    );
 
-                assert_eq!(list_term, list_term);
-                assert_eq!(list_term, equal_list_term);
-                assert_ne!(list_term, unequal_list_term);
+                    assert_eq!(list_term, list_term);
+                    assert_eq!(list_term, equal_list_term);
+                    assert_ne!(list_term, unequal_list_term);
+                });
             }
 
             #[test]
             fn with_lists_of_unequal_length() {
-                let process = process::local::new();
-                let list_term = Term::cons(
-                    0.into_process(&process),
-                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
-                    &process,
-                );
-                let equal_list_term = Term::cons(
-                    0.into_process(&process),
-                    Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
-                    &process,
-                );
-                let shorter_list_term =
-                    Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
-                let longer_list_term = Term::cons(
-                    0.into_process(&process),
-                    Term::cons(
-                        1.into_process(&process),
-                        Term::cons(2.into_process(&process), Term::EMPTY_LIST, &process),
+                with_process(|process| {
+                    let list_term = Term::cons(
+                        0.into_process(&process),
+                        Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
                         &process,
-                    ),
-                    &process,
-                );
+                    );
+                    let equal_list_term = Term::cons(
+                        0.into_process(&process),
+                        Term::cons(1.into_process(&process), Term::EMPTY_LIST, &process),
+                        &process,
+                    );
+                    let shorter_list_term =
+                        Term::cons(0.into_process(&process), Term::EMPTY_LIST, &process);
+                    let longer_list_term = Term::cons(
+                        0.into_process(&process),
+                        Term::cons(
+                            1.into_process(&process),
+                            Term::cons(2.into_process(&process), Term::EMPTY_LIST, &process),
+                            &process,
+                        ),
+                        &process,
+                    );
 
-                assert_eq!(list_term, list_term);
-                assert_eq!(list_term, equal_list_term);
-                assert_ne!(list_term, shorter_list_term);
-                assert_ne!(list_term, longer_list_term);
+                    assert_eq!(list_term, list_term);
+                    assert_eq!(list_term, equal_list_term);
+                    assert_ne!(list_term, shorter_list_term);
+                    assert_ne!(list_term, longer_list_term);
+                });
             }
 
             #[test]
             fn with_tuples_of_unequal_length() {
-                let process = process::local::new();
-                let tuple_term = Term::slice_to_tuple(&[0.into_process(&process)], &process);
-                let equal_term = Term::slice_to_tuple(&[0.into_process(&process)], &process);
-                let unequal_term = Term::slice_to_tuple(
-                    &[0.into_process(&process), 1.into_process(&process)],
-                    &process,
-                );
+                with_process(|process| {
+                    let tuple_term = Term::slice_to_tuple(&[0.into_process(&process)], &process);
+                    let equal_term = Term::slice_to_tuple(&[0.into_process(&process)], &process);
+                    let unequal_term = Term::slice_to_tuple(
+                        &[0.into_process(&process), 1.into_process(&process)],
+                        &process,
+                    );
 
-                assert_eq!(tuple_term, tuple_term);
-                assert_eq!(tuple_term, equal_term);
-                assert_ne!(tuple_term, unequal_term);
+                    assert_eq!(tuple_term, tuple_term);
+                    assert_eq!(tuple_term, equal_term);
+                    assert_ne!(tuple_term, unequal_term);
+                });
             }
 
             #[test]
             fn with_heap_binaries_of_unequal_length() {
-                let process = process::local::new();
-                let heap_binary_term = Term::slice_to_binary(&[0, 1], &process);
-                let equal_heap_binary_term = Term::slice_to_binary(&[0, 1], &process);
-                let shorter_heap_binary_term = Term::slice_to_binary(&[0], &process);
-                let longer_heap_binary_term = Term::slice_to_binary(&[0, 1, 2], &process);
+                with_process(|process| {
+                    let heap_binary_term = Term::slice_to_binary(&[0, 1], &process);
+                    let equal_heap_binary_term = Term::slice_to_binary(&[0, 1], &process);
+                    let shorter_heap_binary_term = Term::slice_to_binary(&[0], &process);
+                    let longer_heap_binary_term = Term::slice_to_binary(&[0, 1, 2], &process);
 
-                assert_eq!(heap_binary_term, heap_binary_term);
-                assert_eq!(heap_binary_term, equal_heap_binary_term);
-                assert_ne!(heap_binary_term, shorter_heap_binary_term);
-                assert_ne!(heap_binary_term, longer_heap_binary_term);
+                    assert_eq!(heap_binary_term, heap_binary_term);
+                    assert_eq!(heap_binary_term, equal_heap_binary_term);
+                    assert_ne!(heap_binary_term, shorter_heap_binary_term);
+                    assert_ne!(heap_binary_term, longer_heap_binary_term);
+                });
             }
         }
     }
@@ -2105,35 +2162,39 @@ mod tests {
 
         #[test]
         fn with_list_is_false() {
-            let process = process::local::new();
-            let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
-            let list_term = Term::cons(head_term, Term::EMPTY_LIST, &process);
+            with_process(|process| {
+                let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
+                let list_term = Term::cons(head_term, Term::EMPTY_LIST, &process);
 
-            assert_eq!(list_term.is_empty_list(), false);
+                assert_eq!(list_term.is_empty_list(), false);
+            });
         }
 
         #[test]
         fn with_small_integer_is_false() {
-            let process = process::local::new();
-            let small_integer_term = small_integer_term(&process, 0);
+            with_process(|process| {
+                let small_integer_term = small_integer_term(&process, 0);
 
-            assert_eq!(small_integer_term.is_empty_list(), false);
+                assert_eq!(small_integer_term.is_empty_list(), false);
+            });
         }
 
         #[test]
         fn with_tuple_is_false() {
-            let process = process::local::new();
-            let tuple_term = tuple_term(&process);
+            with_process(|process| {
+                let tuple_term = tuple_term(&process);
 
-            assert_eq!(tuple_term.is_empty_list(), false);
+                assert_eq!(tuple_term.is_empty_list(), false);
+            });
         }
 
         #[test]
         fn with_heap_binary_is_false() {
-            let process = process::local::new();
-            let heap_binary_term = Term::slice_to_binary(&[], &process);
+            with_process(|process| {
+                let heap_binary_term = Term::slice_to_binary(&[], &process);
 
-            assert_eq!(heap_binary_term.is_empty_list(), false);
+                assert_eq!(heap_binary_term.is_empty_list(), false);
+            });
         }
     }
 

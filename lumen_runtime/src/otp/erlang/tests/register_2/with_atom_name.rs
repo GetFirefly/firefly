@@ -9,23 +9,24 @@ fn with_undefined_atom_errors_badarg() {
 
 #[test]
 fn with_registered_name_errors_badarg() {
-    let registered_name = Term::str_to_atom("registered_name", DoNotCare).unwrap();
-    let registered_process_arc = process::local::new();
+    with_process_arc(|registered_process_arc| {
+        let registered_name = Term::str_to_atom("registered_name", DoNotCare).unwrap();
 
-    assert_eq!(
-        erlang::register_2(
+        assert_eq!(
+            erlang::register_2(
+                registered_name,
+                registered_process_arc.pid,
+                Arc::clone(&registered_process_arc)
+            ),
+            Ok(true.into())
+        );
+
+        let unregistered_process_arc = process::local::test(&registered_process_arc);
+
+        assert_badarg!(erlang::register_2(
             registered_name,
-            registered_process_arc.pid,
-            registered_process_arc
-        ),
-        Ok(true.into())
-    );
-
-    let unregistered_process_arc = process::local::new();
-
-    assert_badarg!(erlang::register_2(
-        registered_name,
-        unregistered_process_arc.pid,
-        unregistered_process_arc
-    ));
+            unregistered_process_arc.pid,
+            unregistered_process_arc
+        ));
+    });
 }

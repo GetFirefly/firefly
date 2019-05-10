@@ -323,8 +323,18 @@ where
 {
     fn to_list(&mut self, process: &Process) -> Term {
         self.rfold(Term::EMPTY_LIST, |acc, byte| {
-            Term::cons(byte.into_process(&process), acc, &process)
+            Term::cons(byte.into_process(&process), acc, process)
         })
+    }
+}
+
+impl TryFrom<&Cons> for Vec<Term> {
+    type Error = Exception;
+
+    fn try_from(cons: &Cons) -> Result<Vec<Term>, Exception> {
+        cons.into_iter()
+            .collect::<Result<Vec<Term>, _>>()
+            .map_err(|_| badarg!())
     }
 }
 

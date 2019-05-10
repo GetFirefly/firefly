@@ -17,42 +17,42 @@ fn with_empty_list_errors_badarg() {
 
 #[test]
 fn with_list_encoding_local_pid() {
-    let process = process::local::new();
+    with_process(|process| {
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<0", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<0.", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<0.1", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<0.1.", &process),
+            &process
+        ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<0.1.2", &process),
+            &process
+        ));
 
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<", &process),
-        &process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0", &process),
-        &process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.", &process),
-        &process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.1", &process),
-        &process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.1.", &process),
-        &process
-    ));
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.1.2", &process),
-        &process
-    ));
+        assert_eq!(
+            erlang::list_to_pid_1(Term::str_to_char_list("<0.1.2>", &process), &process),
+            Term::local_pid(1, 2)
+        );
 
-    assert_eq!(
-        erlang::list_to_pid_1(Term::str_to_char_list("<0.1.2>", &process), &process),
-        Term::local_pid(1, 2)
-    );
-
-    assert_badarg!(erlang::list_to_pid_1(
-        Term::str_to_char_list("<0.1.2>?", &process),
-        &process
-    ));
+        assert_badarg!(erlang::list_to_pid_1(
+            Term::str_to_char_list("<0.1.2>?", &process),
+            &process
+        ));
+    })
 }
 
 #[test]

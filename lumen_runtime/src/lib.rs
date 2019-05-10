@@ -15,6 +15,10 @@
 #![feature(untagged_unions)]
 // for `lumen_runtime::list::Cons::subtract`.
 #![feature(vec_remove_item)]
+// for `lumen_runtime::scheduler::RunQueue::run_through`
+#![feature(vecdeque_rotate)]
+// `crate::registry::<Registered as PartialEq>::eq`
+#![feature(weak_ptr_eq)]
 
 #[macro_use]
 extern crate cfg_if;
@@ -26,6 +30,7 @@ mod macros;
 
 mod atom;
 mod binary;
+mod code;
 mod config;
 mod exception;
 mod float;

@@ -64,7 +64,7 @@ where
     M: FnOnce(&Process) -> Term,
 {
     with_process_arc(|process_arc| {
-        let destination_process_arc = process::local::new();
+        let destination_process_arc = process::local::test(&process_arc);
         let destination = registered_name();
 
         assert_eq!(

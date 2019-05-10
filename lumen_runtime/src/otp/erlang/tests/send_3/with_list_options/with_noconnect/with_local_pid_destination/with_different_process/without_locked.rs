@@ -90,7 +90,7 @@ where
     M: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
-        let different_process = process::local::new();
+        let different_process = process::local::test(&process);
         let destination = different_process.pid;
         let message = message(process);
         let options = options(process);

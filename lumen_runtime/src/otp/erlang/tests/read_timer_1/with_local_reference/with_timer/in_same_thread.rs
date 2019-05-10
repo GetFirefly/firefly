@@ -73,7 +73,7 @@ fn with_timer<F>(f: F)
 where
     F: FnOnce(u64, Term, Term, &Process) -> (),
 {
-    let same_thread_process_arc = process::local::new();
+    let same_thread_process_arc = process::local::test(&process::local::test_init());
     let milliseconds: u64 = 100;
 
     let message = Term::str_to_atom("message", DoNotCare).unwrap();

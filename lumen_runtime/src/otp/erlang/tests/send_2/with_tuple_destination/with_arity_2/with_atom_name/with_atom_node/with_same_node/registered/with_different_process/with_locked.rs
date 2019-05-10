@@ -94,15 +94,15 @@ where
     M: FnOnce(&Process) -> Term,
 {
     with_process_arc(|process_arc| {
-        let different_process = process::local::new();
+        let different_process_arc = process::local::test(&process_arc);
         let name = registered_name();
 
         assert_eq!(
-            erlang::register_2(name, different_process.pid, process_arc.clone()),
+            erlang::register_2(name, different_process_arc.pid, process_arc.clone()),
             Ok(true.into())
         );
 
-        let _different_process_heap_lock = different_process.heap.lock().unwrap();
+        let _different_process_heap_lock = different_process_arc.heap.lock().unwrap();
 
         let destination = Term::slice_to_tuple(&[name, erlang::node_0()], &process_arc);
         let message = message(&process_arc);
@@ -112,6 +112,6 @@ where
             Ok(message)
         );
 
-        assert!(has_heap_message(&different_process, message));
+        assert!(has_heap_message(&different_process_arc, message));
     })
 }

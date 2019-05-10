@@ -1,17 +1,5 @@
-mod malloc;
-pub use malloc::{
-    alloc,
-    alloc_zeroed,
-    realloc,
-    free,
-};
-
-#[cfg(has_mmap)]
-pub mod mmap;
-
-
 #[inline]
-pub(crate) fn pagesize() -> usize {
+pub fn pagesize() -> usize {
     unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize }
 }
 

@@ -1,15 +1,11 @@
-use std::collections::HashMap;
+#![cfg_attr(not(test), no_std)]
+#![feature(core_intrinsics)]
+#![feature(alloc)]
+#![feature(allocator_api)]
 
-use failure::Error;
+#[cfg_attr(not(test), macro_use)]
+extern crate alloc as core_alloc;
 
-use liblumen_syntax::ast::Module;
-use liblumen_syntax::Symbol;
-
-use liblumen_common::compiler::Compiler;
-
-pub fn transform<C>(_compiler: &C, _modules: HashMap<Symbol, Module>) -> Result<(), Error>
-where
-    C: Compiler,
-{
-    unimplemented!()
-}
+pub mod alloc;
+pub mod locks;
+pub mod sys;

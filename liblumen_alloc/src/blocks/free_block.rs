@@ -9,8 +9,9 @@ use alloc::fmt::{self, Debug, Formatter};
 use intrusive_collections::container_of;
 use intrusive_collections::RBTreeLink;
 
+use liblumen_core::alloc::alloc_utils;
+
 use crate::sorted::{SortKey, SortOrder, Sortable};
-use crate::utils;
 
 use super::{Block, BlockFooter, BlockRef, FreeBlockRef, FreeBlocks};
 
@@ -160,9 +161,9 @@ impl FreeBlock {
 
         // Check alignment
         let align = layout.align();
-        if !utils::is_aligned_at(ptr, align) {
+        if !alloc_utils::is_aligned_at(ptr, align) {
             // Need to round up to nearest aligned address
-            let aligned_ptr = utils::align_up_to(ptr, align) as *mut u8;
+            let aligned_ptr = alloc_utils::align_up_to(ptr, align) as *mut u8;
             assert_eq!(aligned_ptr, ptr);
             // Check size with padding added
             let padding = (aligned_ptr as usize) - (ptr as usize);

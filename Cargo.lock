@@ -622,14 +622,9 @@ version = "0.1.0"
 dependencies = [
  "bitvec 0.11.0 (git+https://github.com/bitwalker/bitvec)",
  "cfg-if 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "dlmalloc 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "intrusive-collections 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",
- "lock_api 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "thread_local 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "liblumen_core 0.1.0",
 ]
 
 [[package]]
@@ -686,10 +681,13 @@ dependencies = [
 name = "liblumen_core"
 version = "0.1.0"
 dependencies = [
- "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "liblumen_common 0.1.0",
- "liblumen_diagnostics 0.1.0",
- "liblumen_syntax 0.1.0",
+ "cfg-if 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dlmalloc 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lock_api 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

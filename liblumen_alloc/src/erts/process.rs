@@ -2,7 +2,8 @@ use core::alloc::{AllocErr, Layout};
 use core::mem::{self, ManuallyDrop};
 use core::ptr::{self, NonNull};
 
-use crate::mmap;
+use core::alloc::Alloc;
+
 use crate::std_alloc::StandardAlloc;
 
 /// This allocator is used to allocate process heaps globally.
@@ -44,7 +45,7 @@ impl ProcessAlloc {
         let header_size = header_layout.size();
 
         // Allocate region
-        let ptr = unsafe { mmap::map(layout)?.as_ptr() as *mut u8 };
+        let ptr = unsafe { self.alloc.alloc(layout)?.as_ptr() };
         // Get heap pointer
         let heap_top = unsafe { ptr.offset(header_size as isize) };
         // Get stack pointer
@@ -87,7 +88,8 @@ impl ProcessAlloc {
     pub unsafe fn dealloc(&mut self, heap: *mut ProcessHeap) {
         let size = (*heap).size;
         let layout = Layout::from_size_align_unchecked(size, Self::WORD_SIZE);
-        mmap::unmap(heap as *mut u8, layout);
+        self.alloc
+            .dealloc(NonNull::new_unchecked(heap as *mut u8), layout);
     }
 }
 

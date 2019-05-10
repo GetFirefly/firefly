@@ -251,14 +251,18 @@ where
 
 #[cfg(test)]
 mod tests {
+    use core::alloc::Alloc;
+
     use super::*;
 
     use intrusive_collections::RBTreeLink;
+    use liblumen_core::alloc::SysAlloc;
 
-    use crate::mmap;
     use crate::std_alloc::StandardAlloc;
 
     use crate::blocks::FreeBlockRef;
+
+    static mut SYS_ALLOC: SysAlloc = SysAlloc;
 
     #[test]
     fn multi_block_carrier_test() {
@@ -266,7 +270,7 @@ mod tests {
         let size = StandardAlloc::SA_CARRIER_SIZE;
         let carrier_layout = Layout::from_size_align(size, size).unwrap();
         // Allocate region
-        let ptr = unsafe { mmap::map(carrier_layout).unwrap() };
+        let ptr = unsafe { SYS_ALLOC.alloc(carrier_layout).unwrap() };
         // Get pointer to carrier header location
         let carrier = ptr.as_ptr() as *mut MultiBlockCarrier<RBTreeLink>;
         // Write initial carrier header
@@ -309,5 +313,8 @@ mod tests {
         }
         assert_eq!(mbc.num_blocks_free(), 1);
         assert_eq!(mbc.num_blocks(), 1);
+        // Cleanup
+        drop(mbc);
+        unsafe { SYS_ALLOC.dealloc(ptr, carrier_layout) };
     }
 }

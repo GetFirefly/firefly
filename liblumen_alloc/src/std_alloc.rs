@@ -11,11 +11,12 @@ use intrusive_collections::{intrusive_adapter, Bound, UnsafeRef};
 use intrusive_collections::{LinkedList, LinkedListLink};
 use intrusive_collections::{RBTree, RBTreeLink};
 
-use crate::mmap;
+use liblumen_core::alloc::mmap;
+use liblumen_core::locks::SpinLock;
+
 //use crate::size_classes;
 use crate::blocks::{Block, FreeBlocks};
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
-use crate::erts::SpinLock;
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
 
 // Type alias for the list of currently allocated single-block carriers

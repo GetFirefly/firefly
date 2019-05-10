@@ -12,22 +12,29 @@ pub use self::free_block_tree::{FreeBlockTree, FreeBlocks};
 
 #[cfg(test)]
 mod tests {
-    use core::alloc::Layout;
+    use core::alloc::{Alloc, Layout};
     use core::mem;
     use core::ptr;
 
-    use crate::mmap;
+    use liblumen_core::alloc::SysAlloc;
+    use liblumen_core::sys::sysconf;
+
     use crate::sorted::SortOrder;
-    use crate::sys;
 
     use super::*;
 
+    static mut SYS_ALLOC: SysAlloc = SysAlloc;
+
     #[test]
     fn block_meta_api_test() {
-        let size = sys::pagesize();
+        let size = sysconf::pagesize();
         let usable = size - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let ptr = unsafe { mmap::map(layout.clone()).expect("unable to map memory") };
+        let ptr = unsafe {
+            SYS_ALLOC
+                .alloc(layout.clone())
+                .expect("unable to map memory")
+        };
         let raw = ptr.as_ptr() as *mut Block;
         unsafe {
             ptr::write(raw, Block::new(usable));
@@ -59,15 +66,19 @@ mod tests {
         assert_eq!(block.next(), None);
 
         // Cleanup
-        unsafe { mmap::unmap(raw as *mut u8, layout) };
+        unsafe { SYS_ALLOC.dealloc(ptr, layout) };
     }
 
     #[test]
     fn block_try_alloc_test() {
-        let size = sys::pagesize();
+        let size = sysconf::pagesize();
         let usable = size - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let ptr = unsafe { mmap::map(layout.clone()).expect("unable to map memory") };
+        let ptr = unsafe {
+            SYS_ALLOC
+                .alloc(layout.clone())
+                .expect("unable to map memory")
+        };
         let raw = ptr.as_ptr() as *mut FreeBlock;
         // Block is free, and last
         let mut header = Block::new(usable);
@@ -103,20 +114,25 @@ mod tests {
         assert!(result.is_ok());
 
         // Cleanup
-        unsafe { mmap::unmap(raw as *mut u8, layout) };
+        unsafe { SYS_ALLOC.dealloc(ptr, layout) };
     }
 
     #[test]
     fn block_free_block_tree_test() {
         // Allocate space for two blocks, each page sized, but we're going to treat
         // the latter block as half that size
-        let size = sys::pagesize() * 2;
-        let usable = sys::pagesize() - mem::size_of::<Block>();
+        let size = sysconf::pagesize() * 2;
+        let usable = sysconf::pagesize() - mem::size_of::<Block>();
         let layout = Layout::from_size_align(size, size).unwrap();
-        let ptr = unsafe { mmap::map(layout.clone()).expect("unable to map memory") };
+        let ptr = unsafe {
+            SYS_ALLOC
+                .alloc(layout.clone())
+                .expect("unable to map memory")
+        };
         // Get pointers to both blocks
         let raw = ptr.as_ptr() as *mut FreeBlock;
-        let raw2 = unsafe { (raw as *mut u8).offset(sys::pagesize() as isize) as *mut FreeBlock };
+        let raw2 =
+            unsafe { (raw as *mut u8).offset(sysconf::pagesize() as isize) as *mut FreeBlock };
         // Write block headers
         unsafe {
             let mut block1 = Block::new(usable);
@@ -156,6 +172,6 @@ mod tests {
                 fblock2.as_ptr() as *const u8
             );
         }
-        unsafe { mmap::unmap(raw as *mut u8, layout) };
+        unsafe { SYS_ALLOC.dealloc(ptr, layout) };
     }
 }

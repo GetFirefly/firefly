@@ -1,8 +1,8 @@
 use core::ptr::{self, NonNull};
-use core::alloc::{GlobalAlloc, Layout, AllocErr};
+use core::alloc::{Layout, AllocErr};
 
-use crate::sys::MIN_ALIGN;
-use crate::sys_alloc::{self, SysAlloc};
+use crate::sys::sysconf::MIN_ALIGN;
+use crate::alloc::realloc_fallback;
 
 #[inline]
 pub unsafe fn alloc(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
@@ -32,11 +32,10 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
 
 #[inline]
 pub unsafe fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
-    // erts_mseg_clear_cache();
     if layout.align() <= MIN_ALIGN && layout.align() <= new_size {
         NonNull::new(libc::realloc(ptr as *mut libc::c_void, new_size) as *mut u8).ok_or(AllocErr)
     } else {
-        sys_alloc::realloc_fallback(ptr, layout, new_size)
+        realloc_fallback(ptr, layout, new_size)
     }
 }
 
@@ -53,26 +52,4 @@ unsafe fn aligned_alloc(layout: &Layout) -> Result<NonNull<u8>, AllocErr> {
         return Err(AllocErr);
     }
     Ok(NonNull::new_unchecked(ptr as *mut u8))
-}
-
-unsafe impl GlobalAlloc for SysAlloc {
-    #[inline]
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        self::alloc(layout).map(|nn| nn.as_ptr()).unwrap_or(ptr::null_mut())
-    }
-
-    #[inline]
-    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        self::alloc_zeroed(layout).map(|nn| nn.as_ptr()).unwrap_or(ptr::null_mut())
-    }
-
-    #[inline]
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        self::realloc(ptr, layout, new_size).map(|nn| nn.as_ptr()).unwrap_or(ptr::null_mut())
-    }
-
-    #[inline]
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self::free(ptr, layout);
-    }
 }

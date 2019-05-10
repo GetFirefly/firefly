@@ -4,7 +4,8 @@ use core::ptr::{self, NonNull};
 use alloc::fmt::{self, Debug, Formatter};
 use alloc::string::String;
 
-use crate::utils;
+use liblumen_core::alloc::alloc_utils;
+use liblumen_core::{assert_aligned_to, assert_word_aligned};
 
 use super::{BlockFooter, BlockRef, FreeBlock, FreeBlockRef};
 
@@ -58,7 +59,7 @@ impl Debug for Block {
             .field("last", &self.is_last())
             .field("prev_free", &self.is_prev_free())
             .field("raw", &self.format_raw())
-            .field("address", &utils::format_address_of(self))
+            .field("address", &alloc_utils::format_address_of(self))
             .finish()
     }
 }

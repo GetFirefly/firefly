@@ -3,21 +3,14 @@
 #![feature(alloc)]
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
-#![feature(stmt_expr_attributes)]
-#![feature(exclusive_range_pattern)]
 #![feature(ptr_offset_from)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;
 
-#[macro_use]
-pub mod utils;
 mod blocks;
 mod carriers;
-mod mmap;
 mod sorted;
-mod sys;
-mod sys_alloc;
 //mod size_classes;
 mod std_alloc;
 //mod fixed_alloc;
@@ -29,7 +22,7 @@ mod erts;
 /// #[global_allocator]
 /// pub static ALLOC: SysAlloc = SysAlloc;
 /// ```
-pub use sys_alloc::SysAlloc;
+pub use liblumen_core::alloc::SysAlloc;
 
 /// The standard allocator. Used for general purpose allocations
 pub use std_alloc::StandardAlloc;
@@ -37,5 +30,5 @@ pub use std_alloc::StandardAlloc;
 // A fixed size allocator. Used for allocations that fall within predictable size classes.
 //pub use fixed_alloc::FixedAlloc;
 
-// Runtime system support, e.g. mutexes, process heaps, etc.
+// Runtime system support, e.g. process heaps, etc.
 pub use erts::*;

@@ -1,11 +1,13 @@
-use core::ptr::{self, NonNull};
-use core::alloc::{GlobalAlloc, Layout, System, AllocErr};
+use core::ptr::NonNull;
+use core::alloc::{Layout, AllocErr};
 
 use winapi::um::heapapi::{HeapAlloc, HeapReAlloc, HeapFree, GetProcessHeap};
 use winapi::um::winnt::HEAP_ZERO_MEMORY;
+use winapi::um::errhandlingapi::GetLastError;
 use winapi::shared::minwindef::{DWORD, LPVOID};
 
-use crate::sys_alloc::SysAlloc;
+use crate::sys::sysconf::MIN_ALIGN;
+use crate::alloc::realloc_fallback;
 
 #[repr(transparent)]
 struct Header(*mut u8);
@@ -25,7 +27,7 @@ pub unsafe fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<N
     if layout.align() <= MIN_ALIGN {
         NonNull::new(HeapReAlloc(GetProcessHeap(), 0, ptr as LPVOID, new_size) as *mut u8).ok_or(AllocErr)
     } else {
-        realloc_fallback(self, ptr, layout, new_size)
+        realloc_fallback(ptr, layout, new_size)
     }
 }
 
@@ -64,26 +66,4 @@ unsafe fn align_ptr(ptr: *mut u8, align: usize) -> *mut u8 {
     let aligned = ptr.add(align - (ptr as usize & (align - 1)));
     *get_header(aligned) = Header(ptr);
     aligned
-}
-
-unsafe impl GlobalAlloc for SysAlloc {
-    #[inline]
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        alloc_with_flags(layout, 0)
-    }
-
-    #[inline]
-    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        alloc_with_flags(layout, HEAP_ZERO_MEMORY)
-    }
-
-    #[inline]
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self::free(ptr, layout)
-    }
-
-    #[inline]
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        self::realloc(ptr, layout, new_size).map(|nn| nn.as_ptr()).unwrap_or(ptr::null_mut())
-    }
 }

@@ -2,7 +2,7 @@
 ///! allocator framework provided by this crate.
 use core::mem;
 
-use alloc::string::String;
+use core_alloc::string::String;
 
 /// Used to assert alignment against the size of the target pointer width
 #[allow(unused_macros)]
@@ -19,7 +19,7 @@ macro_rules! assert_word_aligned {
 macro_rules! assert_aligned_to {
     ($ptr:expr, $align:expr) => {
         assert!(
-            crate::utils::is_aligned_at($ptr, $align),
+            liblumen_core::alloc::alloc_utils::is_aligned_at($ptr, $align),
             "{:p} is not aligned to {}",
             $ptr,
             $align
@@ -213,8 +213,6 @@ mod tests {
 
     #[test]
     fn effective_alignment_test() {
-        use crate::std_alloc::StandardAlloc;
-
         // This is a real address gathered by testing, should be word-aligned
         let ptr = 0x70000cf815a8usize as *const u8;
         let effective = effective_alignment(ptr);
@@ -226,7 +224,7 @@ mod tests {
         let ptr = 0x5f5e10040000usize as *const u8;
         let effective = effective_alignment(ptr);
         assert!(effective.is_power_of_two());
-        assert_eq!(effective, StandardAlloc::SA_CARRIER_SIZE);
+        assert_eq!(effective, 262144);
 
         let max = 1usize << mem::size_of::<usize>() * 8 - 1;
         let effective = effective_alignment(max as *const u8);

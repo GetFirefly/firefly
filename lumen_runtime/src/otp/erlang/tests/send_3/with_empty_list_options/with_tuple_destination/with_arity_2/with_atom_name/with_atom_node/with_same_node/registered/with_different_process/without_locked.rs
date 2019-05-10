@@ -90,7 +90,7 @@ where
     M: FnOnce(&Process) -> Term,
 {
     with_process_arc(|process_arc| {
-        let different_process = process::local::new();
+        let different_process = process::local::test(&process_arc);
         let name = registered_name();
 
         assert_eq!(

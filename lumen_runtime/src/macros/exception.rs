@@ -202,3 +202,28 @@ macro_rules! throw {
         exception!(Throw, $reason)
     }};
 }
+
+macro_rules! undef {
+    ($module:expr, $function:expr, $arguments:expr, $process:expr) => {{
+        use crate::atom::Existence::DoNotCare;
+        use crate::term::Term;
+
+        let undef = Term::str_to_atom("undef", DoNotCare).unwrap();
+        let top = Term::slice_to_tuple(
+            &[
+                $module,
+                $function,
+                $arguments,
+                // I'm not sure what this final empty list holds
+                Term::EMPTY_LIST,
+            ],
+            $process,
+        );
+        let stacktrace = Term::cons(top, Term::EMPTY_LIST, $process);
+
+        exit!(undef, Some(stacktrace))
+    }};
+    ($module:expr, $function:expr, $arguments:expr, $process:expr) => {
+        undef!($module, $function, $arguments, $process)
+    };
+}

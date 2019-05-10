@@ -21,6 +21,7 @@ use crate::process::local::pid_to_self_or_process;
 use crate::process::{IntoProcess, Process, TryIntoInProcess};
 use crate::reference;
 use crate::registry::{self, Registered};
+use crate::scheduler::Scheduler;
 use crate::send::{self, send, Sent};
 use crate::stacktrace;
 use crate::term::{Tag, Tag::*, Term};
@@ -1172,7 +1173,7 @@ pub fn register_2(name: Term, pid_or_port: Term, process_arc: Arc<Process>) -> R
                                     None => {
                                         writable_registry.insert(
                                             name,
-                                            Registered::Process(Arc::clone(&pid_process_arc)),
+                                            Registered::Process(Arc::downgrade(&pid_process_arc)),
                                         );
                                         *writable_registered_name = Some(name);
 
@@ -1303,6 +1304,17 @@ pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
         _ => Err(badarg!()),
     }
     .map(|integer| integer.into_process(&process))
+}
+
+pub fn spawn_3(module: Term, function: Term, arguments: Term, process: &Process) -> Result {
+    if (module.tag() == Atom) & (function.tag() == Atom) {
+        let argument_vec: Vec<Term> = arguments.try_into()?;
+        let arc_process = Scheduler::spawn(process, module, function, argument_vec);
+
+        Ok(arc_process.pid)
+    } else {
+        Err(badarg!())
+    }
 }
 
 pub fn split_binary_2(binary: Term, position: Term, process: &Process) -> Result {
@@ -1522,12 +1534,16 @@ pub fn unregister_1(name: Term) -> Result {
             let mut writable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.write().unwrap();
 
             match writable_registry.remove(&name) {
-                Some(Registered::Process(process_arc)) => {
-                    let mut writable_registerd_name = process_arc.registered_name.write().unwrap();
-                    *writable_registerd_name = None;
+                Some(Registered::Process(weak_process)) => match weak_process.upgrade() {
+                    Some(arc_process) => {
+                        let mut writable_registerd_name =
+                            arc_process.registered_name.write().unwrap();
+                        *writable_registerd_name = None;
 
-                    Ok(true.into())
-                }
+                        Ok(true.into())
+                    }
+                    None => Err(badarg!()),
+                },
                 None => Err(badarg!()),
             }
         }
@@ -1541,7 +1557,10 @@ pub fn whereis_1(name: Term) -> Result {
             let readable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.read().unwrap();
 
             match readable_registry.get(&name) {
-                Some(Registered::Process(process_arc)) => Ok(process_arc.pid),
+                Some(Registered::Process(weak_process)) => match weak_process.upgrade() {
+                    Some(arc_process) => Ok(arc_process.pid),
+                    None => Ok(Term::str_to_atom("undefined", DoNotCare).unwrap()),
+                },
                 None => Ok(Term::str_to_atom("undefined", DoNotCare).unwrap()),
             }
         }

@@ -115,28 +115,30 @@ fn with_timer<F>(f: F)
 where
     F: FnOnce(u64, &Barrier, Term, &Process) -> (),
 {
-    let same_thread_process_arc = process::local::new();
+    let same_thread_process_arc = process::local::test(&process::local::test_init());
     let milliseconds: u64 = 100;
 
     // no wait to receive implemented yet, so use barrier for signalling
     let same_thread_barrier = Arc::new(Barrier::new(2));
 
-    let different_thread_same_thread_process_pid = same_thread_process_arc.pid.clone();
+    let different_thread_same_thread_process_arc = Arc::clone(&same_thread_process_arc);
     let different_thread_barrier = same_thread_barrier.clone();
 
     let different_thread = thread::spawn(move || {
-        let different_thread_process_arc = process::local::new();
+        let different_thread_process_arc =
+            process::local::test(&different_thread_same_thread_process_arc);
+        let same_thread_pid = different_thread_same_thread_process_arc.pid;
 
         let timer_reference = erlang::start_timer_3(
             milliseconds.into_process(&different_thread_process_arc),
-            different_thread_same_thread_process_pid,
+            same_thread_pid,
             Term::str_to_atom("different", DoNotCare).unwrap(),
             different_thread_process_arc.clone(),
         )
         .unwrap();
 
         erlang::send_2(
-            different_thread_same_thread_process_pid,
+            same_thread_pid,
             Term::slice_to_tuple(
                 &[
                     Term::str_to_atom("timer_reference", DoNotCare).unwrap(),

@@ -78,7 +78,7 @@ where
         let milliseconds = milliseconds();
         let time = milliseconds.into_process(&process_arc);
 
-        let destination_process_arc = process::local::new();
+        let destination_process_arc = process::local::test(&process_arc);
         let destination = destination_process_arc.pid;
 
         let message = message(&process_arc);

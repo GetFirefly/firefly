@@ -88,17 +88,17 @@ where
     M: FnOnce(&Process) -> Term,
 {
     with_process_arc(|process_arc| {
-        let different_process = process::local::new();
+        let different_process_arc = process::local::test(&process_arc);
         let destination = registered_name();
 
         assert_eq!(
-            erlang::register_2(destination, different_process.pid, process_arc.clone()),
+            erlang::register_2(destination, different_process_arc.pid, process_arc.clone()),
             Ok(true.into())
         );
 
-        let _different_process_heap_lock = different_process.heap.lock().unwrap();
+        let _different_process_heap_lock = different_process_arc.heap.lock().unwrap();
 
-        let destination = different_process.pid;
+        let destination = different_process_arc.pid;
         let message = message(&process_arc);
         let options = Term::EMPTY_LIST;
 
@@ -107,6 +107,6 @@ where
             Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
         );
 
-        assert!(has_heap_message(&different_process, message));
+        assert!(has_heap_message(&different_process_arc, message));
     })
 }

@@ -126,16 +126,18 @@ mod tests {
     mod unit {
         use super::*;
 
-        use crate::process::{self, IntoProcess};
+        use crate::process::IntoProcess;
+        use crate::scheduler::with_process;
 
         #[test]
         fn zero_errors_badarg() {
-            let process_arc = process::local::new();
-            let term: Term = 0.into_process(&process_arc);
+            with_process(|process| {
+                let term: Term = 0.into_process(&process);
 
-            let result: Result<Unit, Exception> = term.try_into();
+                let result: Result<Unit, Exception> = term.try_into();
 
-            assert_badarg!(result);
+                assert_badarg!(result);
+            });
         }
     }
 }

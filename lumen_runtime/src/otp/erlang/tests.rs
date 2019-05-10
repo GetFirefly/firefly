@@ -7,7 +7,7 @@ use crate::integer;
 use crate::message::{self, Message};
 use crate::otp::erlang;
 use crate::process;
-use crate::scheduler::{with_process, with_process_arc};
+use crate::scheduler::{with_process, with_process_arc, Priority};
 
 mod abs_1;
 mod add_2;
@@ -108,6 +108,7 @@ mod send_after_3;
 mod send_after_4;
 mod setelement_3;
 mod size_1;
+mod spawn_3;
 mod split_binary_2;
 mod start_timer_3;
 mod start_timer_4;

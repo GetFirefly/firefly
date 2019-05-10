@@ -166,10 +166,15 @@ fn send_to_name(
         let readable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.read().unwrap();
 
         match readable_registry.get(&destination) {
-            Some(Registered::Process(destination_process_arc)) => {
-                destination_process_arc.send_from_other(message);
+            Some(Registered::Process(destination_weak_process)) => {
+                match destination_weak_process.upgrade() {
+                    Some(destination_arc_process) => {
+                        destination_arc_process.send_from_other(message);
 
-                Ok(Sent::Sent)
+                        Ok(Sent::Sent)
+                    }
+                    None => Err(badarg!()),
+                }
             }
             None => Err(badarg!()),
         }

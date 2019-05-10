@@ -17,7 +17,7 @@ fn with_same_process_returns_true() {
                 .read()
                 .unwrap()
                 .get(&name),
-            Some(&Registered::Process(process_arc.clone()))
+            Some(&Registered::Process(Arc::downgrade(&process_arc)))
         );
 
         assert_eq!(erlang::unregister_1(name), Ok(true.into()));
@@ -38,7 +38,7 @@ fn with_different_process_returns_true() {
     with_process_arc(|process_arc| {
         let name = registered_name();
 
-        let another_process_arc = process::local::new();
+        let another_process_arc = process::local::test(&process_arc);
         let pid_or_port = another_process_arc.pid;
 
         assert_eq!(
@@ -56,7 +56,7 @@ fn with_different_process_returns_true() {
                 .read()
                 .unwrap()
                 .get(&name),
-            Some(&Registered::Process(another_process_arc.clone()))
+            Some(&Registered::Process(Arc::downgrade(&another_process_arc)))
         );
 
         assert_eq!(erlang::unregister_1(name), Ok(true.into()));

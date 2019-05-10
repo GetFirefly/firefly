@@ -354,10 +354,15 @@ impl Timer {
                 let readable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.read().unwrap();
 
                 match readable_registry.get(name) {
-                    Some(Registered::Process(destination_process_arc)) => {
-                        let (heap, timeout_message) = self.timeout_message(scheduler_id);
+                    Some(Registered::Process(destination_weak_process)) => {
+                        match destination_weak_process.upgrade() {
+                            Some(destination_arc_process) => {
+                                let (heap, timeout_message) = self.timeout_message(scheduler_id);
 
-                        destination_process_arc.send_heap_message(heap, timeout_message);
+                                destination_arc_process.send_heap_message(heap, timeout_message);
+                            }
+                            None => (),
+                        }
                     }
                     None => (),
                 }

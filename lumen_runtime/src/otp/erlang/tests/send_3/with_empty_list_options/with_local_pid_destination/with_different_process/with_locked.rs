@@ -78,7 +78,7 @@ where
     M: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
-        let different_process = process::local::new();
+        let different_process = process::local::test(&process);
         let destination = different_process.pid;
 
         let _different_process_heap_lock = different_process.heap.lock().unwrap();

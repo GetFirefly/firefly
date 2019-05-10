@@ -31,7 +31,7 @@ fn with_same_process() {
                 .read()
                 .unwrap()
                 .get(&name),
-            Some(&Registered::Process(process_arc))
+            Some(&Registered::Process(Arc::downgrade(&process_arc)))
         );
     });
 }
@@ -41,7 +41,7 @@ fn with_different_process() {
     with_process_arc(|process_arc| {
         let name = registered_name();
 
-        let another_process_arc = process::local::new();
+        let another_process_arc = process::local::test(&process_arc);
         let pid_or_port = another_process_arc.pid;
 
         assert_eq!(
@@ -57,7 +57,7 @@ fn with_different_process() {
                 .read()
                 .unwrap()
                 .get(&name),
-            Some(&Registered::Process(another_process_arc))
+            Some(&Registered::Process(Arc::downgrade(&another_process_arc)))
         );
     });
 }

@@ -2,8 +2,8 @@ use core::alloc::{Alloc, AllocErr, GlobalAlloc, Layout};
 use core::cmp;
 use core::ptr::{self, NonNull};
 
-use crate::sys::alloc as sys_alloc;
 use crate::alloc::alloc_ref::{AsAllocRef, Global};
+use crate::sys::alloc as sys_alloc;
 
 use super::StaticAlloc;
 

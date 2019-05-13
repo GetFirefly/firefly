@@ -2,31 +2,30 @@
 //! A contiguous growable array type with heap-allocated contents, same
 //! as the standard library `Vec<T>`, but also parameterized on the backing
 //! allocator
+use core::alloc::Alloc;
 use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{self, Hash};
 use core::intrinsics::{arith_offset, assume};
 use core::iter::{FusedIterator, TrustedLen};
+use core::marker::PhantomData;
 use core::mem;
 use core::ops::{self, Index, IndexMut};
 use core::ptr::{self, NonNull};
 use core::slice::{self, SliceIndex};
-use core::alloc::Alloc;
-use core::marker::PhantomData;
 
 use crate::alloc::alloc_ref::{AllocRef, AsAllocRef};
-use crate::alloc::raw_vec::RawVec;
 use crate::alloc::boxed::Box;
+use crate::alloc::raw_vec::RawVec;
 
 pub struct Vec<'a, T, A: AllocRef<'a>> {
     buf: RawVec<'a, T, A>,
     len: usize,
 }
 
-
-impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> Vec<'a, T, H> {
+impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> Vec<'a, T, H> {
     #[inline]
-    pub fn new<R: 'a + AsAllocRef<'a, Handle=H>>(a: &'a R) -> Self {
+    pub fn new<R: 'a + AsAllocRef<'a, Handle = H>>(a: &'a R) -> Self {
         Vec {
             buf: RawVec::new_in(a),
             len: 0,
@@ -34,7 +33,7 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> Vec<'a, T, H> {
     }
 
     #[inline]
-    pub fn with_capacity<R: 'a + AsAllocRef<'a, Handle=H>>(capacity: usize, a: &'a R) -> Self {
+    pub fn with_capacity<R: 'a + AsAllocRef<'a, Handle = H>>(capacity: usize, a: &'a R) -> Self {
         Vec {
             buf: RawVec::with_capacity_in(capacity, a),
             len: 0,
@@ -165,11 +164,18 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> Vec<'a, T, H> {
     }
 
     #[inline]
-    pub fn dedup_by_key<F, K>(&mut self, mut key: F) where F: FnMut(&mut T) -> K, K: PartialEq {
+    pub fn dedup_by_key<F, K>(&mut self, mut key: F)
+    where
+        F: FnMut(&mut T) -> K,
+        K: PartialEq,
+    {
         self.dedup_by(|a, b| key(a) == key(b))
     }
 
-    pub fn dedup_by<F>(&mut self, same_bucket: F) where F: FnMut(&mut T, &mut T) -> bool {
+    pub fn dedup_by<F>(&mut self, same_bucket: F)
+    where
+        F: FnMut(&mut T, &mut T) -> bool,
+    {
         let len = {
             let (dedup, _) = self.as_mut_slice().partition_dedup_by(same_bucket);
             dedup.len()
@@ -248,15 +254,14 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> Vec<'a, T, H> {
             self.set_len(at);
             other.set_len(other_len);
 
-            ptr::copy_nonoverlapping(self.as_ptr().add(at),
-                                     other.as_mut_ptr(),
-                                     other.len());
+            ptr::copy_nonoverlapping(self.as_ptr().add(at), other.as_mut_ptr(), other.len());
         }
         other
     }
 
     pub fn resize_with<F>(&mut self, new_len: usize, f: F)
-        where F: FnMut() -> T
+    where
+        F: FnMut() -> T,
     {
         let len = self.len();
         if new_len > len {
@@ -301,20 +306,32 @@ trait ExtendWith<T> {
 
 struct ExtendElement<T>(T);
 impl<T: Clone> ExtendWith<T> for ExtendElement<T> {
-    fn next(&mut self) -> T { self.0.clone() }
-    fn last(self) -> T { self.0 }
+    fn next(&mut self) -> T {
+        self.0.clone()
+    }
+    fn last(self) -> T {
+        self.0
+    }
 }
 
 struct ExtendDefault;
 impl<T: Default> ExtendWith<T> for ExtendDefault {
-    fn next(&mut self) -> T { Default::default() }
-    fn last(self) -> T { Default::default() }
+    fn next(&mut self) -> T {
+        Default::default()
+    }
+    fn last(self) -> T {
+        Default::default()
+    }
 }
 
 struct ExtendFunc<F>(F);
 impl<T, F: FnMut() -> T> ExtendWith<T> for ExtendFunc<F> {
-    fn next(&mut self) -> T { (self.0)() }
-    fn last(mut self) -> T { (self.0)() }
+    fn next(&mut self) -> T {
+        (self.0)()
+    }
+    fn last(mut self) -> T {
+        (self.0)()
+    }
 }
 
 impl<'a, T, A: AllocRef<'a>> Vec<'a, T, A> {
@@ -350,10 +367,7 @@ impl<'a, T, A: AllocRef<'a>> Vec<'a, T, A> {
     #[inline]
     pub unsafe fn from_raw_parts(ptr: *mut T, len: usize, cap: usize, a: A) -> Self {
         let buf = RawVec::from_raw_parts_and_alloc_ref(ptr, cap, a);
-        Self {
-            buf,
-            len,
-        }
+        Self { buf, len }
     }
 }
 
@@ -370,7 +384,10 @@ struct SetLenOnDrop<'a> {
 impl<'a> SetLenOnDrop<'a> {
     #[inline]
     fn new(len: &'a mut usize) -> Self {
-        SetLenOnDrop { local_len: *len, len: len }
+        SetLenOnDrop {
+            local_len: *len,
+            len,
+        }
     }
 
     #[inline]
@@ -420,7 +437,7 @@ macro_rules! impl_is_zero {
                 $is_zero(*self)
             }
         }
-    }
+    };
 }
 
 impl_is_zero!(i8, |x| x == 0);
@@ -456,7 +473,6 @@ unsafe impl<T: ?Sized> IsZero for *mut T {
     }
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // Common trait implementations for Vec
 ////////////////////////////////////////////////////////////////////////////////
@@ -468,11 +484,10 @@ impl<'a, T: Clone, A: AllocRef<'a>> Clone for Vec<'a, T, A> {
         let alloc_ref = self.buf.alloc_ref().clone();
         let buf = RawVec::with_capacity_and_alloc_ref(cap, alloc_ref);
         let ptr = buf.ptr();
-        unsafe { ptr::copy_nonoverlapping(self.buf.ptr(), ptr, cap); }
-        Vec {
-            buf,
-            len,
+        unsafe {
+            ptr::copy_nonoverlapping(self.buf.ptr(), ptr, cap);
         }
+        Vec { buf, len }
     }
 }
 
@@ -582,7 +597,8 @@ trait SpecExtend<T, I> {
 }
 
 impl<'a, T, I, A: AllocRef<'a>> SpecExtend<T, I> for Vec<'a, T, A>
-    where I: Iterator<Item=T>,
+where
+    I: Iterator<Item = T>,
 {
     default fn spec_extend(&mut self, iter: I) {
         self.extend_desugared(iter)
@@ -590,15 +606,19 @@ impl<'a, T, I, A: AllocRef<'a>> SpecExtend<T, I> for Vec<'a, T, A>
 }
 
 impl<'a, T, I, A: AllocRef<'a>> SpecExtend<T, I> for Vec<'a, T, A>
-    where I: TrustedLen<Item=T>,
+where
+    I: TrustedLen<Item = T>,
 {
     default fn spec_extend(&mut self, iterator: I) {
         // This is the case for a TrustedLen iterator.
         let (low, high) = iterator.size_hint();
         if let Some(high_value) = high {
-            debug_assert_eq!(low, high_value,
-                             "TrustedLen iterator's size hint is not exact: {:?}",
-                             (low, high));
+            debug_assert_eq!(
+                low,
+                high_value,
+                "TrustedLen iterator's size hint is not exact: {:?}",
+                (low, high)
+            );
         }
         if let Some(additional) = high {
             self.reserve(additional);
@@ -628,8 +648,9 @@ impl<'a, T, A: AllocRef<'a>> SpecExtend<T, IntoIter<'a, T, A>> for Vec<'a, T, A>
 }
 
 impl<'a, 'b: 'a, T: 'b, I, A: AllocRef<'a>> SpecExtend<&'b T, I> for Vec<'a, T, A>
-    where I: Iterator<Item=&'b T>,
-          T: Clone,
+where
+    I: Iterator<Item = &'b T>,
+    T: Clone,
 {
     default fn spec_extend(&mut self, iterator: I) {
         self.spec_extend(iterator.cloned())
@@ -637,7 +658,8 @@ impl<'a, 'b: 'a, T: 'b, I, A: AllocRef<'a>> SpecExtend<&'b T, I> for Vec<'a, T, 
 }
 
 impl<'a, 'b: 'a, T: 'b, A: AllocRef<'a>> SpecExtend<&'b T, slice::Iter<'b, T>> for Vec<'a, T, A>
-    where T: Copy,
+where
+    T: Copy,
 {
     fn spec_extend(&mut self, iterator: slice::Iter<'b, T>) {
         let slice = iterator.as_slice();
@@ -686,28 +708,49 @@ impl<'a, 'b: 'a, T: 'b + Copy, A: AllocRef<'a>> Extend<&'b T> for Vec<'a, T, A> 
     }
 }
 
-impl <'a, 'b, T: Sized, U, A: AllocRef<'a>, B: AllocRef<'b>> PartialEq<Vec<'b, U, B>> for Vec<'a, T, A> where T: PartialEq<U> {
+impl<'a, 'b, T: Sized, U, A: AllocRef<'a>, B: AllocRef<'b>> PartialEq<Vec<'b, U, B>>
+    for Vec<'a, T, A>
+where
+    T: PartialEq<U>,
+{
     #[inline]
-    fn eq(&self, other: &Vec<'b, U, B>) -> bool { self[..] == other[..] }
+    fn eq(&self, other: &Vec<'b, U, B>) -> bool {
+        self[..] == other[..]
+    }
 
     #[inline]
-    fn ne(&self, other: &Vec<'b, U, B>) -> bool { self[..] != other[..] }
+    fn ne(&self, other: &Vec<'b, U, B>) -> bool {
+        self[..] != other[..]
+    }
 }
-impl <'a, 'b, T: Sized, U, A: AllocRef<'a>> PartialEq<&'b [U]> for Vec<'a, T, A> where T: PartialEq<U> {
+impl<'a, 'b, T: Sized, U, A: AllocRef<'a>> PartialEq<&'b [U]> for Vec<'a, T, A>
+where
+    T: PartialEq<U>,
+{
     #[inline]
-    fn eq(&self, other: &&'b [U]) -> bool { self[..] == other[..] }
+    fn eq(&self, other: &&'b [U]) -> bool {
+        self[..] == other[..]
+    }
 
     #[inline]
-    fn ne(&self, other: &&'b [U]) -> bool { self[..] != other[..] }
+    fn ne(&self, other: &&'b [U]) -> bool {
+        self[..] != other[..]
+    }
 }
-impl <'a, 'b, T: Sized, U, A: AllocRef<'a>> PartialEq<&'b mut [U]> for Vec<'a, T, A> where T: PartialEq<U> {
+impl<'a, 'b, T: Sized, U, A: AllocRef<'a>> PartialEq<&'b mut [U]> for Vec<'a, T, A>
+where
+    T: PartialEq<U>,
+{
     #[inline]
-    fn eq(&self, other: &&'b mut [U]) -> bool { self[..] == other[..] }
+    fn eq(&self, other: &&'b mut [U]) -> bool {
+        self[..] == other[..]
+    }
 
     #[inline]
-    fn ne(&self, other: &&'b mut [U]) -> bool { self[..] != other[..] }
+    fn ne(&self, other: &&'b mut [U]) -> bool {
+        self[..] != other[..]
+    }
 }
-
 
 macro_rules! array_impls {
     ($($N: expr)+) => {
@@ -832,23 +875,17 @@ pub struct IntoIter<'a, T, A: AllocRef<'a>> {
 
 impl<'a, T: fmt::Debug, A: AllocRef<'a>> fmt::Debug for IntoIter<'a, T, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("IntoIter")
-            .field(&self.as_slice())
-            .finish()
+        f.debug_tuple("IntoIter").field(&self.as_slice()).finish()
     }
 }
 
 impl<'a, T, A: AllocRef<'a>> IntoIter<'a, T, A> {
     pub fn as_slice(&self) -> &[T] {
-        unsafe {
-            slice::from_raw_parts(self.ptr, self.len())
-        }
+        unsafe { slice::from_raw_parts(self.ptr, self.len()) }
     }
 
     pub fn as_mut_slice(&mut self) -> &mut [T] {
-        unsafe {
-            slice::from_raw_parts_mut(self.ptr as *mut T, self.len())
-        }
+        unsafe { slice::from_raw_parts_mut(self.ptr as *mut T, self.len()) }
     }
 }
 
@@ -938,6 +975,7 @@ unsafe impl<'a, #[may_dangle] T, A: AllocRef<'a>> Drop for IntoIter<'a, T, A> {
 
         // RawVec handles deallocation
         let alloc_ref = self.a.clone();
-        let _ = unsafe { RawVec::from_raw_parts_and_alloc_ref(self.buf.as_ptr(), self.cap, alloc_ref) };
+        let _ =
+            unsafe { RawVec::from_raw_parts_and_alloc_ref(self.buf.as_ptr(), self.cap, alloc_ref) };
     }
 }

@@ -50,14 +50,13 @@ where
                 size,
                 link: L::default(),
                 blocks: RefCell::new(FreeBlocks::new(SortOrder::SizeAddressOrder)),
-            }
+            },
         );
         // Get a mutable reference for later
         let this = &mut *carrier;
         // Write initial free block header
         let block = carrier.offset(1) as *mut FreeBlock;
-        let usable =
-            size - mem::size_of::<Block>() - mem::size_of::<MultiBlockCarrier<L>>();
+        let usable = size - mem::size_of::<Block>() - mem::size_of::<MultiBlockCarrier<L>>();
         let mut free_block = FreeBlock::new(usable);
         free_block.set_last();
         ptr::write(block, free_block);

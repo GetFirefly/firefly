@@ -1,24 +1,24 @@
+use core::alloc::{Alloc, AllocErr, Layout};
 ///! This module provides a general purpose allocator for use with
 ///! the Erlang Runtime System. Specifically it is optimized for
 ///! general usage, where allocation patterns are unpredictable, or
 ///! for allocations where a more specialized allocator is unsuitable
 ///! or unavailable.
 use core::cmp;
-use core::alloc::{Alloc, AllocErr, Layout};
 use core::ptr::{self, NonNull};
 
 use intrusive_collections::{intrusive_adapter, Bound, UnsafeRef};
 use intrusive_collections::{LinkedList, LinkedListLink};
 use intrusive_collections::{RBTree, RBTreeLink};
 
-use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::alloc_ref::{self, AsAllocRef};
+use liblumen_core::alloc::mmap;
 use liblumen_core::locks::SpinLock;
 
 //use crate::size_classes;
-use crate::AllocatorInfo;
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
+use crate::AllocatorInfo;
 
 // Type alias for the list of currently allocated single-block carriers
 type SingleBlockCarrierList = LinkedList<SingleBlockCarrierListAdapter>;
@@ -88,8 +88,7 @@ impl StandardAlloc {
         // have a separate struct field for the main carrier, so that allocations
         // have a fast path if the main carrier has available space
         let main_carrier = unsafe {
-            Self::create_multi_block_carrier()
-                .expect("unable to allocate main multi-block carrier")
+            Self::create_multi_block_carrier().expect("unable to allocate main multi-block carrier")
         };
         let mut mbc = RBTree::new(SortedKeyAdapter::new(SortOrder::SizeAddressOrder));
         mbc.insert(main_carrier);
@@ -124,13 +123,14 @@ impl StandardAlloc {
     }
 
     /// Creates a new, empty multi-block carrier, unlinked to the allocator
-    /// 
+    ///
     /// The carrier is allocated via mmap on supported platforms, or the system
     /// allocator otherwise.
-    /// 
+    ///
     /// NOTE: You must make sure to add the carrier to the free list of the
     /// allocator, or it will not be used, and will not be freed
-    unsafe fn create_multi_block_carrier() -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, AllocErr> {
+    unsafe fn create_multi_block_carrier(
+    ) -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, AllocErr> {
         let size = Self::SA_CARRIER_SIZE;
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
         // Allocate raw memory for carrier
@@ -180,7 +180,9 @@ unsafe impl Alloc for StandardAlloc {
         drop(mbc);
         // Allocate block using newly allocated carrier
         // NOTE: It should never be possible for this to fail
-        let block = carrier.alloc_block(&layout).expect("unexpected block allocation failure");
+        let block = carrier
+            .alloc_block(&layout)
+            .expect("unexpected block allocation failure");
         // Return data pointer
         Ok(block)
     }
@@ -382,31 +384,37 @@ impl Drop for StandardAlloc {
         // and do it all at once at the end
         //
         // NOTE: May be worth exploring a `Drop` impl for the carriers
-        let mut carriers = sbc.iter().map(|carrier| {
-            (carrier as *const _ as *mut _, carrier.layout())
-        }).collect::<Vec<_>>();
+        let mut carriers = sbc
+            .iter()
+            .map(|carrier| (carrier as *const _ as *mut _, carrier.layout()))
+            .collect::<Vec<_>>();
 
         // Prevent the list from trying to drop memory that has now been freed
         sbc.fast_clear();
 
         // Actually drop the carriers
         for (ptr, layout) in carriers.drain(..) {
-            unsafe { mmap::unmap(ptr, layout); }
+            unsafe {
+                mmap::unmap(ptr, layout);
+            }
         }
 
         // Drop multi-block carriers
         let mbc_size = Self::SA_CARRIER_SIZE;
         let mbc_layout = unsafe { Layout::from_size_align_unchecked(mbc_size, mbc_size) };
         let mut mbc = self.mbc.lock();
-        let mut carriers = mbc.iter().map(|carrier| {
-            (carrier as *const _ as *mut _, mbc_layout.clone())
-        }).collect::<Vec<_>>();
+        let mut carriers = mbc
+            .iter()
+            .map(|carrier| (carrier as *const _ as *mut _, mbc_layout.clone()))
+            .collect::<Vec<_>>();
 
         // Prevent the tree from trying to drop memory that has now been freed
         mbc.fast_clear();
 
         for (ptr, layout) in carriers.drain(..) {
-            unsafe { mmap::unmap(ptr, layout); }
+            unsafe {
+                mmap::unmap(ptr, layout);
+            }
         }
     }
 }

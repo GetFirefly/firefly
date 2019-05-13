@@ -42,7 +42,9 @@ impl<C: Chunk> BeamFile<C> {
     /// Returns all chunks in the order they were encountered in the origin BEAM file
     ///
     /// ## Alternative Implementations
-    /// - [`org.elixir_lang.beam.Beam#chunkCollection` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/Beam.kt#L70) in Kotlin.
+    /// - [`org.elixir_lang.beam.Beam#chunkCollection` in IntelliJ
+    ///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+    ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/Beam.kt#L70) in Kotlin.
     pub fn chunks(&self) -> Vec<&C> {
         let mut result: Vec<&C> = Vec::new();
         for id in &self.order {
@@ -68,7 +70,10 @@ impl<C: Chunk> BeamFile<C> {
     ///     }
     ///
     /// ## Alternative Implementations
-    /// - [`org.elixir_lang.beam.Beam#chunk` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/Beam.kt#L68-L69) in Kotlin.
+    /// - [`org.elixir_lang.beam.Beam#chunk` in IntelliJ
+    ///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+    ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/Beam.kt#L68-L69) in
+    ///   Kotlin.
     pub fn get_chunk(&self, id: &Id) -> Option<&C> {
         self.chunks.get(id)
     }
@@ -76,7 +81,10 @@ impl<C: Chunk> BeamFile<C> {
     /// Returns whichever chunk is the atom chunk, if it exists
     ///
     /// ## Alternative Implementations
-    /// - [`org.elixir_lang.beam.Beam#atoms` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/Beam.kt#L63-L65) in Kotlin.
+    /// - [`org.elixir_lang.beam.Beam#atoms` in IntelliJ
+    ///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+    ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/Beam.kt#L63-L65) in
+    ///   Kotlin.
     pub fn atoms(&self) -> Option<&C> {
         match self.get_chunk(b"Atom") {
             Some(c) => Some(c),

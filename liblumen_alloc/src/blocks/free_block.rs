@@ -130,8 +130,8 @@ impl FreeBlock {
     /// The minimum usable size for a block
     #[inline(always)]
     pub fn min_block_size() -> usize {
-        mem::size_of::<FreeBlock>() + 
-        mem::size_of::<usize>() + 
+        mem::size_of::<FreeBlock>() +
+        mem::size_of::<usize>() +
         mem::size_of::<BlockFooter>() -
         // We subtract the size of Block, since Block
         // is always present, and factored in else where

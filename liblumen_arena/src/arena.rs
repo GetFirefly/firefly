@@ -17,8 +17,8 @@ use core::mem;
 use core::ptr;
 use core::slice;
 
-use alloc::vec::Vec;
 use alloc::raw_vec::RawVec;
+use alloc::vec::Vec;
 
 /// An arena that can hold objects of only one type.
 pub struct TypedArena<T> {
@@ -391,8 +391,8 @@ impl DroplessArena {
         assert!(!slice.is_empty());
 
         unsafe {
-            let mem = self.alloc_raw(slice.len() * mem::size_of::<T>(), mem::align_of::<T>()) as *mut _
-                as *mut T;
+            let mem = self.alloc_raw(slice.len() * mem::size_of::<T>(), mem::align_of::<T>())
+                as *mut _ as *mut T;
 
             let arena_slice = slice::from_raw_parts_mut(mem, slice.len());
             arena_slice.copy_from_slice(slice);
@@ -404,12 +404,12 @@ impl DroplessArena {
 #[cfg(test)]
 mod tests {
     use super::TypedArena;
-    use core::cell::Cell;
-    use core::sync::atomic::{AtomicUsize, Ordering};
-    use alloc::vec;
-    use alloc::vec::Vec;
     use alloc::boxed::Box;
     use alloc::string::String;
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use core::cell::Cell;
+    use core::sync::atomic::{AtomicUsize, Ordering};
     use test::Bencher;
 
     #[allow(dead_code)]

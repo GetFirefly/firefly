@@ -1,10 +1,10 @@
 #![allow(unused)]
 use core::cmp;
+use core::marker::PhantomData;
 use core::mem;
 use core::ops::Drop;
 use core::ptr::{self, NonNull, Unique};
 use core::slice;
-use core::marker::PhantomData;
 
 use core::alloc::{Alloc, Layout};
 
@@ -49,11 +49,11 @@ pub struct RawVec<'a, T, A: AllocRef<'a>> {
     _phantom: PhantomData<&'a A>,
 }
 
-impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> RawVec<'a, T, H> {
+impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> RawVec<'a, T, H> {
     /// Like `new` but parameterized over the choice of allocator for
     /// the returned RawVec.
     #[inline]
-    pub fn new_in<R: 'a + AsAllocRef<'a, Handle=H>>(a: &'a R) -> Self {
+    pub fn new_in<R: 'a + AsAllocRef<'a, Handle = H>>(a: &'a R) -> Self {
         // !0 is usize::MAX. This branch should be stripped at compile time.
         // FIXME(mark-i-m): use this line when `if`s are allowed in `const`
         //let cap = if mem::size_of::<T>() == 0 { !0 } else { 0 };
@@ -71,14 +71,17 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> RawVec<'a, T, H>
     /// Like `with_capacity` but parameterized over the choice of
     /// allocator for the returned RawVec.
     #[inline]
-    pub fn with_capacity_in<R: 'a + AsAllocRef<'a, Handle=H>>(cap: usize, a: &'a R) -> Self {
+    pub fn with_capacity_in<R: 'a + AsAllocRef<'a, Handle = H>>(cap: usize, a: &'a R) -> Self {
         RawVec::allocate_in(cap, false, a.as_alloc_ref())
     }
 
     /// Like `with_capacity_zeroed` but parameterized over the choice
     /// of allocator for the returned RawVec.
     #[inline]
-    pub fn with_capacity_zeroed_in<R: 'a + AsAllocRef<'a, Handle=H>>(cap: usize, a: &'a R)-> Self {
+    pub fn with_capacity_zeroed_in<R: 'a + AsAllocRef<'a, Handle = H>>(
+        cap: usize,
+        a: &'a R,
+    ) -> Self {
         RawVec::allocate_in(cap, true, a.as_alloc_ref())
     }
 
@@ -86,7 +89,9 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> RawVec<'a, T, H>
         unsafe {
             let elem_size = mem::size_of::<T>();
 
-            let alloc_size = cap.checked_mul(elem_size).unwrap_or_else(|| capacity_overflow());
+            let alloc_size = cap
+                .checked_mul(elem_size)
+                .unwrap_or_else(|| capacity_overflow());
             alloc_guard(alloc_size).unwrap_or_else(|_| capacity_overflow());
 
             // handles ZSTs and `cap = 0` alike
@@ -122,7 +127,11 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> RawVec<'a, T, H>
     /// The ptr must be allocated (via the given allocator `a`), and with the given capacity. The
     /// capacity cannot exceed `isize::MAX` (only a concern on 32-bit systems).
     /// If the ptr and capacity come from a RawVec created via `a`, then this is guaranteed.
-    pub unsafe fn from_raw_parts_in<R: 'a + AsAllocRef<'a, Handle=H>>(ptr: *mut T, cap: usize, a: &'a R) -> Self {
+    pub unsafe fn from_raw_parts_in<R: 'a + AsAllocRef<'a, Handle = H>>(
+        ptr: *mut T,
+        cap: usize,
+        a: &'a R,
+    ) -> Self {
         RawVec {
             ptr: Unique::new_unchecked(ptr),
             cap,
@@ -250,10 +259,9 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     ///
     /// # Panics
     ///
-    /// * Panics if T is zero-sized on the assumption that you managed to exhaust
-    ///   all `usize::MAX` slots in your imaginary buffer.
-    /// * Panics on 32-bit platforms if the requested capacity exceeds
-    ///   `isize::MAX` bytes.
+    /// * Panics if T is zero-sized on the assumption that you managed to exhaust all `usize::MAX`
+    ///   slots in your imaginary buffer.
+    /// * Panics on 32-bit platforms if the requested capacity exceeds `isize::MAX` bytes.
     ///
     /// # Aborts
     ///
@@ -283,14 +291,15 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
                     let new_cap = 2 * self.cap;
                     let new_size = new_cap * elem_size;
                     alloc_guard(new_size).unwrap_or_else(|_| capacity_overflow());
-                    let ptr_res = self.a.realloc(NonNull::from(self.ptr).cast(),
-                                                 cur,
-                                                 new_size);
+                    let ptr_res = self
+                        .a
+                        .realloc(NonNull::from(self.ptr).cast(), cur, new_size);
                     match ptr_res {
                         Ok(ptr) => (new_cap, ptr.cast().into()),
-                        Err(_) => handle_alloc_error(
-                            Layout::from_size_align_unchecked(new_size, cur.align())
-                        ),
+                        Err(_) => handle_alloc_error(Layout::from_size_align_unchecked(
+                            new_size,
+                            cur.align(),
+                        )),
                     }
                 }
                 None => {
@@ -316,10 +325,9 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     ///
     /// # Panics
     ///
-    /// * Panics if T is zero-sized on the assumption that you managed to exhaust
-    ///   all `usize::MAX` slots in your imaginary buffer.
-    /// * Panics on 32-bit platforms if the requested capacity exceeds
-    ///   `isize::MAX` bytes.
+    /// * Panics if T is zero-sized on the assumption that you managed to exhaust all `usize::MAX`
+    ///   slots in your imaginary buffer.
+    /// * Panics on 32-bit platforms if the requested capacity exceeds `isize::MAX` bytes.
     #[inline(never)]
     #[cold]
     pub fn double_in_place(&mut self) -> bool {
@@ -344,23 +352,26 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
             let new_cap = 2 * self.cap;
             let new_size = new_cap * elem_size;
             alloc_guard(new_size).unwrap_or_else(|_| capacity_overflow());
-            match self.a.grow_in_place(NonNull::from(self.ptr).cast(), old_layout, new_size) {
+            match self
+                .a
+                .grow_in_place(NonNull::from(self.ptr).cast(), old_layout, new_size)
+            {
                 Ok(_) => {
                     // We can't directly divide `size`.
                     self.cap = new_cap;
                     true
                 }
-                Err(_) => {
-                    false
-                }
+                Err(_) => false,
             }
         }
     }
 
     /// The same as `reserve_exact`, but returns on errors instead of panicking or aborting.
-    pub fn try_reserve_exact(&mut self, used_cap: usize, needed_extra_cap: usize)
-           -> Result<(), CollectionAllocErr> {
-
+    pub fn try_reserve_exact(
+        &mut self,
+        used_cap: usize,
+        needed_extra_cap: usize,
+    ) -> Result<(), CollectionAllocErr> {
         self.reserve_internal(used_cap, needed_extra_cap, Fallible, Exact)
     }
 
@@ -378,8 +389,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     /// # Panics
     ///
     /// * Panics if the requested capacity exceeds `usize::MAX` bytes.
-    /// * Panics on 32-bit platforms if the requested capacity exceeds
-    ///   `isize::MAX` bytes.
+    /// * Panics on 32-bit platforms if the requested capacity exceeds `isize::MAX` bytes.
     ///
     /// # Aborts
     ///
@@ -389,17 +399,21 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
             Err(CapacityOverflow) => capacity_overflow(),
             Err(AllocErr) => unreachable!(),
             Ok(()) => { /* yay */ }
-         }
-     }
+        }
+    }
 
     /// Calculates the buffer's new size given that it'll hold `used_cap +
     /// needed_extra_cap` elements. This logic is used in amortized reserve methods.
     /// Returns `(new_capacity, new_alloc_size)`.
-    fn amortized_new_size(&self, used_cap: usize, needed_extra_cap: usize)
-        -> Result<usize, CollectionAllocErr> {
-
+    fn amortized_new_size(
+        &self,
+        used_cap: usize,
+        needed_extra_cap: usize,
+    ) -> Result<usize, CollectionAllocErr> {
         // Nothing we can really do about these checks :(
-        let required_cap = used_cap.checked_add(needed_extra_cap).ok_or(CapacityOverflow)?;
+        let required_cap = used_cap
+            .checked_add(needed_extra_cap)
+            .ok_or(CapacityOverflow)?;
         // Cannot overflow, because `cap <= isize::MAX`, and type of `cap` is `usize`.
         let double_cap = self.cap * 2;
         // `double_cap` guarantees exponential growth.
@@ -407,8 +421,11 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     }
 
     /// The same as `reserve`, but returns on errors instead of panicking or aborting.
-    pub fn try_reserve(&mut self, used_cap: usize, needed_extra_cap: usize)
-        -> Result<(), CollectionAllocErr> {
+    pub fn try_reserve(
+        &mut self,
+        used_cap: usize,
+        needed_extra_cap: usize,
+    ) -> Result<(), CollectionAllocErr> {
         self.reserve_internal(used_cap, needed_extra_cap, Fallible, Amortized)
     }
 
@@ -427,8 +444,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     /// # Panics
     ///
     /// * Panics if the requested capacity exceeds `usize::MAX` bytes.
-    /// * Panics on 32-bit platforms if the requested capacity exceeds
-    ///   `isize::MAX` bytes.
+    /// * Panics on 32-bit platforms if the requested capacity exceeds `isize::MAX` bytes.
     ///
     /// # Aborts
     ///
@@ -455,8 +471,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     /// # Panics
     ///
     /// * Panics if the requested capacity exceeds `usize::MAX` bytes.
-    /// * Panics on 32-bit platforms if the requested capacity exceeds
-    ///   `isize::MAX` bytes.
+    /// * Panics on 32-bit platforms if the requested capacity exceeds `isize::MAX` bytes.
     pub fn reserve_in_place(&mut self, used_cap: usize, needed_extra_cap: usize) -> bool {
         unsafe {
             // NOTE: we don't early branch on ZSTs here because we want this
@@ -475,7 +490,8 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
                 return false;
             }
 
-            let new_cap = self.amortized_new_size(used_cap, needed_extra_cap)
+            let new_cap = self
+                .amortized_new_size(used_cap, needed_extra_cap)
                 .unwrap_or_else(|_| capacity_overflow());
 
             // Here, `cap < used_cap + needed_extra_cap <= new_cap`
@@ -486,15 +502,15 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
             // FIXME: may crash and burn on over-reserve
             alloc_guard(new_layout.size()).unwrap_or_else(|_| capacity_overflow());
             match self.a.grow_in_place(
-                NonNull::from(self.ptr).cast(), old_layout, new_layout.size(),
+                NonNull::from(self.ptr).cast(),
+                old_layout,
+                new_layout.size(),
             ) {
                 Ok(_) => {
                     self.cap = new_cap;
                     true
                 }
-                Err(_) => {
-                    false
-                }
+                Err(_) => false,
             }
         }
     }
@@ -547,13 +563,14 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
                 let new_size = elem_size * amount;
                 let align = mem::align_of::<T>();
                 let old_layout = Layout::from_size_align_unchecked(old_size, align);
-                match self.a.realloc(NonNull::from(self.ptr).cast(),
-                                     old_layout,
-                                     new_size) {
+                match self
+                    .a
+                    .realloc(NonNull::from(self.ptr).cast(), old_layout, new_size)
+                {
                     Ok(p) => self.ptr = p.cast().into(),
-                    Err(_) => handle_alloc_error(
-                        Layout::from_size_align_unchecked(new_size, align)
-                    ),
+                    Err(_) => {
+                        handle_alloc_error(Layout::from_size_align_unchecked(new_size, align))
+                    }
                 }
             }
             self.cap = amount;
@@ -599,7 +616,9 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
 
             // Nothing we can really do about these checks :(
             let new_cap = match strategy {
-                Exact => used_cap.checked_add(needed_extra_cap).ok_or(CapacityOverflow)?,
+                Exact => used_cap
+                    .checked_add(needed_extra_cap)
+                    .ok_or(CapacityOverflow)?,
                 Amortized => self.amortized_new_size(used_cap, needed_extra_cap)?,
             };
             let new_layout = Layout::array::<T>(new_cap).map_err(|_| CapacityOverflow)?;
@@ -609,7 +628,8 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
             let res = match self.current_layout() {
                 Some(layout) => {
                     debug_assert!(new_layout.align() == layout.align());
-                    self.a.realloc(NonNull::from(self.ptr).cast(), layout, new_layout.size())
+                    self.a
+                        .realloc(NonNull::from(self.ptr).cast(), layout, new_layout.size())
                 }
                 None => self.a.alloc(new_layout),
             };
@@ -640,11 +660,11 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
 unsafe impl<'a, #[may_dangle] T, A: AllocRef<'a>> Drop for RawVec<'a, T, A> {
     /// Frees the memory owned by the RawVec *without* trying to Drop its contents.
     fn drop(&mut self) {
-        unsafe { self.dealloc_buffer(); }
+        unsafe {
+            self.dealloc_buffer();
+        }
     }
 }
-
-
 
 // We need to guarantee the following:
 // * We don't ever allocate `> isize::MAX` byte-size objects
@@ -675,8 +695,8 @@ fn capacity_overflow() -> ! {
 mod tests {
     use super::*;
 
-    use crate::alloc::SysAlloc;
     use crate::alloc::alloc_ref::{AsAllocRef, Handle};
+    use crate::alloc::SysAlloc;
 
     static SYS_ALLOC: SysAlloc = SysAlloc;
 
@@ -696,7 +716,9 @@ mod tests {
 
         // A dumb allocator that consumes a fixed amount of fuel
         // before allocation attempts start failing.
-        struct BoundedAlloc { fuel: usize }
+        struct BoundedAlloc {
+            fuel: usize,
+        }
         unsafe impl Alloc for BoundedAlloc {
             unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
                 use core::alloc::GlobalAlloc;
@@ -708,7 +730,7 @@ mod tests {
                 if ptr.is_null() {
                     return Err(AllocErr);
                 }
-                self.fuel -= size; 
+                self.fuel -= size;
                 Ok(NonNull::new_unchecked(ptr))
             }
             unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {

@@ -1,19 +1,19 @@
 #![allow(unused)]
+use core::alloc::{Alloc, Layout};
+use core::borrow;
+use core::cmp::Ordering;
+use core::hash::{Hash, Hasher};
+use core::marker::PhantomData;
 ///! A reimplementation of `Box<T>` from the standard library that takes
 ///! an allocator reference allowing one to control which heap the Box allocates
 ///! on.
-///! 
+///!
 ///! See `Box<T>` for usage and documentation
 use core::mem;
-use core::ptr::{self, NonNull, Unique};
-use core::alloc::{Alloc, Layout};
 use core::ops::{Deref, DerefMut};
-use core::borrow;
-use core::hash::{Hash, Hasher};
-use core::cmp::Ordering;
-use core::str;
 use core::pin::Pin;
-use core::marker::PhantomData;
+use core::ptr::{self, NonNull, Unique};
+use core::str;
 
 use core_alloc::slice;
 
@@ -28,17 +28,18 @@ pub struct Box<'a, T: ?Sized, A: AllocRef<'a>> {
     _phantom: PhantomData<&'a A>,
 }
 
-impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> Box<'a, T, H> {
+impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> Box<'a, T, H> {
     /// Creates a new `Box` by moving the given value on to the heap,
     /// the memory is allocated via the provided allocator
     #[allow(unused)]
     #[inline]
-    pub fn new<R: 'a + AsAllocRef<'a, Handle=H>>(t: T, a: &'a R) -> Self {
+    pub fn new<R: 'a + AsAllocRef<'a, Handle = H>>(t: T, a: &'a R) -> Self {
         // Move the value into the allocator's heap
         let mut alloc_ref = a.as_alloc_ref();
         let layout = Layout::for_value(&t);
         let ptr = unsafe {
-            alloc_ref.alloc(layout)
+            alloc_ref
+                .alloc(layout)
                 .expect("failed to allocate Box")
                 .cast()
         };
@@ -52,22 +53,23 @@ impl<'a, T, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> Box<'a, T, H> {
     }
 }
 
-impl<'a, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc=A>> Box<'a, str, H> {
+impl<'a, A: ?Sized + Alloc + Sync, H: AllocRef<'a, Alloc = A>> Box<'a, str, H> {
     /// Constructs a `Box<str>` from a `&str`, which
     /// can then be used in place of `&str` for heap allocated
     /// strings
     #[inline]
-    pub fn from_str<R: 'a + AsAllocRef<'a, Handle=H>>(s: &str, a: &'a R) -> Self {
+    pub fn from_str<R: 'a + AsAllocRef<'a, Handle = H>>(s: &str, a: &'a R) -> Self {
         let mut alloc_ref = a.as_alloc_ref();
         let len = s.len();
         let ptr = unsafe {
             let layout = Layout::from_size_align_unchecked(len, mem::size_of::<usize>());
-            alloc_ref.alloc(layout)
+            alloc_ref
+                .alloc(layout)
                 .expect("failed to allocate Box from str")
                 .as_ptr()
         };
         unsafe { ptr::copy_nonoverlapping(s.as_ptr(), ptr, len) };
-        let bytes = unsafe { slice::from_raw_parts(ptr, len) } ;
+        let bytes = unsafe { slice::from_raw_parts(ptr, len) };
         let string = unsafe { str::from_utf8_unchecked(bytes) as *const str as *mut str };
         Self {
             t: unsafe { Unique::new_unchecked(string) },
@@ -116,7 +118,7 @@ impl<'a, T: ?Sized, A: AllocRef<'a>> Box<'a, T, A> {
     #[inline]
     pub fn leak(b: Box<'a, T, A>) -> (&'a mut T, A)
     where
-        T: 'a // Technically not needed, but kept to be explicit.
+        T: 'a, // Technically not needed, but kept to be explicit.
     {
         unsafe {
             let (ptr, alloc_ref) = Box::into_raw(b);

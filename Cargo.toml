@@ -1,4 +1,6 @@
 [workspace]
+license = "LICENSE.md"
+readme = "README.md"
 
 members = [
   "lumen",

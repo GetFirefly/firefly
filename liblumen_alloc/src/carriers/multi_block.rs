@@ -5,7 +5,7 @@ use core::ptr::{self, NonNull};
 
 use intrusive_collections::container_of;
 
-use crate::blocks::{Block, BlockRef, FreeBlock, FreeBlocks};
+use crate::blocks::{Block, BlockRef, FreeBlock, FreeBlockRef, FreeBlocks};
 use crate::sorted::{Link, SortKey, SortOrder, Sortable};
 
 /// This struct represents a carrier type which can contain
@@ -40,6 +40,35 @@ impl<L> MultiBlockCarrier<L>
 where
     L: Link,
 {
+    #[inline]
+    pub unsafe fn init(ptr: NonNull<u8>, size: usize) -> *mut Self {
+        // Write carrier header to given memory region
+        let carrier = ptr.as_ptr() as *mut MultiBlockCarrier<L>;
+        ptr::write(
+            carrier,
+            MultiBlockCarrier {
+                size,
+                link: L::default(),
+                blocks: RefCell::new(FreeBlocks::new(SortOrder::SizeAddressOrder)),
+            }
+        );
+        // Get a mutable reference for later
+        let this = &mut *carrier;
+        // Write initial free block header
+        let block = carrier.offset(1) as *mut FreeBlock;
+        let usable =
+            size - mem::size_of::<Block>() - mem::size_of::<MultiBlockCarrier<L>>();
+        let mut free_block = FreeBlock::new(usable);
+        free_block.set_last();
+        ptr::write(block, free_block);
+
+        // Add free block to internal free list
+        let mut blocks = this.blocks.borrow_mut();
+        blocks.insert(FreeBlockRef::from_raw(block));
+
+        carrier
+    }
+
     /// Calculates the usable size of this carrier, specifically the
     /// size available to be allocated to blocks. In practice, the
     /// usable size for user allocations is smaller, as block headers

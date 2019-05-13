@@ -90,9 +90,9 @@ impl Block {
     const FREE_PATTERN: u8 = 0x57;
 
     /// Creates a new Block with the given size
-    #[allow(unused)]
     #[inline(always)]
-    pub const fn new(size: usize) -> Self {
+    pub fn new(size: usize) -> Self {
+        assert!(size >= FreeBlock::min_block_size());
         Self(size)
     }
 
@@ -127,6 +127,7 @@ impl Block {
     /// NOTE: This doesn't actually change the amount of usable memory
     #[inline(always)]
     pub fn set_size(&mut self, new_size: usize) {
+        assert!(new_size >= FreeBlock::min_block_size());
         self.0 = (self.0 & Self::HIGH_BIT_MASK) | new_size;
     }
 

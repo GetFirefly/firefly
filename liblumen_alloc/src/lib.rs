@@ -32,3 +32,10 @@ pub use std_alloc::StandardAlloc;
 
 // Runtime system support, e.g. process heaps, etc.
 pub use erts::*;
+
+/// Provides information about an allocator from `liblumen_alloc`
+#[derive(Debug)]
+pub struct AllocatorInfo {
+    num_multi_block_carriers: usize,
+    num_single_block_carriers: usize,
+}

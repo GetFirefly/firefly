@@ -11,7 +11,7 @@ use intrusive_collections::{Adapter, KeyAdapter, UnsafeRef};
 use intrusive_collections::{LinkedListLink, RBTreeLink};
 
 /// A simple marker trait for intrusive collection links
-pub trait Link {}
+pub trait Link: Default {}
 impl Link for RBTreeLink {}
 impl Link for LinkedListLink {}
 

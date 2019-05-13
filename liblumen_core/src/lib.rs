@@ -2,6 +2,16 @@
 #![feature(core_intrinsics)]
 #![feature(alloc)]
 #![feature(allocator_api)]
+#![feature(alloc_layout_extra)]
+#![feature(specialization)]
+#![feature(dropck_eyepatch)]
+#![feature(trusted_len)]
+#![feature(raw_vec_internals)]
+#![feature(exact_size_is_empty)]
+#![feature(try_reserve)]
+#![feature(ptr_internals)]
+#![feature(ptr_offset_from)]
+#![feature(slice_partition_dedup)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc as core_alloc;

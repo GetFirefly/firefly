@@ -1,10 +1,10 @@
-use core::alloc::{Alloc, AllocErr, Layout};
-use core::cell::RefCell;
 ///! This module provides a general purpose allocator for use with
 ///! the Erlang Runtime System. Specifically it is optimized for
 ///! general usage, where allocation patterns are unpredictable, or
 ///! for allocations where a more specialized allocator is unsuitable
 ///! or unavailable.
+use core::cmp;
+use core::alloc::{Alloc, AllocErr, Layout};
 use core::ptr::{self, NonNull};
 
 use intrusive_collections::{intrusive_adapter, Bound, UnsafeRef};
@@ -12,10 +12,11 @@ use intrusive_collections::{LinkedList, LinkedListLink};
 use intrusive_collections::{RBTree, RBTreeLink};
 
 use liblumen_core::alloc::mmap;
+use liblumen_core::alloc::alloc_ref::{self, AsAllocRef};
 use liblumen_core::locks::SpinLock;
 
 //use crate::size_classes;
-use crate::blocks::{Block, FreeBlocks};
+use crate::AllocatorInfo;
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
 
@@ -80,14 +81,64 @@ impl StandardAlloc {
     // TODO: Switch this back to the constant in `size_classes` when that module is done
     pub(crate) const MAX_SIZE_CLASS: usize = 32 * 1024;
 
+    /// Create a new instance of `StandardAlloc`
     pub fn new() -> Self {
+        // Allocate a default carrier
+        // TODO: In the future we may want to do like the BEAM does and
+        // have a separate struct field for the main carrier, so that allocations
+        // have a fast path if the main carrier has available space
+        let main_carrier = unsafe {
+            Self::create_multi_block_carrier()
+                .expect("unable to allocate main multi-block carrier")
+        };
+        let mut mbc = RBTree::new(SortedKeyAdapter::new(SortOrder::SizeAddressOrder));
+        mbc.insert(main_carrier);
+
         Self {
             sbc: SpinLock::new(LinkedList::new(SingleBlockCarrierListAdapter::new())),
-            mbc: SpinLock::new(RBTree::new(SortedKeyAdapter::new(
-                SortOrder::SizeAddressOrder,
-            ))),
+            mbc: SpinLock::new(mbc),
             sbc_threshold: Self::MAX_SIZE_CLASS,
         }
+    }
+
+    /// Gets information about this allocator
+    pub fn info(&self) -> AllocatorInfo {
+        let num_mbc = self.count_mbc();
+        let num_sbc = self.count_sbc();
+        AllocatorInfo {
+            num_multi_block_carriers: num_mbc,
+            num_single_block_carriers: num_sbc,
+        }
+    }
+
+    // Counts the number of multi-block carriers this allocator holds
+    fn count_mbc(&self) -> usize {
+        let mbc = self.mbc.lock();
+        mbc.iter().count()
+    }
+
+    // Counts the number of single-block carriers this allocator holds
+    fn count_sbc(&self) -> usize {
+        let sbc = self.sbc.lock();
+        sbc.iter().count()
+    }
+
+    /// Creates a new, empty multi-block carrier, unlinked to the allocator
+    /// 
+    /// The carrier is allocated via mmap on supported platforms, or the system
+    /// allocator otherwise.
+    /// 
+    /// NOTE: You must make sure to add the carrier to the free list of the
+    /// allocator, or it will not be used, and will not be freed
+    unsafe fn create_multi_block_carrier() -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, AllocErr> {
+        let size = Self::SA_CARRIER_SIZE;
+        let carrier_layout = Layout::from_size_align_unchecked(size, size);
+        // Allocate raw memory for carrier
+        let ptr = mmap::map(carrier_layout)?;
+        // Initialize carrier in memory
+        let carrier = MultiBlockCarrier::init(ptr, size);
+        // Return an unsafe ref to this carrier back to the caller
+        Ok(UnsafeRef::from_raw(carrier))
     }
 }
 
@@ -102,17 +153,15 @@ unsafe impl Alloc for StandardAlloc {
         // First, find a carrier large enough to hold the requested allocation
 
         // Ensure allocated region has enough space for carrier header and aligned block
-        let (block_layout, _data_offset) = Layout::new::<Block>().extend(layout.clone()).unwrap();
-        let block_size = block_layout.size();
 
-        // Start with the first carrier with a usable size of at least `size` bytes
-        let bound = SortKey::new(SortOrder::SizeAddressOrder, block_size, 0);
+        // Start with the first carrier with a usable size of at least `block_size` bytes
+        let bound = SortKey::new(SortOrder::SizeAddressOrder, size, 0);
         let mbc = self.mbc.lock();
         let cursor = mbc.lower_bound(Bound::Included(&bound));
         // Try each carrier, from smallest to largest, until we find a fit
         while let Some(carrier) = cursor.get() {
             // In each carrier, try to find a best fit block and allocate it
-            if let Some(block) = carrier.alloc_block(&block_layout) {
+            if let Some(block) = carrier.alloc_block(&layout) {
                 return Ok(block);
             }
         }
@@ -125,34 +174,15 @@ unsafe impl Alloc for StandardAlloc {
         // we always allocate carriers of the same size, and since the super-aligned size
         // is always larger than the single-block threshold, new multi-block carriers are
         // guaranteed to fulfill the allocation request that caused their creation
-
-        let size = Self::SA_CARRIER_SIZE;
-        let carrier_layout = Layout::from_size_align_unchecked(size, size);
-        // Allocate region
-        let ptr = mmap::map(carrier_layout)?;
-        // Get pointer to carrier header location
-        let carrier = ptr.as_ptr() as *mut MultiBlockCarrier<RBTreeLink>;
-        // Write initial carrier header
-        ptr::write(
-            carrier,
-            MultiBlockCarrier {
-                size,
-                link: RBTreeLink::new(),
-                blocks: RefCell::new(FreeBlocks::new(SortOrder::SizeAddressOrder)),
-            },
-        );
-        // Cast carrier pointer to UnsafeRef and add to multi-block carrier tree
-        // This implicitly mutates the link in the carrier
-        let carrier = UnsafeRef::from_raw(carrier);
+        let carrier = Self::create_multi_block_carrier()?;
         let mut mbc = self.mbc.lock();
         mbc.insert(carrier.clone());
         drop(mbc);
         // Allocate block using newly allocated carrier
         // NOTE: It should never be possible for this to fail
-        let block = carrier.alloc_block(&layout);
-        assert!(block.is_some(), "block allocation unexpectedly failed");
+        let block = carrier.alloc_block(&layout).expect("unexpected block allocation failure");
         // Return data pointer
-        Ok(block.unwrap())
+        Ok(block)
     }
 
     unsafe fn realloc(
@@ -182,7 +212,6 @@ unsafe impl Alloc for StandardAlloc {
         // if it does not, then either the given pointer was allocated
         // using a different allocator, or there is a bug in this implementation
         let carrier = cursor.get().expect("realloc called with invalid pointer");
-        // TODO: Carrier needs to be mutable here
         let carrier_ptr = Self::superaligned_floor(raw as usize) as *const u8;
         debug_assert!((carrier as *const _ as *const u8) == carrier_ptr);
         // Attempt reallocation
@@ -191,16 +220,18 @@ unsafe impl Alloc for StandardAlloc {
             return Ok(block);
         }
         drop(mbc);
+
         // If we reach this point, we have to try allocating a new block and
         // copying the data from the old block to the new one
-        let new_layout = Layout::from_size_align_unchecked(new_size, layout.align());
+        let new_layout = Layout::from_size_align(new_size, layout.align()).expect("invalid layout");
         // Allocate new block
         let block = self.alloc(new_layout)?;
         // Copy data from old block into new block
         let blk = block.as_ptr() as *mut u8;
-        ptr::copy_nonoverlapping(raw, blk, layout.size());
+        ptr::copy_nonoverlapping(raw, blk, cmp::min(size, new_size));
         // Free old block
         self.dealloc(ptr, layout);
+
         // Return new data pointer
         Ok(block)
     }
@@ -223,7 +254,9 @@ unsafe impl Alloc for StandardAlloc {
 
         // TODO: Perform conditional release of memory back to operating system,
         // for now, we always free single-block carriers, but never multi-block carriers
+        let mbc = self.mbc.lock();
         carrier.free_block(ptr, layout);
+        drop(mbc)
     }
 }
 
@@ -272,7 +305,7 @@ impl StandardAlloc {
         // Copy old data into new carrier
         let old_ptr = ptr.as_ptr();
         let old_size = layout.size();
-        ptr::copy_nonoverlapping(old_ptr, new_ptr.as_ptr(), old_size);
+        ptr::copy_nonoverlapping(old_ptr, new_ptr.as_ptr(), cmp::min(old_size, new_size));
         // Free old carrier
         self.dealloc_large(old_ptr);
         // Return new carrier
@@ -322,5 +355,96 @@ impl StandardAlloc {
     #[inline(always)]
     fn superaligned_ceil(addr: usize) -> usize {
         Self::superaligned_floor(addr + !Self::SA_CARRIER_MASK)
+    }
+}
+
+impl<'a> AsAllocRef<'a> for StandardAlloc {
+    type Handle = alloc_ref::Handle<'a, Self>;
+
+    #[inline]
+    fn as_alloc_ref(&self) -> Self::Handle {
+        alloc_ref::Handle::new(self)
+    }
+}
+
+impl Drop for StandardAlloc {
+    fn drop(&mut self) {
+        #[cfg(not(test))]
+        use alloc::vec::Vec;
+
+        // Drop single-block carriers
+        let mut sbc = self.sbc.lock();
+        // We have to dynamically allocate this vec because the only
+        // other method we have of collecting the pointer/layout combo
+        // is by using a cursor, and the current API is not flexible enough
+        // to allow us to walk the tree freeing each element after we've moved
+        // the cursor past it. Instead we gather all the pointers to clean up
+        // and do it all at once at the end
+        //
+        // NOTE: May be worth exploring a `Drop` impl for the carriers
+        let mut carriers = sbc.iter().map(|carrier| {
+            (carrier as *const _ as *mut _, carrier.layout())
+        }).collect::<Vec<_>>();
+
+        // Prevent the list from trying to drop memory that has now been freed
+        sbc.fast_clear();
+
+        // Actually drop the carriers
+        for (ptr, layout) in carriers.drain(..) {
+            unsafe { mmap::unmap(ptr, layout); }
+        }
+
+        // Drop multi-block carriers
+        let mbc_size = Self::SA_CARRIER_SIZE;
+        let mbc_layout = unsafe { Layout::from_size_align_unchecked(mbc_size, mbc_size) };
+        let mut mbc = self.mbc.lock();
+        let mut carriers = mbc.iter().map(|carrier| {
+            (carrier as *const _ as *mut _, mbc_layout.clone())
+        }).collect::<Vec<_>>();
+
+        // Prevent the tree from trying to drop memory that has now been freed
+        mbc.fast_clear();
+
+        for (ptr, layout) in carriers.drain(..) {
+            unsafe { mmap::unmap(ptr, layout); }
+        }
+    }
+}
+
+unsafe impl Sync for StandardAlloc {}
+unsafe impl Send for StandardAlloc {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use liblumen_core::alloc::boxed::Box;
+    use liblumen_core::alloc::vec::Vec;
+
+    #[test]
+    fn std_alloc_small_test() {
+        let allocator = StandardAlloc::new();
+
+        // Allocate an object on the heap
+        let foo = Box::from_str("just a test", &allocator);
+
+        // Drop the boxed string
+        drop(foo);
+
+        assert!(true);
+    }
+
+    #[test]
+    fn std_alloc_large_test() {
+        let allocator = StandardAlloc::new();
+
+        // Allocate a large object on the heap
+        let mut foo = Vec::with_capacity(StandardAlloc::MAX_SIZE_CLASS + 1, &allocator);
+        foo.push(1u8);
+
+        // Drop it
+        drop(foo);
+
+        assert!(true);
     }
 }

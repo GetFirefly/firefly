@@ -1,4 +1,5 @@
 use core::alloc::{AllocErr, Layout};
+use core::cmp;
 use core::convert::TryFrom;
 use core::intrinsics::unlikely;
 use core::mem;
@@ -42,9 +43,9 @@ impl FreeBlock {
     /// Create a new FreeBlock of the given size.
     ///
     /// The block will be marked free but will be unlinked.
-    #[allow(unused)]
     #[inline]
     pub fn new(size: usize) -> Self {
+        assert!(size >= Self::min_block_size());
         let mut header = Block::new(size);
         header.set_free();
         Self {
@@ -126,6 +127,19 @@ impl FreeBlock {
         self.header.prev()
     }
 
+    /// The minimum usable size for a block
+    #[inline(always)]
+    pub fn min_block_size() -> usize {
+        mem::size_of::<FreeBlock>() + 
+        mem::size_of::<usize>() + 
+        mem::size_of::<BlockFooter>() -
+        // We subtract the size of Block, since Block
+        // is always present, and factored in else where
+        // The minimum size we actually care about is the
+        // minimum _usable_ size
+        mem::size_of::<Block>()
+    }
+
     /// This function tries to allocate this block to fulfill the request
     /// represented by `layout`.
     ///
@@ -159,6 +173,9 @@ impl FreeBlock {
 
         let mut ptr = unsafe { self.header.data() as *mut u8 };
 
+        // We have to make sure the minimum size is big enough to contain block metadata
+        let size = cmp::max(layout.size(), Self::min_block_size());
+
         // Check alignment
         let align = layout.align();
         if !alloc_utils::is_aligned_at(ptr, align) {
@@ -167,14 +184,14 @@ impl FreeBlock {
             assert_eq!(aligned_ptr, ptr);
             // Check size with padding added
             let padding = (aligned_ptr as usize) - (ptr as usize);
-            if self.usable_size() < layout.size() + padding {
+            if self.usable_size() < size + padding {
                 // No good
                 return Err(AllocErr);
             }
             ptr = aligned_ptr
         } else {
             // Alignment is good, check size
-            if self.usable_size() < layout.size() {
+            if self.usable_size() < size {
                 // No good
                 return Err(AllocErr);
             }
@@ -198,20 +215,26 @@ impl FreeBlock {
     /// and so no attempt is made to create a new block footer for the "old" block.
     /// We do however write both a header and footer for the newly split block.
     pub fn try_split(&mut self, layout: &Layout) -> Option<FreeBlockRef> {
-        let padded = layout.pad_to_align().unwrap();
-        let padded_size = padded.size();
+        let mut size = cmp::max(layout.size(), Self::min_block_size());
+        // Ensure we have the "real" size of this block
+        // This should have been validated by `try_alloc` already
+        let align = layout.align();
+        let ptr = unsafe { self.header.data() as *mut u8 };
+        if !alloc_utils::is_aligned_at(ptr, align) {
+            let aligned_ptr = alloc_utils::align_up_to(ptr, align) as *mut u8;
+            let padding = (aligned_ptr as usize) - (ptr as usize);
+            size = size + padding;
+        }
+
         let usable = self.usable_size();
-        let oversized = usable > padded_size;
+        let oversized = usable > size;
         // We only split if the resulting split is at least able to hold the
         // minimum allocation size of 8 bytes, including space for the header
         if !oversized {
             return None;
         }
-        let split_size = usable - padded_size;
-        // Minimum size should provide enough room for free block metadata and have at least one
-        // word extra
-        let min_size =
-            mem::size_of::<FreeBlock>() + mem::size_of::<BlockFooter>() + mem::size_of::<usize>();
+        let split_size = usable - size;
+        let min_size = Self::min_block_size();
         let can_split = split_size > min_size;
         if !can_split {
             return None;
@@ -228,11 +251,12 @@ impl FreeBlock {
             split_header.set_last();
             self.clear_last();
         }
-        // Update the size of this block
-        self.set_size(padded_size);
+        // Update the usable size of this block
+        self.set_size(size);
         // Write block header for split
         let block_ptr = self as *const _ as *mut u8;
-        let split_offset = mem::size_of::<Block>() + padded_size;
+        // `size` here is the usable size, so we need to add on the size of the Block header
+        let split_offset = mem::size_of::<Block>() + size;
         let split_ptr = unsafe { block_ptr.offset(split_offset as isize) };
         unsafe {
             ptr::write(split_ptr as *mut FreeBlock, split_header.into());

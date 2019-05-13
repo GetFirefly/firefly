@@ -74,7 +74,7 @@ where
         }
 
         // Belongs to a higher-addressed carrier
-        if (this - ptr) > self.size {
+        if (ptr - this) > self.size {
             return false;
         }
 

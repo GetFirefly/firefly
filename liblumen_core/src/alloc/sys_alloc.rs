@@ -3,6 +3,9 @@ use core::cmp;
 use core::ptr::{self, NonNull};
 
 use crate::sys::alloc as sys_alloc;
+use crate::alloc::alloc_ref::{AsAllocRef, Global};
+
+use super::StaticAlloc;
 
 /// This allocator acts as the system allocator, depending
 /// on the target, that may be the actual system allocator,
@@ -62,6 +65,29 @@ unsafe impl GlobalAlloc for SysAlloc {
         sys_alloc::realloc(ptr, layout, new_size)
             .map(|nn| nn.as_ptr())
             .unwrap_or(ptr::null_mut())
+    }
+}
+
+// Used by the StaticAlloc impl
+static mut SYS_ALLOC: SysAlloc = SysAlloc;
+
+unsafe impl StaticAlloc for SysAlloc {
+    #[inline]
+    unsafe fn static_ref() -> &'static Self {
+        &SYS_ALLOC
+    }
+    #[inline]
+    unsafe fn static_mut() -> &'static mut Self {
+        &mut SYS_ALLOC
+    }
+}
+
+impl AsAllocRef<'static> for SysAlloc {
+    type Handle = Global<Self>;
+
+    #[inline]
+    fn as_alloc_ref(&'static self) -> Self::Handle {
+        Global::new()
     }
 }
 

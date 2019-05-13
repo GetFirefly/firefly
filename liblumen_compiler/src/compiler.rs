@@ -14,7 +14,6 @@ use liblumen_syntax::{Parser, Symbol};
 
 use liblumen_codegen as codegen;
 use liblumen_common as common;
-use liblumen_core as core;
 
 pub use super::config::{CompilerMode, CompilerSettings, Verbosity};
 pub use super::errors::CompilerError;
@@ -69,7 +68,7 @@ impl Compiler {
             lint::module(self, module)?;
         }
         // Lower from parse tree to Core IR
-        let _modules = core::transform(self, modules)?;
+        //let _modules = core::transform(self, modules)?;
         //let modules = semantic_analysis::analyze(&config, core)?;
         //let modules = cps::transform(&config, modules)?;
         //let info = codegen::run(&config, modules, codegen::OutputType::IR)?;

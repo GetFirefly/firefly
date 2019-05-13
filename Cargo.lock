@@ -671,7 +671,6 @@ dependencies = [
  "liblumen_beam 0.1.0",
  "liblumen_codegen 0.1.0",
  "liblumen_common 0.1.0",
- "liblumen_core 0.1.0",
  "liblumen_diagnostics 0.1.0",
  "liblumen_syntax 0.1.0",
  "walkdir 2.2.7 (registry+https://github.com/rust-lang/crates.io-index)",

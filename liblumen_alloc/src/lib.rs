@@ -11,6 +11,7 @@ extern crate alloc;
 mod blocks;
 mod carriers;
 mod sorted;
+pub mod stats;
 //mod size_classes;
 mod std_alloc;
 //mod fixed_alloc;
@@ -25,7 +26,10 @@ mod erts;
 pub use liblumen_core::alloc::SysAlloc;
 
 /// The standard allocator. Used for general purpose allocations
-pub use std_alloc::StandardAlloc;
+pub use self::std_alloc::StandardAlloc;
+
+/// A tracing allocator for tracking statistics about the allocator it wraps
+pub use self::stats::StatsAlloc;
 
 // A fixed size allocator. Used for allocations that fall within predictable size classes.
 //pub use fixed_alloc::FixedAlloc;

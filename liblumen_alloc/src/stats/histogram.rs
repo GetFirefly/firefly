@@ -1,11 +1,11 @@
 //! This library is a fork of the `histo` crate, which is dual MIT/Apache 2 licensed
 //! software, and can be found [here](https://github.com/fitzgen/histo).
-//! 
+//!
 //! This was forked to make it `no_std` compatible, and to have finer control over its
 //! performance characteristics since this is used in a very hot path (allocations).
-//! 
+//!
 //! # Documentation
-//! 
+//!
 //! Histograms with a configurable number of buckets, and a terminal-friendly
 //! `Display`.
 //!
@@ -77,10 +77,10 @@ extern crate quickcheck;
 use core::cmp;
 use core::fmt;
 
-use alloc::collections::BTreeMap;
 use alloc::collections::btree_map::Range;
+use alloc::collections::BTreeMap;
 
-use super::{OnlineStats, MinMax};
+use super::{MinMax, OnlineStats};
 
 /// A histogram is a collection of samples, sorted into buckets.
 ///
@@ -127,8 +127,8 @@ impl Histogram {
 
 impl fmt::Display for Histogram {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use core::fmt::Write;
         use alloc::string::String;
+        use core::fmt::Write;
 
         let num_samples: u64 = self.samples.values().sum();
         writeln!(f, "# Number of samples = {}", num_samples)?;

@@ -1,25 +1,25 @@
-use core::sync::atomic::AtomicUsize;
-use core::sync::atomic::Ordering;
+use core::alloc::{Alloc, AllocErr, GlobalAlloc, Layout};
+use core::fmt;
 use core::intrinsics::type_name;
 use core::ptr::{self, NonNull};
-use core::alloc::{GlobalAlloc, Alloc, AllocErr, Layout};
-use core::fmt;
+use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::Ordering;
 
 use liblumen_core::locks::SpinLock;
 
-use super::hooks;
 use super::histogram::Histogram;
+use super::hooks;
 
 const NUM_SIZE_CLASSES: u64 = 67;
 
 /// `StatsAlloc` is a tracing allocator which wraps some
 /// allocator, either an implementation of `Alloc` or `GlobalAlloc`,
 /// and tracks statistics about usage of that allocator:
-/// 
+///
 /// - The number of calls to alloc/realloc/dealloc
 /// - The total number of bytes allocated and freed
 /// - A histogram of allocation sizes
-/// 
+///
 /// The `StatsAlloc` can be tagged to provide useful metadata bout
 /// what type of allocator is being traced and how it is used.
 #[derive(Debug)]
@@ -88,7 +88,6 @@ impl<T: Default> Default for StatsAlloc<T> {
 unsafe impl<T: Alloc + Sync> Sync for StatsAlloc<T> {}
 unsafe impl<T: Alloc + Send> Send for StatsAlloc<T> {}
 
-
 /// This struct represents a snapshot of the stats gathered
 /// by an instances of `StatsAlloc`, and is used for display
 #[derive(Debug)]
@@ -98,7 +97,7 @@ pub struct Statistics {
     realloc_calls: usize,
     total_bytes_alloced: usize,
     total_bytes_freed: usize,
-    
+
     tag: &'static str,
     histogram: Histogram,
 }
@@ -126,7 +125,7 @@ unsafe impl<T: Alloc> Alloc for StatsAlloc<T> {
             err @ Err(_) => {
                 hooks::on_alloc(self.tag, size, align, ptr::null_mut());
                 err
-            },
+            }
             Ok(result) => {
                 self.alloc_calls.fetch_add(1, Ordering::SeqCst);
                 self.total_bytes_alloced.fetch_add(size, Ordering::SeqCst);
@@ -140,15 +139,27 @@ unsafe impl<T: Alloc> Alloc for StatsAlloc<T> {
     }
 
     #[inline]
-    unsafe fn realloc(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn realloc(
+        &mut self,
+        ptr: NonNull<u8>,
+        layout: Layout,
+        new_size: usize,
+    ) -> Result<NonNull<u8>, AllocErr> {
         let old_ptr = ptr.as_ptr();
         let old_size = layout.size();
         let align = layout.align();
         match self.allocator.realloc(ptr, layout, new_size) {
             err @ Err(_) => {
-                hooks::on_realloc(self.tag, old_size, new_size, align, old_ptr, ptr::null_mut());
+                hooks::on_realloc(
+                    self.tag,
+                    old_size,
+                    new_size,
+                    align,
+                    old_ptr,
+                    ptr::null_mut(),
+                );
                 err
-            },
+            }
             Ok(result) => {
                 self.realloc_calls.fetch_add(1, Ordering::SeqCst);
                 if old_size < new_size {
@@ -161,7 +172,14 @@ unsafe impl<T: Alloc> Alloc for StatsAlloc<T> {
                 let mut h = self.histogram.lock();
                 h.add(new_size as u64);
                 drop(h);
-                hooks::on_realloc(self.tag, old_size, new_size, align, old_ptr, result.as_ptr());
+                hooks::on_realloc(
+                    self.tag,
+                    old_size,
+                    new_size,
+                    align,
+                    old_ptr,
+                    result.as_ptr(),
+                );
                 Ok(result)
             }
         }

@@ -7,8 +7,8 @@ use core::alloc::{Alloc, AllocErr, Layout};
 use core::cmp;
 use core::ptr::{self, NonNull};
 
-use intrusive_collections::{intrusive_adapter, Bound, UnsafeRef};
-use intrusive_collections::{LinkedList, LinkedListLink};
+use intrusive_collections::LinkedListLink;
+use intrusive_collections::{Bound, UnsafeRef};
 use intrusive_collections::{RBTree, RBTreeLink};
 
 use liblumen_core::alloc::alloc_ref::{self, AsAllocRef};
@@ -16,17 +16,11 @@ use liblumen_core::alloc::mmap;
 use liblumen_core::locks::SpinLock;
 
 //use crate::size_classes;
+use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
+use crate::carriers::{MultiBlockCarrierTree, SingleBlockCarrierList};
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
 use crate::AllocatorInfo;
-
-// Type alias for the list of currently allocated single-block carriers
-type SingleBlockCarrierList = LinkedList<SingleBlockCarrierListAdapter>;
-// Type alias for the ordered tree of currently allocated multi-block carriers
-type MultiBlockCarrierTree = RBTree<SortedKeyAdapter<MultiBlockCarrier<RBTreeLink>>>;
-
-// Implementation of adapter for intrusive collection used for single-block carriers
-intrusive_adapter!(SingleBlockCarrierListAdapter = UnsafeRef<SingleBlockCarrier<LinkedListLink>>: SingleBlockCarrier<LinkedListLink> { link: LinkedListLink });
 
 /// `StandardAlloc` is a general purpose allocator that divides allocations into two major
 /// categories: multi-block carriers up to a certain threshold, after which allocations use
@@ -69,15 +63,6 @@ pub struct StandardAlloc {
     mbc: SpinLock<MultiBlockCarrierTree>,
 }
 impl StandardAlloc {
-    // The number of bits to shift/mask to find a superaligned address
-    const SA_BITS: usize = 18;
-    // The number of bits to shift to find a superaligned carrier address
-    const SA_CARRIER_SHIFT: usize = Self::SA_BITS;
-    // The size of a superaligned carrier, 262k (262,144 bytes)
-    pub(crate) const SA_CARRIER_SIZE: usize = 1usize << Self::SA_CARRIER_SHIFT;
-    // The mask needed to go from a pointer in a SA carrier to the carrier
-    const SA_CARRIER_MASK: usize = (!0usize) << Self::SA_CARRIER_SHIFT;
-
     // TODO: Switch this back to the constant in `size_classes` when that module is done
     pub(crate) const MAX_SIZE_CLASS: usize = 32 * 1024;
 
@@ -94,7 +79,7 @@ impl StandardAlloc {
         mbc.insert(main_carrier);
 
         Self {
-            sbc: SpinLock::new(LinkedList::new(SingleBlockCarrierListAdapter::new())),
+            sbc: SpinLock::new(SingleBlockCarrierList::default()),
             mbc: SpinLock::new(mbc),
             sbc_threshold: Self::MAX_SIZE_CLASS,
         }
@@ -131,7 +116,7 @@ impl StandardAlloc {
     /// allocator, or it will not be used, and will not be freed
     unsafe fn create_multi_block_carrier(
     ) -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, AllocErr> {
-        let size = Self::SA_CARRIER_SIZE;
+        let size = SUPERALIGNED_CARRIER_SIZE;
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
         // Allocate raw memory for carrier
         let ptr = mmap::map(carrier_layout)?;
@@ -214,7 +199,7 @@ unsafe impl Alloc for StandardAlloc {
         // if it does not, then either the given pointer was allocated
         // using a different allocator, or there is a bug in this implementation
         let carrier = cursor.get().expect("realloc called with invalid pointer");
-        let carrier_ptr = Self::superaligned_floor(raw as usize) as *const u8;
+        let carrier_ptr = superalign_down(raw as usize) as *const u8;
         debug_assert!((carrier as *const _ as *const u8) == carrier_ptr);
         // Attempt reallocation
         if let Some(block) = carrier.realloc_block(raw, &layout, new_size) {
@@ -250,8 +235,7 @@ unsafe impl Alloc for StandardAlloc {
         // Multi-block carriers are always super-aligned, and no larger
         // than the super-aligned size, so we can find the carrier header
         // trivially using the pointer itself
-        let carrier_ptr =
-            Self::superaligned_floor(ptr as usize) as *const MultiBlockCarrier<RBTreeLink>;
+        let carrier_ptr = superalign_down(ptr as usize) as *const MultiBlockCarrier<RBTreeLink>;
         let carrier = UnsafeRef::from_raw(carrier_ptr);
 
         // TODO: Perform conditional release of memory back to operating system,
@@ -347,17 +331,6 @@ impl StandardAlloc {
             return;
         }
     }
-
-    #[inline(always)]
-    fn superaligned_floor(addr: usize) -> usize {
-        addr & Self::SA_CARRIER_MASK
-    }
-
-    #[allow(unused)]
-    #[inline(always)]
-    fn superaligned_ceil(addr: usize) -> usize {
-        Self::superaligned_floor(addr + !Self::SA_CARRIER_MASK)
-    }
 }
 
 impl<'a> AsAllocRef<'a> for StandardAlloc {
@@ -400,7 +373,7 @@ impl Drop for StandardAlloc {
         }
 
         // Drop multi-block carriers
-        let mbc_size = Self::SA_CARRIER_SIZE;
+        let mbc_size = SUPERALIGNED_CARRIER_SIZE;
         let mbc_layout = unsafe { Layout::from_size_align_unchecked(mbc_size, mbc_size) };
         let mut mbc = self.mbc.lock();
         let mut carriers = mbc

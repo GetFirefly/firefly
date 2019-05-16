@@ -286,16 +286,15 @@ mod tests {
     use intrusive_collections::RBTreeLink;
     use liblumen_core::alloc::SysAlloc;
 
-    use crate::std_alloc::StandardAlloc;
-
     use crate::blocks::FreeBlockRef;
+    use crate::carriers::SUPERALIGNED_CARRIER_SIZE;
 
     static mut SYS_ALLOC: SysAlloc = SysAlloc;
 
     #[test]
     fn multi_block_carrier_test() {
         // Use super-aligned size from std_alloc
-        let size = StandardAlloc::SA_CARRIER_SIZE;
+        let size = SUPERALIGNED_CARRIER_SIZE;
         let carrier_layout = Layout::from_size_align(size, size).unwrap();
         // Allocate region
         let ptr = unsafe { SYS_ALLOC.alloc(carrier_layout).unwrap() };

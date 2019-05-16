@@ -1,10 +1,12 @@
 mod block;
+mod block_bit_set;
 mod block_footer;
 mod block_ref;
 mod free_block;
 mod free_block_tree;
 
 pub use self::block::Block;
+pub use self::block_bit_set::*;
 pub use self::block_footer::BlockFooter;
 pub use self::block_ref::{BlockRef, FreeBlockRef};
 pub use self::free_block::FreeBlock;

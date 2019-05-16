@@ -11,12 +11,11 @@ extern crate alloc;
 
 mod blocks;
 mod carriers;
+mod erts;
+mod fixed_alloc;
 mod sorted;
 pub mod stats;
-//mod size_classes;
 mod std_alloc;
-//mod fixed_alloc;
-mod erts;
 
 /// The system allocator. Can be used with `#[global_allocator]`, like so:
 ///
@@ -33,7 +32,7 @@ pub use self::std_alloc::StandardAlloc;
 pub use self::stats::StatsAlloc;
 
 // A fixed size allocator. Used for allocations that fall within predictable size classes.
-//pub use fixed_alloc::FixedAlloc;
+pub use fixed_alloc::FixedAlloc;
 
 // Runtime system support, e.g. process heaps, etc.
 pub use erts::*;

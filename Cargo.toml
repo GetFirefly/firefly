@@ -1,12 +1,11 @@
 [workspace]
-license = "LICENSE.md"
-readme = "README.md"
 
 members = [
   "lumen",
   "lumen_runtime",
   "liblumen_arena",
   "liblumen_alloc",
+  "liblumen_alloc_macros",
   "liblumen_beam",
   "liblumen_codegen",
   "liblumen_common",

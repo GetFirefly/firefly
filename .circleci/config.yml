@@ -30,6 +30,7 @@ jobs:
           paths:
             - example
             - liblumen_alloc
+            - liblumen_alloc_macros
             - liblumen_arena
             - liblumen_beam
             - liblumen_codegen

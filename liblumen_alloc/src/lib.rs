@@ -1,9 +1,10 @@
+#![allow(stable_features)]
 #![cfg_attr(not(test), no_std)]
 #![feature(core_intrinsics)]
-#![feature(alloc)]
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
 #![feature(ptr_offset_from)]
+#![feature(alloc)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

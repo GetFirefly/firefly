@@ -6,9 +6,9 @@ mod with_loaded_module;
 fn without_loaded_module_when_run_exits_undef() {
     with_process(|parent_process| {
         let arc_scheduler = Scheduler::current();
-        let arc_mutex_run_queue = arc_scheduler.run_queue(Priority::Normal);
 
-        let run_queue_length_before = arc_mutex_run_queue.lock().unwrap().len();
+        let priority = Priority::Normal;
+        let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
         // Typo
         let module = Term::str_to_atom("erlan", DoNotCare).unwrap();
@@ -27,7 +27,7 @@ fn without_loaded_module_when_run_exits_undef() {
 
         assert_eq!(child_pid.tag(), LocalPid);
 
-        let run_queue_length_after = arc_mutex_run_queue.lock().unwrap().len();
+        let run_queue_length_after = arc_scheduler.run_queue_len(priority);
 
         assert_eq!(run_queue_length_after, run_queue_length_before + 1);
 
@@ -35,9 +35,15 @@ fn without_loaded_module_when_run_exits_undef() {
 
         arc_scheduler.run_through(&arc_process);
 
-        let stack = arc_process.stack.lock().unwrap();
-
-        assert_eq!(stack.len(), 0);
+        assert_eq!(arc_process.stack_len(), 1);
+        assert_eq!(
+            arc_process.current_module_function_arity(),
+            Some(Arc::new(ModuleFunctionArity {
+                module,
+                function,
+                arity: 1
+            }))
+        );
 
         match *arc_process.status.read().unwrap() {
             Status::Exiting(ref exception) => {

@@ -1,0 +1,40 @@
+use std::convert::TryInto;
+use std::sync::Arc;
+
+use lumen_runtime::atom::Existence::DoNotCare;
+use lumen_runtime::exception::Exception;
+use lumen_runtime::process::stack::frame::Frame;
+use lumen_runtime::process::{ModuleFunctionArity, Process};
+use lumen_runtime::term::Term;
+
+pub fn puts_frame() -> Frame {
+    let module_function_arity = Arc::new(ModuleFunctionArity {
+        module: Term::str_to_atom("Elixir.IO", DoNotCare).unwrap(),
+        function: Term::str_to_atom("puts", DoNotCare).unwrap(),
+        arity: 1,
+    });
+
+    Frame::new(module_function_arity, puts_code)
+}
+
+fn puts_code(arc_process: &Arc<Process>) {
+    let frame_argument_vec = arc_process.pop_arguments(1);
+    let elixir_string = frame_argument_vec[0];
+
+    match elixir_string.try_into(): Result<String, Exception> {
+        Ok(string) => {
+            // NOT A DEBUGGING LOG
+            web_sys::console::log_1(&((&string).into()));
+            arc_process.reduce();
+
+            let ok = Term::str_to_atom("ok", DoNotCare).unwrap();
+            arc_process.return_from_call(ok);
+
+            Process::call_code(arc_process);
+        }
+        Err(exception) => {
+            arc_process.reduce();
+            arc_process.exception(exception);
+        }
+    }
+}

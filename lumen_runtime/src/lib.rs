@@ -5,6 +5,7 @@
 #![feature(allocator_api)]
 #![feature(bind_by_move_pattern_guards)]
 #![feature(exact_size_is_empty)]
+#![feature(fn_traits)]
 // For `lumen_runtime::reference::count
 #![feature(integer_atomics)]
 // For `lumen_runtime::binary::heap::<Iter as Iterator>.size_hint`
@@ -28,30 +29,44 @@ extern crate lazy_static;
 #[macro_use]
 mod macros;
 
-mod atom;
+// `pub` for `examples/spawn-chain`
+pub mod atom;
 mod binary;
-mod code;
+// `pub` or `examples/spawn-chain`
+pub mod code;
 mod config;
-mod exception;
+// `pub` or `examples/spawn-chain`
+pub mod exception;
 mod float;
-mod heap;
+// `pub` or `examples/spawn-chain`
+pub mod function;
+// `pub` or `examples/spawn-chain`
+pub mod heap;
 mod integer;
 mod list;
 mod logging;
 mod mailbox;
-mod map;
-mod message;
+// `pub` or `examples/spawn-chain`
+pub mod map;
+// `pub` or `examples/spawn-chain`
+pub mod message;
 mod node;
 pub mod otp;
-mod process;
+// `pub` or `examples/spawn-chain`
+pub mod process;
 mod reference;
-mod registry;
-mod scheduler;
+// `pub` or `examples/spawn-chain`
+pub mod registry;
+mod run;
+// `pub` for `examples/spawn-chain`
+pub mod scheduler;
 mod send;
 mod stacktrace;
 mod system;
-mod term;
-mod time;
+// `pub` for `examples/spawn-chain`
+pub mod term;
+// `pub` to allow `time::monotonic::set_source(callback)`
+pub mod time;
 // Public so that external code can all `timer::expire` to expire timers
 pub mod timer;
 mod tuple;
@@ -65,15 +80,15 @@ use log::Level;
 
 cfg_if! {
   if #[cfg(target_arch = "wasm32")] {
-    use wasm_bindgen::prelude::*;
-
-    const NAME: &'static str = env!("CARGO_PKG_NAME");
-    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-
-    #[wasm_bindgen(start)]
-    pub fn start() {
-      main(NAME, VERSION, std::env::args().collect());
-    }
+//    use wasm_bindgen::prelude::*;
+//
+//    const NAME: &'static str = env!("CARGO_PKG_NAME");
+//    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+//
+//    #[wasm_bindgen(start)]
+//    pub fn start() {
+//      main(NAME, VERSION, std::env::args().collect());
+//    }
   } else {
     #[no_mangle]
     pub extern "C" fn start(name: *const libc::c_char, version: *const libc::c_char) -> i32 {

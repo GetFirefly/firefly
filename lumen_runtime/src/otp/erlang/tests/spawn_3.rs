@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::process::local::pid_to_process;
-use crate::process::Status;
+use crate::process::{ModuleFunctionArity, Status};
 
 mod with_atom_module;
 

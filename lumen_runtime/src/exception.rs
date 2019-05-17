@@ -1,23 +1,22 @@
 use crate::term::Term;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Class {
     Error { arguments: Option<Term> },
     Exit,
     Throw,
 }
 
-#[cfg_attr(test, derive(Debug))]
+#[derive(Debug)]
 pub struct Exception {
     pub class: Class,
     pub reason: Term,
     pub stacktrace: Option<Term>,
-    #[cfg(debug_assertions)]
+    //    #[cfg(debug_assertions)]
     pub file: &'static str,
-    #[cfg(debug_assertions)]
+    //    #[cfg(debug_assertions)]
     pub line: u32,
-    #[cfg(debug_assertions)]
+    //    #[cfg(debug_assertions)]
     pub column: u32,
 }
 

@@ -1,4 +1,5 @@
 use std::fmt::{self, Debug};
+use std::sync::Arc;
 
 use im::hashmap::HashMap;
 use num_bigint::BigInt;
@@ -6,11 +7,13 @@ use num_bigint::BigInt;
 use liblumen_arena::TypedArena;
 
 use crate::binary;
+use crate::code::Code;
 use crate::float::Float;
+use crate::function::Function;
 use crate::integer::big;
 use crate::list::Cons;
 use crate::map::Map;
-use crate::process::identifier;
+use crate::process::{identifier, ModuleFunctionArity};
 use crate::reference;
 use crate::scheduler;
 use crate::term::Term;
@@ -22,6 +25,7 @@ pub struct Heap {
     cons_arena: TypedArena<Cons>,
     external_pid_arena: TypedArena<identifier::External>,
     float_arena: TypedArena<Float>,
+    function_arena: TypedArena<Function>,
     heap_binary_arena: TypedArena<binary::heap::Binary>,
     map_arena: TypedArena<Map>,
     local_reference_arena: TypedArena<reference::local::Reference>,
@@ -58,6 +62,18 @@ impl Heap {
 
     pub fn f64_to_float(&self, f: f64) -> &'static Float {
         let pointer = self.float_arena.alloc(Float::new(f)) as *const Float;
+
+        unsafe { &*pointer }
+    }
+
+    pub fn function(
+        &self,
+        module_function_arity: Arc<ModuleFunctionArity>,
+        code: Code,
+    ) -> &'static Function {
+        let pointer =
+            self.function_arena
+                .alloc(Function::new(module_function_arity, code)) as *const Function;
 
         unsafe { &*pointer }
     }
@@ -162,6 +178,7 @@ impl Default for Heap {
             cons_arena: Default::default(),
             external_pid_arena: Default::default(),
             float_arena: Default::default(),
+            function_arena: Default::default(),
             heap_binary_arena: Default::default(),
             map_arena: Default::default(),
             local_reference_arena: Default::default(),

@@ -1,15 +1,15 @@
-use std::collections::vec_deque::VecDeque;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock, Weak};
 
+use crate::code::Code;
 #[cfg(test)]
 use crate::process;
 use crate::process::local::put_pid_to_process;
 use crate::process::Process;
-#[cfg(test)]
-use crate::process::Status;
 use crate::reference;
+use crate::run;
+use crate::run::Run;
 use crate::term::Term;
 use crate::timer::Hierarchy;
 
@@ -38,55 +38,12 @@ impl Default for Priority {
     }
 }
 
-#[derive(Default)]
-pub struct RunQueue(VecDeque<Arc<Process>>);
-
-impl RunQueue {
-    #[cfg(test)]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn push_back(&mut self, process: Arc<Process>) {
-        self.0.push_back(process);
-    }
-
-    #[cfg(test)]
-    fn run_through(&mut self, process: &Arc<Process>) {
-        let pid = process.pid;
-
-        while let Some(front_arc_process) = self.0.pop_front() {
-            Process::run(&front_arc_process);
-
-            let push_back = match *front_arc_process.status.read().unwrap() {
-                Status::Runnable => true,
-                Status::Running => unreachable!(),
-                Status::Exiting(ref _exception) => {
-                    // TODO exit logging and linking
-                    false
-                }
-            };
-
-            let front_pid = front_arc_process.pid;
-
-            if push_back {
-                self.0.push_back(front_arc_process);
-            }
-
-            if front_pid == pid {
-                break;
-            }
-        }
-    }
-}
-
 pub struct Scheduler {
     pub id: ID,
     pub hierarchy: RwLock<Hierarchy>,
     // References are always 64-bits even on 32-bit platforms
     reference_count: AtomicU64,
-    #[allow(dead_code)]
-    run_queue_by_priority: HashMap<Priority, Arc<Mutex<RunQueue>>>,
+    run_queues: RwLock<run::queues::Queues>,
 }
 
 impl Scheduler {
@@ -131,30 +88,85 @@ impl Scheduler {
         process.local_reference(&self.id, number)
     }
 
-    #[cfg(test)]
-    pub fn run_queue(&self, priority: Priority) -> Arc<Mutex<RunQueue>> {
-        Arc::clone(self.run_queue_by_priority.get(&priority).unwrap())
+    /// > 1. Update reduction counters
+    /// > 2. Check timers
+    /// > 3. If needed check balance
+    /// > 4. If needed migrated processes and ports
+    /// > 5. Do auxiliary scheduler work
+    /// > 6. If needed check I/O and update time
+    /// > 7. While needed pick a port task to execute
+    /// > 8. Pick a process to execute
+    /// > -- [The Scheduler Loop](https://blog.stenmans.org/theBeamBook/#_the_scheduler_loop)
+    pub fn run(&self) {
+        loop {
+            self.run_once();
+        }
+    }
+
+    /// > 1. Update reduction counters
+    /// > 2. Check timers
+    /// > 3. If needed check balance
+    /// > 4. If needed migrated processes and ports
+    /// > 5. Do auxiliary scheduler work
+    /// > 6. If needed check I/O and update time
+    /// > 7. While needed pick a port task to execute
+    /// > 8. Pick a process to execute
+    /// > -- [The Scheduler Loop](https://blog.stenmans.org/theBeamBook/#_the_scheduler_loop)
+    fn run_once(&self) {
+        self.hierarchy.write().unwrap().timeout(&self.id);
+
+        loop {
+            // separate from `match` below so that WriteGuard temporary is not held while process
+            // runs.
+            let run = self.run_queues.write().unwrap().dequeue();
+
+            match run {
+                Run::Now(arc_process) => {
+                    Process::run(&arc_process);
+
+                    match self.run_queues.write().unwrap().requeue(arc_process) {
+                        // TODO exit logging
+                        Some(_exiting_arc_process) => {}
+                        None => (),
+                    };
+
+                    break;
+                }
+                Run::Delayed => continue,
+                // TODO steal processes or sleep if nothing to steal
+                Run::None => break,
+            }
+        }
+    }
+
+    pub fn run_queues_len(&self) -> usize {
+        self.run_queues.read().unwrap().len()
     }
 
     #[cfg(test)]
+    pub fn run_queue_len(&self, priority: Priority) -> usize {
+        self.run_queues.read().unwrap().run_queue_len(priority)
+    }
+
     pub fn run_through(&self, arc_process: &Arc<Process>) {
-        let mut locked_run_queue = self
-            .run_queue_by_priority
-            .get(&arc_process.priority)
-            .unwrap()
-            .lock()
-            .unwrap();
+        let ordering = Ordering::SeqCst;
+        let reductions_before = arc_process.total_reductions.load(ordering);
 
-        locked_run_queue.run_through(arc_process)
+        // The same as `run`, but stops when the process is run once
+        while arc_process.total_reductions.load(Ordering::SeqCst) <= reductions_before {
+            self.run_once();
+        }
     }
 
+    /// `arguments` are put in reverse order on the stack where `code` can use them
     pub fn spawn(
         parent_process: &Process,
         module: Term,
         function: Term,
-        arguments: Vec<Term>,
+        arguments: Term,
+        code: Code,
     ) -> Arc<Process> {
-        let process = Process::spawn(parent_process, module, function, arguments);
+        let process = Process::spawn(parent_process, module, function, arguments, code);
         let parent_locked_option_weak_scheduler = parent_process.scheduler.lock().unwrap();
 
         let arc_scheduler = match *parent_locked_option_weak_scheduler {
@@ -171,12 +183,7 @@ impl Scheduler {
             ),
         };
 
-        let mut locked_run_queue = arc_scheduler
-            .run_queue_by_priority
-            .get(&process.priority)
-            .unwrap()
-            .lock()
-            .unwrap();
+        let mut writable_run_queues = arc_scheduler.run_queues.write().unwrap();
 
         {
             let mut locked_option_weak_scheduler = process.scheduler.lock().unwrap();
@@ -185,7 +192,7 @@ impl Scheduler {
 
         let arc_process = Arc::new(process);
 
-        locked_run_queue.push_back(Arc::clone(&arc_process));
+        writable_run_queues.enqueue(Arc::clone(&arc_process));
 
         put_pid_to_process(&arc_process);
 
@@ -199,35 +206,28 @@ impl Scheduler {
         // `parent_process.scheduler.lock` has to be taken first to even get the run queue in
         // `spawn`, so copy that lock order here.
         let mut locked_option_weak_scheduler = scheduler_arc_process.scheduler.lock().unwrap();
-
-        let ref_arc_mutex_run_queue = self
-            .run_queue_by_priority
-            .get(&arc_process.priority)
-            .unwrap();
-        let mut locked_run_queue = ref_arc_mutex_run_queue.lock().unwrap();
+        let mut writable_run_queues = self.run_queues.write().unwrap();
 
         *locked_option_weak_scheduler = Some(Arc::downgrade(&self));
-        locked_run_queue.push_back(Arc::clone(&arc_process));
+        writable_run_queues.enqueue(Arc::clone(&arc_process));
 
         put_pid_to_process(&arc_process);
 
         arc_process
     }
 
+    pub fn stop_waiting(&self, process: &Process) {
+        self.run_queues.write().unwrap().stop_waiting(process);
+    }
+
     // Private
 
     fn new(raw_id: id::Raw) -> Scheduler {
-        let mut run_queue_by_priority = HashMap::with_capacity(4);
-        run_queue_by_priority.insert(Priority::Low, Default::default());
-        run_queue_by_priority.insert(Priority::Normal, Default::default());
-        run_queue_by_priority.insert(Priority::High, Default::default());
-        run_queue_by_priority.insert(Priority::Max, Default::default());
-
         Scheduler {
             id: ID::new(raw_id),
             hierarchy: Default::default(),
             reference_count: AtomicU64::new(0),
-            run_queue_by_priority,
+            run_queues: Default::default(),
         }
     }
 
@@ -325,6 +325,7 @@ mod tests {
             use super::*;
 
             use crate::atom::Existence::DoNotCare;
+            use crate::code;
             use crate::otp::erlang;
 
             #[test]
@@ -332,10 +333,25 @@ mod tests {
                 let erlang = Term::str_to_atom("erlang", DoNotCare).unwrap();
                 let exit = Term::str_to_atom("exit", DoNotCare).unwrap();
                 let normal = Term::str_to_atom("normal", DoNotCare).unwrap();
+                let parent_arc_process = process::local::test_init();
 
-                let first_process =
-                    Scheduler::spawn(&process::local::test_init(), erlang, exit, vec![normal]);
-                let second_process = Scheduler::spawn(&first_process, erlang, exit, vec![normal]);
+                let first_process_arguments = Term::slice_to_list(&[normal], &parent_arc_process);
+                let first_process = Scheduler::spawn(
+                    &parent_arc_process,
+                    erlang,
+                    exit,
+                    first_process_arguments,
+                    code::apply_fn(),
+                );
+
+                let second_process_arguments = Term::slice_to_list(&[normal], &parent_arc_process);
+                let second_process = Scheduler::spawn(
+                    &first_process,
+                    erlang,
+                    exit,
+                    second_process_arguments,
+                    code::apply_fn(),
+                );
 
                 assert_ne!(
                     erlang::self_0(&first_process),

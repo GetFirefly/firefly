@@ -39,13 +39,13 @@ fn with_millisecond_increases_after_2_milliseconds() {
 }
 
 #[test]
-fn with_microsecond_increases_after_2_microseconds() {
+fn with_microsecond_increases_after_2_milliseconds() {
     with_process(|process| {
         let unit = Term::str_to_atom("microsecond", DoNotCare).unwrap();
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 
-        thread::sleep(Duration::from_micros(2));
+        thread::sleep(Duration::from_millis(2));
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 
@@ -54,13 +54,13 @@ fn with_microsecond_increases_after_2_microseconds() {
 }
 
 #[test]
-fn with_nanosecond_increases_after_2_nanoseconds() {
+fn with_nanosecond_increases_after_2_milliseconds() {
     with_process(|process| {
         let unit = Term::str_to_atom("nanosecond", DoNotCare).unwrap();
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 
-        thread::sleep(Duration::from_nanos(2));
+        thread::sleep(Duration::from_millis(2));
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 

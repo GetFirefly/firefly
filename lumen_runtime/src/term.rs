@@ -235,6 +235,22 @@ impl Term {
         atom::index_to_string(self.atom_to_index()).unwrap()
     }
 
+    pub fn box_reference<T>(reference: &T) -> Term {
+        let pointer_bits = reference as *const T as usize;
+
+        assert_eq!(
+            pointer_bits & Tag::BOXED_MASK,
+            0,
+            "Boxed tag bit ({:#b}) would overwrite pointer bits ({:#b})",
+            Tag::BOXED_MASK,
+            pointer_bits
+        );
+
+        Term {
+            tagged: pointer_bits | (Boxed as usize),
+        }
+    }
+
     pub fn byte(&self, index: usize) -> u8 {
         match self.tag() {
             Boxed => {
@@ -264,22 +280,6 @@ impl Term {
         Self::heap_cons(head, tail, &process.heap.lock().unwrap())
     }
 
-    pub fn heap_cons(head: Term, tail: Term, heap: &Heap) -> Term {
-        let pointer_bits = heap.cons(head, tail) as *const Cons as usize;
-
-        assert_eq!(
-            pointer_bits & Tag::LIST_MASK,
-            0,
-            "List tag bit ({:#b}) would overwrite pointer bits ({:#b})",
-            Tag::LIST_MASK,
-            pointer_bits
-        );
-
-        Term {
-            tagged: pointer_bits | (List as usize),
-        }
-    }
-
     /// Counts the number of elements in the Term if it is a list
     pub fn count(self) -> Option<usize> {
         let mut count: usize = 0;
@@ -296,6 +296,15 @@ impl Term {
                 _ => break None,
             }
         }
+    }
+
+    pub unsafe fn decompose_local_pid(&self) -> (usize, usize) {
+        let untagged = self.tagged >> Tag::LOCAL_PID_BIT_COUNT;
+
+        let number = untagged & process::identifier::NUMBER_MASK;
+        let serial = untagged >> process::identifier::NUMBER_BIT_COUNT;
+
+        (number, serial)
     }
 
     /// Converts integers and floats and only do conversion when not `eq`.
@@ -341,6 +350,23 @@ impl Term {
         })
     }
 
+    pub fn external_pid(
+        node: usize,
+        number: usize,
+        serial: usize,
+        process: &Process,
+    ) -> exception::Result {
+        if (number <= process::identifier::NUMBER_MAX)
+            && (serial <= process::identifier::SERIAL_MAX)
+        {
+            Ok(Term::box_reference(
+                process.external_pid(node, number, serial),
+            ))
+        } else {
+            Err(badarg!())
+        }
+    }
+
     pub fn function(
         module_function_arity: Arc<ModuleFunctionArity>,
         code: Code,
@@ -348,6 +374,252 @@ impl Term {
     ) -> Term {
         Term::box_reference(process.function(module_function_arity, code))
     }
+
+    pub fn heap_binary(byte_count: usize) -> Term {
+        assert!(
+            byte_count <= Self::MAX_HEAP_BINARY_BYTE_COUNT,
+            "byte_count ({}) is greater than max heap binary byte count ({})",
+            byte_count,
+            Self::MAX_HEAP_BINARY_BYTE_COUNT,
+        );
+
+        Term {
+            tagged: ((byte_count << Tag::HEAP_BINARY_BIT_COUNT) as usize) | (HeapBinary as usize),
+        }
+    }
+
+    pub unsafe fn heap_binary_to_byte_count(&self) -> usize {
+        (self.tagged & !(HeapBinary as usize)) >> Tag::HEAP_BINARY_BIT_COUNT
+    }
+
+    pub fn heap_cons(head: Term, tail: Term, heap: &Heap) -> Term {
+        let pointer_bits = heap.cons(head, tail) as *const Cons as usize;
+
+        assert_eq!(
+            pointer_bits & Tag::LIST_MASK,
+            0,
+            "List tag bit ({:#b}) would overwrite pointer bits ({:#b})",
+            Tag::LIST_MASK,
+            pointer_bits
+        );
+
+        Term {
+            tagged: pointer_bits | (List as usize),
+        }
+    }
+
+    pub fn is_atom(&self) -> bool {
+        self.tag() == Atom
+    }
+
+    pub fn is_char_list(&self) -> bool {
+        match self.tag() {
+            EmptyList => true,
+            List => {
+                let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+
+                cons.is_char_list()
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_empty_list(&self) -> bool {
+        (self.tag() == EmptyList)
+    }
+
+    pub fn is_function(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                unboxed.tag() == Function
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_integer(&self) -> bool {
+        match self.tag() {
+            SmallInteger => true,
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                unboxed.tag() == BigInteger
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_local_pid(&self) -> bool {
+        self.tag() == LocalPid
+    }
+
+    pub fn is_number(&self) -> bool {
+        match self.tag() {
+            SmallInteger => true,
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger | Float => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_proper_list(&self) -> bool {
+        match self.tag() {
+            EmptyList => true,
+            List => unsafe { self.as_ref_cons_unchecked() }.is_proper(),
+            _ => false,
+        }
+    }
+
+    pub const unsafe fn isize_to_small_integer(i: isize) -> Term {
+        Term {
+            tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (SmallInteger as usize),
+        }
+    }
+
+    pub fn local_pid(number: usize, serial: usize) -> exception::Result {
+        if (number <= process::identifier::NUMBER_MAX)
+            && (serial <= process::identifier::SERIAL_MAX)
+        {
+            Ok(unsafe { Self::local_pid_unchecked(number, serial) })
+        } else {
+            Err(badarg!())
+        }
+    }
+
+    pub unsafe fn local_pid_unchecked(number: usize, serial: usize) -> Term {
+        Term {
+            tagged: (serial << (process::identifier::NUMBER_BIT_COUNT + Tag::LOCAL_PID_BIT_COUNT))
+                | (number << (Tag::LOCAL_PID_BIT_COUNT))
+                | (LocalPid as usize),
+        }
+    }
+
+    pub fn local_reference(number: local::Number, process: &Process) -> Term {
+        Term::box_reference(Scheduler::current().reference(number, process))
+    }
+
+    pub fn next_local_reference(process: &Process) -> Term {
+        Term::box_reference(Scheduler::current().next_reference(process))
+    }
+
+    pub fn pid(node: usize, number: usize, serial: usize, process: &Process) -> exception::Result {
+        if node == 0 {
+            Self::local_pid(number, serial)
+        } else {
+            Self::external_pid(node, number, serial, process)
+        }
+    }
+
+    pub fn slice_to_binary(slice: &[u8], process: &Process) -> Term {
+        process.slice_to_binary(slice).into()
+    }
+
+    pub fn slice_to_improper_list(slice: &[Term], tail: Term, process: &Process) -> Term {
+        slice.iter().rfold(tail, |acc, element| {
+            Term::cons(element.clone(), acc, &process)
+        })
+    }
+
+    pub fn slice_to_list(slice: &[Term], process: &Process) -> Term {
+        Self::slice_to_improper_list(slice, Term::EMPTY_LIST, &process)
+    }
+
+    pub fn slice_to_map(slice: &[(Term, Term)], process: &Process) -> Term {
+        process.slice_to_map(slice).into()
+    }
+
+    pub fn slice_to_tuple(slice: &[Term], process: &Process) -> Term {
+        process.slice_to_tuple(slice).into()
+    }
+
+    /// Only call if verified `tag` is `SmallInteger`.
+    pub unsafe fn small_integer_is_negative(&self) -> bool {
+        self.tagged & Term::SMALL_INTEGER_SIGN_BIT_MASK == Term::SMALL_INTEGER_SIGN_BIT_MASK
+    }
+
+    pub unsafe fn small_integer_to_big_int(&self) -> BigInt {
+        self.small_integer_to_isize().into()
+    }
+
+    pub unsafe fn small_integer_to_isize(&self) -> isize {
+        (self.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT
+    }
+
+    pub unsafe fn small_integer_to_usize(&self) -> usize {
+        assert_eq!(
+            self.tag(),
+            SmallInteger,
+            "Term ({:#b}) is not a small integer",
+            self.tagged
+        );
+
+        ((self.tagged & !(SmallInteger as usize)) >> Tag::SMALL_INTEGER_BIT_COUNT)
+    }
+
+    pub fn str_to_atom(name: &str, existence: Existence) -> Option<Term> {
+        atom::str_to_index(name, existence).map(|atom_index| atom_index.into())
+    }
+
+    pub fn str_to_char_list(name: &str, process: &Process) -> Term {
+        name.chars().rfold(Term::EMPTY_LIST, |acc, c| {
+            Term::cons(c.into_process(&process), acc, &process)
+        })
+    }
+
+    pub fn subbinary(
+        original: Term,
+        byte_offset: usize,
+        bit_offset: u8,
+        byte_count: usize,
+        bit_count: u8,
+        process: &Process,
+    ) -> Term {
+        process
+            .subbinary(original, byte_offset, bit_offset, byte_count, bit_count)
+            .into()
+    }
+
+    pub fn tag(&self) -> Tag {
+        match (self.tagged as usize).try_into() {
+            Ok(tag) => tag,
+            Err(tag_error) => panic!(tag_error),
+        }
+    }
+
+    pub fn unbox_reference<T>(&self) -> &'static T {
+        const TAG_BOXED: usize = Boxed as usize;
+
+        assert_eq!(
+            self.tagged & TAG_BOXED,
+            TAG_BOXED,
+            "Term ({:#b}) is not tagged as boxed ({:#b})",
+            self.tagged,
+            TAG_BOXED
+        );
+
+        let pointer_bits = self.tagged & !TAG_BOXED;
+        let pointer = pointer_bits as *const T;
+
+        unsafe { pointer.as_ref() }.unwrap()
+    }
+
+    pub fn vec_to_list(vec: &Vec<Term>, initial_tail: Term, process: &Process) -> Term {
+        vec.iter().rfold(initial_tail, |acc, element| {
+            Term::cons(element.clone(), acc, &process)
+        })
+    }
+
+    // Private
+
+    const SMALL_INTEGER_SIGN_BIT_MASK: usize = std::isize::MIN as usize;
 
     unsafe fn small_integer_eq_float_after_conversion(
         small_integer: &Term,
@@ -495,262 +767,6 @@ impl Term {
         }
     }
 
-    pub fn external_pid(
-        node: usize,
-        number: usize,
-        serial: usize,
-        process: &Process,
-    ) -> exception::Result {
-        if (number <= process::identifier::NUMBER_MAX)
-            && (serial <= process::identifier::SERIAL_MAX)
-        {
-            Ok(Term::box_reference(
-                process.external_pid(node, number, serial),
-            ))
-        } else {
-            Err(badarg!())
-        }
-    }
-
-    pub fn heap_binary(byte_count: usize) -> Term {
-        assert!(
-            byte_count <= Self::MAX_HEAP_BINARY_BYTE_COUNT,
-            "byte_count ({}) is greater than max heap binary byte count ({})",
-            byte_count,
-            Self::MAX_HEAP_BINARY_BYTE_COUNT,
-        );
-
-        Term {
-            tagged: ((byte_count << Tag::HEAP_BINARY_BIT_COUNT) as usize) | (HeapBinary as usize),
-        }
-    }
-
-    pub unsafe fn heap_binary_to_byte_count(&self) -> usize {
-        (self.tagged & !(HeapBinary as usize)) >> Tag::HEAP_BINARY_BIT_COUNT
-    }
-
-    pub fn local_pid(number: usize, serial: usize) -> exception::Result {
-        if (number <= process::identifier::NUMBER_MAX)
-            && (serial <= process::identifier::SERIAL_MAX)
-        {
-            Ok(unsafe { Self::local_pid_unchecked(number, serial) })
-        } else {
-            Err(badarg!())
-        }
-    }
-
-    pub unsafe fn local_pid_unchecked(number: usize, serial: usize) -> Term {
-        Term {
-            tagged: (serial << (process::identifier::NUMBER_BIT_COUNT + Tag::LOCAL_PID_BIT_COUNT))
-                | (number << (Tag::LOCAL_PID_BIT_COUNT))
-                | (LocalPid as usize),
-        }
-    }
-
-    pub unsafe fn decompose_local_pid(&self) -> (usize, usize) {
-        let untagged = self.tagged >> Tag::LOCAL_PID_BIT_COUNT;
-
-        let number = untagged & process::identifier::NUMBER_MASK;
-        let serial = untagged >> process::identifier::NUMBER_BIT_COUNT;
-
-        (number, serial)
-    }
-
-    pub fn local_reference(number: local::Number, process: &Process) -> Term {
-        Term::box_reference(Scheduler::current().reference(number, process))
-    }
-
-    pub fn next_local_reference(process: &Process) -> Term {
-        Term::box_reference(Scheduler::current().next_reference(process))
-    }
-
-    pub fn tag(&self) -> Tag {
-        match (self.tagged as usize).try_into() {
-            Ok(tag) => tag,
-            Err(tag_error) => panic!(tag_error),
-        }
-    }
-
-    pub fn is_atom(&self) -> bool {
-        self.tag() == Atom
-    }
-
-    pub fn is_char_list(&self) -> bool {
-        match self.tag() {
-            EmptyList => true,
-            List => {
-                let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
-
-                cons.is_char_list()
-            }
-            _ => false,
-        }
-    }
-
-    pub fn is_empty_list(&self) -> bool {
-        (self.tag() == EmptyList)
-    }
-
-    pub fn is_function(&self) -> bool {
-        match self.tag() {
-            Boxed => {
-                let unboxed: &Term = self.unbox_reference();
-
-                unboxed.tag() == Function
-            }
-            _ => false,
-        }
-    }
-
-    pub fn is_integer(&self) -> bool {
-        match self.tag() {
-            SmallInteger => true,
-            Boxed => {
-                let unboxed: &Term = self.unbox_reference();
-
-                unboxed.tag() == BigInteger
-            }
-            _ => false,
-        }
-    }
-
-    pub fn is_local_pid(&self) -> bool {
-        self.tag() == LocalPid
-    }
-
-    pub fn is_number(&self) -> bool {
-        match self.tag() {
-            SmallInteger => true,
-            Boxed => {
-                let unboxed: &Term = self.unbox_reference();
-
-                match unboxed.tag() {
-                    BigInteger | Float => true,
-                    _ => false,
-                }
-            }
-            _ => false,
-        }
-    }
-
-    pub fn is_proper_list(&self) -> bool {
-        match self.tag() {
-            EmptyList => true,
-            List => unsafe { self.as_ref_cons_unchecked() }.is_proper(),
-            _ => false,
-        }
-    }
-
-    pub fn pid(node: usize, number: usize, serial: usize, process: &Process) -> exception::Result {
-        if node == 0 {
-            Self::local_pid(number, serial)
-        } else {
-            Self::external_pid(node, number, serial, process)
-        }
-    }
-
-    pub fn slice_to_binary(slice: &[u8], process: &Process) -> Term {
-        process.slice_to_binary(slice).into()
-    }
-
-    pub fn slice_to_list(slice: &[Term], process: &Process) -> Term {
-        Self::slice_to_improper_list(slice, Term::EMPTY_LIST, &process)
-    }
-
-    pub fn slice_to_improper_list(slice: &[Term], tail: Term, process: &Process) -> Term {
-        slice.iter().rfold(tail, |acc, element| {
-            Term::cons(element.clone(), acc, &process)
-        })
-    }
-
-    pub fn slice_to_map(slice: &[(Term, Term)], process: &Process) -> Term {
-        process.slice_to_map(slice).into()
-    }
-
-    pub fn slice_to_tuple(slice: &[Term], process: &Process) -> Term {
-        process.slice_to_tuple(slice).into()
-    }
-
-    pub fn str_to_atom(name: &str, existence: Existence) -> Option<Term> {
-        atom::str_to_index(name, existence).map(|atom_index| atom_index.into())
-    }
-
-    pub fn str_to_char_list(name: &str, process: &Process) -> Term {
-        name.chars().rfold(Term::EMPTY_LIST, |acc, c| {
-            Term::cons(c.into_process(&process), acc, &process)
-        })
-    }
-
-    pub fn subbinary(
-        original: Term,
-        byte_offset: usize,
-        bit_offset: u8,
-        byte_count: usize,
-        bit_count: u8,
-        process: &Process,
-    ) -> Term {
-        process
-            .subbinary(original, byte_offset, bit_offset, byte_count, bit_count)
-            .into()
-    }
-
-    pub fn vec_to_list(vec: &Vec<Term>, initial_tail: Term, process: &Process) -> Term {
-        vec.iter().rfold(initial_tail, |acc, element| {
-            Term::cons(element.clone(), acc, &process)
-        })
-    }
-
-    pub fn box_reference<T>(reference: &T) -> Term {
-        let pointer_bits = reference as *const T as usize;
-
-        assert_eq!(
-            pointer_bits & Tag::BOXED_MASK,
-            0,
-            "Boxed tag bit ({:#b}) would overwrite pointer bits ({:#b})",
-            Tag::BOXED_MASK,
-            pointer_bits
-        );
-
-        Term {
-            tagged: pointer_bits | (Boxed as usize),
-        }
-    }
-
-    pub fn unbox_reference<T>(&self) -> &'static T {
-        const TAG_BOXED: usize = Boxed as usize;
-
-        assert_eq!(
-            self.tagged & TAG_BOXED,
-            TAG_BOXED,
-            "Term ({:#b}) is not tagged as boxed ({:#b})",
-            self.tagged,
-            TAG_BOXED
-        );
-
-        let pointer_bits = self.tagged & !TAG_BOXED;
-        let pointer = pointer_bits as *const T;
-
-        unsafe { pointer.as_ref() }.unwrap()
-    }
-
-    const SMALL_INTEGER_SIGN_BIT_MASK: usize = std::isize::MIN as usize;
-
-    pub unsafe fn small_integer_to_usize(&self) -> usize {
-        assert_eq!(
-            self.tag(),
-            SmallInteger,
-            "Term ({:#b}) is not a small integer",
-            self.tagged
-        );
-
-        ((self.tagged & !(SmallInteger as usize)) >> Tag::SMALL_INTEGER_BIT_COUNT)
-    }
-
-    /// Only call if verified `tag` is `SmallInteger`.
-    pub unsafe fn small_integer_is_negative(&self) -> bool {
-        self.tagged & Term::SMALL_INTEGER_SIGN_BIT_MASK == Term::SMALL_INTEGER_SIGN_BIT_MASK
-    }
-
     unsafe fn small_integer_partial_cmp_boxed(
         small_integer: &Term,
         boxed: &Term,
@@ -777,20 +793,6 @@ impl Term {
             LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Some(Less),
             other_unboxed_tag => unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag),
         }
-    }
-
-    pub const unsafe fn isize_to_small_integer(i: isize) -> Term {
-        Term {
-            tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (SmallInteger as usize),
-        }
-    }
-
-    pub unsafe fn small_integer_to_isize(&self) -> isize {
-        (self.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT
-    }
-
-    pub unsafe fn small_integer_to_big_int(&self) -> BigInt {
-        self.small_integer_to_isize().into()
     }
 }
 

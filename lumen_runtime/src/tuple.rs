@@ -308,6 +308,15 @@ impl Iterator for Iter {
 
 impl FusedIterator for Iter {}
 
+impl Ord for Tuple {
+    fn cmp(&self, other: &Tuple) -> Ordering {
+        match self.len().cmp(&other.len()) {
+            Equal => self.iter().cmp(other.iter()),
+            ordering => ordering,
+        }
+    }
+}
+
 impl PartialEq for Tuple {
     fn eq(&self, other: &Tuple) -> bool {
         (self.arity.tagged == other.arity.tagged)
@@ -320,10 +329,7 @@ impl PartialEq for Tuple {
 
 impl PartialOrd for Tuple {
     fn partial_cmp(&self, other: &Tuple) -> Option<Ordering> {
-        match self.len().partial_cmp(&other.len()) {
-            Some(Equal) => self.iter().partial_cmp(other.iter()),
-            partial_ordering => partial_ordering,
-        }
+        Some(self.cmp(other))
     }
 }
 

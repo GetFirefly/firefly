@@ -642,10 +642,7 @@ impl Term {
         }
     }
 
-    unsafe fn big_integer_partial_cmp_float(
-        big_integer_term: &Term,
-        float_term: &Term,
-    ) -> Option<Ordering> {
+    unsafe fn big_integer_cmp_float(big_integer_term: &Term, float_term: &Term) -> Ordering {
         let big_integer: &big::Integer = big_integer_term.unbox_reference();
         let big_integer_big_int = &big_integer.inner;
         let float: &Float = float_term.unbox_reference();
@@ -656,37 +653,37 @@ impl Term {
                 if float_f64 < 0.0 {
                     // fits in small integer so the big integer must be lesser
                     if (small::MIN as f64) <= float_f64 {
-                        Some(Less)
+                        Less
                     // big_int can't fit in float, so it must be less than any float
                     } else if (std::f64::MAX_EXP as usize) < big_integer_big_int.bits() {
-                        Some(Less)
+                        Less
                     // > A float is more precise than an integer until all
                     // > significant figures of the float are to the left of the
                     // > decimal point.
                     } else if float::INTEGRAL_MIN <= float_f64 {
                         let big_integer_f64: f64 = big_integer.into();
 
-                        big_integer_f64.partial_cmp(&float_f64)
+                        Self::f64_cmp_f64(big_integer_f64, float_f64)
                     } else {
                         let float_integral_f64 = float_f64.trunc();
                         let float_big_int = integral_f64_to_big_int(float_integral_f64);
 
-                        match big_integer_big_int.partial_cmp(&float_big_int) {
-                            Some(Equal) => {
+                        match big_integer_big_int.cmp(&float_big_int) {
+                            Equal => {
                                 let float_fract = float_f64 - float_integral_f64;
 
                                 if float_fract == 0.0 {
-                                    Some(Equal)
+                                    Equal
                                 } else {
                                     // BigInt Is -N while float is -N.M
-                                    Some(Greater)
+                                    Greater
                                 }
                             }
-                            partial_ordering => partial_ordering,
+                            ordering => ordering,
                         }
                     }
                 } else {
-                    Some(Less)
+                    Less
                 }
             }
             // BigInt does not have a zero because zero is a SmallInteger
@@ -695,37 +692,37 @@ impl Term {
                 if 0.0 < float_f64 {
                     // fits in small integer, so the big integer must be greater
                     if float_f64 <= (small::MAX as f64) {
-                        Some(Greater)
+                        Greater
                     // big_int can't fit in float, so it must be greater than any float
                     } else if (std::f64::MAX_EXP as usize) < big_integer_big_int.bits() {
-                        Some(Greater)
+                        Greater
                     // > A float is more precise than an integer until all
                     // > significant figures of the float are to the left of the
                     // > decimal point.
                     } else if float_f64 <= float::INTEGRAL_MAX {
                         let big_integer_f64: f64 = big_integer.into();
 
-                        big_integer_f64.partial_cmp(&float_f64)
+                        Self::f64_cmp_f64(big_integer_f64, float_f64)
                     } else {
                         let float_integral_f64 = float_f64.trunc();
                         let float_big_int = integral_f64_to_big_int(float_integral_f64);
 
-                        match big_integer_big_int.partial_cmp(&float_big_int) {
-                            Some(Equal) => {
+                        match big_integer_big_int.cmp(&float_big_int) {
+                            Equal => {
                                 let float_fract = float_f64 - float_integral_f64;
 
                                 if float_fract == 0.0 {
-                                    Some(Equal)
+                                    Equal
                                 } else {
                                     // BigInt is N while float is N.M
-                                    Some(Less)
+                                    Less
                                 }
                             }
-                            partial_ordering => partial_ordering,
+                            ordering => ordering,
                         }
                     }
                 } else {
-                    Some(Greater)
+                    Greater
                 }
             }
         }
@@ -767,10 +764,15 @@ impl Term {
         }
     }
 
-    unsafe fn small_integer_partial_cmp_boxed(
-        small_integer: &Term,
-        boxed: &Term,
-    ) -> Option<Ordering> {
+    unsafe fn f64_cmp_f64(left: f64, right: f64) -> Ordering {
+        match left.partial_cmp(&right) {
+            Some(ordering) => ordering,
+            // Erlang doesn't support the floats that can't be compared
+            None => unreachable!(),
+        }
+    }
+
+    unsafe fn small_integer_cmp_boxed(small_integer: &Term, boxed: &Term) -> Ordering {
         let unboxed: &Term = boxed.unbox_reference();
 
         match unboxed.tag() {
@@ -780,7 +782,7 @@ impl Term {
                 let boxed_float: &Float = boxed.unbox_reference();
                 let boxed_f64 = boxed_float.inner;
 
-                small_integer_f64.partial_cmp(&boxed_f64)
+                Self::f64_cmp_f64(small_integer_f64, boxed_f64)
             }
             BigInteger => {
                 let small_integer_big_int: BigInt = small_integer.small_integer_to_isize().into();
@@ -788,9 +790,9 @@ impl Term {
                 let boxed_big_integer: &big::Integer = boxed.unbox_reference();
                 let boxed_big_int = &boxed_big_integer.inner;
 
-                small_integer_big_int.partial_cmp(boxed_big_int)
+                small_integer_big_int.cmp(boxed_big_int)
             }
-            LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Some(Less),
+            LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
             other_unboxed_tag => unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag),
         }
     }
@@ -1213,9 +1215,278 @@ impl From<atom::Index> for Term {
     }
 }
 
+/// All terms in Erlang and Elixir are completely ordered.
+///
+/// number < atom < reference < function < port < pid < tuple < map < list < bitstring
+///
+/// > When comparing two numbers of different types (a number being either an integer or a float), a
+/// > conversion to the type with greater precision will always occur, unless the comparison
+/// > operator used is either === or !==. A float will be considered more precise than an integer,
+/// > unless the float is greater/less than +/-9007199254740992.0 respectively, at which point all
+/// > the significant figures of the float are to the left of the decimal point. This behavior
+/// > exists so that the comparison of large numbers remains transitive.
+/// >
+/// > The collection types are compared using the following rules:
+/// >
+/// > * Tuples are compared by size, then element by element.
+/// > * Maps are compared by size, then by keys in ascending term order, then by values in key
+/// >   order.   In the specific case of maps' key ordering, integers are always considered to be
+/// >   less than floats.
+/// > * Lists are compared element by element.
+/// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+/// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
 impl Ord for Term {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        // in ascending order
+        match (self.tag(), other.tag()) {
+            (Arity, Arity) | (HeapBinary, HeapBinary) | (LocalPid, LocalPid) => {
+                self.tagged.cmp(&other.tagged)
+            }
+            (SmallInteger, SmallInteger) => {
+                if self.tagged == other.tagged {
+                    Equal
+                } else {
+                    let self_isize: isize = unsafe { self.small_integer_to_isize() };
+                    let other_isize: isize = unsafe { other.small_integer_to_isize() };
+
+                    self_isize.cmp(&other_isize)
+                }
+            }
+            (SmallInteger, Boxed) => unsafe { Term::small_integer_cmp_boxed(&self, &other) },
+            (SmallInteger, Atom)
+            | (SmallInteger, LocalPid)
+            | (SmallInteger, EmptyList)
+            | (SmallInteger, List) => Less,
+            (Atom, SmallInteger) => Greater,
+            (Atom, Atom) => {
+                if self.tagged == other.tagged {
+                    Equal
+                } else {
+                    let self_index = unsafe { self.atom_to_index() };
+                    let other_index = unsafe { other.atom_to_index() };
+
+                    self_index.cmp(&other_index)
+                }
+            }
+            (Atom, Boxed) => {
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match other_unboxed.tag() {
+                    LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
+                    BigInteger | Float => Greater,
+                    other_unboxed_tag => unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag),
+                }
+            }
+            (Atom, LocalPid) | (Atom, EmptyList) | (Atom, List) => Less,
+            (Boxed, SmallInteger) => {
+                unsafe { Term::small_integer_cmp_boxed(&other, &self) }.reverse()
+            }
+            (Boxed, Atom) => {
+                let self_unboxed: &Term = self.unbox_reference();
+
+                match self_unboxed.tag() {
+                    BigInteger | Float => Less,
+                    LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Greater,
+                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag),
+                }
+            }
+            (Boxed, Boxed) => {
+                let self_unboxed: &Term = self.unbox_reference();
+                let other_unboxed: &Term = other.unbox_reference();
+
+                // in ascending order
+                match (self_unboxed.tag(), other_unboxed.tag()) {
+                    (Float, BigInteger) => {
+                        unsafe { Term::big_integer_cmp_float(&other, &self) }.reverse()
+                    }
+                    (Float, Float) => {
+                        let self_float: &Float = self.unbox_reference();
+                        let self_inner = self_float.inner;
+
+                        let other_float: &Float = other.unbox_reference();
+                        let other_inner = other_float.inner;
+
+                        unsafe { Term::f64_cmp_f64(self_inner, other_inner) }
+                    }
+                    (Float, LocalReference)
+                    | (Float, ExternalPid)
+                    | (Float, Arity)
+                    | (Float, Map)
+                    | (Float, HeapBinary)
+                    | (Float, Subbinary) => Less,
+                    (BigInteger, BigInteger) => {
+                        let self_big_integer: &big::Integer = self.unbox_reference();
+                        let other_big_integer: &big::Integer = other.unbox_reference();
+
+                        self_big_integer.inner.cmp(&other_big_integer.inner)
+                    }
+                    (BigInteger, Float) => unsafe { Term::big_integer_cmp_float(&self, &other) },
+                    (BigInteger, LocalReference)
+                    | (BigInteger, ExternalPid)
+                    | (BigInteger, Arity)
+                    | (BigInteger, Map)
+                    | (BigInteger, HeapBinary)
+                    | (BigInteger, Subbinary) => Less,
+                    (LocalReference, BigInteger) | (LocalReference, Float) => Greater,
+                    (LocalReference, LocalReference) => {
+                        let self_local_reference: &local::Reference = self.unbox_reference();
+                        let other_local_reference: &local::Reference = other.unbox_reference();
+
+                        self_local_reference
+                            .number()
+                            .cmp(&other_local_reference.number())
+                    }
+                    (LocalReference, LocalPid)
+                    | (LocalReference, ExternalPid)
+                    | (LocalReference, Arity)
+                    | (LocalReference, Map)
+                    | (LocalReference, HeapBinary)
+                    | (LocalReference, Subbinary) => Less,
+                    (ExternalPid, Float)
+                    | (ExternalPid, BigInteger)
+                    | (ExternalPid, LocalReference) => Greater,
+                    (ExternalPid, ExternalPid) => {
+                        let self_external_pid: &process::identifier::External =
+                            self.unbox_reference();
+                        let other_external_pid: &process::identifier::External =
+                            other.unbox_reference();
+
+                        self_external_pid.cmp(other_external_pid)
+                    }
+                    (ExternalPid, Arity)
+                    | (ExternalPid, Map)
+                    | (ExternalPid, HeapBinary)
+                    | (ExternalPid, Subbinary) => Less,
+                    (Arity, Float)
+                    | (Arity, BigInteger)
+                    | (Arity, LocalReference)
+                    | (Arity, ExternalPid) => Greater,
+                    (Arity, Arity) => {
+                        let self_tuple: &Tuple = self.unbox_reference();
+                        let other_tuple: &Tuple = other.unbox_reference();
+
+                        self_tuple.cmp(other_tuple)
+                    }
+                    (Arity, Map) | (Arity, HeapBinary) | (Arity, Subbinary) => Less,
+                    (Map, Float)
+                    | (Map, BigInteger)
+                    | (Map, LocalReference)
+                    | (Map, ExternalPid)
+                    | (Map, Arity) => Greater,
+                    (Map, Map) => {
+                        let self_map: &Map = self.unbox_reference();
+                        let other_map: &Map = other.unbox_reference();
+
+                        self_map.cmp(other_map)
+                    }
+                    (Map, HeapBinary) | (Map, Subbinary) => Less,
+                    (HeapBinary, Float)
+                    | (HeapBinary, BigInteger)
+                    | (HeapBinary, LocalReference)
+                    | (HeapBinary, ExternalPid)
+                    | (HeapBinary, Arity)
+                    | (HeapBinary, Map) => Greater,
+                    (HeapBinary, HeapBinary) => {
+                        let self_binary: &heap::Binary = self.unbox_reference();
+                        let other_binary: &heap::Binary = other.unbox_reference();
+
+                        self_binary.cmp(other_binary)
+                    }
+                    (HeapBinary, Subbinary) => {
+                        let self_heap_binary: &heap::Binary = self.unbox_reference();
+                        let other_subbinary: &sub::Binary = other.unbox_reference();
+
+                        self_heap_binary.partial_cmp(other_subbinary).unwrap()
+                    }
+                    (Subbinary, HeapBinary) => {
+                        let self_subbinary: &sub::Binary = self.unbox_reference();
+                        let other_heap_binary: &heap::Binary = other.unbox_reference();
+
+                        self_subbinary.partial_cmp(other_heap_binary).unwrap()
+                    }
+                    (Subbinary, Float)
+                    | (Subbinary, BigInteger)
+                    | (Subbinary, LocalReference)
+                    | (Subbinary, ExternalPid)
+                    | (Subbinary, Arity)
+                    | (Subbinary, Map) => Greater,
+                    (Subbinary, Subbinary) => {
+                        let self_subbinary: &sub::Binary = self.unbox_reference();
+                        let other_subbinary: &sub::Binary = other.unbox_reference();
+
+                        self_subbinary.cmp(other_subbinary)
+                    }
+                    (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
+                        "unboxed {:?} cmp unboxed {:?}",
+                        self_unboxed_tag,
+                        other_unboxed_tag
+                    ),
+                }
+            }
+            (Boxed, LocalPid) => {
+                let self_unboxed: &Term = self.unbox_reference();
+
+                match self_unboxed.tag() {
+                    Float | BigInteger | LocalReference => Less,
+                    // local pid has node 0 while all external pids have node > 0
+                    ExternalPid | Arity | Map | HeapBinary | Subbinary => Greater,
+                    self_unboxed_tag => {
+                        unimplemented!("unboxed {:?} cmp LocalPid", self_unboxed_tag)
+                    }
+                }
+            }
+            (Boxed, EmptyList) | (Boxed, List) => {
+                let self_unboxed: &Term = self.unbox_reference();
+
+                match self_unboxed.tag() {
+                    Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Less,
+                    HeapBinary | Subbinary => Greater,
+                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag),
+                }
+            }
+            (LocalPid, SmallInteger) | (LocalPid, Atom) => Greater,
+            (LocalPid, Boxed) => {
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match other_unboxed.tag() {
+                    Float | BigInteger | LocalReference => Greater,
+                    ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
+                    other_unboxed_tag => {
+                        unimplemented!("LocalPid cmp unboxed {:?}", other_unboxed_tag)
+                    }
+                }
+            }
+            (LocalPid, EmptyList) | (LocalPid, List) => Less,
+            (EmptyList, SmallInteger) | (EmptyList, Atom) | (EmptyList, LocalPid) => Greater,
+            (EmptyList, Boxed) | (List, Boxed) => {
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match other_unboxed.tag() {
+                    Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Greater,
+                    HeapBinary | Subbinary => Less,
+                    other_unboxed_tag => {
+                        unimplemented!("list() cmp unboxed {:?}", other_unboxed_tag)
+                    }
+                }
+            }
+            (EmptyList, EmptyList) => Equal,
+            (EmptyList, List) => {
+                // Empty list is shorter than all lists, so it is lesser.
+                Less
+            }
+            (List, SmallInteger) | (List, Atom) | (List, LocalPid) => Greater,
+            (List, EmptyList) => {
+                // Any list is longer than empty list
+                Greater
+            }
+            (List, List) => {
+                let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
+                let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
+
+                self_cons.cmp(other_cons)
+            }
+            (self_tag, other_tag) => unimplemented!("{:?} cmp {:?}", self_tag, other_tag),
+        }
     }
 }
 
@@ -1362,290 +1633,9 @@ impl PartialEq for Term {
     }
 }
 
-/// All terms in Erlang and Elixir are completely ordered.
-///
-/// number < atom < reference < function < port < pid < tuple < map < list < bitstring
-///
-/// > When comparing two numbers of different types (a number being either an integer or a float), a
-/// > conversion to the type with greater precision will always occur, unless the comparison
-/// > operator used is either === or !==. A float will be considered more precise than an integer,
-/// > unless the float is greater/less than +/-9007199254740992.0 respectively, at which point all
-/// > the significant figures of the float are to the left of the decimal point. This behavior
-/// > exists so that the comparison of large numbers remains transitive.
-/// >
-/// > The collection types are compared using the following rules:
-/// >
-/// > * Tuples are compared by size, then element by element.
-/// > * Maps are compared by size, then by keys in ascending term order, then by values in key
-/// >   order.   In the specific case of maps' key ordering, integers are always considered to be
-/// >   less than floats.
-/// > * Lists are compared element by element.
-/// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-/// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
 impl PartialOrd for Term {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        // in ascending order
-        match (self.tag(), other.tag()) {
-            (Arity, Arity) | (HeapBinary, HeapBinary) => self.tagged.partial_cmp(&other.tagged),
-            (SmallInteger, SmallInteger) => {
-                if self.tagged == other.tagged {
-                    Some(Equal)
-                } else {
-                    let self_isize: isize = unsafe { self.small_integer_to_isize() };
-                    let other_isize: isize = unsafe { other.small_integer_to_isize() };
-
-                    self_isize.partial_cmp(&other_isize)
-                }
-            }
-            (SmallInteger, Boxed) => unsafe {
-                Term::small_integer_partial_cmp_boxed(&self, &other)
-            },
-            (SmallInteger, Atom)
-            | (SmallInteger, LocalPid)
-            | (SmallInteger, EmptyList)
-            | (SmallInteger, List) => Some(Less),
-            (Atom, SmallInteger) => Some(Greater),
-            (Atom, Atom) => {
-                if self.tagged == other.tagged {
-                    Some(Equal)
-                } else {
-                    let self_index = unsafe { self.atom_to_index() };
-                    let other_index = unsafe { other.atom_to_index() };
-
-                    self_index.partial_cmp(&other_index)
-                }
-            }
-            (Atom, Boxed) => {
-                let other_unboxed: &Term = other.unbox_reference();
-
-                match other_unboxed.tag() {
-                    LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => {
-                        Some(Less)
-                    }
-                    BigInteger | Float => Some(Greater),
-                    other_unboxed_tag => unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag),
-                }
-            }
-            (Atom, LocalPid) | (Atom, EmptyList) | (Atom, List) => Some(Less),
-            (Boxed, SmallInteger) => {
-                unsafe { Term::small_integer_partial_cmp_boxed(&other, &self) }
-                    .map(|ordering| ordering.reverse())
-            }
-            (Boxed, Atom) => {
-                let self_unboxed: &Term = self.unbox_reference();
-
-                match self_unboxed.tag() {
-                    BigInteger | Float => Some(Less),
-                    LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => {
-                        Some(Greater)
-                    }
-                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag),
-                }
-            }
-            (Boxed, Boxed) => {
-                let self_unboxed: &Term = self.unbox_reference();
-                let other_unboxed: &Term = other.unbox_reference();
-
-                // in ascending order
-                match (self_unboxed.tag(), other_unboxed.tag()) {
-                    (Float, BigInteger) => {
-                        unsafe { Term::big_integer_partial_cmp_float(&other, &self) }
-                            .map(|ordering| ordering.reverse())
-                    }
-                    (Float, Float) => {
-                        let self_float: &Float = self.unbox_reference();
-                        let self_inner = self_float.inner;
-
-                        let other_float: &Float = other.unbox_reference();
-                        let other_inner = other_float.inner;
-
-                        // Erlang doesn't support the floats that can't be compared
-                        self_inner.partial_cmp(&other_inner)
-                    }
-                    (Float, LocalReference)
-                    | (Float, ExternalPid)
-                    | (Float, Arity)
-                    | (Float, Map)
-                    | (Float, HeapBinary)
-                    | (Float, Subbinary) => Some(Less),
-                    (BigInteger, BigInteger) => {
-                        let self_big_integer: &big::Integer = self.unbox_reference();
-                        let other_big_integer: &big::Integer = other.unbox_reference();
-
-                        self_big_integer.inner.partial_cmp(&other_big_integer.inner)
-                    }
-                    (BigInteger, Float) => unsafe {
-                        Term::big_integer_partial_cmp_float(&self, &other)
-                    },
-                    (BigInteger, LocalReference)
-                    | (BigInteger, ExternalPid)
-                    | (BigInteger, Arity)
-                    | (BigInteger, Map)
-                    | (BigInteger, HeapBinary)
-                    | (BigInteger, Subbinary) => Some(Less),
-                    (LocalReference, BigInteger) | (LocalReference, Float) => Some(Greater),
-                    (LocalReference, LocalReference) => {
-                        let self_local_reference: &local::Reference = self.unbox_reference();
-                        let other_local_reference: &local::Reference = other.unbox_reference();
-
-                        self_local_reference
-                            .number()
-                            .partial_cmp(&other_local_reference.number())
-                    }
-                    (LocalReference, LocalPid)
-                    | (LocalReference, ExternalPid)
-                    | (LocalReference, Arity)
-                    | (LocalReference, Map)
-                    | (LocalReference, HeapBinary)
-                    | (LocalReference, Subbinary) => Some(Less),
-                    (ExternalPid, Float)
-                    | (ExternalPid, BigInteger)
-                    | (ExternalPid, LocalReference) => Some(Greater),
-                    (ExternalPid, ExternalPid) => {
-                        let self_external_pid: &process::identifier::External =
-                            self.unbox_reference();
-                        let other_external_pid: &process::identifier::External =
-                            other.unbox_reference();
-
-                        self_external_pid.partial_cmp(other_external_pid)
-                    }
-                    (ExternalPid, Arity)
-                    | (ExternalPid, Map)
-                    | (ExternalPid, HeapBinary)
-                    | (ExternalPid, Subbinary) => Some(Less),
-                    (Arity, Float)
-                    | (Arity, BigInteger)
-                    | (Arity, LocalReference)
-                    | (Arity, ExternalPid) => Some(Greater),
-                    (Arity, Arity) => {
-                        let self_tuple: &Tuple = self.unbox_reference();
-                        let other_tuple: &Tuple = other.unbox_reference();
-
-                        self_tuple.partial_cmp(other_tuple)
-                    }
-                    (Arity, Map) | (Arity, HeapBinary) | (Arity, Subbinary) => Some(Less),
-                    (Map, Float)
-                    | (Map, BigInteger)
-                    | (Map, LocalReference)
-                    | (Map, ExternalPid)
-                    | (Map, Arity) => Some(Greater),
-                    (Map, Map) => {
-                        let self_map: &Map = self.unbox_reference();
-                        let other_map: &Map = other.unbox_reference();
-
-                        self_map.partial_cmp(other_map)
-                    }
-                    (Map, HeapBinary) | (Map, Subbinary) => Some(Less),
-                    (HeapBinary, Float)
-                    | (HeapBinary, BigInteger)
-                    | (HeapBinary, LocalReference)
-                    | (HeapBinary, ExternalPid)
-                    | (HeapBinary, Arity)
-                    | (HeapBinary, Map) => Some(Greater),
-                    (HeapBinary, HeapBinary) => {
-                        let self_binary: &heap::Binary = self.unbox_reference();
-                        let other_binary: &heap::Binary = other.unbox_reference();
-
-                        self_binary.partial_cmp(other_binary)
-                    }
-                    (HeapBinary, Subbinary) => {
-                        let self_heap_binary: &heap::Binary = self.unbox_reference();
-                        let other_subbinary: &sub::Binary = other.unbox_reference();
-
-                        self_heap_binary.partial_cmp(other_subbinary)
-                    }
-                    (Subbinary, HeapBinary) => {
-                        let self_subbinary: &sub::Binary = self.unbox_reference();
-                        let other_heap_binary: &heap::Binary = other.unbox_reference();
-
-                        self_subbinary.partial_cmp(other_heap_binary)
-                    }
-                    (Subbinary, Float)
-                    | (Subbinary, BigInteger)
-                    | (Subbinary, LocalReference)
-                    | (Subbinary, ExternalPid)
-                    | (Subbinary, Arity)
-                    | (Subbinary, Map) => Some(Greater),
-                    (Subbinary, Subbinary) => {
-                        let self_subbinary: &sub::Binary = self.unbox_reference();
-                        let other_subbinary: &sub::Binary = other.unbox_reference();
-
-                        self_subbinary.partial_cmp(other_subbinary)
-                    }
-                    (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
-                        "unboxed {:?} cmp unboxed {:?}",
-                        self_unboxed_tag,
-                        other_unboxed_tag
-                    ),
-                }
-            }
-            (Boxed, LocalPid) => {
-                let self_unboxed: &Term = self.unbox_reference();
-
-                match self_unboxed.tag() {
-                    Float | BigInteger | LocalReference => Some(Less),
-                    // local pid has node 0 while all external pids have node > 0
-                    ExternalPid | Arity | Map | HeapBinary | Subbinary => Some(Greater),
-                    self_unboxed_tag => {
-                        unimplemented!("unboxed {:?} cmp LocalPid", self_unboxed_tag)
-                    }
-                }
-            }
-            (Boxed, EmptyList) | (Boxed, List) => {
-                let self_unboxed: &Term = self.unbox_reference();
-
-                match self_unboxed.tag() {
-                    Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Some(Less),
-                    HeapBinary | Subbinary => Some(Greater),
-                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag),
-                }
-            }
-            (LocalPid, SmallInteger) | (LocalPid, Atom) => Some(Greater),
-            (LocalPid, Boxed) => {
-                let other_unboxed: &Term = other.unbox_reference();
-
-                match other_unboxed.tag() {
-                    Float | BigInteger | LocalReference => Some(Greater),
-                    ExternalPid | Arity | Map | HeapBinary | Subbinary => Some(Less),
-                    other_unboxed_tag => {
-                        unimplemented!("LocalPid cmp unboxed {:?}", other_unboxed_tag)
-                    }
-                }
-            }
-            (LocalPid, LocalPid) => self.tagged.partial_cmp(&other.tagged),
-            (LocalPid, EmptyList) | (LocalPid, List) => Some(Less),
-            (EmptyList, SmallInteger) | (EmptyList, Atom) | (EmptyList, LocalPid) => Some(Greater),
-            (EmptyList, Boxed) | (List, Boxed) => {
-                let other_unboxed: &Term = other.unbox_reference();
-
-                match other_unboxed.tag() {
-                    Float | BigInteger | LocalReference | ExternalPid | Arity | Map => {
-                        Some(Greater)
-                    }
-                    HeapBinary | Subbinary => Some(Less),
-                    other_unboxed_tag => {
-                        unimplemented!("list() cmp unboxed {:?}", other_unboxed_tag)
-                    }
-                }
-            }
-            (EmptyList, EmptyList) => Some(Equal),
-            (EmptyList, List) => {
-                // Empty list is shorter than all lists, so it is lesser.
-                Some(Less)
-            }
-            (List, SmallInteger) | (List, Atom) | (List, LocalPid) => Some(Greater),
-            (List, EmptyList) => {
-                // Any list is longer than empty list
-                Some(Greater)
-            }
-            (List, List) => {
-                let self_cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
-                let other_cons: &Cons = unsafe { other.as_ref_cons_unchecked() };
-
-                self_cons.partial_cmp(other_cons)
-            }
-            (self_tag, other_tag) => unimplemented!("{:?} cmp {:?}", self_tag, other_tag),
-        }
+        Some(self.cmp(other))
     }
 }
 

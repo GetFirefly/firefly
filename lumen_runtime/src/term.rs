@@ -788,6 +788,10 @@ impl Term {
     pub unsafe fn small_integer_to_isize(&self) -> isize {
         (self.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT
     }
+
+    pub unsafe fn small_integer_to_big_int(&self) -> BigInt {
+        self.small_integer_to_isize().into()
+    }
 }
 
 impl CloneIntoHeap for Term {

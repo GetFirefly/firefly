@@ -25,7 +25,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - example
+            - examples
             - liblumen_arena
             - liblumen_beam
             - liblumen_codegen
@@ -68,7 +68,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - example
+            - examples
             - liblumen_arena
             - liblumen_beam
             - liblumen_codegen

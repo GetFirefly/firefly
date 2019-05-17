@@ -10,6 +10,7 @@ use num_traits::Zero;
 
 use crate::atom::{Existence, Existence::*};
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
+use crate::code;
 use crate::exception::{Class, Result};
 use crate::float::Float;
 use crate::integer::{big, small};
@@ -812,19 +813,9 @@ pub fn is_tuple_1(term: Term) -> Term {
 }
 
 pub fn length_1(list: Term, process: &Process) -> Result {
-    let mut length: usize = 0;
-    let mut tail = list;
-
-    loop {
-        match tail.tag() {
-            EmptyList => break Ok(length.into_process(&process)),
-            List => {
-                let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
-                tail = cons.tail();
-                length += 1;
-            }
-            _ => break Err(badarg!()),
-        }
+    match list.count() {
+        Some(length) => Ok(length.into_process(process)),
+        None => Err(badarg!()),
     }
 }
 
@@ -1035,7 +1026,15 @@ pub fn make_ref_0(process: &Process) -> Term {
 pub fn map_get_2(key: Term, map: Term, process: &Process) -> Result {
     let map_map: &Map = map.try_into_in_process(&process)?;
 
-    map_map.get(key, &process)
+    match map_map.get(key) {
+        Some(value) => Ok(value),
+        None => {
+            let badmap = Term::str_to_atom("badkey", DoNotCare).unwrap();
+            let reason = Term::slice_to_tuple(&[badmap, key], &process);
+
+            Err(error!(reason))
+        }
+    }
 }
 
 pub fn map_size_1(map: Term, process: &Process) -> Result {
@@ -1160,27 +1159,13 @@ pub fn register_2(name: Term, pid_or_port: Term, process_arc: Arc<Process>) -> R
         Atom => match unsafe { name.atom_to_string() }.as_ref().as_ref() {
             "undefined" => Err(badarg!()),
             _ => {
-                let mut writable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.write().unwrap();
+                let writable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.write().unwrap();
 
                 if !writable_registry.contains_key(&name) {
                     match pid_or_port.tag() {
                         LocalPid => match pid_to_self_or_process(pid_or_port, &process_arc) {
                             Some(pid_process_arc) => {
-                                let mut writable_registered_name =
-                                    pid_process_arc.registered_name.write().unwrap();
-
-                                match *writable_registered_name {
-                                    None => {
-                                        writable_registry.insert(
-                                            name,
-                                            Registered::Process(Arc::downgrade(&pid_process_arc)),
-                                        );
-                                        *writable_registered_name = Some(name);
-
-                                        Ok(true.into())
-                                    }
-                                    Some(_) => Err(badarg!()),
-                                }
+                                pid_process_arc.register_in(writable_registry, name)
                             }
                             None => Err(badarg!()),
                         },
@@ -1308,10 +1293,27 @@ pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
 
 pub fn spawn_3(module: Term, function: Term, arguments: Term, process: &Process) -> Result {
     if (module.tag() == Atom) & (function.tag() == Atom) {
-        let argument_vec: Vec<Term> = arguments.try_into()?;
-        let arc_process = Scheduler::spawn(process, module, function, argument_vec);
+        match arguments.tag() {
+            EmptyList => {
+                let arc_process =
+                    Scheduler::spawn(process, module, function, arguments, code::apply_fn());
 
-        Ok(arc_process.pid)
+                Ok(arc_process.pid)
+            }
+            List => {
+                let cons: &Cons = unsafe { arguments.as_ref_cons_unchecked() };
+
+                if cons.is_proper() {
+                    let arc_process =
+                        Scheduler::spawn(process, module, function, arguments, code::apply_fn());
+
+                    Ok(arc_process.pid)
+                } else {
+                    Err(badarg!())
+                }
+            }
+            _ => Err(badarg!()),
+        }
     } else {
         Err(badarg!())
     }

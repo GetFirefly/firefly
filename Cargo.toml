@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+  "examples/spawn-chain",
   "lumen",
   "lumen_runtime",
   "liblumen_arena",

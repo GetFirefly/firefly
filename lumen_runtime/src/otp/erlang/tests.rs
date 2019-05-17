@@ -151,12 +151,13 @@ fn has_message(process: &Process, message: Term) -> bool {
         .lock()
         .unwrap()
         .iter()
-        .any(|mailbox_message| match mailbox_message {
-            Message::Process(process_message) => process_message == &message,
-            Message::Heap(message::Heap {
-                message: heap_message,
-                ..
-            }) => heap_message == &message,
+        .any(|mailbox_message| {
+            let term = match mailbox_message {
+                Message::Process(term) => term,
+                Message::Heap(message::Heap { term, .. }) => term,
+            };
+
+            term == &message
         })
 }
 
@@ -167,10 +168,7 @@ fn has_heap_message(process: &Process, message: Term) -> bool {
         .unwrap()
         .iter()
         .any(|mailbox_message| match mailbox_message {
-            Message::Heap(message::Heap {
-                message: heap_message,
-                ..
-            }) => heap_message == &message,
+            Message::Heap(message::Heap { term, .. }) => term == &message,
             _ => false,
         })
 }
@@ -182,7 +180,7 @@ fn has_process_message(process: &Process, message: Term) -> bool {
         .unwrap()
         .iter()
         .any(|mailbox_message| match mailbox_message {
-            Message::Process(process_message) => process_message == &message,
+            Message::Process(term) => term == &message,
             _ => false,
         })
 }

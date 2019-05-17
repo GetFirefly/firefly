@@ -13,5 +13,5 @@ pub enum Message {
 #[derive(Debug)]
 pub struct Heap {
     pub heap: heap::Heap,
-    pub message: Term,
+    pub term: Term,
 }

@@ -2,11 +2,8 @@ use std::cmp::Ordering::{self, *};
 
 use im::hashmap::{HashMap, Iter};
 
-use crate::atom::Existence::DoNotCare;
-use crate::exception::Result;
 use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer;
-use crate::process::Process;
 use crate::term::{Tag, Term};
 
 pub struct Map {
@@ -25,16 +22,8 @@ impl Map {
         }
     }
 
-    pub fn get(&self, key: Term, process: &Process) -> Result {
-        match self.inner.get(&key) {
-            Some(value) => Ok(value.clone()),
-            None => {
-                let badmap = Term::str_to_atom("badkey", DoNotCare).unwrap();
-                let reason = Term::slice_to_tuple(&[badmap, key], &process);
-
-                Err(error!(reason))
-            }
-        }
+    pub fn get(&self, key: Term) -> Option<Term> {
+        self.inner.get(&key).map(|ref_value| ref_value.clone())
     }
 
     pub fn iter(&self) -> Iter<Term, Term> {

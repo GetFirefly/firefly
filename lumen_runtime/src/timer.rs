@@ -155,7 +155,10 @@ impl Hierarchy {
             monotonic_time_milliseconds,
             destination,
             timeout,
-            message_heap: Mutex::new(message::Heap { heap, message }),
+            message_heap: Mutex::new(message::Heap {
+                heap,
+                term: message,
+            }),
             position: Mutex::new(position),
         };
 
@@ -176,7 +179,7 @@ impl Hierarchy {
         reference
     }
 
-    fn timeout(&mut self, scheduler_id: &scheduler::ID) {
+    pub fn timeout(&mut self, scheduler_id: &scheduler::ID) {
         self.timeout_at_once(scheduler_id);
 
         let monotonic_time_milliseconds = monotonic::time_in_milliseconds();
@@ -381,7 +384,7 @@ impl Timer {
         let message_heap = self.message_heap.into_inner().unwrap();
 
         let message = match self.timeout {
-            Timeout::Message => message_heap.message,
+            Timeout::Message => message_heap.term,
             Timeout::TimeoutTuple => {
                 let reference = message_heap
                     .heap
@@ -391,7 +394,7 @@ impl Timer {
                 let tuple = message_heap.heap.slice_to_tuple(&[
                     Term::str_to_atom("timeout", DoNotCare).unwrap(),
                     reference_term,
-                    message_heap.message,
+                    message_heap.term,
                 ]);
 
                 Term::box_reference(tuple)

@@ -96,12 +96,13 @@ macro_rules! assert_throw {
     };
 }
 
+#[macro_export]
 macro_rules! badarg {
     () => {{
-        use crate::atom::Existence::DoNotCare;
-        use crate::term::Term;
+        use $crate::atom::Existence::DoNotCare;
+        use $crate::term::Term;
 
-        error!(Term::str_to_atom("badarg", DoNotCare).unwrap())
+        $crate::error!(Term::str_to_atom("badarg", DoNotCare).unwrap())
     }};
 }
 
@@ -111,6 +112,41 @@ macro_rules! badarith {
         use crate::term::Term;
 
         error!(Term::str_to_atom("badarith", DoNotCare).unwrap())
+    }};
+}
+
+#[macro_export]
+macro_rules! badarity {
+    ($fun:expr, $arguments:expr, $process:expr) => {{
+        use $crate::atom::Existence::DoNotCare;
+        use $crate::term::Term;
+
+        let badarity = Term::str_to_atom("badarity", DoNotCare).unwrap();
+        let reason = Term::slice_to_tuple(
+            &[
+                badarity,
+                Term::slice_to_tuple(&[$fun, $arguments], $process),
+            ],
+            $process,
+        );
+
+        $crate::error!(reason)
+    }};
+    ($fun:expr, $arguments:expr, $process:expr,) => {
+        $crate::badarity!($fun, $arguments, $process);
+    };
+}
+
+#[macro_export]
+macro_rules! badfun {
+    ($fun:expr, $process:expr) => {{
+        use $crate::atom::Existence::DoNotCare;
+        use $crate::term::Term;
+
+        let badfun = Term::str_to_atom("badfun", DoNotCare).unwrap();
+        let reason = Term::slice_to_tuple(&[badfun, $fun], $process);
+
+        $crate::error!(reason)
     }};
 }
 
@@ -129,14 +165,15 @@ macro_rules! badmap {
     }};
 }
 
+#[macro_export]
 macro_rules! error {
     ($reason:expr) => {{
-        error!($reason, None)
+        $crate::error!($reason, None)
     }};
     ($reason:expr, $arguments:expr) => {{
-        use crate::exception::Class::Error;
+        use $crate::exception::Class::Error;
 
-        exception!(
+        $crate::exception!(
             Error {
                 arguments: $arguments
             },
@@ -144,45 +181,47 @@ macro_rules! error {
         )
     }};
     ($reason:expr, $arguments:expr,) => {{
-        error!($reason, $arguments)
+        $crate::error!($reason, $arguments)
     }};
 }
 
+#[macro_export]
 macro_rules! exception {
     ($class:expr, $reason:expr) => {
-        exception!($class, $reason, None)
+        $crate::exception!($class, $reason, None)
     };
     ($class:expr, $reason:expr,) => {
-        exception!($class, $reason)
+        $crate::exception!($class, $reason)
     };
     ($class:expr, $reason:expr, $stacktrace:expr) => {{
-        use crate::exception::Exception;
+        use $crate::exception::Exception;
 
         Exception {
             class: $class,
             reason: $reason,
             stacktrace: $stacktrace,
-            #[cfg(debug_assertions)]
+            //            #[cfg(debug_assertions)]
             file: file!(),
-            #[cfg(debug_assertions)]
+            //            #[cfg(debug_assertions)]
             line: line!(),
-            #[cfg(debug_assertions)]
+            //            #[cfg(debug_assertions)]
             column: column!(),
         }
     }};
     ($class:expr, $reason:expr, $stacktrace:expr) => {
-        exception!($class, $reason, $stacktrace)
+        $crate::exception!($class, $reason, $stacktrace)
     };
 }
 
+#[macro_export]
 macro_rules! exit {
     ($reason:expr) => {
-        exit!($reason, None)
+        $crate::exit!($reason, None)
     };
     ($reason:expr, $stacktrace:expr) => {{
         use crate::exception::Class::Exit;
 
-        exception!(Exit, $reason, $stacktrace)
+        $crate::exception!(Exit, $reason, $stacktrace)
     }};
 }
 
@@ -203,10 +242,11 @@ macro_rules! throw {
     }};
 }
 
+#[macro_export]
 macro_rules! undef {
     ($module:expr, $function:expr, $arguments:expr, $process:expr) => {{
-        use crate::atom::Existence::DoNotCare;
-        use crate::term::Term;
+        use $crate::atom::Existence::DoNotCare;
+        use $crate::term::Term;
 
         let undef = Term::str_to_atom("undef", DoNotCare).unwrap();
         let top = Term::slice_to_tuple(
@@ -221,9 +261,9 @@ macro_rules! undef {
         );
         let stacktrace = Term::cons(top, Term::EMPTY_LIST, $process);
 
-        exit!(undef, Some(stacktrace))
+        $crate::exit!(undef, Some(stacktrace))
     }};
     ($module:expr, $function:expr, $arguments:expr, $process:expr) => {
-        undef!($module, $function, $arguments, $process)
+        $crate::undef!($module, $function, $arguments, $process)
     };
 }

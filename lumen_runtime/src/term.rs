@@ -13,8 +13,10 @@ use num_traits::cast::ToPrimitive;
 
 use crate::atom::{self, Encoding, Existence, Existence::*, Index};
 use crate::binary::{self, heap, sub, Part, PartToList};
+use crate::code::Code;
 use crate::exception::{self, Class, Exception};
 use crate::float::{self, Float};
+use crate::function::Function;
 use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer::{self, Big, Small};
 use crate::integer::{
@@ -23,7 +25,9 @@ use crate::integer::{
 };
 use crate::list::Cons;
 use crate::map::Map;
-use crate::process::{self, IntoProcess, Process, TryFromInProcess, TryIntoInProcess};
+use crate::process::{
+    self, IntoProcess, ModuleFunctionArity, Process, TryFromInProcess, TryIntoInProcess,
+};
 use crate::reference::local;
 use crate::scheduler::Scheduler;
 use crate::tuple::Tuple;
@@ -276,6 +280,24 @@ impl Term {
         }
     }
 
+    /// Counts the number of elements in the Term if it is a list
+    pub fn count(self) -> Option<usize> {
+        let mut count: usize = 0;
+        let mut tail = self;
+
+        loop {
+            match tail.tag() {
+                EmptyList => break Some(count),
+                List => {
+                    let cons: &Cons = unsafe { tail.as_ref_cons_unchecked() };
+                    tail = cons.tail();
+                    count += 1;
+                }
+                _ => break None,
+            }
+        }
+    }
+
     /// Converts integers and floats and only do conversion when not `eq`.
     pub fn eq_after_conversion(&self, right: &Term) -> bool {
         (self.eq(right) | {
@@ -317,6 +339,14 @@ impl Term {
                 _ => false,
             }
         })
+    }
+
+    pub fn function(
+        module_function_arity: Arc<ModuleFunctionArity>,
+        code: Code,
+        process: &Process,
+    ) -> Term {
+        Term::box_reference(process.function(module_function_arity, code))
     }
 
     unsafe fn small_integer_eq_float_after_conversion(
@@ -582,6 +612,10 @@ impl Term {
             }
             _ => false,
         }
+    }
+
+    pub fn is_local_pid(&self) -> bool {
+        self.tag() == LocalPid
     }
 
     pub fn is_number(&self) -> bool {
@@ -881,6 +915,15 @@ impl Debug for Term {
                         let float: &Float = self.unbox_reference();
 
                         write!(f, "{:?}_f64.into_process(&process)", float.inner)
+                    }
+                    Function => {
+                        let function: &Function = self.unbox_reference();
+
+                        write!(
+                            f,
+                            "Term::function({:?}, code, &process)",
+                            function.module_function_arity()
+                        )
                     }
                     HeapBinary => {
                         let binary: &heap::Binary = self.unbox_reference();
@@ -1908,6 +1951,25 @@ impl TryFrom<&Term> for BigInt {
 
     fn try_from(term_ref: &Term) -> Result<BigInt, Exception> {
         (*term_ref).try_into()
+    }
+}
+
+impl TryFrom<&Term> for usize {
+    type Error = Exception;
+
+    fn try_from(term_ref: &Term) -> Result<usize, Exception> {
+        match term_ref.tag() {
+            SmallInteger => {
+                let i = unsafe { term_ref.small_integer_to_isize() };
+
+                if 0 <= i {
+                    Ok(i as usize)
+                } else {
+                    Err(badarg!())
+                }
+            }
+            _ => Err(badarg!()),
+        }
     }
 }
 

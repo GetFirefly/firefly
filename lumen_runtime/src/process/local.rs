@@ -3,6 +3,8 @@ use std::sync::{Arc, RwLock, Weak};
 
 #[cfg(test)]
 use crate::atom::Existence::DoNotCare;
+#[cfg(test)]
+use crate::code;
 use crate::process::Process;
 #[cfg(test)]
 use crate::scheduler::Scheduler;
@@ -21,7 +23,11 @@ pub fn test(parent_process: &Process) -> Arc<Process> {
         parent_process,
         Term::str_to_atom("erlang", DoNotCare).unwrap(),
         Term::str_to_atom("exit", DoNotCare).unwrap(),
-        vec![Term::str_to_atom("normal", DoNotCare).unwrap()],
+        Term::slice_to_list(
+            &[Term::str_to_atom("normal", DoNotCare).unwrap()],
+            parent_process,
+        ),
+        code::apply_fn(),
     )
 }
 

@@ -66,7 +66,7 @@ impl Ord for External {
 
 impl PartialEq for External {
     fn eq(&self, other: &External) -> bool {
-        (self.node == other.node) & (self.serial == other.serial) & (self.number == other.number)
+        self.cmp(other) == Equal
     }
 }
 

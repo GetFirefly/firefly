@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::cmp::Ordering::{self, Equal};
 use std::convert::{TryFrom, TryInto};
 #[cfg(test)]
 use std::fmt::{self, Debug};
@@ -99,13 +99,7 @@ impl Ord for Integer {
 
 impl PartialEq for Integer {
     fn eq(&self, other: &Integer) -> bool {
-        match (self, other) {
-            (
-                Integer::Small(small::Integer(self_isize)),
-                Integer::Small(small::Integer(other_isize)),
-            ) => self_isize == other_isize,
-            (_, _) => unimplemented!(),
-        }
+        self.cmp(other) == Equal
     }
 }
 

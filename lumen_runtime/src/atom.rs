@@ -166,15 +166,15 @@ impl Ord for Atom {
                 let self_length = self.name.len();
                 let other_length = other.name.len();
 
-                let bytes_ordering =
-                    if (ORDINAL_BYTE_COUNT < self_length) & (ORDINAL_BYTE_COUNT < other_length) {
-                        let range = ORDINAL_BYTE_COUNT..self_length.min(other_length);
+                let bytes_ordering = if (ORDINAL_BYTE_COUNT < self_length)
+                    & (ORDINAL_BYTE_COUNT < other_length)
+                {
+                    let range = ORDINAL_BYTE_COUNT..self_length.min(other_length);
 
-                        self.name.as_bytes()[range.clone()]
-                            .cmp(&other.name.as_bytes()[range.clone()])
-                    } else {
-                        Equal
-                    };
+                    self.name.as_bytes()[range.clone()].cmp(&other.name.as_bytes()[range.clone()])
+                } else {
+                    Equal
+                };
 
                 match bytes_ordering {
                     Equal => self_length.cmp(&other_length),

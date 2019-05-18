@@ -14,7 +14,6 @@ pub type BootScript = Vec<BootInstruction>;
 //TODO: Needs to be Term
 pub type BootInstruction = String;
 
-#[derive(Debug)]
 pub enum Command {
     Run,
     Shell,

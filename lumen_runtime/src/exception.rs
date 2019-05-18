@@ -13,11 +13,11 @@ pub struct Exception {
     pub class: Class,
     pub reason: Term,
     pub stacktrace: Option<Term>,
-    //    #[cfg(debug_assertions)]
+    #[cfg(debug_assertions)]
     pub file: &'static str,
-    //    #[cfg(debug_assertions)]
+    #[cfg(debug_assertions)]
     pub line: u32,
-    //    #[cfg(debug_assertions)]
+    #[cfg(debug_assertions)]
     pub column: u32,
 }
 

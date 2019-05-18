@@ -200,11 +200,11 @@ macro_rules! exception {
             class: $class,
             reason: $reason,
             stacktrace: $stacktrace,
-            //            #[cfg(debug_assertions)]
+            #[cfg(debug_assertions)]
             file: file!(),
-            //            #[cfg(debug_assertions)]
+            #[cfg(debug_assertions)]
             line: line!(),
-            //            #[cfg(debug_assertions)]
+            #[cfg(debug_assertions)]
             column: column!(),
         }
     }};

@@ -159,8 +159,30 @@ impl Debug for Atom {
 impl Eq for Atom {}
 
 impl Ord for Atom {
+    /// See https://github.com/erlang/otp/blob/be44d6827e2374a43068b35de85ed16441c771be/erts/emulator/beam/erl_utils.h#L159-L186
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        match self.ordinal.cmp(&other.ordinal) {
+            Equal => {
+                let self_length = self.name.len();
+                let other_length = other.name.len();
+
+                let bytes_ordering =
+                    if (ORDINAL_BYTE_COUNT < self_length) & (ORDINAL_BYTE_COUNT < other_length) {
+                        let range = ORDINAL_BYTE_COUNT..self_length.min(other_length);
+
+                        self.name.as_bytes()[range.clone()]
+                            .cmp(&other.name.as_bytes()[range.clone()])
+                    } else {
+                        Equal
+                    };
+
+                match bytes_ordering {
+                    Equal => self_length.cmp(&other_length),
+                    ordering => ordering,
+                }
+            }
+            ordering => ordering,
+        }
     }
 }
 
@@ -184,30 +206,8 @@ impl PartialEq for Atom {
 }
 
 impl PartialOrd for Atom {
-    /// See https://github.com/erlang/otp/blob/be44d6827e2374a43068b35de85ed16441c771be/erts/emulator/beam/erl_utils.h#L159-L186
     fn partial_cmp(&self, other: &Atom) -> Option<Ordering> {
-        match self.ordinal.partial_cmp(&other.ordinal) {
-            Some(Equal) => {
-                let self_length = self.name.len();
-                let other_length = other.name.len();
-
-                let bytes_partial_ordering =
-                    if (ORDINAL_BYTE_COUNT < self_length) & (ORDINAL_BYTE_COUNT < other_length) {
-                        let range = ORDINAL_BYTE_COUNT..self_length.min(other_length);
-
-                        self.name.as_bytes()[range.clone()]
-                            .partial_cmp(&other.name.as_bytes()[range.clone()])
-                    } else {
-                        Some(Equal)
-                    };
-
-                match bytes_partial_ordering {
-                    Some(Equal) => self_length.partial_cmp(&other_length),
-                    partial_ordering => partial_ordering,
-                }
-            }
-            partial_ordering => partial_ordering,
-        }
+        Some(self.cmp(other))
     }
 }
 

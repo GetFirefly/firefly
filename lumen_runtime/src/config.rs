@@ -52,7 +52,6 @@ impl std::error::Error for ConfigError {
     }
 }
 
-#[derive(Debug)]
 pub struct Config {
     pub config: AppConfig,
     pub boot: Option<BootScript>,

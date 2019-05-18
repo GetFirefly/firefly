@@ -10,7 +10,7 @@ pub enum Message {
     Heap(Heap),
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Heap {
     pub heap: heap::Heap,
     pub term: Term,

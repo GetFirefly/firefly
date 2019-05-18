@@ -1,4 +1,5 @@
 use std::collections::vec_deque::VecDeque;
+#[cfg(debug_assertions)]
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 
@@ -54,6 +55,7 @@ impl Frame {
     }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{{")?;

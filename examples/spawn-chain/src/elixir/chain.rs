@@ -241,7 +241,8 @@ fn create_processes_1_code(arc_process: &Arc<Process>) {
 
     // placed on top of stack by return from `elixir::r#enum::reduce_0_code`
     let last = frame_argument_vec[0];
-    assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
+    #[cfg(debug_assertions)]
+    debug_assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
 
     match erlang::send_2(last, 0.into_process(arc_process), arc_process) {
         Ok(_) => {
@@ -338,7 +339,16 @@ fn create_processes_3_code(arc_process: &Arc<Process>) {
 
     // TODO this would be replaced by what interpolation really does in Elixir in
     // `lumen` compiled code.
-    let big_int: BigInt = final_answer.try_into().unwrap();
+    #[allow(unused_variables)]
+    let big_int: BigInt = match final_answer.try_into() {
+        Ok(big_int) => big_int,
+        Err(exception) => {
+            #[cfg(debug_assertions)]
+            panic!("{:?}", exception);
+            #[cfg(not(debug_assertions))]
+            panic!("Final answer cannot be converted to a BigInt");
+        }
+    };
     let formatted = format!("Result is {:}", big_int);
 
     arc_process.reduce();

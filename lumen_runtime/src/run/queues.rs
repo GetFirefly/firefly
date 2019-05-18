@@ -11,7 +11,8 @@ use crate::scheduler::Priority;
 mod delayed;
 mod immediate;
 
-#[derive(Debug, Default)]
+#[derive(Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Queues {
     waiting: Waiting,
     normal_low: Delayed,

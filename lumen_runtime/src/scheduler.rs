@@ -15,7 +15,8 @@ use crate::timer::Hierarchy;
 
 mod id;
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ID(id::Raw);
 
 impl ID {
@@ -172,15 +173,25 @@ impl Scheduler {
         let arc_scheduler = match *parent_locked_option_weak_scheduler {
             Some(ref weak_scheduler) => match weak_scheduler.upgrade() {
                 Some(arc_scheduler) => arc_scheduler,
-                None => panic!(
-                    "Parent process ({:?}) Scheduler has been Dropped",
-                    parent_process
-                ),
+                None => {
+                    #[cfg(debug_assertions)]
+                    panic!(
+                        "Parent process ({:?}) Scheduler has been Dropped",
+                        parent_process
+                    );
+                    #[cfg(not(debug_assertions))]
+                    panic!("Parent process Scheduler has been Dropped");
+                }
             },
-            None => panic!(
-                "Parent process ({:?}) is not assigned to a Scheduler",
-                parent_process
-            ),
+            None => {
+                #[cfg(debug_assertions)]
+                panic!(
+                    "Parent process ({:?}) is not assigned to a Scheduler",
+                    parent_process
+                );
+                #[cfg(not(debug_assertions))]
+                panic!("Parent process is not assigned to a Scheduler");
+            }
         };
 
         let mut writable_run_queues = arc_scheduler.run_queues.write().unwrap();
@@ -240,10 +251,13 @@ impl Scheduler {
             .scheduler_by_id
             .insert(arc_scheduler.id.clone(), Arc::downgrade(&arc_scheduler))
         {
+            #[cfg(debug_assertions)]
             panic!(
                 "Scheduler already registered with ID ({:?}",
                 arc_scheduler.id
             );
+            #[cfg(not(debug_assertions))]
+            panic!("Scheduler already registered");
         }
 
         arc_scheduler

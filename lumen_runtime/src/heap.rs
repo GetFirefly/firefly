@@ -1,3 +1,4 @@
+#[cfg(debug_assertions)]
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 
@@ -164,6 +165,7 @@ pub trait CloneIntoHeap {
     fn clone_into_heap(&self, heap: &Heap) -> Self;
 }
 
+#[cfg(debug_assertions)]
 impl Debug for Heap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Heap {{ ... }}")

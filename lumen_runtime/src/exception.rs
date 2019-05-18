@@ -1,13 +1,14 @@
 use crate::term::Term;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Class {
     Error { arguments: Option<Term> },
     Exit,
     Throw,
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Exception {
     pub class: Class,
     pub reason: Term,

@@ -2,6 +2,7 @@ use std::cmp::Ordering::{self, *};
 use std::convert::{TryFrom, TryInto};
 #[cfg(test)]
 use std::fmt::Display;
+#[cfg(debug_assertions)]
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::mem::size_of;
@@ -16,6 +17,7 @@ use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::code::Code;
 use crate::exception::{self, Class, Exception};
 use crate::float::{self, Float};
+#[cfg(debug_assertions)]
 use crate::function::Function;
 use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer::{self, Big, Small};
@@ -873,6 +875,7 @@ impl CloneIntoHeap for Vec<Term> {
     }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.tag() {

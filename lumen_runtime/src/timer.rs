@@ -66,7 +66,8 @@ pub fn timeout() {
     scheduler.hierarchy.write().unwrap().timeout(&scheduler.id);
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Destination {
     Name(Term),
     Process(Weak<Process>),
@@ -219,7 +220,7 @@ impl Hierarchy {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
 
-            Arc::try_unwrap(arc_timer).unwrap().timeout(scheduler_id)
+            Self::timeout_arc_timer(arc_timer, scheduler_id);
         }
     }
 
@@ -228,7 +229,14 @@ impl Hierarchy {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
 
-            Arc::try_unwrap(arc_timer).unwrap().timeout(scheduler_id)
+            Self::timeout_arc_timer(arc_timer, scheduler_id);
+        }
+    }
+
+    fn timeout_arc_timer(arc_timer: Arc<Timer>, scheduler_id: &scheduler::ID) {
+        match Arc::try_unwrap(arc_timer) {
+            Ok(timer) => timer.timeout(scheduler_id),
+            Err(_) => panic!("Timer Dropped"),
         }
     }
 
@@ -330,7 +338,7 @@ impl Default for Hierarchy {
     }
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Timeout {
     // Sends only the `Timer` `message`
     Message,
@@ -338,7 +346,7 @@ pub enum Timeout {
     TimeoutTuple,
 }
 
-#[derive(Debug)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 struct Timer {
     // Can't be a `Boxed` `LocalReference` `Term` because those are boxed and the original Process
     // could GC the unboxed `LocalReference` `Term`.
@@ -430,7 +438,8 @@ impl PartialOrd for Timer {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 enum Position {
     AtOnce,
     Soon { slot_index: u16 },

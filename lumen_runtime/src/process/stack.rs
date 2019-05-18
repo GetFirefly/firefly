@@ -1,6 +1,7 @@
 use std::collections::vec_deque::{Iter, VecDeque};
 
 use crate::process::stack::frame::Frame;
+#[cfg(debug_assertions)]
 use std::fmt::{self, Debug};
 
 pub mod frame;
@@ -34,6 +35,7 @@ impl Stack {
     }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for Stack {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "{{")?;

@@ -110,28 +110,7 @@ impl Ord for Map {
 
 impl PartialEq for Map {
     fn eq(&self, other: &Map) -> bool {
-        match self.len().eq(&other.len()) {
-            true => {
-                let self_key_vec = self.sorted_keys();
-                let other_key_vec = other.sorted_keys();
-
-                match self_key_vec.eq(&other_key_vec) {
-                    true => {
-                        let self_inner = &self.inner;
-                        let other_inner = &other.inner;
-
-                        self_key_vec.iter().all(|key| {
-                            self_inner
-                                .get(&key)
-                                .unwrap()
-                                .eq(other_inner.get(&key).unwrap())
-                        })
-                    }
-                    eq => eq,
-                }
-            }
-            eq => eq,
-        }
+        self.cmp(other) == Equal
     }
 }
 

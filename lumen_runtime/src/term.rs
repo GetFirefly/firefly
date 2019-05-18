@@ -1646,11 +1646,11 @@ impl TryFrom<Term> for BigInt {
     type Error = Exception;
 
     fn try_from(term: Term) -> Result<BigInt, Exception> {
-        match term.tag() {
+        let option_big_int = match term.tag() {
             SmallInteger => {
                 let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
 
-                Ok(term_isize.into())
+                Some(term_isize.into())
             }
             Boxed => {
                 let unboxed: &Term = term.unbox_reference();
@@ -1659,12 +1659,17 @@ impl TryFrom<Term> for BigInt {
                     BigInteger => {
                         let big_integer: &big::Integer = term.unbox_reference();
 
-                        Ok(big_integer.inner.clone())
+                        Some(big_integer.inner.clone())
                     }
-                    _ => Err(badarg!()),
+                    _ => None
                 }
             }
-            _ => Err(badarg!()),
+            _ => None
+        };
+
+        match option_big_int {
+            Some(big_int) => Ok(big_int),
+            None => Err(badarg!())
         }
     }
 }

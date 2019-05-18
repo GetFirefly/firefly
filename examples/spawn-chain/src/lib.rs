@@ -83,32 +83,156 @@ pub fn run(count: usize) {
                 }
             },
             Status::Waiting => {
-                web_sys::console::log_1(
-                    &format!(
-                        "WAITING Run queues len = {:?}",
-                        Scheduler::current().run_queues_len()
-                    )
-                    .into(),
-                );
+                log_1(format!(
+                    "WAITING Run queues len = {:?}",
+                    Scheduler::current().run_queues_len()
+                ));
             }
             Status::Runnable => {
-                web_sys::console::log_1(
-                    &format!(
-                        "RUNNABLE Run queues len = {:?}",
-                        Scheduler::current().run_queues_len()
-                    )
-                    .into(),
-                );
+                log_1(format!(
+                    "RUNNABLE Run queues len = {:?}",
+                    Scheduler::current().run_queues_len()
+                ));
             }
             Status::Running => {
-                web_sys::console::log_1(
-                    &format!(
-                        "RUNNING Run queues len = {:?}",
-                        Scheduler::current().run_queues_len()
-                    )
-                    .into(),
-                );
+                log_1(format!(
+                    "RUNNING Run queues len = {:?}",
+                    Scheduler::current().run_queues_len()
+                ));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use time_test::time_test;
+
+    #[test]
+    fn run1() {
+        time_test!();
+        start();
+        run(1)
+    }
+
+    #[test]
+    fn run2() {
+        time_test!();
+        start();
+        run(2)
+    }
+
+    #[test]
+    fn run4() {
+        time_test!();
+        start();
+        run(4)
+    }
+
+    #[test]
+    fn run8() {
+        time_test!();
+        start();
+        run(8)
+    }
+
+    #[test]
+    fn run16() {
+        time_test!();
+        start();
+        run(16)
+    }
+
+    #[test]
+    fn run32() {
+        time_test!();
+        start();
+        run(32)
+    }
+
+    #[test]
+    fn run64() {
+        time_test!();
+        start();
+        run(64)
+    }
+
+    #[test]
+    fn run128() {
+        time_test!();
+        start();
+        run(128)
+    }
+
+    #[test]
+    fn run256() {
+        time_test!();
+        start();
+        run(256)
+    }
+
+    #[test]
+    fn run512() {
+        time_test!();
+        start();
+        run(512)
+    }
+
+    #[test]
+    fn run1024() {
+        time_test!();
+        start();
+        run(1024)
+    }
+
+    #[test]
+    fn run2048() {
+        time_test!();
+        start();
+        run(2048)
+    }
+
+    #[test]
+    fn run4096() {
+        time_test!();
+        start();
+        run(4096)
+    }
+
+    #[test]
+    fn run8192() {
+        time_test!();
+        start();
+        run(8192)
+    }
+
+    #[test]
+    fn run16384() {
+        time_test!();
+        start();
+        run(16384)
+    }
+
+    #[test]
+    fn run32768() {
+        time_test!();
+        start();
+        run(32768)
+    }
+
+    #[test]
+    fn run65536() {
+        time_test!();
+        start();
+        run(65536)
+    }
+
+    #[test]
+    fn run131072() {
+        time_test!();
+        start();
+        run(131072)
     }
 }

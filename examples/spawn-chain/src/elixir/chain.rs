@@ -364,6 +364,7 @@ fn create_processes_3_code(arc_process: &Arc<Process>) {
 ///   IO.puts(inspect(:timer.tc(Chain, :create_processes, [n])))
 /// end
 pub fn run_0_code(arc_process: &Arc<Process>) {
+    #[cfg(target_arch = "wasm32")]
     web_sys::console::time_with_label("Chain.run");
     arc_process.reduce();
 
@@ -390,6 +391,7 @@ fn run_1_code(arc_process: &Arc<Process>) {
     let frame_argument_vec = arc_process.pop_arguments(1);
     let elixir_string = frame_argument_vec[0];
 
+    #[cfg(target_arch = "wasm32")]
     web_sys::console::time_end_with_label("Chain.run");
     arc_process.reduce();
 

@@ -86,7 +86,7 @@ pub fn print_stacktrace(process: &Process) {
 
     let formatted_stacktrace = formatted_stacktrace_parts.join("\n");
 
-    web_sys::console::log_1(&formatted_stacktrace.into());
+    crate::start::log_1(formatted_stacktrace);
 }
 
 fn undef(arc_process: &Arc<Process>, module: Term, function: Term, arguments: Term) {

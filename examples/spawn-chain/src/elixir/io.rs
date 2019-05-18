@@ -24,7 +24,7 @@ fn puts_code(arc_process: &Arc<Process>) {
     match elixir_string.try_into(): Result<String, Exception> {
         Ok(string) => {
             // NOT A DEBUGGING LOG
-            web_sys::console::log_1(&((&string).into()));
+            crate::start::log_1(string);
             arc_process.reduce();
 
             let ok = Term::str_to_atom("ok", DoNotCare).unwrap();

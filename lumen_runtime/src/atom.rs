@@ -29,7 +29,21 @@ impl Eq for Index {}
 
 impl Ord for Index {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        let self_inner = self.0;
+        let other_inner = other.0;
+
+        if self_inner == other_inner {
+            Equal
+        } else {
+            let table_arc_rw_lock = TABLE_ARC_RW_LOCK.clone();
+            let readable_table = table_arc_rw_lock.read().unwrap();
+            let atoms = &readable_table.atoms;
+
+            let self_atom = atoms.get(self.0).unwrap();
+            let other_atom = atoms.get(other.0).unwrap();
+
+            self_atom.cmp(other_atom)
+        }
     }
 }
 
@@ -41,21 +55,7 @@ impl PartialEq for Index {
 
 impl PartialOrd for Index {
     fn partial_cmp(&self, other: &Index) -> Option<Ordering> {
-        let self_inner = self.0;
-        let other_inner = other.0;
-
-        if self_inner == other_inner {
-            Some(Equal)
-        } else {
-            let table_arc_rw_lock = TABLE_ARC_RW_LOCK.clone();
-            let readable_table = table_arc_rw_lock.read().unwrap();
-            let atoms = &readable_table.atoms;
-
-            match (atoms.get(self.0), atoms.get(other.0)) {
-                (Some(self_atom), Some(other_atom)) => self_atom.partial_cmp(other_atom),
-                _ => None,
-            }
-        }
+        Some(self.cmp(other))
     }
 }
 

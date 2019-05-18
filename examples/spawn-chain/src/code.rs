@@ -17,7 +17,10 @@ pub fn apply(arc_process: &Arc<Process>) {
         Ok(argument_vec) => argument_vec,
         Err(_) => {
             #[cfg(debug_assertions)]
-            panic!("Arguments ({:?}) are neither empty list nor proper list", argument_list);
+            panic!(
+                "Arguments ({:?}) are neither empty list nor proper list",
+                argument_list
+            );
             #[cfg(not(debug_assertions))]
             panic!("Arguments are neither empty list nor proper list")
         }

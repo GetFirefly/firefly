@@ -599,7 +599,7 @@ impl Term {
     pub fn unbox_reference<T>(&self) -> &'static T {
         const TAG_BOXED: usize = Boxed as usize;
 
-        assert_eq!(
+        debug_assert_eq!(
             self.tagged & TAG_BOXED,
             TAG_BOXED,
             "Term ({:#b}) is not tagged as boxed ({:#b})",

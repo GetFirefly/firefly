@@ -21,7 +21,6 @@ liblumen_arena = { path = "../liblumen_arena" }
 log = "0.4"
 num-bigint = "0.2.2"
 num-traits = "0.2.6"
-xdg = "2.1"
 
 [target.'cfg(unix)'.dependencies]
 internment = "0.3.6"

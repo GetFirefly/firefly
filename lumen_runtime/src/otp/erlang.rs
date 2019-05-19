@@ -180,7 +180,7 @@ pub fn band_2(left_integer: Term, right_integer: Term, process: &Process) -> Res
 }
 
 pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Result {
-    match start_length.tag() {
+    let option_result = match start_length.tag() {
         Boxed => {
             let unboxed: &Term = start_length.unbox_reference();
 
@@ -189,15 +189,20 @@ pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Res
                     let tuple: &Tuple = start_length.unbox_reference();
 
                     if tuple.len() == 2 {
-                        binary_part_3(binary, tuple[0], tuple[1], &process)
+                        Some(binary_part_3(binary, tuple[0], tuple[1], &process))
                     } else {
-                        Err(badarg!())
+                        None
                     }
                 }
-                _ => Err(badarg!()),
+                _ => None
             }
         }
-        _ => Err(badarg!()),
+        _ => None
+    };
+
+    match option_result {
+        Some(result) => result,
+        None => Err(badarg!())
     }
 }
 

@@ -39,18 +39,18 @@ use crate::tuple::{Tuple, ZeroBasedIndex};
 mod tests;
 
 pub fn abs_1(number: Term, process: &Process) -> Result {
-    match number.tag() {
+    let option_abs = match number.tag() {
         SmallInteger => {
             if unsafe { number.small_integer_is_negative() } {
                 // cast first so that sign bit is extended on shift
                 let signed = (number.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
                 let positive = -signed;
-                Ok(Term {
+                Some(Term {
                     tagged: ((positive << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
                         | (SmallInteger as usize),
                 })
             } else {
-                Ok(Term {
+                Some(Term {
                     tagged: number.tagged,
                 })
             }
@@ -72,7 +72,7 @@ pub fn abs_1(number: Term, process: &Process) -> Result {
                         number
                     };
 
-                    Ok(positive_term)
+                    Some(positive_term)
                 }
                 Float => {
                     let float: &Float = number.unbox_reference();
@@ -83,15 +83,20 @@ pub fn abs_1(number: Term, process: &Process) -> Result {
                             let positive_inner = inner.abs();
                             let positive_number: Term = positive_inner.into_process(&process);
 
-                            Ok(positive_number)
+                            Some(positive_number)
                         }
-                        _ => Ok(number),
+                        _ => Some(number),
                     }
                 }
-                _ => Err(badarg!()),
+                _ => None,
             }
         }
-        _ => Err(badarg!()),
+        _ => None,
+    };
+
+    match option_abs {
+        Some(abs) => Ok(abs),
+        None => Err(badarg!()),
     }
 }
 

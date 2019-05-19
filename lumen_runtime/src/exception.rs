@@ -1,4 +1,5 @@
 use crate::term::Term;
+use crate::atom::Existence::DoNotCare;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -19,6 +20,55 @@ pub struct Exception {
     pub line: u32,
     #[cfg(debug_assertions)]
     pub column: u32,
+}
+
+impl Exception {
+    #[cfg(debug_assertions)]
+    pub fn badarg(file: &'static str, line: u32, column: u32) -> Self {
+        Self::error(Self::badarg_reason(), None, None, file, line, column)
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub fn badarg() -> Self {
+        Self::error(Self::badarg_reason(), None, None)
+    }
+
+    fn badarg_reason() -> Term {
+        Term::str_to_atom("badarg", DoNotCare).unwrap()
+    }
+
+    #[cfg(debug_assertions)]
+    fn error(reason: Term, arguments: Option<Term>, stacktrace: Option<Term>, file: &'static str, line: u32, column: u32) -> Self {
+        let class = Class::Error { arguments };
+        Self::new(class, reason, stacktrace, file, line, column)
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn error(reason: Term, arguments: Option<Term>, stacktrace: Option<Term>) -> Self {
+        let class = Class::Error { arguments };
+        Self::new(class, reason, stacktrace)
+    }
+
+    #[cfg(debug_assertions)]
+    fn new(class: Class, reason: Term, stacktrace: Option<Term>, file: &'static str, line: u32, column: u32) -> Self {
+        Exception {
+            class,
+            reason,
+            stacktrace,
+            file,
+            line,
+            column,
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn new(class: Class, reason: Term, stacktrace: Option<Term>) -> Self {
+        Exception {
+            class,
+            reason,
+            stacktrace,
+        }
+    }
 }
 
 impl Eq for Exception {}

@@ -34,6 +34,7 @@ impl Binary {
         byte_count: usize,
         bit_count: u8,
     ) -> Self {
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))]
         match original.tag() {
             Boxed => {
                 let unboxed: &Term = original.unbox_reference();
@@ -55,13 +56,23 @@ impl Binary {
                             original_bit_count
                         );
                     }
-                    unboxed_tag => panic!(
-                        "Unboxed tag ({:?}) cannot be original binary for subbinary",
-                        unboxed_tag
-                    ),
+                    unboxed_tag => {
+                        #[cfg(debug_assertions)]
+                        panic!(
+                            "Unboxed tag ({:?}) cannot be original binary for subbinary",
+                            unboxed_tag
+                        );
+                        #[cfg(not(debug_assertions))]
+                        panic!("Cannot be original binary for subbinary");
+                    }
                 }
             }
-            tag => panic!("Tag ({:?}) cannot be original binary for subbinary", tag),
+            tag => {
+                #[cfg(debug_assertions)]
+                panic!("Tag ({:?}) cannot be original binary for subbinary", tag);
+                #[cfg(not(debug_assertions))]
+                panic!("Cannot be original binary for subbinary");
+            }
         }
 
         Binary {

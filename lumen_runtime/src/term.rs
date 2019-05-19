@@ -36,7 +36,8 @@ use crate::tuple::Tuple;
 
 pub mod external_format;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 // MUST be `repr(u*)` so that size and layout is fixed for direct LLVM IR checking of tags
 #[repr(usize)]
 pub enum Tag {
@@ -254,6 +255,7 @@ impl Term {
     }
 
     pub fn byte(&self, index: usize) -> u8 {
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))]
         match self.tag() {
             Boxed => {
                 let unboxed: &Term = self.unbox_reference();
@@ -265,10 +267,20 @@ impl Term {
                         heap_binary.byte(index)
                     }
                     ReferenceCountedBinary => unimplemented!(),
-                    unboxed_tag => panic!("Cannot get bytes of unboxed {:?}", unboxed_tag),
+                    unboxed_tag => {
+                        #[cfg(debug_assertions)]
+                        panic!("Cannot get bytes of unboxed {:?}", unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        panic!("Cannot get bytes");
+                    }
                 }
             }
-            tag => panic!("Cannot get bytes of {:?}", tag),
+            tag => {
+                #[cfg(debug_assertions)]
+                panic!("Cannot get bytes of {:?}", tag);
+                #[cfg(not(debug_assertions))]
+                panic!("Cannot get bytes");
+            }
         }
     }
 
@@ -556,7 +568,8 @@ impl Term {
     }
 
     pub unsafe fn small_integer_to_usize(&self) -> usize {
-        assert_eq!(
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(
             self.tag(),
             SmallInteger,
             "Term ({:#b}) is not a small integer",
@@ -777,6 +790,7 @@ impl Term {
     unsafe fn small_integer_cmp_boxed(small_integer: &Term, boxed: &Term) -> Ordering {
         let unboxed: &Term = boxed.unbox_reference();
 
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))]
         match unboxed.tag() {
             Float => {
                 let small_integer_f64: f64 = small_integer.small_integer_to_isize() as f64;
@@ -795,13 +809,19 @@ impl Term {
                 small_integer_big_int.cmp(boxed_big_int)
             }
             LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
-            other_unboxed_tag => unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag),
+            other_unboxed_tag => {
+                #[cfg(debug_assertions)]
+                unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag);
+                #[cfg(not(debug_assertions))]
+                unimplemented!();
+            }
         }
     }
 }
 
 impl CloneIntoHeap for Term {
     fn clone_into_heap(&self, heap: &Heap) -> Term {
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))]
         match self.tag() {
             Boxed => {
                 let unboxed: &Term = self.unbox_reference();
@@ -855,7 +875,12 @@ impl CloneIntoHeap for Term {
 
                         Term::box_reference(heap_subbinary)
                     }
-                    unboxed_tag => unimplemented!("Cloning unboxed {:?} into Heap", unboxed_tag),
+                    unboxed_tag => {
+                        #[cfg(debug_assertions)]
+                        unimplemented!("Cloning unboxed {:?} into Heap", unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
+                    }
                 }
             }
             Atom | EmptyList | LocalPid | SmallInteger => self.clone(),
@@ -864,7 +889,12 @@ impl CloneIntoHeap for Term {
 
                 cons.clone_into_heap(heap)
             }
-            tag => unimplemented!("Cloning {:?} into Heap", tag),
+            tag => {
+                #[cfg(debug_assertions)]
+                unimplemented!("Cloning {:?} into Heap", tag);
+                #[cfg(not(debug_assertions))]
+                unimplemented!();
+            }
         }
     }
 }
@@ -1052,12 +1082,18 @@ impl From<u8> for Term {
 
 impl From<&Term> for isize {
     fn from(term: &Term) -> Self {
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))]
         match term.tag() {
             SmallInteger => (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT,
-            tag => panic!(
-                "{:?} tagged term {:#b} cannot be converted to isize",
-                tag, term.tagged
-            ),
+            tag => {
+                #[cfg(debug_assertions)]
+                panic!(
+                    "{:?} tagged term {:#b} cannot be converted to isize",
+                    tag, term.tagged
+                );
+                #[cfg(not(debug_assertions))]
+                panic!("Term cannot be converted to isize");
+            }
         }
     }
 }
@@ -1070,6 +1106,7 @@ impl<T> From<&T> for Term {
 
 impl Hash for Term {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        #[cfg_attr(not(debug_assertions), allow(unused_variables))]
         match self.tag() {
             Atom | EmptyList | LocalPid | SmallInteger => self.tagged.hash(state),
             Boxed => {
@@ -1111,7 +1148,12 @@ impl Hash for Term {
 
                         subbinary.hash(state)
                     }
-                    unboxed_tag => unimplemented!("unboxed tag {:?}", unboxed_tag),
+                    unboxed_tag => {
+                        #[cfg(debug_assertions)]
+                        unimplemented!("unboxed tag {:?}", unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
+                    }
                 }
             }
             List => {
@@ -1119,7 +1161,12 @@ impl Hash for Term {
 
                 cons.hash(state)
             }
-            tag => unimplemented!("tag {:?}", tag),
+            tag => {
+                #[cfg(debug_assertions)]
+                unimplemented!("tag {:?}", tag);
+                #[cfg(not(debug_assertions))]
+                unimplemented!();
+            }
         }
     }
 }
@@ -1239,6 +1286,7 @@ impl From<atom::Index> for Term {
 /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
 /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
 impl Ord for Term {
+    #[cfg_attr(not(debug_assertions), allow(unused_variables))]
     fn cmp(&self, other: &Self) -> Ordering {
         // in ascending order
         match (self.tag(), other.tag()) {
@@ -1277,7 +1325,12 @@ impl Ord for Term {
                 match other_unboxed.tag() {
                     LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
                     BigInteger | Float => Greater,
-                    other_unboxed_tag => unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag),
+                    other_unboxed_tag => {
+                        #[cfg(debug_assertions)]
+                        unimplemented!("Atom cmp unboxed {:?}", other_unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
+                    }
                 }
             }
             (Atom, LocalPid) | (Atom, EmptyList) | (Atom, List) => Less,
@@ -1290,7 +1343,12 @@ impl Ord for Term {
                 match self_unboxed.tag() {
                     BigInteger | Float => Less,
                     LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Greater,
-                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag),
+                    self_unboxed_tag => {
+                        #[cfg(debug_assertions)]
+                        unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
+                    }
                 }
             }
             (Boxed, Boxed) => {
@@ -1419,11 +1477,16 @@ impl Ord for Term {
 
                         self_subbinary.cmp(other_subbinary)
                     }
-                    (self_unboxed_tag, other_unboxed_tag) => unimplemented!(
-                        "unboxed {:?} cmp unboxed {:?}",
-                        self_unboxed_tag,
-                        other_unboxed_tag
-                    ),
+                    (self_unboxed_tag, other_unboxed_tag) => {
+                        #[cfg(debug_assertions)]
+                        unimplemented!(
+                            "unboxed {:?} cmp unboxed {:?}",
+                            self_unboxed_tag,
+                            other_unboxed_tag
+                        );
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
+                    }
                 }
             }
             (Boxed, LocalPid) => {
@@ -1434,7 +1497,10 @@ impl Ord for Term {
                     // local pid has node 0 while all external pids have node > 0
                     ExternalPid | Arity | Map | HeapBinary | Subbinary => Greater,
                     self_unboxed_tag => {
-                        unimplemented!("unboxed {:?} cmp LocalPid", self_unboxed_tag)
+                        #[cfg(debug_assertions)]
+                        unimplemented!("unboxed {:?} cmp LocalPid", self_unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
                     }
                 }
             }
@@ -1444,7 +1510,12 @@ impl Ord for Term {
                 match self_unboxed.tag() {
                     Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Less,
                     HeapBinary | Subbinary => Greater,
-                    self_unboxed_tag => unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag),
+                    self_unboxed_tag => {
+                        #[cfg(debug_assertions)]
+                        unimplemented!("unboxed {:?} cmp list()", self_unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
+                    }
                 }
             }
             (LocalPid, SmallInteger) | (LocalPid, Atom) => Greater,
@@ -1455,7 +1526,10 @@ impl Ord for Term {
                     Float | BigInteger | LocalReference => Greater,
                     ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
                     other_unboxed_tag => {
-                        unimplemented!("LocalPid cmp unboxed {:?}", other_unboxed_tag)
+                        #[cfg(debug_assertions)]
+                        unimplemented!("LocalPid cmp unboxed {:?}", other_unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
                     }
                 }
             }
@@ -1468,7 +1542,10 @@ impl Ord for Term {
                     Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Greater,
                     HeapBinary | Subbinary => Less,
                     other_unboxed_tag => {
-                        unimplemented!("list() cmp unboxed {:?}", other_unboxed_tag)
+                        #[cfg(debug_assertions)]
+                        unimplemented!("list() cmp unboxed {:?}", other_unboxed_tag);
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!();
                     }
                 }
             }
@@ -1488,7 +1565,12 @@ impl Ord for Term {
 
                 self_cons.cmp(other_cons)
             }
-            (self_tag, other_tag) => unimplemented!("{:?} cmp {:?}", self_tag, other_tag),
+            (self_tag, other_tag) => {
+                #[cfg(debug_assertions)]
+                unimplemented!("{:?} cmp {:?}", self_tag, other_tag);
+                #[cfg(not(debug_assertions))]
+                unimplemented!();
+            }
         }
     }
 }
@@ -1612,11 +1694,14 @@ impl PartialEq for Term {
                     (self_unboxed_tag, other_unboxed_tag)
                         if self_unboxed_tag == other_unboxed_tag =>
                     {
+                        #[cfg(debug_assertions)]
                         unimplemented!(
                             "unboxed {:?} == unboxed {:?}",
                             self_unboxed_tag,
                             other_unboxed_tag
-                        )
+                        );
+                        #[cfg(not(debug_assertions))]
+                        unimplemented!()
                     }
                     _ => false,
                 }
@@ -1629,7 +1714,10 @@ impl PartialEq for Term {
                 self_cons == other_cons
             }
             (self_tag, other_tag) if self_tag == other_tag => {
-                unimplemented!("{:?} == {:?}", self_tag, other_tag)
+                #[cfg(debug_assertions)]
+                unimplemented!("{:?} == {:?}", self_tag, other_tag);
+                #[cfg(not(debug_assertions))]
+                unimplemented!();
             }
             _ => false,
         }
@@ -1661,15 +1749,15 @@ impl TryFrom<Term> for BigInt {
 
                         Some(big_integer.inner.clone())
                     }
-                    _ => None
+                    _ => None,
                 }
             }
-            _ => None
+            _ => None,
         };
 
         match option_big_int {
             Some(big_int) => Ok(big_int),
-            None => Err(badarg!())
+            None => Err(badarg!()),
         }
     }
 }

@@ -1292,13 +1292,13 @@ pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
 }
 
 pub fn spawn_3(module: Term, function: Term, arguments: Term, process: &Process) -> Result {
-    if (module.tag() == Atom) & (function.tag() == Atom) {
+    let option_pid = if (module.tag() == Atom) & (function.tag() == Atom) {
         match arguments.tag() {
             EmptyList => {
                 let arc_process =
                     Scheduler::spawn(process, module, function, arguments, code::apply_fn());
 
-                Ok(arc_process.pid)
+                Some(arc_process.pid)
             }
             List => {
                 let cons: &Cons = unsafe { arguments.as_ref_cons_unchecked() };
@@ -1307,15 +1307,20 @@ pub fn spawn_3(module: Term, function: Term, arguments: Term, process: &Process)
                     let arc_process =
                         Scheduler::spawn(process, module, function, arguments, code::apply_fn());
 
-                    Ok(arc_process.pid)
+                    Some(arc_process.pid)
                 } else {
-                    Err(badarg!())
+                    None
                 }
             }
-            _ => Err(badarg!()),
+            _ => None,
         }
     } else {
-        Err(badarg!())
+        None
+    };
+
+    match option_pid {
+        Some(pid) => Ok(pid),
+        None => Err(badarg!()),
     }
 }
 

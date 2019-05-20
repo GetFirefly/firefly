@@ -112,13 +112,18 @@ macro_rules! badarg {
     };
 }
 
+#[cfg(debug_assertions)]
 macro_rules! badarith {
-    () => {{
-        use crate::atom::Existence::DoNotCare;
-        use crate::term::Term;
+    () => {
+        $crate::exception::Exception::badarith(file!(), line!(), column!())
+    };
+}
 
-        error!(Term::str_to_atom("badarith", DoNotCare).unwrap())
-    }};
+#[cfg(not(debug_assertions))]
+macro_rules! badarith {
+    () => {
+        $crate::exception::Exception::badarith()
+    };
 }
 
 #[macro_export]

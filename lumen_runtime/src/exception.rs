@@ -33,8 +33,24 @@ impl Exception {
         Self::error(Self::badarg_reason(), None, None)
     }
 
+    #[cfg(debug_assertions)]
+    pub fn badarith(file: &'static str, line: u32, column: u32) -> Self {
+        Self::error(Self::badarith_reason(), None, None, file, line, column)
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub fn badarith() -> Self {
+        Self::error(Self::badarith_reason(), None, None)
+    }
+
+    // Private
+
     fn badarg_reason() -> Term {
         Term::str_to_atom("badarg", DoNotCare).unwrap()
+    }
+
+    fn badarith_reason() -> Term {
+        Term::str_to_atom("badarith", DoNotCare).unwrap()
     }
 
     #[cfg(debug_assertions)]

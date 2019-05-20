@@ -1,5 +1,6 @@
-use crate::term::Term;
 use crate::atom::Existence::DoNotCare;
+use crate::process::Process;
+use crate::term::Term;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -43,6 +44,27 @@ impl Exception {
         Self::error(Self::badarith_reason(), None, None)
     }
 
+    #[cfg(debug_assertions)]
+    pub fn badarity(
+        function: Term,
+        arguments: Term,
+        process: &Process,
+        file: &'static str,
+        line: u32,
+        column: u32,
+    ) -> Self {
+        let reason = Self::badarity_reason(function, arguments, process);
+
+        Self::error(reason, None, None, file, line, column)
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub fn badarity(function: Term, arguments: Term, process: &Process) -> Self {
+        let reason = Self::badarity_reason(function, arguments, process);
+
+        Self::error(reason, None, None)
+    }
+
     // Private
 
     fn badarg_reason() -> Term {
@@ -53,8 +75,29 @@ impl Exception {
         Term::str_to_atom("badarith", DoNotCare).unwrap()
     }
 
+    fn badarity_reason(function: Term, arguments: Term, process: &Process) -> Term {
+        Term::slice_to_tuple(
+            &[
+                Self::badarity_tag(),
+                Term::slice_to_tuple(&[function, arguments], process),
+            ],
+            process,
+        )
+    }
+
+    fn badarity_tag() -> Term {
+        Term::str_to_atom("badarity", DoNotCare).unwrap()
+    }
+
     #[cfg(debug_assertions)]
-    fn error(reason: Term, arguments: Option<Term>, stacktrace: Option<Term>, file: &'static str, line: u32, column: u32) -> Self {
+    fn error(
+        reason: Term,
+        arguments: Option<Term>,
+        stacktrace: Option<Term>,
+        file: &'static str,
+        line: u32,
+        column: u32,
+    ) -> Self {
         let class = Class::Error { arguments };
         Self::new(class, reason, stacktrace, file, line, column)
     }
@@ -66,7 +109,14 @@ impl Exception {
     }
 
     #[cfg(debug_assertions)]
-    fn new(class: Class, reason: Term, stacktrace: Option<Term>, file: &'static str, line: u32, column: u32) -> Self {
+    fn new(
+        class: Class,
+        reason: Term,
+        stacktrace: Option<Term>,
+        file: &'static str,
+        line: u32,
+        column: u32,
+    ) -> Self {
         Exception {
             class,
             reason,

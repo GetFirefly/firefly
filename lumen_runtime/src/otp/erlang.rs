@@ -194,15 +194,15 @@ pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Res
                         None
                     }
                 }
-                _ => None
+                _ => None,
             }
         }
-        _ => None
+        _ => None,
     };
 
     match option_result {
         Some(result) => result,
-        None => Err(badarg!())
+        None => Err(badarg!()),
     }
 }
 

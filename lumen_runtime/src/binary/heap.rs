@@ -1,52 +1,51 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
-
-use liblumen_arena::TypedArena;
+#[cfg(test)]
+use std::fmt::{self, Debug};
+use std::hash::{Hash, Hasher};
 
 use crate::atom::{self, Existence};
 use crate::binary::{
-    self, part_range_to_list, start_length_to_part_range, ByteIterator, Part, PartRange,
+    self, part_range_to_list, start_length_to_part_range, sub, ByteIterator, Part, PartRange,
     PartToList, ToTerm, ToTermOptions,
 };
+use crate::exception::Exception;
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer;
-use crate::process::{DebugInProcess, IntoProcess, OrderInProcess, Process};
-use crate::term::{BadArgument, Term};
+use crate::process::{IntoProcess, Process};
+use crate::term::Term;
 
 pub struct Binary {
     header: Term,
     bytes: *const u8,
 }
 
-impl<'binary, 'bytes: 'binary> Binary {
-    pub fn from_slice(
-        bytes: &[u8],
-        binary_arena: &'binary mut TypedArena<Binary>,
-        byte_arena: &'bytes mut TypedArena<u8>,
-    ) -> &'static Self {
-        let arena_bytes: &[u8] = if bytes.len() != 0 {
-            byte_arena.alloc_slice(bytes)
-        } else {
-            &[]
-        };
-
-        let pointer = binary_arena.alloc(Binary::new(arena_bytes)) as *const Binary;
-
-        unsafe { &*pointer }
-    }
-
-    fn new(bytes: &[u8]) -> Self {
+impl Binary {
+    pub fn new(bytes: &[u8]) -> Self {
         Binary {
             header: Term::heap_binary(bytes.len()),
             bytes: bytes.as_ptr(),
         }
     }
 
-    pub fn bit_size(&self) -> usize {
-        self.header.heap_binary_to_byte_count() * 8
+    pub fn as_slice(&self) -> &'static [u8] {
+        unsafe { std::slice::from_raw_parts(self.bytes, self.header.heap_binary_to_byte_count()) }
+    }
+
+    pub fn bit_count_iter(byte: u8, bit_count: u8) -> BitCountIter {
+        BitCountIter {
+            byte,
+            current_bit_offset: 0,
+            max_bit_offset: bit_count,
+        }
+    }
+
+    pub fn bit_len(&self) -> usize {
+        self.byte_len() * 8
     }
 
     pub fn byte(&self, index: usize) -> u8 {
-        let byte_count = Term::heap_binary_to_byte_count(&self.header);
+        let byte_count = self.byte_len();
 
         assert!(
             index < byte_count,
@@ -62,12 +61,12 @@ impl<'binary, 'bytes: 'binary> Binary {
         self.iter()
     }
 
-    pub fn byte_size(&self) -> usize {
-        self.header.heap_binary_to_byte_count()
+    pub fn byte_len(&self) -> usize {
+        unsafe { self.header.heap_binary_to_byte_count() }
     }
 
     pub fn iter(&self) -> Iter {
-        let byte_count = Term::heap_binary_to_byte_count(&self.header);
+        let byte_count = self.byte_len();
 
         unsafe {
             Iter {
@@ -77,53 +76,71 @@ impl<'binary, 'bytes: 'binary> Binary {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.byte_len()
+    }
+
     pub fn size(&self) -> Integer {
         // The `header` field is not the same as `size` because `size` is tagged as a small integer
         // while `header` is tagged as `HeapBinary` to mark the beginning of a heap binary.
-        self.header.heap_binary_to_byte_count().into()
+        self.len().into()
     }
 
-    pub fn to_atom_index(
-        &self,
-        existence: Existence,
-        process: &mut Process,
-    ) -> Result<atom::Index, BadArgument> {
-        let bytes = unsafe {
-            std::slice::from_raw_parts(self.bytes, Term::heap_binary_to_byte_count(&self.header))
-        };
+    pub fn to_atom_index(&self, existence: Existence) -> Option<atom::Index> {
+        let bytes = self.as_slice();
 
-        process.str_to_atom_index(std::str::from_utf8(bytes).unwrap(), existence)
+        atom::str_to_index(std::str::from_utf8(bytes).unwrap(), existence)
     }
 
-    pub fn to_list(&self, mut process: &mut Process) -> Term {
+    pub fn to_list(&self, process: &Process) -> Term {
         self.iter().rfold(Term::EMPTY_LIST, |acc, byte| {
-            Term::cons(byte.into_process(&mut process), acc, &mut process)
+            Term::cons(byte.into_process(&process), acc, &process)
         })
     }
 
-    pub fn to_bitstring_list(&self, process: &mut Process) -> Term {
+    pub fn to_bitstring_list(&self, process: &Process) -> Term {
         self.to_list(process)
     }
 }
 
-impl DebugInProcess for Binary {
-    fn format_in_process(&self, _process: &Process) -> String {
-        let mut strings: Vec<String> = Vec::new();
-        strings.push("Binary::from_slice(&[".to_string());
+pub struct BitCountIter {
+    byte: u8,
+    current_bit_offset: u8,
+    max_bit_offset: u8,
+}
+
+impl CloneIntoHeap for &'static Binary {
+    fn clone_into_heap(&self, heap: &Heap) -> &'static Binary {
+        heap.slice_to_heap_binary(self.as_slice())
+    }
+}
+
+#[cfg(test)]
+impl Debug for Binary {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Binary::from_slice(&[")?;
 
         let mut iter = self.iter();
 
         if let Some(first_byte) = iter.next() {
-            strings.push(first_byte.to_string());
+            write!(f, "{:?}", first_byte)?;
 
-            for element in iter {
-                strings.push(", ".to_string());
-                strings.push(element.to_string());
+            for byte in iter {
+                write!(f, ", {:?}", byte)?;
             }
         }
 
-        strings.push("])".to_string());
-        strings.join("")
+        write!(f, "])")
+    }
+}
+
+impl Eq for Binary {}
+
+impl Hash for Binary {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for byte in self.byte_iter() {
+            byte.hash(state);
+        }
     }
 }
 
@@ -135,6 +152,22 @@ pub struct Iter {
 impl ByteIterator for Iter {}
 
 impl ExactSizeIterator for Iter {}
+
+impl Iterator for BitCountIter {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        if self.current_bit_offset == self.max_bit_offset {
+            None
+        } else {
+            let bit = (self.byte >> (7 - self.current_bit_offset)) & 0b1;
+
+            self.current_bit_offset += 1;
+
+            Some(bit)
+        }
+    }
+}
 
 impl Iterator for Iter {
     type Item = u8;
@@ -174,14 +207,23 @@ impl DoubleEndedIterator for Iter {
     }
 }
 
+impl From<&Binary> for Vec<u8> {
+    fn from(binary: &Binary) -> Vec<u8> {
+        let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_len());
+        bytes_vec.extend(binary.byte_iter());
+
+        bytes_vec
+    }
+}
+
 impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
     fn part(
         &'a self,
         start: usize,
         length: isize,
-        process: &mut Process,
-    ) -> Result<binary::Binary<'b>, BadArgument> {
-        let available_byte_count = Term::heap_binary_to_byte_count(&self.header);
+        process: &Process,
+    ) -> Result<binary::Binary<'b>, Exception> {
+        let available_byte_count = self.byte_len();
         let PartRange {
             byte_offset,
             byte_count,
@@ -197,84 +239,97 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
     }
 }
 
-impl PartToList<usize, isize> for Binary {
-    fn part_to_list(
-        &self,
-        start: usize,
-        length: isize,
-        mut process: &mut Process,
-    ) -> Result<Term, BadArgument> {
-        let available_byte_count = Term::heap_binary_to_byte_count(&self.header);
-        let part_range = start_length_to_part_range(start, length, available_byte_count)?;
-        let list = part_range_to_list(self.iter(), part_range, &mut process);
-
-        Ok(list)
-    }
-}
-
-impl OrderInProcess for Binary {
-    fn cmp_in_process(&self, other: &Binary, process: &Process) -> Ordering {
-        match self.header.cmp_in_process(&other.header, process) {
-            Ordering::Equal => {
-                let mut final_ordering = Ordering::Equal;
+impl PartialEq for Binary {
+    fn eq(&self, other: &Binary) -> bool {
+        match self.header.tagged == other.header.tagged {
+            true => {
+                let mut final_eq = true;
 
                 for (self_element, other_element) in self.iter().zip(other.iter()) {
-                    match self_element.cmp(&other_element) {
-                        Ordering::Equal => continue,
-                        ordering => {
-                            final_ordering = ordering;
+                    match self_element == other_element {
+                        true => continue,
+                        eq => {
+                            final_eq = eq;
                             break;
                         }
                     }
                 }
 
-                final_ordering
+                final_eq
             }
-            ordering => ordering,
+            eq => eq,
         }
     }
 }
 
-impl From<&Binary> for Vec<u8> {
-    fn from(binary: &Binary) -> Vec<u8> {
-        let mut bytes_vec: Vec<u8> = Vec::with_capacity(binary.byte_size());
-        bytes_vec.extend(binary.byte_iter());
-
-        bytes_vec
+impl PartialEq<sub::Binary> for Binary {
+    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+    fn eq(&self, other: &sub::Binary) -> bool {
+        (other.bit_count == 0) & self.byte_iter().eq(other.byte_iter())
     }
 }
 
-impl ToTerm for Binary {
-    fn to_term(
+impl PartialOrd for Binary {
+    fn partial_cmp(&self, other: &Binary) -> Option<Ordering> {
+        self.byte_iter().partial_cmp(other.byte_iter())
+    }
+}
+
+impl PartialOrd<sub::Binary> for Binary {
+    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+    fn partial_cmp(&self, other: &sub::Binary) -> Option<Ordering> {
+        other.partial_cmp(self).map(|ordering| ordering.reverse())
+    }
+}
+
+impl PartToList<usize, isize> for Binary {
+    fn part_to_list(
         &self,
-        options: ToTermOptions,
-        mut process: &mut Process,
-    ) -> Result<Term, BadArgument> {
+        start: usize,
+        length: isize,
+        process: &Process,
+    ) -> Result<Term, Exception> {
+        let available_byte_count = self.byte_len();
+        let part_range = start_length_to_part_range(start, length, available_byte_count)?;
+        let list = part_range_to_list(self.iter(), part_range, &process);
+
+        Ok(list)
+    }
+}
+
+// A `Binary` is immutable after creation, so the fact that it contains a `*const u8` which is not
+// `Send` should not matter
+unsafe impl Send for Binary {}
+
+impl ToTerm for Binary {
+    fn to_term(&self, options: ToTermOptions, process: &Process) -> Result<Term, Exception> {
         let mut iter = self.iter();
 
-        match iter.next_versioned_term(options.existence, &mut process) {
+        match iter.next_versioned_term(options.existence, &process) {
             Some(term) => {
                 if options.used {
-                    let used = self.byte_size() - iter.len();
-                    let used_term: Term = used.into_process(&mut process);
+                    let used = self.byte_len() - iter.len();
+                    let used_term: Term = used.into_process(&process);
 
-                    Ok(Term::slice_to_tuple(&[term, used_term], &mut process))
+                    Ok(Term::slice_to_tuple(&[term, used_term], &process))
                 } else {
                     Ok(term)
                 }
             }
-            None => Err(BadArgument),
+            None => Err(badarg!()),
         }
     }
 }
 
 impl TryFrom<&Binary> for String {
-    type Error = BadArgument;
+    type Error = Exception;
 
-    fn try_from(binary: &Binary) -> Result<String, BadArgument> {
+    fn try_from(binary: &Binary) -> Result<String, Exception> {
         let byte_vec: Vec<u8> = binary.into();
 
-        String::from_utf8(byte_vec).map_err(|_| BadArgument)
+        String::from_utf8(byte_vec).map_err(|_| badarg!())
     }
 }
 
@@ -282,31 +337,47 @@ impl TryFrom<&Binary> for String {
 mod tests {
     use super::*;
 
-    mod from_slice {
+    use crate::scheduler::with_process;
+
+    mod process {
         use super::*;
 
-        #[test]
-        fn without_bytes() {
-            let mut byte_arena: TypedArena<u8> = Default::default();
-            let mut binary_arena: TypedArena<Binary> = Default::default();
+        mod slice_to_binary {
+            use super::*;
 
-            let binary = Binary::from_slice(&[], &mut binary_arena, &mut byte_arena);
+            use crate::binary;
 
-            assert_eq!(binary.header.tagged, Term::heap_binary(0).tagged);
-        }
+            #[test]
+            fn without_bytes() {
+                with_process(|process| {
+                    let binary = process.slice_to_binary(&[]);
 
-        #[test]
-        fn with_bytes() {
-            let mut byte_arena: TypedArena<u8> = Default::default();
-            let mut binary_arena: TypedArena<Binary> = Default::default();
+                    match binary {
+                        binary::Binary::Heap(ref heap_binary) => {
+                            assert_eq!(heap_binary.header.tagged, Term::heap_binary(0).tagged)
+                        }
+                        _ => panic!("Wrong type of binary"),
+                    }
+                });
+            }
 
-            let binary = Binary::from_slice(&[0, 1, 2, 3], &mut binary_arena, &mut byte_arena);
+            #[test]
+            fn with_bytes() {
+                with_process(|process| {
+                    let binary = process.slice_to_binary(&[0, 1, 2, 3]);
 
-            assert_eq!(binary.header.tagged, Term::heap_binary(4).tagged);
-            assert_eq!(unsafe { *binary.bytes.offset(0) }, 0);
-            assert_eq!(unsafe { *binary.bytes.offset(1) }, 1);
-            assert_eq!(unsafe { *binary.bytes.offset(2) }, 2);
-            assert_eq!(unsafe { *binary.bytes.offset(3) }, 3);
+                    match binary {
+                        binary::Binary::Heap(ref heap_binary) => {
+                            assert_eq!(heap_binary.header.tagged, Term::heap_binary(4).tagged);
+                            assert_eq!(unsafe { *heap_binary.bytes.offset(0) }, 0);
+                            assert_eq!(unsafe { *heap_binary.bytes.offset(1) }, 1);
+                            assert_eq!(unsafe { *heap_binary.bytes.offset(2) }, 2);
+                            assert_eq!(unsafe { *heap_binary.bytes.offset(3) }, 3);
+                        }
+                        _ => panic!("Wrong type of binary"),
+                    }
+                });
+            }
         }
     }
 
@@ -315,66 +386,76 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let mut process: Process = Default::default();
-            let binary =
-                Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
-            let equal =
-                Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[]);
+                let equal_binary = process.slice_to_binary(&[]);
 
-            assert_eq_in_process!(binary, binary, process);
-            assert_eq_in_process!(binary, equal, process);
+                match (binary, equal_binary) {
+                    (
+                        binary::Binary::Heap(ref heap_binary),
+                        binary::Binary::Heap(ref equal_heap_binary),
+                    ) => {
+                        assert_eq!(heap_binary, heap_binary);
+                        assert_eq!(heap_binary, equal_heap_binary);
+                    }
+                    _ => panic!("Not heap binaries"),
+                }
+            });
         }
 
         #[test]
         fn without_equal_length() {
-            let mut process: Process = Default::default();
-            let binary = Binary::from_slice(
-                &[0],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
-            let unequal = Binary::from_slice(
-                &[0, 1],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0]);
+                let unequal_binary = process.slice_to_binary(&[0, 1]);
 
-            assert_ne_in_process!(binary, unequal, process);
+                match (binary, unequal_binary) {
+                    (
+                        binary::Binary::Heap(ref heap_binary),
+                        binary::Binary::Heap(ref unequal_heap_binary),
+                    ) => {
+                        assert_ne!(heap_binary, unequal_heap_binary);
+                    }
+                    _ => panic!("Not heap binaries"),
+                }
+            });
         }
 
         #[test]
         fn with_equal_length_without_same_byte() {
-            let mut process: Process = Default::default();
-            let binary = Binary::from_slice(
-                &[0],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
-            let unequal = Binary::from_slice(
-                &[1],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0]);
+                let unequal_binary = process.slice_to_binary(&[1]);
 
-            assert_eq_in_process!(binary, binary, process);
-            assert_ne_in_process!(binary, unequal, process);
+                match (binary, unequal_binary) {
+                    (
+                        binary::Binary::Heap(ref heap_binary),
+                        binary::Binary::Heap(ref unequal_heap_binary),
+                    ) => {
+                        assert_eq!(heap_binary, heap_binary);
+                        assert_ne!(heap_binary, unequal_heap_binary);
+                    }
+                    _ => panic!("Not heap binaries"),
+                }
+            });
         }
 
         #[test]
         fn with_equal_length_with_same_bytes() {
-            let mut process: Process = Default::default();
-            let binary = Binary::from_slice(
-                &[0],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
-            let unequal = Binary::from_slice(
-                &[0],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0]);
+                let unequal_binary = process.slice_to_binary(&[0]);
 
-            assert_eq_in_process!(binary, unequal, process);
+                match (binary, unequal_binary) {
+                    (
+                        binary::Binary::Heap(ref heap_binary),
+                        binary::Binary::Heap(ref unequal_heap_binary),
+                    ) => {
+                        assert_eq!(heap_binary, unequal_heap_binary);
+                    }
+                    _ => panic!("Not heap binaries"),
+                }
+            });
         }
     }
 
@@ -385,67 +466,76 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let mut process: Process = Default::default();
-            let binary =
-                Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[]);
 
-            assert_eq!(binary.iter().count(), 0);
+                match binary {
+                    binary::Binary::Heap(ref heap_binary) => {
+                        assert_eq!(heap_binary.iter().count(), 0);
 
-            let size_integer: Integer = binary.size();
-            let size_usize: usize = size_integer.try_into().unwrap();
+                        let size_integer: Integer = heap_binary.size();
+                        let size_usize: usize = size_integer.try_into().unwrap();
 
-            assert_eq!(binary.iter().count(), size_usize);
+                        assert_eq!(heap_binary.iter().count(), size_usize);
+                    }
+                    _ => panic!("Not a heap binary"),
+                }
+            });
         }
 
         #[test]
         fn with_elements() {
-            let mut process: Process = Default::default();
-            let binary = Binary::from_slice(
-                &[0],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0]);
 
-            assert_eq!(binary.iter().count(), 1);
+                match binary {
+                    binary::Binary::Heap(ref heap_binary) => {
+                        assert_eq!(heap_binary.iter().count(), 1);
 
-            let size_integer: Integer = binary.size();
-            let size_usize: usize = size_integer.try_into().unwrap();
+                        let size_integer: Integer = heap_binary.size();
+                        let size_usize: usize = size_integer.try_into().unwrap();
 
-            assert_eq!(binary.iter().count(), size_usize);
+                        assert_eq!(heap_binary.iter().count(), size_usize);
+                    }
+                    _ => panic!("Not a heap binary"),
+                }
+            });
         }
 
         #[test]
         fn is_double_ended() {
-            let mut process: Process = Default::default();
-            let binary = Binary::from_slice(
-                &[0, 1, 2],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[0, 1, 2]);
 
-            let mut iter = binary.iter();
+                match binary {
+                    binary::Binary::Heap(ref heap_binary) => {
+                        let mut iter = heap_binary.iter();
 
-            assert_eq!(iter.next(), Some(0));
-            assert_eq!(iter.next(), Some(1));
-            assert_eq!(iter.next(), Some(2));
-            assert_eq!(iter.next(), None);
-            assert_eq!(iter.next(), None);
+                        assert_eq!(iter.next(), Some(0));
+                        assert_eq!(iter.next(), Some(1));
+                        assert_eq!(iter.next(), Some(2));
+                        assert_eq!(iter.next(), None);
+                        assert_eq!(iter.next(), None);
 
-            let mut rev_iter = binary.iter();
+                        let mut rev_iter = heap_binary.iter();
 
-            assert_eq!(rev_iter.next_back(), Some(2));
-            assert_eq!(rev_iter.next_back(), Some(1));
-            assert_eq!(rev_iter.next_back(), Some(0));
-            assert_eq!(rev_iter.next_back(), None);
-            assert_eq!(rev_iter.next_back(), None);
+                        assert_eq!(rev_iter.next_back(), Some(2));
+                        assert_eq!(rev_iter.next_back(), Some(1));
+                        assert_eq!(rev_iter.next_back(), Some(0));
+                        assert_eq!(rev_iter.next_back(), None);
+                        assert_eq!(rev_iter.next_back(), None);
 
-            let mut double_ended_iter = binary.iter();
+                        let mut double_ended_iter = heap_binary.iter();
 
-            assert_eq!(double_ended_iter.next(), Some(0));
-            assert_eq!(double_ended_iter.next_back(), Some(2));
-            assert_eq!(double_ended_iter.next(), Some(1));
-            assert_eq!(double_ended_iter.next_back(), None);
-            assert_eq!(double_ended_iter.next(), None);
+                        assert_eq!(double_ended_iter.next(), Some(0));
+                        assert_eq!(double_ended_iter.next_back(), Some(2));
+                        assert_eq!(double_ended_iter.next(), Some(1));
+                        assert_eq!(double_ended_iter.next_back(), None);
+                        assert_eq!(double_ended_iter.next(), None);
+                    }
+                    _ => panic!("Not a heap binary"),
+                }
+            });
         }
     }
 
@@ -454,23 +544,24 @@ mod tests {
 
         #[test]
         fn without_elements() {
-            let mut process: Process = Default::default();
-            let binary =
-                Binary::from_slice(&[], &mut process.heap_binary_arena, &mut process.byte_arena);
+            with_process(|process| {
+                let binary = process.slice_to_binary(&[]);
 
-            assert_eq_in_process!(binary.size(), &0.into(), process);
+                match binary {
+                    binary::Binary::Heap(ref heap_binary) => {
+                        assert_eq!(heap_binary.size(), 0.into());
+                    }
+                    _ => panic!("Not a heap binary"),
+                }
+            });
         }
 
         #[test]
         fn with_elements() {
-            let mut process: Process = Default::default();
-            let binary = Binary::from_slice(
-                &[0],
-                &mut process.heap_binary_arena,
-                &mut process.byte_arena,
-            );
-
-            assert_eq_in_process!(binary.size(), &1.into(), process);
+            with_process(|process| match process.slice_to_binary(&[0]) {
+                binary::Binary::Heap(ref heap_binary) => assert_eq!(heap_binary.size(), 1.into()),
+                _ => panic!("Wrong type of binary"),
+            });
         }
     }
 }

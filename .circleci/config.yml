@@ -1,6 +1,6 @@
 version: 2
 jobs:
-  build:
+  x86_64_build:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
@@ -9,17 +9,14 @@ jobs:
       - run:
           name: Version Information
           command: rustc --version; cargo --version; rustup --version
-      - run:
-          name: Calculate Dependencies
-          command: cargo generate-lockfile
       - restore_cache:
           keys:
-            - v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+            - v1-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
       - run:
           name: Build all targets
           command: cargo build --all --all-targets
       - save_cache:
-          key: v1-cargo-cache-{{ arch }}-{{ checksum "Cargo.lock" }}
+          key: v1-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
           paths:
             - /usr/local/cargo/registry
             - target/debug/.fingerprint
@@ -28,7 +25,50 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - example
+            - examples
+            - liblumen_arena
+            - liblumen_beam
+            - liblumen_codegen
+            - liblumen_common
+            - liblumen_compiler
+            - liblumen_core
+            - liblumen_diagnostics
+            - liblumen_syntax
+            - lumen
+            - lumen_runtime
+            - target/debug/.fingerprint
+            - target/debug/build
+            - target/debug/deps
+            - .rustfmt.toml
+            - Cargo.lock
+            - Cargo.toml
+            - Makefile
+  wasm32_build:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    steps:
+      - checkout
+      - run:
+          name: Version Information
+          command: rustc --version; cargo --version; rustup --version
+      - restore_cache:
+          keys:
+            - v1-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
+      - run:
+          working_directory: "lumen_runtime"
+          command: wasm-pack build
+      - save_cache:
+          key: v1-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
+          paths:
+            - /usr/local/cargo/registry
+            - target/debug/.fingerprint
+            - target/debug/build
+            - target/debug/deps
+      - persist_to_workspace:
+          root: .
+          paths:
+            - examples
             - liblumen_arena
             - liblumen_beam
             - liblumen_codegen
@@ -58,7 +98,7 @@ jobs:
           command: |
             rustfmt --version
             cargo fmt -- --check
-  test:
+  x86_64_test:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
@@ -68,14 +108,54 @@ jobs:
       - run:
           name: Run all tests
           command: cargo test --all --all-targets
+  chrome_test:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          working_directory: "lumen_runtime"
+          command: wasm-pack test --chrome --headless
+  firefox_test:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          working_directory: "lumen_runtime"
+          command: wasm-pack test --firefox --headless
+  node_test:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          working_directory: "lumen_runtime"
+          command: wasm-pack test --node
 workflows:
   version: 2
   primary:
     jobs:
-      - build
+      - x86_64_build
+      - wasm32_build
       - check_formatted:
           requires:
-            - build
-      - test:
+            - x86_64_build
+      - x86_64_test:
           requires:
-            - build
+            - x86_64_build
+      - chrome_test:
+          requires:
+            - wasm32_build
+      - firefox_test:
+          requires:
+            - wasm32_build
+      - node_test:
+          requires:
+            - wasm32_build

@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use colored::*;
 use log::{Level, Log, Metadata, Record, SetLoggerError};
 
@@ -10,8 +11,6 @@ pub struct Logger {
 
 impl Logger {
     pub fn init(level: Level) -> Result<(), SetLoggerError> {
-        let logger = Logger { level, color: true };
-        log::set_boxed_logger(Box::new(logger))?;
         log::set_max_level(level.to_level_filter());
         Ok(())
     }
@@ -46,18 +45,19 @@ impl Logger {
 
     #[cfg(target_arch = "wasm32")]
     fn log_color(record: &Record) {
-        log_plain(record);
+        Self::log_plain(record);
     }
+
     #[cfg(target_arch = "wasm32")]
     fn log_plain(record: &Record) {
         let msg = format!(
             "{} {:<5} [{}] {}",
-            system::time::system_time().as_millis(),
+            system::time::system_time().as_secs(),
             record.level(),
             record.module_path().unwrap_or_default(),
             record.args()
         );
-        system::io::console_log(msg);
+        system::io::console_log(&msg);
     }
 }
 

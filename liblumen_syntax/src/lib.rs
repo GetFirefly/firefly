@@ -4,7 +4,6 @@
 #![feature(custom_attribute)]
 #![feature(map_get_key_value)]
 #![feature(optin_builtin_traits)]
-#![feature(try_from)]
 
 mod lexer;
 mod parser;

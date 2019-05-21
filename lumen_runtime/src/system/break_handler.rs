@@ -1,7 +1,9 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::thread;
 
 use bus::Bus;
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub enum Signal {
     Unknown,
@@ -15,6 +17,9 @@ pub enum Signal {
     USR2,
     CHLD,
 }
+
+// `signal_hook` does not work for `wasm32-unknown-unknown`
+#[cfg(not(target_arch = "wasm32"))]
 impl std::convert::From<usize> for Signal {
     fn from(sig: usize) -> Signal {
         match sig as libc::c_int {
@@ -34,9 +39,7 @@ impl std::convert::From<usize> for Signal {
 
 // Signal handling doesn't apply to WebAssembly
 #[cfg(target_arch = "wasm32")]
-pub fn init(mut bus: Bus<Signal>) -> Result<bool, std::io::Error> {
-    Ok(false)
-}
+pub fn init(_bus: Bus<Signal>) {}
 
 // But should everywhere else
 #[cfg(not(target_arch = "wasm32"))]

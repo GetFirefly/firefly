@@ -1,13 +1,13 @@
-#![cfg_attr(not(test), allow(dead_code))]
-
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 use num_bigint::BigInt;
 use num_traits::Zero;
 
+use crate::exception::Exception;
 use crate::integer::big;
-use crate::process::Process;
-use crate::term::{BadArgument, Tag::*, Term};
+use crate::term::{Tag::*, Term};
+
+pub mod monotonic;
 
 pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
     if from_unit == to_unit {
@@ -33,6 +33,7 @@ pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Debug))]
 pub enum Unit {
     Hertz(usize),
     Second,
@@ -46,12 +47,33 @@ pub enum Unit {
 impl Unit {
     const MILLISECOND_HERTZ: usize = 1_000;
 
-    pub fn try_from(term: Term, process: &mut Process) -> Result<Unit, BadArgument> {
+    pub fn hertz(&self) -> usize {
+        match self {
+            Unit::Hertz(hertz) => *hertz,
+            Unit::Second => 1,
+            Unit::Millisecond => Self::MILLISECOND_HERTZ,
+            Unit::Microsecond => 1_000_000,
+            Unit::Nanosecond => 1_000_000_000,
+            // As a side-channel protection browsers limit most counters to 1 millisecond resolution
+            Unit::Native => Self::MILLISECOND_HERTZ,
+            Unit::PerformanceCounter => Self::MILLISECOND_HERTZ,
+        }
+    }
+}
+
+impl TryFrom<Term> for Unit {
+    type Error = Exception;
+
+    fn try_from(term: Term) -> Result<Unit, Exception> {
         match term.tag() {
             SmallInteger => {
                 let hertz: usize = term.try_into()?;
 
-                Ok(Unit::Hertz(hertz))
+                if 0 < hertz {
+                    Ok(Unit::Hertz(hertz))
+                } else {
+                    Err(badarg!())
+                }
             }
             Boxed => {
                 let unboxed: &Term = term.unbox_reference();
@@ -59,17 +81,16 @@ impl Unit {
                 match unboxed.tag() {
                     BigInteger => {
                         let big_integer: &big::Integer = term.unbox_reference();
-                        let big_integer_usize: usize =
-                            big_integer.try_into().map_err(|_| BadArgument)?;
+                        let big_integer_usize: usize = big_integer.try_into()?;
 
                         Ok(Unit::Hertz(big_integer_usize))
                     }
-                    _ => Err(BadArgument),
+                    _ => Err(badarg!()),
                 }
             }
             Atom => {
-                let term_string = term.atom_to_string(process);
-                let mut result = Err(BadArgument);
+                let term_string = unsafe { term.atom_to_string() };
+                let mut result = Err(badarg!());
 
                 for (s, unit) in [
                     ("second", Unit::Second),
@@ -85,7 +106,7 @@ impl Unit {
                 ]
                 .iter()
                 {
-                    if term_string == *s {
+                    if term_string.as_ref() == s {
                         result = Ok(*unit);
                         break;
                     }
@@ -93,20 +114,30 @@ impl Unit {
 
                 result
             }
-            _ => Err(BadArgument),
+            _ => Err(badarg!()),
         }
     }
+}
 
-    pub fn hertz(&self) -> usize {
-        match self {
-            Unit::Hertz(hertz) => *hertz,
-            Unit::Second => 1,
-            Unit::Millisecond => Self::MILLISECOND_HERTZ,
-            Unit::Microsecond => 1_000_000,
-            Unit::Nanosecond => 1_000_000_000,
-            // As a side-channel protection browsers limit most counters to 1 millisecond resolution
-            Unit::Native => Self::MILLISECOND_HERTZ,
-            Unit::PerformanceCounter => Self::MILLISECOND_HERTZ,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod unit {
+        use super::*;
+
+        use crate::process::IntoProcess;
+        use crate::scheduler::with_process;
+
+        #[test]
+        fn zero_errors_badarg() {
+            with_process(|process| {
+                let term: Term = 0.into_process(&process);
+
+                let result: Result<Unit, Exception> = term.try_into();
+
+                assert_badarg!(result);
+            });
         }
     }
 }

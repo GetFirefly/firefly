@@ -724,7 +724,9 @@ fn eval_op_float(span: ByteSpan, x: f64, op: BinaryOp, y: f64) -> Result<Expr, P
         BinaryOp::Add => Ok(Expr::Literal(Literal::Float(span, x + y))),
         BinaryOp::Sub => Ok(Expr::Literal(Literal::Float(span, x - y))),
         BinaryOp::Multiply => Ok(Expr::Literal(Literal::Float(span, x * y))),
-        BinaryOp::Divide if y == 0.0 => return Err(PreprocessorError::InvalidConstExpression(span)),
+        BinaryOp::Divide if y == 0.0 => {
+            return Err(PreprocessorError::InvalidConstExpression(span))
+        }
         BinaryOp::Divide => Ok(Expr::Literal(Literal::Float(span, x / y))),
         BinaryOp::Div => return Err(PreprocessorError::InvalidConstExpression(span)),
         BinaryOp::Rem => return Err(PreprocessorError::InvalidConstExpression(span)),

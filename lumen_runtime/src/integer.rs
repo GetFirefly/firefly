@@ -3,8 +3,11 @@ use std::convert::{TryFrom, TryInto};
 
 use num_bigint::BigInt;
 
+use num_bigint::BigInt;
+
 use crate::bad_argument::BadArgument;
 use crate::process::{DebugInProcess, OrderInProcess, Process};
+use crate::term::BadArgument;
 
 pub mod big;
 pub mod small;

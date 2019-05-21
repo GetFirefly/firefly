@@ -6,6 +6,8 @@ use std::fmt::{self, Display};
 
 use num_bigint::BigInt;
 
+use num_bigint::BigInt;
+
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding, Existence};
@@ -737,6 +739,33 @@ impl TryFrom<Term> for BigInt {
                 }
             }
             _ => Err(bad_argument!()),
+        }
+    }
+}
+
+impl TryFrom<Term> for BigInt {
+    type Error = BadArgument;
+
+    fn try_from(term: Term) -> Result<BigInt, BadArgument> {
+        match term.tag() {
+            Tag::SmallInteger => {
+                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
+
+                Ok(term_isize.into())
+            }
+            Tag::Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::BigInteger => {
+                        let big_integer: &big::Integer = term.unbox_reference();
+
+                        Ok(big_integer.inner.clone())
+                    }
+                    _ => Err(BadArgument),
+                }
+            }
+            _ => Err(BadArgument),
         }
     }
 }

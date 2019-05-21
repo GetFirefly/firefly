@@ -15,7 +15,7 @@ mod with_small_integer_first;
 mod with_subbinary_first;
 mod with_tuple_first;
 
-fn min<F, S>(first: F, second: S, which: FirstSecond)
+fn max<F, S>(first: F, second: S, which: FirstSecond)
 where
     F: FnOnce(&mut Process) -> Term,
     S: FnOnce(Term, &mut Process) -> Term,
@@ -24,7 +24,7 @@ where
         let first = first(&mut process);
         let second = second(first, &mut process);
 
-        let min = erlang::min_2(first, second);
+        let max = erlang::max_2(first, second);
 
         let expected = match which {
             First => first,
@@ -32,9 +32,9 @@ where
         };
 
         // expected value
-        assert_eq!(min, expected);
+        assert_eq!(max, expected);
         // expected which when equal.  Can only really detect flipping for boxed with different
         // addresses
-        assert_eq!(min.tagged, expected.tagged);
+        assert_eq!(max.tagged, expected.tagged);
     });
 }

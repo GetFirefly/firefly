@@ -79,6 +79,7 @@ mod list_to_tuple_1;
 mod make_ref_0;
 mod map_get_2;
 mod map_size_1;
+mod max_2;
 mod min_2;
 mod multiply_2;
 mod negate_1;

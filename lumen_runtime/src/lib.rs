@@ -26,6 +26,7 @@ mod logging;
 mod otp;
 mod system;
 mod term;
+mod time;
 mod tuple;
 
 use self::config::Config;

@@ -4,6 +4,8 @@ use std::cmp::Ordering;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Debug, Display};
 
+use num_bigint::BigInt;
+
 use liblumen_arena::TypedArena;
 
 use crate::atom::{self, Encoding, Existence};
@@ -419,7 +421,10 @@ impl DebugInProcess for Term {
                     Tag::BigInteger => {
                         let big_integer: &big::Integer = self.unbox_reference();
 
-                        format!("rug::Integer::from(rug::Integer::parse(\"{}\").unwrap()).into_process(&mut process)", big_integer.inner)
+                        format!(
+                            "BigInt::parse_bytes(b\"{}\", 10).unwrap().into_process(&mut process)",
+                            big_integer.inner
+                        )
                     }
                     Tag::Float => {
                         let float: &Float = self.unbox_reference();
@@ -582,9 +587,9 @@ impl IntoProcess<Term> for Integer {
                 tagged: ((untagged << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
                     | (Tag::SmallInteger as usize),
             },
-            Big(rug_integer) => {
+            Big(big_int) => {
                 let process_integer: &big::Integer =
-                    process.rug_integer_to_big_integer(rug_integer);
+                    process.num_bigint_big_in_to_big_integer(big_int);
 
                 Term::box_reference(process_integer)
             }
@@ -717,6 +722,33 @@ impl TryFrom<Term> for &'static Cons {
     }
 }
 
+impl TryFrom<Term> for BigInt {
+    type Error = BadArgument;
+
+    fn try_from(term: Term) -> Result<BigInt, BadArgument> {
+        match term.tag() {
+            Tag::SmallInteger => {
+                let term_isize = (term.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
+
+                Ok(term_isize.into())
+            }
+            Tag::Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    Tag::BigInteger => {
+                        let big_integer: &big::Integer = term.unbox_reference();
+
+                        Ok(big_integer.inner.clone())
+                    }
+                    _ => Err(BadArgument),
+                }
+            }
+            _ => Err(BadArgument),
+        }
+    }
+}
+
 impl TryFrom<Term> for String {
     type Error = BadArgument;
 
@@ -753,6 +785,14 @@ impl TryFrom<Term> for &'static Tuple {
             Tag::Boxed => term.unbox_reference::<Term>().try_into(),
             _ => Err(BadArgument),
         }
+    }
+}
+
+impl TryFrom<&Term> for BigInt {
+    type Error = BadArgument;
+
+    fn try_from(term_ref: &Term) -> Result<BigInt, BadArgument> {
+        (*term_ref).try_into()
     }
 }
 
@@ -807,6 +847,23 @@ impl OrderInProcess for Term {
                     self_isize.cmp(&other_isize)
                 }
             }
+            (Tag::SmallInteger, Tag::Boxed) => {
+                let other_unboxed: &Term = other.unbox_reference();
+
+                match other_unboxed.tag() {
+                    Tag::BigInteger => {
+                        let self_big_int: BigInt = self.try_into().unwrap();
+
+                        let other_big_integer: &big::Integer = other.unbox_reference();
+                        let other_big_int = &other_big_integer.inner;
+
+                        self_big_int.cmp(other_big_int)
+                    }
+                    other_unboxed_tag => {
+                        unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag)
+                    }
+                }
+            }
             (Tag::SmallInteger, Tag::Atom) => Ordering::Less,
             (Tag::SmallInteger, Tag::List) => Ordering::Less,
             (Tag::Atom, Tag::SmallInteger) => Ordering::Greater,
@@ -833,6 +890,14 @@ impl OrderInProcess for Term {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
+                    Tag::BigInteger => {
+                        let self_big_integer: &big::Integer = self.unbox_reference();
+                        let self_big_int = &self_big_integer.inner;
+
+                        let other_big_int: BigInt = (*other).try_into().unwrap();
+
+                        self_big_int.cmp(&other_big_int)
+                    }
                     Tag::Subbinary => Ordering::Greater,
                     self_unboxed_tag => {
                         unimplemented!("unboxed {:?} cmp SmallInteger", self_unboxed_tag)

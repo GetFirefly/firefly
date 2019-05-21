@@ -6,6 +6,9 @@ use std::cmp::Ordering;
 use std::convert::TryInto;
 use std::num::FpCategory;
 
+use num_bigint::BigInt;
+use num_traits::Zero;
+
 use crate::atom::Existence;
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
 use crate::float::Float;
@@ -14,6 +17,7 @@ use crate::list::Cons;
 use crate::otp;
 use crate::process::{IntoProcess, Process};
 use crate::term::{BadArgument, Tag, Term};
+use crate::time;
 use crate::tuple::Tuple;
 
 pub fn abs(number: Term, mut process: &mut Process) -> Result<Term, BadArgument> {
@@ -39,18 +43,18 @@ pub fn abs(number: Term, mut process: &mut Process) -> Result<Term, BadArgument>
             match unboxed.tag() {
                 Tag::BigInteger => {
                     let big_integer: &big::Integer = number.unbox_reference();
-                    let rug_integer = &big_integer.inner;
+                    let big_int = &big_integer.inner;
+                    let zero_big_int: &BigInt = &Zero::zero();
 
-                    match rug_integer.cmp0() {
-                        Ordering::Less => {
-                            let positive_rug_integer = rug_integer.clone().abs();
-                            let positive_number: Term =
-                                positive_rug_integer.into_process(&mut process);
+                    let positive_term: Term = if big_int < zero_big_int {
+                        let positive_big_int: BigInt = -1 * big_int;
 
-                            Ok(positive_number)
-                        }
-                        _ => Ok(number),
-                    }
+                        positive_big_int.into_process(&mut process)
+                    } else {
+                        number
+                    };
+
+                    Ok(positive_term)
                 }
                 Tag::Float => {
                     let float: &Float = number.unbox_reference();
@@ -186,15 +190,15 @@ pub fn binary_to_float(binary: Term, mut process: &mut Process) -> Result<Term, 
 /// `binary_to_integer/1`
 pub fn binary_to_integer(binary: Term, mut process: &mut Process) -> Result<Term, BadArgument> {
     let string: String = binary.try_into()?;
+    let bytes = string.as_bytes();
 
-    match rug::Integer::parse(string) {
-        Ok(incomplete) => {
-            let rug_integer = rug::Integer::from(incomplete);
-            let term: Term = rug_integer.into_process(&mut process);
+    match BigInt::parse_bytes(bytes, 10) {
+        Some(big_int) => {
+            let term: Term = big_int.into_process(&mut process);
 
             Ok(term)
         }
-        Err(_) => Err(BadArgument),
+        None => Err(BadArgument),
     }
 }
 
@@ -208,14 +212,15 @@ pub fn binary_in_base_to_integer(
     let radix: usize = base.try_into()?;
 
     if 2 <= radix && radix <= 36 {
-        match rug::Integer::parse_radix(string, radix as i32) {
-            Ok(incomplete) => {
-                let rug_integer = rug::Integer::from(incomplete);
-                let term: Term = rug_integer.into_process(&mut process);
+        let bytes = string.as_bytes();
+
+        match BigInt::parse_bytes(bytes, radix as u32) {
+            Some(big_int) => {
+                let term: Term = big_int.into_process(&mut process);
 
                 Ok(term)
             }
-            Err(_) => Err(BadArgument),
+            None => Err(BadArgument),
         }
     } else {
         Err(BadArgument)
@@ -406,9 +411,11 @@ pub fn ceil(number: Term, mut process: &mut Process) -> Result<Term, BadArgument
                         if (small::MIN as f64) <= ceil_inner && ceil_inner <= (small::MAX as f64) {
                             (ceil_inner as usize).into_process(&mut process)
                         } else {
-                            let rug_integer = rug::Integer::from_f64(ceil_inner).unwrap();
+                            let ceil_string = ceil_inner.to_string();
+                            let ceil_bytes = ceil_string.as_bytes();
+                            let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
 
-                            rug_integer.into_process(&mut process)
+                            big_int.into_process(&mut process)
                         };
 
                     Ok(ceil_term)
@@ -418,6 +425,21 @@ pub fn ceil(number: Term, mut process: &mut Process) -> Result<Term, BadArgument
         }
         _ => Err(BadArgument),
     }
+}
+
+pub fn convert_time_unit(
+    time: Term,
+    from_unit: Term,
+    to_unit: Term,
+    mut process: &mut Process,
+) -> Result<Term, BadArgument> {
+    let time_big_int: BigInt = time.try_into()?;
+    let from_unit_unit = crate::time::Unit::try_from(from_unit, &mut process)?;
+    let to_unit_unit = crate::time::Unit::try_from(to_unit, &mut process)?;
+    let converted =
+        time::convert(time_big_int, from_unit_unit, to_unit_unit).into_process(&mut process);
+
+    Ok(converted)
 }
 
 pub fn delete_element(
@@ -2297,6 +2319,8 @@ mod tests {
     mod binary_to_float {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -2351,7 +2375,8 @@ mod tests {
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
             let big_integer_term: Term =
-                rug::Integer::from(rug::Integer::parse("18446744073709551616").unwrap())
+                <BigInt as Num>::from_str_radix("18446744073709551616", 10)
+                    .unwrap()
                     .into_process(&mut process);
 
             assert_eq_in_process!(
@@ -3778,6 +3803,8 @@ mod tests {
     mod binary_to_integer {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -3832,7 +3859,8 @@ mod tests {
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
             let big_integer_term: Term =
-                rug::Integer::from(rug::Integer::parse("18446744073709551616").unwrap())
+                <BigInt as Num>::from_str_radix("18446744073709551616", 10)
+                    .unwrap()
                     .into_process(&mut process);
 
             assert_eq_in_process!(
@@ -4150,6 +4178,8 @@ mod tests {
     mod binary_in_base_to_integer {
         use super::*;
 
+        use num_traits::Num;
+
         use crate::process::IntoProcess;
 
         #[test]
@@ -4208,7 +4238,8 @@ mod tests {
         fn with_big_integer_is_bad_argument() {
             let mut process: Process = Default::default();
             let big_integer_term: Term =
-                rug::Integer::from(rug::Integer::parse("18446744073709551616").unwrap())
+                <BigInt as Num>::from_str_radix("18446744073709551616", 10)
+                    .unwrap()
                     .into_process(&mut process);
             let base_term: Term = 16.into_process(&mut process);
 
@@ -6090,6 +6121,1565 @@ mod tests {
 
             assert_eq_in_process!(
                 erlang::ceil(subbinary_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+    }
+
+    mod convert_time_units {
+        use super::*;
+
+        #[test]
+        fn with_atom_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let atom_term = Term::str_to_atom("atom", Existence::DoNotCare, &mut process).unwrap();
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(atom_term, from_unit_term, to_unit_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_empty_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(
+                    Term::EMPTY_LIST,
+                    from_unit_term,
+                    to_unit_term,
+                    &mut process
+                ),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_list_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let list_term = list_term(&mut process);
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(list_term, from_unit_term, to_unit_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        mod with_small_integer {
+            use super::*;
+
+            use num_traits::Num;
+
+            #[test]
+            fn without_valid_units_returns_bad_argument() {
+                let mut process: Process = Default::default();
+                let small_integer_term: Term = 0.into_process(&mut process);
+                let valid_unit_term =
+                    Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+                let invalid_unit_term =
+                    Term::str_to_atom("s", Existence::DoNotCare, &mut process).unwrap();
+
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        valid_unit_term,
+                        invalid_unit_term,
+                        &mut process,
+                    ),
+                    Err(BadArgument),
+                    process
+                );
+
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        invalid_unit_term,
+                        valid_unit_term,
+                        &mut process,
+                    ),
+                    Err(BadArgument),
+                    process
+                );
+            }
+
+            #[test]
+            fn with_valid_units_returns_converted_value() {
+                let mut process: Process = Default::default();
+                let small_integer_term: Term = 1_000_000_000.into_process(&mut process);
+
+                assert_eq!(small_integer_term.tag(), Tag::SmallInteger);
+
+                // (Hertz, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        2_usize.into_process(&mut process),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(2_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Hertz, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(500_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Hertz, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(500_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Hertz, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(500_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Hertz, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(500_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Hertz, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(500_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Hertz, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(500_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+
+                // (Second, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Second, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Second, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Second, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Second, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Second, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Second, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+
+                // (Millisecond, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Millisecond, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Millisecond, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Millisecond, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Millisecond, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Millisecond, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Millisecond, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+
+                // (Microsecond, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Microsecond, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Microsecond, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Microsecond, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Microsecond, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Microsecond, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Microsecond, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+
+                // (Nanosecond, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000.into_process(&mut process)),
+                    process
+                );
+
+                // (Native, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Native, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Native, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Native, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Native, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Native, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Native, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+
+                // (Native, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Native, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Native, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Native, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Native, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Native, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Native, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        small_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+            }
+        }
+
+        mod with_big_integer {
+            use super::*;
+
+            use num_traits::Num;
+
+            #[test]
+            fn without_valid_units_returns_bad_argument() {
+                let mut process: Process = Default::default();
+                let big_integer_term: Term =
+                    1_000_000_000_000_000_000_usize.into_process(&mut process);
+
+                assert_eq!(big_integer_term.tag(), Tag::Boxed);
+
+                let valid_unit_term =
+                    Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+                let invalid_unit_term =
+                    Term::str_to_atom("s", Existence::DoNotCare, &mut process).unwrap();
+
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        valid_unit_term,
+                        invalid_unit_term,
+                        &mut process,
+                    ),
+                    Err(BadArgument),
+                    process
+                );
+
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        invalid_unit_term,
+                        valid_unit_term,
+                        &mut process,
+                    ),
+                    Err(BadArgument),
+                    process
+                );
+            }
+
+            #[test]
+            fn with_valid_units_returns_converted_value() {
+                let mut process: Process = Default::default();
+                let big_integer_term: Term =
+                    1_000_000_000_000_000_000_usize.into_process(&mut process);
+
+                assert_eq!(big_integer_term.tag(), Tag::Boxed);
+
+                // (Hertz, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        2_usize.into_process(&mut process),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("2_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Hertz, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(500_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Hertz, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Hertz, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Hertz, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Hertz, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Hertz, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        2_usize.into_process(&mut process),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+
+                // (Second, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("5_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Second, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Second, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Second, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Second, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(<BigInt as Num>::from_str_radix(
+                        "1_000_000_000_000_000_000_000_000_000",
+                        10
+                    )
+                    .unwrap()
+                    .into_process(&mut process)),
+                    process
+                );
+                // (Second, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Second, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+
+                // (Millisecond, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Millisecond, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Millisecond, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Millisecond, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Millisecond, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Millisecond, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Millisecond, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+
+                // (Microsecond, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Microsecond, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Microsecond, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Microsecond, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Microsecond, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Microsecond, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Microsecond, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+
+                // (Nanosecond, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Nanosecond, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Nanosecond, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+
+                // (Native, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Native, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Native, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Native, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Native, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Native, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Native, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+
+                // (Native, Hertz)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        5_usize.into_process(&mut process),
+                        &mut process
+                    ),
+                    Ok(5_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Native, Second)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("second", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(1_000_000_000_000_000_usize.into_process(&mut process)),
+                    process
+                );
+                // (Native, Millisecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("millisecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Native, Microsecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("microsecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Native, Nanosecond)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("nanosecond", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Native, Native)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+                // (Native, PerformanceCounter)
+                assert_eq_in_process!(
+                    erlang::convert_time_unit(
+                        big_integer_term,
+                        Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap(),
+                        Term::str_to_atom("perf_counter", Existence::DoNotCare, &mut process)
+                            .unwrap(),
+                        &mut process
+                    ),
+                    Ok(
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&mut process)
+                    ),
+                    process
+                );
+            }
+        }
+
+        #[test]
+        fn with_float_returns_bad_argument() {
+            let mut process: Process = Default::default();
+            let float_term = 1.0.into_process(&mut process);
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(float_term, from_unit_term, to_unit_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_tuple_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let tuple_term = Term::slice_to_tuple(&[], &mut process);
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(tuple_term, from_unit_term, to_unit_term, &mut process),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_heap_binary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let heap_binary_term = Term::slice_to_binary(&[1], &mut process);
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(
+                    heap_binary_term,
+                    from_unit_term,
+                    to_unit_term,
+                    &mut process
+                ),
+                Err(BadArgument),
+                process
+            );
+        }
+
+        #[test]
+        fn with_subbinary_is_bad_argument() {
+            let mut process: Process = Default::default();
+            let binary_term = Term::slice_to_binary(&[0, 1], &mut process);
+            let subbinary_term = Term::subbinary(binary_term, 1, 0, 1, 0, &mut process);
+            let from_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+            let to_unit_term =
+                Term::str_to_atom("native", Existence::DoNotCare, &mut process).unwrap();
+
+            assert_eq_in_process!(
+                erlang::convert_time_unit(
+                    subbinary_term,
+                    from_unit_term,
+                    to_unit_term,
+                    &mut process
+                ),
                 Err(BadArgument),
                 process
             );

@@ -1,6 +1,8 @@
 ///! The memory specific to a process in the VM.
 use std::collections::HashMap;
-use std::fmt::{self, Debug, Display};
+#[cfg(debug_assertions)]
+use std::fmt::Debug;
+use std::fmt::{self, Display};
 use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock, RwLockWriteGuard, Weak};
 
@@ -34,7 +36,8 @@ pub mod stack;
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
 pub const MAX_REDUCTIONS_PER_RUN: Reductions = 4_000;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ModuleFunctionArity {
     pub module: Term,
     pub function: Term,
@@ -106,10 +109,15 @@ impl Process {
 
         let arity = match arguments.count() {
             Some(count) => count,
-            None => panic!(
-                "Arguments {:?} are neither an empty nor a proper list",
-                arguments
-            ),
+            None => {
+                #[cfg(debug_assertions)]
+                panic!(
+                    "Arguments {:?} are neither an empty nor a proper list",
+                    arguments
+                );
+                #[cfg(not(debug_assertions))]
+                panic!("Arguments are neither an empty nor a proper list");
+            }
         };
 
         let heap = Default::default();
@@ -525,6 +533,7 @@ impl Process {
     }
 }
 
+#[cfg(debug_assertions)]
 impl Debug for Process {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.pid)?;
@@ -566,7 +575,8 @@ impl PartialEq for Process {
 type Reductions = u16;
 
 // [BEAM statuses](https://github.com/erlang/otp/blob/551d03fe8232a66daf1c9a106194aa38ef660ef6/erts/emulator/beam/erl_process.c#L8944-L8972)
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Status {
     Runnable,
     Running,

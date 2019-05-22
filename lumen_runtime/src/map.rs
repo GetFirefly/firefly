@@ -68,75 +68,54 @@ impl CloneIntoHeap for &'static Map {
 impl Eq for Map {}
 
 impl Ord for Map {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialEq for Map {
-    fn eq(&self, other: &Map) -> bool {
-        match self.len().eq(&other.len()) {
-            true => {
-                let self_key_vec = self.sorted_keys();
-                let other_key_vec = other.sorted_keys();
-
-                match self_key_vec.eq(&other_key_vec) {
-                    true => {
-                        let self_inner = &self.inner;
-                        let other_inner = &other.inner;
-
-                        self_key_vec.iter().all(|key| {
-                            self_inner
-                                .get(&key)
-                                .unwrap()
-                                .eq(other_inner.get(&key).unwrap())
-                        })
-                    }
-                    eq => eq,
-                }
-            }
-            eq => eq,
-        }
-    }
-}
-
-impl PartialOrd for Map {
     /// > * Maps are compared by size, then by keys in ascending term order,
     /// >   then by values in key order.   In the specific case of maps' key
     /// >   ordering, integers are always considered to be less than floats.
-    fn partial_cmp(&self, other: &Map) -> Option<Ordering> {
-        match self.len().partial_cmp(&other.len()) {
-            Some(Equal) => {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.len().cmp(&other.len()) {
+            Equal => {
                 let self_key_vec = self.sorted_keys();
                 let other_key_vec = other.sorted_keys();
 
-                match self_key_vec.partial_cmp(&other_key_vec) {
-                    Some(Equal) => {
+                match self_key_vec.cmp(&other_key_vec) {
+                    Equal => {
                         let self_inner = &self.inner;
                         let other_inner = &other.inner;
-                        let mut final_partial_ordering = Some(Equal);
+                        let mut final_ordering = Equal;
 
                         for key in self_key_vec {
                             match self_inner
                                 .get(&key)
                                 .unwrap()
-                                .partial_cmp(other_inner.get(&key).unwrap())
+                                .cmp(other_inner.get(&key).unwrap())
                             {
-                                Some(Equal) => continue,
+                                Equal => continue,
                                 partial_ordering => {
-                                    final_partial_ordering = partial_ordering;
+                                    final_ordering = partial_ordering;
 
                                     break;
                                 }
                             }
                         }
 
-                        final_partial_ordering
+                        final_ordering
                     }
-                    partial_ordering => partial_ordering,
+                    ordering => ordering,
                 }
             }
-            partial_ordering => partial_ordering,
+            ordering => ordering,
         }
+    }
+}
+
+impl PartialEq for Map {
+    fn eq(&self, other: &Map) -> bool {
+        self.cmp(other) == Equal
+    }
+}
+
+impl PartialOrd for Map {
+    fn partial_cmp(&self, other: &Map) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

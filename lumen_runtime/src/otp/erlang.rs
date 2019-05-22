@@ -39,18 +39,18 @@ use crate::tuple::{Tuple, ZeroBasedIndex};
 mod tests;
 
 pub fn abs_1(number: Term, process: &Process) -> Result {
-    match number.tag() {
+    let option_abs = match number.tag() {
         SmallInteger => {
             if unsafe { number.small_integer_is_negative() } {
                 // cast first so that sign bit is extended on shift
                 let signed = (number.tagged as isize) >> Tag::SMALL_INTEGER_BIT_COUNT;
                 let positive = -signed;
-                Ok(Term {
+                Some(Term {
                     tagged: ((positive << Tag::SMALL_INTEGER_BIT_COUNT) as usize)
                         | (SmallInteger as usize),
                 })
             } else {
-                Ok(Term {
+                Some(Term {
                     tagged: number.tagged,
                 })
             }
@@ -72,7 +72,7 @@ pub fn abs_1(number: Term, process: &Process) -> Result {
                         number
                     };
 
-                    Ok(positive_term)
+                    Some(positive_term)
                 }
                 Float => {
                     let float: &Float = number.unbox_reference();
@@ -83,15 +83,20 @@ pub fn abs_1(number: Term, process: &Process) -> Result {
                             let positive_inner = inner.abs();
                             let positive_number: Term = positive_inner.into_process(&process);
 
-                            Ok(positive_number)
+                            Some(positive_number)
                         }
-                        _ => Ok(number),
+                        _ => Some(number),
                     }
                 }
-                _ => Err(badarg!()),
+                _ => None,
             }
         }
-        _ => Err(badarg!()),
+        _ => None,
+    };
+
+    match option_abs {
+        Some(abs) => Ok(abs),
+        None => Err(badarg!()),
     }
 }
 
@@ -175,7 +180,7 @@ pub fn band_2(left_integer: Term, right_integer: Term, process: &Process) -> Res
 }
 
 pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Result {
-    match start_length.tag() {
+    let option_result = match start_length.tag() {
         Boxed => {
             let unboxed: &Term = start_length.unbox_reference();
 
@@ -184,15 +189,20 @@ pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Res
                     let tuple: &Tuple = start_length.unbox_reference();
 
                     if tuple.len() == 2 {
-                        binary_part_3(binary, tuple[0], tuple[1], &process)
+                        Some(binary_part_3(binary, tuple[0], tuple[1], &process))
                     } else {
-                        Err(badarg!())
+                        None
                     }
                 }
-                _ => Err(badarg!()),
+                _ => None,
             }
         }
-        _ => Err(badarg!()),
+        _ => None,
+    };
+
+    match option_result {
+        Some(result) => result,
+        None => Err(badarg!()),
     }
 }
 
@@ -1292,13 +1302,13 @@ pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
 }
 
 pub fn spawn_3(module: Term, function: Term, arguments: Term, process: &Process) -> Result {
-    if (module.tag() == Atom) & (function.tag() == Atom) {
+    let option_pid = if (module.tag() == Atom) & (function.tag() == Atom) {
         match arguments.tag() {
             EmptyList => {
                 let arc_process =
                     Scheduler::spawn(process, module, function, arguments, code::apply_fn());
 
-                Ok(arc_process.pid)
+                Some(arc_process.pid)
             }
             List => {
                 let cons: &Cons = unsafe { arguments.as_ref_cons_unchecked() };
@@ -1307,15 +1317,20 @@ pub fn spawn_3(module: Term, function: Term, arguments: Term, process: &Process)
                     let arc_process =
                         Scheduler::spawn(process, module, function, arguments, code::apply_fn());
 
-                    Ok(arc_process.pid)
+                    Some(arc_process.pid)
                 } else {
-                    Err(badarg!())
+                    None
                 }
             }
-            _ => Err(badarg!()),
+            _ => None,
         }
     } else {
-        Err(badarg!())
+        None
+    };
+
+    match option_pid {
+        Some(pid) => Ok(pid),
+        None => Err(badarg!()),
     }
 }
 

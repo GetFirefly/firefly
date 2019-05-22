@@ -51,6 +51,8 @@ pub mod map;
 // `pub` or `examples/spawn-chain`
 pub mod message;
 mod node;
+// `pub` for `examples/spawn-chain`
+pub mod number;
 pub mod otp;
 // `pub` or `examples/spawn-chain`
 pub mod process;

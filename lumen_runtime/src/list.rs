@@ -298,12 +298,18 @@ impl Iterator for Iter {
     }
 }
 
+impl Ord for Cons {
+    fn cmp(&self, other: &Cons) -> Ordering {
+        match self.head.cmp(&other.head) {
+            Equal => self.tail.cmp(&other.tail),
+            ordering => ordering,
+        }
+    }
+}
+
 impl PartialOrd for Cons {
     fn partial_cmp(&self, other: &Cons) -> Option<Ordering> {
-        match self.head.partial_cmp(&other.head) {
-            Some(Equal) => self.tail.partial_cmp(&other.tail),
-            partial_ordering => partial_ordering,
-        }
+        Some(self.cmp(other))
     }
 }
 

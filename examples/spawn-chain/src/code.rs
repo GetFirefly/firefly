@@ -13,7 +13,18 @@ pub fn apply(arc_process: &Arc<Process>) {
     let function = frame_argument_vec[1];
 
     let argument_list = frame_argument_vec[2];
-    let argument_vec: Vec<Term> = argument_list.try_into().unwrap();
+    let argument_vec: Vec<Term> = match argument_list.try_into() {
+        Ok(argument_vec) => argument_vec,
+        Err(_) => {
+            #[cfg(debug_assertions)]
+            panic!(
+                "Arguments ({:?}) are neither empty list nor proper list",
+                argument_list
+            );
+            #[cfg(not(debug_assertions))]
+            panic!("Arguments are neither empty list nor proper list")
+        }
+    };
     let arity = argument_vec.len();
 
     match unsafe { module.atom_to_string() }.as_ref().as_ref() {
@@ -65,6 +76,7 @@ pub fn apply(arc_process: &Arc<Process>) {
     }
 }
 
+#[cfg(debug_assertions)]
 pub fn print_stacktrace(process: &Process) {
     let mut formatted_stacktrace_parts: Vec<String> = Vec::new();
 

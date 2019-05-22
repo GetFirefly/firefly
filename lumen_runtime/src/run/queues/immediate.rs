@@ -5,7 +5,8 @@ use crate::process::Process;
 use crate::run::Run;
 
 /// A run queue where the `Arc<Process>` is run immediately when it is encountered
-#[derive(Debug, Default)]
+#[derive(Default)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub struct Immediate(VecDeque<Arc<Process>>);
 
 impl Immediate {

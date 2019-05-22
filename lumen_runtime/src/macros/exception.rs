@@ -96,44 +96,62 @@ macro_rules! assert_throw {
     };
 }
 
+#[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! badarg {
-    () => {{
-        use $crate::atom::Existence::DoNotCare;
-        use $crate::term::Term;
-
-        $crate::error!(Term::str_to_atom("badarg", DoNotCare).unwrap())
-    }};
+    () => {
+        $crate::exception::Exception::badarg(file!(), line!(), column!())
+    };
 }
 
+#[cfg(not(debug_assertions))]
+#[macro_export]
+macro_rules! badarg {
+    () => {
+        $crate::exception::Exception::badarg()
+    };
+}
+
+#[cfg(debug_assertions)]
 macro_rules! badarith {
-    () => {{
-        use crate::atom::Existence::DoNotCare;
-        use crate::term::Term;
-
-        error!(Term::str_to_atom("badarith", DoNotCare).unwrap())
-    }};
+    () => {
+        $crate::exception::Exception::badarith(file!(), line!(), column!())
+    };
 }
 
+#[cfg(not(debug_assertions))]
+macro_rules! badarith {
+    () => {
+        $crate::exception::Exception::badarith()
+    };
+}
+
+#[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! badarity {
-    ($fun:expr, $arguments:expr, $process:expr) => {{
-        use $crate::atom::Existence::DoNotCare;
-        use $crate::term::Term;
-
-        let badarity = Term::str_to_atom("badarity", DoNotCare).unwrap();
-        let reason = Term::slice_to_tuple(
-            &[
-                badarity,
-                Term::slice_to_tuple(&[$fun, $arguments], $process),
-            ],
+    ($function:expr, $arguments:expr, $process:expr) => {
+        $crate::exception::Exception::badarity(
+            $function,
+            $arguments,
             $process,
-        );
+            file!(),
+            line!(),
+            column!(),
+        )
+    };
+    ($function:expr, $arguments:expr, $process:expr,) => {
+        $crate::badarity!($function, $arguments, $process)
+    };
+}
 
-        $crate::error!(reason)
-    }};
-    ($fun:expr, $arguments:expr, $process:expr,) => {
-        $crate::badarity!($fun, $arguments, $process);
+#[cfg(not(debug_assertions))]
+#[macro_export]
+macro_rules! badarity {
+    ($function:expr, $arguments:expr, $process:expr) => {
+        $crate::exception::Exception::badarity($function, $arguments, $process)
+    };
+    ($function:expr, $arguments:expr, $process:expr,) => {
+        $crate::badarity!($function, $arguments, $process)
     };
 }
 
@@ -200,11 +218,11 @@ macro_rules! exception {
             class: $class,
             reason: $reason,
             stacktrace: $stacktrace,
-            //            #[cfg(debug_assertions)]
+            #[cfg(debug_assertions)]
             file: file!(),
-            //            #[cfg(debug_assertions)]
+            #[cfg(debug_assertions)]
             line: line!(),
-            //            #[cfg(debug_assertions)]
+            #[cfg(debug_assertions)]
             column: column!(),
         }
     }};

@@ -54,24 +54,24 @@ impl Hash for External {
 
 impl Ord for External {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        match self.node.cmp(&other.node) {
+            Equal => match self.serial.cmp(&other.serial) {
+                Equal => self.number.cmp(&other.number),
+                ordering => ordering,
+            },
+            ordering => ordering,
+        }
     }
 }
 
 impl PartialEq for External {
     fn eq(&self, other: &External) -> bool {
-        (self.node == other.node) & (self.serial == other.serial) & (self.number == other.number)
+        self.cmp(other) == Equal
     }
 }
 
 impl PartialOrd for External {
     fn partial_cmp(&self, other: &External) -> Option<Ordering> {
-        match self.node.partial_cmp(&other.node) {
-            Some(Equal) => match self.serial.partial_cmp(&other.serial) {
-                Some(Equal) => self.number.partial_cmp(&other.number),
-                partial_ordering => partial_ordering,
-            },
-            partial_ordering => partial_ordering,
-        }
+        Some(self.cmp(other))
     }
 }

@@ -5,7 +5,6 @@ use crate::process::{Process, TryFromInProcess};
 
 pub const VERSION_NUMBER: u8 = 131;
 
-#[derive(Debug)]
 pub enum Tag {
     NewFloat = 70,
     BitBinary = 77,

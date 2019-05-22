@@ -13,3 +13,9 @@ members = [
   "liblumen_compiler",
   "liblumen_codegen",
 ]
+
+[profile.release]
+# Experimentally determined to give the smallest size out of all `opt-level`s (0-3,'s','z') and
+# `lto`s (true and false) for `examples/spawn-chain/pkg/spawn_chaing_bg.wasm`
+opt-level = 2
+lto = false

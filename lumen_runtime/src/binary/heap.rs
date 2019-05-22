@@ -239,6 +239,14 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
     }
 }
 
+impl Ord for Binary {
+    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+    fn cmp(&self, other: &Binary) -> Ordering {
+        self.byte_iter().cmp(other.byte_iter())
+    }
+}
+
 impl PartialEq for Binary {
     fn eq(&self, other: &Binary) -> bool {
         match self.header.tagged == other.header.tagged {
@@ -272,7 +280,7 @@ impl PartialEq<sub::Binary> for Binary {
 
 impl PartialOrd for Binary {
     fn partial_cmp(&self, other: &Binary) -> Option<Ordering> {
-        self.byte_iter().partial_cmp(other.byte_iter())
+        Some(self.cmp(other))
     }
 }
 

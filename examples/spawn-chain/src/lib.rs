@@ -65,14 +65,21 @@ pub fn run(count: usize) {
                     ..
                 } => {
                     if *reason != Term::str_to_atom("normal", DoNotCare).unwrap() {
-                        panic!("Process exited: {:?}", reason)
+                        #[cfg(debug_assertions)]
+                        panic!("Process exited: {:?}", reason);
+                        #[cfg(not(debug_assertions))]
+                        panic!("Process exited");
                     } else {
                         break;
                     }
                 }
                 _ => {
+                    #[cfg(debug_assertions)]
                     crate::code::print_stacktrace(&run_arc_process);
-                    panic!("Process exception: {:?}", exception)
+                    #[cfg(debug_assertions)]
+                    panic!("Process exception: {:?}", exception);
+                    #[cfg(not(debug_assertions))]
+                    panic!("Process exception");
                 }
             },
             Status::Waiting => {

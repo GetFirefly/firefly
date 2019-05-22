@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::cmp::Ordering::{self, Equal};
 use std::convert::{TryFrom, TryInto};
 #[cfg(test)]
 use std::fmt::{self, Debug};
@@ -87,31 +87,25 @@ impl From<BigInt> for Integer {
 
 impl Ord for Integer {
     fn cmp(&self, other: &Integer) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        match (self, other) {
+            (
+                Integer::Small(small::Integer(self_isize)),
+                Integer::Small(small::Integer(other_isize)),
+            ) => self_isize.cmp(other_isize),
+            (_, _) => unimplemented!(),
+        }
     }
 }
 
 impl PartialEq for Integer {
     fn eq(&self, other: &Integer) -> bool {
-        match (self, other) {
-            (
-                Integer::Small(small::Integer(self_isize)),
-                Integer::Small(small::Integer(other_isize)),
-            ) => self_isize == other_isize,
-            (_, _) => unimplemented!(),
-        }
+        self.cmp(other) == Equal
     }
 }
 
 impl PartialOrd for Integer {
     fn partial_cmp(&self, other: &Integer) -> Option<Ordering> {
-        match (self, other) {
-            (
-                Integer::Small(small::Integer(self_isize)),
-                Integer::Small(small::Integer(other_isize)),
-            ) => self_isize.partial_cmp(other_isize),
-            (_, _) => unimplemented!(),
-        }
+        Some(self.cmp(other))
     }
 }
 

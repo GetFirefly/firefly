@@ -29,7 +29,21 @@ impl Eq for Index {}
 
 impl Ord for Index {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        let self_inner = self.0;
+        let other_inner = other.0;
+
+        if self_inner == other_inner {
+            Equal
+        } else {
+            let table_arc_rw_lock = TABLE_ARC_RW_LOCK.clone();
+            let readable_table = table_arc_rw_lock.read().unwrap();
+            let atoms = &readable_table.atoms;
+
+            let self_atom = atoms.get(self.0).unwrap();
+            let other_atom = atoms.get(other.0).unwrap();
+
+            self_atom.cmp(other_atom)
+        }
     }
 }
 
@@ -41,21 +55,7 @@ impl PartialEq for Index {
 
 impl PartialOrd for Index {
     fn partial_cmp(&self, other: &Index) -> Option<Ordering> {
-        let self_inner = self.0;
-        let other_inner = other.0;
-
-        if self_inner == other_inner {
-            Some(Equal)
-        } else {
-            let table_arc_rw_lock = TABLE_ARC_RW_LOCK.clone();
-            let readable_table = table_arc_rw_lock.read().unwrap();
-            let atoms = &readable_table.atoms;
-
-            match (atoms.get(self.0), atoms.get(other.0)) {
-                (Some(self_atom), Some(other_atom)) => self_atom.partial_cmp(other_atom),
-                _ => None,
-            }
-        }
+        Some(self.cmp(other))
     }
 }
 
@@ -159,8 +159,30 @@ impl Debug for Atom {
 impl Eq for Atom {}
 
 impl Ord for Atom {
+    /// See https://github.com/erlang/otp/blob/be44d6827e2374a43068b35de85ed16441c771be/erts/emulator/beam/erl_utils.h#L159-L186
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        match self.ordinal.cmp(&other.ordinal) {
+            Equal => {
+                let self_length = self.name.len();
+                let other_length = other.name.len();
+
+                let bytes_ordering = if (ORDINAL_BYTE_COUNT < self_length)
+                    & (ORDINAL_BYTE_COUNT < other_length)
+                {
+                    let range = ORDINAL_BYTE_COUNT..self_length.min(other_length);
+
+                    self.name.as_bytes()[range.clone()].cmp(&other.name.as_bytes()[range.clone()])
+                } else {
+                    Equal
+                };
+
+                match bytes_ordering {
+                    Equal => self_length.cmp(&other_length),
+                    ordering => ordering,
+                }
+            }
+            ordering => ordering,
+        }
     }
 }
 
@@ -184,30 +206,8 @@ impl PartialEq for Atom {
 }
 
 impl PartialOrd for Atom {
-    /// See https://github.com/erlang/otp/blob/be44d6827e2374a43068b35de85ed16441c771be/erts/emulator/beam/erl_utils.h#L159-L186
     fn partial_cmp(&self, other: &Atom) -> Option<Ordering> {
-        match self.ordinal.partial_cmp(&other.ordinal) {
-            Some(Equal) => {
-                let self_length = self.name.len();
-                let other_length = other.name.len();
-
-                let bytes_partial_ordering =
-                    if (ORDINAL_BYTE_COUNT < self_length) & (ORDINAL_BYTE_COUNT < other_length) {
-                        let range = ORDINAL_BYTE_COUNT..self_length.min(other_length);
-
-                        self.name.as_bytes()[range.clone()]
-                            .partial_cmp(&other.name.as_bytes()[range.clone()])
-                    } else {
-                        Some(Equal)
-                    };
-
-                match bytes_partial_ordering {
-                    Some(Equal) => self_length.partial_cmp(&other_length),
-                    partial_ordering => partial_ordering,
-                }
-            }
-            partial_ordering => partial_ordering,
-        }
+        Some(self.cmp(other))
     }
 }
 

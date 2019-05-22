@@ -1221,6 +1221,7 @@ dependencies = [
  "console_error_panic_hook 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "lumen_runtime 0.1.0",
  "num-bigint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time-test 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen-test 0.2.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "web-sys 0.3.20 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1389,6 +1390,24 @@ version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "time"
+version = "0.1.42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "libc 0.2.51 (registry+https://github.com/rust-lang/crates.io-index)",
+ "redox_syscall 0.1.54 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "time-test"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1826,6 +1845,8 @@ dependencies = [
 "checksum thread-id 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a9539db560102d1cef46b8b78ce737ff0bb64e7e18d35b2a5688f7d097d0ff03"
 "checksum thread_local 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)" = "8576dbbfcaef9641452d5cf0df9b0e7eeab7694956dd33bb61515fb8f18cfdd5"
 "checksum thread_local 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c6b53e329000edc2b34dbe8545fd20e55a333362d0a321909685a19bd28c3f1b"
+"checksum time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)" = "db8dcfca086c1143c9270ac42a2bbd8a7ee477b78ac8e45b19abfb0cbede4b6f"
+"checksum time-test 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "c5be1e1483c2a6f8006bd20c6caf4e72b8fde4a23100cd13960747f83b295526"
 "checksum tinyset 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2e2aca9b76bc049f73762d3e7fc16b8d689f0cce0a26f98b87816b0d66ea422c"
 "checksum toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)" = "758664fc71a3a69038656bee8b6be6477d2a6c315a6b81f7081f591bffa4111f"
 "checksum typenum 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "612d636f949607bdf9b123b4a6f6d966dedf3ff669f7f045890d3a4a73948169"

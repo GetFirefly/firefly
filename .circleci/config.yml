@@ -98,7 +98,7 @@ jobs:
           command: |
             rustfmt --version
             cargo fmt -- --check
-  x86_64_test:
+  x86_64_multithreaded_test:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
@@ -107,7 +107,17 @@ jobs:
           at: .
       - run:
           name: Run all tests
-          command: cargo test --all --all-targets
+          command: cargo test --all --all-targets --exclude spawn-chain
+  x86_64_single_threaded_test:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run all tests
+          command: cargo test --all-targets --package spawn-chain -- --test-threads=1
   chrome_test:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
@@ -147,7 +157,10 @@ workflows:
       - check_formatted:
           requires:
             - x86_64_build
-      - x86_64_test:
+      - x86_64_multithreaded_test:
+          requires:
+            - x86_64_build
+      - x86_64_single_threaded_test:
           requires:
             - x86_64_build
       - chrome_test:

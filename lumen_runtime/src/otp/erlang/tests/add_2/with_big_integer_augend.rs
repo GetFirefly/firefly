@@ -6,8 +6,8 @@ fn without_number_addend_errors_badarith() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    big_integer_term_strategy(arc_process.clone()),
-                    term_is_not_number_strategy(arc_process.clone()),
+                    strategy::term::integer::big(arc_process.clone()),
+                    strategy::term::is_not_number(arc_process.clone()),
                 ),
                 |(augend, addend)| {
                     prop_assert_eq!(
@@ -26,13 +26,16 @@ fn without_number_addend_errors_badarith() {
 fn with_zero_small_integer_returns_same_big_integer() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(&big_integer_term_strategy(arc_process.clone()), |augend| {
-                let addend = 0.into_process(&arc_process);
+            .run(
+                &strategy::term::integer::big(arc_process.clone()),
+                |augend| {
+                    let addend = 0.into_process(&arc_process);
 
-                prop_assert_eq!(erlang::add_2(augend, addend, &arc_process), Ok(augend));
+                    prop_assert_eq!(erlang::add_2(augend, addend, &arc_process), Ok(augend));
 
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .unwrap();
     });
 }
@@ -43,8 +46,8 @@ fn that_is_positive_with_positive_small_integer_addend_returns_greater_big_integ
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    positive_big_integer_term_strategy(arc_process.clone()),
-                    positive_small_integer_term_strategy(arc_process.clone()),
+                    strategy::term::integer::big::positive(arc_process.clone()),
+                    strategy::term::integer::small::positive(arc_process.clone()),
                 ),
                 |(augend, addend)| {
                     let result = erlang::add_2(augend, addend, &arc_process);
@@ -74,8 +77,8 @@ fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    positive_big_integer_term_strategy(arc_process.clone()),
-                    positive_big_integer_term_strategy(arc_process.clone()),
+                    strategy::term::integer::big::positive(arc_process.clone()),
+                    strategy::term::integer::big::positive(arc_process.clone()),
                 ),
                 |(augend, addend)| {
                     let result = erlang::add_2(augend, addend, &arc_process);
@@ -123,7 +126,7 @@ fn with_float_addend_with_underflow_returns_min_float() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &negative_big_integer_term_strategy(arc_process.clone()),
+                &strategy::term::integer::big::negative(arc_process.clone()),
                 |augend| {
                     let addend = std::f64::MIN.into_process(&arc_process);
 
@@ -144,7 +147,7 @@ fn with_float_addend_with_overflow_returns_max_float() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &positive_big_integer_term_strategy(arc_process.clone()),
+                &strategy::term::integer::big::positive(arc_process.clone()),
                 |augend| {
                     let addend = std::f64::MAX.into_process(&arc_process);
 

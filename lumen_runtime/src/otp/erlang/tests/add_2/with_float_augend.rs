@@ -1,13 +1,15 @@
 use super::*;
 
+use proptest::strategy::Strategy;
+
 #[test]
 fn without_number_addend_errors_badarith() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    float_term_strategy(arc_process.clone()),
-                    term_is_not_number_strategy(arc_process.clone()),
+                    strategy::term::float(arc_process.clone()),
+                    strategy::term::is_not_number(arc_process.clone()),
                 ),
                 |(augend, addend)| {
                     prop_assert_eq!(
@@ -28,8 +30,8 @@ fn with_small_integer_addend_returns_float() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    float_term_strategy(arc_process.clone()),
-                    small_integer_term_strategy(arc_process.clone()),
+                    strategy::term::float(arc_process.clone()),
+                    strategy::term::integer::small(arc_process.clone()),
                 ),
                 |(augend, addend)| {
                     let result = erlang::add_2(augend, addend, &arc_process);
@@ -57,8 +59,8 @@ fn with_big_integer_addend_returns_float() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    float_term_strategy(arc_process.clone()),
-                    big_integer_term_strategy(arc_process.clone()),
+                    strategy::term::float(arc_process.clone()),
+                    strategy::term::integer::big(arc_process.clone()),
                 ),
                 |(augend, addend)| {
                     let result = erlang::add_2(augend, addend, &arc_process);

@@ -6,8 +6,8 @@ fn without_number_addend_errors_badarith() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    small_integer_term_strategy(arc_process.clone()),
-                    term_is_not_number_strategy(arc_process.clone()),
+                    strategy::term::integer::small(arc_process.clone()),
+                    strategy::term::is_not_number(arc_process.clone()),
                 ),
                 |(augend, addend)| {
                     prop_assert_eq!(

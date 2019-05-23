@@ -1,4 +1,6 @@
 use std::hash::{Hash, Hasher};
+#[cfg(test)]
+use std::ops::RangeInclusive;
 
 use crate::heap::{CloneIntoHeap, Heap};
 use crate::term::{Tag, Term};
@@ -20,6 +22,12 @@ impl Float {
             },
             inner: Self::clamp_inner(overflowing_inner),
         }
+    }
+
+    #[cfg(test)]
+    pub fn clamp_inclusive_range(overflowing_range: RangeInclusive<f64>) -> RangeInclusive<f64> {
+        Self::clamp_inner(overflowing_range.start().clone())
+            ..=Self::clamp_inner(overflowing_range.end().clone())
     }
 
     fn clamp_inner(overflowing: f64) -> f64 {

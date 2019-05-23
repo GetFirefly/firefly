@@ -1,4 +1,5 @@
 use std::cmp::Ordering::{self, *};
+use std::hash::{Hash, Hasher};
 
 use im::hashmap::{HashMap, Iter};
 
@@ -66,6 +67,12 @@ impl CloneIntoHeap for &'static Map {
 }
 
 impl Eq for Map {}
+
+impl Hash for Map {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.inner.hash(state)
+    }
+}
 
 impl Ord for Map {
     /// > * Maps are compared by size, then by keys in ascending term order,

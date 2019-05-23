@@ -1133,6 +1133,11 @@ impl Hash for Term {
 
                         float.hash(state)
                     }
+                    Function => {
+                        let function: &Function = self.unbox_reference();
+
+                        function.hash(state)
+                    }
                     HeapBinary => {
                         let heap_binary: &heap::Binary = self.unbox_reference();
 
@@ -1142,6 +1147,11 @@ impl Hash for Term {
                         let local_reference: &local::Reference = self.unbox_reference();
 
                         local_reference.hash(state)
+                    }
+                    Map => {
+                        let map: &Map = self.unbox_reference();
+
+                        map.hash(state)
                     }
                     Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
@@ -1654,6 +1664,12 @@ impl PartialEq for Term {
                         let other_float: &Float = other.unbox_reference();
 
                         self_float == other_float
+                    }
+                    (Function, Function) => {
+                        let self_function: &Function = self.unbox_reference();
+                        let other_function: &Function = other.unbox_reference();
+
+                        self_function == other_function
                     }
                     (HeapBinary, HeapBinary) => {
                         let self_heap_binary: &heap::Binary = self.unbox_reference();

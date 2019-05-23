@@ -22,6 +22,9 @@ log = "0.4"
 num-bigint = "0.2.2"
 num-traits = "0.2.6"
 
+[dev-dependencies]
+proptest = "0.9.3"
+
 [target.'cfg(unix)'.dependencies]
 internment = "0.3.6"
 rand = "0.6"

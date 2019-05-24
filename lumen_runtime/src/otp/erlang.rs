@@ -812,7 +812,7 @@ pub fn is_reference_1(term: Term) -> Term {
 }
 
 pub fn is_tuple_1(term: Term) -> Term {
-    (term.tag() == Boxed && term.unbox_reference::<Term>().tag() == Arity).into()
+    term.is_tuple().into()
 }
 
 pub fn length_1(list: Term, process: &Process) -> Result {

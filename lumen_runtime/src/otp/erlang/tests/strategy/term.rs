@@ -7,10 +7,12 @@ use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use crate::atom::Existence::DoNotCare;
+use crate::otp::erlang::tests::strategy::SIZE_RANGE_INCLUSIVE;
 use crate::process::{IntoProcess, ModuleFunctionArity, Process};
 use crate::term::Term;
 
 pub mod integer;
+pub mod tuple;
 
 pub fn atom() -> BoxedStrategy<Term> {
     any::<String>()
@@ -24,7 +26,7 @@ pub fn container(
     arc_process: Arc<Process>,
 ) -> impl Strategy<Value = Term> {
     prop_oneof![
-        tuple(element.clone(), size_range.clone(), arc_process.clone()),
+        tuple::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
         map(element.clone(), size_range.clone(), arc_process.clone()),
         list(element, size_range.clone(), arc_process.clone())
     ]
@@ -67,6 +69,10 @@ pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Value must not be a number", |v| !v.is_number())
         .boxed()
+}
+
+pub fn is_not_tuple(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter("Value must not be a tuple", |v| !v.is_tuple())
 }
 
 // `super::term(arc_process).prop_filter(..., |v| v.is_number())` is too slow, on the order of
@@ -190,12 +196,10 @@ fn subbinary(bit_range: RangeInclusive<usize>, arc_process: Arc<Process>) -> Box
         .boxed()
 }
 
-fn tuple(
-    element: BoxedStrategy<Term>,
-    size_range: SizeRange,
-    arc_process: Arc<Process>,
-) -> BoxedStrategy<Term> {
-    proptest::collection::vec(element, size_range)
-        .prop_map(move |vec| Term::slice_to_tuple(&vec, &arc_process))
-        .boxed()
+pub fn tuple(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    tuple::intermediate(
+        super::term(arc_process.clone()),
+        SIZE_RANGE_INCLUSIVE.clone().into(),
+        arc_process,
+    )
 }

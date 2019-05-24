@@ -502,6 +502,10 @@ impl Term {
         }
     }
 
+    pub fn is_tuple(&self) -> bool {
+        self.tag() == Boxed && self.unbox_reference::<Term>().tag() == Arity
+    }
+
     pub const unsafe fn isize_to_small_integer(i: isize) -> Term {
         Term {
             tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (SmallInteger as usize),

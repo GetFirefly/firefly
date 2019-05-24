@@ -55,6 +55,14 @@ pub fn heap_binary(size_range: SizeRange, arc_process: Arc<Process>) -> BoxedStr
         .boxed()
 }
 
+pub fn is_boolean() -> impl Strategy<Value = Term> {
+    prop_oneof![Just(true.into()), Just(false.into())]
+}
+
+pub fn is_not_boolean(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter("Atom cannot be a boolean", |v| !v.is_boolean())
+}
+
 pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Value must not be a number", |v| !v.is_number())

@@ -426,6 +426,16 @@ impl Term {
         self.tag() == Atom
     }
 
+    pub fn is_boolean(&self) -> bool {
+        match self.tag() {
+            Atom => match unsafe { self.atom_to_string() }.as_ref().as_ref() {
+                "false" | "true" => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     pub fn is_char_list(&self) -> bool {
         match self.tag() {
             EmptyList => true,

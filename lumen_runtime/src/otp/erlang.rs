@@ -694,14 +694,7 @@ pub fn is_bitstring_1(term: Term) -> Term {
 }
 
 pub fn is_boolean_1(term: Term) -> Term {
-    match term.tag() {
-        Atom => match unsafe { term.atom_to_string() }.as_ref().as_ref() {
-            "false" | "true" => true,
-            _ => false,
-        },
-        _ => false,
-    }
-    .into()
+    term.is_boolean().into()
 }
 
 /// `=</2` infix operator.  Floats and integers are converted.

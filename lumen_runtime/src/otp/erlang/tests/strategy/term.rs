@@ -61,10 +61,20 @@ pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+// `super::term(arc_process).prop_filter(..., |v| v.is_number())` is too slow, on the order of
+// minutes instead of seconds because most terms aren't numbers, so this directly uses the
+// number strategies instead.
 pub fn is_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    super::term(arc_process)
-        .prop_filter("Value must be a number", |v| v.is_number())
-        .boxed()
+    let big_integer_arc_process = arc_process.clone();
+    let float_arc_process = arc_process.clone();
+    let small_integer_arc_process = arc_process.clone();
+
+    prop_oneof![
+        integer::big(big_integer_arc_process),
+        float(float_arc_process),
+        integer::small(small_integer_arc_process)
+    ]
+    .boxed()
 }
 
 pub fn leaf(

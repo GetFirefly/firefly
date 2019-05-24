@@ -16,7 +16,7 @@ fn byte_vec(size_range: SizeRange) -> BoxedStrategy<Vec<u8>> {
     proptest::collection::vec(proptest::prelude::any::<u8>(), size_range).boxed()
 }
 
-fn term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+pub fn term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let max_len = 16;
     let size_range_inclusive = 0..=max_len;
     let size_range: SizeRange = size_range_inclusive.clone().into();

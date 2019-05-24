@@ -818,7 +818,7 @@ impl Term {
 
                 small_integer_big_int.cmp(boxed_big_int)
             }
-            LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
+            LocalReference | Function | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
             other_unboxed_tag => {
                 #[cfg(debug_assertions)]
                 unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag);
@@ -1343,7 +1343,8 @@ impl Ord for Term {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
+                    LocalReference | Function | ExternalPid | Arity | Map | HeapBinary
+                    | Subbinary => Less,
                     BigInteger | Float => Greater,
                     other_unboxed_tag => {
                         #[cfg(debug_assertions)]
@@ -1362,7 +1363,8 @@ impl Ord for Term {
 
                 match self_unboxed.tag() {
                     BigInteger | Float => Less,
-                    LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Greater,
+                    LocalReference | Function | ExternalPid | Arity | Map | HeapBinary
+                    | Subbinary => Greater,
                     self_unboxed_tag => {
                         #[cfg(debug_assertions)]
                         unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag);
@@ -1390,6 +1392,7 @@ impl Ord for Term {
                         unsafe { Term::f64_cmp_f64(self_inner, other_inner) }
                     }
                     (Float, LocalReference)
+                    | (Float, Function)
                     | (Float, ExternalPid)
                     | (Float, Arity)
                     | (Float, Map)
@@ -1403,6 +1406,7 @@ impl Ord for Term {
                     }
                     (BigInteger, Float) => unsafe { Term::big_integer_cmp_float(&self, &other) },
                     (BigInteger, LocalReference)
+                    | (BigInteger, Function)
                     | (BigInteger, ExternalPid)
                     | (BigInteger, Arity)
                     | (BigInteger, Map)
@@ -1417,12 +1421,28 @@ impl Ord for Term {
                             .number()
                             .cmp(&other_local_reference.number())
                     }
-                    (LocalReference, LocalPid)
+                    (LocalReference, Function)
+                    | (LocalReference, LocalPid)
                     | (LocalReference, ExternalPid)
                     | (LocalReference, Arity)
                     | (LocalReference, Map)
                     | (LocalReference, HeapBinary)
                     | (LocalReference, Subbinary) => Less,
+                    (Function, Float) | (Function, BigInteger) | (Function, LocalReference) => {
+                        Greater
+                    }
+                    (Function, Function) => {
+                        let self_function: &Function = self.unbox_reference();
+                        let other_function: &Function = other.unbox_reference();
+
+                        self_function.cmp(other_function)
+                    }
+                    (Function, ExternalPid)
+                    | (Function, Arity)
+                    | (Function, Map)
+                    | (Function, List)
+                    | (Function, HeapBinary)
+                    | (Function, Subbinary) => Less,
                     (ExternalPid, Float)
                     | (ExternalPid, BigInteger)
                     | (ExternalPid, LocalReference) => Greater,
@@ -1441,6 +1461,7 @@ impl Ord for Term {
                     (Arity, Float)
                     | (Arity, BigInteger)
                     | (Arity, LocalReference)
+                    | (Arity, Function)
                     | (Arity, ExternalPid) => Greater,
                     (Arity, Arity) => {
                         let self_tuple: &Tuple = self.unbox_reference();
@@ -1452,6 +1473,7 @@ impl Ord for Term {
                     (Map, Float)
                     | (Map, BigInteger)
                     | (Map, LocalReference)
+                    | (Map, Function)
                     | (Map, ExternalPid)
                     | (Map, Arity) => Greater,
                     (Map, Map) => {
@@ -1464,6 +1486,7 @@ impl Ord for Term {
                     (HeapBinary, Float)
                     | (HeapBinary, BigInteger)
                     | (HeapBinary, LocalReference)
+                    | (HeapBinary, Function)
                     | (HeapBinary, ExternalPid)
                     | (HeapBinary, Arity)
                     | (HeapBinary, Map) => Greater,
@@ -1488,6 +1511,7 @@ impl Ord for Term {
                     (Subbinary, Float)
                     | (Subbinary, BigInteger)
                     | (Subbinary, LocalReference)
+                    | (Subbinary, Function)
                     | (Subbinary, ExternalPid)
                     | (Subbinary, Arity)
                     | (Subbinary, Map) => Greater,
@@ -1513,7 +1537,7 @@ impl Ord for Term {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
-                    Float | BigInteger | LocalReference => Less,
+                    Float | BigInteger | LocalReference | Function => Less,
                     // local pid has node 0 while all external pids have node > 0
                     ExternalPid | Arity | Map | HeapBinary | Subbinary => Greater,
                     self_unboxed_tag => {
@@ -1528,7 +1552,9 @@ impl Ord for Term {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
-                    Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Less,
+                    Float | BigInteger | LocalReference | Function | ExternalPid | Arity | Map => {
+                        Less
+                    }
                     HeapBinary | Subbinary => Greater,
                     self_unboxed_tag => {
                         #[cfg(debug_assertions)]
@@ -1543,7 +1569,7 @@ impl Ord for Term {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    Float | BigInteger | LocalReference => Greater,
+                    Float | BigInteger | LocalReference | Function => Greater,
                     ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
                     other_unboxed_tag => {
                         #[cfg(debug_assertions)]
@@ -1559,7 +1585,9 @@ impl Ord for Term {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Greater,
+                    Float | BigInteger | LocalReference | Function | ExternalPid | Arity | Map => {
+                        Greater
+                    }
                     HeapBinary | Subbinary => Less,
                     other_unboxed_tag => {
                         #[cfg(debug_assertions)]

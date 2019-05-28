@@ -1,99 +1,93 @@
 use super::*;
 
-#[test]
-fn with_atom_right_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::str_to_atom("right", DoNotCare).unwrap(), true)
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_local_reference_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::next_local_reference(process), true);
-}
+fn without_list_right_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::tuple(arc_process.clone()),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Right must not be tuple", |v| !v.is_tuple()),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        true.into()
+                    );
 
-#[test]
-fn with_empty_list_right_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::EMPTY_LIST, true);
-}
-
-#[test]
-fn with_list_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        true,
-    );
-}
-
-#[test]
-fn with_small_integer_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| 0.into_process(&process), true)
-}
-
-#[test]
-fn with_big_integer_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        true,
-    )
-}
-
-#[test]
-fn with_float_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| 0.0.into_process(&process), true)
-}
-
-#[test]
-fn with_local_pid_right_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::local_pid(2, 3).unwrap(), true);
-}
-
-#[test]
-fn with_external_pid_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        true,
-    );
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_same_tuple_right_returns_false() {
-    are_not_equal_after_conversion(|left, _| left, false);
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term::tuple(arc_process.clone()), |operand| {
+                prop_assert_eq!(
+                    erlang::are_not_equal_after_conversion_2(operand, operand),
+                    false.into()
+                );
+
+                Ok(())
+            })
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_same_value_tuple_right_returns_false() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_tuple(&[], &process), false);
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &proptest::collection::vec(
+                    strategy::term(arc_process.clone()),
+                    strategy::size_range(),
+                )
+                .prop_map(move |vec| {
+                    (
+                        Term::slice_to_tuple(&vec, &arc_process),
+                        Term::slice_to_tuple(&vec, &arc_process),
+                    )
+                }),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        false.into()
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_different_tuple_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| Term::slice_to_tuple(&[1.into_process(&process)], &process),
-        true,
-    );
-}
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::tuple(arc_process.clone()),
+                    strategy::term::tuple(arc_process.clone()),
+                )
+                    .prop_filter("Tuples must be different", |(left, right)| left != right),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        true.into()
+                    );
 
-#[test]
-fn with_map_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_map(&[], &process), true);
-}
-
-#[test]
-fn with_heap_binary_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_binary(&[], &process), true);
-}
-
-#[test]
-fn with_subbinary_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| bitstring!(1 :: 1, &process), true);
-}
-
-fn are_not_equal_after_conversion<R>(right: R, expected: bool)
-where
-    R: FnOnce(Term, &Process) -> Term,
-{
-    super::are_not_equal_after_conversion(
-        |process| Term::slice_to_tuple(&[], &process),
-        right,
-        expected,
-    );
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }

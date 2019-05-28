@@ -73,7 +73,7 @@ pub fn is_boolean() -> impl Strategy<Value = Term> {
 }
 
 pub fn is_not_atom(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_boolean())
+    super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_atom())
 }
 
 pub fn is_not_boolean(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {

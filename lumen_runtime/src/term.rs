@@ -312,6 +312,26 @@ impl Term {
         }
     }
 
+    #[cfg(test)]
+    pub unsafe fn count_ones(&self) -> u32 {
+        match self.tag() {
+            SmallInteger => self.small_integer_to_isize().count_ones(),
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger => {
+                        let big_integer: &big::Integer = self.unbox_reference();
+
+                        big_integer.count_ones()
+                    }
+                    _ => panic!("Can't count 1s in non-integer"),
+                }
+            }
+            _ => panic!("Can't count 1s in non-integer"),
+        }
+    }
+
     pub unsafe fn decompose_local_pid(&self) -> (usize, usize) {
         let untagged = self.tagged >> Tag::LOCAL_PID_BIT_COUNT;
 

@@ -72,12 +72,23 @@ pub fn is_boolean() -> impl Strategy<Value = Term> {
     prop_oneof![Just(true.into()), Just(false.into())]
 }
 
+pub fn is_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![
+        integer::small(arc_process.clone()),
+        integer::big(arc_process)
+    ]
+}
+
 pub fn is_not_atom(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_atom())
 }
 
 pub fn is_not_boolean(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Atom cannot be a boolean", |v| !v.is_boolean())
+}
+
+pub fn is_not_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter("Atom cannot be a boolean", |v| !v.is_integer())
 }
 
 pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

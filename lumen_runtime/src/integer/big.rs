@@ -23,6 +23,15 @@ impl Integer {
             inner,
         }
     }
+
+    #[cfg(test)]
+    pub fn count_ones(&self) -> u32 {
+        self.inner
+            .to_signed_bytes_be()
+            .iter()
+            .map(|b| b.count_ones())
+            .sum()
+    }
 }
 
 impl CloneIntoHeap for &'static Integer {

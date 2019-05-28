@@ -25,17 +25,23 @@ pub fn term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let container_arc_process = arc_process.clone();
 
     term::leaf(RANGE_INCLUSIVE, arc_process)
-        .prop_recursive(4, 64, MAX_LEN as u32, move |element| {
-            term::container(
-                element,
-                RANGE_INCLUSIVE.clone().into(),
-                container_arc_process.clone(),
-            )
-        })
+        .prop_recursive(
+            DEPTH,
+            (MAX_LEN * (DEPTH as usize + 1)) as u32,
+            MAX_LEN as u32,
+            move |element| {
+                term::container(
+                    element,
+                    RANGE_INCLUSIVE.clone().into(),
+                    container_arc_process.clone(),
+                )
+            },
+        )
         .boxed()
 }
 
-const MAX_LEN: usize = 16;
+const DEPTH: u32 = 3;
+const MAX_LEN: usize = 3;
 const RANGE_INCLUSIVE: RangeInclusive<usize> = 0..=MAX_LEN;
 
 pub fn size_range() -> SizeRange {

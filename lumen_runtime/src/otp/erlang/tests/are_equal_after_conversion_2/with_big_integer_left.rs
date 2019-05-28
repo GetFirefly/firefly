@@ -122,7 +122,7 @@ fn with_different_value_float_right_returns_false() {
                         |(left, right)| {
                             prop_assert_eq!(
                                 erlang::are_equal_after_conversion_2(left, right),
-                                true.into()
+                                false.into()
                             );
 
                             Ok(())

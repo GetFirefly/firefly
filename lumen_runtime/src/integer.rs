@@ -41,6 +41,16 @@ impl From<i32> for Integer {
     }
 }
 
+impl From<i64> for Integer {
+    fn from(i: i64) -> Integer {
+        if (small::MIN as i64) <= i && i <= (small::MAX as i64) {
+            Integer::Small(small::Integer(i as isize))
+        } else {
+            Integer::Big(i.into())
+        }
+    }
+}
+
 impl From<isize> for Integer {
     fn from(i: isize) -> Integer {
         if small::MIN <= i && i <= small::MAX {

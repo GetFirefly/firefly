@@ -1,3 +1,4 @@
+use std::cmp::{max, min};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -7,17 +8,33 @@ use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use crate::atom::Existence::DoNotCare;
-use crate::otp::erlang::tests::strategy::SIZE_RANGE_INCLUSIVE;
 use crate::process::{IntoProcess, ModuleFunctionArity, Process};
 use crate::term::Term;
 
+use super::size_range;
+
+pub mod binary;
+pub mod function;
 pub mod integer;
+pub mod list;
+pub mod map;
+pub mod pid;
 pub mod tuple;
 
 pub fn atom() -> BoxedStrategy<Term> {
     any::<String>()
         .prop_map(|s| Term::str_to_atom(&s, DoNotCare).unwrap())
         .boxed()
+}
+
+/// Produces `i64` that fall in the range that produce both integral floats and big integers
+pub fn big_integer_float_integral_i64() -> Option<impl Strategy<Value = i64>> {
+    negative_big_integer_float_integral_i64().and_then(|negative| {
+        match positive_big_integer_float_integral_i64() {
+            Some(positive) => Some(negative.prop_union(positive)),
+            None => None,
+        }
+    })
 }
 
 pub fn container(
@@ -27,8 +44,8 @@ pub fn container(
 ) -> impl Strategy<Value = Term> {
     prop_oneof![
         tuple::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
-        map(element.clone(), size_range.clone(), arc_process.clone()),
-        list(element, size_range.clone(), arc_process.clone())
+        map::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
+        list::intermediate(element, size_range.clone(), arc_process.clone())
     ]
 }
 
@@ -51,14 +68,12 @@ pub fn function(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     Just(Term::function(module_function_arity, code, &arc_process)).boxed()
 }
 
-pub fn heap_binary(size_range: SizeRange, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    super::byte_vec(size_range)
-        .prop_map(move |byte_vec| Term::slice_to_binary(&byte_vec, &arc_process))
-        .boxed()
-}
-
 pub fn is_boolean() -> impl Strategy<Value = Term> {
     prop_oneof![Just(true.into()), Just(false.into())]
+}
+
+pub fn is_not_atom(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_boolean())
 }
 
 pub fn is_not_boolean(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
@@ -104,7 +119,8 @@ pub fn leaf(
     let heap_binary_size_range = range_inclusive.clone().into();
 
     let subbinary_arc_process = arc_process.clone();
-    let subbinary_range_inclusive = range_inclusive.clone();
+
+    let external_pid_arc_process = arc_process.clone();
 
     let small_integer_arc_process = arc_process.clone();
 
@@ -116,13 +132,13 @@ pub fn leaf(
         float(float_arc_process),
         // TODO `Export`
         // TODO `ReferenceCountedBinary`
-        heap_binary(heap_binary_size_range, heap_binary_arc_process),
-        subbinary(subbinary_range_inclusive, subbinary_arc_process),
-        // TODO `ExternalPid`
+        binary::heap::with_size_range(heap_binary_size_range, heap_binary_arc_process),
+        binary::sub(subbinary_arc_process),
+        pid::external(external_pid_arc_process),
         // TODO `ExternalPort`
         // TODO `ExternalReference`
         Just(Term::EMPTY_LIST),
-        local_pid(),
+        pid::local(),
         // TODO `LocalPort`,
         atom(),
         integer::small(small_integer_arc_process)
@@ -130,76 +146,58 @@ pub fn leaf(
     .boxed()
 }
 
-pub fn list(
-    element: BoxedStrategy<Term>,
-    size_range: SizeRange,
-    arc_process: Arc<Process>,
-) -> BoxedStrategy<Term> {
-    proptest::collection::vec(element, size_range)
-        .prop_map(move |vec| Term::slice_to_list(&vec, &arc_process))
-        .boxed()
-}
-
-pub fn local_pid() -> BoxedStrategy<Term> {
-    (
-        0..crate::process::identifier::NUMBER_MAX,
-        0..crate::process::identifier::SERIAL_MAX,
-    )
-        .prop_map(|(number, serial)| Term::local_pid(number, serial).unwrap())
-        .boxed()
-}
-
-fn local_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+pub fn local_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     proptest::prelude::any::<u64>()
         .prop_map(move |number| Term::local_reference(number, &arc_process))
         .boxed()
 }
 
-fn map(
-    key_or_value: BoxedStrategy<Term>,
-    size_range: SizeRange,
-    arc_process: Arc<Process>,
-) -> BoxedStrategy<Term> {
-    proptest::collection::hash_map(key_or_value.clone(), key_or_value, size_range)
-        .prop_map(move |mut hash_map| {
-            let entry_vec: Vec<(Term, Term)> = hash_map.drain().collect();
-
-            Term::slice_to_map(&entry_vec, &arc_process)
-        })
-        .boxed()
+pub fn map(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    map::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
 }
 
-fn subbinary(bit_range: RangeInclusive<usize>, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    let arc_process_clone1 = arc_process.clone();
-    let arc_process_clone2 = arc_process.clone();
+fn negative_big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
+    let float_integral_min = crate::float::INTEGRAL_MIN as i64;
+    let big_integer_max_negative = crate::integer::small::MIN as i64 - 1;
 
-    bit_range
-        .prop_flat_map(move |bit_count| {
-            let byte_size = super::bits_to_bytes(bit_count);
+    if float_integral_min < big_integer_max_negative {
+        let boxed_strategy: BoxedStrategy<i64> =
+            (float_integral_min..=big_integer_max_negative).boxed();
 
-            (
-                Just(bit_count),
-                heap_binary((byte_size..=byte_size).into(), arc_process_clone1.clone()),
-            )
-        })
-        .prop_map(move |(bit_count, original)| {
-            // TODO vary byte_offset, bit_offset, byte_count, and bit_count
-            Term::subbinary(
-                original,
-                0,
-                0,
-                bit_count / 8,
-                (bit_count % 8) as u8,
-                &arc_process_clone2.clone(),
-            )
-        })
-        .boxed()
+        Some(boxed_strategy)
+    } else {
+        None
+    }
+}
+
+fn positive_big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
+    let float_integral_max = crate::float::INTEGRAL_MAX as i64;
+    let big_integer_min_positive = crate::integer::small::MAX as i64 + 1;
+
+    if big_integer_min_positive < float_integral_max {
+        let boxed_strategy: BoxedStrategy<i64> =
+            (big_integer_min_positive..=float_integral_max).boxed();
+
+        Some(boxed_strategy)
+    } else {
+        None
+    }
+}
+
+/// Produces `i64` that fall in the range that produce both integral floats and small integers
+pub fn small_integer_float_integral_i64() -> BoxedStrategy<i64> {
+    let integral_min = max(
+        crate::float::INTEGRAL_MIN as i64,
+        crate::integer::small::MIN as i64,
+    );
+    let integral_max = min(
+        crate::float::INTEGRAL_MAX as i64,
+        crate::integer::small::MAX as i64,
+    );
+
+    (integral_min..=integral_max).boxed()
 }
 
 pub fn tuple(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    tuple::intermediate(
-        super::term(arc_process.clone()),
-        SIZE_RANGE_INCLUSIVE.clone().into(),
-        arc_process,
-    )
+    tuple::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
 }

@@ -426,6 +426,25 @@ impl Term {
         self.tag() == Atom
     }
 
+    pub fn is_binary(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    HeapBinary => true,
+                    Subbinary => {
+                        let subbinary: &sub::Binary = self.unbox_reference();
+
+                        subbinary.is_binary()
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_boolean(&self) -> bool {
         match self.tag() {
             Atom => match unsafe { self.atom_to_string() }.as_ref().as_ref() {
@@ -475,8 +494,29 @@ impl Term {
         }
     }
 
+    pub fn is_list(&self) -> bool {
+        match self.tag() {
+            EmptyList | List => true,
+            _ => false,
+        }
+    }
+
     pub fn is_local_pid(&self) -> bool {
         self.tag() == LocalPid
+    }
+
+    pub fn is_map(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Map => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
     }
 
     pub fn is_number(&self) -> bool {
@@ -1219,6 +1259,14 @@ impl IntoProcess<Term> for i32 {
     }
 }
 
+impl IntoProcess<Term> for i64 {
+    fn into_process(self, process: &Process) -> Term {
+        let integer: Integer = self.into();
+
+        integer.into_process(process)
+    }
+}
+
 impl IntoProcess<Term> for isize {
     fn into_process(self, process: &Process) -> Term {
         let integer: Integer = self.into();
@@ -1449,7 +1497,8 @@ impl Ord for Term {
                     | (Function, Subbinary) => Less,
                     (ExternalPid, Float)
                     | (ExternalPid, BigInteger)
-                    | (ExternalPid, LocalReference) => Greater,
+                    | (ExternalPid, LocalReference)
+                    | (ExternalPid, Function) => Greater,
                     (ExternalPid, ExternalPid) => {
                         let self_external_pid: &process::identifier::External =
                             self.unbox_reference();

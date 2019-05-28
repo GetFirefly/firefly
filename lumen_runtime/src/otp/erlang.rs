@@ -659,23 +659,7 @@ pub fn is_atom_1(term: Term) -> Term {
 }
 
 pub fn is_binary_1(term: Term) -> Term {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                HeapBinary => true,
-                Subbinary => {
-                    let subbinary: &sub::Binary = term.unbox_reference();
-
-                    subbinary.is_binary()
-                }
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_binary().into()
 }
 
 pub fn is_bitstring_1(term: Term) -> Term {
@@ -740,26 +724,11 @@ pub fn is_less_than_2(left: Term, right: Term) -> Term {
 }
 
 pub fn is_list_1(term: Term) -> Term {
-    match term.tag() {
-        EmptyList | List => true,
-        _ => false,
-    }
-    .into()
+    term.is_list().into()
 }
 
 pub fn is_map_1(term: Term) -> Term {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                Map => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_map().into()
 }
 
 pub fn is_map_key_2(key: Term, map: Term, process: &Process) -> Result {

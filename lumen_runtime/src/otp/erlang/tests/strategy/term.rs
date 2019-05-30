@@ -16,6 +16,8 @@ use super::size_range;
 pub mod binary;
 pub mod function;
 pub mod integer;
+pub mod is_binary;
+pub mod is_bitstring;
 pub mod list;
 pub mod map;
 pub mod pid;
@@ -68,6 +70,17 @@ pub fn function(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     Just(Term::function(module_function_arity, code, &arc_process)).boxed()
 }
 
+pub fn is_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![
+        binary::heap(arc_process.clone()),
+        binary::sub::is_binary(arc_process)
+    ]
+}
+
+pub fn is_bitstring(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![binary::heap(arc_process.clone()), binary::sub(arc_process)]
+}
+
 pub fn is_boolean() -> impl Strategy<Value = Term> {
     prop_oneof![Just(true.into()), Just(false.into())]
 }
@@ -81,6 +94,29 @@ pub fn is_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
 
 pub fn is_not_atom(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_atom())
+}
+
+pub fn is_not_bitstring(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    let element = super::term(arc_process.clone());
+    let size_range = super::size_range();
+
+    prop_oneof![
+        integer::big(arc_process.clone()),
+        local_reference(arc_process.clone()),
+        function(arc_process.clone()),
+        float(arc_process.clone()),
+        // TODO `Export`
+        // TODO `ReferenceCountedBinary`
+        pid::external(arc_process.clone()),
+        // TODO `ExternalPort`
+        // TODO `ExternalReference`
+        Just(Term::EMPTY_LIST),
+        pid::local(),
+        // TODO `LocalPort`,
+        atom(),
+        integer::small(arc_process.clone()),
+        container(element.clone(), size_range, arc_process.clone())
+    ]
 }
 
 pub fn is_not_boolean(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {

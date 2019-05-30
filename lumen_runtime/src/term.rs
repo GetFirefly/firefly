@@ -284,6 +284,30 @@ impl Term {
         }
     }
 
+    #[cfg(test)]
+    pub fn byte_len(&self) -> usize {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    HeapBinary => {
+                        let heap_binary: &heap::Binary = self.unbox_reference();
+
+                        heap_binary.byte_len()
+                    }
+                    Subbinary => {
+                        let subbinary: &sub::Binary = self.unbox_reference();
+
+                        subbinary.byte_len()
+                    }
+                    unboxed_tag => panic!("unboxed {:?} does not have a byte_len", unboxed_tag),
+                }
+            }
+            tag => panic!("{:?} does not have a byte_len", tag),
+        }
+    }
+
     pub fn chars_to_list(chars: Chars, process: &Process) -> Term {
         chars.rfold(Self::EMPTY_LIST, |acc, character| {
             Term::cons(character.into_process(&process), acc, &process)
@@ -569,6 +593,25 @@ impl Term {
     pub const unsafe fn isize_to_small_integer(i: isize) -> Term {
         Term {
             tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (SmallInteger as usize),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Arity => {
+                        let tuple: &Tuple = self.unbox_reference();
+
+                        tuple.len()
+                    }
+                    unboxed_tag => unimplemented!("len of unboxed {:?}", unboxed_tag),
+                }
+            }
+            tag => unimplemented!("len of {:?}", tag),
         }
     }
 

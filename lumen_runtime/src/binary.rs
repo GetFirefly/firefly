@@ -319,7 +319,7 @@ fn start_length_to_part_range(
     if length >= 0 {
         let non_negative_length = length as usize;
 
-        if (start < available_byte_count) & (start + non_negative_length <= available_byte_count) {
+        if (start <= available_byte_count) & (start + non_negative_length <= available_byte_count) {
             Ok(PartRange {
                 byte_offset: start,
                 byte_count: non_negative_length,

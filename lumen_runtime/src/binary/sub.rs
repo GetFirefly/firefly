@@ -461,8 +461,13 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, &'b Binary> for Binary {
         if (self.bit_count == 0) && (byte_offset == 0) && (byte_count == self.byte_count) {
             Ok(self)
         } else {
-            let new_subbinary =
-                process.subbinary(self.original, byte_offset, self.bit_offset, byte_count, 0);
+            let new_subbinary = process.subbinary(
+                self.original,
+                self.byte_offset + byte_offset,
+                self.bit_offset,
+                byte_count,
+                0,
+            );
 
             Ok(new_subbinary)
         }

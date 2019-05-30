@@ -1,173 +1,111 @@
 use super::*;
 
-use num_traits::Num;
-
-use crate::process::IntoProcess;
+use crate::otp::erlang::tests::strategy::term::BINARY_TO_EXISTING_ATOM_2_NON_EXISTENT;
 
 #[test]
-fn with_atom_errors_badarg() {
-    errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
-}
+fn without_binary_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_not_binary(arc_process.clone()),
+                    strategy::term::is_encoding(),
+                ),
+                |(binary, encoding)| {
+                    prop_assert_eq!(
+                        erlang::binary_to_existing_atom_2(binary, encoding),
+                        Err(badarg!())
+                    );
 
-#[test]
-fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_errors_badarg() {
-    errors_badarg(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_errors_badarg() {
-    errors_badarg(|process| list_term(&process));
-}
-
-#[test]
-fn with_small_integer_errors_badarg() {
-    errors_badarg(|process| 0usize.into_process(&process));
-}
-
-#[test]
-fn with_big_integer_errors_badarg() {
-    errors_badarg(|process| {
-        <BigInt as Num>::from_str_radix("576460752303423489", 10)
-            .unwrap()
-            .into_process(&process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_float_errors_badarg() {
-    errors_badarg(|process| 1.0.into_process(&process));
-}
+fn with_binary_without_encoding_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_binary(arc_process.clone()),
+                    strategy::term::is_not_encoding(arc_process),
+                ),
+                |(binary, encoding)| {
+                    prop_assert_eq!(
+                        erlang::binary_to_existing_atom_2(binary, encoding),
+                        Err(badarg!())
+                    );
 
-#[test]
-fn with_tuple_errors_badarg() {
-    errors_badarg(|process| {
-        Term::slice_to_tuple(
-            &[0.into_process(&process), 1.into_process(&process)],
-            &process,
-        )
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_map_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
+fn with_utf8_binary_with_valid_encoding_without_existing_atom_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::binary::containing_bytes(
+                        BINARY_TO_EXISTING_ATOM_2_NON_EXISTENT.as_bytes().to_owned(),
+                        arc_process.clone(),
+                    ),
+                    strategy::term::is_encoding(),
+                ),
+                |(binary, encoding)| {
+                    prop_assert_eq!(
+                        erlang::binary_to_existing_atom_2(binary, encoding),
+                        Err(badarg!())
+                    );
 
-#[test]
-fn with_heap_binary_without_encoding_atom_errors_badarg() {
-    with_process(|process| {
-        let heap_binary_term = Term::slice_to_binary(&[], &process);
-
-        assert_badarg!(erlang::binary_to_existing_atom_2(
-            heap_binary_term,
-            0.into_process(&process)
-        ));
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_heap_binary_with_invalid_encoding_atom_errors_badarg() {
-    with_process(|process| {
-        let heap_binary_term = Term::slice_to_binary(&[], &process);
-        let invalid_encoding_term = Term::str_to_atom("invalid_encoding", DoNotCare).unwrap();
+fn with_utf8_binary_with_valid_encoding_with_existing_atom_returns_atom() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::binary::is_utf8(arc_process.clone()),
+                    strategy::term::is_encoding(),
+                ),
+                |(binary, encoding)| {
+                    let byte_vec: Vec<u8> = match binary.unbox_reference::<Term>().tag() {
+                        HeapBinary => {
+                            let heap_binary: &heap::Binary = binary.unbox_reference();
 
-        assert_badarg!(erlang::binary_to_existing_atom_2(
-            heap_binary_term,
-            invalid_encoding_term
-        ));
-    });
-}
+                            heap_binary.byte_iter().collect()
+                        }
+                        Subbinary => {
+                            let subbinary: &sub::Binary = binary.unbox_reference();
 
-#[test]
-fn with_heap_binary_with_valid_encoding_without_existing_atom_returns_atom() {
-    with_process(|process| {
-        let heap_binary_term = Term::slice_to_binary("😈1".as_bytes(), &process);
-        let latin1_atom_term = Term::str_to_atom("latin1", DoNotCare).unwrap();
-        let unicode_atom_term = Term::str_to_atom("unicode", DoNotCare).unwrap();
-        let utf8_atom_term = Term::str_to_atom("utf8", DoNotCare).unwrap();
+                            subbinary.byte_iter().collect()
+                        }
+                        unboxed_tag => panic!("unboxed_tag = {:?}", unboxed_tag),
+                    };
 
-        assert_badarg!(erlang::binary_to_existing_atom_2(
-            heap_binary_term,
-            latin1_atom_term
-        ));
-        assert_badarg!(erlang::binary_to_existing_atom_2(
-            heap_binary_term,
-            unicode_atom_term
-        ));
-        assert_badarg!(erlang::binary_to_existing_atom_2(
-            heap_binary_term,
-            utf8_atom_term
-        ));
-    });
-}
+                    let s = std::str::from_utf8(&byte_vec).unwrap();
+                    let existing_atom = Term::str_to_atom(s, DoNotCare).unwrap();
 
-#[test]
-fn with_heap_binary_with_valid_encoding_with_existing_atom_returns_atom() {
-    with_process(|process| {
-        let heap_binary_term = Term::slice_to_binary("😈2".as_bytes(), &process);
-        let latin1_atom_term = Term::str_to_atom("latin1", DoNotCare).unwrap();
-        let unicode_atom_term = Term::str_to_atom("unicode", DoNotCare).unwrap();
-        let utf8_atom_term = Term::str_to_atom("utf8", DoNotCare).unwrap();
-        let atom_term = Term::str_to_atom("😈2", DoNotCare).unwrap();
+                    prop_assert_eq!(
+                        erlang::binary_to_existing_atom_2(binary, encoding),
+                        Ok(existing_atom)
+                    );
 
-        assert_eq!(
-            erlang::binary_to_existing_atom_2(heap_binary_term, latin1_atom_term),
-            Ok(atom_term)
-        );
-        assert_eq!(
-            erlang::binary_to_existing_atom_2(heap_binary_term, unicode_atom_term),
-            Ok(atom_term)
-        );
-        assert_eq!(
-            erlang::binary_to_existing_atom_2(heap_binary_term, utf8_atom_term),
-            Ok(atom_term)
-        );
-    });
-}
-
-#[test]
-fn with_subbinary_with_bit_count_errors_badarg() {
-    errors_badarg(|process| {
-        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        Term::subbinary(original, 0, 7, 2, 1, &process)
-    });
-}
-
-#[test]
-fn with_subbinary_without_bit_count_without_existing_atom_errors_badarg() {
-    errors_badarg(|process| {
-        let original = Term::slice_to_binary("😈🤘1".as_bytes(), &process);
-        Term::subbinary(original, 4, 0, 5, 0, &process)
-    });
-}
-
-#[test]
-fn with_subbinary_without_bit_count_with_existing_atom_returns_atom_with_bytes() {
-    with_process(|process| {
-        let original = Term::slice_to_binary("😈🤘2".as_bytes(), &process);
-        let binary = Term::subbinary(original, 4, 0, 5, 0, &process);
-        let encoding = Term::str_to_atom("unicode", DoNotCare).unwrap();
-        let atom_term = Term::str_to_atom("🤘2", DoNotCare).unwrap();
-
-        assert_eq!(
-            erlang::binary_to_existing_atom_2(binary, encoding),
-            Ok(atom_term)
-        );
-    });
-}
-
-fn errors_badarg<F>(binary: F)
-where
-    F: FnOnce(&Process) -> Term,
-{
-    super::errors_badarg(|process| {
-        let encoding = Term::str_to_atom("unicode", DoNotCare).unwrap();
-
-        erlang::binary_to_existing_atom_2(binary(process), encoding)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }

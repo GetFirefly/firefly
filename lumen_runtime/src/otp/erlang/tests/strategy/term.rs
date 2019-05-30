@@ -24,8 +24,13 @@ pub mod map;
 pub mod pid;
 pub mod tuple;
 
+pub const BINARY_TO_EXISTING_ATOM_2_NON_EXISTENT: &str = "binary_to_existing_atom_2_non_existent";
+
 pub fn atom() -> BoxedStrategy<Term> {
     any::<String>()
+        .prop_filter("Reserved for binary_to_existing_atom_2 tests", |s| {
+            s != BINARY_TO_EXISTING_ATOM_2_NON_EXISTENT
+        })
         .prop_map(|s| Term::str_to_atom(&s, DoNotCare).unwrap())
         .boxed()
 }

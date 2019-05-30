@@ -9,6 +9,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use crate::atom::Existence::DoNotCare;
 use crate::process::{IntoProcess, ModuleFunctionArity, Process};
+use crate::term::Tag::Atom;
 use crate::term::Term;
 
 use super::size_range;
@@ -85,6 +86,14 @@ pub fn is_boolean() -> impl Strategy<Value = Term> {
     prop_oneof![Just(true.into()), Just(false.into())]
 }
 
+pub fn is_encoding() -> impl Strategy<Value = Term> {
+    prop_oneof![
+        Just(Term::str_to_atom("latin1", DoNotCare).unwrap()),
+        Just(Term::str_to_atom("unicode", DoNotCare).unwrap()),
+        Just(Term::str_to_atom("utf8", DoNotCare).unwrap())
+    ]
+}
+
 pub fn is_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     prop_oneof![
         integer::small(arc_process.clone()),
@@ -94,6 +103,29 @@ pub fn is_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
 
 pub fn is_not_atom(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_atom())
+}
+
+pub fn is_not_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    let element = super::term(arc_process.clone());
+    let size_range = super::size_range();
+
+    prop_oneof![
+        integer::big(arc_process.clone()),
+        local_reference(arc_process.clone()),
+        function(arc_process.clone()),
+        float(arc_process.clone()),
+        // TODO `Export`
+        // TODO `ReferenceCountedBinary`
+        pid::external(arc_process.clone()),
+        // TODO `ExternalPort`
+        // TODO `ExternalReference`
+        Just(Term::EMPTY_LIST),
+        pid::local(),
+        // TODO `LocalPort`,
+        atom(),
+        integer::small(arc_process.clone()),
+        container(element.clone(), size_range, arc_process.clone())
+    ]
 }
 
 pub fn is_not_bitstring(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
@@ -121,6 +153,20 @@ pub fn is_not_bitstring(arc_process: Arc<Process>) -> impl Strategy<Value = Term
 
 pub fn is_not_boolean(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Atom cannot be a boolean", |v| !v.is_boolean())
+}
+
+pub fn is_not_encoding(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter(
+        "Must either not be an atom or not be an atom encoding atom",
+        |term| {
+            term.tag() != Atom || {
+                match unsafe { term.atom_to_string() }.as_ref().as_ref() {
+                    "latin1" | "unicode" | "utf8" => false,
+                    _ => true,
+                }
+            }
+        },
+    )
 }
 
 pub fn is_not_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {

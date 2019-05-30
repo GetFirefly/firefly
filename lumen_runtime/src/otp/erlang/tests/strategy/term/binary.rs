@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use proptest::strategy::Strategy;
+use proptest::arbitrary::any;
+use proptest::prop_oneof;
+use proptest::strategy::{Just, Strategy};
 
 use crate::otp::erlang::tests::strategy::size_range;
 use crate::otp::erlang::tests::strategy::term::binary::sub::{
@@ -14,6 +16,15 @@ pub mod sub;
 
 pub fn heap(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     heap::with_size_range(size_range(), arc_process)
+}
+
+pub fn is_utf8(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    any::<String>().prop_flat_map(move |string| {
+        prop_oneof![
+            Just(Term::slice_to_binary(string.as_bytes(), &arc_process)),
+            sub::containing_bytes(string.as_bytes().to_owned(), arc_process.clone())
+        ]
+    })
 }
 
 pub fn sub(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {

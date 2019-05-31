@@ -1,9 +1,7 @@
 use std::cmp::Ordering::{self, Equal};
 use std::convert::{TryFrom, TryInto};
-#[cfg(test)]
-use std::fmt::{self, Debug};
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 
 use crate::exception::Exception;
 
@@ -12,19 +10,10 @@ pub mod small;
 
 use crate::integer::big::big_int_to_usize;
 
+#[cfg_attr(test, derive(Debug))]
 pub enum Integer {
     Small(small::Integer),
     Big(BigInt),
-}
-
-#[cfg(test)]
-impl Debug for Integer {
-    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Integer::Small(_) => unimplemented!(),
-            Integer::Big(_) => unimplemented!(),
-        }
-    }
 }
 
 impl Eq for Integer {}
@@ -127,5 +116,19 @@ impl TryFrom<Integer> for usize {
             Integer::Small(small::Integer(untagged)) => untagged.try_into().map_err(|_| badarg!()),
             Integer::Big(big_int) => big_int_to_usize(&big_int),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn negative_one() {
+        let big_int: BigInt = (-1).into();
+
+        let integer: Integer = big_int.into();
+
+        assert_eq!(integer, Integer::Small(small::Integer(-1)));
     }
 }

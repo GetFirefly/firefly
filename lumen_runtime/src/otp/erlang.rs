@@ -334,7 +334,7 @@ pub fn binary_to_list_3(binary: Term, start: Term, stop: Term, process: &Process
             let zero_based_start_usize = one_based_start_usize - 1;
             let zero_based_stop_usize = one_based_stop_usize - 1;
 
-            let length_usize = zero_based_stop_usize - zero_based_stop_usize + 1;
+            let length_usize = zero_based_stop_usize - zero_based_start_usize + 1;
 
             otp::binary::bin_to_list(
                 binary,

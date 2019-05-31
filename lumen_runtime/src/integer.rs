@@ -73,11 +73,13 @@ impl From<BigInt> for Integer {
 
         if (small_min_big_int <= big_int) & (big_int <= small_max_big_int) {
             let (sign, bytes) = big_int.to_bytes_be();
-            let small_usize = bytes.iter().fold(0_usize, |acc, byte| (acc << 8) | (*byte as usize));
+            let small_usize = bytes
+                .iter()
+                .fold(0_usize, |acc, byte| (acc << 8) | (*byte as usize));
 
             let small_isize = match sign {
                 Sign::Minus => -1 * (small_usize as isize),
-                _ => small_usize as isize
+                _ => small_usize as isize,
             };
 
             Integer::Small(small::Integer(small_isize))

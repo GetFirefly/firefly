@@ -24,6 +24,7 @@ num-traits = "0.2.6"
 
 [dev-dependencies]
 proptest = "0.9.3"
+radix_fmt = "1.0.0"
 
 [target.'cfg(unix)'.dependencies]
 internment = "0.3.6"

@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::otp::erlang::tests::strategy::term::BINARY_TO_EXISTING_ATOM_2_NON_EXISTENT;
-
 #[test]
 fn without_binary_errors_badarg() {
     with_process_arc(|arc_process| {
@@ -53,7 +51,9 @@ fn with_utf8_binary_with_valid_encoding_without_existing_atom_errors_badarg() {
             .run(
                 &(
                     strategy::term::binary::containing_bytes(
-                        BINARY_TO_EXISTING_ATOM_2_NON_EXISTENT.as_bytes().to_owned(),
+                        strategy::term::non_existent_atom("binary_to_existing_atom")
+                            .as_bytes()
+                            .to_owned(),
                         arc_process.clone(),
                     ),
                     strategy::term::is_encoding(),

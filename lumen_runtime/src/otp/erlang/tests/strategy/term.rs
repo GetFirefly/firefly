@@ -24,12 +24,12 @@ pub mod map;
 pub mod pid;
 pub mod tuple;
 
-pub const BINARY_TO_EXISTING_ATOM_2_NON_EXISTENT: &str = "binary_to_existing_atom_2_non_existent";
+pub const NON_EXISTENT_ATOM_PREFIX: &str = "non_existent";
 
 pub fn atom() -> BoxedStrategy<Term> {
     any::<String>()
-        .prop_filter("Reserved for binary_to_existing_atom_2 tests", |s| {
-            s != BINARY_TO_EXISTING_ATOM_2_NON_EXISTENT
+        .prop_filter("Reserved for existing/safe atom tests", |s| {
+            !s.starts_with(NON_EXISTENT_ATOM_PREFIX)
         })
         .prop_map(|s| Term::str_to_atom(&s, DoNotCare).unwrap())
         .boxed()
@@ -266,6 +266,10 @@ fn negative_big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
     } else {
         None
     }
+}
+
+pub fn non_existent_atom(suffix: &str) -> String {
+    format!("{}_{}", NON_EXISTENT_ATOM_PREFIX, suffix)
 }
 
 fn positive_big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {

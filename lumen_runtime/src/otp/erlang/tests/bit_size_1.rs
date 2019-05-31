@@ -1,93 +1,72 @@
 use super::*;
 
-use num_traits::Num;
-
 #[test]
-fn with_atom_errors_badarg() {
-    errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
-}
+fn without_bitstring_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::is_not_bitstring(arc_process.clone()),
+                |binary| {
+                    prop_assert_eq!(erlang::bit_size_1(binary, &arc_process), Err(badarg!()));
 
-#[test]
-fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_errors_badarg() {
-    errors_badarg(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_errors_badarg() {
-    errors_badarg(|process| list_term(&process));
-}
-
-#[test]
-fn with_small_integer_errors_badarg() {
-    errors_badarg(|process| 0.into_process(&process));
-}
-
-#[test]
-fn with_big_integer_errors_badarg() {
-    errors_badarg(|process| {
-        <BigInt as Num>::from_str_radix("576460752303423489", 10)
-            .unwrap()
-            .into_process(&process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_float_errors_badarg() {
-    errors_badarg(|process| 1.0.into_process(&process));
-}
-
-#[test]
-fn with_local_pid_errors_badarg() {
-    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
-}
-
-#[test]
-fn with_external_pid_errors_badarg() {
-    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
 fn with_heap_binary_is_eight_times_byte_count() {
-    with_process(|process| {
-        let heap_binary_term = Term::slice_to_binary(&[1], &process);
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::binary::heap(arc_process.clone()),
+                |binary| {
+                    let result = erlang::bit_size_1(binary, &arc_process);
 
-        assert_eq!(
-            erlang::bit_size_1(heap_binary_term, &process),
-            Ok(8.into_process(&process))
-        );
+                    prop_assert!(result.is_ok());
+
+                    let bit_size_term = result.unwrap();
+                    let bit_size = unsafe { bit_size_term.small_integer_to_isize() } as usize;
+
+                    prop_assert_eq!(bit_size % 8, 0);
+
+                    let heap_binary: &heap::Binary = binary.unbox_reference();
+
+                    prop_assert_eq!(heap_binary.byte_len() * 8, bit_size);
+
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
 fn with_subbinary_is_eight_times_byte_count_plus_bit_count() {
-    with_process(|process| {
-        let bitstring = bitstring!(0, 1, 0b010 :: 3, &process);
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::binary::sub(arc_process.clone()),
+                |binary| {
+                    let result = erlang::bit_size_1(binary, &arc_process);
 
-        assert_eq!(
-            erlang::bit_size_1(bitstring, &process),
-            Ok(19.into_process(&process))
-        );
+                    prop_assert!(result.is_ok());
+
+                    let bit_size_term = result.unwrap();
+                    let bit_size = unsafe { bit_size_term.small_integer_to_isize() } as usize;
+
+                    let subbinary: &sub::Binary = binary.unbox_reference();
+
+                    prop_assert_eq!(
+                        subbinary.byte_count * 8 + subbinary.bit_count as usize,
+                        bit_size
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
-}
-
-fn errors_badarg<F>(bit_string: F)
-where
-    F: FnOnce(&Process) -> Term,
-{
-    super::errors_badarg(|process| erlang::bit_size_1(bit_string(&process), &process));
 }

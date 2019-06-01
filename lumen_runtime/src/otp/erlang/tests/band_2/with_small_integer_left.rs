@@ -1,24 +1,5 @@
 use super::*;
 
-#[test]
-fn without_integer_left_errors_badarith() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::integer::small(arc_process.clone()),
-                    strategy::term::is_not_integer(arc_process.clone()),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::band_2(left, right, &arc_process), Err(badarith!()));
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
-}
-
 // No using `proptest` because I'd rather cover truth table manually
 #[test]
 fn with_small_integer_right_returns_small_integer() {

@@ -9,8 +9,8 @@ fn without_integer_right_errors_badarith() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::is_not_integer(arc_process.clone()),
                     strategy::term::is_integer(arc_process.clone()),
+                    strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::band_2(left, right, &arc_process), Err(badarith!()));
@@ -23,7 +23,7 @@ fn without_integer_right_errors_badarith() {
 }
 
 #[test]
-fn with_same_integer_returns_same_nteger() {
+fn with_same_integer_returns_same_integer() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(

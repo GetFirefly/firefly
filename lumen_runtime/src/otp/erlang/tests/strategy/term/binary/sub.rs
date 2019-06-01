@@ -70,6 +70,16 @@ pub fn is_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     )
 }
 
+pub fn is_not_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    with_size_range(
+        byte_offset(),
+        bit_offset(),
+        byte_count(),
+        1_u8..=7_u8,
+        arc_process,
+    )
+}
+
 fn original_bit_len(byte_offset: usize, bit_offset: u8, byte_count: usize, bit_count: u8) -> usize {
     byte_offset * 8 + bit_offset as usize + byte_count * 8 + bit_count as usize
 }

@@ -3,40 +3,45 @@ use super::*;
 use num_traits::Num;
 
 #[test]
-fn with_atom_errors_badarith() {
-    errors_badarith(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
-}
+fn without_integer_errors_badarith() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::is_not_integer(arc_process.clone()),
+                |operand| {
+                    prop_assert_eq!(erlang::bnot_1(operand, &arc_process), Err(badarith!()));
 
-#[test]
-fn with_local_reference_errors_badarith() {
-    errors_badarith(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_heap_binary_errors_badarith() {
-    errors_badarith(|process| Term::slice_to_binary(&[0], &process));
-}
-
-#[test]
-fn with_subbinary_errors_badarith() {
-    errors_badarith(|process| {
-        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        Term::subbinary(original, 0, 7, 2, 1, &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_empty_list_errors_badarith() {
-    errors_badarith(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_errors_badarith() {
-    errors_badarith(|process| list_term(&process));
-}
-
-#[test]
 fn with_small_integer_returns_small_integer() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::integer::small(arc_process.clone()),
+                |operand| {
+                    let result = erlang::bnot_1(operand, &arc_process);
+
+                    prop_assert!(result.is_ok());
+
+                    let inverted = result.unwrap();
+
+                    prop_assert_eq!(inverted.tag(), SmallInteger);
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
+#[test]
+fn with_small_integer_inverts_bits() {
     with_process(|process| {
         let integer = 0b10.into_process(&process);
 
@@ -48,7 +53,7 @@ fn with_small_integer_returns_small_integer() {
 }
 
 #[test]
-fn with_big_integer_returns_big_integer() {
+fn with_big_integer_inverts_bits() {
     with_process(|process| {
         let integer = <BigInt as Num>::from_str_radix(
             "1010101010101010101010101010101010101010101010101010101010101010",
@@ -75,33 +80,27 @@ fn with_big_integer_returns_big_integer() {
 }
 
 #[test]
-fn with_float_that_is_negative_returns_positive() {
-    errors_badarith(|process| 1.0.into_process(&process));
-}
+fn with_big_integer_returns_big_integer() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::integer::big(arc_process.clone()),
+                |operand| {
+                    let result = erlang::bnot_1(operand, &arc_process);
 
-#[test]
-fn with_local_pid_errors_badarith() {
-    errors_badarith(|_| Term::local_pid(0, 0).unwrap());
-}
+                    prop_assert!(result.is_ok());
 
-#[test]
-fn with_external_pid_errors_badarith() {
-    errors_badarith(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
+                    let inverted = result.unwrap();
 
-#[test]
-fn with_tuple_errors_badarith() {
-    errors_badarith(|process| Term::slice_to_tuple(&[], &process));
-}
+                    prop_assert_eq!(inverted.tag(), Boxed);
 
-#[test]
-fn with_map_errors_badarith() {
-    errors_badarith(|process| Term::slice_to_map(&[], &process));
-}
+                    let unboxed: &Term = inverted.unbox_reference();
 
-fn errors_badarith<I>(integer: I)
-where
-    I: FnOnce(&Process) -> Term,
-{
-    super::errors_badarith(|process| erlang::bnot_1(integer(&process), &process));
+                    prop_assert_eq!(unboxed.tag(), BigInteger);
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }

@@ -159,11 +159,15 @@ impl Binary {
         let initial = if self.bit_count == 0 {
             Term::EMPTY_LIST
         } else {
-            self.bit_count_subbinary(&process)
+            Term::cons(
+                self.bit_count_subbinary(process),
+                Term::EMPTY_LIST,
+                process,
+            )
         };
 
         self.byte_iter().rfold(initial, |acc, byte| {
-            Term::cons(byte.into_process(&process), acc, &process)
+            Term::cons(byte.into_process(process), acc, process)
         })
     }
 

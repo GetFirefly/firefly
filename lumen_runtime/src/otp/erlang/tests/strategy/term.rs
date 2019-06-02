@@ -178,6 +178,33 @@ pub fn is_not_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> 
     super::term(arc_process).prop_filter("Atom cannot be a boolean", |v| !v.is_integer())
 }
 
+pub fn is_not_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    let element = super::term(arc_process.clone());
+    let size_range = super::size_range();
+
+    prop_oneof![
+        integer::big(arc_process.clone()),
+        local_reference(arc_process.clone()),
+        function(arc_process.clone()),
+        float(arc_process.clone()),
+        // TODO `Export`
+        // TODO `ReferenceCountedBinary`
+        binary::heap::with_size_range(size_range.clone(), arc_process.clone()),
+        binary::sub(arc_process.clone()),
+        pid::external(arc_process.clone()),
+        // TODO `ExternalPort`
+        // TODO `ExternalReference`
+        pid::local(),
+        // TODO `LocalPort`,
+        atom(),
+        integer::small(arc_process.clone()),
+        prop_oneof![
+            tuple::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
+            map::intermediate(element.clone(), size_range, arc_process.clone()),
+        ]
+    ]
+}
+
 pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Value must not be a number", |v| !v.is_number())
@@ -206,6 +233,13 @@ pub fn is_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         integer::small(small_integer_arc_process)
     ]
     .boxed()
+}
+
+pub fn is_reference(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![
+        local_reference(arc_process),
+        // TODO `ExternalReference`
+    ]
 }
 
 pub fn leaf(

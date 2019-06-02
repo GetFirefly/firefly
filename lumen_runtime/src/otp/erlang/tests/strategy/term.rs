@@ -184,6 +184,10 @@ pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+pub fn is_not_reference(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter("Value must not be a tuple", |v| !v.is_reference())
+}
+
 pub fn is_not_tuple(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Value must not be a tuple", |v| !v.is_tuple())
 }

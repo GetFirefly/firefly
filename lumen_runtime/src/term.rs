@@ -586,6 +586,15 @@ impl Term {
         }
     }
 
+    pub fn is_reference(&self) -> bool {
+        self.tag() == Boxed && {
+            match self.unbox_reference::<Term>().tag() {
+                LocalReference | ExternalReference => true,
+                _ => false,
+            }
+        }
+    }
+
     pub fn is_tuple(&self) -> bool {
         self.tag() == Boxed && self.unbox_reference::<Term>().tag() == Arity
     }

@@ -1,11 +1,22 @@
 use std::sync::Arc;
 
 use proptest::collection::SizeRange;
-use proptest::strategy::Strategy;
+use proptest::strategy::{Just, Strategy};
 
 use crate::otp::erlang::tests::strategy::{self, NON_EMPTY_RANGE_INCLUSIVE};
 use crate::process::Process;
 use crate::term::Term;
+
+pub fn improper(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    let size_range: SizeRange = NON_EMPTY_RANGE_INCLUSIVE.into();
+
+    (
+        proptest::collection::vec(strategy::term(arc_process.clone()), size_range),
+        strategy::term::is_not_list(arc_process.clone()),
+        Just(arc_process),
+    )
+        .prop_map(|(vec, tail, arc_process)| Term::slice_to_improper_list(&vec, tail, &arc_process))
+}
 
 pub fn intermediate(
     element: impl Strategy<Value = Term>,
@@ -36,4 +47,14 @@ pub fn non_empty_maybe_improper(arc_process: Arc<Process>) -> impl Strategy<Valu
             }
         },
     )
+}
+
+pub fn non_empty_proper(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    let size_range: SizeRange = NON_EMPTY_RANGE_INCLUSIVE.clone().into();
+
+    (
+        Just(arc_process.clone()),
+        proptest::collection::vec(strategy::term(arc_process), size_range),
+    )
+        .prop_map(|(arc_process, vec)| Term::slice_to_list(&vec, &arc_process))
 }

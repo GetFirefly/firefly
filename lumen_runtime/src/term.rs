@@ -17,7 +17,6 @@ use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::code::Code;
 use crate::exception::{self, Class, Exception};
 use crate::float::{self, Float};
-#[cfg(debug_assertions)]
 use crate::function::Function;
 use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer::{self, Big, Small};

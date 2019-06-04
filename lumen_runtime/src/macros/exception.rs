@@ -8,7 +8,7 @@ macro_rules! assert_badarg {
     }};
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_badarith {
     ($left:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -18,7 +18,7 @@ macro_rules! assert_badarith {
     }};
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_badkey {
     ($left:expr, $key:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -34,7 +34,7 @@ macro_rules! assert_badkey {
     }};
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_badmap {
     ($left:expr, $map:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -66,7 +66,7 @@ macro_rules! assert_error {
     };
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_exit {
     ($left:expr, $reason:expr) => {
         assert_eq!($left, Err(exit!($reason)))
@@ -76,7 +76,7 @@ macro_rules! assert_exit {
     };
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_raises {
     ($left:expr, $class:expr, $reason:expr, $stacktrace:expr) => {
         assert_eq!($left, Err(raise!($class, $reason, $stacktrace)))
@@ -86,7 +86,7 @@ macro_rules! assert_raises {
     };
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_throw {
     ($left:expr, $reason:expr) => {
         assert_eq!($left, Err(throw!($reason)))

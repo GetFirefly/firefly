@@ -23,17 +23,18 @@ num-bigint = "0.2.2"
 num-traits = "0.2.6"
 
 [dev-dependencies]
-proptest = "0.9.3"
 radix_fmt = "1.0.0"
 
 [target.'cfg(unix)'.dependencies]
 internment = "0.3.6"
+proptest = "0.9.3"
 rand = "0.6"
 signal-hook = "0.1"
 xorshift = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 internment = "0.3.6"
+proptest = "0.9.3"
 rand = "0.6"
 signal-hook = "0.1"
 xorshift = "0.1"

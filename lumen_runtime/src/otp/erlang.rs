@@ -35,7 +35,11 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::{Tuple, ZeroBasedIndex};
 
-#[cfg(test)]
+// wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
+// use proptest completely for wasm32
+//
+// See https://github.com/rust-lang/cargo/issues/4866
+#[cfg(all(not(target_arch = "wasm32"), test))]
 mod tests;
 
 pub fn abs_1(number: Term, process: &Process) -> Result {

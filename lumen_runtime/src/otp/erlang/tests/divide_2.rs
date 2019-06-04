@@ -1,72 +1,129 @@
 use super::*;
 
-mod with_big_integer_dividend;
+use proptest::prop_oneof;
+use proptest::strategy::Strategy;
+
 mod with_float_dividend;
-mod with_small_integer_dividend;
 
 #[test]
-fn with_atom_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| Term::str_to_atom("dividend", DoNotCare).unwrap());
-}
+fn without_number_dividend_errors_badarith() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_not_number(arc_process.clone()),
+                    strategy::term::is_number(arc_process.clone()),
+                ),
+                |(dividend, divisor)| {
+                    prop_assert_eq!(
+                        erlang::divide_2(dividend, divisor, &arc_process),
+                        Err(badarith!())
+                    );
 
-#[test]
-fn with_local_reference_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| {
-        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_local_pid_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| Term::local_pid(0, 1).unwrap());
-}
+fn with_number_dividend_without_number_divisor_errors_badarith() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_number(arc_process.clone()),
+                    strategy::term::is_not_number(arc_process.clone()),
+                ),
+                |(dividend, divisor)| {
+                    prop_assert_eq!(
+                        erlang::divide_2(dividend, divisor, &arc_process),
+                        Err(badarith!())
+                    );
 
-#[test]
-fn with_external_pid_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_is_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::slice_to_binary(&[], &process));
-}
-
-#[test]
-fn with_subbinary_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| {
-        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        Term::subbinary(original, 0, 7, 2, 1, &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
-fn with_dividend_errors_badarith<M>(dividend: M)
-where
-    M: FnOnce(&Process) -> Term,
-{
-    super::errors_badarith(|process| {
-        let dividend = dividend(&process);
-        let divisor = 0.into_process(&process);
+#[test]
+fn with_number_dividend_with_zero_divisor_errors_badarith() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_number(arc_process.clone()),
+                    zero(arc_process.clone()),
+                ),
+                |(dividend, divisor)| {
+                    prop_assert_eq!(
+                        erlang::divide_2(dividend, divisor, &arc_process),
+                        Err(badarith!())
+                    );
 
-        erlang::divide_2(dividend, divisor, &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
+}
+
+#[test]
+fn with_number_dividend_without_zero_number_divisor_returns_float() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_number(arc_process.clone()),
+                    number_is_not_zero(arc_process.clone()),
+                ),
+                |(dividend, divisor)| {
+                    let result = erlang::divide_2(dividend, divisor, &arc_process);
+
+                    prop_assert!(result.is_ok());
+
+                    let quotient = result.unwrap();
+
+                    prop_assert_eq!(quotient.tag(), Boxed);
+
+                    let unboxed_quotient: &Term = quotient.unbox_reference();
+
+                    prop_assert_eq!(unboxed_quotient.tag(), Float);
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
+fn number_is_not_zero(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    strategy::term::is_number(arc_process).prop_filter("Number must not be zero", |number| {
+        match number.tag() {
+            SmallInteger => (unsafe { number.small_integer_to_isize() }) != 0,
+            Boxed => {
+                let unboxed: &Term = number.unbox_reference();
+
+                match unboxed.tag() {
+                    Float => {
+                        let float: &Float = number.unbox_reference();
+
+                        float.inner != 0.0
+                    }
+                    _ => true,
+                }
+            }
+            _ => true,
+        }
+    })
+}
+
+fn zero(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![
+        Just(0.into_process(&arc_process)),
+        Just(0.0.into_process(&arc_process))
+    ]
 }

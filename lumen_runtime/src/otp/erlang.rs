@@ -12,7 +12,7 @@ use crate::atom::{Existence, Existence::*};
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
 use crate::code;
 use crate::exception::{Class, Result};
-use crate::float::Float;
+use crate::float::{self, Float};
 use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::map::Map;
@@ -523,16 +523,17 @@ pub fn ceil_1(number: Term, process: &Process) -> Result {
                     let ceil_inner = inner.ceil();
 
                     // skip creating a rug::Integer if float can fit in small integer.
-                    let ceil_term =
-                        if (small::MIN as f64) <= ceil_inner && ceil_inner <= (small::MAX as f64) {
-                            (ceil_inner as usize).into_process(&process)
-                        } else {
-                            let ceil_string = ceil_inner.to_string();
-                            let ceil_bytes = ceil_string.as_bytes();
-                            let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
+                    let ceil_term = if (small::MIN as f64).max(float::INTEGRAL_MIN) <= ceil_inner
+                        && ceil_inner <= (small::MAX as f64).min(float::INTEGRAL_MAX)
+                    {
+                        (ceil_inner as isize).into_process(&process)
+                    } else {
+                        let ceil_string = ceil_inner.to_string();
+                        let ceil_bytes = ceil_string.as_bytes();
+                        let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
 
-                            big_int.into_process(&process)
-                        };
+                        big_int.into_process(&process)
+                    };
 
                     Ok(ceil_term)
                 }

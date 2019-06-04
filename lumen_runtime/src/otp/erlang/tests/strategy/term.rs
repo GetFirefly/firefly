@@ -1,4 +1,5 @@
 use std::cmp::{max, min};
+use std::num::FpCategory;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -59,6 +60,9 @@ pub fn container(
 
 pub fn float(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     any::<f64>()
+        .prop_filter("Negative and positive 0.0 are the same for Erlang", |f| {
+            !(f.classify() == FpCategory::Zero && f.is_sign_negative())
+        })
         .prop_map(move |f| f.into_process(&arc_process))
         .boxed()
 }

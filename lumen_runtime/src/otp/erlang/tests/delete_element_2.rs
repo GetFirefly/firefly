@@ -11,7 +11,7 @@ fn without_tuple_errors_badarg() {
                 ),
                 |(tuple, index)| {
                     prop_assert_eq!(
-                        erlang::delete_element_2(tuple, index, &arc_process),
+                        erlang::delete_element_2(index, tuple, &arc_process),
                         Err(badarg!())
                     );
 
@@ -30,7 +30,7 @@ fn with_tuple_without_integer_between_1_and_the_length_inclusive_errors_badarg()
                 &strategy::term::tuple::without_index(arc_process.clone()),
                 |(tuple, index)| {
                     prop_assert_eq!(
-                        erlang::delete_element_2(tuple, index, &arc_process),
+                        erlang::delete_element_2(index, tuple, &arc_process),
                         Err(badarg!())
                     );
 
@@ -51,7 +51,7 @@ fn with_tuple_with_integer_between_1_and_the_length_inclusive_returns_tuple_with
                     element_vec.remove(element_vec_index);
 
                     prop_assert_eq!(
-                        erlang::delete_element_2(tuple, index, &arc_process),
+                        erlang::delete_element_2(index, tuple, &arc_process),
                         Ok(Term::slice_to_tuple(&element_vec, &arc_process))
                     );
 

@@ -576,7 +576,7 @@ pub fn convert_time_unit_3(
     Ok(converted)
 }
 
-pub fn delete_element_2(tuple: Term, index: Term, process: &Process) -> Result {
+pub fn delete_element_2(index: Term, tuple: Term, process: &Process) -> Result {
     let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
@@ -605,7 +605,7 @@ pub fn divide_2(dividend: Term, divisor: Term, process: &Process) -> Result {
     }
 }
 
-pub fn element_2(tuple: Term, index: Term, process: &Process) -> Result {
+pub fn element_2(index: Term, tuple: Term, process: &Process) -> Result {
     let inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 

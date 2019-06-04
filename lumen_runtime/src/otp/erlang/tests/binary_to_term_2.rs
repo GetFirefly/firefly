@@ -28,13 +28,13 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
                     // Using only `used` portion of binary returns the same result
                     let tuple = erlang::binary_to_term_2(binary, options, &arc_process).unwrap();
                     let used_term =
-                        erlang::element_2(tuple, 2.into_process(&arc_process), &arc_process)
+                        erlang::element_2(2.into_process(&arc_process), tuple, &arc_process)
                             .unwrap();
                     let split_binary_tuple =
                         erlang::split_binary_2(binary, used_term, &arc_process).unwrap();
                     let prefix = erlang::element_2(
-                        split_binary_tuple,
                         1.into_process(&arc_process),
+                        split_binary_tuple,
                         &arc_process,
                     )
                     .unwrap();

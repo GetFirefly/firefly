@@ -119,8 +119,8 @@ where
         receive_message(&same_thread_process_arc).expect("Cross-thread receive failed");
 
     let timer_reference = erlang::element_2(
-        timer_reference_tuple,
         2.into_process(&same_thread_process_arc),
+        timer_reference_tuple,
         &same_thread_process_arc,
     )
     .unwrap();

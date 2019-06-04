@@ -3,9 +3,11 @@ use std::convert::{TryFrom, TryInto};
 use num_bigint::BigInt;
 use num_traits::Zero;
 
+#[cfg(test)]
 use crate::atom::Existence::DoNotCare;
 use crate::exception::Exception;
 use crate::integer::big;
+#[cfg(test)]
 use crate::process::{IntoProcess, Process};
 use crate::term::{Tag::*, Term};
 

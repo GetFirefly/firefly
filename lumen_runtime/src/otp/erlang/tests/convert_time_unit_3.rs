@@ -1,1358 +1,530 @@
 use super::*;
 
-#[test]
-fn with_atom_errors_badarg() {
-    errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
-}
+use num_traits::Num;
+
+use proptest::prop_oneof;
+use proptest::strategy::Strategy;
+
+use crate::time::Unit;
 
 #[test]
-fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::next_local_reference(process));
-}
+fn without_integer_time_returns_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_not_integer(arc_process.clone()),
+                    unit_term(arc_process.clone()),
+                    unit_term(arc_process.clone()),
+                ),
+                |(time, from_unit, to_unit)| {
+                    prop_assert_eq!(
+                        erlang::convert_time_unit_3(time, from_unit, to_unit, &arc_process),
+                        Err(badarg!())
+                    );
 
-#[test]
-fn with_empty_list_errors_badarg() {
-    errors_badarg(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_errors_badarg() {
-    errors_badarg(|process| list_term(&process));
-}
-
-mod with_small_integer {
-    use super::*;
-
-    use num_traits::Num;
-
-    #[test]
-    fn without_valid_units_errors_badarg() {
-        with_process(|process| {
-            let small_integer_term: Term = 0.into_process(&process);
-            let valid_unit_term = Term::str_to_atom("native", DoNotCare).unwrap();
-            let invalid_unit_term = Term::str_to_atom("s", DoNotCare).unwrap();
-
-            assert_badarg!(erlang::convert_time_unit_3(
-                small_integer_term,
-                valid_unit_term,
-                invalid_unit_term,
-                &process,
-            ));
-
-            assert_badarg!(erlang::convert_time_unit_3(
-                small_integer_term,
-                invalid_unit_term,
-                valid_unit_term,
-                &process,
-            ));
-        });
-    }
-
-    #[test]
-    fn with_valid_units_returns_converted_value() {
-        with_process(|process| {
-            let small_integer_term: Term = 1_000_000_000.into_process(&process);
-
-            assert_eq!(small_integer_term.tag(), SmallInteger);
-
-            // (Hertz, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    2_usize.into_process(&process),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(2_000_000_000.into_process(&process))
-            );
-            // (Hertz, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(500_000_000.into_process(&process))
-            );
-            // (Hertz, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Hertz, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("500_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Hertz, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("500_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Hertz, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Hertz, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("500_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-
-            // (Second, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("5_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Second, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000_usize.into_process(&process))
-            );
-            // (Second, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Second, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Second, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Second, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Second, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-
-            // (Millisecond, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(5_000_000.into_process(&process))
-            );
-            // (Millisecond, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000.into_process(&process))
-            );
-            // (Millisecond, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Millisecond, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Millisecond, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Millisecond, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Millisecond, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-
-            // (Microsecond, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(5_000_000.into_process(&process))
-            );
-            // (Microsecond, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000.into_process(&process))
-            );
-            // (Microsecond, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Microsecond, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Microsecond, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Microsecond, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Microsecond, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-
-            // (Nanosecond, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(5.into_process(&process))
-            );
-            // (Nanosecond, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1.into_process(&process))
-            );
-            // (Nanosecond, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000.into_process(&process))
-            );
-            // (Nanosecond, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000.into_process(&process))
-            );
-            // (Nanosecond, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Nanosecond, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000.into_process(&process))
-            );
-            // (Nanosecond, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000.into_process(&process))
-            );
-
-            // (Native, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(5_000_000.into_process(&process))
-            );
-            // (Native, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000.into_process(&process))
-            );
-            // (Native, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Native, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Native, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Native, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Native, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-
-            // (Native, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(5_000_000.into_process(&process))
-            );
-            // (Native, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000.into_process(&process))
-            );
-            // (Native, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Native, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Native, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Native, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Native, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    small_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-        });
-    }
-}
-
-mod with_big_integer {
-    use super::*;
-
-    use num_traits::Num;
-
-    #[test]
-    fn without_valid_units_errors_badarg() {
-        with_process(|process| {
-            let big_integer_term: Term =
-                <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process);
-
-            assert_eq!(big_integer_term.tag(), Boxed);
-
-            let valid_unit_term = Term::str_to_atom("native", DoNotCare).unwrap();
-            let invalid_unit_term = Term::str_to_atom("s", DoNotCare).unwrap();
-
-            assert_badarg!(erlang::convert_time_unit_3(
-                big_integer_term,
-                valid_unit_term,
-                invalid_unit_term,
-                &process,
-            ));
-
-            assert_badarg!(erlang::convert_time_unit_3(
-                big_integer_term,
-                invalid_unit_term,
-                valid_unit_term,
-                &process,
-            ));
-        });
-    }
-
-    #[test]
-    fn with_valid_units_returns_converted_value() {
-        with_process(|process| {
-            let big_integer_term: Term =
-                <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process);
-
-            assert_eq!(big_integer_term.tag(), Boxed);
-
-            // (Hertz, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    2_usize.into_process(&process),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("2_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Hertz, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("500_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Hertz, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Hertz, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Hertz, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Hertz, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Hertz, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    2_usize.into_process(&process),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-
-            // (Second, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("5_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Second, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Second, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Second, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Second, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Second, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Second, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-
-            // (Millisecond, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Millisecond, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Millisecond, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Millisecond, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Millisecond, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Millisecond, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Millisecond, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-
-            // (Microsecond, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Microsecond, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Microsecond, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Microsecond, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Microsecond, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Microsecond, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Microsecond, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-
-            // (Nanosecond, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("5_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Nanosecond, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(1_000_000_000.into_process(&process))
-            );
-            // (Nanosecond, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Nanosecond, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Nanosecond, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Nanosecond, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Nanosecond, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-
-            // (Native, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Native, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Native, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Native, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Native, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Native, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Native, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-
-            // (Native, Hertz)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    5_usize.into_process(&process),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Native, Second)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("second", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(<BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
-                    .unwrap()
-                    .into_process(&process))
-            );
-            // (Native, Millisecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Native, Microsecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Native, Nanosecond)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Native, Native)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-            // (Native, PerformanceCounter)
-            assert_eq!(
-                erlang::convert_time_unit_3(
-                    big_integer_term,
-                    Term::str_to_atom("native", DoNotCare).unwrap(),
-                    Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
-                    &process
-                ),
-                Ok(
-                    <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
-                        .unwrap()
-                        .into_process(&process)
-                )
-            );
-        });
-    }
-}
-
-#[test]
-fn with_float_errors_badarg() {
-    errors_badarg(|process| 1.0.into_process(&process));
-}
-
-#[test]
-fn with_local_pid_errors_badarg() {
-    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
-}
-
-#[test]
-fn with_external_pid_errors_badarg() {
-    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_binary(&[1], &process));
-}
-
-#[test]
-fn with_subbinary_errors_badarg() {
-    errors_badarg(|process| {
-        let original = Term::slice_to_binary(&[0, 1], &process);
-        Term::subbinary(original, 1, 0, 1, 0, &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
-fn errors_badarg<F>(time: F)
-where
-    F: FnOnce(&Process) -> Term,
-{
-    super::errors_badarg(|process| {
-        let from_unit = Term::str_to_atom("native", DoNotCare).unwrap();
-        let to_unit = Term::str_to_atom("native", DoNotCare).unwrap();
+#[test]
+fn with_integer_time_without_unit_from_unit_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_integer(arc_process.clone()),
+                    is_not_unit_term(arc_process.clone()),
+                    unit_term(arc_process.clone()),
+                ),
+                |(time, from_unit, to_unit)| {
+                    prop_assert_eq!(
+                        erlang::convert_time_unit_3(time, from_unit, to_unit, &arc_process),
+                        Err(badarg!())
+                    );
 
-        erlang::convert_time_unit_3(time(&process), from_unit, to_unit, &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
+}
+
+#[test]
+fn with_integer_time_with_unit_from_unit_without_unit_to_unit_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_integer(arc_process.clone()),
+                    unit_term(arc_process.clone()),
+                    is_not_unit_term(arc_process.clone()),
+                ),
+                |(time, from_unit, to_unit)| {
+                    prop_assert_eq!(
+                        erlang::convert_time_unit_3(time, from_unit, to_unit, &arc_process),
+                        Err(badarg!())
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
+#[test]
+fn with_small_integer_time_valid_units_returns_converted_value() {
+    with_process(|process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&(from_unit(), to_unit()), |(from_unit, to_unit)| {
+                // not using `proptest` for time to allow math to be hard-coded and not copy the
+                // code-under-test
+                let time = 1_000_000_000.into_process(process);
+
+                let expected_converted = match (&from_unit, &to_unit) {
+                    (Hertz(_), Hertz(_)) => 2_000_000_000.into_process(process),
+                    (Hertz(_), Second) => 500_000_000.into_process(process),
+                    (Hertz(_), Millisecond) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Hertz(_), Microsecond) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Hertz(_), Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Hertz(_), Native) => <BigInt as Num>::from_str_radix("500_000_000_000", 10)
+                        .unwrap()
+                        .into_process(process),
+                    (Hertz(_), PerformanceCounter) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Second)
+                    | (Millisecond, Millisecond)
+                    | (Microsecond, Microsecond)
+                    | (Nanosecond, Nanosecond)
+                    | (Native, Native)
+                    | (PerformanceCounter, PerformanceCounter) => time,
+                    (Second, Hertz(_)) => <BigInt as Num>::from_str_radix("5_000_000_000", 10)
+                        .unwrap()
+                        .into_process(process),
+                    (Second, Millisecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Native) => <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                        .unwrap()
+                        .into_process(process),
+                    (Second, PerformanceCounter) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Millisecond, Hertz(_)) => 5_000_000.into_process(process),
+                    (Millisecond, Second) => 1_000_000.into_process(process),
+                    (Millisecond, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Millisecond, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Millisecond, Native) => 1_000_000_000.into_process(process),
+                    (Millisecond, PerformanceCounter) => 1_000_000_000.into_process(process),
+                    (Microsecond, Hertz(_)) => 5_000.into_process(process),
+                    (Microsecond, Second) => 1_000.into_process(process),
+                    (Microsecond, Millisecond) => 1_000_000.into_process(process),
+                    (Microsecond, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Microsecond, Native) => 1_000_000.into_process(process),
+                    (Microsecond, PerformanceCounter) => 1_000_000.into_process(process),
+                    (Nanosecond, Hertz(_)) => 5.into_process(process),
+                    (Nanosecond, Second) => 1.into_process(process),
+                    (Nanosecond, Millisecond) => 1_000.into_process(process),
+                    (Nanosecond, Microsecond) => 1_000_000.into_process(process),
+                    (Nanosecond, Native) => 1_000.into_process(process),
+                    (Nanosecond, PerformanceCounter) => 1_000.into_process(process),
+                    (Native, Hertz(_)) => 5_000_000.into_process(process),
+                    (Native, Second) => 1_000_000.into_process(process),
+                    (Native, Millisecond) => 1_000_000_000.into_process(process),
+                    (Native, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Native, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Native, PerformanceCounter) => 1_000_000_000.into_process(process),
+                    (PerformanceCounter, Hertz(_)) => 5_000_000.into_process(process),
+                    (PerformanceCounter, Second) => 1_000_000.into_process(process),
+                    (PerformanceCounter, Millisecond) => 1_000_000_000.into_process(process),
+                    (PerformanceCounter, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (PerformanceCounter, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (PerformanceCounter, Native) => 1_000_000_000.into_process(process),
+                };
+
+                prop_assert_eq!(
+                    erlang::convert_time_unit_3(
+                        time,
+                        from_unit.into_process(process),
+                        to_unit.into_process(process),
+                        process
+                    ),
+                    Ok(expected_converted)
+                );
+
+                Ok(())
+            })
+            .unwrap();
+    });
+}
+
+// does not use `proptest` so that math can be hard-coded and not match code-under-test
+#[test]
+fn with_big_integer_time_with_unit_from_unit_with_unit_to_unit_returns_converted_value() {
+    with_process(|process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&(from_unit(), to_unit()), |(from_unit, to_unit)| {
+                // not using `proptest` for time to allow math to be hard-coded and not copy the
+                // code-under-test
+                let time = <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                    .unwrap()
+                    .into_process(&process);
+
+                let expected_converted = match (&from_unit, &to_unit) {
+                    (Hertz(_), Hertz(_)) => {
+                        <BigInt as Num>::from_str_radix("2_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&process)
+                    }
+                    (Hertz(_), Second) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Hertz(_), Millisecond) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Hertz(_), Microsecond) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Hertz(_), Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Hertz(_), Native) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Hertz(_), PerformanceCounter) => {
+                        <BigInt as Num>::from_str_radix("500_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Second)
+                    | (Millisecond, Millisecond)
+                    | (Microsecond, Microsecond)
+                    | (Nanosecond, Nanosecond)
+                    | (Native, Native)
+                    | (PerformanceCounter, PerformanceCounter) => time,
+                    (Second, Hertz(_)) => {
+                        <BigInt as Num>::from_str_radix("5_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Millisecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, Native) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Second, PerformanceCounter) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Millisecond, Hertz(_)) => {
+                        <BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Millisecond, Second) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(&process)
+                    }
+                    (Millisecond, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Millisecond, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Millisecond, Native) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Millisecond, PerformanceCounter) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Microsecond, Hertz(_)) => {
+                        <BigInt as Num>::from_str_radix("5_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Microsecond, Second) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Microsecond, Millisecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Microsecond, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Microsecond, Native) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Microsecond, PerformanceCounter) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Nanosecond, Hertz(_)) => <BigInt as Num>::from_str_radix("5_000_000_000", 10)
+                        .unwrap()
+                        .into_process(process),
+                    (Nanosecond, Second) => <BigInt as Num>::from_str_radix("1_000_000_000", 10)
+                        .unwrap()
+                        .into_process(process),
+                    (Nanosecond, Millisecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Nanosecond, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Nanosecond, Native) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Nanosecond, PerformanceCounter) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Native, Hertz(_)) => {
+                        <BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Native, Second) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Native, Millisecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Native, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Native, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (Native, PerformanceCounter) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (PerformanceCounter, Hertz(_)) => {
+                        <BigInt as Num>::from_str_radix("5_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (PerformanceCounter, Second) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (PerformanceCounter, Millisecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (PerformanceCounter, Microsecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (PerformanceCounter, Nanosecond) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                    (PerformanceCounter, Native) => {
+                        <BigInt as Num>::from_str_radix("1_000_000_000_000_000_000", 10)
+                            .unwrap()
+                            .into_process(process)
+                    }
+                };
+
+                prop_assert_eq!(
+                    erlang::convert_time_unit_3(
+                        time,
+                        from_unit.into_process(process),
+                        to_unit.into_process(process),
+                        process
+                    ),
+                    Ok(expected_converted)
+                );
+
+                Ok(())
+            })
+            .unwrap();
+    });
+}
+
+fn from_unit() -> impl Strategy<Value = Unit> {
+    prop_oneof![
+        // not using `proptest` for time to allow math to be hard-coded and not copy the
+        // code-under-test
+        Just(Hertz(2)),
+        Just(Second),
+        Just(Millisecond),
+        Just(Microsecond),
+        Just(Nanosecond),
+        Just(Native),
+        Just(PerformanceCounter)
+    ]
+}
+
+fn hertz() -> impl Strategy<Value = Unit> {
+    (1..=std::usize::MAX).prop_map(|hertz| Hertz(hertz))
+}
+
+fn is_not_unit_term(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    strategy::term::is_not_integer(arc_process).prop_filter(
+        "Term must not be a unit name",
+        |term| match term.tag() {
+            Atom => match unsafe { term.atom_to_string() }.as_ref().as_ref() {
+                "second" | "millisecond" | "microsecond" | "nanosecond" | "native"
+                | "perf_counter" => false,
+                _ => true,
+            },
+            _ => true,
+        },
+    )
+}
+
+fn to_unit() -> impl Strategy<Value = Unit> {
+    prop_oneof![
+        // not using `proptest` for time to allow math to be hard-coded and not copy the
+        // code-under-test
+        Just(Hertz(5)),
+        Just(Second),
+        Just(Millisecond),
+        Just(Microsecond),
+        Just(Nanosecond),
+        Just(Native),
+        Just(PerformanceCounter)
+    ]
+}
+
+fn unit() -> impl Strategy<Value = Unit> {
+    prop_oneof![
+        hertz(),
+        Just(Second),
+        Just(Millisecond),
+        Just(Microsecond),
+        Just(Nanosecond),
+        Just(Native),
+        Just(PerformanceCounter)
+    ]
+}
+
+fn unit_term(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    unit().prop_map(move |unit| unit.into_process(&arc_process))
 }

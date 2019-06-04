@@ -3,8 +3,10 @@ use std::convert::{TryFrom, TryInto};
 use num_bigint::BigInt;
 use num_traits::Zero;
 
+use crate::atom::Existence::DoNotCare;
 use crate::exception::Exception;
 use crate::integer::big;
+use crate::process::{IntoProcess, Process};
 use crate::term::{Tag::*, Term};
 
 pub mod monotonic;
@@ -57,6 +59,21 @@ impl Unit {
             // As a side-channel protection browsers limit most counters to 1 millisecond resolution
             Unit::Native => Self::MILLISECOND_HERTZ,
             Unit::PerformanceCounter => Self::MILLISECOND_HERTZ,
+        }
+    }
+}
+
+#[cfg(test)]
+impl IntoProcess<Term> for Unit {
+    fn into_process(self, process: &Process) -> Term {
+        match self {
+            Unit::Hertz(hertz) => hertz.into_process(process),
+            Unit::Second => Term::str_to_atom("second", DoNotCare).unwrap(),
+            Unit::Millisecond => Term::str_to_atom("millisecond", DoNotCare).unwrap(),
+            Unit::Microsecond => Term::str_to_atom("microsecond", DoNotCare).unwrap(),
+            Unit::Nanosecond => Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
+            Unit::Native => Term::str_to_atom("native", DoNotCare).unwrap(),
+            Unit::PerformanceCounter => Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
         }
     }
 }

@@ -178,8 +178,12 @@ pub fn is_not_encoding(arc_process: Arc<Process>) -> impl Strategy<Value = Term>
     )
 }
 
+pub fn is_not_float(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter("Term cannot be a float", |v| !v.is_float())
+}
+
 pub fn is_not_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Atom cannot be a boolean", |v| !v.is_integer())
+    super::term(arc_process).prop_filter("Term cannot be an integer", |v| !v.is_integer())
 }
 
 pub fn is_not_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {

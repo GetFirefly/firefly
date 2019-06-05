@@ -695,18 +695,7 @@ pub fn is_equal_or_less_than_2(left: Term, right: Term) -> Term {
 }
 
 pub fn is_float_1(term: Term) -> Term {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                Float => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_float().into()
 }
 
 /// `>/2` infix operator.  Floats and integers are converted.

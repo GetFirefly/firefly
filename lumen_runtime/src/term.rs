@@ -514,6 +514,20 @@ impl Term {
         (self.tag() == EmptyList)
     }
 
+    pub fn is_float(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Float => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_function(&self) -> bool {
         match self.tag() {
             Boxed => {

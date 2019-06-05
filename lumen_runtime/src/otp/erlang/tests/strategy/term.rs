@@ -110,6 +110,10 @@ pub fn is_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     ]
 }
 
+pub fn is_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    list::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
+}
+
 pub fn is_not_atom(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_atom())
 }

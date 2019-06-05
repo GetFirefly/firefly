@@ -190,11 +190,6 @@ fn with_greater_size_map_returns_false() {
 }
 
 #[test]
-fn with_map_right_returns_true() {
-    is_greater_than(|_, process| Term::slice_to_map(&[], &process), true);
-}
-
-#[test]
 fn with_list_or_bitstring_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))

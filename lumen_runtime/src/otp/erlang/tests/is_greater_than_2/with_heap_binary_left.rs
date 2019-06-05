@@ -51,11 +51,6 @@ fn with_longer_heap_binary_with_greater_byte_right_returns_true() {
 }
 
 #[test]
-fn with_same_heap_binary_right_returns_false() {
-    is_greater_than(|left, _| left, false);
-}
-
-#[test]
 fn with_same_value_heap_binary_right_returns_false() {
     is_greater_than(|_, process| Term::slice_to_binary(&[1, 1], &process), false)
 }

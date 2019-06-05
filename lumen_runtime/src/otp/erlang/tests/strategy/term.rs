@@ -114,6 +114,10 @@ pub fn is_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     list::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
 }
 
+pub fn is_map(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    map::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
+}
+
 pub fn is_not_atom(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_atom())
 }
@@ -215,6 +219,10 @@ pub fn is_not_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
             map::intermediate(element.clone(), size_range, arc_process.clone()),
         ]
     ]
+}
+
+pub fn is_not_map(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter("Term cannot be a map", |v| !v.is_map())
 }
 
 pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

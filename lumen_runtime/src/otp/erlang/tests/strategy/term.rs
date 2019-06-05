@@ -231,6 +231,10 @@ pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+pub fn is_not_pid(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    super::term(arc_process).prop_filter("Value must not be a pid", |v| !v.is_pid())
+}
+
 pub fn is_not_reference(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     super::term(arc_process).prop_filter("Value must not be a tuple", |v| !v.is_reference())
 }
@@ -253,6 +257,10 @@ pub fn is_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         integer::small(small_integer_arc_process)
     ]
     .boxed()
+}
+
+pub fn is_pid(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![pid::external(arc_process.clone()), pid::local(),]
 }
 
 pub fn is_reference(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {

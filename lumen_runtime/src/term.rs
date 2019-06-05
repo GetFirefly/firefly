@@ -591,6 +591,21 @@ impl Term {
         }
     }
 
+    pub fn is_pid(&self) -> bool {
+        match self.tag() {
+            LocalPid => true,
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    ExternalPid => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_proper_list(&self) -> bool {
         match self.tag() {
             EmptyList => true,

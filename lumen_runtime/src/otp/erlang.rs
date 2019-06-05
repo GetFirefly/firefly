@@ -736,19 +736,7 @@ pub fn is_number_1(term: Term) -> Term {
 }
 
 pub fn is_pid_1(term: Term) -> Term {
-    match term.tag() {
-        LocalPid => true,
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                ExternalPid => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_pid().into()
 }
 
 pub fn is_record_2(term: Term, record_tag: Term) -> Result {

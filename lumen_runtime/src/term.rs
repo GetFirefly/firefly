@@ -488,6 +488,20 @@ impl Term {
         }
     }
 
+    pub fn is_bitstring(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    HeapBinary | Subbinary => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_boolean(&self) -> bool {
         match self.tag() {
             Atom => match unsafe { self.atom_to_string() }.as_ref().as_ref() {
@@ -599,6 +613,21 @@ impl Term {
 
                 match unboxed.tag() {
                     ExternalPid => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_port(&self) -> bool {
+        match self.tag() {
+            LocalPort => true,
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    ExternalPort => true,
                     _ => false,
                 }
             }

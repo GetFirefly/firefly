@@ -668,18 +668,7 @@ pub fn is_binary_1(term: Term) -> Term {
 }
 
 pub fn is_bitstring_1(term: Term) -> Term {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                HeapBinary | Subbinary => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_bitstring().into()
 }
 
 pub fn is_boolean_1(term: Term) -> Term {

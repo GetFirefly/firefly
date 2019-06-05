@@ -11,7 +11,7 @@ fn without_float_returns_false() {
                     strategy::term::float(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be a float", |v| {
-                            v.tag() != Boxed || v.unbox_reference::<Term>().tag() == Float
+                            v.tag() != Boxed || v.unbox_reference::<Term>().tag() != Float
                         }),
                 ),
                 |(left, right)| {

@@ -8,7 +8,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_false() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::map(arc_process.clone()),
+                    strategy::term::tuple(arc_process.clone()),
                     strategy::term(arc_process.clone()).prop_filter(
                         "Right must be number, atom, reference, function, port, or pid",
                         |right| {
@@ -96,15 +96,15 @@ fn with_greater_size_tuple_returns_true() {
 }
 
 #[test]
-fn with_list_or_bitstring_returns_true() {
+fn with_map_list_or_bitstring_returns_true() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::map(arc_process.clone()),
+                    strategy::term::tuple(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must be list or bitstring", |right| {
-                            right.is_list() || right.is_bitstring()
+                        .prop_filter("Right must be map, list, or bitstring", |right| {
+                            right.is_map() || right.is_list() || right.is_bitstring()
                         }),
                 ),
                 |(left, right)| {

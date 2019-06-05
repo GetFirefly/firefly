@@ -54,7 +54,7 @@ fn with_external_pid_right_returns_true() {
 }
 
 #[test]
-fn with_list_or_bitstring_returns_false() {
+fn with_list_or_bitstring_returns_true() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(

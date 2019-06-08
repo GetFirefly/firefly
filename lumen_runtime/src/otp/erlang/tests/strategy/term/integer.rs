@@ -16,7 +16,14 @@ pub fn big(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
     ]
 }
 
+pub fn non_negative(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![
+        small::non_negative(arc_process.clone()),
+        big::positive(arc_process)
+    ]
+}
+
 pub fn small(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    (crate::integer::small::MIN..crate::integer::small::MAX)
+    (crate::integer::small::MIN..=crate::integer::small::MAX)
         .prop_map(move |i| i.into_process(&arc_process))
 }

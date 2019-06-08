@@ -2184,6 +2184,18 @@ impl TryFrom<Term> for usize {
                     Ok(term_isize as usize)
                 }
             }
+            Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger => {
+                        let big_integer: &big::Integer = term.unbox_reference();
+
+                        big_integer.try_into()
+                    }
+                    _ => Err(badarg!()),
+                }
+            }
             _ => Err(badarg!()),
         }
     }

@@ -4,11 +4,14 @@ use super::*;
 fn without_reference_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_not_reference(arc_process.clone()), |term| {
-                prop_assert_eq!(erlang::is_reference_1(term), false.into());
+            .run(
+                &strategy::term::is_not_reference(arc_process.clone()),
+                |term| {
+                    prop_assert_eq!(erlang::is_reference_1(term), false.into());
 
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .unwrap();
     });
 }

@@ -150,6 +150,11 @@ impl Tuple {
                         None => element == record_tag,
                     }
                 } else {
+                    // even if the `record_tag` cannot be checked, the `size` is still type checked
+                    if let Some(size_term) = size {
+                        let _: usize = size_term.try_into()?;
+                    }
+
                     false
                 };
 

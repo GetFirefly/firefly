@@ -1,15 +1,21 @@
 use super::*;
 
+use proptest::prop_oneof;
+use proptest::strategy::Strategy;
+
 mod with_list;
 
 #[test]
-fn with_atom_errors_badarg() {
-    errors_badarg(|_| Term::str_to_atom("iolist", DoNotCare).unwrap());
-}
+fn without_list_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
+                prop_assert_eq!(erlang::list_to_binary_1(list, &arc_process), Err(badarg!()));
 
-#[test]
-fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::next_local_reference(process));
+                Ok(())
+            })
+            .unwrap();
+    });
 }
 
 #[test]
@@ -20,46 +26,6 @@ fn with_empty_list_returns_empty_binary() {
             Ok(Term::slice_to_binary(&[], &process))
         );
     });
-}
-
-#[test]
-fn with_small_integer_errors_badarg() {
-    errors_badarg(|process| 0.into_process(&process));
-}
-
-#[test]
-fn with_big_integer_errors_badarg() {
-    errors_badarg(|process| (crate::integer::small::MAX + 1).into_process(&process));
-}
-
-#[test]
-fn with_float_errors_badarg() {
-    errors_badarg(|process| 1.0.into_process(&process));
-}
-
-#[test]
-fn with_local_pid_errors_badarg() {
-    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
-}
-
-#[test]
-fn with_external_pid_errors_badarg() {
-    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_binary(&[], &process));
 }
 
 // > Bin1 = <<1,2,3>>.
@@ -102,6 +68,21 @@ fn otp_doctest_returns_binary() {
 }
 
 #[test]
+fn with_recursive_lists_ofbinaries_and_bytes_ending_in_binary_or_empty_list_returns_binary() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&top(arc_process.clone()), |list| {
+                let result = erlang::list_to_binary_1(list, &arc_process);
+
+                prop_assert!(result.is_ok());
+
+                Ok(())
+            })
+            .unwrap();
+    });
+}
+
+#[test]
 fn with_subbinary_errors_badarg() {
     errors_badarg(|process| {
         let binary_term =
@@ -110,9 +91,50 @@ fn with_subbinary_errors_badarg() {
     });
 }
 
+fn byte(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    any::<u8>().prop_map(move |byte| byte.into_process(&arc_process))
+}
+
+fn container(
+    element: impl Strategy<Value = Term>,
+    arc_process: Arc<Process>,
+) -> impl Strategy<Value = Term> {
+    (
+        proptest::collection::vec(element, 0..=3),
+        tail(arc_process.clone()),
+    )
+        .prop_map(move |(element_vec, tail)| {
+            Term::slice_to_improper_list(&element_vec, tail, &arc_process)
+        })
+}
+
 fn errors_badarg<I>(iolist: I)
 where
     I: FnOnce(&Process) -> Term,
 {
     super::errors_badarg(|process| erlang::list_to_binary_1(iolist(&process), &process))
+}
+
+fn leaf(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![
+        strategy::term::is_binary(arc_process.clone()),
+        byte(arc_process),
+    ]
+}
+
+fn recursive(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    leaf(arc_process.clone()).prop_recursive(3, 3 * 4, 3, move |element| {
+        container(element, arc_process.clone())
+    })
+}
+
+fn tail(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    prop_oneof![
+        strategy::term::is_binary(arc_process),
+        Just(Term::EMPTY_LIST)
+    ]
+}
+
+fn top(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    strategy::term::list::intermediate(recursive(arc_process.clone()), (0..=3).into(), arc_process)
 }

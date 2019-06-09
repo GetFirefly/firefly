@@ -5,7 +5,7 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(erlang::list_to_pid_1(list), Err(badarg!()));
+                prop_assert_eq!(erlang::list_to_pid_1(list, &arc_process), Err(badarg!()));
 
                 Ok(())
             })

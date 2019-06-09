@@ -40,7 +40,7 @@ fn with_improper_list_errors_badarg() {
 }
 
 #[test]
-fn with_non_empty_proper_list_errors_badarg() {
+fn with_non_empty_proper_list_returns_atom() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(

@@ -84,6 +84,16 @@ fn original_bit_len(byte_offset: usize, bit_offset: u8, byte_count: usize, bit_c
     byte_offset * 8 + bit_offset as usize + byte_count * 8 + bit_count as usize
 }
 
+pub fn with_bit_count(bit_count: u8, arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+    with_size_range(
+        byte_offset(),
+        bit_offset(),
+        byte_count(),
+        bit_count..=bit_count,
+        arc_process,
+    )
+}
+
 pub fn with_size_range(
     byte_offset: impl Strategy<Value = usize>,
     bit_offset: impl Strategy<Value = u8>,

@@ -68,7 +68,7 @@ fn otp_doctest_returns_binary() {
 }
 
 #[test]
-fn with_recursive_lists_ofbinaries_and_bytes_ending_in_binary_or_empty_list_returns_binary() {
+fn with_recursive_lists_of_binaries_and_bytes_ending_in_binary_or_empty_list_returns_binary() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&top(arc_process.clone()), |list| {
@@ -79,15 +79,6 @@ fn with_recursive_lists_ofbinaries_and_bytes_ending_in_binary_or_empty_list_retu
                 Ok(())
             })
             .unwrap();
-    });
-}
-
-#[test]
-fn with_subbinary_errors_badarg() {
-    errors_badarg(|process| {
-        let binary_term =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        Term::subbinary(binary_term, 0, 7, 2, 1, &process)
     });
 }
 
@@ -106,13 +97,6 @@ fn container(
         .prop_map(move |(element_vec, tail)| {
             Term::slice_to_improper_list(&element_vec, tail, &arc_process)
         })
-}
-
-fn errors_badarg<I>(iolist: I)
-where
-    I: FnOnce(&Process) -> Term,
-{
-    super::errors_badarg(|process| erlang::list_to_binary_1(iolist(&process), &process))
 }
 
 fn leaf(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
@@ -136,5 +120,11 @@ fn tail(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
 }
 
 fn top(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    strategy::term::list::intermediate(recursive(arc_process.clone()), (0..=3).into(), arc_process)
+    (
+        proptest::collection::vec(recursive(arc_process.clone()), 1..=4),
+        tail(arc_process.clone()),
+    )
+        .prop_map(move |(element_vec, tail)| {
+            Term::slice_to_improper_list(&element_vec, tail, &arc_process)
+        })
 }

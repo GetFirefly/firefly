@@ -18,22 +18,6 @@ macro_rules! assert_badarith {
     }};
 }
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
-macro_rules! assert_badmap {
-    ($left:expr, $map:expr, $process:expr) => {{
-        use crate::atom::Existence::DoNotCare;
-        use crate::term::Term;
-
-        let badmap = Term::str_to_atom("badmap", DoNotCare).unwrap();
-        let reason = Term::slice_to_tuple(&[badmap, $map], $process);
-
-        assert_error!($left, reason)
-    }};
-    ($left:expr, $map:expr, $process:expr,) => {{
-        assert_badmap($left, $map, $process)
-    }};
-}
-
 #[cfg(test)]
 macro_rules! assert_error {
     ($left:expr, $reason:expr) => {

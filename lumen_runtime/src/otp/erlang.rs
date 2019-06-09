@@ -971,12 +971,7 @@ pub fn map_get_2(key: Term, map: Term, process: &Process) -> Result {
 
     match map_map.get(key) {
         Some(value) => Ok(value),
-        None => {
-            let badmap = Term::str_to_atom("badkey", DoNotCare).unwrap();
-            let reason = Term::slice_to_tuple(&[badmap, key], &process);
-
-            Err(error!(reason))
-        }
+        None => Err(badkey!(key, &process)),
     }
 }
 

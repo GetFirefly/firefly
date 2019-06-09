@@ -19,22 +19,6 @@ macro_rules! assert_badarith {
 }
 
 #[cfg(all(not(target_arch = "wasm32"), test))]
-macro_rules! assert_badkey {
-    ($left:expr, $key:expr, $process:expr) => {{
-        use crate::atom::Existence::DoNotCare;
-        use crate::term::Term;
-
-        let badkey = Term::str_to_atom("badkey", DoNotCare).unwrap();
-        let reason = Term::slice_to_tuple(&[badkey, $key], $process);
-
-        assert_error!($left, reason)
-    }};
-    ($left:expr, $key:expr, $process:expr,) => {{
-        assert_badkey!($left, $key, $process)
-    }};
-}
-
-#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_badmap {
     ($left:expr, $map:expr, $process:expr) => {{
         use crate::atom::Existence::DoNotCare;
@@ -155,6 +139,22 @@ macro_rules! badfun {
         let reason = Term::slice_to_tuple(&[badfun, $fun], $process);
 
         $crate::error!(reason)
+    }};
+}
+
+#[macro_export]
+macro_rules! badkey {
+    ($key:expr, $process:expr) => {{
+        use crate::atom::Existence::DoNotCare;
+        use crate::term::Term;
+
+        let badkey = Term::str_to_atom("badkey", DoNotCare).unwrap();
+        let reason = Term::slice_to_tuple(&[badkey, $key], $process);
+
+        error!(reason)
+    }};
+    ($key:expr, $process:expr,) => {{
+        badkey!($key, $process)
     }};
 }
 

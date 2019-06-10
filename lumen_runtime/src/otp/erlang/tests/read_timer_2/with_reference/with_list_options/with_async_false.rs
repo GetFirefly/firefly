@@ -13,3 +13,7 @@ fn without_timer_returns_false() {
         );
     });
 }
+
+fn options(process: &Process) -> Term {
+    Term::cons(async_option(false, process), Term::EMPTY_LIST, process)
+}

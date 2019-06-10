@@ -17,3 +17,7 @@ fn without_timer_returns_ok_and_sends_read_timer_message() {
         );
     });
 }
+
+fn options(process: &Process) -> Term {
+    Term::cons(async_option(true, process), Term::EMPTY_LIST, process)
+}

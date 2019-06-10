@@ -1,6 +1,28 @@
 use super::*;
 
 #[test]
+fn without_reference_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_not_reference(arc_process.clone()),
+                    options(arc_process.clone()),
+                ),
+                |(timer_reference, options)| {
+                    prop_assert_eq!(
+                        erlang::read_timer_2(timer_reference, options, &arc_process),
+                        Err(badarg!())
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
+#[test]
 fn with_atom_option_errors_badarg() {
     with_option_errors_badarg(|_| Term::str_to_atom("unsupported", DoNotCare).unwrap());
 }

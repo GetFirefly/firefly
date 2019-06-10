@@ -8,8 +8,10 @@ fn without_timer_returns_false() {
         let timer_reference = Term::next_local_reference(process);
 
         assert_eq!(
-            erlang::read_timer_2(timer_reference, options(process), process),
+            erlang::read_timer_2(timer_reference, OPTIONS, process),
             Ok(false.into())
         );
     });
 }
+
+const OPTIONS: Term = Term::EMPTY_LIST;

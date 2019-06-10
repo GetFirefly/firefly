@@ -3,8 +3,24 @@ use super::*;
 mod without_registered_name;
 
 #[test]
-fn with_undefined_atom_errors_badarg() {
-    with_name_errors_badarg(|_| Term::str_to_atom("undefined", DoNotCare).unwrap())
+fn without_atom_name_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::pid_or_port(arc_process.clone()),
+                |pid_or_port| {
+                    let name = Term::str_to_atom("undefined", DoNotCare).unwrap();
+
+                    prop_assert_eq!(
+                        erlang::register_2(name, pid_or_port, arc_process.clone()),
+                        Err(badarg!())
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]

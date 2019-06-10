@@ -377,6 +377,16 @@ pub fn non_existent_atom(suffix: &str) -> String {
     format!("{}_{}", NON_EXISTENT_ATOM_PREFIX, suffix)
 }
 
+pub fn pid_or_port(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        pid::external(arc_process.clone()),
+        // TODO `ExternalPort`
+        pid::local(),
+        // TODO `LocalPort`,
+    ]
+    .boxed()
+}
+
 fn positive_big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
     let float_integral_max = crate::float::INTEGRAL_MAX as i64;
     let big_integer_min_positive = crate::integer::small::MAX as i64 + 1;

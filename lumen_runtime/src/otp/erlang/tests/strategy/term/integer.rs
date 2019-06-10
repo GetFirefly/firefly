@@ -25,6 +25,22 @@ pub fn non_negative(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     .boxed()
 }
 
+pub fn non_positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        big::negative(arc_process.clone()),
+        small::non_positive(arc_process)
+    ]
+    .boxed()
+}
+
+pub fn positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        small::positive(arc_process.clone()),
+        big::positive(arc_process)
+    ]
+    .boxed()
+}
+
 pub fn small(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (crate::integer::small::MIN..=crate::integer::small::MAX)
         .prop_map(move |i| i.into_process(&arc_process))

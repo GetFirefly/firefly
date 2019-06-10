@@ -51,15 +51,15 @@ fn with_same_value_function_right_returns_true() {
                 &(
                     strategy::term::function::module(),
                     strategy::term::function::function(),
-                    strategy::term::function::arity(),
+                    strategy::term::function::arity_usize(),
                 )
-                    .prop_map(move |(module, function, arity)| {
+                    .prop_map(move |(module, function, arity_usize)| {
                         let code = |arc_process: &Arc<Process>| arc_process.wait();
 
                         let left_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
                             function,
-                            arity,
+                            arity: arity_usize,
                         });
                         let left_term =
                             Term::function(left_module_function_arity, code, &arc_process);
@@ -67,7 +67,7 @@ fn with_same_value_function_right_returns_true() {
                         let right_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
                             function,
-                            arity,
+                            arity: arity_usize,
                         });
                         let right_term =
                             Term::function(right_module_function_arity, code, &arc_process);
@@ -95,13 +95,13 @@ fn with_different_function_right_returns_false() {
                 &(
                     strategy::term::function::module(),
                     strategy::term::function::function(),
-                    strategy::term::function::arity(),
+                    strategy::term::function::arity_usize(),
                 )
-                    .prop_map(move |(module, function, arity)| {
+                    .prop_map(move |(module, function, arity_usize)| {
                         let left_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
                             function,
-                            arity,
+                            arity: arity_usize,
                         });
                         let left_code = |arc_process: &Arc<Process>| arc_process.wait();
                         let left_term =
@@ -110,7 +110,7 @@ fn with_different_function_right_returns_false() {
                         let right_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
                             function,
-                            arity,
+                            arity: arity_usize,
                         });
                         let right_code = |arc_process: &Arc<Process>| arc_process.wait();
                         let right_term =

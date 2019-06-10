@@ -4,6 +4,7 @@ use crate::term::Term;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[cfg_attr(test, derive(Clone))]
 pub enum Class {
     Error { arguments: Option<Term> },
     Exit,
@@ -11,6 +12,7 @@ pub enum Class {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
+#[cfg_attr(test, derive(Clone))]
 pub struct Exception {
     pub class: Class,
     pub reason: Term,

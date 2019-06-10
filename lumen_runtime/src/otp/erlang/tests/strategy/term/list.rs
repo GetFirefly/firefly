@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use proptest::collection::SizeRange;
+use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use crate::otp::erlang::tests::strategy::{self, NON_EMPTY_RANGE_INCLUSIVE};
@@ -61,4 +62,8 @@ pub fn non_empty_proper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     )
         .prop_map(|(arc_process, vec)| Term::slice_to_list(&vec, &arc_process))
         .boxed()
+}
+
+pub fn proper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    prop_oneof![Just(Term::EMPTY_LIST), non_empty_proper(arc_process)].boxed()
 }

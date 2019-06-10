@@ -21,6 +21,12 @@ pub fn non_negative(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+pub fn non_positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    (crate::integer::small::MIN..=0)
+        .prop_map(move |i| i.into_process(&arc_process))
+        .boxed()
+}
+
 pub fn positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (1..=crate::integer::small::MAX)
         .prop_map(move |i| i.into_process(&arc_process))

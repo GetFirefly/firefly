@@ -35,16 +35,6 @@ macro_rules! assert_error {
 }
 
 #[cfg(all(not(target_arch = "wasm32"), test))]
-macro_rules! assert_raises {
-    ($left:expr, $class:expr, $reason:expr, $stacktrace:expr) => {
-        assert_eq!($left, Err(raise!($class, $reason, $stacktrace)))
-    };
-    ($left:expr, $class:expr, $reason:expr, $stacktrace:expr,) => {
-        assert_raises!($left, $class, $reason, $stacktrace)
-    };
-}
-
-#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_throw {
     ($left:expr, $reason:expr) => {
         assert_eq!($left, Err(throw!($reason)))

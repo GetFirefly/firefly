@@ -46,6 +46,19 @@ pub fn big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
     })
 }
 
+pub fn charlist(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    any::<String>()
+        .prop_map(move |string| {
+            let codepoint_terms: Vec<Term> = string
+                .chars()
+                .map(|c| c.into_process(&arc_process))
+                .collect();
+
+            Term::slice_to_list(&codepoint_terms, &arc_process)
+        })
+        .boxed()
+}
+
 pub fn container(
     element: BoxedStrategy<Term>,
     size_range: SizeRange,

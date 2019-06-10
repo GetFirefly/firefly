@@ -96,8 +96,8 @@ fn with_integer_integer_with_integer_shift_is_the_same_as_bsr_with_negated_shift
     });
 }
 
-fn shift() -> impl Strategy<Value = i8> {
+fn shift() -> BoxedStrategy<i8> {
     // any::<i8> is not symmetric because i8::MIN is -128 while i8::MAX is 127, so make symmetric
     // range
-    -127_i8..=127_i8
+    (-127_i8..=127_i8).boxed()
 }

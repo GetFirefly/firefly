@@ -113,21 +113,25 @@ fn with_binary_without_integer_in_base_errors_badarg() {
     });
 }
 
-fn base() -> impl Strategy<Value = u8> {
+fn base() -> BoxedStrategy<u8> {
     (2_u8..=36_u8).boxed()
 }
 
-fn term_is_base(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    base().prop_map(move |base| base.into_process(&arc_process))
+fn term_is_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    base()
+        .prop_map(move |base| base.into_process(&arc_process))
+        .boxed()
 }
 
-fn term_is_not_base(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    strategy::term(arc_process).prop_filter("Cannot be a base (2-36)", |term| match term.tag() {
-        SmallInteger => {
-            let integer: isize = unsafe { term.small_integer_to_isize() };
+fn term_is_not_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    strategy::term(arc_process)
+        .prop_filter("Cannot be a base (2-36)", |term| match term.tag() {
+            SmallInteger => {
+                let integer: isize = unsafe { term.small_integer_to_isize() };
 
-            (2 <= integer) && (integer <= 36)
-        }
-        _ => true,
-    })
+                (2 <= integer) && (integer <= 36)
+            }
+            _ => true,
+        })
+        .boxed()
 }

@@ -3,7 +3,7 @@ use super::*;
 use std::sync::atomic::AtomicUsize;
 
 use proptest::arbitrary::any;
-use proptest::strategy::Just;
+use proptest::strategy::{BoxedStrategy, Just};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 

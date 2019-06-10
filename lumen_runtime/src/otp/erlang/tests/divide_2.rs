@@ -100,9 +100,9 @@ fn with_number_dividend_without_zero_number_divisor_returns_float() {
     });
 }
 
-fn number_is_not_zero(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    strategy::term::is_number(arc_process).prop_filter("Number must not be zero", |number| {
-        match number.tag() {
+fn number_is_not_zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    strategy::term::is_number(arc_process)
+        .prop_filter("Number must not be zero", |number| match number.tag() {
             SmallInteger => (unsafe { number.small_integer_to_isize() }) != 0,
             Boxed => {
                 let unboxed: &Term = number.unbox_reference();
@@ -117,13 +117,14 @@ fn number_is_not_zero(arc_process: Arc<Process>) -> impl Strategy<Value = Term> 
                 }
             }
             _ => true,
-        }
-    })
+        })
+        .boxed()
 }
 
-fn zero(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+fn zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         Just(0.into_process(&arc_process)),
         Just(0.0.into_process(&arc_process))
     ]
+    .boxed()
 }

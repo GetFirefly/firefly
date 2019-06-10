@@ -52,15 +52,14 @@ fn with_subbinary_with_bit_count_errors_badarg() {
     });
 }
 
-fn is_not_byte_binary_nor_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    strategy::term(arc_process.clone()).prop_filter(
-        "Element must not be a binary or byte",
-        move |element| {
+fn is_not_byte_binary_nor_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    strategy::term(arc_process.clone())
+        .prop_filter("Element must not be a binary or byte", move |element| {
             !(element.is_binary()
                 || (element.is_integer()
                     && &0.into_process(&arc_process) <= element
                     && element <= &256_isize.into_process(&arc_process))
                 || element.is_list())
-        },
-    )
+        })
+        .boxed()
 }

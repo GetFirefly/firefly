@@ -4,24 +4,23 @@ use std::sync::Arc;
 use num_bigint::BigInt;
 
 use proptest::collection::SizeRange;
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use crate::process::{IntoProcess, Process};
 use crate::term::Term;
 use crate::tuple::Tuple;
 
 pub fn intermediate(
-    element: impl Strategy<Value = Term>,
+    element: BoxedStrategy<Term>,
     size_range: SizeRange,
     arc_process: Arc<Process>,
-) -> impl Strategy<Value = Term> {
+) -> BoxedStrategy<Term> {
     proptest::collection::vec(element, size_range)
         .prop_map(move |vec| Term::slice_to_tuple(&vec, &arc_process))
+        .boxed()
 }
 
-pub fn with_index(
-    arc_process: Arc<Process>,
-) -> impl Strategy<Value = (Vec<Term>, usize, Term, Term)> {
+pub fn with_index(arc_process: Arc<Process>) -> BoxedStrategy<(Vec<Term>, usize, Term, Term)> {
     (Just(arc_process), 1_usize..=4_usize)
         .prop_flat_map(|(arc_process, len)| {
             (
@@ -38,9 +37,10 @@ pub fn with_index(
                 (zero_based_index + 1).into_process(&arc_process),
             )
         })
+        .boxed()
 }
 
-pub fn without_index(arc_process: Arc<Process>) -> impl Strategy<Value = (Term, Term)> {
+pub fn without_index(arc_process: Arc<Process>) -> BoxedStrategy<(Term, Term)> {
     (super::tuple(arc_process.clone()), super::super::term(arc_process.clone()))
         .prop_filter("Index either needs to not be an integer or not be an integer in the index range 1..=len", |(tuple, index)| {
             let index_big_int_result: std::result::Result<BigInt, _> = index.try_into();
@@ -55,5 +55,5 @@ pub fn without_index(arc_process: Arc<Process>) -> impl Strategy<Value = (Term, 
                 }
                 _ => true,
             }
-        })
+        }).boxed()
 }

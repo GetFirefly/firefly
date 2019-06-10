@@ -6,11 +6,12 @@ use proptest::strategy::{BoxedStrategy, Strategy};
 use crate::process::{IntoProcess, Process};
 use crate::term::Term;
 
-pub fn isize() -> impl Strategy<Value = isize> {
+pub fn isize() -> BoxedStrategy<isize> {
     prop_oneof![
         (std::isize::MIN..(crate::integer::small::MIN - 1)),
         ((crate::integer::small::MAX + 1)..std::isize::MAX)
     ]
+    .boxed()
 }
 
 pub fn negative(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

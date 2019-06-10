@@ -37,10 +37,10 @@ pub fn atom() -> BoxedStrategy<Term> {
 }
 
 /// Produces `i64` that fall in the range that produce both integral floats and big integers
-pub fn big_integer_float_integral_i64() -> Option<impl Strategy<Value = i64>> {
+pub fn big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
     negative_big_integer_float_integral_i64().and_then(|negative| {
         match positive_big_integer_float_integral_i64() {
-            Some(positive) => Some(negative.prop_union(positive)),
+            Some(positive) => Some(negative.prop_union(positive).boxed()),
             None => None,
         }
     })
@@ -50,12 +50,13 @@ pub fn container(
     element: BoxedStrategy<Term>,
     size_range: SizeRange,
     arc_process: Arc<Process>,
-) -> impl Strategy<Value = Term> {
+) -> BoxedStrategy<Term> {
     prop_oneof![
         tuple::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
         map::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
         list::intermediate(element, size_range.clone(), arc_process.clone())
     ]
+    .boxed()
 }
 
 pub fn float(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
@@ -80,49 +81,54 @@ pub fn function(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     Just(Term::function(module_function_arity, code, &arc_process)).boxed()
 }
 
-pub fn is_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         binary::heap(arc_process.clone()),
         binary::sub::is_binary(arc_process)
     ]
+    .boxed()
 }
 
-pub fn is_bitstring(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    prop_oneof![binary::heap(arc_process.clone()), binary::sub(arc_process)]
+pub fn is_bitstring(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    prop_oneof![binary::heap(arc_process.clone()), binary::sub(arc_process)].boxed()
 }
 
-pub fn is_boolean() -> impl Strategy<Value = Term> {
-    prop_oneof![Just(true.into()), Just(false.into())]
+pub fn is_boolean() -> BoxedStrategy<Term> {
+    prop_oneof![Just(true.into()), Just(false.into())].boxed()
 }
 
-pub fn is_encoding() -> impl Strategy<Value = Term> {
+pub fn is_encoding() -> BoxedStrategy<Term> {
     prop_oneof![
         Just(Term::str_to_atom("latin1", DoNotCare).unwrap()),
         Just(Term::str_to_atom("unicode", DoNotCare).unwrap()),
         Just(Term::str_to_atom("utf8", DoNotCare).unwrap())
     ]
+    .boxed()
 }
 
-pub fn is_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_integer(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         integer::small(arc_process.clone()),
         integer::big(arc_process)
     ]
+    .boxed()
 }
 
-pub fn is_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     list::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
 }
 
-pub fn is_map(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_map(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     map::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
 }
 
-pub fn is_not_atom(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Term cannot be an atom", |v| !v.is_atom())
+pub fn is_not_atom(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Term cannot be an atom", |v| !v.is_atom())
+        .boxed()
 }
 
-pub fn is_not_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_not_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let element = super::term(arc_process.clone());
     let size_range = super::size_range();
 
@@ -143,9 +149,10 @@ pub fn is_not_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
         integer::small(arc_process.clone()),
         container(element.clone(), size_range, arc_process.clone())
     ]
+    .boxed()
 }
 
-pub fn is_not_bitstring(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_not_bitstring(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let element = super::term(arc_process.clone());
     let size_range = super::size_range();
 
@@ -166,35 +173,44 @@ pub fn is_not_bitstring(arc_process: Arc<Process>) -> impl Strategy<Value = Term
         integer::small(arc_process.clone()),
         container(element.clone(), size_range, arc_process.clone())
     ]
+    .boxed()
 }
 
-pub fn is_not_boolean(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Atom cannot be a boolean", |v| !v.is_boolean())
+pub fn is_not_boolean(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Atom cannot be a boolean", |v| !v.is_boolean())
+        .boxed()
 }
 
-pub fn is_not_encoding(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter(
-        "Must either not be an atom or not be an atom encoding atom",
-        |term| {
-            term.tag() != Atom || {
-                match unsafe { term.atom_to_string() }.as_ref().as_ref() {
-                    "latin1" | "unicode" | "utf8" => false,
-                    _ => true,
+pub fn is_not_encoding(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter(
+            "Must either not be an atom or not be an atom encoding atom",
+            |term| {
+                term.tag() != Atom || {
+                    match unsafe { term.atom_to_string() }.as_ref().as_ref() {
+                        "latin1" | "unicode" | "utf8" => false,
+                        _ => true,
+                    }
                 }
-            }
-        },
-    )
+            },
+        )
+        .boxed()
 }
 
-pub fn is_not_float(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Term cannot be a float", |v| !v.is_float())
+pub fn is_not_float(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Term cannot be a float", |v| !v.is_float())
+        .boxed()
 }
 
-pub fn is_not_integer(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Term cannot be an integer", |v| !v.is_integer())
+pub fn is_not_integer(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Term cannot be an integer", |v| !v.is_integer())
+        .boxed()
 }
 
-pub fn is_not_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_not_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let element = super::term(arc_process.clone());
     let size_range = super::size_range();
 
@@ -219,10 +235,13 @@ pub fn is_not_list(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
             map::intermediate(element.clone(), size_range, arc_process.clone()),
         ]
     ]
+    .boxed()
 }
 
-pub fn is_not_map(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Term cannot be a map", |v| !v.is_map())
+pub fn is_not_map(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Term cannot be a map", |v| !v.is_map())
+        .boxed()
 }
 
 pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
@@ -231,16 +250,22 @@ pub fn is_not_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
-pub fn is_not_pid(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Value must not be a pid", |v| !v.is_pid())
+pub fn is_not_pid(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Value must not be a pid", |v| !v.is_pid())
+        .boxed()
 }
 
-pub fn is_not_reference(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Value must not be a tuple", |v| !v.is_reference())
+pub fn is_not_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Value must not be a tuple", |v| !v.is_reference())
+        .boxed()
 }
 
-pub fn is_not_tuple(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    super::term(arc_process).prop_filter("Value must not be a tuple", |v| !v.is_tuple())
+pub fn is_not_tuple(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Value must not be a tuple", |v| !v.is_tuple())
+        .boxed()
 }
 
 // `super::term(arc_process).prop_filter(..., |v| v.is_number())` is too slow, on the order of
@@ -259,15 +284,16 @@ pub fn is_number(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     .boxed()
 }
 
-pub fn is_pid(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    prop_oneof![pid::external(arc_process.clone()), pid::local(),]
+pub fn is_pid(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    prop_oneof![pid::external(arc_process.clone()), pid::local()].boxed()
 }
 
-pub fn is_reference(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         local_reference(arc_process),
         // TODO `ExternalReference`
     ]
+    .boxed()
 }
 
 pub fn leaf(
@@ -316,7 +342,7 @@ pub fn local_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
-pub fn map(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn map(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     map::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
 }
 
@@ -366,6 +392,6 @@ pub fn small_integer_float_integral_i64() -> BoxedStrategy<i64> {
     (integral_min..=integral_max).boxed()
 }
 
-pub fn tuple(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn tuple(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     tuple::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
 }

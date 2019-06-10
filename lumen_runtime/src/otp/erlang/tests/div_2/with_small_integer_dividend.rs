@@ -48,9 +48,10 @@ fn with_big_integer_divisor_returns_zero() {
     });
 }
 
-fn divisor() -> impl Strategy<Value = isize> {
+fn divisor() -> BoxedStrategy<isize> {
     prop_oneof![
         (crate::integer::small::MIN..=-1),
         (1..=crate::integer::small::MAX)
     ]
+    .boxed()
 }

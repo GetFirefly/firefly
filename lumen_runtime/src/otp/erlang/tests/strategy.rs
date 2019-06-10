@@ -17,7 +17,7 @@ pub fn bits_to_bytes(bits: usize) -> usize {
     (bits + 7) / 8
 }
 
-pub fn byte_vec() -> impl Strategy<Value = Vec<u8>> {
+pub fn byte_vec() -> BoxedStrategy<Vec<u8>> {
     byte_vec::with_size_range(RANGE_INCLUSIVE.into())
 }
 

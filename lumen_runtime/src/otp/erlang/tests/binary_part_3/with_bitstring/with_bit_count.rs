@@ -11,8 +11,8 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                 &binary::sub::with_size_range(
                     byte_offset(),
                     bit_offset(),
-                    3_usize..=6_usize,
-                    1_u8..=7_u8,
+                    (3_usize..=6_usize).boxed(),
+                    (1_u8..=7_u8).boxed(),
                     arc_process.clone(),
                 )
                 .prop_flat_map(|binary| {
@@ -64,8 +64,8 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                 &binary::sub::with_size_range(
                     byte_offset(),
                     bit_offset(),
-                    NON_EMPTY_RANGE_INCLUSIVE,
-                    1_u8..=7u8,
+                    NON_EMPTY_RANGE_INCLUSIVE.boxed(),
+                    (1_u8..=7u8).boxed(),
                     arc_process.clone(),
                 )
                 .prop_map(|binary| {
@@ -122,7 +122,7 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
                     byte_offset(),
                     bit_offset(),
                     byte_count(),
-                    1_u8..=7_u8,
+                    (1_u8..=7_u8).boxed(),
                     arc_process.clone(),
                 )
                 .prop_map(|binary| {

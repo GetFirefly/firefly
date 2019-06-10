@@ -467,7 +467,7 @@ fn with_big_integer_time_with_unit_from_unit_with_unit_to_unit_returns_converted
     });
 }
 
-fn from_unit() -> impl Strategy<Value = Unit> {
+fn from_unit() -> BoxedStrategy<Unit> {
     prop_oneof![
         // not using `proptest` for time to allow math to be hard-coded and not copy the
         // code-under-test
@@ -479,27 +479,27 @@ fn from_unit() -> impl Strategy<Value = Unit> {
         Just(Native),
         Just(PerformanceCounter)
     ]
+    .boxed()
 }
 
-fn hertz() -> impl Strategy<Value = Unit> {
-    (1..=std::usize::MAX).prop_map(|hertz| Hertz(hertz))
+fn hertz() -> BoxedStrategy<Unit> {
+    (1..=std::usize::MAX).prop_map(|hertz| Hertz(hertz)).boxed()
 }
 
-fn is_not_unit_term(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    strategy::term::is_not_integer(arc_process).prop_filter(
-        "Term must not be a unit name",
-        |term| match term.tag() {
+fn is_not_unit_term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    strategy::term::is_not_integer(arc_process)
+        .prop_filter("Term must not be a unit name", |term| match term.tag() {
             Atom => match unsafe { term.atom_to_string() }.as_ref().as_ref() {
                 "second" | "millisecond" | "microsecond" | "nanosecond" | "native"
                 | "perf_counter" => false,
                 _ => true,
             },
             _ => true,
-        },
-    )
+        })
+        .boxed()
 }
 
-fn to_unit() -> impl Strategy<Value = Unit> {
+fn to_unit() -> BoxedStrategy<Unit> {
     prop_oneof![
         // not using `proptest` for time to allow math to be hard-coded and not copy the
         // code-under-test
@@ -511,9 +511,10 @@ fn to_unit() -> impl Strategy<Value = Unit> {
         Just(Native),
         Just(PerformanceCounter)
     ]
+    .boxed()
 }
 
-fn unit() -> impl Strategy<Value = Unit> {
+fn unit() -> BoxedStrategy<Unit> {
     prop_oneof![
         hertz(),
         Just(Second),
@@ -523,8 +524,11 @@ fn unit() -> impl Strategy<Value = Unit> {
         Just(Native),
         Just(PerformanceCounter)
     ]
+    .boxed()
 }
 
-fn unit_term(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    unit().prop_map(move |unit| unit.into_process(&arc_process))
+fn unit_term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    unit()
+        .prop_map(move |unit| unit.into_process(&arc_process))
+        .boxed()
 }

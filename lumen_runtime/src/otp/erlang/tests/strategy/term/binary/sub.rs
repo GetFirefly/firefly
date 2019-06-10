@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use proptest::strategy::{Just, Strategy};
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use crate::process::Process;
 use crate::term::Term;
@@ -10,26 +10,23 @@ use crate::otp::erlang::tests::strategy::{self, bits_to_bytes, size_range};
 pub mod byte_count;
 pub mod is_binary;
 
-pub fn bit_count() -> impl Strategy<Value = u8> {
+pub fn bit_count() -> BoxedStrategy<u8> {
     bit()
 }
 
-pub fn bit_offset() -> impl Strategy<Value = u8> {
+pub fn bit_offset() -> BoxedStrategy<u8> {
     bit()
 }
 
-pub fn byte_count() -> impl Strategy<Value = usize> {
+pub fn byte_count() -> BoxedStrategy<usize> {
     size_range::strategy()
 }
 
-pub fn byte_offset() -> impl Strategy<Value = usize> {
+pub fn byte_offset() -> BoxedStrategy<usize> {
     size_range::strategy()
 }
 
-pub fn containing_bytes(
-    byte_vec: Vec<u8>,
-    arc_process: Arc<Process>,
-) -> impl Strategy<Value = Term> {
+pub fn containing_bytes(byte_vec: Vec<u8>, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (byte_offset(), bit_offset(), Just(byte_vec))
         .prop_flat_map(|(byte_offset, bit_offset, byte_vec)| {
             let original_bit_len = original_bit_len(byte_offset, bit_offset, byte_vec.len(), 0);
@@ -58,24 +55,25 @@ pub fn containing_bytes(
                 )
             },
         )
+        .boxed()
 }
 
-pub fn is_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     with_size_range(
         byte_offset(),
         bit_offset(),
         byte_count(),
-        0_u8..=0_u8,
+        (0_u8..=0_u8).boxed(),
         arc_process,
     )
 }
 
-pub fn is_not_binary(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn is_not_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     with_size_range(
         byte_offset(),
         bit_offset(),
         byte_count(),
-        1_u8..=7_u8,
+        (1_u8..=7_u8).boxed(),
         arc_process,
     )
 }
@@ -84,23 +82,23 @@ fn original_bit_len(byte_offset: usize, bit_offset: u8, byte_count: usize, bit_c
     byte_offset * 8 + bit_offset as usize + byte_count * 8 + bit_count as usize
 }
 
-pub fn with_bit_count(bit_count: u8, arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+pub fn with_bit_count(bit_count: u8, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     with_size_range(
         byte_offset(),
         bit_offset(),
         byte_count(),
-        bit_count..=bit_count,
+        (bit_count..=bit_count).boxed(),
         arc_process,
     )
 }
 
 pub fn with_size_range(
-    byte_offset: impl Strategy<Value = usize>,
-    bit_offset: impl Strategy<Value = u8>,
-    byte_count: impl Strategy<Value = usize>,
-    bit_count: impl Strategy<Value = u8>,
+    byte_offset: BoxedStrategy<usize>,
+    bit_offset: BoxedStrategy<u8>,
+    byte_count: BoxedStrategy<usize>,
+    bit_count: BoxedStrategy<u8>,
     arc_process: Arc<Process>,
-) -> impl Strategy<Value = Term> {
+) -> BoxedStrategy<Term> {
     let original_arc_process = arc_process.clone();
     let subbinary_arc_process = arc_process.clone();
 
@@ -134,11 +132,12 @@ pub fn with_size_range(
                 )
             },
         )
+        .boxed()
 }
 
 // Private
 
-fn bit() -> impl Strategy<Value = u8> {
+fn bit() -> BoxedStrategy<u8> {
     (0_u8..=7_u8).boxed()
 }
 

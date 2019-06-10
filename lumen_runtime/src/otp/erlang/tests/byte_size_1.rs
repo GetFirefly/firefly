@@ -82,8 +82,8 @@ fn with_subbinary_with_bit_count_is_byte_count_plus_one() {
                         strategy::term::binary::sub::with_size_range(
                             strategy::term::binary::sub::byte_offset(),
                             strategy::term::binary::sub::bit_offset(),
-                            byte_count..=byte_count,
-                            1_u8..=7_u8,
+                            (byte_count..=byte_count).boxed(),
+                            (1_u8..=7_u8).boxed(),
                             arc_process.clone(),
                         ),
                     )

@@ -82,14 +82,13 @@ fn with_recursive_lists_of_binaries_and_bytes_ending_in_binary_or_empty_list_ret
     });
 }
 
-fn byte(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    any::<u8>().prop_map(move |byte| byte.into_process(&arc_process))
+fn byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    any::<u8>()
+        .prop_map(move |byte| byte.into_process(&arc_process))
+        .boxed()
 }
 
-fn container(
-    element: impl Strategy<Value = Term>,
-    arc_process: Arc<Process>,
-) -> impl Strategy<Value = Term> {
+fn container(element: BoxedStrategy<Term>, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (
         proptest::collection::vec(element, 0..=3),
         tail(arc_process.clone()),
@@ -97,29 +96,34 @@ fn container(
         .prop_map(move |(element_vec, tail)| {
             Term::slice_to_improper_list(&element_vec, tail, &arc_process)
         })
+        .boxed()
 }
 
-fn leaf(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+fn leaf(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         strategy::term::is_binary(arc_process.clone()),
         byte(arc_process),
     ]
+    .boxed()
 }
 
-fn recursive(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
-    leaf(arc_process.clone()).prop_recursive(3, 3 * 4, 3, move |element| {
-        container(element, arc_process.clone())
-    })
+fn recursive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    leaf(arc_process.clone())
+        .prop_recursive(3, 3 * 4, 3, move |element| {
+            container(element, arc_process.clone())
+        })
+        .boxed()
 }
 
-fn tail(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+fn tail(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         strategy::term::is_binary(arc_process),
         Just(Term::EMPTY_LIST)
     ]
+    .boxed()
 }
 
-fn top(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
+fn top(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (
         proptest::collection::vec(recursive(arc_process.clone()), 1..=4),
         tail(arc_process.clone()),
@@ -127,4 +131,5 @@ fn top(arc_process: Arc<Process>) -> impl Strategy<Value = Term> {
         .prop_map(move |(element_vec, tail)| {
             Term::slice_to_improper_list(&element_vec, tail, &arc_process)
         })
+        .boxed()
 }

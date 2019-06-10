@@ -1,67 +1,35 @@
 use super::*;
 
-#[test]
-fn with_small_integer_second_returns_first() {
-    max(|_, process| 0.into_process(&process), First)
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_big_integer_second_returns_first() {
-    max(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        First,
-    )
-}
+fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_first() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::binary::heap(arc_process.clone()),
+                    strategy::term(arc_process.clone()).prop_filter(
+                        "second must be number, atom, reference, function, port, pid, tuple, map, or list",
+                        |second| {
+                            second.is_number()
+                                || second.is_atom()
+                                || second.is_reference()
+                                || second.is_function()
+                                || second.is_port()
+                                || second.is_pid()
+                                || second.is_tuple()
+                                || second.is_list()
+                        }),
+                ),
+                |(first, second)| {
+                    prop_assert_eq!(erlang::max_2(first, second), first.into());
 
-#[test]
-fn with_float_second_returns_first() {
-    max(|_, process| 0.0.into_process(&process), First)
-}
-
-#[test]
-fn with_atom_returns_first() {
-    max(|_, _| Term::str_to_atom("meft", DoNotCare).unwrap(), First);
-}
-
-#[test]
-fn with_local_reference_second_returns_first() {
-    max(|_, process| Term::next_local_reference(process), First);
-}
-
-#[test]
-fn with_local_pid_second_returns_first() {
-    max(|_, _| Term::local_pid(0, 1).unwrap(), First);
-}
-
-#[test]
-fn with_external_pid_second_returns_first() {
-    max(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        First,
-    );
-}
-
-#[test]
-fn with_tuple_second_returns_first() {
-    max(|_, process| Term::slice_to_tuple(&[], &process), First);
-}
-
-#[test]
-fn with_map_second_returns_first() {
-    max(|_, process| Term::slice_to_map(&[], &process), First);
-}
-
-#[test]
-fn with_empty_list_second_returns_first() {
-    max(|_, _| Term::EMPTY_LIST, First);
-}
-
-#[test]
-fn with_list_second_returns_first() {
-    max(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        First,
-    );
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]

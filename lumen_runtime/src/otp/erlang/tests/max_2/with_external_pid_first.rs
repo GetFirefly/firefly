@@ -1,36 +1,34 @@
 use super::*;
 
-#[test]
-fn with_small_integer_second_returns_first() {
-    max(|_, process| 0.into_process(&process), First)
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_big_integer_second_returns_first() {
-    max(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        First,
-    )
-}
+fn with_number_atom_reference_function_port_or_local_pid_returns_first() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::pid::external(arc_process.clone()),
+                    strategy::term(arc_process.clone()).prop_filter(
+                        "Second must be number, atom, reference, function, port, or local pid",
+                        |second| {
+                            second.is_number()
+                                || second.is_atom()
+                                || second.is_reference()
+                                || second.is_function()
+                                || second.is_port()
+                                || second.is_local_pid()
+                        },
+                    ),
+                ),
+                |(first, second)| {
+                    prop_assert_eq!(erlang::max_2(first, second), first);
 
-#[test]
-fn with_float_second_returns_first() {
-    max(|_, process| 0.0.into_process(&process), First)
-}
-
-#[test]
-fn with_atom_returns_first() {
-    max(|_, _| Term::str_to_atom("meft", DoNotCare).unwrap(), First);
-}
-
-#[test]
-fn with_local_reference_second_returns_first() {
-    max(|_, process| Term::next_local_reference(process), First);
-}
-
-#[test]
-fn with_local_pid_second_returns_first() {
-    max(|_, _| Term::local_pid(0, 1).unwrap(), First);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
@@ -63,36 +61,30 @@ fn with_greater_external_pid_second_returns_second() {
 }
 
 #[test]
-fn with_tuple_second_returns_second() {
-    max(|_, process| Term::slice_to_tuple(&[], &process), Second);
-}
+fn with_tuple_map_list_or_bitstring_returns_second() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::pid::external(arc_process.clone()),
+                    strategy::term(arc_process.clone()).prop_filter(
+                        "Second must be tuple, map, list, or bitstring",
+                        |second| {
+                            second.is_tuple()
+                                || second.is_map()
+                                || second.is_list()
+                                || second.is_bitstring()
+                        },
+                    ),
+                ),
+                |(first, second)| {
+                    prop_assert_eq!(erlang::max_2(first, second), second.into());
 
-#[test]
-fn with_map_second_returns_second() {
-    max(|_, process| Term::slice_to_map(&[], &process), Second);
-}
-
-#[test]
-fn with_empty_list_second_returns_second() {
-    max(|_, _| Term::EMPTY_LIST, Second);
-}
-
-#[test]
-fn with_list_second_returns_second() {
-    max(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        Second,
-    );
-}
-
-#[test]
-fn with_heap_binary_second_returns_second() {
-    max(|_, process| Term::slice_to_binary(&[], &process), Second);
-}
-
-#[test]
-fn with_subbinary_second_returns_second() {
-    max(|_, process| bitstring!(1 :: 1, &process), Second);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 fn max<R>(second: R, which: FirstSecond)

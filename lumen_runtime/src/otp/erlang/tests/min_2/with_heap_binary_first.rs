@@ -1,67 +1,35 @@
 use super::*;
 
-#[test]
-fn with_small_integer_second_returns_second() {
-    min(|_, process| 0.into_process(&process), Second)
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_big_integer_second_returns_second() {
-    min(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        Second,
-    )
-}
+fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_second() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::binary::heap(arc_process.clone()),
+                    strategy::term(arc_process.clone()).prop_filter(
+                        "second must be number, atom, reference, function, port, pid, tuple, map, or list",
+                        |second| {
+                            second.is_number()
+                                || second.is_atom()
+                                || second.is_reference()
+                                || second.is_function()
+                                || second.is_port()
+                                || second.is_pid()
+                                || second.is_tuple()
+                                || second.is_list()
+                        }),
+                ),
+                |(first, second)| {
+                    prop_assert_eq!(erlang::min_2(first, second), second);
 
-#[test]
-fn with_float_second_returns_second() {
-    min(|_, process| 0.0.into_process(&process), Second)
-}
-
-#[test]
-fn with_atom_returns_second() {
-    min(|_, _| Term::str_to_atom("meft", DoNotCare).unwrap(), Second);
-}
-
-#[test]
-fn with_local_reference_second_returns_second() {
-    min(|_, process| Term::next_local_reference(process), Second);
-}
-
-#[test]
-fn with_local_pid_second_returns_second() {
-    min(|_, _| Term::local_pid(0, 1).unwrap(), Second);
-}
-
-#[test]
-fn with_external_pid_second_returns_second() {
-    min(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        Second,
-    );
-}
-
-#[test]
-fn with_tuple_second_returns_second() {
-    min(|_, process| Term::slice_to_tuple(&[], &process), Second);
-}
-
-#[test]
-fn with_map_second_returns_second() {
-    min(|_, process| Term::slice_to_map(&[], &process), Second);
-}
-
-#[test]
-fn with_empty_list_second_returns_second() {
-    min(|_, _| Term::EMPTY_LIST, Second);
-}
-
-#[test]
-fn with_list_second_returns_second() {
-    min(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        Second,
-    );
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]

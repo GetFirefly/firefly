@@ -1,82 +1,46 @@
 use super::*;
 
+use proptest::prop_oneof;
+use proptest::strategy::Strategy;
+
 #[test]
-fn with_small_integer_second_returns_second() {
-    min(|_, process| 0.into_process(&process), Second)
+fn without_non_empty_list_or_bitstring_second_returns_second() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term(arc_process.clone())
+                    .prop_filter("Second cannot be a list or bitstring", |second| {
+                        !(second.is_list() || second.is_bitstring())
+                    }),
+                |second| {
+                    let first = Term::EMPTY_LIST;
+
+                    prop_assert_eq!(erlang::min_2(first, second), second);
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
-fn with_big_integer_second_returns_second() {
-    min(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        Second,
-    )
-}
+fn with_non_empty_list_or_bitstring_second_returns_first() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &prop_oneof![
+                    strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+                    strategy::term::is_bitstring(arc_process)
+                ],
+                |second| {
+                    let first = Term::EMPTY_LIST;
 
-#[test]
-fn with_float_second_returns_second() {
-    min(|_, process| 0.0.into_process(&process), Second)
-}
+                    prop_assert_eq!(erlang::min_2(first, second), first);
 
-#[test]
-fn with_atom_returns_second() {
-    min(|_, _| Term::str_to_atom("meft", DoNotCare).unwrap(), Second);
-}
-
-#[test]
-fn with_local_reference_second_returns_second() {
-    min(|_, process| Term::next_local_reference(process), Second);
-}
-
-#[test]
-fn with_local_pid_second_returns_second() {
-    min(|_, _| Term::local_pid(0, 1).unwrap(), Second);
-}
-
-#[test]
-fn with_external_pid_second_returns_second() {
-    min(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        Second,
-    );
-}
-
-#[test]
-fn with_tuple_second_returns_second() {
-    min(|_, process| Term::slice_to_tuple(&[], &process), Second);
-}
-
-#[test]
-fn with_map_second_returns_second() {
-    min(|_, process| Term::slice_to_map(&[], &process), Second);
-}
-
-#[test]
-fn with_empty_list_second_returns_first() {
-    min(|_, _| Term::EMPTY_LIST, First);
-}
-
-#[test]
-fn with_list_second_returns_first() {
-    min(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        First,
-    );
-}
-
-#[test]
-fn with_heap_binary_second_returns_first() {
-    min(|_, process| Term::slice_to_binary(&[], &process), First);
-}
-
-#[test]
-fn with_subbinary_second_returns_first() {
-    min(|_, process| bitstring!(1 :: 1, &process), First);
-}
-
-fn min<R>(second: R, which: FirstSecond)
-where
-    R: FnOnce(Term, &Process) -> Term,
-{
-    super::min(|_| Term::EMPTY_LIST, second, which);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }

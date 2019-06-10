@@ -1,73 +1,46 @@
 use super::*;
 
-mod with_false_left;
-mod with_true_left;
-
 #[test]
-fn with_atom_left_errors_badarg() {
-    with_left_errors_badarg(|_| Term::str_to_atom("left", DoNotCare).unwrap());
-}
+fn without_boolean_left_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_not_boolean(arc_process.clone()),
+                    strategy::term::is_boolean(),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(erlang::orelse_2(left, right), Err(badarg!()));
 
-#[test]
-fn with_local_reference_left_errors_badarg() {
-    with_left_errors_badarg(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_left_errors_badarg() {
-    with_left_errors_badarg(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_left_errors_badarg() {
-    with_left_errors_badarg(|process| {
-        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_float_errors_badarg() {
-    with_left_errors_badarg(|process| 1.0.into_process(&process));
+fn with_false_left_returns_right() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term(arc_process.clone()), |right| {
+                prop_assert_eq!(erlang::orelse_2(false.into(), right), Ok(right));
+
+                Ok(())
+            })
+            .unwrap();
+    });
 }
 
 #[test]
-fn with_local_pid_left_errors_badarg() {
-    with_left_errors_badarg(|_| Term::local_pid(0, 1).unwrap());
-}
+fn with_true_left_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term(arc_process.clone()), |right| {
+                prop_assert_eq!(erlang::orelse_2(true.into(), right), Ok(true.into()));
 
-#[test]
-fn with_external_pid_left_errors_badarg() {
-    with_left_errors_badarg(|process| Term::external_pid(1, 2, 3, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_left_errors_badarg() {
-    with_left_errors_badarg(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_is_left_errors_badarg() {
-    with_left_errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_left_errors_badarg() {
-    with_left_errors_badarg(|process| Term::slice_to_binary(&[], &process));
-}
-
-#[test]
-fn with_subbinary_left_errors_badarg() {
-    with_left_errors_badarg(|process| bitstring!(1 ::1, &process));
-}
-
-fn with_left_errors_badarg<L>(left: L)
-where
-    L: FnOnce(&Process) -> Term,
-{
-    super::errors_badarg(|process| {
-        let left = left(&process);
-        let right = 0.into_process(&process);
-
-        erlang::orelse_2(left, right)
+                Ok(())
+            })
+            .unwrap();
     });
 }

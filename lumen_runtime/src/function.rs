@@ -3,6 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use crate::code::Code;
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::process::stack::frame::Frame;
 use crate::process::ModuleFunctionArity;
 use crate::term::{Tag, Term};
@@ -47,6 +48,12 @@ impl Function {
 
     fn frame(&self) -> Frame {
         Frame::new(Arc::clone(&self.module_function_arity), self.code)
+    }
+}
+
+impl CloneIntoHeap for &'static Function {
+    fn clone_into_heap(&self, heap: &Heap) -> Self {
+        heap.function(self.module_function_arity.clone(), self.code)
     }
 }
 

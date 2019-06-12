@@ -2,9 +2,9 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use proptest::collection::SizeRange;
-use proptest::strategy::{BoxedStrategy, Strategy};
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use crate::process::Process;
+use crate::process::{self, Process};
 use crate::term::Term;
 
 pub mod byte_vec;
@@ -19,6 +19,16 @@ pub fn bits_to_bytes(bits: usize) -> usize {
 
 pub fn byte_vec() -> BoxedStrategy<Vec<u8>> {
     byte_vec::with_size_range(RANGE_INCLUSIVE.into())
+}
+
+pub fn process() -> BoxedStrategy<Arc<Process>> {
+    Just(process::local::test_init())
+        .prop_flat_map(|init_arc_process| {
+            // generated in a prop_flat_map instead of prop_map so that a new process is generated
+            // for each test so that a prior run's register doesn't interfere
+            Just(process::local::test(&init_arc_process))
+        })
+        .boxed()
 }
 
 pub fn term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

@@ -3,6 +3,30 @@ use super::*;
 mod with_atom_name;
 
 #[test]
+fn without_atom_name_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_not_atom(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
+                ),
+                |(name, message)| {
+                    let destination = Term::slice_to_tuple(&[name, erlang::node_0()], &arc_process);
+
+                    prop_assert_eq!(
+                        erlang::send_2(destination, message, &arc_process),
+                        Err(badarg!())
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
+#[test]
 fn with_local_reference_name_errors_badarg() {
     with_name_errors_badarg(|process| Term::next_local_reference(process));
 }

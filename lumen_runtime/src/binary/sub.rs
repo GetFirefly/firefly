@@ -185,7 +185,7 @@ impl CloneIntoHeap for &'static Binary {
 
         heap.subbinary(
             heap_original,
-            self.byte_count,
+            self.byte_offset,
             self.bit_offset,
             self.byte_count,
             self.bit_count,

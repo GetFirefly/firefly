@@ -82,16 +82,22 @@ pub fn float(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 pub fn function(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    let module = Term::str_to_atom("module", DoNotCare).unwrap();
-    let function = Term::str_to_atom("function", DoNotCare).unwrap();
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module,
-        function,
-        arity: 0,
-    });
-    let code = |arc_process: &Arc<Process>| arc_process.wait();
+    (
+        function::module(),
+        function::function(),
+        function::arity_usize(),
+    )
+        .prop_map(move |(module, function, arity)| {
+            let module_function_arity = Arc::new(ModuleFunctionArity {
+                module,
+                function,
+                arity,
+            });
+            let code = |arc_process: &Arc<Process>| arc_process.wait();
 
-    Just(Term::function(module_function_arity, code, &arc_process)).boxed()
+            Term::function(module_function_arity, code, &arc_process)
+        })
+        .boxed()
 }
 
 pub fn is_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

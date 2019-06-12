@@ -539,7 +539,7 @@ impl Debug for Process {
         write!(f, "{:?}", self.pid)?;
 
         match *self.registered_name.read().unwrap() {
-            Some(registered_name) => write!(f, "({:?})", registered_name),
+            Some(registered_name) => write!(f, " ({:?})", registered_name),
             None => Ok(()),
         }
     }

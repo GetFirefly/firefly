@@ -21,11 +21,11 @@ use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{SingleBlockCarrier, SlabCarrier};
 use crate::carriers::{SingleBlockCarrierList, SlabCarrierList};
 
-/// Like `StandardAlloc`, `FixedAlloc` splits allocations into two major categories,
+/// Like `StandardAlloc`, `SegmentedAlloc` splits allocations into two major categories,
 /// multi-block carriers up to a certain threshold, after which allocations use single-block
 /// carriers.
 ///
-/// However, `FixedAlloc` differs in some key ways:
+/// However, `SegmentedAlloc` differs in some key ways:
 ///
 /// - The multi-block carriers are allocated into multiple size classes, where each carrier belongs
 ///   to a size class and therefore only fulfills allocation requests for blocks of uniform size.
@@ -39,21 +39,92 @@ use crate::carriers::{SingleBlockCarrierList, SlabCarrierList};
 /// Allocations of blocks in multi-block carriers are filled using address order for both carriers
 /// and blocks to reduce fragmentation and improve allocation locality for allocations that fall
 /// within the same size class.
-pub struct FixedAlloc {
+#[derive(SizeClassIndex)]
+pub struct SegmentedAlloc {
     sbc_threshold: usize,
     sbc: RwLock<SingleBlockCarrierList>,
-    sized: SizeClassAlloc,
+    classes: Box<[RwLock<SlabCarrierList>]>,
 }
-impl FixedAlloc {
+impl SegmentedAlloc {
     /// Create a new instance of this allocator
     pub fn new() -> Self {
+        // Initialize to default set of empty slab lists
+        let mut classes = Vec::with_capacity(Self::NUM_SIZE_CLASSES);
+        // Initialize every size class with a single slab carrier
+        for size_class in Self::SIZE_CLASSES.iter() {
+            let mut list = SlabCarrierList::default();
+            let slab = unsafe { Self::create_slab_carrier(*size_class).unwrap() };
+            list.push_front(unsafe { UnsafeRef::from_raw(slab) });
+            classes.push(RwLock::new(list));
+        }
         Self {
-            sbc_threshold: SizeClassAlloc::MAX_SIZE_CLASS.to_bytes(),
+            sbc_threshold: Self::MAX_SIZE_CLASS.to_bytes(),
             sbc: RwLock::default(),
-            sized: SizeClassAlloc::new(),
+            classes: classes.into_boxed_slice(),
         }
     }
 
+    /// Creates a new, empty slab carrier, unlinked to the allocator
+    ///
+    /// The carrier is allocated via mmap on supported platforms, or the system
+    /// allocator otherwise.
+    ///
+    /// NOTE: You must make sure to add the carrier to the free list of the
+    /// allocator, or it will not be used, and will not be freed
+    unsafe fn create_carrier(
+        size_class: SizeClass,
+    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSet>, AllocErr> {
+        let size = SUPERALIGNED_CARRIER_SIZE;
+        let carrier_layout = Layout::from_size_align_unchecked(size, size);
+        // Allocate raw memory for carrier
+        let ptr = mmap::map(carrier_layout)?;
+        // Initialize carrier in memory
+        let carrier = SlabCarrier::init(ptr.as_ptr(), size, size_class);
+        // Return an unsafe ref to this carrier back to the caller
+        Ok(carrier)
+    }
+}
+
+unsafe impl Alloc for SegmentedAlloc {
+    #[inline]
+    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+        if layout.size() >= self.sbc_threshold {
+            return self.alloc_large(layout);
+        }
+        self.alloc_sized(layout)
+    }
+
+    #[inline]
+    unsafe fn realloc(
+        &mut self,
+        ptr: NonNull<u8>,
+        layout: Layout,
+        new_size: usize,
+    ) -> Result<NonNull<u8>, AllocErr> {
+        if layout.size() >= self.sbc_threshold {
+            // This was a single-block carrier
+            //
+            // Even if the new size would fit in a multi-block carrier, we're going
+            // to keep the allocation in the single-block carrier, to avoid the extra
+            // complexity, as there is little payoff
+            return self.realloc_large(ptr, layout, new_size);
+        }
+
+        self.realloc_sized(ptr, layout, new_size)
+    }
+
+    #[inline]
+    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
+        if layout.size() >= self.sbc_threshold {
+            // This block would have to be in a single-block carrier
+            return self.dealloc_large(ptr.as_ptr());
+        }
+
+        self.dealloc_sized(ptr, layout);
+    }
+}
+
+impl SegmentedAlloc {
     /// This function handles allocations which exceed the single-block carrier threshold
     unsafe fn alloc_large(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         // Ensure allocated region has enough space for carrier header and aligned block
@@ -140,108 +211,7 @@ impl FixedAlloc {
     }
 }
 
-unsafe impl Alloc for FixedAlloc {
-    #[inline]
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-        if layout.size() >= self.sbc_threshold {
-            return self.alloc_large(layout);
-        }
-        self.sized.alloc(layout)
-    }
-
-    #[inline]
-    unsafe fn realloc(
-        &mut self,
-        ptr: NonNull<u8>,
-        layout: Layout,
-        new_size: usize,
-    ) -> Result<NonNull<u8>, AllocErr> {
-        if layout.size() >= self.sbc_threshold {
-            // This was a single-block carrier
-            //
-            // Even if the new size would fit in a multi-block carrier, we're going
-            // to keep the allocation in the single-block carrier, to avoid the extra
-            // complexity, as there is little payoff
-            return self.realloc_large(ptr, layout, new_size);
-        }
-
-        self.sized.realloc(ptr, layout, new_size)
-    }
-
-    #[inline]
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
-        if layout.size() >= self.sbc_threshold {
-            // This block would have to be in a single-block carrier
-            return self.dealloc_large(ptr.as_ptr());
-        }
-
-        self.sized.dealloc(ptr, layout);
-    }
-}
-
-impl Drop for FixedAlloc {
-    fn drop(&mut self) {
-        // Drop single-block carriers
-        let mut sbc = self.sbc.write();
-        // We have to dynamically allocate this vec because the only
-        // other method we have of collecting the pointer/layout combo
-        // is by using a cursor, and the current API is not flexible enough
-        // to allow us to walk the tree freeing each element after we've moved
-        // the cursor past it. Instead we gather all the pointers to clean up
-        // and do it all at once at the end
-        //
-        // NOTE: May be worth exploring a `Drop` impl for the carriers
-        let mut carriers = sbc
-            .iter()
-            .map(|carrier| (carrier as *const _ as *mut _, carrier.layout()))
-            .collect::<Vec<_>>();
-
-        // Prevent the list from trying to drop memory that has now been freed
-        sbc.fast_clear();
-
-        // Actually drop the carriers
-        for (ptr, layout) in carriers.drain(..) {
-            unsafe {
-                mmap::unmap(ptr, layout);
-            }
-        }
-
-        // SizeClassAlloc's Drop impl takes care of the rest
-    }
-}
-
-impl<'a> AsAllocRef<'a> for FixedAlloc {
-    type Handle = alloc_ref::Handle<'a, Self>;
-
-    #[inline]
-    fn as_alloc_ref(&self) -> Self::Handle {
-        alloc_ref::Handle::new(self)
-    }
-}
-
-unsafe impl Sync for FixedAlloc {}
-unsafe impl Send for FixedAlloc {}
-
-#[derive(SizeClassIndex)]
-pub struct SizeClassAlloc {
-    classes: Box<[RwLock<SlabCarrierList>]>,
-}
-impl SizeClassAlloc {
-    pub fn new() -> Self {
-        // Initialize to default set of empty slab lists
-        let mut classes = Vec::with_capacity(Self::NUM_SIZE_CLASSES);
-        // Initialize every size class with a single slab carrier
-        for size_class in Self::SIZE_CLASSES.iter() {
-            let mut list = SlabCarrierList::default();
-            let slab = unsafe { Self::create_carrier(*size_class).unwrap() };
-            list.push_front(unsafe { UnsafeRef::from_raw(slab) });
-            classes.push(RwLock::new(list));
-        }
-        Self {
-            classes: classes.into_boxed_slice(),
-        }
-    }
-
+impl SegmentedAlloc {
     /// Creates a new, empty slab carrier, unlinked to the allocator
     ///
     /// The carrier is allocated via mmap on supported platforms, or the system
@@ -249,7 +219,7 @@ impl SizeClassAlloc {
     ///
     /// NOTE: You must make sure to add the carrier to the free list of the
     /// allocator, or it will not be used, and will not be freed
-    unsafe fn create_carrier(
+    unsafe fn create_slab_carrier(
         size_class: SizeClass,
     ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSet>, AllocErr> {
         let size = SUPERALIGNED_CARRIER_SIZE;
@@ -261,10 +231,9 @@ impl SizeClassAlloc {
         // Return an unsafe ref to this carrier back to the caller
         Ok(carrier)
     }
-}
 
-unsafe impl Alloc for SizeClassAlloc {
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    #[inline]
+    unsafe fn alloc_sized(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let size = layout.size();
         if unlikely(size > Self::MAX_SIZE_CLASS.to_bytes()) {
@@ -293,7 +262,8 @@ unsafe impl Alloc for SizeClassAlloc {
         result
     }
 
-    unsafe fn realloc(
+    #[inline]
+    unsafe fn realloc_sized(
         &mut self,
         ptr: NonNull<u8>,
         layout: Layout,
@@ -322,7 +292,7 @@ unsafe impl Alloc for SizeClassAlloc {
         Ok(new_ptr)
     }
 
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, _layout: Layout) {
+    unsafe fn dealloc_sized(&mut self, ptr: NonNull<u8>, _layout: Layout) {
         // Locate the owning carrier and deallocate with it
         let raw = ptr.as_ptr();
         // Since the slabs are super-aligned, we can mask off the low
@@ -334,17 +304,33 @@ unsafe impl Alloc for SizeClassAlloc {
     }
 }
 
-impl<'a> AsAllocRef<'a> for SizeClassAlloc {
-    type Handle = alloc_ref::Handle<'a, Self>;
-
-    #[inline]
-    fn as_alloc_ref(&self) -> Self::Handle {
-        alloc_ref::Handle::new(self)
-    }
-}
-
-impl Drop for SizeClassAlloc {
+impl Drop for SegmentedAlloc {
     fn drop(&mut self) {
+        // Drop single-block carriers
+        let mut sbc = self.sbc.write();
+        // We have to dynamically allocate this vec because the only
+        // other method we have of collecting the pointer/layout combo
+        // is by using a cursor, and the current API is not flexible enough
+        // to allow us to walk the tree freeing each element after we've moved
+        // the cursor past it. Instead we gather all the pointers to clean up
+        // and do it all at once at the end
+        //
+        // NOTE: May be worth exploring a `Drop` impl for the carriers
+        let mut carriers = sbc
+            .iter()
+            .map(|carrier| (carrier as *const _ as *mut _, carrier.layout()))
+            .collect::<Vec<_>>();
+
+        // Prevent the list from trying to drop memory that has now been freed
+        sbc.fast_clear();
+
+        // Actually drop the carriers
+        for (ptr, layout) in carriers.drain(..) {
+            unsafe {
+                mmap::unmap(ptr, layout);
+            }
+        }
+
         // Drop slab carriers
         let slab_size = SUPERALIGNED_CARRIER_SIZE;
         let slab_layout = unsafe { Layout::from_size_align_unchecked(slab_size, slab_size) };
@@ -369,5 +355,14 @@ impl Drop for SizeClassAlloc {
     }
 }
 
-unsafe impl Sync for SizeClassAlloc {}
-unsafe impl Send for SizeClassAlloc {}
+impl<'a> AsAllocRef<'a> for SegmentedAlloc {
+    type Handle = alloc_ref::Handle<'a, Self>;
+
+    #[inline]
+    fn as_alloc_ref(&self) -> Self::Handle {
+        alloc_ref::Handle::new(self)
+    }
+}
+
+unsafe impl Sync for SegmentedAlloc {}
+unsafe impl Send for SegmentedAlloc {}

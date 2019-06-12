@@ -1,11 +1,43 @@
+///! `StandardAlloc` is a general purpose allocator that divides allocations into two major
+///! categories: multi-block carriers up to a certain threshold, after which allocations use
+///! single-block carriers.
+///!
+///! Allocations that use multi-block carriers are filled by searching in a balanced
+///! binary tree for the first carrier with free blocks of suitable size, then finding the
+/// block ! with the best fit within that carrier.
+///!
+///! Multi-block carriers are allocated using super-aligned boundaries. Specifically, this is
+///! 262144 bytes, or put another way, 64 pages that are 4k large. Since that page size is not
+///! guaranteed across platforms, it is not of particular significance. However the purpose of
+///! super-alignment is to make it trivial to calculate a pointer to the carrier header given
+///! a pointer to a block or data within the bounds of that carrier. It is also a convenient
+/// size ! as allocations of all size classes both fit into the super-aligned size, and can fit
+/// multiple ! blocks in that carrier. For example, the largest size class, 32k, can fit 7
+/// blocks of that ! size, and have room remaining for smaller blocks (carrier and block
+/// headers take up some space). !
+///! Single-block carriers are allocated for any allocation requests above the maximum
+/// multi-block ! size class, also called the "single-block carrier threshold". Currently this
+/// is statically set ! to the size class already mentioned (32k).
+///!
+///! The primary difference between the carrier types, other than the size of allocations they
+///! handle, is that single-block carriers are always freed, where multi-block carriers are
+/// retained ! and reused, the allocator effectively maintaining a cache to more efficiently
+/// serve allocations. !
+///! The allocator starts with a single multi-block carrier, and additional multi-block
+/// carriers are ! allocated as needed when the current carriers are unable to satisfy
+/// allocation requests. As ! stated previously, large allocations always allocate in
+/// single-block carriers, but none are ! allocated up front.
+///!
+///! NOTE: It will be important in the future to support carrier migration to allocators in
+/// other ! threads to avoid situations where an allocator on one thread is full, so additional
+/// carriers ! are allocated when allocators on other threads have carriers that could have
+/// filled the request. ! See [CarrierMigration.md] in the OTP documentation for information
+/// about how that works and ! the rationale.
 use core::alloc::{Alloc, AllocErr, Layout};
-///! This module provides a general purpose allocator for use with
-///! the Erlang Runtime System. Specifically it is optimized for
-///! general usage, where allocation patterns are unpredictable, or
-///! for allocations where a more specialized allocator is unsuitable
-///! or unavailable.
 use core::cmp;
 use core::ptr::{self, NonNull};
+
+use lazy_static::lazy_static;
 
 use intrusive_collections::LinkedListLink;
 use intrusive_collections::{Bound, UnsafeRef};
@@ -14,73 +46,66 @@ use intrusive_collections::{RBTree, RBTreeLink};
 use liblumen_core::alloc::alloc_ref::{self, AsAllocRef};
 use liblumen_core::alloc::mmap;
 use liblumen_core::locks::SpinLock;
+use liblumen_core::util::cache_padded::CachePadded;
 
-//use crate::size_classes;
 use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::carriers::{MultiBlockCarrierTree, SingleBlockCarrierList};
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
 use crate::AllocatorInfo;
 
-/// `StandardAlloc` is a general purpose allocator that divides allocations into two major
-/// categories: multi-block carriers up to a certain threshold, after which allocations use
-/// single-block carriers.
-///
-/// Allocations that use multi-block carriers are filled by searching in a balanced
-/// binary tree for the first carrier with free blocks of suitable size, then finding the block
-/// with the best fit within that carrier.
-///
-/// Multi-block carriers are allocated using super-aligned boundaries. Specifically, this is
-/// 262144 bytes, or put another way, 64 pages that are 4k large. Since that page size is not
-/// guaranteed across platforms, it is not of particular significance. However the purpose of
-/// super-alignment is to make it trivial to calculate a pointer to the carrier header given
-/// a pointer to a block or data within the bounds of that carrier. It is also a convenient size
-/// as allocations of all size classes both fit into the super-aligned size, and can fit multiple
-/// blocks in that carrier. For example, the largest size class, 32k, can fit 7 blocks of that
-/// size, and have room remaining for smaller blocks (carrier and block headers take up some space).
-///
-/// Single-block carriers are allocated for any allocation requests above the maximum multi-block
-/// size class, also called the "single-block carrier threshold". Currently this is statically set
-/// to the size class already mentioned (32k).
-///
-/// The primary difference between the carrier types, other than the size of allocations they
-/// handle, is that single-block carriers are always freed, where multi-block carriers are retained
-/// and reused, the allocator effectively maintaining a cache to more efficiently serve allocations.
-///
-/// The allocator starts with a single multi-block carrier, and additional multi-block carriers are
-/// allocated as needed when the current carriers are unable to satisfy allocation requests. As
-/// stated previously, large allocations always allocate in single-block carriers, but none are
-/// allocated up front.
-///
-/// NOTE: It will be important in the future to support carrier migration to allocators in other
-/// threads to avoid situations where an allocator on one thread is full, so additional carriers
-/// are allocated when allocators on other threads have carriers that could have filled the request.
-/// See [CarrierMigration.md] in the OTP documentation for information about how that works and
-/// the rationale.
-pub struct StandardAlloc {
+// The global instance of StandardAlloc
+lazy_static! {
+    static ref STD_ALLOC: StandardAlloc = StandardAlloc::new();
+}
+
+/// Allocates a new block of memory using the given layout
+pub unsafe fn alloc(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    STD_ALLOC.allocate(layout)
+}
+
+/// Reallocates a previously allocated block of memory, in-place if possible
+pub unsafe fn realloc(
+    ptr: NonNull<u8>,
+    layout: Layout,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
+    STD_ALLOC.reallocate(ptr, layout, new_size)
+}
+
+/// Deallocates a previously allocated block of memory
+pub unsafe fn dealloc(ptr: NonNull<u8>, layout: Layout) {
+    STD_ALLOC.deallocate(ptr, layout);
+}
+
+/// Gets information about the global standard allocator
+pub fn alloc_info() -> AllocatorInfo {
+    STD_ALLOC.info()
+}
+
+struct StandardAlloc {
     sbc_threshold: usize,
-    sbc: SpinLock<SingleBlockCarrierList>,
-    mbc: SpinLock<MultiBlockCarrierTree>,
+    sbc: CachePadded<SpinLock<SingleBlockCarrierList>>,
+    mbc: CachePadded<SpinLock<MultiBlockCarrierTree>>,
 }
 impl StandardAlloc {
-    // TODO: Switch this back to the constant in `size_classes` when that module is done
-    pub(crate) const MAX_SIZE_CLASS: usize = 32 * 1024;
+    const MAX_SIZE_CLASS: usize = 32 * 1024;
 
-    /// Create a new instance of `StandardAlloc`
+    /// Create a new instance of this allocator
     pub fn new() -> Self {
         // Allocate a default carrier
         // TODO: In the future we may want to do like the BEAM does and
         // have a separate struct field for the main carrier, so that allocations
         // have a fast path if the main carrier has available space
         let main_carrier = unsafe {
-            Self::create_multi_block_carrier().expect("unable to allocate main multi-block carrier")
+            create_multi_block_carrier().expect("unable to allocate main multi-block carrier")
         };
         let mut mbc = RBTree::new(SortedKeyAdapter::new(SortOrder::SizeAddressOrder));
         mbc.insert(main_carrier);
 
         Self {
-            sbc: SpinLock::new(SingleBlockCarrierList::default()),
-            mbc: SpinLock::new(mbc),
+            sbc: CachePadded::new(SpinLock::new(SingleBlockCarrierList::default())),
+            mbc: CachePadded::new(SpinLock::new(mbc)),
             sbc_threshold: Self::MAX_SIZE_CLASS,
         }
     }
@@ -107,28 +132,7 @@ impl StandardAlloc {
         sbc.iter().count()
     }
 
-    /// Creates a new, empty multi-block carrier, unlinked to the allocator
-    ///
-    /// The carrier is allocated via mmap on supported platforms, or the system
-    /// allocator otherwise.
-    ///
-    /// NOTE: You must make sure to add the carrier to the free list of the
-    /// allocator, or it will not be used, and will not be freed
-    unsafe fn create_multi_block_carrier(
-    ) -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, AllocErr> {
-        let size = SUPERALIGNED_CARRIER_SIZE;
-        let carrier_layout = Layout::from_size_align_unchecked(size, size);
-        // Allocate raw memory for carrier
-        let ptr = mmap::map(carrier_layout)?;
-        // Initialize carrier in memory
-        let carrier = MultiBlockCarrier::init(ptr, size);
-        // Return an unsafe ref to this carrier back to the caller
-        Ok(UnsafeRef::from_raw(carrier))
-    }
-}
-
-unsafe impl Alloc for StandardAlloc {
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn allocate(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         let size = layout.size();
         if size >= self.sbc_threshold {
             return self.alloc_large(layout);
@@ -159,7 +163,7 @@ unsafe impl Alloc for StandardAlloc {
         // we always allocate carriers of the same size, and since the super-aligned size
         // is always larger than the single-block threshold, new multi-block carriers are
         // guaranteed to fulfill the allocation request that caused their creation
-        let carrier = Self::create_multi_block_carrier()?;
+        let carrier = create_multi_block_carrier()?;
         let mut mbc = self.mbc.lock();
         mbc.insert(carrier.clone());
         drop(mbc);
@@ -172,8 +176,8 @@ unsafe impl Alloc for StandardAlloc {
         Ok(block)
     }
 
-    unsafe fn realloc(
-        &mut self,
+    unsafe fn reallocate(
+        &self,
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
@@ -212,18 +216,18 @@ unsafe impl Alloc for StandardAlloc {
         // copying the data from the old block to the new one
         let new_layout = Layout::from_size_align(new_size, layout.align()).expect("invalid layout");
         // Allocate new block
-        let block = self.alloc(new_layout)?;
+        let block = self.allocate(new_layout)?;
         // Copy data from old block into new block
         let blk = block.as_ptr() as *mut u8;
         ptr::copy_nonoverlapping(raw, blk, cmp::min(size, new_size));
         // Free old block
-        self.dealloc(ptr, layout);
+        self.deallocate(ptr, layout);
 
         // Return new data pointer
         Ok(block)
     }
 
-    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
+    unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         let ptr = ptr.as_ptr();
         let size = layout.size();
 
@@ -244,11 +248,9 @@ unsafe impl Alloc for StandardAlloc {
         carrier.free_block(ptr, layout);
         drop(mbc)
     }
-}
 
-impl StandardAlloc {
     /// This function handles allocations which exceed the single-block carrier threshold
-    unsafe fn alloc_large(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn alloc_large(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let data_layout = layout.clone();
         let carrier_layout = Layout::new::<SingleBlockCarrier<LinkedListLink>>();
@@ -280,7 +282,7 @@ impl StandardAlloc {
     }
 
     unsafe fn realloc_large(
-        &mut self,
+        &self,
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
@@ -299,7 +301,7 @@ impl StandardAlloc {
     }
 
     /// This function handles allocations which exceed the single-block carrier threshold
-    unsafe fn dealloc_large(&mut self, ptr: *const u8) {
+    unsafe fn dealloc_large(&self, ptr: *const u8) {
         // In the case of single-block carriers,
         // we must walk the list until we find the owning carrier
         let mut sbc = self.sbc.lock();
@@ -332,7 +334,27 @@ impl StandardAlloc {
         }
     }
 }
+unsafe impl Alloc for StandardAlloc {
+    #[inline]
+    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+        self.allocate(layout)
+    }
 
+    #[inline]
+    unsafe fn realloc(
+        &mut self,
+        ptr: NonNull<u8>,
+        layout: Layout,
+        new_size: usize,
+    ) -> Result<NonNull<u8>, AllocErr> {
+        self.reallocate(ptr, layout, new_size)
+    }
+
+    #[inline]
+    unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
+        self.deallocate(ptr, layout)
+    }
+}
 impl<'a> AsAllocRef<'a> for StandardAlloc {
     type Handle = alloc_ref::Handle<'a, Self>;
 
@@ -341,12 +363,8 @@ impl<'a> AsAllocRef<'a> for StandardAlloc {
         alloc_ref::Handle::new(self)
     }
 }
-
 impl Drop for StandardAlloc {
     fn drop(&mut self) {
-        #[cfg(not(test))]
-        use alloc::vec::Vec;
-
         // Drop single-block carriers
         let mut sbc = self.sbc.lock();
         // We have to dynamically allocate this vec because the only
@@ -391,9 +409,27 @@ impl Drop for StandardAlloc {
         }
     }
 }
-
 unsafe impl Sync for StandardAlloc {}
 unsafe impl Send for StandardAlloc {}
+
+/// Creates a new, empty multi-block carrier, unlinked to the allocator
+///
+/// The carrier is allocated via mmap on supported platforms, or the system
+/// allocator otherwise.
+///
+/// NOTE: You must make sure to add the carrier to the free list of the
+/// allocator, or it will not be used, and will not be freed
+unsafe fn create_multi_block_carrier() -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, AllocErr>
+{
+    let size = SUPERALIGNED_CARRIER_SIZE;
+    let carrier_layout = Layout::from_size_align_unchecked(size, size);
+    // Allocate raw memory for carrier
+    let ptr = mmap::map(carrier_layout)?;
+    // Initialize carrier in memory
+    let carrier = MultiBlockCarrier::init(ptr, size);
+    // Return an unsafe ref to this carrier back to the caller
+    Ok(UnsafeRef::from_raw(carrier))
+}
 
 #[cfg(test)]
 mod tests {

@@ -1,9 +1,11 @@
+#![recursion_limit = "128"]
 #![allow(stable_features)]
-#![cfg_attr(not(test), no_std)]
 #![feature(core_intrinsics)]
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
 #![feature(ptr_offset_from)]
+#![feature(exact_size_is_empty)]
+#![feature(type_alias_enum_variants)]
 #![feature(alloc)]
 
 #[cfg_attr(not(test), macro_use)]
@@ -12,10 +14,11 @@ extern crate alloc;
 mod blocks;
 mod carriers;
 mod erts;
-mod fixed_alloc;
+mod segmented_alloc;
+mod size_class_alloc;
 mod sorted;
 pub mod stats;
-mod std_alloc;
+pub mod std_alloc;
 
 /// The system allocator. Can be used with `#[global_allocator]`, like so:
 ///
@@ -25,14 +28,16 @@ mod std_alloc;
 /// ```
 pub use liblumen_core::alloc::SysAlloc;
 
-/// The standard allocator. Used for general purpose allocations
-pub use self::std_alloc::StandardAlloc;
-
 /// A tracing allocator for tracking statistics about the allocator it wraps
 pub use self::stats::StatsAlloc;
 
-// A fixed size allocator. Used for allocations that fall within predictable size classes.
-pub use fixed_alloc::FixedAlloc;
+// An allocator that uses segmented sub-allocators to more efficiently manage
+// allocations of variable sizes that fall within predictable size ranges
+pub use self::segmented_alloc::SegmentedAlloc;
+
+// An allocator that manages buckets of slab allocators as a highly efficient
+// means of managing allocations with fixed sizes
+pub use self::size_class_alloc::SizeClassAlloc;
 
 // Runtime system support, e.g. process heaps, etc.
 pub use erts::*;

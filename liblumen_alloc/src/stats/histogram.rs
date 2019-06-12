@@ -127,8 +127,6 @@ impl Histogram {
 
 impl fmt::Display for Histogram {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        #[cfg(not(test))]
-        use alloc::string::String;
         use core::fmt::Write;
 
         let num_samples: u64 = self.samples.values().sum();

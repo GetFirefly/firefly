@@ -19,3 +19,4 @@ extern crate alloc as core_alloc;
 pub mod alloc;
 pub mod locks;
 pub mod sys;
+pub mod util;

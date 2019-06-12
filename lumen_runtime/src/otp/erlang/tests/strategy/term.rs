@@ -13,9 +13,10 @@ use crate::process::{IntoProcess, ModuleFunctionArity, Process};
 use crate::term::Tag::Atom;
 use crate::term::Term;
 
-use super::size_range;
+use super::{size_range, DEPTH, MAX_LEN, RANGE_INCLUSIVE};
 
 pub mod binary;
+pub mod container;
 pub mod function;
 pub mod integer;
 pub mod is_binary;
@@ -44,6 +45,26 @@ pub fn big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
             None => None,
         }
     })
+}
+
+// XXX work-around for bug related to sending maps across processes in `send_2` proptests
+pub fn can_be_passed_to_different_process(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    let container_arc_process = arc_process.clone();
+
+    leaf(RANGE_INCLUSIVE, arc_process)
+        .prop_recursive(
+            DEPTH,
+            (MAX_LEN * (DEPTH as usize + 1)) as u32,
+            MAX_LEN as u32,
+            move |element| {
+                container::can_be_passed_to_different_process(
+                    element,
+                    RANGE_INCLUSIVE.clone().into(),
+                    container_arc_process.clone(),
+                )
+            },
+        )
+        .boxed()
 }
 
 pub fn charlist(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

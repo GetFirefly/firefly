@@ -14,6 +14,7 @@ pub enum Encoding {
 }
 
 #[derive(Clone, Copy)]
+#[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Existence {
     DoNotCare,
     Exists,

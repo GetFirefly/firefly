@@ -1034,6 +1034,12 @@ impl CloneIntoHeap for Term {
 
                         Term::box_reference(heap_float)
                     }
+                    Function => {
+                        let function: &Function = self.unbox_reference();
+                        let heap_function = function.clone_into_heap(heap);
+
+                        Term::box_reference(heap_function)
+                    }
                     HeapBinary => {
                         let heap_binary: &heap::Binary = self.unbox_reference();
                         let heap_heap_binary = heap_binary.clone_into_heap(heap);
@@ -1093,9 +1099,13 @@ impl Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.tag() {
             Arity => write!(f, "Term::arity({})", unsafe { self.arity_to_usize() }),
-            Atom => write!(f, "Term::str_to_atom(\"{}\", DoNotCare).unwrap()", unsafe {
-                self.atom_to_string()
-            }),
+            Atom => unsafe {
+                f.debug_tuple("Term::str_to_atom")
+                    .field(&self.atom_to_string())
+                    .field(&DoNotCare)
+                    .finish()?;
+                write!(f, ".unwrap()")
+            },
             Boxed => {
                 let unboxed: &Term = self.unbox_reference();
 
@@ -1103,19 +1113,11 @@ impl Debug for Term {
                     Arity => {
                         let tuple: &Tuple = self.unbox_reference();
 
-                        write!(f, "Term::slice_to_tuple(&[")?;
+                        write!(f, "Term::slice_to_tuple(&")?;
 
-                        let mut iter = tuple.iter();
+                        f.debug_list().entries(tuple.iter()).finish()?;
 
-                        if let Some(first_element) = iter.next() {
-                            write!(f, "{:?}", first_element)?;
-
-                            for element in iter {
-                                write!(f, ", {:?}", element)?;
-                            }
-                        }
-
-                        write!(f, "], &process)")
+                        write!(f, ", &process)")
                     }
                     BigInteger => {
                         let big_integer: &big::Integer = self.unbox_reference();
@@ -1129,11 +1131,12 @@ impl Debug for Term {
                     ExternalPid => {
                         let external_pid: &process::identifier::External = self.unbox_reference();
 
-                        write!(
-                            f,
-                            "Term::external_pid({:?}, {:?}, {:?}, &process)",
-                            external_pid.node, external_pid.number, external_pid.serial
-                        )
+                        f.debug_tuple("Term::external_pid")
+                            .field(&external_pid.node)
+                            .field(&external_pid.number)
+                            .field(&external_pid.serial)
+                            .field(&format_args!("&process"))
+                            .finish()
                     }
                     Float => {
                         let float: &Float = self.unbox_reference();
@@ -1143,68 +1146,50 @@ impl Debug for Term {
                     Function => {
                         let function: &Function = self.unbox_reference();
 
-                        write!(
-                            f,
-                            "Term::function({:?}, code, &process)",
-                            function.module_function_arity()
-                        )
+                        f.debug_tuple("Term::function")
+                            .field(&function.module_function_arity())
+                            .field(&format_args!("code"))
+                            .field(&format_args!("&process"))
+                            .finish()
                     }
                     HeapBinary => {
                         let binary: &heap::Binary = self.unbox_reference();
 
-                        write!(f, "Term::slice_to_binary(&[")?;
+                        write!(f, "Term::slice_to_binary(&")?;
 
-                        let mut iter = binary.iter();
+                        f.debug_list().entries(binary.iter()).finish()?;
 
-                        if let Some(first_byte) = iter.next() {
-                            write!(f, "{:?}", first_byte)?;
-
-                            for byte in iter {
-                                write!(f, ", {:?}", byte)?;
-                            }
-                        }
-
-                        write!(f, "], &process)")
+                        write!(f, ", &process)")
                     }
                     LocalReference => {
                         let local_reference: &local::Reference = self.unbox_reference();
 
-                        write!(
-                            f,
-                            "Term::local_reference({:?}, {:?}, &process)",
-                            local_reference.scheduler_id(),
-                            local_reference.number()
-                        )
+                        f.debug_tuple("Term::local_reference")
+                            .field(&local_reference.scheduler_id())
+                            .field(&local_reference.number())
+                            .field(&format_args!("&process"))
+                            .finish()
                     }
                     Map => {
                         let map: &Map = self.unbox_reference();
 
-                        write!(f, "Term::slice_to_map(&[")?;
+                        write!(f, "Term::slice_to_map(&")?;
 
-                        let mut iter = map.iter();
+                        f.debug_list().entries(map.iter()).finish()?;
 
-                        if let Some(item) = iter.next() {
-                            write!(f, "{:?}", item)?;
-
-                            for item in iter {
-                                write!(f, ", {:?}", item)?;
-                            }
-                        }
-
-                        write!(f, "], &process)")
+                        write!(f, ", &process)")
                     }
                     Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
 
-                        write!(
-                            f,
-                            "Term::subbinary({:?}, {:?}, {:?}, {:?}, {:?}, &process)",
-                            subbinary.original,
-                            subbinary.byte_offset,
-                            subbinary.bit_offset,
-                            subbinary.byte_count,
-                            subbinary.bit_count
-                        )
+                        f.debug_tuple("Term::subbinary")
+                            .field(&subbinary.original)
+                            .field(&subbinary.byte_offset)
+                            .field(&subbinary.bit_offset)
+                            .field(&subbinary.byte_count)
+                            .field(&subbinary.bit_count)
+                            .field(&format_args!("&process"))
+                            .finish()
                     }
                     unboxed_tag => unimplemented!("unboxed {:?}", unboxed_tag),
                 }
@@ -1213,17 +1198,20 @@ impl Debug for Term {
             List => {
                 let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
 
-                write!(
-                    f,
-                    "Term::cons({:?}, {:?}, &process)",
-                    cons.head(),
-                    cons.tail()
-                )
+                f.debug_tuple("Term::cons")
+                    .field(&cons.head())
+                    .field(&cons.tail())
+                    .field(&format_args!("&process"))
+                    .finish()
             }
             LocalPid => {
                 let (number, serial) = unsafe { self.decompose_local_pid() };
 
-                write!(f, "Term::local_pid({:?}, {:?}).unwrap()", number, serial)
+                f.debug_tuple("Term::local_pid")
+                    .field(&number)
+                    .field(&serial)
+                    .finish()?;
+                write!(f, ".unwrap()")
             }
             SmallInteger => write!(f, "{:?}.into_process(&process)", isize::from(self)),
             _ => write!(

@@ -54,19 +54,22 @@ impl Eq for Function {}
 
 impl Hash for Function {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        self.module_function_arity.hash(state);
         state.write_usize(self.code as usize);
     }
 }
 
 impl Ord for Function {
     fn cmp(&self, other: &Function) -> Ordering {
-        (self.code as usize).cmp(&(other.code as usize))
+        (self.module_function_arity.cmp(&other.module_function_arity))
+            .then_with(|| (self.code as usize).cmp(&(other.code as usize)))
     }
 }
 
 impl PartialEq for Function {
     fn eq(&self, other: &Function) -> bool {
-        (self.code as usize) == (other.code as usize)
+        (self.module_function_arity == other.module_function_arity)
+            && ((self.code as usize) == (other.code as usize))
     }
 }
 

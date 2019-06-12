@@ -36,7 +36,7 @@ pub mod stack;
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
 pub const MAX_REDUCTIONS_PER_RUN: Reductions = 4_000;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub struct ModuleFunctionArity {
     pub module: Term,

@@ -1,168 +1,142 @@
+pub(crate) mod alloc;
+
 use core::alloc::{AllocErr, Layout};
-use core::mem::{self, ManuallyDrop};
-use core::ptr::{self, NonNull};
+use core::mem;
+use core::ptr::NonNull;
 
-use core::alloc::Alloc;
+use intrusive_collections::{intrusive_adapter, UnsafeRef};
+use intrusive_collections::{LinkedList, LinkedListLink};
 
-use crate::std_alloc::StandardAlloc;
+use hashbrown::HashMap;
 
-/// This allocator is used to allocate process heaps globally.
-///
-/// It contains a reference to an instance of `StandardAlloc`
-/// which is used to satisfy allocation requests.
+use super::*;
+
+intrusive_adapter!(pub HeapFragmentAdapter = UnsafeRef<HeapFragment>: HeapFragment { link: LinkedListLink });
+
+/// Represents the primary control structure for processes
 #[repr(C)]
-pub struct ProcessAlloc {
-    alloc: ManuallyDrop<StandardAlloc>,
+pub struct ProcessControlBlock {
+    // Process flags, e.g. `Process.flag/1`
+    pub(crate) flags: u32,
+    // minimum size of the heap that this process will start with
+    pub(crate) min_heap_size: usize,
+    // the maximum size of the heap allowed for this process
+    pub(crate) max_heap_size: usize,
+    // minimum virtual heap size for this process
+    pub(crate) min_vheap_size: usize,
+    // the percentage of used to unused space at which a collection is triggered
+    pub(crate) gc_threshold: f64,
+    // the number of minor collections
+    pub(crate) gen_gc_count: usize,
+    // the maximum number of minor collections before a full sweep occurs
+    pub(crate) max_gen_gcs: usize,
+    // young generation heap
+    pub(crate) young: YoungHeap,
+    // old generation heap
+    pub(crate) old: OldHeap,
+    // virtual binary heap
+    pub(crate) vheap: VirtualBinaryHeap,
+    // off-heap allocations
+    pub(crate) off_heap: LinkedList<HeapFragmentAdapter>,
+    // process dictionary
+    pub(crate) dictionary: HashMap<Term, Term>,
 }
-impl ProcessAlloc {
-    // Size of word in bytes
-    const WORD_SIZE: usize = mem::size_of::<usize>();
+impl ProcessControlBlock {
+    pub const FLAG_HEAP_GROW: u32 = 1 << 3;
+    pub const FLAG_NEED_FULLSWEEP: u32 = 1 << 4;
+    pub const FLAG_FORCE_GC: u32 = 1 << 10;
+    pub const FLAG_DISABLE_GC: u32 = 1 << 11;
+    pub const FLAG_DELAY_GC: u32 = 1 << 16;
 
-    // 233 words
-    const DEFAULT_HEAP_SIZE: usize = 233 * Self::WORD_SIZE;
+    const DEFAULT_FLAGS: u32 = 0;
 
-    /// Allocate a new default-sized process heap
-    ///
-    /// If this fails, it is because the system is out of memory,
-    /// or due to a bug in the allocator framework
-    #[inline(always)]
-    pub fn alloc_default(&mut self) -> Result<*mut ProcessHeap, AllocErr> {
-        self.alloc_heap(Self::DEFAULT_HEAP_SIZE)
-    }
-
-    /// Allocate a new heap of the given size
-    ///
-    /// If this fails, either there is an issue with the given size,
-    /// the system is out of memory, or there is a bug in the allocator
-    /// framework
-    pub fn alloc_heap(&mut self, size: usize) -> Result<*mut ProcessHeap, AllocErr> {
-        // Determine layout, require word alignment
-        let header_layout = Layout::new::<ProcessHeap>();
-        let layout = header_layout
-            .extend_packed(Layout::from_size_align(size, Self::WORD_SIZE).unwrap())
-            .unwrap();
-        let total_size = layout.size();
-        let header_size = header_layout.size();
-
-        // Allocate region
-        let ptr = unsafe { self.alloc.alloc(layout)?.as_ptr() };
-        // Get heap pointer
-        let heap_top = unsafe { ptr.offset(header_size as isize) };
-        // Get stack pointer
-        let stack_bottom = unsafe { ptr.offset((total_size as isize) - (header_size as isize)) };
-
-        // Write header to beginning of region
-        let header = ptr as *mut ProcessHeap;
-        unsafe {
-            ptr::write(
-                header,
-                ProcessHeap {
-                    size: total_size,
-                    heap_bottom: heap_top,
-                    heap_top,
-                    stack_bottom,
-                    stack_top: stack_bottom,
-                },
-            );
+    /// Creates a new PCB with a heap defined by the given pointer, and
+    /// `heap_size`, which is the size of the heap in words.
+    #[inline]
+    pub fn new(heap: *mut Term, heap_size: usize) -> Self {
+        let young = YoungHeap::new(heap, heap_size);
+        let old = OldHeap::default();
+        let vheap = VirtualBinaryHeap::new();
+        let off_heap = LinkedList::new(HeapFragmentAdapter::new());
+        let dictionary = HashMap::new();
+        Self {
+            flags: Self::DEFAULT_FLAGS,
+            min_heap_size: heap_size,
+            max_heap_size: 0,
+            min_vheap_size: 0,
+            gc_threshold: 0.75,
+            gen_gc_count: 0,
+            max_gen_gcs: 0,
+            young,
+            old,
+            vheap,
+            off_heap,
+            dictionary,
         }
-
-        // Return pointer to the heap
-        Ok(header)
     }
 
-    /// Reallocate a heap, attempting to keep it in place if possible,
-    /// otherwise allocating a new heap and copying terms into the new heap
-    ///
-    /// TODO: This depends on having roots and GC, so that we can ensure that
-    /// terms on the reallocated heap are updated so references point into the
-    /// new heap, not the old
-    pub unsafe fn realloc(
-        &mut self,
-        _heap: *mut ProcessHeap,
-        _new_size: usize,
-    ) -> Result<*mut ProcessHeap, AllocErr> {
-        unimplemented!()
-    }
-
-    /// Deallocate a process heap, releasing the memory back to the operating system
-    pub unsafe fn dealloc(&mut self, heap: *mut ProcessHeap) {
-        let size = (*heap).size;
-        let layout = Layout::from_size_align_unchecked(size, Self::WORD_SIZE);
-        self.alloc
-            .dealloc(NonNull::new_unchecked(heap as *mut u8), layout);
-    }
-}
-
-#[repr(C)]
-pub struct ProcessHeap {
-    // The total size of this heap, including header
-    size: usize,
-    // Heap grows upwards, so as allocations are made
-    // heap_top will grow towards stack_bottom.
-    //
-    // The heap_bottom field tells us where the heap begins.
-    heap_top: *const u8,
-    heap_bottom: *const u8,
-    // Stack grows downwards, so as allocations are made
-    // stack_bottom will grow towards heap_top
-    //
-    // The stack_top field tells us where the heap begins.
-    stack_bottom: *const u8,
-    stack_top: *const u8,
-}
-
-impl ProcessHeap {
     /// Perform a heap allocation
-    pub unsafe fn malloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-        let size = layout.size();
+    #[inline]
+    pub unsafe fn malloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        self.young.alloc(need)
+    }
 
-        if self.available_heap() < size {
-            // This will trigger a GC
-            return Err(AllocErr);
-        }
-
-        let ptr = self.heap_top.offset(size as isize);
-        Ok(NonNull::new_unchecked(ptr as *mut u8))
+    /// Perform an off-heap allocation using a `HeapFragment`
+    #[inline]
+    pub unsafe fn malloc_offheap(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        let layout = Layout::from_size_align_unchecked(
+            need * mem::size_of::<Term>(),
+            mem::align_of::<Term>(),
+        );
+        let frag = HeapFragment::new(layout)?;
+        let data = frag.as_ref().data().cast::<Term>();
+        self.off_heap.push_front(UnsafeRef::from_raw(frag.as_ptr()));
+        Ok(data)
     }
 
     /// Perform a stack allocation
-    pub unsafe fn alloca(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-        let size = layout.size();
+    #[inline]
+    pub unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        self.young.alloca(need)
+    }
 
-        if self.available_stack() < size {
-            // This will trigger a GC
-            return Err(AllocErr);
+    /// Frees the last `words * mem::size_of::<Term>()` bytes on the stack
+    #[inline]
+    pub unsafe fn stack_pop(&mut self, words: usize) {
+        self.young.stack_pop(words);
+    }
+
+    /// Determines if this heap should be collected
+    #[inline]
+    pub fn should_collect(&self) -> bool {
+        let used = self.young.heap_used();
+        let unused = self.young.unused();
+        let threshold = ((used + unused) as f64 * self.gc_threshold).ceil() as usize;
+        used >= threshold
+    }
+
+    /// Performs a garbage collection, using the provided root set
+    ///
+    /// The result is either `Ok(reductions)`, where `reductions` is the estimated cost
+    /// of the collection in terms of reductions; or `Err(GcError)` containing the reason
+    /// why garbage collection failed. Typically this will be due to attempting a minor
+    /// collection and discovering that a full sweep is needed, rather than doing so automatically,
+    /// the decision is left up to the caller to make. Other errors are described in the
+    /// `GcError` documentation.
+    #[inline]
+    pub fn garbage_collect(&mut self, need: usize, roots: &[Term]) -> Result<usize, GcError> {
+        // The roots passed in here are pointers to the native stack/registers, all other roots
+        // we are able to pick up from the current process context
+        let mut rootset = RootSet::new(roots);
+        // The primary source of roots we add is the process stack
+        rootset.push_range(self.young.stack_start, self.young.stack_used());
+        // The process dictionary is also used for roots
+        for val in self.dictionary.values() {
+            rootset.push(val as *const _ as *mut _);
         }
-
-        let ptr = self.stack_bottom.offset(-(size as isize));
-        Ok(NonNull::new_unchecked(ptr as *mut u8))
-    }
-
-    /// Get the set of roots to follow for GC
-    pub unsafe fn rootset(&mut self) -> *const RootSet {
-        unimplemented!()
-    }
-
-    /// Returns the amount of usable space in this heap, regardless of allocations
-    #[inline(always)]
-    pub fn usable_size(&self) -> usize {
-        (self.stack_top as usize) - (self.heap_bottom as usize)
-    }
-
-    /// Returns the amount of available stack space
-    #[inline(always)]
-    pub fn available_stack(&self) -> usize {
-        (self.stack_bottom as usize) - (self.heap_top as usize)
-    }
-
-    /// Returns the amount of available stack space
-    /// NOTE: This is the same calculation as `available_stack`, but describes intent
-    #[inline(always)]
-    pub fn available_heap(&self) -> usize {
-        (self.stack_bottom as usize) - (self.heap_top as usize)
+        // Initialize the collector with the given root set
+        let mut gc = GarbageCollector::new(self, rootset);
+        // Run the collector
+        gc.collect(need)
     }
 }
-
-/// A root set is a vector of pointers to live terms on the stack or heap
-/// which need to be followed in order to perform garbage collection
-pub type RootSet = *const u8;

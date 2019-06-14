@@ -24,8 +24,19 @@ pub enum Cow {
 impl Cow {
     pub fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Self {
         match *self {
-            Self::Borrowed(b) => Self::Owned(b.clone_to_process(process)),
-            Self::Owned(o) => Self::Owned(o)
+            Self::Borrowed(b) => Self::Borrowed(b),
+            Self::Owned(o) => Self::Owned(o.clone_to_process(process))
         }
+    }
+
+    pub fn clone_from(&mut self, source: &Self, process: &mut ProcessControlBlock) {
+        if let Self::Owned(ref mut dest) = *self {
+            if let Self::Owned(ref o) = *source {
+                *dest = o.clone_to_process(process);
+                return;
+            }
+        }
+
+        *self = source.clone_to_process(process);
     }
 }

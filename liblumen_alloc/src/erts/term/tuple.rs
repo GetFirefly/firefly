@@ -24,14 +24,42 @@ use super::{AsTerm, Term};
 /// critical
 #[derive(Debug)]
 pub struct Tuple {
-    head: *mut Term,
+    header: Term,
     size: usize,
 }
 impl Tuple {
-    pub unsafe fn from_raw_parts(head: *mut Term, size: usize) -> Self {
-        Self { head, size }
+    /// Create a new `Tuple` struct
+    /// 
+    /// NOTE: This does not allocate space for the tuple, it simply
+    /// constructs an instance of the `Tuple` header, other functions
+    /// can then use this in conjunction with a `Layout` for the elements
+    /// to allocate the appropriate amount of memory
+    pub fn new(size: usize) -> Self {
+        Self {
+            header: unsafe { Term::from_raw(size | Term::FLAG_TUPLE) },
+            size,
+        }
     }
 
+    /// Returns a pointer to the head element
+    /// 
+    /// NOTE: This is unsafe to use unless you know the tuple has been allocated
+    pub fn head(&self) -> *mut Term {
+        unsafe { (self as *const _ as *const Tuple).offset(1) as *mut Term }
+    }
+
+    /// This function produces a `Layout` which represents the memory layout
+    /// needed for the tuple header, and `num_elements` terms. The resulting
+    /// size is only enough for the tuple and word-sized values, e.g. immediates
+    /// or boxes. You need to extend this layout with others representing more
+    /// complex values like maps/lists/etc., if you want a layout that covers all
+    /// the memory needed by elements of the tuple
+    pub fn layout(num_elements: usize) -> Layout {
+        let size = mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>());
+        unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
+    }
+
+    /// Constructs an iterator over elements of the tuple
     pub fn iter(&self) -> TupleIter {
         TupleIter::new(self)
     }
@@ -39,7 +67,7 @@ impl Tuple {
 unsafe impl AsTerm for Tuple {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(&self.size as *const _ as usize)
+        Term::from_raw(&self as *const _ as usize | Term::FLAG_TUPLE)
     }
 }
 impl CloneToProcess for Tuple {
@@ -51,13 +79,15 @@ impl CloneToProcess for Tuple {
             let size = mem::size_of::<Self>() + self.size;
             let layout = Layout::from_size_align_unchecked(size, mem::align_of::<Term>());
             let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
+            // Get pointer to the old head element location
+            let old_head = (self as *const _ as *const Tuple).offset(1) as *mut Term;
             // Get pointer to the new head element location
             let head = ptr.offset(1) as *mut Term;
             // Write the header
-            ptr::write(ptr, Self { head, size: self.size });
+            ptr::write(ptr, Self { header: self.header, size: self.size });
             // Write each element
             for offset in 0..self.size {
-                let old = *self.head.offset(offset as isize);
+                let old = *old_head.offset(offset as isize);
                 if old.is_immediate() {
                     ptr::write(head.offset(offset as isize), old);
                 } else {
@@ -96,7 +126,7 @@ pub struct TupleIter {
 impl TupleIter {
     pub fn new(tuple: &Tuple) -> Self {
         Self {
-            head: tuple.head,
+            head: tuple.head(),
             size: tuple.size,
             pos: 0,
         }

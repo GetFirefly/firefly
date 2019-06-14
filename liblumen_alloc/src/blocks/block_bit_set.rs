@@ -148,7 +148,7 @@ impl BlockBitSet for ThreadSafeBlockBitSet {
             // Already allocated
             return false;
         }
-        elem.compare_exchange(current, current | flag, Ordering::AcqRel, Ordering::AcqRel)
+        elem.compare_exchange(current, current | flag, Ordering::AcqRel, Ordering::Acquire)
             .is_ok()
     }
 
@@ -416,11 +416,15 @@ mod tests {
 
     use intrusive_collections::LinkedListLink;
     use liblumen_core::alloc::mmap;
+    use liblumen_core::alloc::size_classes::SizeClass;
+    use liblumen_alloc_macros::*;
 
     use crate::carriers::{self, SlabCarrier};
-    use crate::fixed_alloc::SizeClassAlloc;
 
     use super::*;
+
+    #[derive(SizeClassIndex)]
+    struct SizeClassAlloc;
 
     #[test]
     fn thread_safe_block_set_test() {

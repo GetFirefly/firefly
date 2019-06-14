@@ -193,13 +193,13 @@ impl Term {
     /// Returns true if this term is a list
     #[inline]
     pub fn is_list(&self) -> bool {
-        self.0 & Self::FLAG_LIST == Self::FLAG_LIST
+        self.0 & Self::MASK_PRIMARY == Self::FLAG_LIST
     }
 
     /// Returns true if this term is an atom
     #[inline]
     pub fn is_atom(&self) -> bool {
-        self.0 & Self::FLAG_ATOM == Self::FLAG_ATOM
+        self.is_immediate2() && self.0 & Self::MASK_IMMEDIATE2 == Self::FLAG_ATOM
     }
 
     /// Returns true if this term is a number (float or integer)
@@ -217,25 +217,25 @@ impl Term {
     /// Returns true if this term is a small integer (i.e. fits in a usize)
     #[inline]
     pub fn is_smallint(&self) -> bool {
-        self.0 & Self::FLAG_SMALL_INTEGER == Self::FLAG_SMALL_INTEGER
+        self.is_immediate() && self.0 & Self::MASK_IMMEDIATE1 == Self::FLAG_SMALL_INTEGER
     }
 
     /// Returns true if this term is a big integer (i.e. arbitrarily large)
     #[inline]
     pub fn is_bigint(&self) -> bool {
-        self.0 & Self::FLAG_BIG_INTEGER == Self::FLAG_BIG_INTEGER
+        self.0 & Self::MASK_HEADER == Self::FLAG_BIG_INTEGER
     }
 
     /// Returns true if this term is a float
     #[inline]
     pub fn is_float(&self) -> bool {
-        self.0 & Self::FLAG_FLOAT == Self::FLAG_FLOAT
+        self.0 & Self::MASK_HEADER == Self::FLAG_FLOAT
     }
 
     /// Returns true if this term is a tuple
     #[inline]
     pub fn is_tuple(&self) -> bool {
-        self.0 & Self::FLAG_TUPLE == Self::FLAG_TUPLE
+        self.0 & Self::MASK_HEADER == Self::FLAG_TUPLE
     }
 
     /// Returns true if this term is a tuple of arity `arity`
@@ -253,7 +253,7 @@ impl Term {
     /// Returns true if this term is a map
     #[inline]
     pub fn is_map(&self) -> bool {
-        self.0 & Self::FLAG_MAP == Self::FLAG_MAP
+        self.0 & Self::MASK_HEADER == Self::FLAG_MAP
     }
 
     /// Returns true if this term is a pid
@@ -265,13 +265,13 @@ impl Term {
     /// Returns true if this term is a pid on the local node
     #[inline]
     pub fn is_local_pid(&self) -> bool {
-        self.0 & Self::FLAG_PID == Self::FLAG_PID
+        self.is_immediate() && self.0 & Self::MASK_IMMEDIATE1 == Self::FLAG_PID
     }
 
     /// Returns true if this term is a pid on some other node
     #[inline]
     pub fn is_remote_pid(&self) -> bool {
-        self.0 & Self::FLAG_EXTERN_PID == Self::FLAG_EXTERN_PID
+        self.0 & Self::MASK_HEADER == Self::FLAG_EXTERN_PID
     }
 
     /// Returns true if this term is a pid
@@ -283,13 +283,13 @@ impl Term {
     /// Returns true if this term is a port on the local node
     #[inline]
     pub fn is_local_port(&self) -> bool {
-        self.0 & Self::FLAG_PORT == Self::FLAG_PORT
+        self.is_immediate() && self.0 & Self::MASK_IMMEDIATE1 == Self::FLAG_PORT
     }
 
     /// Returns true if this term is a port on some other node
     #[inline]
     pub fn is_remote_port(&self) -> bool {
-        self.0 & Self::FLAG_EXTERN_PORT == Self::FLAG_EXTERN_PORT
+        self.0 & Self::MASK_HEADER == Self::FLAG_EXTERN_PORT
     }
 
     /// Returns true if this term is a reference
@@ -301,13 +301,13 @@ impl Term {
     /// Returns true if this term is a reference on the local node
     #[inline]
     pub fn is_local_reference(&self) -> bool {
-        self.0 & Self::FLAG_REFERENCE == Self::FLAG_REFERENCE
+        self.0 & Self::MASK_HEADER == Self::FLAG_REFERENCE
     }
 
     /// Returns true if this term is a reference on some other node
     #[inline]
     pub fn is_remote_reference(&self) -> bool {
-        self.0 & Self::FLAG_EXTERN_REF == Self::FLAG_EXTERN_REF
+        self.0 & Self::MASK_HEADER == Self::FLAG_EXTERN_REF
     }
 
     /// Returns true if this term is a binary
@@ -319,31 +319,35 @@ impl Term {
     /// Returns true if this term is a reference-counted binary
     #[inline]
     pub fn is_procbin(&self) -> bool {
-        self.0 & Self::FLAG_PROCBIN == Self::FLAG_PROCBIN
+        self.0 & Self::MASK_HEADER == Self::FLAG_PROCBIN
     }
 
     /// Returns true if this term is a binary on a process heap
     #[inline]
     pub fn is_heapbin(&self) -> bool {
-        self.0 & Self::FLAG_HEAPBIN == Self::FLAG_HEAPBIN
+        self.0 & Self::MASK_HEADER == Self::FLAG_HEAPBIN
     }
 
     /// Returns true if this term is a sub-binary reference
     #[inline]
     pub fn is_subbinary(&self) -> bool {
-        self.0 & Self::FLAG_SUBBINARY == Self::FLAG_SUBBINARY
+        self.0 & Self::MASK_HEADER == Self::FLAG_SUBBINARY
     }
 
     /// Returns true if this term is a binary match context
     #[inline]
     pub fn is_match_context(&self) -> bool {
-        self.0 & Self::FLAG_MATCH_CTX == Self::FLAG_MATCH_CTX
+        self.0 & Self::MASK_HEADER == Self::FLAG_MATCH_CTX
     }
 
     /// Returns true if this term is an immediate value
     #[inline]
     pub fn is_immediate(&self) -> bool {
-        self.0 & Self::FLAG_IMMEDIATE == Self::FLAG_IMMEDIATE
+        self.0 & Self::MASK_PRIMARY == Self::FLAG_IMMEDIATE
+    }
+
+    fn is_immediate2(&self) -> bool {
+        self.is_immediate() && self.0 & Self::MASK_IMMEDIATE1 == Self::FLAG_IMMEDIATE2
     }
 
     /// Returns true if this term is a constant value
@@ -361,13 +365,13 @@ impl Term {
     /// Returns true if this term is a boxed pointer
     #[inline]
     pub fn is_boxed(&self) -> bool {
-        self.0 & Self::FLAG_BOXED == Self::FLAG_BOXED
+        self.0 & Self::MASK_PRIMARY == Self::FLAG_BOXED
     }
 
     /// Returns true if this term is a header
     #[inline]
     pub fn is_header(&self) -> bool {
-        self.0 & Self::FLAG_HEADER == Self::FLAG_HEADER
+        self.0 & Self::MASK_PRIMARY == Self::FLAG_HEADER
     }
 
     /// Returns true if this term is a transparent header

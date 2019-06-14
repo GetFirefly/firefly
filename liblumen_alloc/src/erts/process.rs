@@ -67,6 +67,7 @@ impl ProcessControlBlock {
             min_vheap_size: 0,
             gc_threshold: 0.75,
             gen_gc_count: 0,
+            // TODO: Set this to a reasonable number, currently forces a full sweep every time
             max_gen_gcs: 0,
             young,
             old,
@@ -317,3 +318,6 @@ impl Drop for ProcessControlBlock {
         }
     }
 }
+
+#[cfg(test)]
+mod test;

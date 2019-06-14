@@ -7,7 +7,6 @@ use core::str;
 use core::sync::atomic;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-#[cfg(not(test))]
 use intrusive_collections::LinkedListLink;
 
 use crate::borrow::CloneToProcess;
@@ -424,6 +423,13 @@ impl HeapBin {
     #[inline]
     pub(crate) fn data(&self) -> *mut u8 {
         self.ptr
+    }
+
+    /// Get a `Layout` describing the necessary layout to allocate a `HeapBin` for the given string
+    #[inline]
+    pub fn layout(input: &str) -> Layout {
+        let size = mem::size_of::<Self>() + input.len();
+        unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
     }
 
     /// Reifies a `HeapBin` from a raw, untagged, pointer

@@ -1,3 +1,4 @@
+use core::mem;
 use core::alloc::AllocErr;
 use core::ptr::{self, NonNull};
 
@@ -214,8 +215,6 @@ impl YoungHeap {
                 } else {
                     break;
                 }
-            } else if term.is_header() && !term.header_is_thing() {
-                pos = unsafe { pos.offset(1) };
             } else if term.is_header() {
                 if let Some(new_pos) = fun(self, term, pos) {
                     pos = new_pos;
@@ -272,16 +271,22 @@ impl YoungHeap {
             num_elements += 1;
         }
 
-        // Create new boxed term pointing to `heap_top`
-        let val = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
-        // Write the new boxed term to the original location
-        ptr::write(orig, val);
-        // Write the same term to `ptr`
-        ptr::write(ptr, val);
+        // Create new boxed term pointing to where the header will be
+        let header_ptr = heap_top.offset(1);
+        let val = Term::from_raw(header_ptr as usize | Term::FLAG_BOXED);
+        // Write the box to `heap_top`
+        ptr::write(heap_top, val);
+        // Write the a move marker to the original location
+        let marker = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
+        ptr::write(orig, marker);
+        // And to `ptr` as well
+        ptr::write(ptr, marker);
+        // Move `ptr` to the first arityval
         let mut ptr = ptr.offset(1);
         // Write the term header to the location pointed to by the boxed term
-        ptr::write(heap_top, header);
-        heap_top = heap_top.offset(1);
+        ptr::write(header_ptr, header);
+        // Move heap_top to the first element location
+        heap_top = header_ptr.offset(1);
         // For each additional term element, move to new location
         while num_elements > 0 {
             num_elements -= 1;
@@ -432,7 +437,7 @@ impl YoungHeap {
     pub(crate) fn sanity_check(&self) {
         let hb = self.start as usize;
         let st = self.stack_end as usize;
-        let size = self.size();
+        let size = self.size() * mem::size_of::<Term>();
         assert!(
             hb < st,
             "bottom of the heap must be a lower address than the end of the stack"

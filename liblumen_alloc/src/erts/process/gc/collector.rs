@@ -119,7 +119,7 @@ impl<'p> GarbageCollector<'p> {
         // Unset heap_grow and need_fullsweep flags, because we are doing both
         self.process.flags.fetch_and(!(ProcessControlBlock::FLAG_HEAP_GROW | ProcessControlBlock::FLAG_NEED_FULLSWEEP), Ordering::AcqRel);
         // Allocate new heap
-        let new_heap_start = alloc::heap(Some(new_size)).map_err(|_| GcError::AllocErr)?;
+        let new_heap_start = alloc::heap(new_size).map_err(|_| GcError::AllocErr)?;
         let mut new_heap = YoungHeap::new(new_heap_start, new_size);
         // Follow roots and copy values to appropriate heaps
         unsafe {
@@ -157,10 +157,12 @@ impl<'p> GarbageCollector<'p> {
         // TODO: Sweep off-heap messages/fragments right after this
         new_heap.full_sweep();
         // Free the old generation heap, as it is no longer used post-sweep
-        let old_heap_start = self.process.old.start;
-        let old_heap_size = self.process.old.size();
-        unsafe { alloc::free(old_heap_start, old_heap_size) };
-        self.process.old = OldHeap::empty();
+        if self.process.old.active() {
+            let old_heap_start = self.process.old.start;
+            let old_heap_size = self.process.old.size();
+            unsafe { alloc::free(old_heap_start, old_heap_size) };
+            self.process.old = OldHeap::empty();
+        }
         // Move the stack to the end of the new heap
         let old_stack_start = self.process.young.stack_start;
         let new_stack_start = unsafe { new_heap.stack_end.offset(-(stack_size as isize)) };
@@ -317,7 +319,7 @@ impl<'p> GarbageCollector<'p> {
         let mature_end = mature.offset(mature_size as isize);
 
         // Allocate new tospace (young generation)
-        let new_young_start = alloc::heap(Some(new_size)).map_err(|_| GcError::AllocErr)?;
+        let new_young_start = alloc::heap(new_size).map_err(|_| GcError::AllocErr)?;
         let mut new_young = YoungHeap::new(new_young_start, new_size);
 
         // Follow roots and copy values to appropriate heaps
@@ -499,7 +501,7 @@ impl<'p> GarbageCollector<'p> {
     fn ensure_old_heap(&mut self, size_before: usize, mature_size: usize) -> Result<(), AllocErr> {
         if !self.process.old.active() && mature_size > 0 {
             let size = alloc::next_heap_size(size_before);
-            let start = alloc::heap(Some(size))?;
+            let start = alloc::heap(size)?;
             self.process.old = OldHeap::new(start, size);
         }
         Ok(())

@@ -16,16 +16,17 @@ lazy_static! {
     static ref PROC_ALLOC: ProcessAlloc = ProcessAlloc::new();
 }
 
-/// Allocate a new process heap
-///
-/// If `size` is `None`, a default sized heap of 233 words will be allocated,
-/// otherwise the provided size will be used.
+/// Allocate a new default sized process heap
 #[inline]
-pub fn heap(size: Option<usize>) -> Result<*mut Term, AllocErr> {
-    match size {
-        None => PROC_ALLOC.alloc(ProcessAlloc::HEAP_SIZES[ProcessAlloc::MIN_HEAP_SIZE_INDEX]),
-        Some(size) => PROC_ALLOC.alloc(size),
-    }
+pub fn default_heap() -> Result<(*mut Term, usize), AllocErr> {
+    let size = ProcessAlloc::HEAP_SIZES[ProcessAlloc::MIN_HEAP_SIZE_INDEX];
+    PROC_ALLOC.alloc(size).map(|ptr| (ptr, size))
+}
+
+/// Allocate a new process heap of the given size
+#[inline]
+pub fn heap(size: usize) -> Result<*mut Term, AllocErr> {
+    PROC_ALLOC.alloc(size)
 }
 
 /// Reallocate a process heap, in place

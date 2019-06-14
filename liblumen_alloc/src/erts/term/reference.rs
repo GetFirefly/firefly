@@ -1,6 +1,7 @@
 use core::cmp;
 
-use crate::erts::Node;
+use crate::borrow::CloneToProcess;
+use crate::erts::{Node, ProcessControlBlock};
 
 use super::{AsTerm, Term};
 
@@ -50,6 +51,12 @@ unsafe impl AsTerm for ExternalReference {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::from_raw((self as *const _ as usize) | Term::FLAG_BOXED)
+    }
+}
+impl CloneToProcess for ExternalReference {
+    #[inline]
+    fn clone_to_process(&self, _process: &mut ProcessControlBlock) -> Term {
+        unimplemented!()
     }
 }
 impl PartialEq<ExternalReference> for ExternalReference {

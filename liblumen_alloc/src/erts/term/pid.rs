@@ -1,7 +1,9 @@
 use core::cmp;
 
+use crate::borrow::CloneToProcess;
+use crate::erts::{Node, ProcessControlBlock};
+
 use super::{AsTerm, Term};
-use crate::erts::Node;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -44,6 +46,12 @@ unsafe impl AsTerm for ExternalPid {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::from_raw((self as *const _ as usize) | Term::FLAG_EXTERN_PID)
+    }
+}
+impl CloneToProcess for ExternalPid {
+    #[inline]
+    fn clone_to_process(&self, _process: &mut ProcessControlBlock) -> Term {
+        unimplemented!()
     }
 }
 impl PartialEq<ExternalPid> for ExternalPid {

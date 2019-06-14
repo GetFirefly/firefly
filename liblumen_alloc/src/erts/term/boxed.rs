@@ -3,6 +3,9 @@ use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
+use crate::borrow::CloneToProcess;
+use crate::erts::ProcessControlBlock;
+
 use super::{AsTerm, Term};
 
 /// Represents boxed terms.
@@ -110,5 +113,12 @@ impl<T: PartialOrd> PartialOrd<T> for Boxed<T> {
     fn partial_cmp(&self, other: &T) -> Option<cmp::Ordering> {
         let lhs = unsafe { &*self.term };
         lhs.partial_cmp(other)
+    }
+}
+
+impl<T: CloneToProcess> CloneToProcess for Boxed<T> {
+    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+        let term = unsafe { &*self.term };
+        term.clone_to_process(process)
     }
 }

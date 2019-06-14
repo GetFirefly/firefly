@@ -8,9 +8,9 @@ use liblumen_core::util::pointer::{distance_absolute, in_area};
 ///
 /// This heap has no stack, and is only swept when new values are tenured
 pub struct OldHeap {
-    pub(crate) start: *mut Term,
-    pub(crate) end: *mut Term,
-    pub(crate) top: *mut Term,
+    pub(in crate::erts::process) start: *mut Term,
+    pub(in crate::erts::process) end: *mut Term,
+    pub(in crate::erts::process) top: *mut Term,
 }
 impl OldHeap {
     /// Returns a new instance which manages the memory represented
@@ -69,7 +69,7 @@ impl OldHeap {
 
     /// Returns true if the given pointer points into this heap
     #[inline]
-    pub fn contains<T>(&self, term: *mut T) -> bool {
+    pub fn contains<T>(&self, term: *const T) -> bool {
         in_area(term, self.start, self.top)
     }
 

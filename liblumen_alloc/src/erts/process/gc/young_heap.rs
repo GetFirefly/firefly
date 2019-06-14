@@ -4,7 +4,6 @@ use core::ptr::{self, NonNull};
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
 use crate::erts::*;
-
 use super::*;
 
 /// This struct represents the current heap and stack of a process,
@@ -26,12 +25,12 @@ use super::*;
 /// be copied to the new young heap.
 #[derive(Debug)]
 pub struct YoungHeap {
-    pub(crate) start: *mut Term,
-    pub(crate) top: *mut Term,
-    pub(crate) end: *mut Term,
-    pub(crate) stack_start: *mut Term,
-    pub(crate) stack_end: *mut Term,
-    pub(crate) high_water_mark: *mut Term,
+    pub(in crate::erts::process) start: *mut Term,
+    pub(in crate::erts::process) top: *mut Term,
+    pub(in crate::erts::process) end: *mut Term,
+    pub(in crate::erts::process) stack_start: *mut Term,
+    pub(in crate::erts::process) stack_end: *mut Term,
+    pub(in crate::erts::process) high_water_mark: *mut Term,
 }
 impl YoungHeap {
     #[inline]
@@ -97,7 +96,7 @@ impl YoungHeap {
     /// Returns true if the given pointer points into this heap
     #[allow(unused)]
     #[inline]
-    pub fn contains<T>(&self, term: *mut T) -> bool {
+    pub fn contains<T>(&self, term: *const T) -> bool {
         in_area(term, self.start, self.top)
     }
 
@@ -125,7 +124,7 @@ impl YoungHeap {
     ///
     /// Returns `Err(AllocErr)` if there is not enough space available
     #[inline]
-    pub fn alloca(&mut self, size: usize) -> Result<NonNull<Term>, AllocErr> {
+    pub fn stack_alloc(&mut self, size: usize) -> Result<NonNull<Term>, AllocErr> {
         if self.stack_available() >= size {
             let ptr = self.stack_start;
             self.stack_start = unsafe { self.stack_start.offset(-(size as isize)) };

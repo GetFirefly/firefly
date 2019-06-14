@@ -1,11 +1,11 @@
 use core::alloc::AllocErr;
 use core::ptr;
+use core::sync::atomic::Ordering;
 
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
-use crate::erts::alloc;
+use crate::erts::process::alloc;
 use crate::erts::*;
-
 use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -54,23 +54,20 @@ enum CollectionType {
 pub struct GarbageCollector<'p> {
     mode: CollectionType,
     process: &'p mut ProcessControlBlock,
-    flags: u32,
     roots: RootSet,
 }
 impl<'p> GarbageCollector<'p> {
     /// Initializes the collector with the given process and root set
-    pub fn new(pcb: &'p mut ProcessControlBlock, roots: RootSet) -> Self {
+    pub fn new(process: &'p mut ProcessControlBlock, roots: RootSet) -> Self {
         // TODO: Handle delayed/disabled garbage collection flags
-        let flags = pcb.flags;
-        let mode = if Self::need_fullsweep(pcb, flags) {
+        let mode = if Self::need_fullsweep(process) {
             CollectionType::Full
         } else {
             CollectionType::Minor
         };
         Self {
             mode,
-            process: pcb,
-            flags,
+            process,
             roots,
         }
     }
@@ -120,8 +117,7 @@ impl<'p> GarbageCollector<'p> {
             return Err(GcError::MaxHeapSizeExceeded);
         }
         // Unset heap_grow and need_fullsweep flags, because we are doing both
-        self.flags &=
-            !(ProcessControlBlock::FLAG_HEAP_GROW | ProcessControlBlock::FLAG_NEED_FULLSWEEP);
+        self.process.flags.fetch_and(!(ProcessControlBlock::FLAG_HEAP_GROW | ProcessControlBlock::FLAG_NEED_FULLSWEEP), Ordering::AcqRel);
         // Allocate new heap
         let new_heap_start = alloc::heap(Some(new_size)).map_err(|_| GcError::AllocErr)?;
         let mut new_heap = YoungHeap::new(new_heap_start, new_size);
@@ -206,7 +202,7 @@ impl<'p> GarbageCollector<'p> {
             panic!("Full sweep finished, but the needed size exceeds even the most pessimistic estimate, this must be a bug");
         } else if total_size * 3 < need_after * 4 {
             // `need_after` requires more than 75% of the current size, schedule some growth
-            self.process.flags |= ProcessControlBlock::FLAG_HEAP_GROW;
+            self.process.flags.fetch_or(ProcessControlBlock::FLAG_HEAP_GROW, Ordering::AcqRel);
         } else if total_size > need_after * 4 && self.process.min_heap_size < total_size {
             // We need less than 25% of the current heap, shrink
             let wanted = need_after * 2;
@@ -553,19 +549,17 @@ impl<'p> GarbageCollector<'p> {
 
     /// Determines if the current collection requires a full sweep or not
     #[inline]
-    fn need_fullsweep(pcb: &ProcessControlBlock, flags: u32) -> bool {
-        if flags & ProcessControlBlock::FLAG_NEED_FULLSWEEP
-            == ProcessControlBlock::FLAG_NEED_FULLSWEEP
-        {
+    fn need_fullsweep(process: &ProcessControlBlock) -> bool {
+        if process.needs_fullsweep() {
             return true;
         }
-        pcb.gen_gc_count >= pcb.max_gen_gcs
+        process.gen_gc_count >= process.max_gen_gcs
     }
 
     /// Determines if we should try and grow the heap even when not necessary
     #[inline]
     fn should_force_heap_growth(&self) -> bool {
-        self.flags & ProcessControlBlock::FLAG_HEAP_GROW == ProcessControlBlock::FLAG_HEAP_GROW
+        self.process.flags.load(Ordering::Relaxed) & ProcessControlBlock::FLAG_HEAP_GROW == ProcessControlBlock::FLAG_HEAP_GROW
     }
 
     /// Calculates the reduction count cost of a collection

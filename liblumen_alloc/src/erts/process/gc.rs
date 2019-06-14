@@ -23,8 +23,8 @@ pub enum GcError {
     FullsweepRequired,
 }
 
-pub use self::collector::GarbageCollector;
-pub(crate) use self::old_heap::OldHeap;
-pub(crate) use self::rootset::RootSet;
-pub(crate) use self::virtual_heap::VirtualBinaryHeap;
-pub(crate) use self::young_heap::{in_young_gen, YoungHeap};
+pub(super) use self::collector::GarbageCollector;
+pub(super) use self::old_heap::OldHeap;
+pub(super) use self::rootset::RootSet;
+pub(super) use self::virtual_heap::VirtualBinaryHeap;
+pub(super) use self::young_heap::{in_young_gen, YoungHeap};

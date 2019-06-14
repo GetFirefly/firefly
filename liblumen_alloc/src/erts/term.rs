@@ -65,6 +65,11 @@ unsafe impl AsTerm for MapHeader {
         Term::from_raw(self.0 | Term::FLAG_MAP)
     }
 }
+impl crate::borrow::CloneToProcess for MapHeader {
+    fn clone_to_process(&self, _process: &mut super::ProcessControlBlock) -> Term {
+        unimplemented!()
+    }
+}
 
 /// This function determines if the inner term of a boxed term contains a move marker
 ///
@@ -91,12 +96,24 @@ pub(crate) fn is_move_marker(term: Term) -> bool {
 }
 
 /// Resolve a term potentially containing a move marker to the location
-/// referenced in the marker, returning the dereferenced `Term` found there
+/// of the forward reference, returning the "real" term there.
+///
+/// Move markers are used in two scenarios:
+///
+/// - For non-cons cell terms which are moved, the original location is
+/// updated with a box that points to the new location. There is no marker
+/// per se, we just treat the term as a box
+/// - For cons cells, the old cell is overwritten with a special marker
+/// cell, where the head term is the none value, and the tail term is a pointer
+/// to the new location of the cell
+///
+/// This function does not follow boxes, it just returns them as if they had
+/// been found that way. In the case of a cons cell, the term you get back will
+/// be the top-level list term, i.e. the term which has the pointer to the head
+/// cons cell
 #[inline]
 pub(crate) fn follow_moved(term: Term) -> Term {
-    if term.is_immediate() {
-        term
-    } else if term.is_boxed() {
+    if term.is_boxed() {
         let ptr = term.boxed_val();
         let boxed = unsafe { *ptr };
         if is_move_marker(boxed) {
@@ -113,6 +130,6 @@ pub(crate) fn follow_moved(term: Term) -> Term {
             term
         }
     } else {
-        panic!("called follow_moved on an invalid term type");
+        term
     }
 }

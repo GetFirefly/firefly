@@ -2,10 +2,13 @@ use core::cmp::Ordering;
 use core::fmt::{self, Debug, Display};
 use core::hash::{self, Hash};
 use core::ops::*;
+use core::mem;
+use core::ptr;
 
 use num_bigint::{BigInt, Sign};
 
-use crate::erts::{AsTerm, Term};
+use crate::borrow::CloneToProcess;
+use crate::erts::{AsTerm, Term, ProcessControlBlock};
 
 use super::*;
 
@@ -36,6 +39,21 @@ unsafe impl AsTerm for BigInteger {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::from_raw((&self.header as *const _ as usize) | Term::FLAG_BOXED)
+    }
+}
+impl CloneToProcess for BigInteger {
+    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+        let size = mem::size_of_val(self);
+        let mut words = size / mem::size_of::<Term>();
+        if size % mem::size_of::<Term>() != 0 {
+            words += 1;
+        }
+        unsafe {
+            let ptr = process.alloc(words).unwrap().as_ptr();
+            ptr::copy_nonoverlapping(self as *const _ as *const u8, ptr as *mut u8, size);
+            let bi = &*(ptr as *mut Self);
+            bi.as_term()
+        }
     }
 }
 impl From<SmallInteger> for BigInteger {

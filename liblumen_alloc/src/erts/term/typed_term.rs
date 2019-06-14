@@ -1,6 +1,9 @@
 use core::cmp;
 use core::mem;
 
+use crate::borrow::CloneToProcess;
+use crate::erts::ProcessControlBlock;
+
 use super::*;
 
 /// Concrete `Term` types, i.e. resolved to concrete values, or pointers to values.
@@ -307,6 +310,38 @@ unsafe impl AsTerm for TypedTerm {
             &Self::SubBinary(ref inner) => inner.as_term(),
             &Self::MatchContext(ref inner) => inner.as_term(),
             &Self::Closure(ref inner) => inner.as_term(),
+            &Self::Catch => Term::CATCH,
+            &Self::Nil => Term::NIL,
+            &Self::None => Term::NONE,
+        }
+    }
+}
+
+impl CloneToProcess for TypedTerm {
+    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+        // Immediates are just copied and returned, all other terms
+        // are expected to require allocation, so we delegate to those types
+        match self {
+            &Self::List(ref inner) => inner.clone_to_process(process),
+            &Self::Tuple(ref inner) => inner.clone_to_process(process),
+            &Self::Map(ref inner) => inner.clone_to_process(process),
+            &Self::Boxed(ref inner) => inner.clone_to_process(process),
+            &Self::Literal(inner) => inner,
+            &Self::Pid(inner) => unsafe { inner.as_term() },
+            &Self::Port(inner) => unsafe { inner.as_term() },
+            &Self::Reference(inner) => unsafe { inner.as_term() },
+            &Self::ExternalPid(ref inner) => inner.clone_to_process(process),
+            &Self::ExternalPort(ref inner) => inner.clone_to_process(process),
+            &Self::ExternalReference(ref inner) => inner.clone_to_process(process),
+            &Self::SmallInteger(inner) => unsafe { inner.as_term() },
+            &Self::BigInteger(ref inner) => inner.clone_to_process(process),
+            &Self::Float(inner) => unsafe { inner.as_term() },
+            &Self::Atom(inner) => unsafe { inner.as_term() },
+            &Self::ProcBin(ref inner) => inner.clone_to_process(process),
+            &Self::HeapBinary(ref inner) => inner.clone_to_process(process),
+            &Self::SubBinary(ref inner) => inner.clone_to_process(process),
+            &Self::MatchContext(ref inner) => inner.clone_to_process(process),
+            &Self::Closure(ref inner) => inner.clone_to_process(process),
             &Self::Catch => Term::CATCH,
             &Self::Nil => Term::NIL,
             &Self::None => Term::NONE,

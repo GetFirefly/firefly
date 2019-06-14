@@ -1,9 +1,15 @@
 use core::alloc::{AllocErr, Layout};
 use core::ptr::{self, NonNull};
 
-use intrusive_collections::LinkedListLink;
+use intrusive_collections::intrusive_adapter;
+use intrusive_collections::{UnsafeRef, LinkedListLink};
 
 use crate::std_alloc;
+
+use super::Term;
+
+// This adapter is used to track a list of heap fragments, attached to a process
+intrusive_adapter!(pub HeapFragmentAdapter = UnsafeRef<HeapFragment>: HeapFragment { link: LinkedListLink });
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RawFragment {
@@ -23,6 +29,15 @@ impl RawFragment {
     pub fn layout(&self) -> Layout {
         unsafe { Layout::from_size_align_unchecked(self.size, self.align) }
     }
+
+    /// Returns true if the given pointer is contained within this fragment
+    #[inline]
+    pub fn contains(&self, ptr: *const Term) -> bool {
+        let ptr = ptr as usize;
+        let start = self.data as usize;
+        let end = unsafe { self.data.offset(self.size as isize) } as usize;
+        start <= ptr && ptr <= end
+    }
 }
 
 #[derive(Debug)]
@@ -33,11 +48,19 @@ pub struct HeapFragment {
     raw: RawFragment,
 }
 impl HeapFragment {
+    /// Returns the pointer to the data region of this fragment
     #[inline]
     pub fn data(&self) -> NonNull<u8> {
         self.raw.data()
     }
 
+    /// Returns true if the given pointer is contained within this fragment
+    #[inline]
+    pub fn contains(&self, ptr: *const Term) -> bool {
+        self.raw.contains(ptr)
+    }
+
+    /// Creates a new heap fragment with the given layout, allocated via `std_alloc`
     #[inline]
     pub unsafe fn new(layout: Layout) -> Result<NonNull<Self>, AllocErr> {
         let (full_layout, offset) = Layout::new::<Self>().extend(layout.clone()).unwrap();

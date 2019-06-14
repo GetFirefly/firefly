@@ -1,5 +1,11 @@
 use core::cmp;
+use core::ptr;
+use core::mem;
 use core::iter::FusedIterator;
+use core::alloc::Layout;
+
+use crate::borrow::CloneToProcess;
+use crate::erts::ProcessControlBlock;
 
 use super::{AsTerm, Term};
 
@@ -34,6 +40,35 @@ unsafe impl AsTerm for Tuple {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::from_raw(&self.size as *const _ as usize)
+    }
+}
+impl CloneToProcess for Tuple {
+    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+        // The result of calling this will be a Tuple with everything located
+        // contigously in memory
+        unsafe {
+            // Allocate the space needed for the header and all the elements
+            let size = mem::size_of::<Self>() + self.size;
+            let layout = Layout::from_size_align_unchecked(size, mem::align_of::<Term>());
+            let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
+            // Get pointer to the new head element location
+            let head = ptr.offset(1) as *mut Term;
+            // Write the header
+            ptr::write(ptr, Self { head, size: self.size });
+            // Write each element
+            for offset in 0..self.size {
+                let old = *self.head.offset(offset as isize);
+                if old.is_immediate() {
+                    ptr::write(head.offset(offset as isize), old);
+                } else {
+                    // Recursively call clone_to_process, and then write the box header here
+                    let boxed = old.clone_to_process(process);
+                    ptr::write(head.offset(offset as isize), boxed);
+                }
+            }
+            let tuple = &*ptr;
+            tuple.as_term()
+        }
     }
 }
 impl PartialEq for Tuple {

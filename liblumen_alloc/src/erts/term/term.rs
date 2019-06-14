@@ -3,6 +3,9 @@
 use core::cmp;
 use core::mem;
 
+use crate::borrow::CloneToProcess;
+use crate::erts::ProcessControlBlock;
+
 use super::*;
 
 macro_rules! unwrap_immediate1 {
@@ -528,5 +531,12 @@ impl PartialOrd<Term> for Term {
             }
         }
         None
+    }
+}
+impl CloneToProcess for Term {
+    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+        assert!(self.is_immediate() || self.is_boxed() || self.is_list());
+        let tt = unsafe { self.to_typed_term().unwrap() };
+        tt.clone_to_process(process)
     }
 }

@@ -1,6 +1,10 @@
 use core::cmp;
 use core::iter::FusedIterator;
 
+use crate::borrow::CloneToProcess;
+use crate::erts::ProcessControlBlock;
+
+use super::follow_moved;
 use super::{AsTerm, Term, TypedTerm};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -57,7 +61,7 @@ impl Cons {
     /// Get the `TypedTerm` pointed to by the head of this cons cell
     #[inline]
     pub fn head(&self) -> TypedTerm {
-        unsafe { self.head.to_typed_term().unwrap() }
+        unsafe { follow_moved(self.head).to_typed_term().unwrap() }
     }
 
     /// Get the tail of this cons cell, which depending on the type of
@@ -69,7 +73,7 @@ impl Cons {
     /// be returned, depending on whether this cell is the last in the list.
     #[inline]
     pub fn tail(&self) -> Option<MaybeImproper<Cons, TypedTerm>> {
-        match unsafe { self.tail.to_typed_term() } {
+        match unsafe { follow_moved(self.tail).to_typed_term() } {
             None => None,
             Some(TypedTerm::Nil) => None,
             Some(TypedTerm::List(tail)) => Some(MaybeImproper::Proper(*tail)),
@@ -91,7 +95,7 @@ unsafe impl AsTerm for Cons {
 }
 impl PartialEq<Cons> for Cons {
     fn eq(&self, other: &Cons) -> bool {
-        self.head.eq(&other.head) && self.tail.eq(&other.tail)
+        follow_moved(self.head).eq(&follow_moved(other.head)) && follow_moved(self.tail).eq(&follow_moved(other.tail))
     }
 }
 impl PartialOrd<Cons> for Cons {
@@ -99,6 +103,14 @@ impl PartialOrd<Cons> for Cons {
         self.iter()
             .map(|t| unsafe { t.to_typed_term().unwrap() })
             .partial_cmp(other.iter().map(|t| unsafe { t.to_typed_term().unwrap() }))
+    }
+}
+impl CloneToProcess for Cons {
+    fn clone_to_process(&self, _process: &mut ProcessControlBlock) -> Term {
+        // To clone the list, we need to walk element by element, in reverse,
+        // check if the element is already on the process heap, and if not,
+        // clone it to the heap and then move on.
+        unimplemented!()
     }
 }
 
@@ -142,13 +154,14 @@ impl Iterator for ListIter {
         loop {
             match self.head {
                 Some(cons) => {
-                    if cons.head.is_nil() {
+                    let head = follow_moved(cons.head);
+                    if head.is_nil() {
                         return None;
                     }
                     self.pos += 1;
                     self.head = None;
                     self.tail = cons.tail();
-                    return Some(cons.head);
+                    return Some(head);
                 }
                 None => match self.tail {
                     Some(MaybeImproper::Improper(_)) if self.panic_on_improper => {

@@ -1,5 +1,6 @@
 #![allow(unused)]
 use core::mem;
+use core::ptr;
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedList, LinkedListLink, UnsafeRef};
@@ -11,13 +12,15 @@ intrusive_adapter!(pub ProcBinAdapter = UnsafeRef<ProcBin>: ProcBin { link: Link
 pub struct VirtualBinaryHeap {
     bins: LinkedList<ProcBinAdapter>,
     size: usize,
+    used: usize,
 }
 impl VirtualBinaryHeap {
-    /// Create a new virtual heap
-    pub fn new() -> Self {
+    /// Create a new virtual heap with the given virtual heap size (in words)
+    pub fn new(size: usize) -> Self {
         Self {
             bins: LinkedList::new(ProcBinAdapter::new()),
-            size: 0,
+            size: size * mem::size_of::<usize>(),
+            used: 0,
         }
     }
 
@@ -26,6 +29,32 @@ impl VirtualBinaryHeap {
     #[inline]
     pub fn size(&self) -> usize {
         self.size
+    }
+
+    /// Gets the current amount of virtual binary heap space used (in bytes)
+    /// by binaries referenced from the current process
+    #[inline]
+    pub fn heap_used(&self) -> usize {
+        self.used
+    }
+
+    /// Gets the current amount of "unused" virtual binary heap space (in bytes)
+    /// 
+    /// This is a bit of a misnomer, since there isn't a real heap here, but we
+    /// use this to drive decisions about when to perform a collection, like we
+    /// do with the old/young heaps
+    #[inline]
+    pub fn unused(&self) -> usize {
+        // We don't actually refuse allocations on the virtual heap, but we
+        // wait until the next should_collect occurs before increasing the
+        // size of the virtual heap, as it will ensure a GC is performed, and
+        // we want to wait until we've collected any binaries on the virtual
+        // heap before increasing the size
+        if self.size >= self.used {
+            self.size - self.used
+        } else {
+            0
+        }
     }
 
     /// Like `size`, but in units of size `Term`
@@ -53,29 +82,36 @@ impl VirtualBinaryHeap {
     /// and should be placed somewhere on the process heap to ensure
     /// the binary is not leaked
     #[inline]
-    pub fn push(&mut self, bin: ProcBin) -> Term {
+    pub fn push(&mut self, bin: &ProcBin) -> Term {
         let term = unsafe { bin.as_term() };
         let size = bin.size();
         self.bins
-            .push_front(unsafe { UnsafeRef::from_raw(bin.into_raw()) });
-        self.size += size;
+            .push_front(unsafe { UnsafeRef::from_raw(bin as *const _ as *mut ProcBin) });
+        self.used += size;
         term
     }
 
     /// Removes the pointed-to `ProcBin` from the virtual binary heap
     ///
     /// Returns the `ProcBin` indicated, which can either be dropped,
-    /// or placed on a new virtual heap, whichever is desired.
+    /// or placed on a new virtual heap, whichever is desired. Note that
     ///
     /// NOTE: This operation is intended to mirror `push`, do not
     /// use it under any other circumstances
     #[inline]
     pub fn pop(&mut self, bin: *mut ProcBin) -> ProcBin {
+        // Remove from the list
         let mut cursor = unsafe { self.bins.cursor_mut_from_ptr(bin) };
         let raw = cursor.remove().unwrap();
-        let bin = unsafe { ProcBin::from_raw_noincrement(UnsafeRef::into_raw(raw)) };
-        let size = bin.size();
-        self.size -= size;
+        let ptr = UnsafeRef::into_raw(raw);
+        // Copy the header
+        let bin = unsafe { ptr::read(ptr) };
+        // Write the none value to the old location to ensure it is not used
+        unsafe { ptr::write(ptr as *mut Term, Term::NONE); }
+        // Decrement the heap size
+        let bin_size = bin.size();
+        self.used -= bin_size;
+        // Return the raw ProcBin
         bin
     }
 }

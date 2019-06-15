@@ -2,7 +2,7 @@ FROM circleci/rust
 
 RUN rustup default nightly
 
-RUN rustup component add rustfmt clippy-preview
+RUN rustup component add rustfmt
 
 # Add WASM target
 RUN rustup target add wasm32-unknown-unknown --toolchain nightly

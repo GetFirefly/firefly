@@ -34,16 +34,6 @@ macro_rules! assert_error {
     };
 }
 
-#[cfg(all(not(target_arch = "wasm32"), test))]
-macro_rules! assert_throw {
-    ($left:expr, $reason:expr) => {
-        assert_eq!($left, Err(throw!($reason)))
-    };
-    ($left:expr, $reason:expr,) => {
-        assert_throw($left, $reason)
-    };
-}
-
 #[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! badarg {

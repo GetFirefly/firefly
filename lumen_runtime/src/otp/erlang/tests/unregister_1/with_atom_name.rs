@@ -4,7 +4,7 @@ mod with_registered_name;
 
 #[test]
 fn without_registered_name_errors_badarg() {
-    with_name_errors_badarg(|_| {
-        Term::str_to_atom("without_registered_name_errors_badarg", DoNotCare).unwrap()
-    });
+    let name = registered_name();
+
+    assert_eq!(erlang::unregister_1(name), Err(badarg!()));
 }

@@ -1,72 +1,98 @@
 use super::*;
 
-mod with_big_integer_minuend;
 mod with_float_minuend;
-mod with_small_integer_minuend;
+mod with_integer_minuend;
 
 #[test]
-fn with_atom_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|_| Term::str_to_atom("minuend", DoNotCare).unwrap());
-}
+fn without_number_minuend_errors_badarith() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_not_number(arc_process.clone()),
+                    strategy::term::is_number(arc_process.clone()),
+                ),
+                |(minuend, subtrahend)| {
+                    prop_assert_eq!(
+                        erlang::subtract_2(minuend, subtrahend, &arc_process),
+                        Err(badarith!())
+                    );
 
-#[test]
-fn with_local_reference_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|process| {
-        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_local_pid_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|_| Term::local_pid(0, 1).unwrap());
-}
+fn with_number_minuend_without_number_subtrahend_errors_badarith() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_number(arc_process.clone()),
+                    strategy::term::is_not_number(arc_process.clone()),
+                ),
+                |(minuend, subtrahend)| {
+                    prop_assert_eq!(
+                        erlang::subtract_2(minuend, subtrahend, &arc_process),
+                        Err(badarith!())
+                    );
 
-#[test]
-fn with_external_pid_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_is_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|process| Term::slice_to_binary(&[], &process));
-}
-
-#[test]
-fn with_subbinary_minuend_errors_badarith() {
-    with_minuend_errors_badarith(|process| {
-        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        Term::subbinary(original, 0, 7, 2, 1, &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
-fn with_minuend_errors_badarith<M>(minuend: M)
-where
-    M: FnOnce(&Process) -> Term,
-{
-    super::errors_badarith(|process| {
-        let minuend = minuend(&process);
-        let subtrahend = 0.into_process(&process);
+#[test]
+fn with_integer_minuend_with_integer_subtrahend_returns_integer() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_integer(arc_process.clone()),
+                    strategy::term::is_integer(arc_process.clone()),
+                ),
+                |(minuend, subtrahend)| {
+                    let result = erlang::subtract_2(minuend, subtrahend, &arc_process);
 
-        erlang::add_2(minuend, subtrahend, &process)
+                    prop_assert!(result.is_ok());
+
+                    let difference = result.unwrap();
+
+                    prop_assert!(difference.is_integer());
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
+#[test]
+fn with_integer_minuend_with_float_subtrahend_returns_float() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_integer(arc_process.clone()),
+                    strategy::term::float(arc_process.clone()),
+                ),
+                |(minuend, subtrahend)| {
+                    let result = erlang::subtract_2(minuend, subtrahend, &arc_process);
+
+                    prop_assert!(result.is_ok());
+
+                    let difference = result.unwrap();
+
+                    prop_assert!(difference.is_float());
+
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }

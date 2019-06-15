@@ -1,4 +1,4 @@
-//! NOTE: Copied straight from rustc
+//! NOTE: Modified version of impl in rustc
 //!
 //! The arena, a fast but limited type of allocator.
 //!
@@ -9,15 +9,16 @@
 //!
 //! This crate implements `TypedArena`, a simple arena that can only hold
 //! objects of a single type.
-use std::cell::{Cell, RefCell};
-use std::cmp;
-use std::intrinsics;
-use std::marker::{PhantomData, Send};
-use std::mem;
-use std::ptr;
-use std::slice;
+use core::cell::{Cell, RefCell};
+use core::cmp;
+use core::intrinsics;
+use core::marker::{PhantomData, Send};
+use core::mem;
+use core::ptr;
+use core::slice;
 
 use alloc::raw_vec::RawVec;
+use alloc::vec::Vec;
 
 /// An arena that can hold objects of only one type.
 pub struct TypedArena<T> {
@@ -84,7 +85,11 @@ impl<T> TypedArenaChunk<T> {
     }
 }
 
-const PAGE: usize = 4096;
+#[cfg(not(target_arch = "wasm32"))]
+const PAGE: usize = 4 * 1024;
+
+#[cfg(target_arch = "wasm32")]
+const PAGE: usize = 64 * 1024;
 
 impl<T> Default for TypedArena<T> {
     /// Creates a new `TypedArena`.
@@ -94,7 +99,7 @@ impl<T> Default for TypedArena<T> {
             // alloc() will trigger a grow().
             ptr: Cell::new(0 as *mut T),
             end: Cell::new(0 as *mut T),
-            chunks: RefCell::new(vec![]),
+            chunks: RefCell::new(Vec::new()),
             _own: PhantomData,
         }
     }
@@ -338,32 +343,31 @@ impl DroplessArena {
     }
 
     #[inline]
-    pub fn alloc_raw(&self, bytes: usize, align: usize) -> &mut [u8] {
-        unsafe {
-            assert!(bytes != 0);
+    pub unsafe fn alloc_raw(&self, bytes: usize, align: usize) -> *mut u8 {
+        assert!(bytes != 0);
 
-            self.align(align);
+        self.align(align);
 
-            let future_end = intrinsics::arith_offset(self.ptr.get(), bytes as isize);
-            if (future_end as *mut u8) >= self.end.get() {
-                self.grow(bytes);
-            }
-
-            let ptr = self.ptr.get();
-            // Set the pointer past ourselves
-            self.ptr
-                .set(intrinsics::arith_offset(self.ptr.get(), bytes as isize) as *mut u8);
-            slice::from_raw_parts_mut(ptr, bytes)
+        let future_end = intrinsics::arith_offset(self.ptr.get(), bytes as isize);
+        if (future_end as *mut u8) >= self.end.get() {
+            self.grow(bytes);
         }
+
+        let ptr = self.ptr.get();
+        // Set the pointer past ourselves
+        self.ptr
+            .set(intrinsics::arith_offset(self.ptr.get(), bytes as isize) as *mut u8);
+
+        ptr
     }
 
     #[inline]
-    pub fn alloc<T>(&self, object: T) -> &mut T {
+    pub fn alloc_copy<T>(&self, object: T) -> &mut T {
         assert!(!mem::needs_drop::<T>());
 
-        let mem = self.alloc_raw(mem::size_of::<T>(), mem::align_of::<T>()) as *mut _ as *mut T;
-
         unsafe {
+            let mem = self.alloc_raw(mem::size_of::<T>(), mem::align_of::<T>()) as *mut T;
+
             // Write into uninitialized memory.
             ptr::write(mem, object);
             &mut *mem
@@ -386,10 +390,10 @@ impl DroplessArena {
         assert!(mem::size_of::<T>() != 0);
         assert!(!slice.is_empty());
 
-        let mem = self.alloc_raw(slice.len() * mem::size_of::<T>(), mem::align_of::<T>()) as *mut _
-            as *mut T;
-
         unsafe {
+            let mem = self.alloc_raw(slice.len() * mem::size_of::<T>(), mem::align_of::<T>())
+                as *mut _ as *mut T;
+
             let arena_slice = slice::from_raw_parts_mut(mem, slice.len());
             arena_slice.copy_from_slice(slice);
             arena_slice
@@ -400,7 +404,12 @@ impl DroplessArena {
 #[cfg(test)]
 mod tests {
     use super::TypedArena;
-    use std::cell::Cell;
+    use alloc::boxed::Box;
+    use alloc::string::String;
+    use alloc::vec;
+    use alloc::vec::Vec;
+    use core::cell::Cell;
+    use core::sync::atomic::{AtomicUsize, Ordering};
     use test::Bencher;
 
     #[allow(dead_code)]
@@ -492,7 +501,7 @@ mod tests {
         let arena = TypedArena::default();
         for _ in 0..100000 {
             arena.alloc(Noncopy {
-                string: "hello world".to_string(),
+                string: String::from("hello world"),
                 array: vec![1, 2, 3, 4, 5],
             });
         }
@@ -565,21 +574,19 @@ mod tests {
         }
     }
 
-    thread_local! {
-        static DROP_COUNTER: Cell<u32> = Cell::new(0)
-    }
+    static DROP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
     struct SmallDroppable;
 
     impl Drop for SmallDroppable {
         fn drop(&mut self) {
-            DROP_COUNTER.with(|c| c.set(c.get() + 1));
+            DROP_COUNTER.fetch_add(1, Ordering::SeqCst);
         }
     }
 
     #[test]
     fn test_typed_arena_drop_small_count() {
-        DROP_COUNTER.with(|c| c.set(0));
+        DROP_COUNTER.store(0, Ordering::SeqCst);
         {
             let arena: TypedArena<SmallDroppable> = TypedArena::default();
             for _ in 0..100 {
@@ -588,7 +595,7 @@ mod tests {
             }
             // dropping
         };
-        assert_eq!(DROP_COUNTER.with(|c| c.get()), 100);
+        assert_eq!(DROP_COUNTER.load(Ordering::SeqCst), 100);
     }
 
     #[bench]
@@ -596,7 +603,7 @@ mod tests {
         let arena = TypedArena::default();
         b.iter(|| {
             arena.alloc(Noncopy {
-                string: "hello world".to_string(),
+                string: String::from("hello world"),
                 array: vec![1, 2, 3, 4, 5],
             })
         })
@@ -606,7 +613,7 @@ mod tests {
     pub fn bench_noncopy_nonarena(b: &mut Bencher) {
         b.iter(|| {
             let _: Box<_> = Box::new(Noncopy {
-                string: "hello world".to_string(),
+                string: String::from("hello world"),
                 array: vec![1, 2, 3, 4, 5],
             });
         })

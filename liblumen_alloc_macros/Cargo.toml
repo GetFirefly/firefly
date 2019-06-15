@@ -1,0 +1,18 @@
+[package]
+name = "liblumen_alloc_macros"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+quote = "0.6"
+proc-macro2 = "0.4"
+
+[dependencies.syn]
+version = "0.15"
+features = ["full", "visit"]

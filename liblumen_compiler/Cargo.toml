@@ -12,5 +12,4 @@ liblumen_diagnostics = { path = "../liblumen_diagnostics" }
 liblumen_common = { path = "../liblumen_common" }
 liblumen_syntax = { path = "../liblumen_syntax" }
 liblumen_beam = { path = "../liblumen_beam" }
-liblumen_core = { path = "../liblumen_core" }
 liblumen_codegen = { path = "../liblumen_codegen" }

@@ -3,7 +3,6 @@ edition = "2018"
 # General Settings
 
 version = "One"
-license_template_path = ""
 emit_mode = "Files"
 make_backup = false
 report_todo = "Never"

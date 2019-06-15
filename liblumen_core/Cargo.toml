@@ -4,9 +4,37 @@ version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
 publish = false
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
-failure = "0.1"
-liblumen_common = { path = "../liblumen_common" }
-liblumen_diagnostics = { path = "../liblumen_diagnostics" }
-liblumen_syntax = { path = "../liblumen_syntax" }
+cfg-if = "0.1"
+lazy_static = "1.2"
+
+[dependencies.parking_lot]
+version = "0.7"
+features = ["nightly"]
+
+[dependencies.lock_api]
+version = "0.1"
+
+# We use libc for all platforms except wasm32-unknown-unknown
+# NOTE: On win32 we use libc for malloc/free
+[target.'cfg(any(not(target_arch = "wasm32")))'.dependencies.libc]
+default-features = false
+features = ["align"]
+version = "0.2"
+
+[target.'cfg(all(target_arch = "wasm32", any(target_env = "wasi", target_os = "emscripten")))'.dependencies.libc]
+default-features = false
+features = ["align"]
+version = "0.2"
+
+# Windows also requires additional APis for implementing mmap
+[target.'cfg(windows)'.dependencies.winapi]
+features = ["memoryapi", "heapapi", "synchapi", "winbase", "sysinfoapi"]
+version = "0.3"
+
+# On wasm32-unknown-unknown, use dlmalloc for malloc/free
+[target.'cfg(all(target_arch = "wasm32", target_vendor = "unknown"))'.dependencies.dlmalloc]
+version = "0.1"
+features = ["allocator-api"]

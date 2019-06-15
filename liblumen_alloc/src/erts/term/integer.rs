@@ -1,0 +1,266 @@
+mod big;
+mod small;
+
+pub use big::*;
+pub use small::*;
+
+use core::cmp::Ordering;
+use core::convert::TryInto;
+use core::fmt::{self, Debug, Display};
+use core::hash::{Hash, Hasher};
+use core::ops::*;
+
+use crate::erts::{AsTerm, Term};
+
+#[derive(Clone, Copy, PartialEq)]
+pub struct TryFromIntError;
+impl Display for TryFromIntError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("attempted to convert to small integer with out of range value")
+    }
+}
+impl From<core::num::TryFromIntError> for TryFromIntError {
+    fn from(_: core::num::TryFromIntError) -> Self {
+        TryFromIntError
+    }
+}
+
+macro_rules! unwrap_integer_self {
+    ($i:expr => $name:ident => $blk:block) => {
+        match $i {
+            &Self::Big(ref $name) => $blk,
+            &Self::Small(ref $name) => $blk,
+        }
+    };
+}
+
+/// A wrapped type for integers that transparently handles promotion/demotion
+#[derive(Clone)]
+pub enum Integer {
+    Small(SmallInteger),
+    Big(BigInteger),
+}
+impl Integer {
+    #[inline]
+    pub fn map<S, B>(self, small: S, big: B) -> Self
+    where
+        S: FnOnce(SmallInteger) -> Integer,
+        B: FnOnce(BigInteger) -> BigInteger,
+    {
+        match self {
+            Self::Small(value) => small(value),
+            Self::Big(value) => Integer::from(big(value)),
+        }
+    }
+
+    #[inline]
+    pub fn map_pair<S, B>(self, other: Integer, small: S, big: B) -> Self
+    where
+        S: FnOnce(SmallInteger, SmallInteger) -> Integer,
+        B: FnOnce(BigInteger, BigInteger) -> BigInteger,
+    {
+        match (self, other) {
+            (Self::Small(lhs), Self::Small(rhs)) => small(lhs, rhs),
+            (Self::Big(lhs), Self::Big(rhs)) => Integer::from(big(lhs, rhs)),
+            (Self::Small(lhs), Self::Big(rhs)) => Integer::from(big(lhs.into(), rhs)),
+            (Self::Big(lhs), Self::Small(rhs)) => Integer::from(big(lhs, rhs.into())),
+        }
+    }
+
+    #[inline]
+    pub fn map_pair_to<S, B, T>(self, other: Integer, small: S, big: B) -> T
+    where
+        S: FnOnce(SmallInteger, SmallInteger) -> T,
+        B: FnOnce(BigInteger, BigInteger) -> T,
+    {
+        match (self, other) {
+            (Self::Small(lhs), Self::Small(rhs)) => small(lhs, rhs),
+            (Self::Big(lhs), Self::Big(rhs)) => big(lhs, rhs),
+            (Self::Small(lhs), Self::Big(rhs)) => big(lhs.into(), rhs),
+            (Self::Big(lhs), Self::Small(rhs)) => big(lhs, rhs.into()),
+        }
+    }
+}
+impl From<BigInteger> for Integer {
+    #[inline]
+    fn from(i: BigInteger) -> Self {
+        Self::Big(i)
+    }
+}
+impl From<SmallInteger> for Integer {
+    #[inline]
+    fn from(i: SmallInteger) -> Self {
+        Self::Small(i)
+    }
+}
+impl From<usize> for Integer {
+    #[inline]
+    fn from(n: usize) -> Integer {
+        let ni: Result<isize, _> = n.try_into();
+        match ni {
+            Err(_) => Integer::Big(n.into()),
+            Ok(n) if n > SmallInteger::MAX_VALUE => Integer::Big(n.into()),
+            Ok(n) => Integer::Small(unsafe { SmallInteger::new_unchecked(n) }),
+        }
+    }
+}
+impl From<isize> for Integer {
+    #[inline]
+    fn from(n: isize) -> Integer {
+        if n > SmallInteger::MAX_VALUE || n < SmallInteger::MIN_VALUE {
+            Integer::Big(n.into())
+        } else {
+            Integer::Small(unsafe { SmallInteger::new_unchecked(n) })
+        }
+    }
+}
+
+impl PartialEq for Integer {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (&Integer::Small(ref lhs), &Integer::Small(ref rhs)) => lhs.eq(rhs),
+            (&Integer::Big(ref lhs), &Integer::Big(ref rhs)) => lhs.eq(rhs),
+            (&Integer::Small(ref lhs), &Integer::Big(ref rhs)) => lhs.eq(rhs),
+            (&Integer::Big(ref lhs), &Integer::Small(ref rhs)) => lhs.eq(rhs),
+        }
+    }
+}
+impl PartialEq<SmallInteger> for Integer {
+    #[inline]
+    fn eq(&self, other: &SmallInteger) -> bool {
+        match self {
+            &Integer::Small(ref lhs) => lhs.eq(other),
+            &Integer::Big(ref lhs) => lhs.eq(other),
+        }
+    }
+}
+impl PartialEq<BigInteger> for Integer {
+    #[inline]
+    fn eq(&self, other: &BigInteger) -> bool {
+        match self {
+            &Integer::Small(ref lhs) => lhs.eq(other),
+            &Integer::Big(ref lhs) => lhs.eq(other),
+        }
+    }
+}
+impl Eq for Integer {}
+impl Ord for Integer {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (&Integer::Small(ref lhs), &Integer::Small(ref rhs)) => lhs.cmp(rhs),
+            (&Integer::Big(ref lhs), &Integer::Big(ref rhs)) => lhs.cmp(rhs),
+            (&Integer::Small(ref lhs), &Integer::Big(ref rhs)) => lhs.partial_cmp(rhs).unwrap(),
+            (&Integer::Big(ref lhs), &Integer::Small(ref rhs)) => lhs.partial_cmp(rhs).unwrap(),
+        }
+    }
+}
+impl PartialOrd for Integer {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialOrd<SmallInteger> for Integer {
+    #[inline]
+    fn partial_cmp(&self, other: &SmallInteger) -> Option<Ordering> {
+        match self {
+            &Integer::Small(ref lhs) => lhs.partial_cmp(other),
+            &Integer::Big(ref lhs) => lhs.partial_cmp(other),
+        }
+    }
+}
+impl PartialOrd<BigInteger> for Integer {
+    #[inline]
+    fn partial_cmp(&self, other: &BigInteger) -> Option<Ordering> {
+        match self {
+            &Integer::Big(ref lhs) => lhs.partial_cmp(other),
+            &Integer::Small(ref lhs) => lhs.partial_cmp(other),
+        }
+    }
+}
+impl Debug for Integer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Self::Big(ref value) => f
+                .debug_tuple("Integer::Big")
+                .field(&format_args!("{:?}", value))
+                .finish(),
+            &Self::Small(ref value) => f
+                .debug_tuple("Integer::Small")
+                .field(&format_args!("{:?}", value))
+                .finish(),
+        }
+    }
+}
+impl Display for Integer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        unwrap_integer_self!(self => value => { write!(f, "{}", value) })
+    }
+}
+impl Hash for Integer {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        unwrap_integer_self!(self => value => { value.hash(state) })
+    }
+}
+unsafe impl AsTerm for Integer {
+    unsafe fn as_term(&self) -> Term {
+        match self {
+            &Self::Small(ref i) => i.as_term(),
+            &Self::Big(ref i) => i.as_term(),
+        }
+    }
+}
+
+macro_rules! integer_binop_trait_impl {
+    ($trait:ty, $fun:ident) => {
+        impl $trait for Integer {
+            type Output = Integer;
+            #[inline]
+            fn $fun(self, rhs: Integer) -> Self::Output {
+                self.map_pair(rhs, |l, r| l.$fun(r), |l, r| l.$fun(r))
+                    .into()
+            }
+        }
+    };
+}
+
+macro_rules! integer_unaryop_trait_impl {
+    ($trait:ty, $fun:ident) => {
+        impl $trait for Integer {
+            type Output = Integer;
+            #[inline]
+            fn $fun(self) -> Self::Output {
+                self.map(|i| i.$fun(), |i| i.$fun())
+            }
+        }
+    };
+}
+
+integer_binop_trait_impl!(Add, add);
+integer_binop_trait_impl!(Sub, sub);
+integer_binop_trait_impl!(Mul, mul);
+integer_binop_trait_impl!(Div, div);
+integer_binop_trait_impl!(BitAnd, bitand);
+integer_binop_trait_impl!(BitOr, bitor);
+integer_binop_trait_impl!(BitXor, bitxor);
+integer_binop_trait_impl!(Rem, rem);
+integer_unaryop_trait_impl!(Neg, neg);
+integer_unaryop_trait_impl!(Not, not);
+
+impl Shl<usize> for Integer {
+    type Output = Integer;
+
+    fn shl(self, rhs: usize) -> Self {
+        self.map(|n| n.shl(rhs), |n| n.shl(rhs))
+    }
+}
+impl Shr<usize> for Integer {
+    type Output = Integer;
+
+    fn shr(self, rhs: usize) -> Self {
+        self.map(|n| n.shr(rhs), |n| n.shr(rhs))
+    }
+}

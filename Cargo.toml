@@ -5,13 +5,15 @@ members = [
   "lumen",
   "lumen_runtime",
   "liblumen_arena",
+  "liblumen_alloc",
+  "liblumen_alloc_macros",
+  "liblumen_beam",
+  "liblumen_codegen",
   "liblumen_common",
+  "liblumen_compiler",
+  "liblumen_core",
   "liblumen_diagnostics",
   "liblumen_syntax",
-  "liblumen_core",
-  "liblumen_beam",
-  "liblumen_compiler",
-  "liblumen_codegen",
 ]
 
 [profile.release]

@@ -1416,7 +1416,13 @@ pub fn subtract_list_2(minuend: Term, subtrahend: Term, process: &Process) -> Re
                 Err(badarg!())
             }
         }
-        (List, EmptyList) => Ok(minuend),
+        (List, EmptyList) => {
+            if unsafe { minuend.as_ref_cons_unchecked() }.is_proper() {
+                Ok(minuend)
+            } else {
+                Err(badarg!())
+            }
+        }
         (List, List) => {
             let minuend_cons: &Cons = unsafe { minuend.as_ref_cons_unchecked() };
             let subtrahend_cons: &Cons = unsafe { subtrahend.as_ref_cons_unchecked() };

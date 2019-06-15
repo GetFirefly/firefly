@@ -1,11 +1,11 @@
-use core::mem;
 use core::alloc::AllocErr;
+use core::mem;
 use core::ptr::{self, NonNull};
 
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
-use crate::erts::*;
 use super::*;
+use crate::erts::*;
 
 /// This struct represents the current heap and stack of a process,
 /// which corresponds to the young generation in the overall garbage

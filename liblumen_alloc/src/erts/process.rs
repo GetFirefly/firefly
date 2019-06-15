@@ -6,13 +6,13 @@ use core::mem;
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-use intrusive_collections::{UnsafeRef, LinkedList};
+use intrusive_collections::{LinkedList, UnsafeRef};
 
 use hashbrown::HashMap;
 
-use crate::borrow::CloneToProcess;
-use super::*;
 use self::gc::*;
+use super::*;
+use crate::borrow::CloneToProcess;
 
 /// Represents the primary control structure for processes
 #[repr(C)]
@@ -78,7 +78,7 @@ impl ProcessControlBlock {
     }
 
     /// Perform a heap allocation.
-    /// 
+    ///
     /// If space on the process heap is not immediately available, then the allocation
     /// will be pushed into a heap fragment which will then be later moved on to the
     /// process heap during garbage collection
@@ -106,7 +106,10 @@ impl ProcessControlBlock {
 
     /// Same as `alloc_nofrag`, but takes a `Layout` rather than the size in words
     #[inline]
-    pub unsafe fn alloc_nofrag_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloc_nofrag_layout(
+        &mut self,
+        layout: Layout,
+    ) -> Result<NonNull<Term>, AllocErr> {
         let words = Self::layout_to_words(layout);
         self.alloc_nofrag(words)
     }
@@ -123,7 +126,10 @@ impl ProcessControlBlock {
 
     /// Same as `alloc_fragment`, but takes a `Layout` rather than the size in words
     #[inline]
-    pub unsafe fn alloc_fragment_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloc_fragment_layout(
+        &mut self,
+        layout: Layout,
+    ) -> Result<NonNull<Term>, AllocErr> {
         let frag = HeapFragment::new(layout)?;
         let data = frag.as_ref().data().cast::<Term>();
         self.off_heap.push_front(UnsafeRef::from_raw(frag.as_ptr()));
@@ -152,7 +158,7 @@ impl ProcessControlBlock {
     }
 
     /// Pushes a reference-counted binary on to this processes virtual heap
-    /// 
+    ///
     /// NOTE: It is expected that the binary reference (the actual `ProcBin` struct)
     /// has already been allocated on the process heap, and that this function is
     /// being called simply to add the reference to the virtual heap
@@ -178,8 +184,14 @@ impl ProcessControlBlock {
     /// Puts a new value under the given key in the process dictionary
     #[inline]
     pub fn put(&mut self, key: Term, value: Term) -> Term {
-        assert!(key.is_immediate() || key.is_boxed() || key.is_list(), "invalid key term for process dictionary");
-        assert!(value.is_immediate() || value.is_boxed() || value.is_list(), "invalid value term for process dictionary");
+        assert!(
+            key.is_immediate() || key.is_boxed() || key.is_list(),
+            "invalid key term for process dictionary"
+        );
+        assert!(
+            value.is_immediate() || value.is_boxed() || value.is_list(),
+            "invalid value term for process dictionary"
+        );
 
         let key = if key.is_immediate() {
             key
@@ -194,37 +206,43 @@ impl ProcessControlBlock {
 
         match self.dictionary.insert(key, value) {
             None => Term::NIL,
-            Some(old_value) => old_value
+            Some(old_value) => old_value,
         }
     }
 
     /// Gets a value from the process dictionary using the given key
     #[inline]
     pub fn get(&self, key: Term) -> Term {
-        assert!(key.is_immediate() || key.is_boxed() || key.is_list(), "invalid key term for process dictionary");
+        assert!(
+            key.is_immediate() || key.is_boxed() || key.is_list(),
+            "invalid key term for process dictionary"
+        );
 
         match self.dictionary.get(&key) {
             None => Term::NIL,
             // We can simply copy the term value here, since we know it
             // is either an immediate, or already located on the process
             // heap or in a heap fragment.
-            Some(value) => *value
+            Some(value) => *value,
         }
     }
 
     /// Deletes a key/value pair from the process dictionary
     #[inline]
     pub fn delete(&mut self, key: Term) -> Term {
-        assert!(key.is_immediate() || key.is_boxed() || key.is_list(), "invalid key term for process dictionary");
+        assert!(
+            key.is_immediate() || key.is_boxed() || key.is_list(),
+            "invalid key term for process dictionary"
+        );
 
         match self.dictionary.remove(&key) {
             None => Term::NIL,
-            Some(old_value) => old_value
+            Some(old_value) => old_value,
         }
     }
 
     /// Determines if this heap should be collected
-    /// 
+    ///
     /// NOTE: We require a mutable reference to self to call this,
     /// since only the owning scheduler should ever be initiating a collection
     #[inline]

@@ -95,7 +95,8 @@ unsafe impl AsTerm for Cons {
 }
 impl PartialEq<Cons> for Cons {
     fn eq(&self, other: &Cons) -> bool {
-        follow_moved(self.head).eq(&follow_moved(other.head)) && follow_moved(self.tail).eq(&follow_moved(other.tail))
+        follow_moved(self.head).eq(&follow_moved(other.head))
+            && follow_moved(self.tail).eq(&follow_moved(other.tail))
     }
 }
 impl PartialOrd<Cons> for Cons {

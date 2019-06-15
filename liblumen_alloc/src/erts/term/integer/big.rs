@@ -1,14 +1,14 @@
 use core::cmp::Ordering;
 use core::fmt::{self, Debug, Display};
 use core::hash::{self, Hash};
-use core::ops::*;
 use core::mem;
+use core::ops::*;
 use core::ptr;
 
 use num_bigint::{BigInt, Sign};
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{AsTerm, Term, ProcessControlBlock};
+use crate::erts::{AsTerm, ProcessControlBlock, Term};
 
 use super::*;
 

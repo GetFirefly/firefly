@@ -356,7 +356,7 @@ impl CloneToProcess for ProcBin {
                     header: self.header,
                     inner: self.inner,
                     link: LinkedListLink::new(),
-                }
+                },
             );
             // Reify a reference to the newly written clone
             let clone = &*ptr;
@@ -660,7 +660,8 @@ impl CloneToProcess for SubBinary {
             }
         } else {
             assert!(real_bin.is_heapbin());
-            // Need to make sure that the heapbin is cloned as well, and that the header is suitably updated
+            // Need to make sure that the heapbin is cloned as well, and that the header is suitably
+            // updated
             let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
             let new_bin = bin.clone_to_process(process);
             let layout = Layout::new::<Self>();
@@ -678,7 +679,7 @@ impl CloneToProcess for SubBinary {
                         bitoffs: self.bitoffs,
                         writable: self.writable,
                         orig: new_bin,
-                    }
+                    },
                 );
                 let sb = &*ptr;
                 sb.as_term()
@@ -794,7 +795,8 @@ impl CloneToProcess for MatchContext {
             }
         } else {
             assert!(real_bin.is_heapbin());
-            // Need to make sure that the heapbin is cloned as well, and that the header is suitably updated
+            // Need to make sure that the heapbin is cloned as well, and that the header is suitably
+            // updated
             let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
             let new_bin = bin.clone_to_process(process);
             let new_bin_ref = unsafe { &*(new_bin.boxed_val() as *mut HeapBin) };
@@ -813,7 +815,7 @@ impl CloneToProcess for MatchContext {
                         bitsize: self.bitsize,
                         bitoffset: self.bitoffset,
                         save_offset: self.save_offset,
-                    }
+                    },
                 );
                 let mc = &*ptr;
                 mc.as_term()

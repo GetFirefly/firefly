@@ -415,9 +415,9 @@ mod tests {
     use core::ptr;
 
     use intrusive_collections::LinkedListLink;
+    use liblumen_alloc_macros::*;
     use liblumen_core::alloc::mmap;
     use liblumen_core::alloc::size_classes::SizeClass;
-    use liblumen_alloc_macros::*;
 
     use crate::carriers::{self, SlabCarrier};
 

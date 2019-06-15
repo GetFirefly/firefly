@@ -11,8 +11,8 @@
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;
 
-mod borrow;
 mod blocks;
+mod borrow;
 mod carriers;
 mod erts;
 mod segmented_alloc;

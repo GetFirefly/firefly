@@ -1,8 +1,8 @@
-use core::cmp;
-use core::ptr;
-use core::mem;
-use core::iter::FusedIterator;
 use core::alloc::Layout;
+use core::cmp;
+use core::iter::FusedIterator;
+use core::mem;
+use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::ProcessControlBlock;
@@ -29,7 +29,7 @@ pub struct Tuple {
 }
 impl Tuple {
     /// Create a new `Tuple` struct
-    /// 
+    ///
     /// NOTE: This does not allocate space for the tuple, it simply
     /// constructs an instance of the `Tuple` header, other functions
     /// can then use this in conjunction with a `Layout` for the elements
@@ -42,7 +42,7 @@ impl Tuple {
     }
 
     /// Returns a pointer to the head element
-    /// 
+    ///
     /// NOTE: This is unsafe to use unless you know the tuple has been allocated
     pub fn head(&self) -> *mut Term {
         unsafe { (self as *const _ as *const Tuple).offset(1) as *mut Term }
@@ -84,7 +84,13 @@ impl CloneToProcess for Tuple {
             // Get pointer to the new head element location
             let head = ptr.offset(1) as *mut Term;
             // Write the header
-            ptr::write(ptr, Self { header: self.header, size: self.size });
+            ptr::write(
+                ptr,
+                Self {
+                    header: self.header,
+                    size: self.size,
+                },
+            );
             // Write each element
             for offset in 0..self.size {
                 let old = *old_head.offset(offset as isize);

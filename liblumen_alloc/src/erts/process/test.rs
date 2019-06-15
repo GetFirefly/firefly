@@ -1,5 +1,5 @@
-use core::ptr;
 use core::mem;
+use core::ptr;
 
 use crate::erts::*;
 
@@ -11,7 +11,7 @@ fn simple_gc_test() {
     let (heap, heap_size) = alloc::default_heap().unwrap();
     let mut process = ProcessControlBlock::new(heap, heap_size);
 
-    // Allocate an `{:ok, "hello world"}` tuple 
+    // Allocate an `{:ok, "hello world"}` tuple
 
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
@@ -21,7 +21,8 @@ fn simple_gc_test() {
     let greeting = "hello world";
     let greeting_layout = HeapBin::layout(greeting);
     let greeting_size = greeting_layout.size();
-    let greeting_ptr = unsafe { process.alloc_layout(greeting_layout).unwrap().as_ptr() as *mut HeapBin };
+    let greeting_ptr =
+        unsafe { process.alloc_layout(greeting_layout).unwrap().as_ptr() as *mut HeapBin };
     let bin_ptr = unsafe { greeting_ptr.offset(1) as *mut u8 };
     let bin = unsafe { HeapBin::from_raw_utf8_parts(bin_ptr, greeting_size) };
     unsafe {
@@ -44,7 +45,10 @@ fn simple_gc_test() {
         // Write `:ok`
         ptr::write(head_ptr, ok);
         // Write pointer to "hello world"
-        ptr::write(head_ptr.offset(1), Term::from_raw(greeting_ptr as usize | Term::FLAG_BOXED));
+        ptr::write(
+            head_ptr.offset(1),
+            Term::from_raw(greeting_ptr as usize | Term::FLAG_BOXED),
+        );
     }
 
     // Now, we will simulate updating the greeting of the above tuple with a new one,
@@ -52,7 +56,8 @@ fn simple_gc_test() {
     let new_greeting = "goodbye!";
     let new_greeting_layout = HeapBin::layout(new_greeting);
     let new_greeting_size = new_greeting_layout.size();
-    let new_greeting_ptr = unsafe { process.alloc_layout(new_greeting_layout).unwrap().as_ptr() as *mut HeapBin };
+    let new_greeting_ptr =
+        unsafe { process.alloc_layout(new_greeting_layout).unwrap().as_ptr() as *mut HeapBin };
     let new_bin_ptr = unsafe { new_greeting_ptr.offset(1) as *mut u8 };
     let new_bin = unsafe { HeapBin::from_raw_utf8_parts(new_bin_ptr, new_greeting_size) };
     unsafe {
@@ -64,7 +69,10 @@ fn simple_gc_test() {
     // Update second element of the tuple above
     unsafe {
         let second_element_ptr = head_ptr.offset(1);
-        ptr::write(second_element_ptr, Term::from_raw(new_greeting_ptr as usize | Term::FLAG_BOXED));
+        ptr::write(
+            second_element_ptr,
+            Term::from_raw(new_greeting_ptr as usize | Term::FLAG_BOXED),
+        );
     }
 
     // Grab current heap size
@@ -80,5 +88,9 @@ fn simple_gc_test() {
     if greeting_size % mem::size_of::<Term>() != 0 {
         expected += 1;
     }
-    assert_eq!(reclaimed, expected, "expected to reclaim {} words of memory, but only reclaimed {} words", expected, reclaimed);
+    assert_eq!(
+        reclaimed, expected,
+        "expected to reclaim {} words of memory, but only reclaimed {} words",
+        expected, reclaimed
+    );
 }

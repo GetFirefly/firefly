@@ -1,6 +1,6 @@
 use core::cmp;
-use core::ptr;
 use core::mem;
+use core::ptr;
 
 use super::{AsTerm, Term};
 

@@ -39,7 +39,7 @@ impl VirtualBinaryHeap {
     }
 
     /// Gets the current amount of "unused" virtual binary heap space (in bytes)
-    /// 
+    ///
     /// This is a bit of a misnomer, since there isn't a real heap here, but we
     /// use this to drive decisions about when to perform a collection, like we
     /// do with the old/young heaps
@@ -107,7 +107,9 @@ impl VirtualBinaryHeap {
         // Copy the header
         let bin = unsafe { ptr::read(ptr) };
         // Write the none value to the old location to ensure it is not used
-        unsafe { ptr::write(ptr as *mut Term, Term::NONE); }
+        unsafe {
+            ptr::write(ptr as *mut Term, Term::NONE);
+        }
         // Decrement the heap size
         let bin_size = bin.size();
         self.used -= bin_size;

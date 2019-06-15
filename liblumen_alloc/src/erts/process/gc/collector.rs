@@ -4,9 +4,9 @@ use core::sync::atomic::Ordering;
 
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
+use super::*;
 use crate::erts::process::alloc;
 use crate::erts::*;
-use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CollectionType {
@@ -82,7 +82,7 @@ impl<'p> GarbageCollector<'p> {
         }
     }
 
-    // 
+    //
     // - Allocate to space
     // - Scan roots to find heap objects in from space to copy
     //      - Place move marker in previous heap position pointing to new heap position
@@ -117,7 +117,10 @@ impl<'p> GarbageCollector<'p> {
             return Err(GcError::MaxHeapSizeExceeded);
         }
         // Unset heap_grow and need_fullsweep flags, because we are doing both
-        self.process.flags.fetch_and(!(ProcessControlBlock::FLAG_HEAP_GROW | ProcessControlBlock::FLAG_NEED_FULLSWEEP), Ordering::AcqRel);
+        self.process.flags.fetch_and(
+            !(ProcessControlBlock::FLAG_HEAP_GROW | ProcessControlBlock::FLAG_NEED_FULLSWEEP),
+            Ordering::AcqRel,
+        );
         // Allocate new heap
         let new_heap_start = alloc::heap(new_size).map_err(|_| GcError::AllocErr)?;
         let mut new_heap = YoungHeap::new(new_heap_start, new_size);
@@ -204,7 +207,9 @@ impl<'p> GarbageCollector<'p> {
             panic!("Full sweep finished, but the needed size exceeds even the most pessimistic estimate, this must be a bug");
         } else if total_size * 3 < need_after * 4 {
             // `need_after` requires more than 75% of the current size, schedule some growth
-            self.process.flags.fetch_or(ProcessControlBlock::FLAG_HEAP_GROW, Ordering::AcqRel);
+            self.process
+                .flags
+                .fetch_or(ProcessControlBlock::FLAG_HEAP_GROW, Ordering::AcqRel);
         } else if total_size > need_after * 4 && self.process.min_heap_size < total_size {
             // We need less than 25% of the current heap, shrink
             let wanted = need_after * 2;
@@ -561,7 +566,8 @@ impl<'p> GarbageCollector<'p> {
     /// Determines if we should try and grow the heap even when not necessary
     #[inline]
     fn should_force_heap_growth(&self) -> bool {
-        self.process.flags.load(Ordering::Relaxed) & ProcessControlBlock::FLAG_HEAP_GROW == ProcessControlBlock::FLAG_HEAP_GROW
+        self.process.flags.load(Ordering::Relaxed) & ProcessControlBlock::FLAG_HEAP_GROW
+            == ProcessControlBlock::FLAG_HEAP_GROW
     }
 
     /// Calculates the reduction count cost of a collection

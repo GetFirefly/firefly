@@ -97,7 +97,7 @@ where
         let first_block = self.head() as *mut u8;
         // Get block size in order to properly calculate index of block
         let block_size = self.header;
-        // By subtracting the pointer we got from the base pointer, and 
+        // By subtracting the pointer we got from the base pointer, and
         // dividing by the block size, we get the index of the block
         let index = ((ptr as usize) - (first_block as usize)) / block_size;
         // The index should always be less than the size

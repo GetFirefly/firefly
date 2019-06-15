@@ -6,7 +6,7 @@ use super::CloneToProcess;
 
 /// This is an implementation of a clone-on-write smart pointer,
 /// but designed to be allocator-aware, specifically, it uses the
-/// `CloneIntoProcess` trait to clone borrowed terms when a mutable
+/// `CloneToProcess` trait to clone borrowed terms when a mutable
 /// reference is aquired, ensuring that the cloned term is cloned
 /// onto the appropriate process heap, not the global heap.
 ///

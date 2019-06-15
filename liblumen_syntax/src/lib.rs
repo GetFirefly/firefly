@@ -1,3 +1,4 @@
+#![deny(warnings)]
 #![feature(box_patterns)]
 #![feature(box_syntax)]
 #![feature(core_intrinsics)]

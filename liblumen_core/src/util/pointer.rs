@@ -83,11 +83,13 @@ mod tests {
 
     #[test]
     fn test_in_area() {
-        let start = 0 as *const u8;
+        // start cannot be 0 because that is null and if any of ptr, start, or end is null they are
+        // not in the area
+        let start = 1 as *const u8;
         let end = unsafe { start.offset(100) };
 
-        assert!(in_area(0 as *const u8, start, end));
-        assert!(in_area(100 as *const u8, start, end));
-        assert!(!in_area(101 as *const u8, start, end));
+        assert!(in_area(1 as *const u8, start, end));
+        assert!(in_area(101 as *const u8, start, end));
+        assert!(!in_area(102 as *const u8, start, end));
     }
 }

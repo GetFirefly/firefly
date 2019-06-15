@@ -1,71 +1,475 @@
-#![cfg_attr(not(test), allow(dead_code))]
 ///! The memory specific to a process in the VM.
-use std::cmp::Ordering;
-use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
+#[cfg(debug_assertions)]
+use std::fmt::Debug;
+use std::fmt::{self, Display};
+use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, RwLock, RwLockWriteGuard, Weak};
 
-use liblumen_arena::TypedArena;
+use num_bigint::BigInt;
 
-use crate::atom::{self, Existence};
-use crate::binary::{heap, sub, Binary};
-use crate::environment::Environment;
+use crate::atom::Existence::DoNotCare;
+use crate::binary::{sub, Binary};
+use crate::code::{self, Code};
+use crate::exception::{self, Exception};
 use crate::float::Float;
+use crate::function::Function;
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::{self, big};
-use crate::list::List;
-use crate::term::BadArgument;
+use crate::list::Cons;
+use crate::mailbox::Mailbox;
+use crate::map::Map;
+use crate::message::{self, Message};
+use crate::process::stack::frame::Frame;
+use crate::process::stack::Stack;
+use crate::reference;
+use crate::registry::*;
+use crate::scheduler::{self, Priority, Scheduler};
 use crate::term::Term;
 use crate::tuple::Tuple;
+use std::hash::{Hash, Hasher};
+
+pub mod identifier;
+pub mod local;
+pub mod stack;
+
+// 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
+pub const MAX_REDUCTIONS_PER_RUN: Reductions = 4_000;
+
+#[derive(Clone, Copy, PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct ModuleFunctionArity {
+    pub module: Term,
+    pub function: Term,
+    pub arity: usize,
+}
+
+impl Display for ModuleFunctionArity {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            ":{}.{}/{}",
+            unsafe { self.module.atom_to_string() },
+            unsafe { self.function.atom_to_string() },
+            self.arity
+        )
+    }
+}
 
 pub struct Process {
-    environment: Arc<RwLock<Environment>>,
-    big_integer_arena: TypedArena<big::Integer>,
-    pub byte_arena: TypedArena<u8>,
-    float_arena: TypedArena<Float>,
-    pub heap_binary_arena: TypedArena<heap::Binary>,
-    pub subbinary_arena: TypedArena<sub::Binary>,
-    pub term_arena: TypedArena<Term>,
+    pub scheduler: Mutex<Option<Weak<Scheduler>>>,
+    pub priority: Priority,
+    #[allow(dead_code)]
+    parent_pid: Option<Term>,
+    pub pid: Term,
+    #[allow(dead_code)]
+    initial_module_function_arity: Arc<ModuleFunctionArity>,
+    /// The number of reductions in the current `run`.  `code` MUST return when `run_reductions`
+    /// exceeds `MAX_REDUCTIONS_PER_RUN`.
+    run_reductions: AtomicU16,
+    pub total_reductions: AtomicU64,
+    pub registered_name: RwLock<Option<Term>>,
+    stack: Mutex<Stack>,
+    pub status: RwLock<Status>,
+    pub heap: Mutex<Heap>,
+    pub mailbox: Mutex<Mailbox>,
 }
 
 impl Process {
-    pub fn new(environment: Arc<RwLock<Environment>>) -> Self {
-        Process {
-            environment,
-            big_integer_arena: Default::default(),
-            byte_arena: Default::default(),
-            float_arena: Default::default(),
-            heap_binary_arena: Default::default(),
-            subbinary_arena: Default::default(),
-            term_arena: Default::default(),
+    pub fn init() -> Self {
+        let init = Term::str_to_atom("init", DoNotCare).unwrap();
+        let module_function_arity = Arc::new(ModuleFunctionArity {
+            module: init,
+            function: init,
+            arity: 0,
+        });
+        let frame = Frame::new(Arc::clone(&module_function_arity), code::init);
+
+        let mut stack: Stack = Default::default();
+        stack.push(frame);
+
+        Self::new(
+            Default::default(),
+            None,
+            module_function_arity,
+            Default::default(),
+            stack,
+        )
+    }
+
+    pub fn spawn(
+        parent_process: &Process,
+        module: Term,
+        function: Term,
+        arguments: Term,
+        code: Code,
+    ) -> Self {
+        assert!(module.is_atom());
+        assert!(function.is_atom());
+
+        let arity = match arguments.count() {
+            Some(count) => count,
+            None => {
+                #[cfg(debug_assertions)]
+                panic!(
+                    "Arguments {:?} are neither an empty nor a proper list",
+                    arguments
+                );
+                #[cfg(not(debug_assertions))]
+                panic!("Arguments are neither an empty nor a proper list");
+            }
+        };
+
+        let heap = Default::default();
+        let module_function_arity = Arc::new(ModuleFunctionArity {
+            module,
+            function,
+            arity,
+        });
+        let mut frame = Frame::new(Arc::clone(&module_function_arity), code);
+
+        let heap_arguments = arguments.clone_into_heap(&heap);
+        frame.push(heap_arguments);
+
+        // Don't need to be cloned into heap because they are atoms
+        frame.push(function);
+        frame.push(module);
+
+        let mut stack: Stack = Default::default();
+        stack.push(frame);
+
+        Self::new(
+            parent_process.priority,
+            Some(parent_process.pid),
+            module_function_arity,
+            heap,
+            stack,
+        )
+    }
+
+    pub fn alloc_term_slice(&self, slice: &[Term]) -> *const Term {
+        self.heap.lock().unwrap().alloc_term_slice(slice)
+    }
+
+    /// Adds a frame for the BIF so that stacktraces include the BIF
+    pub fn tail_call_bif<F>(
+        arc_process: &Arc<Process>,
+        module: Term,
+        function: Term,
+        arity: usize,
+        bif: F,
+    ) where
+        F: Fn() -> exception::Result,
+    {
+        let module_function_arity = Arc::new(ModuleFunctionArity {
+            module,
+            function,
+            arity,
+        });
+        let frame = Frame::new(
+            module_function_arity,
+            // fake code
+            code::apply_fn(),
+        );
+
+        // fake frame show BIF shows in stacktraces
+        arc_process.push_frame(frame);
+
+        match bif() {
+            Ok(term) => {
+                arc_process.reduce();
+
+                // remove BIF frame before returning from call, so that caller's caller is invoked
+                // by `call_code`
+                {
+                    let mut locked_stack = arc_process.stack.lock().unwrap();
+                    locked_stack.pop().unwrap();
+                }
+                arc_process.return_from_call(term);
+
+                Self::call_code(arc_process)
+            }
+            Err(exception) => {
+                arc_process.reduce();
+                arc_process.exception(exception)
+            }
         }
     }
 
-    pub fn atom_index_to_string(&self, atom_index: atom::Index) -> String {
-        self.environment
-            .read()
-            .unwrap()
-            .atom_index_to_string(atom_index)
+    /// Calls top `Frame`'s `Code` if it exists and the process is not reduced.
+    pub fn call_code(arc_process: &Arc<Process>) {
+        if !arc_process.is_reduced() {
+            let option_code = arc_process
+                .stack
+                .lock()
+                .unwrap()
+                .get(0)
+                .map(|frame| frame.code());
+
+            match option_code {
+                Some(code) => code(arc_process),
+                None => (),
+            }
+        }
     }
 
     /// Combines the two `Term`s into a list `Term`.  The list is only a proper list if the `tail`
-    /// is a list `Term` (`Term.tag` is `Tag::List`) or empty list (`Term.tag` is `Tag::EmptyList`).
-    pub fn cons(&mut self, head: Term, tail: Term) -> List {
-        let mut term_vector = Vec::with_capacity(2);
-        term_vector.push(head);
-        term_vector.push(tail);
+    /// is a list `Term` (`Term.tag` is `List`) or empty list (`Term.tag` is `EmptyList`).
+    pub fn cons(&self, head: Term, tail: Term) -> &'static Cons {
+        self.heap.lock().unwrap().cons(head, tail)
+    }
 
-        Term::alloc_slice(term_vector.as_slice(), &mut self.term_arena)
+    pub fn current_module_function_arity(&self) -> Option<Arc<ModuleFunctionArity>> {
+        self.stack
+            .lock()
+            .unwrap()
+            .get(0)
+            .map(|frame| frame.module_function_arity())
+    }
+
+    pub fn exit(&self) {
+        self.reduce();
+        self.exception(exit!(Term::str_to_atom("normal", DoNotCare).unwrap()));
+    }
+
+    pub fn exception(&self, exception: Exception) {
+        *self.status.write().unwrap() = Status::Exiting(exception);
+    }
+
+    pub fn external_pid(
+        &self,
+        node: usize,
+        number: usize,
+        serial: usize,
+    ) -> &'static identifier::External {
+        self.heap.lock().unwrap().external_pid(node, number, serial)
     }
 
     pub fn f64_to_float(&self, f: f64) -> &'static Float {
-        let pointer = self.float_arena.alloc(Float::new(f)) as *const Float;
-
-        unsafe { &*pointer }
+        self.heap.lock().unwrap().f64_to_float(f)
     }
 
-    pub fn rug_integer_to_big_integer(&self, rug_integer: rug::Integer) -> &'static big::Integer {
-        let pointer =
-            self.big_integer_arena.alloc(big::Integer::new(rug_integer)) as *const big::Integer;
+    pub fn function(
+        &self,
+        module_function_arity: Arc<ModuleFunctionArity>,
+        code: Code,
+    ) -> &'static Function {
+        self.heap
+            .lock()
+            .unwrap()
+            .function(module_function_arity, code)
+    }
 
-        unsafe { &*pointer }
+    pub fn local_reference(
+        &self,
+        scheduler_id: &scheduler::ID,
+        number: reference::local::Number,
+    ) -> &'static reference::local::Reference {
+        self.heap
+            .lock()
+            .unwrap()
+            .local_reference(scheduler_id, number)
+    }
+
+    pub fn num_bigint_big_to_big_integer(&self, big_int: BigInt) -> &'static big::Integer {
+        self.heap
+            .lock()
+            .unwrap()
+            .num_bigint_big_to_big_integer(big_int)
+    }
+
+    /// Pops `n` data from top `Frame` of `Stack`.
+    ///
+    /// Panics if stack does not have enough entries or there are any remain items on the stack.
+    pub fn pop_arguments(&self, count: usize) -> Vec<Term> {
+        let mut argument_vec: Vec<Term> = Vec::with_capacity(count);
+        let mut locked_stack = self.stack.lock().unwrap();
+
+        let frame = locked_stack.get_mut(0).unwrap();
+
+        for _ in 0..count {
+            argument_vec.push(frame.pop().unwrap());
+        }
+        assert!(frame.is_empty());
+
+        argument_vec
+    }
+
+    pub fn push_frame(&self, frame: Frame) {
+        self.stack.lock().unwrap().push(frame)
+    }
+
+    pub fn reduce(&self) {
+        self.run_reductions.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn is_reduced(&self) -> bool {
+        MAX_REDUCTIONS_PER_RUN <= self.run_reductions.load(Ordering::SeqCst)
+    }
+
+    pub fn register(ref_arc_process: &Arc<Process>, name: Term) -> Result<Term, Exception> {
+        Arc::clone(ref_arc_process).register_in(RW_LOCK_REGISTERED_BY_NAME.write().unwrap(), name)
+    }
+
+    pub fn register_in(
+        self: Arc<Process>,
+        mut writable_registry: RwLockWriteGuard<HashMap<Term, Registered>>,
+        name: Term,
+    ) -> Result<Term, Exception> {
+        let mut writable_registered_name = self.registered_name.write().unwrap();
+
+        match *writable_registered_name {
+            None => {
+                writable_registry.insert(name, Registered::Process(Arc::downgrade(&self)));
+                *writable_registered_name = Some(name);
+
+                Ok(true.into())
+            }
+            Some(_) => Err(badarg!()),
+        }
+    }
+
+    pub fn replace_frame(&self, frame: Frame) {
+        let mut locked_stack = self.stack.lock().unwrap();
+
+        // unwrap to ensure there is a frame to replace
+        locked_stack.pop().unwrap();
+
+        locked_stack.push(frame);
+    }
+
+    pub fn return_from_call(&self, term: Term) {
+        let mut locked_stack = self.stack.lock().unwrap();
+
+        // remove current frame.  The caller becomes the top frame, so it's `module_function_arity`
+        // will be returned from `current_module_function_arity`.
+        locked_stack.pop();
+
+        match locked_stack.get_mut(0) {
+            Some(caller_frame) => {
+                caller_frame.push(term);
+            }
+            // no caller, return value is thrown away, process will exit when `Scheduler.run_once`
+            // detects it has no frames.
+            None => (),
+        }
+    }
+
+    /// Run process until `reductions` exceeds `MAX_REDUCTIONS` or process exits
+    pub fn run(arc_process: &Arc<Process>) {
+        arc_process.start_running();
+
+        // `code` is expected to set `code` before it returns to be the next spot to continue
+        let option_code = arc_process
+            .stack
+            .lock()
+            .unwrap()
+            .get(0)
+            .map(|frame| frame.code());
+
+        match option_code {
+            Some(code) => code(arc_process),
+            None => arc_process.exit(),
+        }
+
+        arc_process.stop_running();
+    }
+
+    #[cfg(test)]
+    pub fn stack_len(&self) -> usize {
+        self.stack.lock().unwrap().len()
+    }
+
+    pub fn stacktrace(&self) -> Vec<Arc<ModuleFunctionArity>> {
+        let locked_stack = self.stack.lock().unwrap();
+        let mut stacktrace = Vec::with_capacity(locked_stack.len());
+
+        for frame in locked_stack.iter() {
+            stacktrace.push(frame.module_function_arity())
+        }
+
+        stacktrace
+    }
+
+    #[cfg(test)]
+    pub fn print_stack(&self) {
+        println!("{:?}", self.stack.lock().unwrap());
+    }
+
+    fn start_running(&self) {
+        *self.status.write().unwrap() = Status::Running;
+    }
+
+    fn stop_running(&self) {
+        self.total_reductions.fetch_add(
+            self.run_reductions.load(Ordering::SeqCst) as u64,
+            Ordering::SeqCst,
+        );
+        self.run_reductions.store(0, Ordering::SeqCst);
+
+        let mut writable_status = self.status.write().unwrap();
+
+        if *writable_status == Status::Running {
+            *writable_status = Status::Runnable
+        }
+    }
+
+    pub fn send_heap_message(&self, heap: Heap, message: Term) {
+        self.mailbox
+            .lock()
+            .unwrap()
+            .push(Message::Heap(message::Heap {
+                heap,
+                term: message,
+            }));
+    }
+
+    pub fn send_from_self(&self, message: Term) {
+        self.mailbox.lock().unwrap().push(Message::Process(message));
+    }
+
+    pub fn send_from_other(&self, message: Term) {
+        match self.heap.try_lock() {
+            Ok(ref mut destination_heap) => {
+                let destination_message = message.clone_into_heap(destination_heap);
+
+                self.mailbox
+                    .lock()
+                    .unwrap()
+                    .push(Message::Process(destination_message));
+            }
+            Err(_) => {
+                let heap: Heap = Default::default();
+                let heap_message = message.clone_into_heap(&heap);
+
+                self.send_heap_message(heap, heap_message);
+            }
+        }
+
+        // status.write() scope
+        let stop_waiting = {
+            let mut writable_status = self.status.write().unwrap();
+
+            if *writable_status == Status::Waiting {
+                *writable_status = Status::Runnable;
+
+                true
+            } else {
+                false
+            }
+        };
+
+        if stop_waiting {
+            let locked_option_weak_scheduler = self.scheduler.lock().unwrap();
+
+            match *locked_option_weak_scheduler {
+                Some(ref weak_scheduler) => match weak_scheduler.upgrade() {
+                    Some(arc_scheduler) => arc_scheduler.stop_waiting(self),
+                    None => unreachable!("Scheduler was Dropped"),
+                },
+                None => unreachable!("Process not scheduled"),
+            }
+        }
     }
 
     pub fn subbinary(
@@ -76,268 +480,144 @@ impl Process {
         byte_count: usize,
         bit_count: u8,
     ) -> &'static sub::Binary {
-        let pointer = self.subbinary_arena.alloc(sub::Binary::new(
+        self.heap.lock().unwrap().subbinary(
             original,
             byte_offset,
             bit_offset,
             byte_count,
             bit_count,
-        )) as *const sub::Binary;
-
-        unsafe { &*pointer }
+        )
     }
 
-    pub fn str_to_atom_index(
-        &mut self,
-        name: &str,
-        existence: Existence,
-    ) -> Result<atom::Index, BadArgument> {
-        self.environment
-            .write()
-            .unwrap()
-            .str_to_atom_index(name, existence)
+    pub fn slice_to_binary(&self, slice: &[u8]) -> Binary<'static> {
+        self.heap.lock().unwrap().slice_to_binary(slice)
     }
 
-    pub fn slice_to_binary(&mut self, slice: &[u8]) -> Binary {
-        Binary::from_slice(slice, self)
+    pub fn slice_to_map(&self, slice: &[(Term, Term)]) -> &'static Map {
+        self.heap.lock().unwrap().slice_to_map(slice)
     }
 
-    pub fn slice_to_tuple(&mut self, slice: &[Term]) -> &Tuple {
-        Tuple::from_slice(slice, &mut self.term_arena)
+    pub fn slice_to_tuple(&self, slice: &[Term]) -> &'static Tuple {
+        self.heap.lock().unwrap().slice_to_tuple(slice)
     }
-}
 
-/// Like `std::fmt::Debug`, but additionally takes `&Process` in case it is needed to lookup
-/// values in the process.
-pub trait DebugInProcess {
-    fn format_in_process(&self, process: &Process) -> String;
-}
+    /// Puts the process in the waiting status
+    pub fn wait(self: &Process) {
+        *self.status.write().unwrap() = Status::Waiting;
+        self.run_reductions.fetch_add(1, Ordering::SeqCst);
+    }
 
-impl DebugInProcess for Result<Term, BadArgument> {
-    fn format_in_process(&self, process: &Process) -> String {
-        match self {
-            Ok(term) => format!("Ok({})", term.format_in_process(process)),
-            Err(BadArgument) => "Err(BadArgument)".to_string(),
+    // Private
+
+    fn new(
+        priority: Priority,
+        parent_pid: Option<Term>,
+        initial_module_function_arity: Arc<ModuleFunctionArity>,
+        heap: Heap,
+        stack: Stack,
+    ) -> Self {
+        Process {
+            scheduler: Mutex::new(None),
+            priority,
+            parent_pid,
+            pid: identifier::local::next(),
+            initial_module_function_arity,
+            run_reductions: Default::default(),
+            total_reductions: Default::default(),
+            registered_name: Default::default(),
+            status: Default::default(),
+            heap: Mutex::new(heap),
+            stack: Mutex::new(stack),
+            mailbox: Default::default(),
         }
     }
 }
 
-/// Like `std::cmp::Ord`, but additionally takes `&Process` in case it is needed to lookup
-/// values in the process.
-pub trait OrderInProcess<Rhs: ?Sized = Self> {
-    /// This method returns an ordering between `self` and `other` values.
-    #[must_use]
-    fn cmp_in_process(&self, other: &Rhs, process: &Process) -> Ordering;
-}
+#[cfg(debug_assertions)]
+impl Debug for Process {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.pid)?;
 
-impl OrderInProcess for Result<Term, BadArgument> {
-    fn cmp_in_process(&self, other: &Self, process: &Process) -> Ordering {
-        match (self, other) {
-            (Ok(self_ok), Ok(other_ok)) => self_ok.cmp_in_process(&other_ok, process),
-            (Ok(_), Err(_)) => Ordering::Less,
-            (Err(_), Ok(_)) => Ordering::Greater,
-            (Err(BadArgument), Err(BadArgument)) => Ordering::Equal,
+        match *self.registered_name.read().unwrap() {
+            Some(registered_name) => write!(f, "({:?})", registered_name),
+            None => Ok(()),
         }
     }
 }
 
-#[macro_export]
-macro_rules! assert_cmp_in_process {
-    ($left:expr, $ordering:expr, $right:expr, $process:expr) => ({
-        use crate::process::{DebugInProcess, OrderInProcess};
+impl Display for Process {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO external pids
+        let (number, serial) = unsafe { self.pid.decompose_local_pid() };
+        write!(f, "#PID<0.{}.{}>", number, serial)?;
 
-        match (&$left, &$ordering, &$right, &$process) {
-            (left_val, ordering_val, right_val, process_val) => {
-                if !((*left_val).cmp_in_process(right_val, process_val) == *ordering_val) {
-                     let ordering_str = match *ordering_val {
-                         Ordering::Less => "<",
-                         Ordering::Equal => "==",
-                         Ordering::Greater => ">"
-                     };
-                     panic!(r#"assertion failed: `(left {} right)`
-  left: `{}`,
- right: `{}`"#,
-                       ordering_str,
-                       left_val.format_in_process(process_val),
-                       right_val.format_in_process(process_val)
-                     )
-                }
-            }
+        match *self.registered_name.read().unwrap() {
+            Some(registered_name) => write!(f, "({})", unsafe { registered_name.atom_to_string() }),
+            None => Ok(()),
         }
-    });
-    ($left:expr, $ordering:expr, $right:expr, $process:expr,) => ({
-        assert_cmp_in_process!($left, $ordering, $right, $process)
-    });
-    ($left:expr, $ordering:expr, $right:expr, $process:expr, $($arg:tt)+) => ({
-        use crate::process::{DebugInProcess, OrderInProcess};
-
-        match (&$left, &$ordering, &$right, &$process) {
-            (left_val, ordering_val, right_val, process_val) => {
-                if !((*left_val).cmp_in_process(right_val, process_val) == *ordering_val) {
-                     let ordering_str = match *ordering_val {
-                         Ordering::Less => "<",
-                         Ordering::Equal => "==",
-                         Ordering::Greater => ">"
-                     };
-                     panic!(r#"assertion failed: `(left {} right)`
-  left: `{}`,
- right: `{}`: {}"#,
-                       ordering_str,
-                       left_val.format_in_process(process_val),
-                       right_val.format_in_process(process_val),
-                       format_args!($($arg)+)
-                     )
-                }
-            }
-        }
-    });
+    }
 }
 
-#[macro_export]
-macro_rules! refute_cmp_in_process {
-    ($left:expr, $ordering:expr, $right:expr, $process:expr) => ({
-        use crate::process::{DebugInProcess, OrderInProcess};
+impl Eq for Process {}
 
-        match (&$left, &$ordering, &$right, &$process) {
-            (left_val, ordering_val, right_val, process_val) => {
-                if (*left_val).cmp_in_process(right_val, process_val) == *ordering_val {
-                     let ordering_str = match *ordering_val {
-                         Ordering::Less => ">=",
-                         Ordering::Equal => "!=",
-                         Ordering::Greater => "<="
-                     };
-                     panic!(r#"assertion failed: `(left {} right)`
-  left: `{}`,
- right: `{}`"#,
-                       ordering_str,
-                       left_val.format_in_process(process_val),
-                       right_val.format_in_process(process_val)
-                     )
-                }
-            }
-        }
-    });
-    ($left:expr, $ordering:expr, $right:expr, $process:expr,) => ({
-        assert_cmp_in_process!($left, $ordering, $right, $process)
-    });
-    ($left:expr, $ordering:expr, $right:expr, $process:expr, $($arg:tt)+) => ({
-        use crate::process::{DebugInProcess, OrderInProcess};
-
-        match (&$left, &$ordering, &$right, &$process) {
-            (left_val, ordering_val, right_val, process_val) => {
-                if (*left_val).cmp_in_process(right_val, process_val) == *ordering_val {
-                     let ordering_str = match *ordering_val {
-                         Ordering::Less => ">=",
-                         Ordering::Equal => "!=",
-                         Ordering::Greater => "<="
-                     };
-                     panic!(r#"assertion failed: `(left {} right)`
-  left: `{}`,
- right: `{}`: {}"#,
-                       ordering_str,
-                       left_val.format_in_process(process_val),
-                       right_val.format_in_process(process_val),
-                       format_args!($($arg)+)
-                     )
-                }
-            }
-        }
-    });
+impl Hash for Process {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pid.hash(state);
+    }
 }
 
-#[macro_export]
-macro_rules! assert_eq_in_process {
-    ($left:expr, $right:expr, $process:expr) => ({
-        assert_cmp_in_process!($left, std::cmp::Ordering::Equal, $right, $process)
-    });
-    ($left:expr, $right:expr, $process:expr,) => ({
-        assert_cmp_in_process!($left, std::cmp::Ordering::Equal, $right, $process)
-    });
-    ($left:expr, $ordering:expr, $right:expr, $process:expr, $($arg:tt)+) => ({
-        assert_cmp_in_process!($left, std::cmp::Ordering::Equal, $right, $process, $($arg)+)
-    });
+impl PartialEq for Process {
+    fn eq(&self, other: &Process) -> bool {
+        self.pid == other.pid
+    }
 }
 
-#[macro_export]
-macro_rules! assert_ne_in_process {
-    ($left:expr, $right:expr, $process:expr) => ({
-        refute_cmp_in_process!($left, std::cmp::Ordering::Equal, $right, $process)
-    });
-    ($left:expr, $right:expr, $process:expr,) => ({
-        refute_cmp_in_process!($left, std::cmp::Ordering::Equal, $right, $process)
-    });
-    ($left:expr, $ordering:expr, $right:expr, $process:expr, $($arg:tt)+) => ({
-        refute_cmp_in_process!($left, std::cmp::Ordering::Equal, $right, $process, $($arg)+)
-    });
+type Reductions = u16;
+
+// [BEAM statuses](https://github.com/erlang/otp/blob/551d03fe8232a66daf1c9a106194aa38ef660ef6/erts/emulator/beam/erl_process.c#L8944-L8972)
+#[derive(PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum Status {
+    Runnable,
+    Running,
+    Waiting,
+    Exiting(Exception),
 }
 
-/// Like `std::convert::Into`, but additionally takes `&mut Process` in case it is needed to
+impl Default for Status {
+    fn default() -> Status {
+        Status::Runnable
+    }
+}
+
+pub trait TryFromInProcess<T>: Sized {
+    fn try_from_in_process(value: T, process: &Process) -> Result<Self, Exception>;
+}
+
+pub trait TryIntoInProcess<T>: Sized {
+    fn try_into_in_process(self, process: &Process) -> Result<T, Exception>;
+}
+
+impl<T, U> TryIntoInProcess<U> for T
+where
+    U: TryFromInProcess<T>,
+{
+    fn try_into_in_process(self, process: &Process) -> Result<U, Exception> {
+        U::try_from_in_process(self, process)
+    }
+}
+
+/// Like `std::convert::Into`, but additionally takes `&Process` in case it is needed to
 /// lookup or create new values in the `Process`.
 pub trait IntoProcess<T> {
     /// Performs the conversion.
-    fn into_process(self, process: &mut Process) -> T;
+    fn into_process(self, process: &Process) -> T;
 }
 
-impl IntoProcess<Term> for bool {
-    fn into_process(self, mut process: &mut Process) -> Term {
-        Term::str_to_atom(&self.to_string(), Existence::DoNotCare, &mut process)
-            .unwrap()
-            .into()
-    }
-}
-
-impl IntoProcess<Term> for rug::Integer {
-    fn into_process(self, mut process: &mut Process) -> Term {
+impl IntoProcess<Term> for BigInt {
+    fn into_process(self, process: &Process) -> Term {
         let integer: integer::Integer = self.into();
 
-        integer.into_process(&mut process)
-    }
-}
-
-#[cfg(test)]
-impl Default for Process {
-    fn default() -> Process {
-        Process::new(Arc::new(RwLock::new(Environment::new())))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod str_to_atom_index {
-        use super::*;
-
-        #[test]
-        fn without_same_string_have_different_index() {
-            let mut process: Process = Default::default();
-
-            assert_ne!(
-                process
-                    .str_to_atom_index("true", Existence::DoNotCare)
-                    .unwrap()
-                    .0,
-                process
-                    .str_to_atom_index("false", Existence::DoNotCare)
-                    .unwrap()
-                    .0
-            )
-        }
-
-        #[test]
-        fn with_same_string_have_same_index() {
-            let mut process: Process = Default::default();
-
-            assert_eq!(
-                process
-                    .str_to_atom_index("atom", Existence::DoNotCare)
-                    .unwrap()
-                    .0,
-                process
-                    .str_to_atom_index("atom", Existence::DoNotCare)
-                    .unwrap()
-                    .0
-            )
-        }
+        integer.into_process(process)
     }
 }

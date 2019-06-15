@@ -14,7 +14,6 @@ pub type BootScript = Vec<BootInstruction>;
 //TODO: Needs to be Term
 pub type BootInstruction = String;
 
-#[derive(Debug)]
 pub enum Command {
     Run,
     Shell,
@@ -52,7 +51,6 @@ impl std::error::Error for ConfigError {
     }
 }
 
-#[derive(Debug)]
 pub struct Config {
     pub config: AppConfig,
     pub boot: Option<BootScript>,

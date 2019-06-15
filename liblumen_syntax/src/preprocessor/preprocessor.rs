@@ -371,7 +371,7 @@ where
     }
 
     fn eval_conditional(&self, span: ByteSpan, condition: VecDeque<Lexed>) -> Result<bool> {
-        use crate::lexer::{symbols, Ident};
+        use crate::lexer::Ident;
         use crate::parser::ast::{Expr, Literal};
         use crate::parser::Parse;
         use crate::preprocessor::evaluator;

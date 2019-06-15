@@ -1,12 +1,10 @@
 //! [External Term Format](http://erlang.org/doc/apps/erts/erl_ext_dist.html)
 
-use std::convert::TryFrom;
-
-use crate::term::BadArgument;
+use crate::exception::Exception;
+use crate::process::{Process, TryFromInProcess};
 
 pub const VERSION_NUMBER: u8 = 131;
 
-#[derive(Debug)]
 pub enum Tag {
     NewFloat = 70,
     BitBinary = 77,
@@ -22,10 +20,8 @@ pub enum Tag {
     SmallAtomUTF8 = 119,
 }
 
-impl TryFrom<u8> for Tag {
-    type Error = BadArgument;
-
-    fn try_from(tag_byte: u8) -> Result<Tag, BadArgument> {
+impl TryFromInProcess<u8> for Tag {
+    fn try_from_in_process(tag_byte: u8, _process: &Process) -> Result<Tag, Exception> {
         use crate::term::external_format::Tag::*;
 
         match tag_byte {

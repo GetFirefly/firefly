@@ -146,12 +146,7 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
                     strategy::term(arc_process.clone()),
                     strategy::term::function::module(),
                     strategy::term::function::function(),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Arity or arguments cannot be non-negative integer or list of arguments",
-                        |arity_or_arguments| {
-                            !(arity_or_arguments.is_integer() || arity_or_arguments.is_list())
-                        },
-                    ),
+                    strategy::term::is_not_non_negative_integer(arc_process.clone()),
                 ),
                 |(class, reason, module, function, arity_or_arguments)| {
                     let stacktrace = Term::slice_to_list(

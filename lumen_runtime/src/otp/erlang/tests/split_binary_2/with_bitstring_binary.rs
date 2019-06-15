@@ -1,23 +1,16 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 mod with_heap_binary;
 mod with_subbinary;
 
 #[test]
 fn without_non_negative_integer_position_errors_badarg() {
     with_process_arc(|arc_process| {
-        let zero = &0.into_process(&arc_process);
-
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
                     strategy::term::is_bitstring(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Position must not be a non-negative integer", |position| {
-                            !(position.is_integer() && (zero <= position))
-                        }),
+                    strategy::term::is_not_non_negative_integer(arc_process.clone()),
                 ),
                 |(binary, position)| {
                     prop_assert_eq!(

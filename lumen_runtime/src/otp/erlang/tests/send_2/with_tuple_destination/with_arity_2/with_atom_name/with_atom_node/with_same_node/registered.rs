@@ -1,5 +1,7 @@
 use super::*;
 
+use proptest::strategy::Strategy;
+
 mod with_different_process;
 
 #[test]

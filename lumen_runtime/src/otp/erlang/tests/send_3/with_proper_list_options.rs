@@ -1,6 +1,7 @@
 use super::*;
 
 use proptest::prop_oneof;
+use proptest::strategy::Strategy;
 
 mod empty;
 mod non_empty;
@@ -15,7 +16,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    is_not_destination(arc_process.clone()),
+                    strategy::term::is_not_destination(arc_process.clone()),
                     strategy::term(arc_process.clone()),
                     valid_options(arc_process.clone()),
                 ),

@@ -25,7 +25,7 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_message() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &strategy::term::can_be_passed_to_different_process(arc_process.clone()),
+                &strategy::term::heap_fragment_safe(arc_process.clone()),
                 |message| {
                     let different_arc_process = process::local::test(&arc_process);
                     let destination = different_arc_process.pid;

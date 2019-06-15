@@ -10,7 +10,7 @@ use crate::process::Process;
 use crate::term::Term;
 
 // XXX work-around for bug related to sending maps across processes in `send_2` proptests
-pub fn can_be_passed_to_different_process(
+pub fn heap_fragment_safe(
     element: BoxedStrategy<Term>,
     size_range: SizeRange,
     arc_process: Arc<Process>,

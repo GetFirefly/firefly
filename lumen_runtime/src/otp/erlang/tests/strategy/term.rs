@@ -48,7 +48,8 @@ pub fn big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
 }
 
 // XXX work-around for bug related to sending maps across processes in `send_2` proptests
-pub fn can_be_passed_to_different_process(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+// XXX work-around for bug related to sending maps in timer messages in `send_after_3` proptests
+pub fn heap_fragment_safe(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let container_arc_process = arc_process.clone();
 
     leaf(RANGE_INCLUSIVE, arc_process)
@@ -57,7 +58,7 @@ pub fn can_be_passed_to_different_process(arc_process: Arc<Process>) -> BoxedStr
             (MAX_LEN * (DEPTH as usize + 1)) as u32,
             MAX_LEN as u32,
             move |element| {
-                container::can_be_passed_to_different_process(
+                container::heap_fragment_safe(
                     element,
                     RANGE_INCLUSIVE.clone().into(),
                     container_arc_process.clone(),
@@ -222,6 +223,17 @@ pub fn is_not_boolean(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+pub fn is_not_destination(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process.clone())
+        .prop_filter(
+            "Destination must not be an atom, pid, or tuple",
+            |destination| {
+                !(destination.is_atom() || destination.is_pid() || destination.is_tuple())
+            },
+        )
+        .boxed()
+}
+
 pub fn is_not_encoding(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter(
@@ -281,6 +293,16 @@ pub fn is_not_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 pub fn is_not_map(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Term cannot be a map", |v| !v.is_map())
+        .boxed()
+}
+
+pub fn is_not_non_negative_integer(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    let zero = 0.into_process(&arc_process);
+
+    super::term(arc_process)
+        .prop_filter("Term must no be a non-negative integer", move |term| {
+            !(term.is_integer() && &zero <= term)
+        })
         .boxed()
 }
 

@@ -296,6 +296,35 @@ pub fn is_not_pid(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+pub fn is_not_proper_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    let element = super::term(arc_process.clone());
+    let size_range = super::size_range();
+
+    prop_oneof![
+        integer::big(arc_process.clone()),
+        local_reference(arc_process.clone()),
+        function(arc_process.clone()),
+        float(arc_process.clone()),
+        // TODO `Export`
+        // TODO `ReferenceCountedBinary`
+        binary::heap::with_size_range(size_range.clone(), arc_process.clone()),
+        binary::sub(arc_process.clone()),
+        pid::external(arc_process.clone()),
+        // TODO `ExternalPort`
+        // TODO `ExternalReference`
+        pid::local(),
+        // TODO `LocalPort`,
+        atom(),
+        integer::small(arc_process.clone()),
+        prop_oneof![
+            tuple::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
+            map::intermediate(element.clone(), size_range, arc_process.clone()),
+            list::improper(arc_process.clone())
+        ]
+    ]
+    .boxed()
+}
+
 pub fn is_not_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Value must not be a tuple", |v| !v.is_reference())

@@ -1,5 +1,8 @@
 use super::*;
 
+use std::thread;
+use std::time::Duration;
+
 use proptest::prop_oneof;
 use proptest::strategy::Strategy;
 

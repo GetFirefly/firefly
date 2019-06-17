@@ -1,12 +1,9 @@
 use super::*;
 
-use std::thread;
-use std::time::Duration;
-
-use proptest::strategy::Strategy;
+mod registered;
 
 #[test]
-fn sends_nothing_when_timer_expires() {
+fn unregistered_sends_nothing_when_timer_expires() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
             &(milliseconds(), strategy::process()).prop_flat_map(|(milliseconds, arc_process)| {
@@ -17,11 +14,10 @@ fn sends_nothing_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
+                let time = milliseconds.into_process(&arc_process);
                 let destination = registered_name();
 
-                let time = milliseconds.into_process(&arc_process);
-
-                let result = erlang::send_after_3(time, destination, message, arc_process.clone());
+                let result = erlang::start_timer_3(time, destination, message, arc_process.clone());
 
                 prop_assert!(
                     result.is_ok(),
@@ -37,13 +33,15 @@ fn sends_nothing_when_timer_expires() {
 
                 prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
 
-                prop_assert!(!has_message(&arc_process, message));
+                let timeout_message = timeout_message(timer_reference, message, &arc_process);
+
+                prop_assert!(!has_message(&arc_process, timeout_message));
 
                 thread::sleep(Duration::from_millis(milliseconds + 1));
 
                 timer::timeout();
 
-                prop_assert!(!has_message(&arc_process, message));
+                prop_assert!(!has_message(&arc_process, timeout_message));
 
                 Ok(())
             },

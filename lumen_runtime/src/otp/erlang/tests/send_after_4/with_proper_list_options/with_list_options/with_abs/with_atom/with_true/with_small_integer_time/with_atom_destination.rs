@@ -45,7 +45,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
                     timer::timeout();
 
-                    prop_assert!(has_message(&arc_process, message));
+                    prop_assert!(!has_message(&arc_process, message));
 
                     Ok(())
                 },

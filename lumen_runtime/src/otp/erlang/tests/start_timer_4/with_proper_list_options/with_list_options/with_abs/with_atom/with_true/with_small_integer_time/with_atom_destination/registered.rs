@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn with_different_process_sends_message_when_timer_expires() {
+fn with_different_process_with_message_sends_message_when_timer_expires() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -24,8 +24,15 @@ fn with_different_process_sends_message_when_timer_expires() {
                         Ok(true.into())
                     );
 
-                    let result =
-                        erlang::start_timer_3(time, destination, message, arc_process.clone());
+                    let options = options(&arc_process);
+
+                    let result = erlang::start_timer_4(
+                        time,
+                        destination,
+                        message,
+                        options,
+                        arc_process.clone(),
+                    );
 
                     prop_assert!(
                         result.is_ok(),
@@ -40,12 +47,19 @@ fn with_different_process_sends_message_when_timer_expires() {
                     let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
 
                     prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
-
-                    let timeout_message = timeout_message(timer_reference, message, &arc_process);
+                    let timeout_message = Term::slice_to_tuple(
+                        &[
+                            Term::str_to_atom("timeout", DoNotCare).unwrap(),
+                            timer_reference,
+                            message,
+                        ],
+                        &arc_process,
+                    );
 
                     prop_assert!(!has_message(&destination_arc_process, timeout_message));
 
-                    thread::sleep(Duration::from_millis(milliseconds + 1));
+                    // No sleeping is necessary because timeout is in the past and so the timer will
+                    // timeout at once
 
                     timer::timeout();
 
@@ -59,7 +73,7 @@ fn with_different_process_sends_message_when_timer_expires() {
 }
 
 #[test]
-fn with_same_process_sends_message_when_timer_expires() {
+fn with_same_process_with_message_sends_message_when_timer_expires() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
             &(milliseconds(), strategy::process()).prop_flat_map(|(milliseconds, arc_process)| {
@@ -78,7 +92,10 @@ fn with_same_process_sends_message_when_timer_expires() {
                     Ok(true.into())
                 );
 
-                let result = erlang::start_timer_3(time, destination, message, arc_process.clone());
+                let options = options(&arc_process);
+
+                let result =
+                    erlang::start_timer_4(time, destination, message, options, arc_process.clone());
 
                 prop_assert!(
                     result.is_ok(),
@@ -94,11 +111,19 @@ fn with_same_process_sends_message_when_timer_expires() {
 
                 prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
 
-                let timeout_message = timeout_message(timer_reference, message, &arc_process);
+                let timeout_message = Term::slice_to_tuple(
+                    &[
+                        Term::str_to_atom("timeout", DoNotCare).unwrap(),
+                        timer_reference,
+                        message,
+                    ],
+                    &arc_process,
+                );
 
                 prop_assert!(!has_message(&arc_process, timeout_message));
 
-                thread::sleep(Duration::from_millis(milliseconds + 1));
+                // No sleeping is necessary because timeout is in the past and so the timer will
+                // timeout at once
 
                 timer::timeout();
 

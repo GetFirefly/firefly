@@ -16,7 +16,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
                     let destination = registered_name();
                     let options = options(&arc_process);
 
-                    let result = erlang::send_after_4(
+                    let result = erlang::start_timer_4(
                         time,
                         destination,
                         message,
@@ -38,14 +38,23 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
                     prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
 
-                    prop_assert!(!has_message(&arc_process, message));
+                    let timeout_message = Term::slice_to_tuple(
+                        &[
+                            Term::str_to_atom("timeout", DoNotCare).unwrap(),
+                            timer_reference,
+                            message,
+                        ],
+                        &arc_process,
+                    );
+
+                    prop_assert!(!has_message(&arc_process, timeout_message));
 
                     // No sleeping is necessary because timeout is in the past and so the timer will
                     // timeout at once
 
                     timer::timeout();
 
-                    prop_assert!(has_message(&arc_process, message));
+                    prop_assert!(!has_message(&arc_process, timeout_message));
 
                     Ok(())
                 },

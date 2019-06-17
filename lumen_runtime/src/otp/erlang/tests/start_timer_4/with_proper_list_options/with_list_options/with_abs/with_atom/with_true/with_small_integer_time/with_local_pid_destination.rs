@@ -20,7 +20,7 @@ fn with_different_process_sends_message_when_timer_expires() {
                 let options = options(&arc_process);
 
                 let result =
-                    erlang::send_after_4(time, destination, message, options, arc_process.clone());
+                    erlang::start_timer_4(time, destination, message, options, arc_process.clone());
 
                 prop_assert!(
                     result.is_ok(),
@@ -36,14 +36,23 @@ fn with_different_process_sends_message_when_timer_expires() {
 
                 prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
 
-                prop_assert!(!has_message(&destination_arc_process, message));
+                let timeout_message = Term::slice_to_tuple(
+                    &[
+                        Term::str_to_atom("timeout", DoNotCare).unwrap(),
+                        timer_reference,
+                        message,
+                    ],
+                    &arc_process,
+                );
+
+                prop_assert!(!has_message(&destination_arc_process, timeout_message));
 
                 // No sleeping is necessary because timeout is in the past and so the timer will
                 // timeout at once
 
                 timer::timeout();
 
-                prop_assert!(has_message(&destination_arc_process, message));
+                prop_assert!(has_message(&destination_arc_process, timeout_message));
 
                 Ok(())
             },
@@ -68,7 +77,7 @@ fn with_same_process_sends_message_when_timer_expires() {
                 let options = options(&arc_process);
 
                 let result =
-                    erlang::send_after_4(time, destination, message, options, arc_process.clone());
+                    erlang::start_timer_4(time, destination, message, options, arc_process.clone());
 
                 prop_assert!(
                     result.is_ok(),
@@ -84,14 +93,23 @@ fn with_same_process_sends_message_when_timer_expires() {
 
                 prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
 
-                prop_assert!(!has_message(&arc_process, message));
+                let timeout_message = Term::slice_to_tuple(
+                    &[
+                        Term::str_to_atom("timeout", DoNotCare).unwrap(),
+                        timer_reference,
+                        message,
+                    ],
+                    &arc_process,
+                );
+
+                prop_assert!(!has_message(&arc_process, timeout_message));
 
                 // No sleeping is necessary because timeout is in the past and so the timer will
                 // timeout at once
 
                 timer::timeout();
 
-                prop_assert!(has_message(&arc_process, message));
+                prop_assert!(has_message(&arc_process, timeout_message));
 
                 Ok(())
             },
@@ -116,7 +134,7 @@ fn without_process_sends_nothing_when_timer_expires() {
                 let options = options(&arc_process);
 
                 let result =
-                    erlang::send_after_4(time, destination, message, options, arc_process.clone());
+                    erlang::start_timer_4(time, destination, message, options, arc_process.clone());
 
                 prop_assert!(
                     result.is_ok(),
@@ -132,14 +150,23 @@ fn without_process_sends_nothing_when_timer_expires() {
 
                 prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
 
-                prop_assert!(!has_message(&arc_process, message));
+                let timeout_message = Term::slice_to_tuple(
+                    &[
+                        Term::str_to_atom("timeout", DoNotCare).unwrap(),
+                        timer_reference,
+                        message,
+                    ],
+                    &arc_process,
+                );
+
+                prop_assert!(!has_message(&arc_process, timeout_message));
 
                 // No sleeping is necessary because timeout is in the past and so the timer will
                 // timeout at once
 
                 timer::timeout();
 
-                prop_assert!(!has_message(&arc_process, message));
+                prop_assert!(!has_message(&arc_process, timeout_message));
 
                 Ok(())
             },

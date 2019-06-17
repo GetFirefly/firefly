@@ -14,13 +14,20 @@ fn without_atom_or_pid_destination_errors_badarg() {
                 &(
                     milliseconds(),
                     strategy::term::is_not_send_after_destination(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
+                    strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, destination, message)| {
                     let time = milliseconds.into_process(&arc_process);
+                    let options = options(&arc_process);
 
                     prop_assert_eq!(
-                        erlang::send_after_3(time, destination, message, arc_process.clone()),
+                        erlang::send_after_4(
+                            time,
+                            destination,
+                            message,
+                            options,
+                            arc_process.clone()
+                        ),
                         Err(badarg!())
                     );
 

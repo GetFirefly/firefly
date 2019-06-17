@@ -223,6 +223,15 @@ pub fn is_not_boolean(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+pub fn is_not_send_after_destination(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process.clone())
+        .prop_filter(
+            "send_after/start_timer destination must not be an atom or pid",
+            |destination| !(destination.is_atom() || destination.is_pid()),
+        )
+        .boxed()
+}
+
 pub fn is_not_destination(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process.clone())
         .prop_filter(

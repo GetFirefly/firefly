@@ -28,6 +28,35 @@ pub use typed_term::*;
 //pub use map::*;
 pub use boxed::*;
 
+use core::fmt;
+
+#[derive(Clone, Copy)]
+pub struct BadArgument(Term);
+impl BadArgument {
+    #[inline]
+    pub fn new(term: Term) -> Self {
+        Self(term)
+    }
+
+    #[inline]
+    pub fn argument(&self) -> Term {
+        self.0
+    }
+}
+impl fmt::Display for BadArgument {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "bad argument: {:?}", self.0)
+    }
+}
+
+/// This error is returned when attempting to convert a `Term`
+/// to a concrete type, or to `TypedTerm`, and indicates the
+/// various failure modes possible
+#[derive(Debug, Clone, Copy)]
+pub enum InvalidTermError {
+    InvalidTag,
+}
+
 /// A trait which represents casting a type to a `Term`,
 /// which is a generic tagged pointer type for Erlang terms.
 ///
@@ -132,4 +161,21 @@ pub(crate) fn follow_moved(term: Term) -> Term {
     } else {
         term
     }
+}
+
+/// Given a number of bytes `bytes`, returns the number of words
+/// needed to hold that number of bytes, rounding up if necessary
+#[inline]
+pub(crate) fn to_word_size(bytes: usize) -> usize {
+    use core::mem;
+    use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
+
+    round_up_to_multiple_of(bytes, mem::size_of::<usize>()) / mem::size_of::<usize>()
+}
+
+/// Returns the size in words required to hold a value of type `T`
+#[inline]
+pub(crate) fn word_size_of<T: Sized>() -> usize {
+    use core::mem;
+    to_word_size(mem::size_of::<T>())
 }

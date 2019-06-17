@@ -16,10 +16,15 @@ pub struct Float {
     pub(crate) value: f64,
 }
 impl Float {
+    #[cfg(target_pointer_width = "32")]
+    const ARITYVAL: usize = 2;
+    #[cfg(target_pointer_width = "64")]
+    const ARITYVAL: usize = 1;
+
     #[inline]
     pub fn new(value: f64) -> Self {
         Self {
-            header: Term::FLAG_FLOAT,
+            header: Self::ARITYVAL | Term::FLAG_FLOAT,
             value,
         }
     }
@@ -32,7 +37,7 @@ impl Float {
 unsafe impl AsTerm for Float {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((&self.header as *const _ as usize) | Term::FLAG_BOXED)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 impl From<SmallInteger> for Float {

@@ -2,9 +2,11 @@
 
 use core::cmp;
 use core::mem;
+use core::ptr;
+use core::fmt;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::ProcessControlBlock;
+use crate::erts::{InvalidTermError, ProcessControlBlock};
 
 use super::*;
 
@@ -79,9 +81,8 @@ impl Term {
     // Header types
     pub const FLAG_TUPLE: usize = 0 | Self::FLAG_HEADER;
     pub const FLAG_NONE: usize = (1 << Self::HEADER_TAG_SHIFT) | Self::FLAG_HEADER;
-    pub const FLAG_BIG_INTEGER: usize = (2 << Self::HEADER_TAG_SHIFT) | Self::FLAG_HEADER;
-    #[allow(unused)]
-    pub const FLAG_UNUSED_2: usize = (3 << Self::HEADER_TAG_SHIFT) | Self::FLAG_HEADER;
+    pub const FLAG_POS_BIG_INTEGER: usize = (2 << Self::HEADER_TAG_SHIFT) | Self::FLAG_HEADER;
+    pub const FLAG_NEG_BIG_INTEGER: usize = (3 << Self::HEADER_TAG_SHIFT) | Self::FLAG_HEADER;
     pub const FLAG_REFERENCE: usize = (4 << Self::HEADER_TAG_SHIFT) | Self::FLAG_HEADER;
     pub const FLAG_CLOSURE: usize = (5 << Self::HEADER_TAG_SHIFT) | Self::FLAG_HEADER;
     pub const FLAG_FLOAT: usize = (6 << Self::HEADER_TAG_SHIFT) | Self::FLAG_HEADER;
@@ -223,7 +224,10 @@ impl Term {
     /// Returns true if this term is a big integer (i.e. arbitrarily large)
     #[inline]
     pub fn is_bigint(&self) -> bool {
-        self.0 & Self::MASK_HEADER == Self::FLAG_BIG_INTEGER
+        match self.0 & Self::MASK_HEADER {
+            Self::FLAG_POS_BIG_INTEGER | Self::FLAG_NEG_BIG_INTEGER => true,
+            _ => false
+        }
     }
 
     /// Returns true if this term is a float
@@ -437,71 +441,84 @@ impl Term {
     }
 
     /// Given a pointer to a generic term, converts it to its typed representation
-    pub unsafe fn to_typed_term(&self) -> Option<TypedTerm> {
+    pub fn to_typed_term(&self) -> Result<TypedTerm, InvalidTermError> {
         let val = self.0;
-        let ty = match val & Self::MASK_PRIMARY {
-            Self::FLAG_HEADER => return Self::header_to_typed_term(val),
+        match val & Self::MASK_PRIMARY {
+            Self::FLAG_HEADER => unsafe { Self::header_to_typed_term(val) },
             Self::FLAG_LIST => {
                 let ptr = unwrap_immediate1!(val) as *mut Cons;
                 let is_literal = val & Self::FLAG_LITERAL == Self::FLAG_LITERAL;
                 if is_literal {
-                    TypedTerm::List(Boxed::from_raw_literal(ptr))
+                    Ok(TypedTerm::List(unsafe { Boxed::from_raw_literal(ptr) }))
                 } else {
-                    TypedTerm::List(Boxed::from_raw(ptr))
+                    Ok(TypedTerm::List(unsafe { Boxed::from_raw(ptr) }))
                 }
             }
             Self::FLAG_BOXED => {
                 let ptr = unwrap_immediate1!(val) as *mut Term;
                 let is_literal = val & Self::FLAG_LITERAL == Self::FLAG_LITERAL;
                 if is_literal {
-                    TypedTerm::Literal(*ptr)
+                    Ok(TypedTerm::Literal(unsafe { *ptr }))
                 } else {
-                    TypedTerm::Boxed(*ptr)
+                    Ok(TypedTerm::Boxed(unsafe { *ptr }))
                 }
             }
-            Self::FLAG_IMMEDIATE => match val & Self::MASK_IMMEDIATE1 {
-                Self::FLAG_PID => TypedTerm::Pid(Pid::from_raw(unwrap_immediate1!(val))),
-                Self::FLAG_PORT => TypedTerm::Port(Port::from_raw(unwrap_immediate1!(val))),
-                Self::FLAG_IMMEDIATE2 => match val & Self::MASK_IMMEDIATE2 {
-                    Self::FLAG_ATOM => TypedTerm::Atom(Atom::from_id(unwrap_immediate2!(val))),
-                    Self::FLAG_CATCH => TypedTerm::Catch,
-                    Self::FLAG_UNUSED_1 => return None,
-                    Self::FLAG_NIL => TypedTerm::Nil,
+            Self::FLAG_IMMEDIATE => {
+                match val & Self::MASK_IMMEDIATE1 {
+                    Self::FLAG_PID => {
+                        Ok(TypedTerm::Pid(unsafe { Pid::from_raw(unwrap_immediate1!(val)) }))
+                    }
+                    Self::FLAG_PORT => {
+                        Ok(TypedTerm::Port(unsafe { Port::from_raw(unwrap_immediate1!(val)) }))
+                    }
+                    Self::FLAG_IMMEDIATE2 => {
+                        match val & Self::MASK_IMMEDIATE2 {
+                            Self::FLAG_ATOM => {
+                                Ok(TypedTerm::Atom(unsafe { Atom::from_id(unwrap_immediate2!(val)) }))
+                            }
+                            Self::FLAG_CATCH => Ok(TypedTerm::Catch),
+                            Self::FLAG_UNUSED_1 => Err(InvalidTermError::InvalidTag),
+                            Self::FLAG_NIL => Ok(TypedTerm::Nil),
+                            _ => unreachable!(),
+                        }
+                    }
+                    Self::FLAG_SMALL_INTEGER => {
+                        let unwrapped = unwrap_immediate1!(val);
+                        let small = unsafe { SmallInteger::from_untagged_term(unwrapped) };
+                        Ok(TypedTerm::SmallInteger(small))
+                    }
                     _ => unreachable!(),
-                },
-                Self::FLAG_SMALL_INTEGER => TypedTerm::SmallInteger(
-                    SmallInteger::from_untagged_term(unwrap_immediate1!(val)),
-                ),
-                _ => unreachable!(),
-            },
+                }
+            }
             _ => unreachable!(),
-        };
-        Some(ty)
+        }
     }
 
     #[inline]
-    unsafe fn header_to_typed_term(val: usize) -> Option<TypedTerm> {
+    unsafe fn header_to_typed_term(val: usize) -> Result<TypedTerm, InvalidTermError> {
         let ptr = unwrap_header!(val);
         let ty = match val & Self::MASK_HEADER {
             Self::FLAG_TUPLE => TypedTerm::Tuple(Boxed::from_raw(ptr as *mut Tuple)),
             Self::FLAG_NONE => {
                 if val & !Self::MASK_HEADER == Self::NONE_VAL {
-                    return Some(TypedTerm::None);
+                    TypedTerm::None
                 } else {
                     // Garbage value
-                    return None;
+                    return Err(InvalidTermError::InvalidTag);
                 }
             }
-            Self::FLAG_BIG_INTEGER => {
+            Self::FLAG_POS_BIG_INTEGER => {
                 TypedTerm::BigInteger(Boxed::from_raw(ptr as *mut BigInteger))
             }
-            Self::FLAG_UNUSED_2 => return None,
+            Self::FLAG_NEG_BIG_INTEGER => {
+                TypedTerm::BigInteger(Boxed::from_raw(ptr as *mut BigInteger))
+            },
             Self::FLAG_REFERENCE => {
                 TypedTerm::Reference(Reference::from_raw(ptr as *mut Reference))
             } // RefThing in erl_term.h
             Self::FLAG_CLOSURE => TypedTerm::Closure(Boxed::from_raw(ptr as *mut Closure)), /* ErlFunThing in erl_fun.h */
             Self::FLAG_FLOAT => TypedTerm::Float(Float::from_raw(ptr as *mut Float)),
-            Self::FLAG_UNUSED_3 => return None,
+            Self::FLAG_UNUSED_3 => return Err(InvalidTermError::InvalidTag),
             Self::FLAG_PROCBIN => TypedTerm::ProcBin(ProcBin::from_raw(ptr as *mut ProcBin)),
             Self::FLAG_HEAPBIN => TypedTerm::HeapBinary(HeapBin::from_raw(ptr as *mut HeapBin)),
             Self::FLAG_SUBBINARY => {
@@ -522,16 +539,14 @@ impl Term {
             Self::FLAG_MAP => TypedTerm::Map(Boxed::from_raw(ptr as *mut MapHeader)),
             _ => unreachable!(),
         };
-        Some(ty)
+        Ok(ty)
     }
 }
 impl PartialOrd<Term> for Term {
     fn partial_cmp(&self, other: &Term) -> Option<cmp::Ordering> {
-        unsafe {
-            if let Some(ref lhs) = self.to_typed_term() {
-                if let Some(ref rhs) = other.to_typed_term() {
-                    return lhs.partial_cmp(rhs);
-                }
+        if let Ok(ref lhs) = self.to_typed_term() {
+            if let Ok(ref rhs) = other.to_typed_term() {
+                return lhs.partial_cmp(rhs);
             }
         }
         None
@@ -540,7 +555,7 @@ impl PartialOrd<Term> for Term {
 impl CloneToProcess for Term {
     fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
         assert!(self.is_immediate() || self.is_boxed() || self.is_list());
-        let tt = unsafe { self.to_typed_term().unwrap() };
+        let tt = self.to_typed_term().unwrap();
         tt.clone_to_process(process)
     }
 }

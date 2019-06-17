@@ -168,6 +168,13 @@ impl Into<BigInt> for SmallInteger {
         BigInt::from(self.0)
     }
 }
+impl TryInto<usize> for SmallInteger {
+    type Error = core::num::TryFromIntError;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        self.0.try_into()
+    }
+}
 impl Debug for SmallInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("SmallInteger").field(&self.0).finish()

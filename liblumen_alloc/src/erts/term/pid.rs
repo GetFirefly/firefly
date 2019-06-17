@@ -45,7 +45,7 @@ pub struct ExternalPid {
 unsafe impl AsTerm for ExternalPid {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_EXTERN_PID)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 impl CloneToProcess for ExternalPid {

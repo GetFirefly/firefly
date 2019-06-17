@@ -3,11 +3,41 @@ use core::cmp;
 use core::iter::FusedIterator;
 use core::mem;
 use core::ptr;
+use core::fmt;
+use core::convert::TryInto;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::ProcessControlBlock;
 
-use super::{AsTerm, Term};
+use super::{AsTerm, Term, TypedTerm, BadArgument};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum IndexError {
+    OutOfBounds { len: usize, index: usize },
+    BadArgument(Term),
+}
+impl IndexError {
+    pub fn new(index: usize, len: usize) -> Self {
+        Self::OutOfBounds { len, index }
+    }
+}
+impl fmt::Display for IndexError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Self::OutOfBounds { len, index } => {
+                write!(f, "invalid index {}: exceeds max length of {}", index, len)
+            }
+            &Self::BadArgument(term) => {
+                write!(f, "invalid index: bad argument {:?}", term)
+            }
+        }
+    }
+}
+impl From<BadArgument> for IndexError {
+    fn from(badarg: BadArgument) -> Self {
+        Self::BadArgument(badarg.argument())
+    }
+}
 
 /// Represents a tuple term in memory.
 ///
@@ -34,6 +64,7 @@ impl Tuple {
     /// constructs an instance of the `Tuple` header, other functions
     /// can then use this in conjunction with a `Layout` for the elements
     /// to allocate the appropriate amount of memory
+    #[inline]
     pub fn new(size: usize) -> Self {
         Self {
             header: unsafe { Term::from_raw(size | Term::FLAG_TUPLE) },
@@ -44,6 +75,7 @@ impl Tuple {
     /// Returns a pointer to the head element
     ///
     /// NOTE: This is unsafe to use unless you know the tuple has been allocated
+    #[inline]
     pub fn head(&self) -> *mut Term {
         unsafe { (self as *const _ as *const Tuple).offset(1) as *mut Term }
     }
@@ -54,14 +86,53 @@ impl Tuple {
     /// or boxes. You need to extend this layout with others representing more
     /// complex values like maps/lists/etc., if you want a layout that covers all
     /// the memory needed by elements of the tuple
+    #[inline]
     pub fn layout(num_elements: usize) -> Layout {
         let size = mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>());
         unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
     }
 
     /// Constructs an iterator over elements of the tuple
+    #[inline]
     pub fn iter(&self) -> TupleIter {
         TupleIter::new(self)
+    }
+
+    /// Fetches an element from the tuple, returns `Ok(term)` if the index is
+    /// valid, otherwise returns `Err(IndexErr)`
+    #[inline]
+    pub fn get_element(&self, index: Term) -> Result<Term, IndexError> {
+        if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
+            match small.try_into() {
+                Ok(i) if i > 0 && i <= self.size => {
+                    Ok(self.do_get_element(i))
+                }
+                Ok(i) => Err(IndexError::new(i, self.size)),
+                Err(_) => Err(BadArgument::new(index).into())
+            }
+        } else {
+            Err(BadArgument::new(index).into())
+        }
+    }
+
+    /// Like `get_element` but for internal runtime use, as it takes a `usize`
+    /// directly, rather than a value of type `Term`
+    #[inline]
+    pub fn get_element_internal(&self, index: usize) -> Result<Term, IndexError> {
+        if index > 0 && index <= self.size {
+            Ok(self.do_get_element(index))
+        } else {
+            Err(IndexError::new(index, self.size))
+        }
+    }
+
+    #[inline]
+    fn do_get_element(&self, index: usize) -> Term {
+        assert!(index > 0 && index <= self.size);
+        unsafe {
+            let ptr = self.head().offset((index - 1) as isize);
+            *ptr
+        }
     }
 }
 unsafe impl AsTerm for Tuple {

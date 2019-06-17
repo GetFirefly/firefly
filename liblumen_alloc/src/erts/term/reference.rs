@@ -23,7 +23,7 @@ impl Reference {
 unsafe impl AsTerm for Reference {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_BOXED)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 impl PartialEq<ExternalReference> for Reference {
@@ -50,7 +50,7 @@ pub struct ExternalReference {
 unsafe impl AsTerm for ExternalReference {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_BOXED)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 impl CloneToProcess for ExternalReference {

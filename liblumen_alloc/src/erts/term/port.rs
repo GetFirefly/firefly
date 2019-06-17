@@ -45,7 +45,7 @@ pub struct ExternalPort {
 unsafe impl AsTerm for ExternalPort {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_BOXED)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 impl CloneToProcess for ExternalPort {

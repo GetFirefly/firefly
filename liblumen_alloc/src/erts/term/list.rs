@@ -61,7 +61,7 @@ impl Cons {
     /// Get the `TypedTerm` pointed to by the head of this cons cell
     #[inline]
     pub fn head(&self) -> TypedTerm {
-        unsafe { follow_moved(self.head).to_typed_term().unwrap() }
+        follow_moved(self.head).to_typed_term().unwrap()
     }
 
     /// Get the tail of this cons cell, which depending on the type of
@@ -73,11 +73,10 @@ impl Cons {
     /// be returned, depending on whether this cell is the last in the list.
     #[inline]
     pub fn tail(&self) -> Option<MaybeImproper<Cons, TypedTerm>> {
-        match unsafe { follow_moved(self.tail).to_typed_term() } {
-            None => None,
-            Some(TypedTerm::Nil) => None,
-            Some(TypedTerm::List(tail)) => Some(MaybeImproper::Proper(*tail)),
-            Some(other) => Some(MaybeImproper::Improper(other)),
+        match follow_moved(self.tail).to_typed_term().unwrap() {
+            TypedTerm::Nil => None,
+            TypedTerm::List(tail) => Some(MaybeImproper::Proper(*tail)),
+            other => Some(MaybeImproper::Improper(other)),
         }
     }
 
@@ -102,8 +101,8 @@ impl PartialEq<Cons> for Cons {
 impl PartialOrd<Cons> for Cons {
     fn partial_cmp(&self, other: &Cons) -> Option<cmp::Ordering> {
         self.iter()
-            .map(|t| unsafe { t.to_typed_term().unwrap() })
-            .partial_cmp(other.iter().map(|t| unsafe { t.to_typed_term().unwrap() }))
+            .map(|t| t.to_typed_term().unwrap())
+            .partial_cmp(other.iter().map(|t| t.to_typed_term().unwrap()))
     }
 }
 impl CloneToProcess for Cons {

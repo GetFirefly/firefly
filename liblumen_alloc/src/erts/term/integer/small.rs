@@ -14,7 +14,7 @@ use super::*;
 /// A small type, slightly less than 64/32-bit wide, as 4 bits are used for tags
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SmallInteger(pub(crate) isize);
+pub struct SmallInteger(pub(in crate::erts::term) isize);
 impl SmallInteger {
     /// 4 bits for the immediate header, one for the sign bit
     const RESERVED_BITS: usize = 5;

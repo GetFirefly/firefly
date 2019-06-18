@@ -568,6 +568,7 @@ dependencies = [
  "liblumen_alloc_macros 0.1.0",
  "liblumen_arena 0.1.0",
  "liblumen_core 0.1.0",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_assertions 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",

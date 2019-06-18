@@ -14,15 +14,10 @@ use crate::erts::{AsTerm, ProcessControlBlock, Term};
 use super::*;
 
 /// Represents big integer terms.
-///
-/// The header field of this struct is assumed to be
-/// flagged with FLAG_BIG_INTEGER, and when masked,
-/// should contain 0 for unsigned/positive values and
-/// 1 for negative values
 #[derive(Clone)]
 #[repr(C)]
 pub struct BigInteger {
-    header: usize,
+    header: Term,
     pub(crate) value: BigInt,
 }
 impl BigInteger {
@@ -33,8 +28,9 @@ impl BigInteger {
             Sign::NoSign | Sign::Plus => Term::FLAG_POS_BIG_INTEGER,
             Sign::Minus => Term::FLAG_NEG_BIG_INTEGER,
         };
-        let arity = to_word_size(value.bits() / 8);
-        Self { header: arity | flag, value }
+        let arity = to_word_size(mem::size_of_val(&value));
+        let header = unsafe { Term::from_raw(arity | flag) };
+        Self { header, value }
     }
 }
 unsafe impl AsTerm for BigInteger {

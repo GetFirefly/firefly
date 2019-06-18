@@ -12,7 +12,7 @@ use super::{BigInteger, SmallInteger};
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Float {
-    header: usize,
+    header: Term,
     pub(crate) value: f64,
 }
 impl Float {
@@ -24,7 +24,7 @@ impl Float {
     #[inline]
     pub fn new(value: f64) -> Self {
         Self {
-            header: Self::ARITYVAL | Term::FLAG_FLOAT,
+            header: unsafe { Term::from_raw(Self::ARITYVAL | Term::FLAG_FLOAT) },
             value,
         }
     }

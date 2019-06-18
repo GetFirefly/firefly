@@ -6,6 +6,7 @@ publish = false
 edition = "2018"
 
 [dependencies]
+log = "0.4"
 cfg-if = "0.1"
 lazy_static = "1.2"
 num-traits = "0.2"

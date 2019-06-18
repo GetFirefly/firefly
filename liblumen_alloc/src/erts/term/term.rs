@@ -22,15 +22,6 @@ macro_rules! unwrap_immediate2 {
     };
 }
 
-macro_rules! unwrap_header {
-    ($val:ident as $val_ty:ty) => {
-        ($val & !Self::MASK_HEADER) as *const $val_ty as *mut $val_ty
-    };
-    ($val:ident) => {
-        ($val & !Self::MASK_HEADER) as *const Term as *mut Term
-    };
-}
-
 /// This struct is a general tagged pointer type for Erlang terms.
 ///
 /// It is generally equivalent to a reference, with the exception of
@@ -165,6 +156,70 @@ impl Term {
     #[inline]
     pub unsafe fn from_raw(val: usize) -> Self {
         Self(val)
+    }
+
+    /// Executes the destructor for the underlying term, when the
+    /// underlying term has a destructor which needs to run, such
+    /// as `ProcBin`, which needs to be dropped in order to ensure
+    /// that the reference count is decremented properly.
+    /// 
+    /// NOTE: This does not follow move markers, it is assumed that
+    /// moved terms are live and not to be released
+    #[inline]
+    pub fn release(self) {
+        // Follow boxed terms and release them
+        if self.is_boxed() {
+            let boxed_ptr = self.boxed_val();
+            let boxed = unsafe { *boxed_ptr };
+            // Do not follow moves
+            if is_move_marker(boxed) {
+                return;
+            }
+            // Ensure ref-counted binaries are released properly
+            if boxed.is_procbin() {
+                unsafe { ptr::drop_in_place(boxed_ptr as *mut ProcBin) };
+                return;
+            } 
+            // Ensure we walk tuples and release all their elements
+            if boxed.is_tuple() {
+                let tuple = unsafe { &*(boxed_ptr as *mut Tuple) };
+                for element in tuple.iter() {
+                    element.release();
+                }
+                return;
+            }
+            return;
+        } 
+        // Ensure we walk lists and release all their elements
+        if self.is_list() {
+            let cons_ptr = self.list_val();
+            let mut cons = unsafe { *cons_ptr };
+            loop {
+                // Do not follow moves
+                if cons.is_move_marker() {
+                    return;
+                }
+                // If we reached the end of the list, we're done
+                if cons.head.is_nil() {
+                    return;
+                }
+                // Otherwise release the head term
+                cons.head.release();
+                // This is more of a sanity check, as the head will be nil for EOL
+                if cons.tail.is_nil() {
+                    return;
+                } 
+                // If the tail is proper, move into the cell it represents
+                if cons.tail.is_list() {
+                    let tail_ptr = cons.tail.list_val();
+                    cons = unsafe { *tail_ptr };
+                    continue;
+                }
+                // Otherwise if the tail is improper, release it, and we're done
+                cons.tail.release();
+                return;
+            }
+        }
     }
 
     /// Casts the `Term` into its raw `usize` form
@@ -444,7 +499,7 @@ impl Term {
     pub fn to_typed_term(&self) -> Result<TypedTerm, InvalidTermError> {
         let val = self.0;
         match val & Self::MASK_PRIMARY {
-            Self::FLAG_HEADER => unsafe { Self::header_to_typed_term(val) },
+            Self::FLAG_HEADER => unsafe { Self::header_to_typed_term(self, val) },
             Self::FLAG_LIST => {
                 let ptr = unwrap_immediate1!(val) as *mut Cons;
                 let is_literal = val & Self::FLAG_LITERAL == Self::FLAG_LITERAL;
@@ -495,8 +550,8 @@ impl Term {
     }
 
     #[inline]
-    unsafe fn header_to_typed_term(val: usize) -> Result<TypedTerm, InvalidTermError> {
-        let ptr = unwrap_header!(val);
+    unsafe fn header_to_typed_term(ptr: &Term, val: usize) -> Result<TypedTerm, InvalidTermError> {
+        let ptr = ptr as *const _ as *mut Term;
         let ty = match val & Self::MASK_HEADER {
             Self::FLAG_TUPLE => TypedTerm::Tuple(Boxed::from_raw(ptr as *mut Tuple)),
             Self::FLAG_NONE => {
@@ -544,9 +599,10 @@ impl Term {
 }
 impl fmt::Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.to_typed_term() {
-            Err(_) => write!(f, "InvalidTerm({:?})", self.0),
-            Ok(typed) => write!(f, "Term({:?})", typed),
+        if cfg!(target_pointer_width = "64") {
+            write!(f, "Term({:064b})", self.0)
+        } else {
+            write!(f, "Term({:032b})", self.0)
         }
     }
 }

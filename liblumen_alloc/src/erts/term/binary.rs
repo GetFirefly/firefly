@@ -25,6 +25,7 @@ pub trait Binary {
 pub struct ProcBinInner {
     refc: AtomicUsize,
     size: usize,
+    flags: usize,
     data: *mut u8,
 }
 impl ProcBinInner {
@@ -51,19 +52,11 @@ pub enum BinaryType {
     Utf8,
 }
 impl BinaryType {
-    pub fn to_procbin_header(&self) -> usize {
+    pub fn to_flag(&self) -> usize {
         match self {
-            &BinaryType::Raw => Term::FLAG_PROCBIN | FLAG_IS_RAW_BIN,
-            &BinaryType::Latin1 => Term::FLAG_PROCBIN | FLAG_IS_LATIN1_BIN,
-            &BinaryType::Utf8 => Term::FLAG_PROCBIN | FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN,
-        }
-    }
-
-    pub fn to_heapbin_header(&self) -> usize {
-        match self {
-            &BinaryType::Raw => Term::FLAG_HEAPBIN | FLAG_IS_RAW_BIN,
-            &BinaryType::Latin1 => Term::FLAG_HEAPBIN | FLAG_IS_LATIN1_BIN,
-            &BinaryType::Utf8 => Term::FLAG_HEAPBIN | FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN,
+            &BinaryType::Raw => FLAG_IS_RAW_BIN,
+            &BinaryType::Latin1 => FLAG_IS_LATIN1_BIN,
+            &BinaryType::Utf8 => FLAG_IS_UTF8_BIN,
         }
     }
 }
@@ -76,7 +69,7 @@ impl BinaryType {
 #[derive(Debug)]
 #[repr(C)]
 pub struct ProcBin {
-    header: usize,
+    header: Term,
     inner: NonNull<ProcBinInner>,
     pub link: LinkedListLink,
 }
@@ -123,19 +116,19 @@ impl ProcBin {
     /// Returns true if this binary is a raw binary
     #[inline]
     pub fn is_raw(&self) -> bool {
-        self.header & FLAG_MASK == 0
+        self.inner().flags & FLAG_MASK == 0
     }
 
     /// Returns true if this binary is a Latin-1 binary
     #[inline]
     pub fn is_latin1(&self) -> bool {
-        self.header & FLAG_IS_LATIN1_BIN == FLAG_IS_LATIN1_BIN
+        self.inner().flags & FLAG_IS_LATIN1_BIN == FLAG_IS_LATIN1_BIN
     }
 
     /// Returns true if this binary is a UTF-8 binary
     #[inline]
     pub fn is_utf8(&self) -> bool {
-        self.header & FLAG_IS_UTF8_BIN == FLAG_IS_UTF8_BIN
+        self.inner().flags & FLAG_IS_UTF8_BIN == FLAG_IS_UTF8_BIN
     }
 
     /// Returns a `BinaryType` representing the encoding type of this binary
@@ -183,7 +176,7 @@ impl ProcBin {
             // For efficient checks on binary type later, store flags in the pointer
             let data_ptr = ptr.offset(1) as *mut u8;
             let flags = if s.is_ascii() {
-                FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN
+                FLAG_IS_LATIN1_BIN
             } else {
                 FLAG_IS_UTF8_BIN
             };
@@ -192,13 +185,15 @@ impl ProcBin {
                 ProcBinInner {
                     refc: AtomicUsize::new(1),
                     size,
+                    flags,
                     data: data_ptr,
                 },
             );
             ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, size);
 
+            let arityval = to_word_size(mem::size_of::<Self>());
             Ok(Self {
-                header: flags | Term::FLAG_PROCBIN,
+                header: Term::from_raw(arityval | Term::FLAG_PROCBIN),
                 inner: NonNull::new_unchecked(header_ptr),
                 link: LinkedListLink::new(),
             })
@@ -218,19 +213,20 @@ impl ProcBin {
         unsafe {
             // For efficient checks on binary type later, store flags in the pointer
             let data_ptr = ptr.offset(1) as *mut u8;
-            let flags = FLAG_IS_RAW_BIN;
             ptr::write(
                 ptr as *mut ProcBinInner,
                 ProcBinInner {
                     refc: AtomicUsize::new(1),
                     size,
+                    flags: FLAG_IS_RAW_BIN,
                     data: data_ptr,
                 },
             );
             ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, size);
 
+            let arityval = to_word_size(mem::size_of::<Self>());
             Ok(Self {
-                header: flags | Term::FLAG_PROCBIN,
+                header: Term::from_raw(arityval | Term::FLAG_PROCBIN),
                 inner: NonNull::new_unchecked(header_ptr),
                 link: LinkedListLink::new(),
             })
@@ -362,7 +358,7 @@ impl<B: Binary> PartialOrd<B> for ProcBin {
 unsafe impl AsTerm for ProcBin {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_BOXED)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 
@@ -396,28 +392,67 @@ impl CloneToProcess for ProcBin {
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct HeapBin {
-    header: usize,
-    size: usize,
-    ptr: *mut u8,
+    header: Term,
+    flags: usize,
 }
 
 impl HeapBin {
+    // The size of the extra fields in bytes
+    const EXTRA_ARITYVAL: usize = mem::size_of::<Self>() - mem::size_of::<Term>();
+
+    /// Create a new `HeapBin` header which will point to a binary of size `size`
+    #[inline]
+    pub fn new(size: usize) -> Self {
+        let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
+        Self {
+            header: unsafe { Term::from_raw(words | Term::FLAG_HEAPBIN) },
+            flags: FLAG_IS_RAW_BIN,
+        }
+    }
+
+    /// Like `new`, but for latin1-encoded binaries
+    #[inline]
+    pub fn new_latin1(size: usize) -> Self {
+        let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
+        Self {
+            header: unsafe { Term::from_raw(words | Term::FLAG_HEAPBIN) },
+            flags: FLAG_IS_LATIN1_BIN,
+        }
+    }
+    /// Like `new`, but for utf8-encoded binaries
+    #[inline]
+    pub fn new_utf8(size: usize) -> Self {
+        let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
+        Self {
+            header: unsafe { Term::from_raw(words | Term::FLAG_HEAPBIN) },
+            flags: FLAG_IS_UTF8_BIN,
+        }
+    }
+
+    #[inline]
+    pub(in crate::erts) fn from_raw_parts(header: Term, flags: usize) -> Self {
+        Self {
+            header,
+            flags,
+        }
+    }
+
     /// Returns true if this binary is a raw binary
     #[inline]
     pub fn is_raw(&self) -> bool {
-        self.header & FLAG_MASK == 0
+        self.flags & FLAG_MASK == 0
     }
 
     /// Returns true if this binary is a Latin-1 binary
     #[inline]
     pub fn is_latin1(&self) -> bool {
-        self.header & FLAG_IS_LATIN1_BIN == FLAG_IS_LATIN1_BIN
+        self.flags & FLAG_IS_LATIN1_BIN == FLAG_IS_LATIN1_BIN
     }
 
     /// Returns true if this binary is a UTF-8 binary
     #[inline]
     pub fn is_utf8(&self) -> bool {
-        self.header & FLAG_IS_UTF8_BIN == FLAG_IS_UTF8_BIN
+        self.flags & FLAG_IS_UTF8_BIN == FLAG_IS_UTF8_BIN
     }
 
     /// Returns a `BinaryType` representing the encoding type of this binary
@@ -435,7 +470,7 @@ impl HeapBin {
     /// Returns the size of this binary in bytes
     #[inline]
     pub fn size(&self) -> usize {
-        self.size
+        (self.header.arityval() * mem::size_of::<usize>()) - Self::EXTRA_ARITYVAL
     }
 
     /// Returns a raw pointer to the binary data underlying this `HeapBin`
@@ -448,7 +483,7 @@ impl HeapBin {
     /// pointer returned here is not
     #[inline]
     pub(crate) fn data(&self) -> *mut u8 {
-        self.ptr
+        unsafe { (self as *const Self).offset(1) as *mut u8 }
     }
 
     /// Get a `Layout` describing the necessary layout to allocate a `HeapBin` for the given string
@@ -472,57 +507,6 @@ impl HeapBin {
         hb.clone()
     }
 
-    /// Creates a new `HeapBin` from a raw pointer and size, which
-    /// points to a raw binary.
-    #[inline]
-    pub unsafe fn from_raw_parts(ptr: *mut u8, size: usize) -> Self {
-        let flags = FLAG_IS_RAW_BIN | Term::FLAG_HEAPBIN;
-        Self::from_raw_heapbin_parts(flags, ptr, size)
-    }
-
-    /// Creates a new `HeapBin` from a raw pointer and size, which
-    /// points to a valid Latin-1 binary.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe because the `HeapBin` returned will be
-    /// treated as safe to use in functions which expect latin-1 or utf-8
-    /// encoded strings. You _must_ ensure that this invariant is guaranteed
-    /// by the caller.
-    #[inline]
-    pub unsafe fn from_raw_latin1_parts(ptr: *mut u8, size: usize) -> Self {
-        let flags = FLAG_IS_LATIN1_BIN | Term::FLAG_HEAPBIN;
-        Self::from_raw_heapbin_parts(flags, ptr, size)
-    }
-
-    /// Creates a new `HeapBin` from a raw pointer and size, which
-    /// points to a valid UTF-8 binary.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe because the `HeapBin` returned will be
-    /// treated as safe to use in functions which expect latin-1 or utf-8
-    /// encoded strings. You _must_ ensure that this invariant is guaranteed
-    /// by the caller.
-    #[inline]
-    pub unsafe fn from_raw_utf8_parts(ptr: *mut u8, size: usize) -> Self {
-        let flags = FLAG_IS_UTF8_BIN | Term::FLAG_HEAPBIN;
-        Self::from_raw_heapbin_parts(flags, ptr, size)
-    }
-
-    /// Creates a `HeapBin` from the raw parts of another `HeapBin`
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe for all kinds of reasons, it is intended
-    /// solely for use by the memory management subsystem, use the other
-    /// `from_raw_*` APIs to create `HeapBin`s from raw binary data
-    #[inline]
-    pub unsafe fn from_raw_heapbin_parts(header: usize, ptr: *mut u8, size: usize) -> Self {
-        assert!(header & Term::FLAG_HEAPBIN == Term::FLAG_HEAPBIN);
-        Self { header, size, ptr }
-    }
-
     /// Converts this binary to a `&str` slice.
     ///
     /// This conversion does not move the string, it can be considered as
@@ -535,7 +519,7 @@ impl HeapBin {
             "cannot convert a binary containing non-UTF-8/non-ASCII characters to &str"
         );
         unsafe {
-            let bytes = slice::from_raw_parts(self.ptr, self.size);
+            let bytes = slice::from_raw_parts(self.data(), self.size());
             str::from_utf8_unchecked(bytes)
         }
     }
@@ -544,7 +528,7 @@ impl HeapBin {
 impl Binary for HeapBin {
     #[inline]
     fn as_bytes(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.ptr, self.size) }
+        unsafe { slice::from_raw_parts(self.data(), self.size()) }
     }
 }
 
@@ -565,17 +549,15 @@ impl<B: Binary> PartialOrd<B> for HeapBin {
 unsafe impl AsTerm for HeapBin {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_BOXED)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 
 impl CloneToProcess for HeapBin {
     fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
-        let size = mem::size_of::<Self>() + self.size;
-        let mut words = size / mem::size_of::<Term>();
-        if size % mem::size_of::<Term>() != 0 {
-            words += 1;
-        }
+        let bin_size = self.size();
+        let size = mem::size_of::<Self>() + bin_size;
+        let words = to_word_size(size);
         unsafe {
             // Allocate space for header + binary
             let ptr = process.alloc(words).unwrap().as_ptr() as *mut Self;
@@ -583,7 +565,7 @@ impl CloneToProcess for HeapBin {
             ptr::copy_nonoverlapping(self as *const Self, ptr, mem::size_of::<Self>());
             // Copy binary
             let bin_ptr = ptr.offset(1) as *mut u8;
-            ptr::copy_nonoverlapping(self.ptr, bin_ptr, self.size);
+            ptr::copy_nonoverlapping(self.data(), bin_ptr, bin_size);
             // Return term
             let hb = &*ptr;
             hb.as_term()
@@ -667,7 +649,7 @@ impl SubBinary {
     /// passing to `ptr::copy_nonoverlapping` during creation of the new HeapBin.
     ///
     /// NOTE: You should not use this for any other purpose
-    pub(crate) fn to_heapbin_parts(&self) -> Result<(usize, *mut u8, usize), ()> {
+    pub(crate) fn to_heapbin_parts(&self) -> Result<(Term, usize, *mut u8, usize), ()> {
         if self.bitsize == 0
             && self.bitoffs == 0
             && !self.writable
@@ -680,20 +662,20 @@ impl SubBinary {
     }
 
     #[inline]
-    unsafe fn to_raw_parts(&self) -> (usize, *mut u8, usize) {
+    unsafe fn to_raw_parts(&self) -> (Term, usize, *mut u8, usize) {
         let real_bin_ptr = follow_moved(self.orig).boxed_val();
         let real_bin = *real_bin_ptr;
         if real_bin.is_procbin() {
             let bin = &*(real_bin_ptr as *mut ProcBin);
             let bytes = bin.data().offset(self.offset as isize);
-            let header = bin.binary_type().to_heapbin_header();
-            (header, bytes, self.size)
+            let flags = bin.binary_type().to_flag();
+            (bin.header, flags, bytes, self.size)
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);
             let bytes = bin.data().offset(self.offset as isize);
-            let header = bin.binary_type().to_heapbin_header();
-            (header, bytes, self.size)
+            let flags = bin.binary_type().to_flag();
+            (bin.header, flags, bytes, self.size)
         }
     }
 }
@@ -707,7 +689,7 @@ impl Binary for SubBinary {
     #[inline]
     fn as_bytes(&self) -> &[u8] {
         unsafe {
-            let (_header, ptr, size) = self.to_raw_parts();
+            let (_header, _flags, ptr, size) = self.to_raw_parts();
             slice::from_raw_parts(ptr, size)
         }
     }
@@ -869,26 +851,26 @@ impl MatchContext {
     }
 
     #[inline]
-    unsafe fn to_raw_parts(&self) -> (usize, *mut u8, usize) {
+    unsafe fn to_raw_parts(&self) -> (Term, usize, *mut u8, usize) {
         let real_bin_ptr = follow_moved(self.buffer.orig).boxed_val();
         let real_bin = *real_bin_ptr;
         if real_bin.is_procbin() {
             let bin = &*(real_bin_ptr as *mut ProcBin);
             let bytes = bin.data().offset(byte_offset(self.buffer.offset) as isize);
-            let header = bin.binary_type().to_heapbin_header();
-            (header, bytes, num_bytes(self.buffer.size))
+            let flags = bin.binary_type().to_flag();
+            (bin.header, flags, bytes, num_bytes(self.buffer.size))
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);
             let bytes = bin.data().offset(byte_offset(self.buffer.offset) as isize);
-            let header = bin.binary_type().to_heapbin_header();
-            (header, bytes, num_bytes(self.buffer.size))
+            let flags = bin.binary_type().to_flag();
+            (bin.header, flags, bytes, num_bytes(self.buffer.size))
         }
     }
 }
 unsafe impl AsTerm for MatchContext {
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_BOXED)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 
@@ -896,7 +878,7 @@ impl Binary for MatchContext {
     #[inline]
     fn as_bytes(&self) -> &[u8] {
         unsafe {
-            let (_header, ptr, size) = self.to_raw_parts();
+            let (_header, _flags, ptr, size) = self.to_raw_parts();
             slice::from_raw_parts(ptr, size)
         }
     }

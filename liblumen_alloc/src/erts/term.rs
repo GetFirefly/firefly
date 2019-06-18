@@ -142,9 +142,9 @@ pub fn make_binary_from_str(process: &mut ProcessControlBlock, s: &str) -> Resul
             let bin_ptr = header_ptr.offset(1) as *mut u8;
             // Construct the right header based on whether input string is only ASCII or includes UTF8
             let header = if s.is_ascii() {
-                HeapBin::from_raw_latin1_parts(bin_ptr, len)
+                HeapBin::new_latin1(len)
             } else {
-                HeapBin::from_raw_utf8_parts(bin_ptr, len)
+                HeapBin::new_utf8(len)
             };
             // Write header
             ptr::write(header_ptr, header);
@@ -194,7 +194,7 @@ pub fn make_binary_from_bytes(process: &mut ProcessControlBlock, s: &[u8]) -> Re
             // Pointer to start of binary data
             let bin_ptr = header_ptr.offset(1) as *mut u8;
             // Construct the right header based on whether input string is only ASCII or includes UTF8
-            let header = HeapBin::from_raw_parts(bin_ptr, len);
+            let header = HeapBin::new(len);
             // Write header
             ptr::write(header_ptr, header);
             // Copy binary data to destination

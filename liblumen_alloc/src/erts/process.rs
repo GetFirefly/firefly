@@ -42,10 +42,17 @@ pub struct ProcessControlBlock {
     vheap: VirtualBinaryHeap,
     // off-heap allocations
     off_heap: LinkedList<HeapFragmentAdapter>,
+    off_heap_size: AtomicUsize,
     // process dictionary
     dictionary: HashMap<Term, Term>,
 }
 impl ProcessControlBlock {
+    /// Creates a new PCB using default settings and heap size
+    #[inline]
+    pub fn default() -> Self {
+        let (heap, heap_size) = alloc::default_heap().unwrap();
+        Self::new(heap, heap_size)
+    }
 
     /// Creates a new PCB with a heap defined by the given pointer, and
     /// `heap_size`, which is the size of the heap in words.
@@ -63,12 +70,12 @@ impl ProcessControlBlock {
             min_vheap_size: 0,
             gc_threshold: 0.75,
             gen_gc_count: 0,
-            // TODO: Set this to a reasonable number, currently forces a full sweep every time
-            max_gen_gcs: 0,
+            max_gen_gcs: 65535,
             young,
             old,
             vheap,
             off_heap,
+            off_heap_size: AtomicUsize::new(0),
             dictionary,
         }
     }
@@ -139,8 +146,11 @@ impl ProcessControlBlock {
         layout: Layout,
     ) -> Result<NonNull<Term>, AllocErr> {
         let frag = HeapFragment::new(layout)?;
-        let data = frag.as_ref().data().cast::<Term>();
+        let frag_ref = frag.as_ref();
+        let size = frag_ref.size();
+        let data = frag_ref.data().cast::<Term>();
         self.off_heap.push_front(UnsafeRef::from_raw(frag.as_ptr()));
+        self.off_heap_size.fetch_add(size, Ordering::AcqRel);
         Ok(data)
     }
 
@@ -181,12 +191,10 @@ impl ProcessControlBlock {
         if self.young.contains(ptr) || self.old.contains(ptr) {
             return true;
         }
-        for fragment in self.off_heap.iter() {
-            if fragment.contains(ptr) {
-                return true;
-            }
+        if self.off_heap.iter().any(|frag| frag.contains(ptr)) {
+            return true;
         }
-        false
+        self.vheap.contains(ptr)
     }
 
     /// Puts a new value under the given key in the process dictionary
@@ -278,6 +286,11 @@ impl ProcessControlBlock {
     }
 
     #[inline(always)]
+    fn off_heap_size(&self) -> usize {
+        self.off_heap_size.load(Ordering::Acquire)
+    }
+
+    #[inline]
     fn is_gc_forced(&self) -> bool {
         self.flags.is_set(ProcessFlag::ForceGC)
     }

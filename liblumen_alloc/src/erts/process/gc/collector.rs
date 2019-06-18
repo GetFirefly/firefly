@@ -1,6 +1,8 @@
 use core::alloc::AllocErr;
 use core::ptr;
-use core::sync::atomic::Ordering;
+
+use log::trace;
+use intrusive_collections::UnsafeRef;
 
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
@@ -59,7 +61,6 @@ pub struct GarbageCollector<'p> {
 impl<'p> GarbageCollector<'p> {
     /// Initializes the collector with the given process and root set
     pub fn new(process: &'p mut ProcessControlBlock, roots: RootSet) -> Self {
-        // TODO: Handle delayed/disabled garbage collection flags
         let mode = if Self::need_fullsweep(process) {
             CollectionType::Full
         } else {
@@ -97,10 +98,9 @@ impl<'p> GarbageCollector<'p> {
 
         // Determine the estimated size for the new heap which will receive all live data
         let stack_size = self.process.young.stack_used();
-        // TODO: Should account for messages/off-heap fragments as well
-        let size_before = self.process.young.heap_used() + old_heap_size;
-        // Conservatively pad out the estimated size to include enough space for the requested
-        // `need`
+        let off_heap_size = self.process.off_heap_size();
+        let size_before = self.process.young.heap_used() + old_heap_size + off_heap_size;
+        // Conservatively pad out estimated size to include space for the requested `need`
         let mut new_size = alloc::next_heap_size(stack_size + size_before);
         while new_size < (need + stack_size + size_before) {
             new_size = alloc::next_heap_size(new_size);
@@ -153,9 +153,10 @@ impl<'p> GarbageCollector<'p> {
         // All references in the roots point to the new heap, but most of
         // the references in the values we just moved still point back to
         // the old heaps
-        //
-        // TODO: Sweep off-heap messages/fragments right after this
         new_heap.full_sweep();
+        // Now that all live data has been swept on to the new heap, we can
+        // clean up all of the off heap fragments that we still have laying around
+        self.sweep_off_heap(&new_heap);
         // Free the old generation heap, as it is no longer used post-sweep
         if self.process.old.active() {
             let old_heap_start = self.process.old.start;
@@ -177,22 +178,17 @@ impl<'p> GarbageCollector<'p> {
         self.process.young = new_heap;
         self.process.gen_gc_count = 0;
         // TODO: Move messages to be stored on-heap, on to the heap
-        // if self.flags & ProcessControlBlock::FLAG_ON_HEAP_MSGQ ==
-        // ProcessControlBlock::FLAG_ON_HEAP_MSGQ {     self.move_msgs_to_heap();
-        // }
         // Check invariants
         self.sanity_check();
         // Calculate reclamation for tracing
         let stack_used = self.process.young.stack_used();
         let heap_used = self.process.young.heap_used();
-        let size_after = heap_used + stack_used; // + self.mbuf_size
-                                                 /*
-                                                 if size_before >= size_after {
-                                                     trace!("Full sweep reclaimed {} words of garbage", size_before - size_after);
-                                                 } else {
-                                                     trace!("Full sweep resulted in heap growth of {} words", size_after - size_before);
-                                                 }
-                                                 */
+        let size_after = heap_used + stack_used + self.process.off_heap_size();
+        if size_before >= size_after {
+            trace!("Full sweep reclaimed {} words of garbage", size_before - size_after);
+        } else {
+            trace!("Full sweep resulted in heap growth of {} words", size_after - size_before);
+        }
         // Determine if we oversized the heap and should shrink it
         let mut adjusted = false;
         let need_after = need + stack_used + heap_used;
@@ -230,9 +226,10 @@ impl<'p> GarbageCollector<'p> {
     ///
     /// 1. Verify that we are not going to exceed the maximum heap size
     fn minor_sweep(&mut self, need: usize) -> Result<usize, GcError> {
-        //trace!("Performing a minor garbage collection");
+        trace!("Performing a minor garbage collection");
 
-        let size_before = self.process.young.heap_used();
+        let off_heap_size = self.process.off_heap_size();
+        let size_before = self.process.young.heap_used() + off_heap_size;
         let mature_size = self.process.young.mature_size();
 
         // Verify that our projected heap size does not exceed
@@ -244,8 +241,7 @@ impl<'p> GarbageCollector<'p> {
             .map_err(|_| GcError::AllocErr)?;
 
         // Do a minor collection if there is an old heap and it is large enough
-        // TODO: Account for virtual binary heap
-        if !self.process.old.active() || mature_size > self.process.old.heap_available() {
+        if self.process.old.active() && mature_size > self.process.old.heap_available() {
             return Err(GcError::FullsweepRequired);
         }
 
@@ -357,8 +353,6 @@ impl<'p> GarbageCollector<'p> {
             }
         }
 
-        // TODO: Move live heap fragments into new young heap generation
-
         // Now all references in the root set point to the new heap. However,
         // most references on the new heap point to the old heap so the next stage
         // is to scan through the new heap, evacuating data to the new heap until all
@@ -398,7 +392,10 @@ impl<'p> GarbageCollector<'p> {
                     }
                     Some(pos.offset(1))
                 } else if term.is_header() {
-                    if term.is_match_context() {
+                    if term.is_tuple() {
+                        // We need to check all elements, so we just skip over the tuple header
+                        Some(pos.offset(1))
+                    } else if term.is_match_context() {
                         let ctx = &*(pos as *mut MatchContext);
                         let orig = ctx.orig();
                         let base = ctx.base();
@@ -415,8 +412,12 @@ impl<'p> GarbageCollector<'p> {
                             heap.move_into(orig, ptr, val);
                             ptr::write(base, binary_bytes(*ctx.orig()));
                         }
+                        Some(pos.offset(1 + (term.arityval() as isize)))
+                    } else if term.is_procbin() {
+                        Some(pos.offset(word_size_of::<ProcBin>() as isize))
+                    } else {
+                        Some(pos.offset(1 + (term.arityval() as isize)))
                     }
-                    Some(pos.offset(1 + (term.arityval() as isize)))
                 } else {
                     Some(pos.offset(1))
                 }
@@ -433,7 +434,8 @@ impl<'p> GarbageCollector<'p> {
 
         new_young.set_high_water_mark();
 
-        // TODO: Sweep off-heap fragments
+        // Sweep off-heap fragments
+        self.sweep_off_heap(&new_young);
 
         // Copy stack to end of new heap
         new_young.copy_stack_from(&self.process.young);
@@ -447,6 +449,33 @@ impl<'p> GarbageCollector<'p> {
         self.process.young = new_young;
 
         Ok(())
+    }
+
+    fn sweep_off_heap(&mut self, new_heap: &YoungHeap) {
+        // We can drop all fragments, as the data they contain has either been moved
+        // after the sweep that came just before this, so no other references
+        // are possible, or it is garbage that can be collected
+        //
+        // When we drop the `HeapFragment`, its `Drop` implementation executes the
+        // destructor of the term stored in the fragment, and then frees the memory
+        // backing it. Since this takes care of any potential clean up we may need
+        // to do automatically, we don't have to do any more than that here, at least
+        // for now. In the future we may need to have more control over this, but
+        // not in the current state of the system
+        let mut cursor = self.process.off_heap.front_mut();
+        while let Some(fragment_ref) = cursor.remove() {
+            let fragment_ptr = UnsafeRef::into_raw(fragment_ref);
+            unsafe { ptr::drop_in_place(fragment_ptr) };
+        }
+
+        // For binaries on the virtual heap, we just need to check that each is still
+        // located on an active heap, which is just the new heap for full sweeps, otherwise
+        // either the old or new generation heaps for minor sweeps
+        if self.mode == CollectionType::Full {
+            self.process.vheap.full_sweep(new_heap);
+        } else {
+            self.process.vheap.sweep(new_heap, &self.process.old);
+        }
     }
 
     /// In some cases, after a minor collection we may find that we have over-allocated for the

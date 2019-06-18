@@ -6,6 +6,7 @@ use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedList, LinkedListLink, UnsafeRef};
 
 use crate::erts::*;
+use super::{YoungHeap, OldHeap};
 
 intrusive_adapter!(pub ProcBinAdapter = UnsafeRef<ProcBin>: ProcBin { link: LinkedListLink });
 
@@ -57,23 +58,10 @@ impl VirtualBinaryHeap {
         }
     }
 
-    /// Like `size`, but in units of size `Term`
-    ///
-    /// NOTE: This is used when calculating whether to
-    /// perform a garbage collection, as a large virtual binary heap
-    /// indicates there is likely a considerable amount of memory that can
-    /// be reclaimed by freeing references to binaries in the virtual
-    /// heap
+    /// Returns true if the given pointer belongs to a binary on the virtual heap
     #[inline]
-    pub fn word_size(&self) -> usize {
-        let bin_size = self.size();
-        let bin_words = bin_size / mem::size_of::<Term>();
-        let extra = bin_size % mem::size_of::<Term>();
-        if extra > 0 {
-            bin_words + 1
-        } else {
-            bin_words
-        }
+    pub fn contains<T>(&self, ptr: *const T) -> bool {
+        self.bins.iter().any(|bin_ref| ptr == bin_ref as *const _ as *const T)
     }
 
     /// Adds the given `ProcBin` to the virtual binary heap
@@ -115,5 +103,36 @@ impl VirtualBinaryHeap {
         self.used -= bin_size;
         // Return the raw ProcBin
         bin
+    }
+
+    /// Collect all binaries that are not located in `new_heap`
+    #[inline]
+    pub fn full_sweep(&mut self, new_heap: &YoungHeap) {
+        let mut cursor = self.bins.front_mut();
+        while let Some(binary) = cursor.get() {
+            if !new_heap.contains(binary as *const _ as *const Term) {
+                // This binary is no longer live, unlink it and drop it
+                let ptr = cursor.remove().unwrap();
+                unsafe { ptr::drop_in_place(UnsafeRef::into_raw(ptr)) };
+            } else {
+                cursor.move_next();
+            }
+        }
+    }
+
+    /// Collect all binaries that are not located in either `new_heap` or `old_heap`
+    #[inline]
+    pub fn sweep(&mut self, new_heap: &YoungHeap, old_heap: &OldHeap) {
+        let mut cursor = self.bins.front_mut();
+        while let Some(binary) = cursor.get() {
+            let bin = binary as *const _ as *const Term;
+            if !new_heap.contains(bin) && !old_heap.contains(bin) {
+                // This binary is no longer live, unlink it and drop it
+                let ptr = cursor.remove().unwrap();
+                unsafe { ptr::drop_in_place(UnsafeRef::into_raw(ptr)) };
+            } else {
+                cursor.move_next();
+            }
+        }
     }
 }

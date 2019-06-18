@@ -1,4 +1,5 @@
 use core::ptr;
+use core::mem;
 
 use crate::erts::*;
 
@@ -151,37 +152,53 @@ impl OldHeap {
     #[inline]
     pub unsafe fn move_into(&mut self, orig: *mut Term, ptr: *mut Term, header: Term) -> usize {
         assert!(header.is_header());
-        let mut heap_top = self.top;
-        let mut num_elements = header.arityval();
-        let moved = num_elements + 1;
 
+        // All other headers follow more or less the same formula,
+        // the header arityval contains the size of the term in words,
+        // so we simply need to move those words into this heap
+        let mut heap_top = self.top;
+
+        // Sub-binaries are a little different, in that since we're garbage
+        // collecting, we can't guarantee that the original binary will stick
+        // around, and we don't necessarily want it to. Instead we create a new
+        // heap binary (if within the size limit) that contains the slice of 
+        // the original binary that the sub-binary referenced. If the sub-binary
+        // is too large to build a heap binary, then the original must be a ProcBin,
+        // so we don't need to worry about it being collected out from under us
         // TODO: Handle other subtype cases, see erl_gc.h:60
         if header.is_subbinary() {
             let bin = &*(ptr as *mut SubBinary);
             // Convert to HeapBin if applicable
-            if let Ok((bin_header, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
-                let dst = heap_top as *mut HeapBin;
+            if let Ok((bin_header, bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
+                // Save space for box
+                let dst = heap_top.offset(1);
+                // Create box pointing to new destination
+                let val = Term::from_raw(dst as usize | Term::FLAG_BOXED);
+                ptr::write(heap_top, val);
+                let dst = dst as *mut HeapBin;
                 let new_bin_ptr = dst.offset(1) as *mut u8;
                 // Copy referenced part of binary to heap
                 ptr::copy_nonoverlapping(bin_ptr, new_bin_ptr, bin_size);
                 // Write heapbin header
                 ptr::write(
                     dst,
-                    HeapBin::from_raw_heapbin_parts(bin_header, new_bin_ptr, bin_size),
+                    HeapBin::from_raw_parts(bin_header, bin_flags),
                 );
+                // Write a move marker to the original location
+                let marker = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
+                ptr::write(orig, marker);
+                // Update `ptr` as well
+                ptr::write(ptr, marker);
                 // Update top pointer
                 self.top = new_bin_ptr.offset(bin_size as isize) as *mut Term;
                 // We're done
-                return moved;
+                return 1 + to_word_size(mem::size_of::<HeapBin>() + bin_size);
             }
-            num_elements += 1;
         }
 
-        // Create new boxed term pointing to where the header will be
-        let header_ptr = heap_top.offset(1);
-        let val = Term::from_raw(header_ptr as usize | Term::FLAG_BOXED);
-        // Write the box to `heap_top`
-        ptr::write(heap_top, val);
+        let mut num_elements = header.arityval();
+        let moved = num_elements + 1;
+
         // Write the a move marker to the original location
         let marker = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
         ptr::write(orig, marker);
@@ -190,9 +207,9 @@ impl OldHeap {
         // Move `ptr` to the first arityval
         let mut ptr = ptr.offset(1);
         // Write the term header to the location pointed to by the boxed term
-        ptr::write(header_ptr, header);
+        ptr::write(heap_top, header);
         // Move heap_top to the first element location
-        heap_top = header_ptr.offset(1);
+        heap_top = heap_top.offset(1);
         // For each additional term element, move to new location
         while num_elements > 0 {
             num_elements -= 1;
@@ -257,7 +274,10 @@ impl OldHeap {
                     }
                     Some(pos.offset(1))
                 } else if term.is_header() {
-                    if term.is_match_context() {
+                    if term.is_tuple() {
+                        // We need to check all elements, so we just skip over the tuple header
+                        Some(pos.offset(1))
+                    } else if term.is_match_context() {
                         let ctx = &mut *(pos as *mut MatchContext);
                         let base = ctx.base();
                         let orig = ctx.orig();
@@ -271,8 +291,10 @@ impl OldHeap {
                             heap.move_into(orig, ptr, bin);
                             ptr::write(base, binary_bytes(bin));
                         }
+                        Some(pos.offset(1 + (term.arityval() as isize)))
+                    } else {
+                        Some(pos.offset(1 + (term.arityval() as isize)))
                     }
-                    Some(pos.offset(1 + (term.arityval() as isize)))
                 } else {
                     Some(pos.offset(1))
                 }

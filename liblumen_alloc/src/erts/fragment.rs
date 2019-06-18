@@ -18,6 +18,12 @@ pub struct RawFragment {
     data: *mut u8,
 }
 impl RawFragment {
+    /// Returns the size (in bytes) of the fragment
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
     /// Get a pointer to the data in this heap fragment
     #[inline]
     pub fn data(&self) -> NonNull<u8> {
@@ -48,6 +54,12 @@ pub struct HeapFragment {
     raw: RawFragment,
 }
 impl HeapFragment {
+    /// Returns the size (in bytes) of the fragment
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.raw.size()
+    }
+
     /// Returns the pointer to the data region of this fragment
     #[inline]
     pub fn data(&self) -> NonNull<u8> {
@@ -81,6 +93,11 @@ impl HeapFragment {
 impl Drop for HeapFragment {
     fn drop(&mut self) {
         assert!(!self.link.is_linked());
+        // Check if the contained value needs to have its destructor run
+        let ptr = self.data().as_ptr() as *mut Term;
+        let term = unsafe { *ptr };
+        term.release();
+        // Actually deallocate the memory backing this fragment
         let (layout, _offset) = Layout::new::<Self>().extend(self.raw.layout()).unwrap();
         unsafe {
             let ptr = NonNull::new_unchecked(self as *const _ as *mut u8);

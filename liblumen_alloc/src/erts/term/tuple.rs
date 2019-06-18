@@ -9,7 +9,7 @@ use core::convert::TryInto;
 use crate::borrow::CloneToProcess;
 use crate::erts::ProcessControlBlock;
 
-use super::{AsTerm, Term, TypedTerm, BadArgument};
+use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IndexError {
@@ -55,7 +55,6 @@ impl From<BadArgument> for IndexError {
 #[derive(Debug)]
 pub struct Tuple {
     header: Term,
-    size: usize,
 }
 impl Tuple {
     /// Create a new `Tuple` struct
@@ -68,8 +67,13 @@ impl Tuple {
     pub fn new(size: usize) -> Self {
         Self {
             header: unsafe { Term::from_raw(size | Term::FLAG_TUPLE) },
-            size,
         }
+    }
+
+    /// Returns the size of this tuple
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.header.arityval()
     }
 
     /// Returns a pointer to the head element
@@ -102,12 +106,13 @@ impl Tuple {
     /// valid, otherwise returns `Err(IndexErr)`
     #[inline]
     pub fn get_element(&self, index: Term) -> Result<Term, IndexError> {
+        let size = self.size();
         if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
             match small.try_into() {
-                Ok(i) if i > 0 && i <= self.size => {
+                Ok(i) if i > 0 && i <= size => {
                     Ok(self.do_get_element(i))
                 }
-                Ok(i) => Err(IndexError::new(i, self.size)),
+                Ok(i) => Err(IndexError::new(i, size)),
                 Err(_) => Err(BadArgument::new(index).into())
             }
         } else {
@@ -119,26 +124,27 @@ impl Tuple {
     /// directly, rather than a value of type `Term`
     #[inline]
     pub fn get_element_internal(&self, index: usize) -> Result<Term, IndexError> {
-        if index > 0 && index <= self.size {
+        let size = self.size();
+        if index > 0 && index <= size {
             Ok(self.do_get_element(index))
         } else {
-            Err(IndexError::new(index, self.size))
+            Err(IndexError::new(index, size))
         }
     }
 
     #[inline]
     fn do_get_element(&self, index: usize) -> Term {
-        assert!(index > 0 && index <= self.size);
+        assert!(index > 0 && index <= self.size());
         unsafe {
             let ptr = self.head().offset((index - 1) as isize);
-            *ptr
+            follow_moved(*ptr)
         }
     }
 }
 unsafe impl AsTerm for Tuple {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(&self as *const _ as usize | Term::FLAG_TUPLE)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 impl CloneToProcess for Tuple {
@@ -147,11 +153,12 @@ impl CloneToProcess for Tuple {
         // contigously in memory
         unsafe {
             // Allocate the space needed for the header and all the elements
-            let size = mem::size_of::<Self>() + self.size;
+            let num_elements = self.size();
+            let size = mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>());
             let layout = Layout::from_size_align_unchecked(size, mem::align_of::<Term>());
             let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
             // Get pointer to the old head element location
-            let old_head = (self as *const _ as *const Tuple).offset(1) as *mut Term;
+            let old_head = self.head();
             // Get pointer to the new head element location
             let head = ptr.offset(1) as *mut Term;
             // Write the header
@@ -159,11 +166,10 @@ impl CloneToProcess for Tuple {
                 ptr,
                 Self {
                     header: self.header,
-                    size: self.size,
                 },
             );
             // Write each element
-            for offset in 0..self.size {
+            for offset in 0..num_elements {
                 let old = *old_head.offset(offset as isize);
                 if old.is_immediate() {
                     ptr::write(head.offset(offset as isize), old);
@@ -187,7 +193,7 @@ impl PartialOrd for Tuple {
     fn partial_cmp(&self, other: &Tuple) -> Option<cmp::Ordering> {
         use core::cmp::Ordering;
 
-        match self.size.cmp(&other.size) {
+        match self.size().cmp(&other.size()) {
             Ordering::Less => return Some(Ordering::Less),
             Ordering::Greater => return Some(Ordering::Greater),
             Ordering::Equal => self.iter().partial_cmp(other.iter()),
@@ -204,7 +210,7 @@ impl TupleIter {
     pub fn new(tuple: &Tuple) -> Self {
         Self {
             head: tuple.head(),
-            size: tuple.size,
+            size: tuple.size(),
             pos: 0,
         }
     }

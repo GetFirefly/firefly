@@ -89,7 +89,7 @@ impl Cons {
 unsafe impl AsTerm for Cons {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((&self.head as *const _ as usize) | Term::FLAG_LIST)
+        Term::from_raw(&self.head as *const _ as usize | Term::FLAG_LIST)
     }
 }
 impl PartialEq<Cons> for Cons {

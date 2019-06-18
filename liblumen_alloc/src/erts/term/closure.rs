@@ -20,7 +20,7 @@ pub struct Closure {
 unsafe impl AsTerm for Closure {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_CLOSURE)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 impl PartialOrd for Closure {

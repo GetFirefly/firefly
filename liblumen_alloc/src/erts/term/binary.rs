@@ -8,12 +8,12 @@ use core::sync::atomic;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use intrusive_collections::LinkedListLink;
+use liblumen_core::util::pointer::distance_absolute;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::ProcessControlBlock;
 
-use super::follow_moved;
-use super::{AsTerm, Term};
+use super::*;
 
 pub trait Binary {
     fn as_bytes(&self) -> &[u8];
@@ -170,14 +170,14 @@ impl ProcBin {
     }
 
     /// Creates a new procbin from a str slice, by copying it to the heap
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_str(s: &str) -> Result<Self, AllocErr> {
         use liblumen_core::sys::alloc as sys_alloc;
 
         let size = s.len();
         let (layout, _) = Layout::new::<ProcBinInner>()
             .extend(unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<u8>()) })
             .unwrap();
-        let ptr = unsafe { sys_alloc::alloc(layout).unwrap().as_ptr() };
+        let ptr = unsafe { sys_alloc::alloc(layout)?.as_ptr() };
         let header_ptr = ptr as *mut ProcBinInner;
         unsafe {
             // For efficient checks on binary type later, store flags in the pointer
@@ -197,11 +197,43 @@ impl ProcBin {
             );
             ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, size);
 
-            Self {
+            Ok(Self {
                 header: flags | Term::FLAG_PROCBIN,
                 inner: NonNull::new_unchecked(header_ptr),
                 link: LinkedListLink::new(),
-            }
+            })
+        }
+    }
+
+    /// Creates a new procbin from a raw byte slice, by copying it to the heap
+    pub fn from_slice(s: &[u8]) -> Result<Self, AllocErr> {
+        use liblumen_core::sys::alloc as sys_alloc;
+
+        let size = s.len();
+        let (layout, _) = Layout::new::<ProcBinInner>()
+            .extend(unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<u8>()) })
+            .unwrap();
+        let ptr = unsafe { sys_alloc::alloc(layout)?.as_ptr() };
+        let header_ptr = ptr as *mut ProcBinInner;
+        unsafe {
+            // For efficient checks on binary type later, store flags in the pointer
+            let data_ptr = ptr.offset(1) as *mut u8;
+            let flags = FLAG_IS_RAW_BIN;
+            ptr::write(
+                ptr as *mut ProcBinInner,
+                ProcBinInner {
+                    refc: AtomicUsize::new(1),
+                    size,
+                    data: data_ptr,
+                },
+            );
+            ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, size);
+
+            Ok(Self {
+                header: flags | Term::FLAG_PROCBIN,
+                inner: NonNull::new_unchecked(header_ptr),
+                link: LinkedListLink::new(),
+            })
         }
     }
 
@@ -232,7 +264,7 @@ impl ProcBin {
 
     // Non-inlined part of `drop`.
     #[inline(never)]
-    unsafe fn drop_slow(&mut self) {
+    unsafe fn drop_slow(&self) {
         use liblumen_core::sys::alloc as sys_alloc;
 
         // Destroy the data at this time, even though we may not free the box
@@ -336,20 +368,12 @@ unsafe impl AsTerm for ProcBin {
 
 impl CloneToProcess for ProcBin {
     fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
-        // The `ProcBin` struct itself is just a reference, so if this
-        // reference is already on the process heap, we don't need it as
-        // second time, we can just return a box that points to the previous
-        // allocation
-        if process.is_owner(self as *const _ as *const Term) {
-            return unsafe { self.as_term() };
-        }
-        // Otherwise, increment the reference count
         self.inner().refc.fetch_add(1, Ordering::AcqRel);
         unsafe {
             // Allocate space for the header
             let layout = Layout::new::<Self>();
             let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
-            // Write the header with an empty link
+            // Write the binary header with an empty link
             ptr::write(
                 ptr,
                 Self {
@@ -358,10 +382,12 @@ impl CloneToProcess for ProcBin {
                     link: LinkedListLink::new(),
                 },
             );
-            // Reify a reference to the newly written clone
+            // Reify a reference to the newly written clone, and push it
+            // on to the process virtual heap
             let clone = &*ptr;
-            // Push it on to the process virtual heap
-            process.vheap_push(clone)
+            process.vheap_push(clone);
+            // Reify result term
+            Term::from_raw(ptr as usize | Term::FLAG_BOXED)
         }
     }
 }
@@ -432,11 +458,26 @@ impl HeapBin {
         unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
     }
 
+    /// Get a `Layout` describing the necessary layout to allocate a `HeapBin` for the given byte slice
+    #[inline]
+    pub fn layout_bytes(input: &[u8]) -> Layout {
+        let size = mem::size_of::<Self>() + input.len();
+        unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
+    }
+
     /// Reifies a `HeapBin` from a raw, untagged, pointer
     #[inline]
     pub unsafe fn from_raw(term: *mut HeapBin) -> Self {
         let hb = &*term;
         hb.clone()
+    }
+
+    /// Creates a new `HeapBin` from a raw pointer and size, which
+    /// points to a raw binary.
+    #[inline]
+    pub unsafe fn from_raw_parts(ptr: *mut u8, size: usize) -> Self {
+        let flags = FLAG_IS_RAW_BIN | Term::FLAG_HEAPBIN;
+        Self::from_raw_heapbin_parts(flags, ptr, size)
     }
 
     /// Creates a new `HeapBin` from a raw pointer and size, which
@@ -560,17 +601,62 @@ pub struct SubBinary {
     // Offset into original binary
     offset: usize,
     // Size of binary in bits
-    bitsize: u8,
+    bitsize: usize,
     // Offset in bits
-    bitoffs: u8,
+    bitoffs: usize,
     // Indicates the underlying binary is writable
     writable: bool,
     // Original binary term (ProcBin or HeapBin)
     orig: Term,
 }
 impl SubBinary {
+    /// See erts_bs_get_binary_2 in erl_bits.c:460
+    #[inline]
+    pub fn from_match(ctx: &mut MatchContext, num_bits: usize) -> Self {
+        assert!(ctx.buffer.size - ctx.buffer.offset < num_bits);
+
+        let orig = ctx.buffer.orig;
+        let arityval = word_size_of::<Self>();
+        let header = arityval | Term::FLAG_SUBBINARY;
+        let size = byte_offset(num_bits);
+        let bitsize = bit_offset(num_bits);
+        let offset = byte_offset(ctx.buffer.offset);
+        let bitoffs = bit_offset(ctx.buffer.offset);
+        let writable = false;
+        ctx.buffer.offset += num_bits;
+        Self {
+            header,
+            size,
+            offset,
+            bitsize,
+            bitoffs,
+            writable,
+            orig,
+        }
+    }
+
+    #[inline]
     pub unsafe fn from_raw(ptr: *mut SubBinary) -> Self {
         *ptr
+    }
+
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.size
+    }
+
+    #[inline]
+    pub fn data(&self) -> *mut u8 {
+        let real_bin_ptr = follow_moved(self.orig).boxed_val();
+        let real_bin = unsafe { *real_bin_ptr };
+        if real_bin.is_procbin() {
+            let bin = unsafe { &*(real_bin_ptr as *mut ProcBin) };
+            bin.data()
+        } else {
+            assert!(real_bin.is_heapbin());
+            let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
+            bin.data()
+        }
     }
 
     /// During garbage collection, we sometimes want to convert sub-binary terms
@@ -578,14 +664,14 @@ impl SubBinary {
     ///
     /// If this sub-binary is a candidate for conversion, then it will return `Ok((ptr, size))`,
     /// otherwise it will return `Err(())`. The returned pointer and size is sufficient for
-    /// passing to `ptr::copy_non_overlapping` during creation of the new HeapBin.
+    /// passing to `ptr::copy_nonoverlapping` during creation of the new HeapBin.
     ///
     /// NOTE: You should not use this for any other purpose
     pub(crate) fn to_heapbin_parts(&self) -> Result<(usize, *mut u8, usize), ()> {
         if self.bitsize == 0
             && self.bitoffs == 0
             && !self.writable
-            && self.size <= mem::size_of::<Term>() * 3
+            && self.size <= 64
         {
             Ok(unsafe { self.to_raw_parts() })
         } else {
@@ -611,10 +697,9 @@ impl SubBinary {
         }
     }
 }
-
 unsafe impl AsTerm for SubBinary {
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_SUBBINARY)
+        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
     }
 }
 
@@ -688,27 +773,82 @@ impl CloneToProcess for SubBinary {
     }
 }
 
-/// Used in match contexts
-///
-/// This is a combination of the BinMatchState and BinMatchBuffer structs
-/// from OTP, but has essentially the same set of fields, albeit with different
-/// names
+/// Represents a binary being matched
+/// 
+/// See `ErlBinMatchBuffer` in `erl_bits.h`
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct MatchContext {
-    header: usize,
+pub struct MatchBuffer {
     // Original binary term
     orig: Term,
     // Current position in binary
     base: *mut u8,
-    // Size of binary in bits
-    bitsize: usize,
     // Offset in bits
-    bitoffset: usize,
+    offset: usize,
+    // Size of binary in bits
+    size: usize,
+}
+impl MatchBuffer {
+    /// Create a match buffer from a binary
+    /// 
+    /// See `erts_bs_start_match_2` in `erl_bits.c`
+    #[inline]
+    pub fn start_match(orig: Term) -> Self {
+        assert!(orig.is_boxed());
+
+        let bin_ptr = orig.boxed_val();
+        let bin = unsafe { *bin_ptr };
+        let (base, size, offset, bitoffs, bitsize) = if bin.is_procbin() {
+            let pb = unsafe { &*(bin_ptr as *mut ProcBin) };
+            (pb.data(), pb.size() * 8, 0, 0, 0)
+        } else if bin.is_heapbin() {
+            let hb = unsafe { &*(bin_ptr as *mut HeapBin) };
+            (hb.data(), hb.size() * 8, 0, 0, 0)
+        } else {
+            assert!(bin.is_subbinary());
+            let sb = unsafe { &*(bin_ptr as *mut SubBinary) };
+            (sb.data(), sb.size() * 8, sb.offset, sb.bitoffs, sb.bitsize)
+        };
+        let offset = 8 * offset + bitoffs;
+        Self {
+            orig,
+            base,
+            offset,
+            size: size + offset + bitsize,
+        }
+    }
+}
+
+/// Used in match contexts
+///
+/// See `ErlBinMatchState` and `ErlBinMatchBuffer` in `erl_bits.h`
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct MatchContext {
+    header: usize,
+    buffer: MatchBuffer,
     // Saved offsets for contexts created via `bs_start_match2`
-    save_offset: Option<Term>,
+    save_offset: Option<usize>,
 }
 impl MatchContext {
+    /// Create a new MatchContext from a boxed procbin/heapbin/sub-bin
+    /// 
+    /// See `erts_bs_start_match_2` in `erl_bits.c`
+    #[inline]
+    pub fn new(orig: Term) -> Self {
+        let buffer = MatchBuffer::start_match(orig);
+        let save_offset = if buffer.offset > 0 {
+            Some(buffer.offset)
+        } else {
+            None
+        };
+        Self {
+            header: Term::FLAG_MATCH_CTX,
+            buffer,
+            save_offset,
+        }
+    }
+
     #[inline]
     pub unsafe fn from_raw(ptr: *mut MatchContext) -> Self {
         *ptr
@@ -718,38 +858,37 @@ impl MatchContext {
     /// term in order to place/modify move markers
     #[inline]
     pub(crate) fn orig(&self) -> *mut Term {
-        &self.orig as *const _ as *mut Term
+        &self.buffer.orig as *const _ as *mut Term
     }
 
     /// Used by garbage collection to get a pointer to the raw binary
     /// data pointer in order to update it if the underlying binary moves
     #[inline]
     pub(crate) fn base(&self) -> *mut *mut u8 {
-        &self.base as *const _ as *mut *mut u8
+        &self.buffer.base as *const _ as *mut *mut u8
     }
 
     #[inline]
     unsafe fn to_raw_parts(&self) -> (usize, *mut u8, usize) {
-        let real_bin_ptr = follow_moved(self.orig).boxed_val();
+        let real_bin_ptr = follow_moved(self.buffer.orig).boxed_val();
         let real_bin = *real_bin_ptr;
         if real_bin.is_procbin() {
             let bin = &*(real_bin_ptr as *mut ProcBin);
-            let bytes = bin.data().offset(byte_offset(self.bitoffset) as isize);
+            let bytes = bin.data().offset(byte_offset(self.buffer.offset) as isize);
             let header = bin.binary_type().to_heapbin_header();
-            (header, bytes, num_bytes(self.bitsize))
+            (header, bytes, num_bytes(self.buffer.size))
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);
-            let bytes = bin.data().offset(byte_offset(self.bitoffset) as isize);
+            let bytes = bin.data().offset(byte_offset(self.buffer.offset) as isize);
             let header = bin.binary_type().to_heapbin_header();
-            (header, bytes, num_bytes(self.bitsize))
+            (header, bytes, num_bytes(self.buffer.size))
         }
     }
 }
-
 unsafe impl AsTerm for MatchContext {
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw((self as *const _ as usize) | Term::FLAG_MATCH_CTX)
+        Term::from_raw((self as *const _ as usize) | Term::FLAG_BOXED)
     }
 }
 
@@ -779,7 +918,7 @@ impl<B: Binary> PartialOrd<B> for MatchContext {
 
 impl CloneToProcess for MatchContext {
     fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
-        let real_bin_ptr = follow_moved(self.orig).boxed_val();
+        let real_bin_ptr = follow_moved(self.buffer.orig).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         // For ref-counted binaries and those that are already on the process heap,
         // we just need to copy the match context header, not the binary as well
@@ -800,20 +939,23 @@ impl CloneToProcess for MatchContext {
             let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
             let new_bin = bin.clone_to_process(process);
             let new_bin_ref = unsafe { &*(new_bin.boxed_val() as *mut HeapBin) };
-            let new_bin_base = new_bin_ref.ptr;
+            let old_bin_ptr = bin.data();
+            let old_bin_base = self.buffer.base;
+            let base_offset = distance_absolute(old_bin_ptr, old_bin_base);
             let layout = Layout::new::<Self>();
             unsafe {
                 // Allocate space for header
                 let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
                 // Write header, with modifications
+                let mut buffer = self.buffer;
+                buffer.orig = new_bin_ref.as_term();
+                let new_bin_base = new_bin_ref.data().offset(base_offset as isize);
+                buffer.base = new_bin_base;
                 ptr::write(
                     ptr,
                     Self {
                         header: self.header,
-                        orig: new_bin,
-                        base: new_bin_base,
-                        bitsize: self.bitsize,
-                        bitoffset: self.bitoffset,
+                        buffer,
                         save_offset: self.save_offset,
                     },
                 );

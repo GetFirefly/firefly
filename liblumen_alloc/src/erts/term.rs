@@ -29,6 +29,10 @@ pub use typed_term::*;
 pub use boxed::*;
 
 use core::fmt;
+use core::ptr;
+use core::alloc::{Layout, AllocErr};
+
+use super::ProcessControlBlock;
 
 #[derive(Clone, Copy)]
 pub struct BadArgument(Term);
@@ -98,6 +102,135 @@ impl crate::borrow::CloneToProcess for MapHeader {
     fn clone_to_process(&self, _process: &mut super::ProcessControlBlock) -> Term {
         unimplemented!()
     }
+}
+
+/// Constructs a binary from the given string, and associated with the given process
+/// 
+/// For inputs greater than 64 bytes in size, the resulting binary data is allocated
+/// on the global shared heap, and reference counted (a `ProcBin`), the header to that
+/// binary is allocated on the process heap, and the data is placed in the processes'
+/// virtual binary heap, and a boxed term is returned which can then be placed on the stack,
+/// or as part of a larger structure if desired.
+/// 
+/// For inputs less than or equal to 64 bytes, both the header and data are allocated
+/// on the process heap, and a boxed term is returned as described above.
+/// 
+/// NOTE: If allocation fails for some reason, `Err(AllocErr)` is returned, this usually
+/// indicates that a process needs to be garbage collected, but in some cases may indicate
+/// that the global heap is out of space.
+#[inline]
+pub fn make_binary_from_str(process: &mut ProcessControlBlock, s: &str) -> Result<Term, AllocErr> {
+    let len = s.len();
+    // Allocate ProcBins for sizes greater than 64 bytes
+    if len > 64 {
+        // Allocates on global heap
+        let bin = ProcBin::from_str(s)?;
+        // Allocates space on the process heap for the header
+        let header_ptr = unsafe { process.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
+        // Adds the binary to the process's virtual binary heap
+        process.vheap_push(&bin);
+        // Write the header to the process heap
+        unsafe { ptr::write(header_ptr as *mut ProcBin, bin) };
+        // Returns a box term that points to the header
+        let result = unsafe { Term::from_raw(header_ptr as usize | Term::FLAG_BOXED) };
+        Ok(result)
+    } else {
+        unsafe {
+            // Allocates space on the process heap for the header + data
+            let header_ptr = process.alloc_layout(HeapBin::layout(s))?.as_ptr() as *mut HeapBin;
+            // Pointer to start of binary data
+            let bin_ptr = header_ptr.offset(1) as *mut u8;
+            // Construct the right header based on whether input string is only ASCII or includes UTF8
+            let header = if s.is_ascii() {
+                HeapBin::from_raw_latin1_parts(bin_ptr, len)
+            } else {
+                HeapBin::from_raw_utf8_parts(bin_ptr, len)
+            };
+            // Write header
+            ptr::write(header_ptr, header);
+            // Copy binary data to destination
+            ptr::copy_nonoverlapping(s.as_ptr(), bin_ptr, len);
+            // Return a box term that points to the header
+            let result = Term::from_raw(header_ptr as usize | Term::FLAG_BOXED);
+            Ok(result)
+        }
+    }
+}
+
+/// Constructs a binary from the given byte slice, and associated with the given process
+/// 
+/// For inputs greater than 64 bytes in size, the resulting binary data is allocated
+/// on the global shared heap, and reference counted (a `ProcBin`), the header to that
+/// binary is allocated on the process heap, and the data is placed in the processes'
+/// virtual binary heap, and a boxed term is returned which can then be placed on the stack,
+/// or as part of a larger structure if desired.
+/// 
+/// For inputs less than or equal to 64 bytes, both the header and data are allocated
+/// on the process heap, and a boxed term is returned as described above.
+/// 
+/// NOTE: If allocation fails for some reason, `Err(AllocErr)` is returned, this usually
+/// indicates that a process needs to be garbage collected, but in some cases may indicate
+/// that the global heap is out of space.
+#[inline]
+pub fn make_binary_from_bytes(process: &mut ProcessControlBlock, s: &[u8]) -> Result<Term, AllocErr> {
+    let len = s.len();
+    // Allocate ProcBins for sizes greater than 64 bytes
+    if len > 64 {
+        // Allocates on global heap
+        let bin = ProcBin::from_slice(s)?;
+        // Allocates space on the process heap for the header
+        let header_ptr = unsafe { process.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
+        // Adds the binary to the process's virtual binary heap
+        process.vheap_push(&bin);
+        // Write the header to the process heap
+        unsafe { ptr::write(header_ptr as *mut ProcBin, bin) };
+        // Returns a box term that points to the header
+        let result = unsafe { Term::from_raw(header_ptr as usize | Term::FLAG_BOXED) };
+        Ok(result)
+    } else {
+        unsafe {
+            // Allocates space on the process heap for the header + data
+            let header_ptr = process.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
+            // Pointer to start of binary data
+            let bin_ptr = header_ptr.offset(1) as *mut u8;
+            // Construct the right header based on whether input string is only ASCII or includes UTF8
+            let header = HeapBin::from_raw_parts(bin_ptr, len);
+            // Write header
+            ptr::write(header_ptr, header);
+            // Copy binary data to destination
+            ptr::copy_nonoverlapping(s.as_ptr(), bin_ptr, len);
+            // Return a box term that points to the header
+            let result = Term::from_raw(header_ptr as usize | Term::FLAG_BOXED);
+            Ok(result)
+        }
+    } 
+}
+
+/// Constructs a `Tuple` from a slice of `Term`
+/// 
+/// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
+/// it is expected that the slice provided is constructed from either immediate terms, or
+/// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+/// 
+/// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
+/// a slice passed to `make_tuple_from_slice` to produce nested tuples.
+#[inline]
+pub fn make_tuple_from_slice(process: &mut ProcessControlBlock, elements: &[Term]) -> Result<Term, AllocErr> {
+    let len = elements.len();
+    let layout = Tuple::layout(len);
+    let tuple_ptr = unsafe { process.alloc_layout(layout)?.as_ptr() as *mut Tuple };
+    let head_ptr = unsafe { tuple_ptr.offset(1) as *mut Term };
+    let tuple = Tuple::new(len);
+    unsafe {
+        // Write header
+        ptr::write(tuple_ptr, tuple);
+        // Write each element
+        for element in 0..len {
+            ptr::write(head_ptr.offset(element as isize), elements[element]);
+        }
+    }
+    // Return box to tuple
+    Ok(unsafe { Term::from_raw(tuple_ptr as usize | Term::FLAG_BOXED) })
 }
 
 /// This function determines if the inner term of a boxed term contains a move marker

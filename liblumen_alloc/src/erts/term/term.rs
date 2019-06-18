@@ -50,7 +50,7 @@ macro_rules! unwrap_header {
 ///
 /// Since `Term` values are often pointers, it should be given the same considerations
 /// that you would give a raw pointer/reference anywhere else
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Term(usize);
 impl Term {
@@ -117,7 +117,7 @@ impl Term {
 
     // To mask off the entire immediate header, we mask off both the primary and immediate tag
     pub const MASK_IMMEDIATE1: usize = Self::MASK_PRIMARY | Self::MASK_IMMEDIATE1_TAG;
-    pub const MASK_IMMEDIATE2: usize = Self::MASK_PRIMARY | Self::MASK_IMMEDIATE2_TAG;
+    pub const MASK_IMMEDIATE2: usize = Self::MASK_IMMEDIATE1 | Self::MASK_IMMEDIATE2_TAG;
 
     // Header is composed of 2 primary tag bits, and 4 subtag bits:
     pub const MASK_HEADER: usize = Self::MASK_HEADER_PRIMARY | Self::MASK_HEADER_ARITYVAL;
@@ -479,7 +479,7 @@ impl Term {
                             Self::FLAG_CATCH => Ok(TypedTerm::Catch),
                             Self::FLAG_UNUSED_1 => Err(InvalidTermError::InvalidTag),
                             Self::FLAG_NIL => Ok(TypedTerm::Nil),
-                            _ => unreachable!(),
+                            _ => Err(InvalidTermError::InvalidTag),
                         }
                     }
                     Self::FLAG_SMALL_INTEGER => {
@@ -540,6 +540,14 @@ impl Term {
             _ => unreachable!(),
         };
         Ok(ty)
+    }
+}
+impl fmt::Debug for Term {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.to_typed_term() {
+            Err(_) => write!(f, "InvalidTerm({:?})", self.0),
+            Ok(typed) => write!(f, "Term({:?})", typed),
+        }
     }
 }
 impl PartialOrd<Term> for Term {

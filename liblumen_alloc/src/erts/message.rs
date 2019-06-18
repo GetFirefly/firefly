@@ -3,7 +3,7 @@ use core::mem;
 
 use intrusive_collections::LinkedListLink;
 
-use super::{Term, TypedTerm};
+use super::{Term, TypedTerm, InvalidTermError};
 
 #[derive(Debug)]
 pub struct Message {
@@ -46,8 +46,8 @@ impl Message {
     }
 
     #[inline]
-    pub fn data(&self) -> Option<TypedTerm> {
-        unsafe { self.data.to_typed_term() }
+    pub fn data(&self) -> Result<TypedTerm, InvalidTermError> {
+        self.data.to_typed_term()
     }
 }
 #[cfg(debug_assertions)]

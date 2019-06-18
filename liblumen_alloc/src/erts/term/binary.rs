@@ -575,7 +575,7 @@ impl CloneToProcess for HeapBin {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct SubBinary {
-    header: usize,
+    header: Term,
     // Binary size in bytes
     size: usize,
     // Offset into original binary
@@ -597,7 +597,7 @@ impl SubBinary {
 
         let orig = ctx.buffer.orig;
         let arityval = word_size_of::<Self>();
-        let header = arityval | Term::FLAG_SUBBINARY;
+        let header = unsafe { Term::from_raw(arityval | Term::FLAG_SUBBINARY) };
         let size = byte_offset(num_bits);
         let bitsize = bit_offset(num_bits);
         let offset = byte_offset(ctx.buffer.offset);
@@ -801,7 +801,7 @@ impl MatchBuffer {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MatchContext {
-    header: usize,
+    header: Term,
     buffer: MatchBuffer,
     // Saved offsets for contexts created via `bs_start_match2`
     save_offset: Option<usize>,
@@ -818,8 +818,9 @@ impl MatchContext {
         } else {
             None
         };
+        let arityval = word_size_of::<Self>();
         Self {
-            header: Term::FLAG_MATCH_CTX,
+            header: unsafe { Term::from_raw(arityval | Term::FLAG_MATCH_CTX) },
             buffer,
             save_offset,
         }

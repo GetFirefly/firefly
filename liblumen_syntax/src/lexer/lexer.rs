@@ -233,9 +233,9 @@ where
             ',' => pop!(self, Token::Comma),
             ';' => pop!(self, Token::Semicolon),
             '_' => self.lex_identifier(),
-            '0'...'9' => self.lex_number(),
-            'a'...'z' => self.lex_bare_atom(),
-            'A'...'Z' => self.lex_identifier(),
+            '0'..='9' => self.lex_number(),
+            'a'..='z' => self.lex_bare_atom(),
+            'A'..='Z' => self.lex_identifier(),
             '#' => pop!(self, Token::Pound),
             '*' => pop!(self, Token::Star),
             '!' => pop!(self, Token::Bang),
@@ -564,7 +564,7 @@ where
             match self.read() {
                 '_' => self.skip(),
                 '@' => self.skip(),
-                '0'...'9' => self.skip(),
+                '0'..='9' => self.skip(),
                 c if c.is_alphabetic() => self.skip(),
                 _ => break,
             }
@@ -581,7 +581,7 @@ where
             match self.read() {
                 '_' => self.skip(),
                 '@' => self.skip(),
-                '0'...'9' => self.skip(),
+                '0'..='9' => self.skip(),
                 c if c.is_alphabetic() => self.skip(),
                 _ => break,
             }

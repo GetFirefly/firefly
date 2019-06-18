@@ -91,7 +91,7 @@ impl std::error::Error for ReadError {
             UnexpectedChunk { .. } => "Unexpected chunk",
         }
     }
-    fn cause(&self) -> Option<&std::error::Error> {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
             ReadError::FileError(ref x) => Some(x),
             ReadError::InvalidString(ref x) => Some(x),

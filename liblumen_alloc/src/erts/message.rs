@@ -3,7 +3,7 @@ use core::mem;
 
 use intrusive_collections::LinkedListLink;
 
-use super::{Term, TypedTerm, InvalidTermError};
+use super::{InvalidTermError, Term, TypedTerm};
 
 #[derive(Debug)]
 pub struct Message {

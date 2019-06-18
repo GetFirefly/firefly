@@ -5,8 +5,8 @@ use core::ptr;
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedList, LinkedListLink, UnsafeRef};
 
+use super::{OldHeap, YoungHeap};
 use crate::erts::*;
-use super::{YoungHeap, OldHeap};
 
 intrusive_adapter!(pub ProcBinAdapter = UnsafeRef<ProcBin>: ProcBin { link: LinkedListLink });
 
@@ -61,7 +61,9 @@ impl VirtualBinaryHeap {
     /// Returns true if the given pointer belongs to a binary on the virtual heap
     #[inline]
     pub fn contains<T>(&self, ptr: *const T) -> bool {
-        self.bins.iter().any(|bin_ref| ptr == bin_ref as *const _ as *const T)
+        self.bins
+            .iter()
+            .any(|bin_ref| ptr == bin_ref as *const _ as *const T)
     }
 
     /// Adds the given `ProcBin` to the virtual binary heap

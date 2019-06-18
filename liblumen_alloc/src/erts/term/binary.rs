@@ -431,10 +431,7 @@ impl HeapBin {
 
     #[inline]
     pub(in crate::erts) fn from_raw_parts(header: Term, flags: usize) -> Self {
-        Self {
-            header,
-            flags,
-        }
+        Self { header, flags }
     }
 
     /// Returns true if this binary is a raw binary
@@ -493,7 +490,8 @@ impl HeapBin {
         unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
     }
 
-    /// Get a `Layout` describing the necessary layout to allocate a `HeapBin` for the given byte slice
+    /// Get a `Layout` describing the necessary layout to allocate a `HeapBin` for the given byte
+    /// slice
     #[inline]
     pub fn layout_bytes(input: &[u8]) -> Layout {
         let size = mem::size_of::<Self>() + input.len();
@@ -650,11 +648,7 @@ impl SubBinary {
     ///
     /// NOTE: You should not use this for any other purpose
     pub(crate) fn to_heapbin_parts(&self) -> Result<(Term, usize, *mut u8, usize), ()> {
-        if self.bitsize == 0
-            && self.bitoffs == 0
-            && !self.writable
-            && self.size <= 64
-        {
+        if self.bitsize == 0 && self.bitoffs == 0 && !self.writable && self.size <= 64 {
             Ok(unsafe { self.to_raw_parts() })
         } else {
             Err(())
@@ -756,7 +750,7 @@ impl CloneToProcess for SubBinary {
 }
 
 /// Represents a binary being matched
-/// 
+///
 /// See `ErlBinMatchBuffer` in `erl_bits.h`
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -772,7 +766,7 @@ pub struct MatchBuffer {
 }
 impl MatchBuffer {
     /// Create a match buffer from a binary
-    /// 
+    ///
     /// See `erts_bs_start_match_2` in `erl_bits.c`
     #[inline]
     pub fn start_match(orig: Term) -> Self {
@@ -814,7 +808,7 @@ pub struct MatchContext {
 }
 impl MatchContext {
     /// Create a new MatchContext from a boxed procbin/heapbin/sub-bin
-    /// 
+    ///
     /// See `erts_bs_start_match_2` in `erl_bits.c`
     #[inline]
     pub fn new(orig: Term) -> Self {

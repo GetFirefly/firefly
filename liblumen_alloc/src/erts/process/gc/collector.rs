@@ -1,8 +1,8 @@
 use core::alloc::AllocErr;
 use core::ptr;
 
-use log::trace;
 use intrusive_collections::UnsafeRef;
+use log::trace;
 
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
@@ -117,7 +117,9 @@ impl<'p> GarbageCollector<'p> {
             return Err(GcError::MaxHeapSizeExceeded);
         }
         // Unset heap_grow and need_fullsweep flags, because we are doing both
-        self.process.flags.clear(ProcessFlag::GrowHeap | ProcessFlag::NeedFullSweep);
+        self.process
+            .flags
+            .clear(ProcessFlag::GrowHeap | ProcessFlag::NeedFullSweep);
         // Allocate new heap
         let new_heap_start = alloc::heap(new_size).map_err(|_| GcError::AllocErr)?;
         let mut new_heap = YoungHeap::new(new_heap_start, new_size);
@@ -185,9 +187,15 @@ impl<'p> GarbageCollector<'p> {
         let heap_used = self.process.young.heap_used();
         let size_after = heap_used + stack_used + self.process.off_heap_size();
         if size_before >= size_after {
-            trace!("Full sweep reclaimed {} words of garbage", size_before - size_after);
+            trace!(
+                "Full sweep reclaimed {} words of garbage",
+                size_before - size_after
+            );
         } else {
-            trace!("Full sweep resulted in heap growth of {} words", size_after - size_before);
+            trace!(
+                "Full sweep resulted in heap growth of {} words",
+                size_after - size_before
+            );
         }
         // Determine if we oversized the heap and should shrink it
         let mut adjusted = false;

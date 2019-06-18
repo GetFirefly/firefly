@@ -1,4 +1,4 @@
-use core::ops::{Not, BitOr, BitOrAssign, BitAnd, BitAndAssign};
+use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not};
 use core::sync::atomic::{AtomicU32, Ordering};
 
 /// This type provides an enum-like type with bitflag semantics,
@@ -16,7 +16,7 @@ impl ProcessFlag {
     pub const GrowHeap: Self = Self(1 << 1);
     /// This flag indicates that the next GC should be a full sweep unconditionally
     pub const NeedFullSweep: Self = Self(1 << 2);
-    /// This flag indicates that the next GC check will always return `true`, 
+    /// This flag indicates that the next GC check will always return `true`,
     /// i.e. a collection will be forced
     pub const ForceGC: Self = Self(1 << 3);
     /// This flag indicates that GC should be disabled temporarily

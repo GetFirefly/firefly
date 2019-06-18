@@ -1,10 +1,10 @@
 use core::alloc::Layout;
 use core::cmp;
+use core::convert::TryInto;
+use core::fmt;
 use core::iter::FusedIterator;
 use core::mem;
 use core::ptr;
-use core::fmt;
-use core::convert::TryInto;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::ProcessControlBlock;
@@ -27,9 +27,7 @@ impl fmt::Display for IndexError {
             &Self::OutOfBounds { len, index } => {
                 write!(f, "invalid index {}: exceeds max length of {}", index, len)
             }
-            &Self::BadArgument(term) => {
-                write!(f, "invalid index: bad argument {:?}", term)
-            }
+            &Self::BadArgument(term) => write!(f, "invalid index: bad argument {:?}", term),
         }
     }
 }
@@ -109,11 +107,9 @@ impl Tuple {
         let size = self.size();
         if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
             match small.try_into() {
-                Ok(i) if i > 0 && i <= size => {
-                    Ok(self.do_get_element(i))
-                }
+                Ok(i) if i > 0 && i <= size => Ok(self.do_get_element(i)),
                 Ok(i) => Err(IndexError::new(i, size)),
-                Err(_) => Err(BadArgument::new(index).into())
+                Err(_) => Err(BadArgument::new(index).into()),
             }
         } else {
             Err(BadArgument::new(index).into())

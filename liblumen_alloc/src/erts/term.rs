@@ -28,9 +28,9 @@ pub use typed_term::*;
 //pub use map::*;
 pub use boxed::*;
 
+use core::alloc::{AllocErr, Layout};
 use core::fmt;
 use core::ptr;
-use core::alloc::{Layout, AllocErr};
 
 use super::ProcessControlBlock;
 
@@ -105,16 +105,16 @@ impl crate::borrow::CloneToProcess for MapHeader {
 }
 
 /// Constructs a binary from the given string, and associated with the given process
-/// 
+///
 /// For inputs greater than 64 bytes in size, the resulting binary data is allocated
 /// on the global shared heap, and reference counted (a `ProcBin`), the header to that
 /// binary is allocated on the process heap, and the data is placed in the processes'
 /// virtual binary heap, and a boxed term is returned which can then be placed on the stack,
 /// or as part of a larger structure if desired.
-/// 
+///
 /// For inputs less than or equal to 64 bytes, both the header and data are allocated
 /// on the process heap, and a boxed term is returned as described above.
-/// 
+///
 /// NOTE: If allocation fails for some reason, `Err(AllocErr)` is returned, this usually
 /// indicates that a process needs to be garbage collected, but in some cases may indicate
 /// that the global heap is out of space.
@@ -140,7 +140,8 @@ pub fn make_binary_from_str(process: &mut ProcessControlBlock, s: &str) -> Resul
             let header_ptr = process.alloc_layout(HeapBin::layout(s))?.as_ptr() as *mut HeapBin;
             // Pointer to start of binary data
             let bin_ptr = header_ptr.offset(1) as *mut u8;
-            // Construct the right header based on whether input string is only ASCII or includes UTF8
+            // Construct the right header based on whether input string is only ASCII or includes
+            // UTF8
             let header = if s.is_ascii() {
                 HeapBin::new_latin1(len)
             } else {
@@ -158,21 +159,24 @@ pub fn make_binary_from_str(process: &mut ProcessControlBlock, s: &str) -> Resul
 }
 
 /// Constructs a binary from the given byte slice, and associated with the given process
-/// 
+///
 /// For inputs greater than 64 bytes in size, the resulting binary data is allocated
 /// on the global shared heap, and reference counted (a `ProcBin`), the header to that
 /// binary is allocated on the process heap, and the data is placed in the processes'
 /// virtual binary heap, and a boxed term is returned which can then be placed on the stack,
 /// or as part of a larger structure if desired.
-/// 
+///
 /// For inputs less than or equal to 64 bytes, both the header and data are allocated
 /// on the process heap, and a boxed term is returned as described above.
-/// 
+///
 /// NOTE: If allocation fails for some reason, `Err(AllocErr)` is returned, this usually
 /// indicates that a process needs to be garbage collected, but in some cases may indicate
 /// that the global heap is out of space.
 #[inline]
-pub fn make_binary_from_bytes(process: &mut ProcessControlBlock, s: &[u8]) -> Result<Term, AllocErr> {
+pub fn make_binary_from_bytes(
+    process: &mut ProcessControlBlock,
+    s: &[u8],
+) -> Result<Term, AllocErr> {
     let len = s.len();
     // Allocate ProcBins for sizes greater than 64 bytes
     if len > 64 {
@@ -190,10 +194,12 @@ pub fn make_binary_from_bytes(process: &mut ProcessControlBlock, s: &[u8]) -> Re
     } else {
         unsafe {
             // Allocates space on the process heap for the header + data
-            let header_ptr = process.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
+            let header_ptr =
+                process.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
             // Pointer to start of binary data
             let bin_ptr = header_ptr.offset(1) as *mut u8;
-            // Construct the right header based on whether input string is only ASCII or includes UTF8
+            // Construct the right header based on whether input string is only ASCII or includes
+            // UTF8
             let header = HeapBin::new(len);
             // Write header
             ptr::write(header_ptr, header);
@@ -203,19 +209,22 @@ pub fn make_binary_from_bytes(process: &mut ProcessControlBlock, s: &[u8]) -> Re
             let result = Term::from_raw(header_ptr as usize | Term::FLAG_BOXED);
             Ok(result)
         }
-    } 
+    }
 }
 
 /// Constructs a `Tuple` from a slice of `Term`
-/// 
+///
 /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
 /// it is expected that the slice provided is constructed from either immediate terms, or
 /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
-/// 
+///
 /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
 /// a slice passed to `make_tuple_from_slice` to produce nested tuples.
 #[inline]
-pub fn make_tuple_from_slice(process: &mut ProcessControlBlock, elements: &[Term]) -> Result<Term, AllocErr> {
+pub fn make_tuple_from_slice(
+    process: &mut ProcessControlBlock,
+    elements: &[Term],
+) -> Result<Term, AllocErr> {
     let len = elements.len();
     let layout = Tuple::layout(len);
     let tuple_ptr = unsafe { process.alloc_layout(layout)?.as_ptr() as *mut Tuple };

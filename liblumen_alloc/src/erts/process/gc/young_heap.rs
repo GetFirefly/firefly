@@ -254,7 +254,7 @@ impl YoungHeap {
         // Sub-binaries are a little different, in that since we're garbage
         // collecting, we can't guarantee that the original binary will stick
         // around, and we don't necessarily want it to. Instead we create a new
-        // heap binary (if within the size limit) that contains the slice of 
+        // heap binary (if within the size limit) that contains the slice of
         // the original binary that the sub-binary referenced. If the sub-binary
         // is too large to build a heap binary, then the original must be a ProcBin,
         // so we don't need to worry about it being collected out from under us
@@ -273,10 +273,7 @@ impl YoungHeap {
                 // Copy referenced part of binary to heap
                 ptr::copy_nonoverlapping(bin_ptr, new_bin_ptr, bin_size);
                 // Write heapbin header
-                ptr::write(
-                    dst,
-                    HeapBin::from_raw_parts(bin_header, bin_flags),
-                );
+                ptr::write(dst, HeapBin::from_raw_parts(bin_header, bin_flags));
                 // Write a move marker to the original location
                 let marker = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
                 ptr::write(orig, marker);

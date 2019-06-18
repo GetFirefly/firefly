@@ -1,9 +1,9 @@
 #![allow(unused_parens)]
 
 use core::cmp;
+use core::fmt;
 use core::mem;
 use core::ptr;
-use core::fmt;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{InvalidTermError, ProcessControlBlock};
@@ -162,7 +162,7 @@ impl Term {
     /// underlying term has a destructor which needs to run, such
     /// as `ProcBin`, which needs to be dropped in order to ensure
     /// that the reference count is decremented properly.
-    /// 
+    ///
     /// NOTE: This does not follow move markers, it is assumed that
     /// moved terms are live and not to be released
     #[inline]
@@ -179,7 +179,7 @@ impl Term {
             if boxed.is_procbin() {
                 unsafe { ptr::drop_in_place(boxed_ptr as *mut ProcBin) };
                 return;
-            } 
+            }
             // Ensure we walk tuples and release all their elements
             if boxed.is_tuple() {
                 let tuple = unsafe { &*(boxed_ptr as *mut Tuple) };
@@ -189,7 +189,7 @@ impl Term {
                 return;
             }
             return;
-        } 
+        }
         // Ensure we walk lists and release all their elements
         if self.is_list() {
             let cons_ptr = self.list_val();
@@ -208,7 +208,7 @@ impl Term {
                 // This is more of a sanity check, as the head will be nil for EOL
                 if cons.tail.is_nil() {
                     return;
-                } 
+                }
                 // If the tail is proper, move into the cell it represents
                 if cons.tail.is_list() {
                     let tail_ptr = cons.tail.list_val();
@@ -281,7 +281,7 @@ impl Term {
     pub fn is_bigint(&self) -> bool {
         match self.0 & Self::MASK_HEADER {
             Self::FLAG_POS_BIG_INTEGER | Self::FLAG_NEG_BIG_INTEGER => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -518,33 +518,29 @@ impl Term {
                     Ok(TypedTerm::Boxed(unsafe { *ptr }))
                 }
             }
-            Self::FLAG_IMMEDIATE => {
-                match val & Self::MASK_IMMEDIATE1 {
-                    Self::FLAG_PID => {
-                        Ok(TypedTerm::Pid(unsafe { Pid::from_raw(unwrap_immediate1!(val)) }))
-                    }
-                    Self::FLAG_PORT => {
-                        Ok(TypedTerm::Port(unsafe { Port::from_raw(unwrap_immediate1!(val)) }))
-                    }
-                    Self::FLAG_IMMEDIATE2 => {
-                        match val & Self::MASK_IMMEDIATE2 {
-                            Self::FLAG_ATOM => {
-                                Ok(TypedTerm::Atom(unsafe { Atom::from_id(unwrap_immediate2!(val)) }))
-                            }
-                            Self::FLAG_CATCH => Ok(TypedTerm::Catch),
-                            Self::FLAG_UNUSED_1 => Err(InvalidTermError::InvalidTag),
-                            Self::FLAG_NIL => Ok(TypedTerm::Nil),
-                            _ => Err(InvalidTermError::InvalidTag),
-                        }
-                    }
-                    Self::FLAG_SMALL_INTEGER => {
-                        let unwrapped = unwrap_immediate1!(val);
-                        let small = unsafe { SmallInteger::from_untagged_term(unwrapped) };
-                        Ok(TypedTerm::SmallInteger(small))
-                    }
-                    _ => unreachable!(),
+            Self::FLAG_IMMEDIATE => match val & Self::MASK_IMMEDIATE1 {
+                Self::FLAG_PID => Ok(TypedTerm::Pid(unsafe {
+                    Pid::from_raw(unwrap_immediate1!(val))
+                })),
+                Self::FLAG_PORT => Ok(TypedTerm::Port(unsafe {
+                    Port::from_raw(unwrap_immediate1!(val))
+                })),
+                Self::FLAG_IMMEDIATE2 => match val & Self::MASK_IMMEDIATE2 {
+                    Self::FLAG_ATOM => Ok(TypedTerm::Atom(unsafe {
+                        Atom::from_id(unwrap_immediate2!(val))
+                    })),
+                    Self::FLAG_CATCH => Ok(TypedTerm::Catch),
+                    Self::FLAG_UNUSED_1 => Err(InvalidTermError::InvalidTag),
+                    Self::FLAG_NIL => Ok(TypedTerm::Nil),
+                    _ => Err(InvalidTermError::InvalidTag),
+                },
+                Self::FLAG_SMALL_INTEGER => {
+                    let unwrapped = unwrap_immediate1!(val);
+                    let small = unsafe { SmallInteger::from_untagged_term(unwrapped) };
+                    Ok(TypedTerm::SmallInteger(small))
                 }
-            }
+                _ => unreachable!(),
+            },
             _ => unreachable!(),
         }
     }
@@ -567,7 +563,7 @@ impl Term {
             }
             Self::FLAG_NEG_BIG_INTEGER => {
                 TypedTerm::BigInteger(Boxed::from_raw(ptr as *mut BigInteger))
-            },
+            }
             Self::FLAG_REFERENCE => {
                 TypedTerm::Reference(Reference::from_raw(ptr as *mut Reference))
             } // RefThing in erl_term.h

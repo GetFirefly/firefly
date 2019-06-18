@@ -44,7 +44,7 @@ impl std::error::Error for ConfigError {
             ConfigError::FileError(_, ref err) => err.description(),
         }
     }
-    fn cause(&self) -> Option<&std::error::Error> {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
             ConfigError::FileError(ref _path, ref err) => Some(err),
         }

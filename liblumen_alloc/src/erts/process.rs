@@ -1,10 +1,13 @@
+mod flags;
+pub use self::flags::*;
+
 mod alloc;
 mod gc;
 
 use core::alloc::{AllocErr, Layout};
 use core::mem;
 use core::ptr::NonNull;
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 use intrusive_collections::{LinkedList, UnsafeRef};
 
@@ -18,7 +21,7 @@ use crate::borrow::CloneToProcess;
 #[repr(C)]
 pub struct ProcessControlBlock {
     // Process flags, e.g. `Process.flag/1`
-    flags: AtomicU32,
+    flags: AtomicProcessFlag,
     // minimum size of the heap that this process will start with
     min_heap_size: usize,
     // the maximum size of the heap allowed for this process
@@ -43,13 +46,6 @@ pub struct ProcessControlBlock {
     dictionary: HashMap<Term, Term>,
 }
 impl ProcessControlBlock {
-    const FLAG_HEAP_GROW: u32 = 1 << 3;
-    const FLAG_NEED_FULLSWEEP: u32 = 1 << 4;
-    const FLAG_FORCE_GC: u32 = 1 << 10;
-    const FLAG_DISABLE_GC: u32 = 1 << 11;
-    const FLAG_DELAY_GC: u32 = 1 << 16;
-
-    const DEFAULT_FLAGS: u32 = 0;
 
     /// Creates a new PCB with a heap defined by the given pointer, and
     /// `heap_size`, which is the size of the heap in words.
@@ -61,7 +57,7 @@ impl ProcessControlBlock {
         let off_heap = LinkedList::new(HeapFragmentAdapter::new());
         let dictionary = HashMap::new();
         Self {
-            flags: AtomicU32::new(Self::DEFAULT_FLAGS),
+            flags: AtomicProcessFlag::new(ProcessFlag::Default),
             min_heap_size: heap_size,
             max_heap_size: 0,
             min_vheap_size: 0,
@@ -75,6 +71,18 @@ impl ProcessControlBlock {
             off_heap,
             dictionary,
         }
+    }
+
+    /// Set the given process flag
+    #[inline]
+    pub fn set_flags(&self, flags: ProcessFlag) {
+        self.flags.set(flags);
+    }
+
+    /// Unset the given process flag
+    #[inline]
+    pub fn clear_flags(&self, flags: ProcessFlag) {
+        self.flags.clear(flags);
     }
 
     /// Perform a heap allocation.
@@ -271,22 +279,22 @@ impl ProcessControlBlock {
 
     #[inline(always)]
     fn is_gc_forced(&self) -> bool {
-        self.flags.load(Ordering::Relaxed) & Self::FLAG_FORCE_GC == Self::FLAG_FORCE_GC
+        self.flags.is_set(ProcessFlag::ForceGC)
     }
 
     #[inline(always)]
     fn is_gc_delayed(&self) -> bool {
-        self.flags.load(Ordering::Relaxed) & Self::FLAG_DELAY_GC == Self::FLAG_DELAY_GC
+        self.flags.is_set(ProcessFlag::DelayGC)
     }
 
     #[inline(always)]
     fn is_gc_disabled(&self) -> bool {
-        self.flags.load(Ordering::Relaxed) & Self::FLAG_DISABLE_GC == Self::FLAG_DISABLE_GC
+        self.flags.is_set(ProcessFlag::DisableGC)
     }
 
     #[inline(always)]
     fn needs_fullsweep(&self) -> bool {
-        self.flags.load(Ordering::Relaxed) & Self::FLAG_NEED_FULLSWEEP == Self::FLAG_NEED_FULLSWEEP
+        self.flags.is_set(ProcessFlag::NeedFullSweep)
     }
 
     /// Performs a garbage collection, using the provided root set

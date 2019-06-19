@@ -242,6 +242,20 @@ pub fn make_tuple_from_slice(
     Ok(unsafe { Term::from_raw(tuple_ptr as usize | Term::FLAG_BOXED) })
 }
 
+/// Constructs an integer value from any type that implements `Into<Integer>`,
+/// which currently includes `SmallInteger`, `BigInteger`, `usize` and `isize`.
+/// 
+/// This operation will transparently handle constructing the correct type of term
+/// based on the input value, i.e. an immediate small integer for values that fit,
+/// else a heap-allocated big integer for larger values.
+#[inline]
+pub fn make_integer<I: Into<Integer>>(process: &mut ProcessControlBlock, i: I) -> Term {
+    match i.into() {
+        Integer::Small(small) => small.as_term(),
+        Integer::Big(big) => big.clone_to_process(process),
+    }
+}
+
 /// This function determines if the inner term of a boxed term contains a move marker
 ///
 /// The value `term` should be the result of unboxing a boxed term:

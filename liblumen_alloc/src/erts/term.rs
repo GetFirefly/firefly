@@ -250,8 +250,9 @@ pub fn make_tuple_from_slice(
 /// else a heap-allocated big integer for larger values.
 #[inline]
 pub fn make_integer<I: Into<Integer>>(process: &mut ProcessControlBlock, i: I) -> Term {
+    use crate::borrow::CloneToProcess;
     match i.into() {
-        Integer::Small(small) => small.as_term(),
+        Integer::Small(small) => unsafe { small.as_term() },
         Integer::Big(big) => big.clone_to_process(process),
     }
 }

@@ -15,6 +15,7 @@ mod blocks;
 mod borrow;
 mod carriers;
 mod erts;
+mod stats_alloc;
 mod segmented_alloc;
 mod size_class_alloc;
 mod sorted;
@@ -30,7 +31,7 @@ pub mod std_alloc;
 pub use liblumen_core::alloc::SysAlloc;
 
 /// A tracing allocator for tracking statistics about the allocator it wraps
-pub use self::stats::StatsAlloc;
+pub use self::stats_alloc::StatsAlloc;
 
 // An allocator that uses segmented sub-allocators to more efficiently manage
 // allocations of variable sizes that fall within predictable size ranges

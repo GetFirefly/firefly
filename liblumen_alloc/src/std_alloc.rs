@@ -37,6 +37,7 @@ use core::alloc::{Alloc, AllocErr, Layout};
 use core::cmp;
 use core::ptr::{self, NonNull};
 
+use cfg_if::cfg_if;
 use lazy_static::lazy_static;
 
 use intrusive_collections::LinkedListLink;
@@ -48,15 +49,26 @@ use liblumen_core::alloc::mmap;
 use liblumen_core::locks::SpinLock;
 use liblumen_core::util::cache_padded::CachePadded;
 
+use crate::AllocatorInfo;
 use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::carriers::{MultiBlockCarrierTree, SingleBlockCarrierList};
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
-use crate::AllocatorInfo;
 
 // The global instance of StandardAlloc
-lazy_static! {
-    static ref STD_ALLOC: StandardAlloc = StandardAlloc::new();
+cfg_if! {
+    if #[cfg(feature = "instrument")] {
+        use crate::StatsAlloc;
+        lazy_static! {
+            static ref STD_ALLOC: StatsAlloc<StandardAlloc> = {
+                StatsAlloc::new(StandardAlloc::new())
+            };
+        }
+    } else {
+        lazy_static! {
+            static ref STD_ALLOC: StandardAlloc = StandardAlloc::new();
+        }
+    }
 }
 
 /// Allocates a new block of memory using the given layout

@@ -15,7 +15,7 @@ jobs:
             - v2-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
       - run:
           name: Build all targets
-          command: cargo build --all --all-targets
+          command: cargo test --no-run
       - save_cache:
           key: v2-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
           paths:

@@ -168,7 +168,7 @@ impl Ord for Atom {
                 let other_length = other.name.len();
 
                 let bytes_ordering = if (ORDINAL_BYTE_COUNT < self_length)
-                    & (ORDINAL_BYTE_COUNT < other_length)
+                    && (ORDINAL_BYTE_COUNT < other_length)
                 {
                     let range = ORDINAL_BYTE_COUNT..self_length.min(other_length);
 
@@ -190,12 +190,12 @@ impl Ord for Atom {
 impl PartialEq for Atom {
     /// See https://github.com/erlang/otp/blob/be44d6827e2374a43068b35de85ed16441c771be/erts/emulator/beam/erl_utils.h#L159-L186
     fn eq(&self, other: &Atom) -> bool {
-        (self.ordinal == other.ordinal) & {
+        (self.ordinal == other.ordinal) && {
             let length = self.name.len();
 
             // for equality, can check len before bytes because it is faster
             (length == other.name.len())
-                & if ORDINAL_BYTE_COUNT < length {
+                && if ORDINAL_BYTE_COUNT < length {
                     let range = ORDINAL_BYTE_COUNT..length;
 
                     self.name.as_bytes()[range.clone()] == other.name.as_bytes()[range.clone()]

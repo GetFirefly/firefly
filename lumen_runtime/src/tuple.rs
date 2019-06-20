@@ -145,7 +145,7 @@ impl Tuple {
                         Some(size_term) => {
                             let size_usize: usize = size_term.try_into()?;
 
-                            (element == record_tag) & (self.len() == size_usize)
+                            (element == record_tag) && (self.len() == size_usize)
                         }
                         None => element == record_tag,
                     }
@@ -331,7 +331,7 @@ impl Ord for Tuple {
 impl PartialEq for Tuple {
     fn eq(&self, other: &Tuple) -> bool {
         (self.arity.tagged == other.arity.tagged)
-            & self
+            && self
                 .iter()
                 .zip(other.iter())
                 .all(|(self_element, other_element)| self_element == other_element)

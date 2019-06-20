@@ -826,7 +826,7 @@ impl Term {
         let float: &Float = float_term.unbox_reference();
         let float_f64 = float.inner;
 
-        (float_f64.fract() == 0.0) & {
+        (float_f64.fract() == 0.0) && {
             let small_integer_isize = small_integer.small_integer_to_isize();
 
             // float is out-of-range of SmallInteger, so it can't be equal
@@ -934,7 +934,7 @@ impl Term {
         let float: &Float = float_term.unbox_reference();
         let float_f64 = float.inner;
 
-        (float_f64.fract() == 0.0) & {
+        (float_f64.fract() == 0.0) && {
             // Float fits in small integer range, so it can't be a BigInt
             // https://github.com/erlang/otp/blob/741c5a5e1dbffd32d0478d4941ab0f725d709086/erts/emulator/beam/utils.c#L3199-L3202
             if (((small::MIN - 1) as f64) < float_f64) | (float_f64 < ((small::MAX + 1) as f64)) {
@@ -949,7 +949,7 @@ impl Term {
                 // > A float is more precise than an integer until all
                 // > significant figures of the float are to the left of the
                 // > decimal point.
-                } else if (float::INTEGRAL_MIN <= float_f64) & (float_f64 <= float::INTEGRAL_MAX) {
+                } else if (float::INTEGRAL_MIN <= float_f64) && (float_f64 <= float::INTEGRAL_MAX) {
                     let big_integer_f64: f64 = big_integer.into();
 
                     big_integer_f64 == float_f64

@@ -146,8 +146,8 @@ impl PartialEq for Exception {
     /// track down exceptions.
     fn eq(&self, other: &Exception) -> bool {
         (self.class == other.class)
-            & (self.reason == other.reason)
-            & (self.stacktrace == other.stacktrace)
+            && (self.reason == other.reason)
+            && (self.stacktrace == other.stacktrace)
     }
 }
 

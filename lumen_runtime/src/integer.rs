@@ -71,7 +71,7 @@ impl From<BigInt> for Integer {
         let small_min_big_int: BigInt = small::MIN.into();
         let small_max_big_int: BigInt = small::MAX.into();
 
-        if (small_min_big_int <= big_int) & (big_int <= small_max_big_int) {
+        if (small_min_big_int <= big_int) && (big_int <= small_max_big_int) {
             let (sign, bytes) = big_int.to_bytes_be();
             let small_usize = bytes
                 .iter()

@@ -250,7 +250,7 @@ pub fn binary_to_float_1(binary: Term, process: &Process) -> Result {
                 FpCategory::Normal | FpCategory::Subnormal =>
                 // unlike Rust, Erlang requires float strings to have a decimal point
                 {
-                    if (inner.fract() == 0.0) & !string.chars().any(|b| b == '.') {
+                    if (inner.fract() == 0.0) && !string.chars().any(|b| b == '.') {
                         Err(badarg!())
                     } else {
                         Ok(inner.into_process(&process))
@@ -1230,7 +1230,7 @@ pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
 }
 
 pub fn spawn_3(module: Term, function: Term, arguments: Term, process: &Process) -> Result {
-    let option_pid = if (module.tag() == Atom) & (function.tag() == Atom) {
+    let option_pid = if (module.tag() == Atom) && (function.tag() == Atom) {
         match arguments.tag() {
             EmptyList => {
                 let arc_process =
@@ -1341,7 +1341,7 @@ pub fn split_binary_2(binary: Term, position: Term, process: &Process) -> Result
                             );
 
                             Ok(Term::slice_to_tuple(&[prefix, suffix], &process))
-                        } else if (index == byte_length) & (subbinary.bit_count == 0) {
+                        } else if (index == byte_length) && (subbinary.bit_count == 0) {
                             let empty_suffix = Term::subbinary(
                                 subbinary.original,
                                 subbinary.byte_offset + index,

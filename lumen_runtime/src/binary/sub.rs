@@ -221,11 +221,11 @@ impl Hash for Binary {
 impl PartialEq for Binary {
     fn eq(&self, other: &Binary) -> bool {
         (self.bit_len() == other.bit_len())
-            & self
+            && self
                 .byte_iter()
                 .zip(other.byte_iter())
                 .all(|(self_byte, other_byte)| self_byte == other_byte)
-            & self
+            && self
                 .bit_count_iter()
                 .zip(other.bit_count_iter())
                 .all(|(self_bit, other_bit)| self_bit == other_bit)
@@ -321,7 +321,7 @@ impl Iterator for BitCountIter {
 
     fn next(&mut self) -> Option<u8> {
         if (self.current_byte_offset == self.max_byte_offset)
-            & (self.current_bit_offset == self.max_bit_offset)
+            && (self.current_bit_offset == self.max_bit_offset)
         {
             None
         } else {
@@ -386,7 +386,7 @@ impl PartialEq<heap::Binary> for Binary {
     /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
     fn eq(&self, other: &heap::Binary) -> bool {
-        (self.bit_count == 0) & self.byte_iter().eq(other.byte_iter())
+        (self.bit_count == 0) && self.byte_iter().eq(other.byte_iter())
     }
 }
 

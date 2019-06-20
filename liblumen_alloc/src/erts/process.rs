@@ -165,14 +165,61 @@ impl ProcessControlBlock {
 
     /// Perform a stack allocation
     #[inline]
-    pub unsafe fn stack_alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
         self.young.stack_alloc(need)
     }
 
-    /// Frees the last `words * mem::size_of::<Term>()` bytes on the stack
+    /// Perform a stack allocation, but with a `Layout`
     #[inline]
-    pub unsafe fn stack_pop(&mut self, words: usize) {
-        self.young.stack_pop(words);
+    pub unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+        let need = to_word_size(layout.size());
+        self.young.stack_alloc(need)
+    }
+
+    /// Frees stack space occupied by the last term on the stack,
+    /// adjusting the stack pointer accordingly.
+    /// 
+    /// Use `stack_popn` to pop multiple terms from the stack at once
+    #[inline]
+    pub unsafe fn stack_pop(&mut self) {
+        self.stack_popn(1)
+    }
+
+    /// Like `stack_pop`, but frees `n` terms from the stack
+    #[inline]
+    pub unsafe fn stack_popn(&mut self, n: usize) {
+        assert!(n > 0);
+        self.young.stack_popn(n);
+    }
+
+    /// Returns the term at the top of the stack
+    #[inline]
+    pub unsafe fn stack_top(&mut self) -> Option<Term> {
+        self.stack_slot(1)
+    }
+
+    /// Returns the term located in the given stack slot
+    /// 
+    /// The stack slot index counts upwards from 1, so 1
+    /// is equivalent to calling `stack_top`, 2 is the
+    /// term immediately preceding `stack_top` in the stack,
+    /// and so on
+    #[inline]
+    pub unsafe fn stack_slot(&mut self, slot: usize) -> Option<Term> {
+        assert!(slot > 0);
+        self.young.stack_slot(slot)
+    }
+
+    /// Returns the number of terms allocated on the stack
+    #[inline]
+    pub fn stack_size(&mut self) -> usize {
+        self.young.stack_size()
+    }
+
+    /// Returns the size of the stack space availabe in units of `Term`
+    #[inline]
+    pub fn stack_available(&mut self) -> usize {
+        self.young.stack_available()
     }
 
     /// Pushes a reference-counted binary on to this processes virtual heap

@@ -31,6 +31,7 @@ pub struct YoungHeap {
     pub(in crate::erts::process) end: *mut Term,
     pub(in crate::erts::process) stack_start: *mut Term,
     pub(in crate::erts::process) stack_end: *mut Term,
+    pub(in crate::erts::process) stack_size: usize,
     pub(in crate::erts::process) high_water_mark: *mut Term,
 }
 impl YoungHeap {
@@ -46,6 +47,7 @@ impl YoungHeap {
             top,
             stack_start,
             stack_end,
+            stack_size: 0,
             high_water_mark: start,
         }
     }
@@ -54,6 +56,12 @@ impl YoungHeap {
     #[inline]
     pub fn size(&self) -> usize {
         distance_absolute(self.end, self.start)
+    }
+
+    /// Gets the number of terms currently allocated on the stack
+    #[inline]
+    pub fn stack_size(&self) -> usize {
+        self.stack_size
     }
 
     /// Gets the current amount of heap space used (in words)
@@ -121,35 +129,162 @@ impl YoungHeap {
         }
     }
 
-    /// Perform a stack allocation of `size` words (i.e. size of `Term`)
+    /// Perform a stack allocation of `size` words to hold a single term.
     ///
     /// Returns `Err(AllocErr)` if there is not enough space available
+    /// 
+    /// NOTE: Do not use this to allocate space for multiple terms (lists
+    /// and boxes count as a single term), as the size of the stack in terms
+    /// is tied to allocations. Each time `stack_alloc` is called, the stack
+    /// size is incremented by 1, and this enables efficient implementations
+    /// of the other stack manipulation functions as the stack size in terms
+    /// does not have to be recalculated constantly.
     #[inline]
     pub fn stack_alloc(&mut self, size: usize) -> Result<NonNull<Term>, AllocErr> {
         if self.stack_available() >= size {
             let ptr = self.stack_start;
             self.stack_start = unsafe { self.stack_start.offset(-(size as isize)) };
+            self.stack_size += 1;
             Ok(unsafe { NonNull::new_unchecked(ptr) })
         } else {
             Err(AllocErr)
         }
     }
 
-    /// This function "pops" the last `size` words from the stack, making that
+    /// This function returns the term located in the given stack slot, if it exists.
+    /// 
+    /// The stack slots are 1-indexed, where `1` is the top of the stack, or most recent
+    /// allocation, and `S` is the bottom of the stack, or oldest allocation. 
+    /// 
+    /// If `S > stack_size`, then `None` is returned. Otherwise, `Some(Term)` is returned.
+    #[inline]
+    pub fn stack_slot(&mut self, n: usize) -> Option<Term> {
+        assert!(n > 0);
+        if n <= self.stack_size {
+            let stack_slot_ptr = self.stack_slot_address(n - 1);
+            Some(unsafe { *stack_slot_ptr })
+        } else {
+            None
+        }
+    }
+
+    /// This function "pops" the last `n` terms from the stack, making that
     /// space available for new stack allocations.
     ///
     /// # Safety
     ///
-    /// This function must be used with care, as it is intended to mirror `alloca`
-    /// in the sense that allocations are "popped" in the reverse order that they
-    /// occur. If this function is called with an arbitrary `size` that does not match
-    /// that order, then depending on what values are stored on the stack, you may
-    /// incorrectly free portions of a term which will now result in undefined behavior
-    /// when that term is accessed, e.g. freeing half of a tuple.
+    /// This function will panic if given a value `n` which exceeds the current
+    /// number of terms allocated on the stack
     #[inline]
-    pub fn stack_pop(&mut self, size: usize) {
-        self.stack_start = unsafe { self.stack_start.offset(size as isize) };
-        assert!(self.stack_start as usize <= self.stack_end as usize);
+    pub fn stack_popn(&mut self, n: usize) {
+        assert!(n > 0 && n <= self.stack_size);
+        if self.stack_size - n == 0 {
+            // Freeing the whole stack
+            self.stack_start = self.stack_end;
+            self.stack_size = 0;
+        } else {
+            // Freeing a subset
+            let start_slot_ptr = self.stack_slot_address(n - 1);
+            self.stack_start = start_slot_ptr;
+            self.stack_size -= n;
+        }
+    }
+
+    #[inline]
+    fn stack_slot_address(&self, mut slot: usize) -> *mut Term {
+        assert!(slot < self.stack_size);
+        // Essentially a no-op
+        if slot == 0 {
+            return self.stack_start;
+        }
+        // Walk the stack from start to finish, where the start is the lowest
+        // address. This means we walk terms from the "top" of the stack to the
+        // bottom, or put another way, from the most recently pushed to the oldest.
+        //
+        // When terms are allocated on the stack, the stack grows downwards, but we
+        // lay the term out in memory normally, i.e. allocating upwards. So scanning
+        // the stack requires following terms upwards, in order for us to skip over
+        // non-term data on the stack.
+        let mut pos = self.stack_start;
+        while slot > 0 {
+            let term = unsafe { *pos };
+            if term.is_immediate() {
+                // Immediates are the typical case, and only occupy one word
+                slot -= 1;
+                pos = unsafe { pos.offset(1) };
+            } else if term.is_boxed() {
+                // Boxed terms will consist of the box itself, and if stored on the stack, the
+                // boxed value will follow immediately afterward. The header of that value will
+                // contain the size in words of the data, which we can use to skip over to the next 
+                // term. In the case where the value resides on the heap, we can treat the box like
+                // an immediate
+                let ptr = term.boxed_val();
+                pos = unsafe { pos.offset(1) };
+                if ptr == pos {
+                    // The boxed value is on the stack immediately following the box
+                    let val = unsafe { *ptr };
+                    assert!(val.is_header());
+                    let skip = val.arityval() as isize;
+                    slot -= 1;
+                    pos = unsafe { pos.offset(skip) };
+                } else {
+                    assert!(!in_area(ptr, pos, self.stack_end), "boxed term stored on stack but not contiguously!");
+                }
+            } else if term.is_list() {
+                // Lists are essentially boxes which point to cons cells, but are a bit more complicated
+                // than boxed terms. Proper lists will have a cons cell where the head is nil, and improper
+                // lists will have a tail that contains a non-list term. For lists entirely on the stack, they
+                // may only consist of immediates or boxes which point to values on the heap, as it introduces
+                // unnecessary complexity to lay out cons cells in memory where the head term is larger than one
+                // word. This constraint also makes allocating lists on the stack easier to reason about.
+                let ptr = term.list_val() as *mut Cons;
+                let mut next_ptr = unsafe { pos.offset(1) as *mut Cons };
+                // If true, the first cell is correctly laid out contiguously with the list term
+                if ptr == next_ptr {
+                    // This is used to hold the current cons cell
+                    let mut cons = unsafe { *ptr };
+                    // This is a pointer to the next location in memory following this cell
+                    next_ptr = unsafe { next_ptr.offset(1) };
+                    loop {
+                        if cons.head.is_nil() {
+                            // We've hit the end of a proper list, update `pos` and break out
+                            pos = next_ptr as *mut Term;
+                            break;
+                        } 
+                        assert!(cons.head.is_immediate() || cons.head.is_boxed(), "invalid stack-allocated list, elements must be an immediate or box");
+                        if cons.tail.is_list() {
+                            // The list continues, we need to check where it continues on the stack
+                            let next_cons = cons.tail.list_val();
+                            if next_cons == next_ptr {
+                                // Yep, it is on the stack, contiguous with this cell
+                                cons = unsafe { *next_ptr };
+                                next_ptr = unsafe { next_ptr.offset(1) };
+                                continue;
+                            } else {
+                                // It must be on the heap, otherwise we've violated an invariant
+                                assert!(!in_area(next_cons, next_ptr as *const Term, self.stack_end), "list stored on stack but not contiguously!");
+                            }
+                        } else if cons.tail.is_immediate() {
+                            // We've hit the end of an improper list, update `pos` and break out
+                            pos = next_ptr as *mut Term;
+                            break;
+                        } else if cons.tail.is_boxed() {
+                            // We've hit the end of an improper list, update `pos` and break out
+                            let box_ptr = cons.tail.boxed_val();
+                            assert!(!in_area(box_ptr, next_ptr as *const Term, self.stack_end), "invalid stack-allocated list, elements must be an immediate or box");
+                            pos = next_ptr as *mut Term;
+                            break;
+                        }
+                    }
+                    slot -= 1;
+                } else {
+                    assert!(!in_area(ptr, pos, self.stack_end), "list term stored on stack but not contiguously!");
+                }
+            } else {
+                unreachable!();
+            }
+        }
+        pos
     }
 
     /// Copies the stack from another `YoungHeap` into this heap
@@ -158,13 +293,14 @@ impl YoungHeap {
     /// exceeds the unused space available in this heap
     #[inline]
     pub fn copy_stack_from(&mut self, other: &Self) {
-        let stack_size = other.stack_used();
-        assert!(stack_size <= self.unused());
+        let stack_used = other.stack_used();
+        assert!(stack_used <= self.unused());
         // Determine new stack start pointer, then copy the stack
-        let stack_start = unsafe { self.stack_end.offset(-(stack_size as isize)) };
-        unsafe { ptr::copy_nonoverlapping(other.stack_start, stack_start, stack_size) };
+        let stack_start = unsafe { self.stack_end.offset(-(stack_used as isize)) };
+        unsafe { ptr::copy_nonoverlapping(other.stack_start, stack_start, stack_used) };
         // Set stack_start
         self.stack_start = stack_start;
+        self.stack_size = other.stack_size;
     }
 
     /// This function walks the heap, applying the given function to every term

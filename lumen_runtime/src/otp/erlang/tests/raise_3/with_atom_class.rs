@@ -83,7 +83,17 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
                 &(
                     class(),
                     strategy::term(arc_process.clone()),
-                    strategy::term::is_not_atom(arc_process.clone()),
+                    strategy::term(arc_process.clone()).prop_filter(
+                        "Module must not be an atom or function",
+                        |module| {
+                            !(
+                                // {M, F, arity | args}
+                                module.is_atom() ||
+                                    // {function, args, location}
+                                    module.is_function()
+                            )
+                        },
+                    ),
                     strategy::term::function::function(),
                     strategy::term::function::arity_or_arguments(arc_process.clone()),
                 ),

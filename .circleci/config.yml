@@ -5,6 +5,8 @@ jobs:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
     resource_class: medium+
+    environment:
+      CARGO_HOME: cargo
     steps:
       - checkout
       - run:
@@ -12,21 +14,21 @@ jobs:
           command: rustc --version; cargo --version; rustup --version
       - restore_cache:
           keys:
-            - v3-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
+            - v4-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
       - run:
           name: Build all targets
-          command: cargo test --no-run
+          command: cargo test --locked --no-run
       - save_cache:
-          key: v3-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
+          key: v4-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
           paths:
-            - /usr/local/cargo/git
-            - /usr/local/cargo/registry
+            - cargo
             - target/debug/.fingerprint
             - target/debug/build
             - target/debug/deps
       - persist_to_workspace:
           root: .
           paths:
+            - cargo
             - examples
             - liblumen_alloc
             - liblumen_alloc_macros
@@ -51,6 +53,8 @@ jobs:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
     steps:
       - checkout
       - run:
@@ -58,21 +62,21 @@ jobs:
           command: rustc --version; cargo --version; rustup --version
       - restore_cache:
           keys:
-            - v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
+            - v4-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
       - run:
           working_directory: "lumen_runtime"
           command: wasm-pack build
       - save_cache:
-          key: v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
+          key: v4-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
           paths:
-            - /usr/local/cargo/git
-            - /usr/local/cargo/registry
+            - cargo
             - target/debug/.fingerprint
             - target/debug/build
             - target/debug/deps
       - persist_to_workspace:
           root: .
           paths:
+            - cargo
             - examples
             - liblumen_alloc
             - liblumen_alloc_macros
@@ -97,6 +101,8 @@ jobs:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
     steps:
       - attach_workspace:
           at: .
@@ -109,36 +115,33 @@ jobs:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
     steps:
-      - restore_cache:
-          keys:
-            - v3-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:
           name: Run all tests
-          command: cargo test --all --all-targets --exclude spawn-chain
+          command: cargo test --all --all-targets --exclude spawn-chain --frozen
   x86_64_single_threaded_test:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
     steps:
-      - restore_cache:
-          keys:
-            - v3-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:
           name: Run all tests
-          command: cargo test --all-targets --package spawn-chain -- --test-threads=1
+          command: cargo test --all-targets --frozen --package spawn-chain -- --test-threads=1
   chrome_test:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
     steps:
-      - restore_cache:
-          keys:
-            - v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:
@@ -148,10 +151,9 @@ jobs:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
     steps:
-      - restore_cache:
-          keys:
-            - v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:
@@ -161,10 +163,9 @@ jobs:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
     steps:
-      - restore_cache:
-          keys:
-            - v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:

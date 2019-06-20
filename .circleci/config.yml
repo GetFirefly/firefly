@@ -12,13 +12,14 @@ jobs:
           command: rustc --version; cargo --version; rustup --version
       - restore_cache:
           keys:
-            - v2-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
+            - v3-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
       - run:
           name: Build all targets
           command: cargo test --no-run
       - save_cache:
-          key: v2-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
+          key: v3-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
           paths:
+            - /usr/local/cargo/git
             - /usr/local/cargo/registry
             - target/debug/.fingerprint
             - target/debug/build
@@ -57,13 +58,14 @@ jobs:
           command: rustc --version; cargo --version; rustup --version
       - restore_cache:
           keys:
-            - v2-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
+            - v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
       - run:
           working_directory: "lumen_runtime"
           command: wasm-pack build
       - save_cache:
-          key: v2-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
+          key: v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
           paths:
+            - /usr/local/cargo/git
             - /usr/local/cargo/registry
             - target/debug/.fingerprint
             - target/debug/build

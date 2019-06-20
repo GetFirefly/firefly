@@ -110,6 +110,9 @@ jobs:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
     steps:
+      - restore_cache:
+          keys:
+            - v3-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:
@@ -120,6 +123,9 @@ jobs:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
     steps:
+      - restore_cache:
+          keys:
+            - v3-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:
@@ -130,6 +136,9 @@ jobs:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
     steps:
+      - restore_cache:
+          keys:
+            - v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:
@@ -140,6 +149,9 @@ jobs:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
     steps:
+      - restore_cache:
+          keys:
+            - v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:
@@ -150,6 +162,9 @@ jobs:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
     steps:
+      - restore_cache:
+          keys:
+            - v3-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
       - attach_workspace:
           at: .
       - run:

@@ -146,7 +146,7 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
                     strategy::term(arc_process.clone()),
                     strategy::term::function::module(),
                     strategy::term::function::function(),
-                    strategy::term::is_not_non_negative_integer(arc_process.clone()),
+                    is_not_arity_or_arguments(arc_process.clone()),
                 ),
                 |(class, reason, module, function, arity_or_arguments)| {
                     let stacktrace = Term::slice_to_list(
@@ -535,4 +535,12 @@ fn class_variant_and_term() -> BoxedStrategy<(Class, Term)> {
         )
     })
     .boxed()
+}
+
+fn is_not_arity_or_arguments(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    strategy::term::is_not_non_negative_integer(arc_process.clone())
+        .prop_filter("Is not arguments", |arity_or_arguments| {
+            !arity_or_arguments.is_list()
+        })
+        .boxed()
 }

@@ -4,6 +4,7 @@ jobs:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
       - image: kronicdeth/lumen-development
+    resource_class: medium+
     steps:
       - checkout
       - run:

@@ -1,17 +1,21 @@
+use core::fmt;
 use core::mem;
 use core::ptr;
 
 use crate::erts::*;
 
-use liblumen_core::util::pointer::{distance_absolute, in_area};
+use liblumen_core::util::pointer::*;
+
+use super::{VirtualBinaryHeap, YoungHeap};
 
 /// This type represents the old generation process heap
 ///
 /// This heap has no stack, and is only swept when new values are tenured
 pub struct OldHeap {
-    pub(in crate::erts::process) start: *mut Term,
-    pub(in crate::erts::process) end: *mut Term,
-    pub(in crate::erts::process) top: *mut Term,
+    start: *mut Term,
+    end: *mut Term,
+    top: *mut Term,
+    vheap: VirtualBinaryHeap,
 }
 impl OldHeap {
     /// Returns a new instance which manages the memory represented
@@ -26,7 +30,13 @@ impl OldHeap {
         } else {
             let end = unsafe { start.offset(size as isize) };
             let top = start;
-            Self { start, end, top }
+            let vheap = VirtualBinaryHeap::new(size);
+            Self {
+                start,
+                end,
+                top,
+                vheap,
+            }
         }
     }
 
@@ -38,6 +48,7 @@ impl OldHeap {
             start: ptr::null_mut(),
             end: ptr::null_mut(),
             top: ptr::null_mut(),
+            vheap: VirtualBinaryHeap::new(0),
         }
     }
 
@@ -56,16 +67,52 @@ impl OldHeap {
         distance_absolute(self.end, self.start)
     }
 
+    /// Returns the pointer to the bottom of the heap
+    #[inline(always)]
+    pub fn heap_start(&self) -> *mut Term {
+        self.start
+    }
+
+    /// Returns the pointer to the top of the heap
+    #[inline(always)]
+    pub fn heap_pointer(&self) -> *mut Term {
+        self.top
+    }
+
     /// Returns the used size of this heap
     #[inline]
     pub fn heap_used(&self) -> usize {
         distance_absolute(self.top, self.start)
     }
 
-    /// Returns the space remaining in this heap
     #[inline]
     pub fn heap_available(&self) -> usize {
         distance_absolute(self.end, self.top)
+    }
+
+    /// Returns the used size of the virtual heap
+    #[allow(unused)]
+    #[inline]
+    pub fn virtual_heap_used(&self) -> usize {
+        self.vheap.heap_used()
+    }
+
+    /// Returns true if the given ProcBin is on this heap's virtual binary heap
+    #[inline]
+    pub fn virtual_heap_contains<T>(&self, term: *const T) -> bool {
+        self.vheap.contains(term)
+    }
+
+    /// Unlinks the given ProcBin from the virtual binary heap, but does not free it
+    #[inline]
+    pub fn virtual_heap_unlink(&mut self, bin: &ProcBin) {
+        self.vheap.unlink(bin)
+    }
+
+    /// Adds a binary reference to this heap's virtual binary heap
+    #[inline]
+    pub fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
+        self.vheap.push(bin)
     }
 
     /// Returns true if the given pointer points into this heap
@@ -152,11 +199,12 @@ impl OldHeap {
     #[inline]
     pub unsafe fn move_into(&mut self, orig: *mut Term, ptr: *mut Term, header: Term) -> usize {
         assert!(header.is_header());
+        debug_assert_ne!(orig, self.top);
 
         // All other headers follow more or less the same formula,
         // the header arityval contains the size of the term in words,
         // so we simply need to move those words into this heap
-        let mut heap_top = self.top;
+        let heap_top = self.top;
 
         // Sub-binaries are a little different, in that since we're garbage
         // collecting, we can't guarantee that the original binary will stick
@@ -173,7 +221,7 @@ impl OldHeap {
                 // Save space for box
                 let dst = heap_top.offset(1);
                 // Create box pointing to new destination
-                let val = Term::from_raw(dst as usize | Term::FLAG_BOXED);
+                let val = Term::make_boxed(dst);
                 ptr::write(heap_top, val);
                 let dst = dst as *mut HeapBin;
                 let new_bin_ptr = dst.offset(1) as *mut u8;
@@ -182,7 +230,7 @@ impl OldHeap {
                 // Write heapbin header
                 ptr::write(dst, HeapBin::from_raw_parts(bin_header, bin_flags));
                 // Write a move marker to the original location
-                let marker = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
+                let marker = Term::make_boxed(heap_top);
                 ptr::write(orig, marker);
                 // Update `ptr` as well
                 ptr::write(ptr, marker);
@@ -193,29 +241,24 @@ impl OldHeap {
             }
         }
 
-        let mut num_elements = header.arityval();
+        let num_elements = header.arityval();
         let moved = num_elements + 1;
 
-        // Write the a move marker to the original location
-        let marker = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
+        let marker = Term::make_boxed(heap_top);
+        // Write the term header to the location pointed to by the boxed term
+        ptr::write(heap_top, header);
+        // Move `ptr` to the first arityval
+        // Move heap_top to the first data location
+        // Then copy arityval data to new location
+        ptr::copy_nonoverlapping(ptr.offset(1), heap_top.offset(1), num_elements);
+        // In debug, verify that the src and dst are bitwise-equal
+        debug_assert!(compare_bytes(heap_top, ptr, num_elements));
+        // Write a move marker to the original location
         ptr::write(orig, marker);
         // And to `ptr` as well
         ptr::write(ptr, marker);
-        // Move `ptr` to the first arityval
-        let mut ptr = ptr.offset(1);
-        // Write the term header to the location pointed to by the boxed term
-        ptr::write(heap_top, header);
-        // Move heap_top to the first element location
-        heap_top = heap_top.offset(1);
-        // For each additional term element, move to new location
-        while num_elements > 0 {
-            num_elements -= 1;
-            ptr::write(heap_top, *ptr);
-            heap_top = heap_top.offset(1);
-            ptr = ptr.offset(1);
-        }
         // Update the top pointer
-        self.top = heap_top;
+        self.top = heap_top.offset(1 + num_elements as isize);
         // Return the number of words moved into this heap
         moved
     }
@@ -228,10 +271,11 @@ impl OldHeap {
         // Copy cons cell to this heap
         let location = self.top as *mut Cons;
         ptr::write(location, cons);
-        // Create list term to write to original location
-        let list = Term::from_raw(location as usize | Term::FLAG_LIST);
+        // New list value
+        let list = Term::make_list(location);
+        // Redirect original reference
         ptr::write(orig, list);
-        // Write marker to old list location
+        // Store forwarding indicator/address
         let marker = Cons::new(Term::NONE, list);
         ptr::write(ptr as *mut Cons, marker);
         // Update the top pointer
@@ -244,7 +288,7 @@ impl OldHeap {
     /// In more general terms, this function will walk the current heap until
     /// the top of the heap is reached, searching for any values outside this heap
     /// heap that require moving.
-    pub fn sweep(&mut self) {
+    pub fn sweep(&mut self, young: &mut YoungHeap) {
         self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
             unsafe {
                 if term.is_boxed() {
@@ -254,9 +298,23 @@ impl OldHeap {
                         assert!(boxed.is_boxed());
                         // Overwrite move marker with "real" boxed term
                         ptr::write(pos, boxed);
-                    } else if !heap.contains(ptr) {
-                        // Move to top of this heap
-                        heap.move_into(pos, ptr, boxed);
+                    } else if !term.is_literal() && !heap.contains(ptr) {
+                        if boxed.is_procbin() {
+                            // First we need to remove the procbin from its old virtual heap
+                            let old_bin = &*(ptr as *mut ProcBin);
+                            young.virtual_heap_unlink(old_bin);
+                            // Move to top of this heap
+                            heap.move_into(pos, ptr, boxed);
+                            // Then add the procbin to the new virtual heap
+                            let marker = *ptr;
+                            assert!(marker.is_boxed());
+                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin = &*bin_ptr;
+                            heap.virtual_alloc(bin);
+                        } else {
+                            // Move to top of this heap
+                            heap.move_into(pos, ptr, boxed);
+                        }
                     }
                     Some(pos.offset(1))
                 } else if term.is_list() {
@@ -265,7 +323,7 @@ impl OldHeap {
                     if cons.is_move_marker() {
                         // Overwrite move marker with "real" list term
                         ptr::write(pos, cons.tail);
-                    } else if !heap.contains(ptr) {
+                    } else if !term.is_literal() && !heap.contains(ptr) {
                         // Move to top of this heap
                         heap.move_cons_into(pos, ptr, cons);
                     }
@@ -284,7 +342,7 @@ impl OldHeap {
                         if is_move_marker(bin) {
                             ptr::write(orig, bin);
                             ptr::write(base, binary_bytes(bin));
-                        } else if !heap.contains(ptr) {
+                        } else if !orig_term.is_literal() && !heap.contains(ptr) {
                             heap.move_into(orig, ptr, bin);
                             ptr::write(base, binary_bytes(bin));
                         }
@@ -302,5 +360,46 @@ impl OldHeap {
 impl Default for OldHeap {
     fn default() -> Self {
         Self::empty()
+    }
+}
+impl Drop for OldHeap {
+    fn drop(&mut self) {
+        unsafe {
+            if self.active() {
+                // Free virtual binary heap, we can't free the memory of this heap until we've done
+                // this
+                self.vheap.clear();
+                // Free memory region managed by this heap instance
+                process::alloc::free(self.start, self.size());
+            }
+        }
+    }
+}
+impl fmt::Debug for OldHeap {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "OldHeap (heap: {:?}-{:?}, used: {}, unused: {}) [\n",
+            self.start,
+            self.top,
+            self.heap_used(),
+            self.heap_available(),
+        ))?;
+        let mut pos = self.start;
+        while pos < self.top {
+            unsafe {
+                let term = *pos;
+                if term.is_immediate() || term.is_boxed() || term.is_list() {
+                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                    pos = pos.offset(1);
+                } else {
+                    assert!(term.is_header());
+                    let arityval = term.arityval();
+                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term.as_usize()))?;
+                    pos = pos.offset((1 + arityval) as isize);
+                }
+            }
+        }
+        f.write_fmt(format_args!("  {:?}: END OF HEAP", pos))?;
+        f.write_str("]\n")
     }
 }

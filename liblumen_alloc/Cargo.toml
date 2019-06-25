@@ -5,6 +5,10 @@ authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 publish = false
 edition = "2018"
 
+[features]
+# Turns on allocation instrumentation
+instrument = []
+
 [dependencies]
 log = "0.4"
 cfg-if = "0.1"
@@ -12,6 +16,7 @@ lazy_static = "1.2"
 num-traits = "0.2"
 num-bigint = "0.2"
 thread_local = "0.3"
+heapless = { git = "https://github.com/japaric/heapless" }
 liblumen_core = { path = "../liblumen_core" }
 liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
@@ -26,13 +31,12 @@ features = ["nightly"]
 version = "0.7"
 features = ["nightly"]
 
+[dependencies.static_assertions]
+version = "0.3"
+features = ["nightly"]
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 
 [dev-dependencies]
 pretty_assertions = "0.6"
-quickcheck_macros = "0.8"
-
-[dev-dependencies.quickcheck]
-version = "0.8"
-features = ["unstable"]

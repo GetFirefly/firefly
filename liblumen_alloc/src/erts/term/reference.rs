@@ -1,7 +1,8 @@
 use core::cmp;
+use core::fmt;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{Node, ProcessControlBlock};
+use crate::erts::{AllocInProcess, Node};
 
 use super::{AsTerm, Term};
 
@@ -23,7 +24,7 @@ impl Reference {
 unsafe impl AsTerm for Reference {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self)
     }
 }
 impl PartialEq<ExternalReference> for Reference {
@@ -39,7 +40,7 @@ impl PartialOrd<ExternalReference> for Reference {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct ExternalReference {
     header: Term,
@@ -50,12 +51,12 @@ pub struct ExternalReference {
 unsafe impl AsTerm for ExternalReference {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self)
     }
 }
 impl CloneToProcess for ExternalReference {
     #[inline]
-    fn clone_to_process(&self, _process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, _process: &mut A) -> Term {
         unimplemented!()
     }
 }
@@ -71,5 +72,15 @@ impl PartialOrd<ExternalReference> for ExternalReference {
             Some(Ordering::Equal) => self.reference.partial_cmp(&other.reference),
             result => result,
         }
+    }
+}
+impl fmt::Debug for ExternalReference {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ExternalReference")
+            .field("header", &self.header.as_usize())
+            .field("node", &self.node)
+            .field("next", &self.next)
+            .field("reference", &self.reference)
+            .finish()
     }
 }

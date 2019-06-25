@@ -1,5 +1,6 @@
 use core::alloc::Layout;
 use core::cmp;
+use core::fmt;
 use core::mem;
 use core::ptr::{self, NonNull};
 use core::slice;
@@ -11,7 +12,6 @@ use intrusive_collections::LinkedListLink;
 use liblumen_core::util::pointer::distance_absolute;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::ProcessControlBlock;
 
 use super::*;
 
@@ -19,30 +19,10 @@ pub trait Binary {
     fn as_bytes(&self) -> &[u8];
 }
 
-/// This is the header written alongside all procbin binaries in the heap,
-/// it owns the refcount and has the pointer to the data and its size
-#[repr(C)]
-pub struct ProcBinInner {
-    refc: AtomicUsize,
-    size: usize,
-    flags: usize,
-    data: *mut u8,
-}
-impl ProcBinInner {
-    #[inline]
-    pub fn data(&self) -> *mut u8 {
-        self.data
-    }
-
-    #[inline]
-    pub fn size(&self) -> usize {
-        self.size
-    }
-}
-
-const FLAG_IS_RAW_BIN: usize = 0;
-const FLAG_IS_LATIN1_BIN: usize = 1;
-const FLAG_IS_UTF8_BIN: usize = 2;
+const FLAG_SHIFT: usize = mem::size_of::<usize>() * 8 - 2;
+const FLAG_IS_RAW_BIN: usize = 1 << FLAG_SHIFT;
+const FLAG_IS_LATIN1_BIN: usize = 2 << FLAG_SHIFT;
+const FLAG_IS_UTF8_BIN: usize = 3 << FLAG_SHIFT;
 const FLAG_MASK: usize = FLAG_IS_RAW_BIN | FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -52,12 +32,69 @@ pub enum BinaryType {
     Utf8,
 }
 impl BinaryType {
-    pub fn to_flag(&self) -> usize {
+    #[inline]
+    pub fn to_flags(&self) -> usize {
         match self {
             &BinaryType::Raw => FLAG_IS_RAW_BIN,
             &BinaryType::Latin1 => FLAG_IS_LATIN1_BIN,
             &BinaryType::Utf8 => FLAG_IS_UTF8_BIN,
         }
+    }
+
+    #[inline]
+    pub fn from_flags(flags: usize) -> Self {
+        match flags & FLAG_MASK {
+            FLAG_IS_RAW_BIN => BinaryType::Raw,
+            FLAG_IS_LATIN1_BIN => BinaryType::Latin1,
+            FLAG_IS_UTF8_BIN => BinaryType::Utf8,
+            _ => panic!(
+                "invalid flags value given to BinaryType::from_flags: {}",
+                flags
+            ),
+        }
+    }
+}
+
+/// This is the header written alongside all procbin binaries in the heap,
+/// it owns the refcount and has the pointer to the data and its size
+#[repr(C)]
+pub struct ProcBinInner {
+    refc: AtomicUsize,
+    flags: usize,
+    bytes: *mut u8,
+}
+impl ProcBinInner {
+    #[inline]
+    fn bytes(&self) -> *mut u8 {
+        self.bytes
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        self.flags & !FLAG_MASK
+    }
+
+    #[inline]
+    fn binary_type(&self) -> BinaryType {
+        BinaryType::from_flags(self.flags)
+    }
+
+    /// Returns true if this binary is a raw binary
+    #[inline]
+    fn is_raw(&self) -> bool {
+        self.flags & FLAG_MASK == FLAG_IS_RAW_BIN
+    }
+
+    /// Returns true if this binary is a Latin-1 binary
+    #[inline]
+    fn is_latin1(&self) -> bool {
+        self.flags & FLAG_MASK == FLAG_IS_LATIN1_BIN
+    }
+
+    /// Returns true if this binary is a UTF-8 binary
+    #[inline]
+    fn is_utf8(&self) -> bool {
+        self.flags & FLAG_MASK == FLAG_IS_UTF8_BIN
     }
 }
 
@@ -116,31 +153,25 @@ impl ProcBin {
     /// Returns true if this binary is a raw binary
     #[inline]
     pub fn is_raw(&self) -> bool {
-        self.inner().flags & FLAG_MASK == 0
+        self.inner().is_raw()
     }
 
     /// Returns true if this binary is a Latin-1 binary
     #[inline]
     pub fn is_latin1(&self) -> bool {
-        self.inner().flags & FLAG_IS_LATIN1_BIN == FLAG_IS_LATIN1_BIN
+        self.inner().is_latin1()
     }
 
     /// Returns true if this binary is a UTF-8 binary
     #[inline]
     pub fn is_utf8(&self) -> bool {
-        self.inner().flags & FLAG_IS_UTF8_BIN == FLAG_IS_UTF8_BIN
+        self.inner().is_utf8()
     }
 
     /// Returns a `BinaryType` representing the encoding type of this binary
     #[inline]
     pub fn binary_type(&self) -> BinaryType {
-        if self.is_utf8() {
-            BinaryType::Utf8
-        } else if self.is_latin1() {
-            BinaryType::Latin1
-        } else {
-            BinaryType::Raw
-        }
+        self.inner().binary_type()
     }
 
     /// Returns the size of this binary in bytes
@@ -158,8 +189,8 @@ impl ProcBin {
     /// as it produces a byte slice which is safe to work with, whereas the
     /// pointer returned here is not
     #[inline]
-    pub(crate) fn data(&self) -> *mut u8 {
-        self.inner().data()
+    pub(crate) fn bytes(&self) -> *mut u8 {
+        self.inner().bytes()
     }
 
     /// Creates a new procbin from a str slice, by copying it to the heap
@@ -174,7 +205,7 @@ impl ProcBin {
         let header_ptr = ptr as *mut ProcBinInner;
         unsafe {
             // For efficient checks on binary type later, store flags in the pointer
-            let data_ptr = ptr.offset(1) as *mut u8;
+            let bytes = ptr.offset(1) as *mut u8;
             let flags = if s.is_ascii() {
                 FLAG_IS_LATIN1_BIN
             } else {
@@ -184,16 +215,15 @@ impl ProcBin {
                 ptr as *mut ProcBinInner,
                 ProcBinInner {
                     refc: AtomicUsize::new(1),
-                    size,
-                    flags,
-                    data: data_ptr,
+                    flags: size | flags,
+                    bytes,
                 },
             );
-            ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, size);
+            ptr::copy_nonoverlapping(s.as_ptr(), bytes, size);
 
-            let arityval = to_word_size(mem::size_of::<Self>());
+            let arityval = to_word_size(mem::size_of::<Self>() - mem::size_of::<Term>());
             Ok(Self {
-                header: Term::from_raw(arityval | Term::FLAG_PROCBIN),
+                header: Term::make_header(arityval, Term::FLAG_PROCBIN),
                 inner: NonNull::new_unchecked(header_ptr),
                 link: LinkedListLink::new(),
             })
@@ -212,21 +242,20 @@ impl ProcBin {
         let header_ptr = ptr as *mut ProcBinInner;
         unsafe {
             // For efficient checks on binary type later, store flags in the pointer
-            let data_ptr = ptr.offset(1) as *mut u8;
+            let bytes = ptr.offset(1) as *mut u8;
             ptr::write(
                 ptr as *mut ProcBinInner,
                 ProcBinInner {
                     refc: AtomicUsize::new(1),
-                    size,
-                    flags: FLAG_IS_RAW_BIN,
-                    data: data_ptr,
+                    flags: size | FLAG_IS_RAW_BIN,
+                    bytes,
                 },
             );
-            ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, size);
+            ptr::copy_nonoverlapping(s.as_ptr(), bytes, size);
 
-            let arityval = to_word_size(mem::size_of::<Self>());
+            let arityval = to_word_size(mem::size_of::<Self>() - mem::size_of::<Term>());
             Ok(Self {
-                header: Term::from_raw(arityval | Term::FLAG_PROCBIN),
+                header: Term::make_header(arityval, Term::FLAG_PROCBIN),
                 inner: NonNull::new_unchecked(header_ptr),
                 link: LinkedListLink::new(),
             })
@@ -248,7 +277,7 @@ impl ProcBin {
         );
         unsafe {
             let inner = self.inner();
-            let bytes = slice::from_raw_parts(inner.data(), inner.size());
+            let bytes = slice::from_raw_parts(inner.bytes(), inner.size());
             str::from_utf8_unchecked(bytes)
         }
     }
@@ -268,10 +297,10 @@ impl ProcBin {
 
         if self.inner().refc.fetch_sub(1, Ordering::Release) == 1 {
             atomic::fence(Ordering::Acquire);
-            let data = self.inner().data();
+            let bytes = self.inner().bytes();
             let size = self.inner().size();
             sys_alloc::free(
-                data,
+                bytes,
                 Layout::from_size_align_unchecked(size, mem::align_of::<usize>()),
             );
         }
@@ -294,7 +323,7 @@ impl Binary for ProcBin {
     fn as_bytes(&self) -> &[u8] {
         unsafe {
             let inner = self.inner();
-            slice::from_raw_parts(inner.data(), inner.size())
+            slice::from_raw_parts(inner.bytes(), inner.size())
         }
     }
 }
@@ -358,12 +387,12 @@ impl<B: Binary> PartialOrd<B> for ProcBin {
 unsafe impl AsTerm for ProcBin {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self as *const Self)
     }
 }
 
 impl CloneToProcess for ProcBin {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         self.inner().refc.fetch_add(1, Ordering::AcqRel);
         unsafe {
             // Allocate space for the header
@@ -381,9 +410,9 @@ impl CloneToProcess for ProcBin {
             // Reify a reference to the newly written clone, and push it
             // on to the process virtual heap
             let clone = &*ptr;
-            process.vheap_push(clone);
+            process.virtual_alloc(clone);
             // Reify result term
-            Term::from_raw(ptr as usize | Term::FLAG_BOXED)
+            Term::make_boxed(ptr)
         }
     }
 }
@@ -398,15 +427,15 @@ pub struct HeapBin {
 
 impl HeapBin {
     // The size of the extra fields in bytes
-    const EXTRA_ARITYVAL: usize = mem::size_of::<Self>() - mem::size_of::<Term>();
+    const EXTRA_ARITYVAL: usize = mem::size_of::<Self>() - mem::size_of::<usize>();
 
     /// Create a new `HeapBin` header which will point to a binary of size `size`
     #[inline]
     pub fn new(size: usize) -> Self {
         let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
         Self {
-            header: unsafe { Term::from_raw(words | Term::FLAG_HEAPBIN) },
-            flags: FLAG_IS_RAW_BIN,
+            header: Term::make_header(words, Term::FLAG_HEAPBIN),
+            flags: size | FLAG_IS_RAW_BIN,
         }
     }
 
@@ -415,8 +444,8 @@ impl HeapBin {
     pub fn new_latin1(size: usize) -> Self {
         let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
         Self {
-            header: unsafe { Term::from_raw(words | Term::FLAG_HEAPBIN) },
-            flags: FLAG_IS_LATIN1_BIN,
+            header: Term::make_header(words, Term::FLAG_HEAPBIN),
+            flags: size | FLAG_IS_LATIN1_BIN,
         }
     }
     /// Like `new`, but for utf8-encoded binaries
@@ -424,8 +453,8 @@ impl HeapBin {
     pub fn new_utf8(size: usize) -> Self {
         let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
         Self {
-            header: unsafe { Term::from_raw(words | Term::FLAG_HEAPBIN) },
-            flags: FLAG_IS_UTF8_BIN,
+            header: Term::make_header(words, Term::FLAG_HEAPBIN),
+            flags: size | FLAG_IS_UTF8_BIN,
         }
     }
 
@@ -437,37 +466,31 @@ impl HeapBin {
     /// Returns true if this binary is a raw binary
     #[inline]
     pub fn is_raw(&self) -> bool {
-        self.flags & FLAG_MASK == 0
+        self.flags & FLAG_MASK == FLAG_IS_RAW_BIN
     }
 
     /// Returns true if this binary is a Latin-1 binary
     #[inline]
     pub fn is_latin1(&self) -> bool {
-        self.flags & FLAG_IS_LATIN1_BIN == FLAG_IS_LATIN1_BIN
+        self.flags & FLAG_MASK == FLAG_IS_LATIN1_BIN
     }
 
     /// Returns true if this binary is a UTF-8 binary
     #[inline]
     pub fn is_utf8(&self) -> bool {
-        self.flags & FLAG_IS_UTF8_BIN == FLAG_IS_UTF8_BIN
+        self.flags & FLAG_MASK == FLAG_IS_UTF8_BIN
     }
 
     /// Returns a `BinaryType` representing the encoding type of this binary
     #[inline]
     pub fn binary_type(&self) -> BinaryType {
-        if self.is_utf8() {
-            BinaryType::Utf8
-        } else if self.is_latin1() {
-            BinaryType::Latin1
-        } else {
-            BinaryType::Raw
-        }
+        BinaryType::from_flags(self.flags)
     }
 
-    /// Returns the size of this binary in bytes
+    /// Returns the size of just the binary data of this HeapBin in bytes
     #[inline]
     pub fn size(&self) -> usize {
-        (self.header.arityval() * mem::size_of::<usize>()) - Self::EXTRA_ARITYVAL
+        self.flags & !FLAG_MASK
     }
 
     /// Returns a raw pointer to the binary data underlying this `HeapBin`
@@ -479,7 +502,7 @@ impl HeapBin {
     /// as it produces a byte slice which is safe to work with, whereas the
     /// pointer returned here is not
     #[inline]
-    pub(crate) fn data(&self) -> *mut u8 {
+    pub(crate) fn bytes(&self) -> *mut u8 {
         unsafe { (self as *const Self).offset(1) as *mut u8 }
     }
 
@@ -509,7 +532,6 @@ impl HeapBin {
     ///
     /// This conversion does not move the string, it can be considered as
     /// creating a new reference with a lifetime attached to that of `self`.
-    #[allow(unused)]
     #[inline]
     pub fn as_str<'a>(&'a self) -> &'a str {
         assert!(
@@ -517,7 +539,7 @@ impl HeapBin {
             "cannot convert a binary containing non-UTF-8/non-ASCII characters to &str"
         );
         unsafe {
-            let bytes = slice::from_raw_parts(self.data(), self.size());
+            let bytes = slice::from_raw_parts(self.bytes(), self.size());
             str::from_utf8_unchecked(bytes)
         }
     }
@@ -526,7 +548,7 @@ impl HeapBin {
 impl Binary for HeapBin {
     #[inline]
     fn as_bytes(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.data(), self.size()) }
+        unsafe { slice::from_raw_parts(self.bytes(), self.size()) }
     }
 }
 
@@ -547,12 +569,12 @@ impl<B: Binary> PartialOrd<B> for HeapBin {
 unsafe impl AsTerm for HeapBin {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self as *const Self)
     }
 }
 
 impl CloneToProcess for HeapBin {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         let bin_size = self.size();
         let size = mem::size_of::<Self>() + bin_size;
         let words = to_word_size(size);
@@ -563,7 +585,7 @@ impl CloneToProcess for HeapBin {
             ptr::copy_nonoverlapping(self as *const Self, ptr, mem::size_of::<Self>());
             // Copy binary
             let bin_ptr = ptr.offset(1) as *mut u8;
-            ptr::copy_nonoverlapping(self.data(), bin_ptr, bin_size);
+            ptr::copy_nonoverlapping(self.bytes(), bin_ptr, bin_size);
             // Return term
             let hb = &*ptr;
             hb.as_term()
@@ -572,10 +594,10 @@ impl CloneToProcess for HeapBin {
 }
 
 /// A slice of a binary
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct SubBinary {
-    header: usize,
+    header: Term,
     // Binary size in bytes
     size: usize,
     // Offset into original binary
@@ -597,7 +619,7 @@ impl SubBinary {
 
         let orig = ctx.buffer.orig;
         let arityval = word_size_of::<Self>();
-        let header = arityval | Term::FLAG_SUBBINARY;
+        let header = Term::make_header(arityval, Term::FLAG_SUBBINARY);
         let size = byte_offset(num_bits);
         let bitsize = bit_offset(num_bits);
         let offset = byte_offset(ctx.buffer.offset);
@@ -626,16 +648,16 @@ impl SubBinary {
     }
 
     #[inline]
-    pub fn data(&self) -> *mut u8 {
+    pub fn bytes(&self) -> *mut u8 {
         let real_bin_ptr = follow_moved(self.orig).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         if real_bin.is_procbin() {
             let bin = unsafe { &*(real_bin_ptr as *mut ProcBin) };
-            bin.data()
+            bin.bytes()
         } else {
             assert!(real_bin.is_heapbin());
             let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
-            bin.data()
+            bin.bytes()
         }
     }
 
@@ -661,21 +683,21 @@ impl SubBinary {
         let real_bin = *real_bin_ptr;
         if real_bin.is_procbin() {
             let bin = &*(real_bin_ptr as *mut ProcBin);
-            let bytes = bin.data().offset(self.offset as isize);
-            let flags = bin.binary_type().to_flag();
+            let bytes = bin.bytes().offset(self.offset as isize);
+            let flags = bin.binary_type().to_flags();
             (bin.header, flags, bytes, self.size)
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);
-            let bytes = bin.data().offset(self.offset as isize);
-            let flags = bin.binary_type().to_flag();
+            let bytes = bin.bytes().offset(self.offset as isize);
+            let flags = bin.binary_type().to_flags();
             (bin.header, flags, bytes, self.size)
         }
     }
 }
 unsafe impl AsTerm for SubBinary {
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self as *const Self)
     }
 }
 
@@ -704,7 +726,7 @@ impl<B: Binary> PartialOrd<B> for SubBinary {
 }
 
 impl CloneToProcess for SubBinary {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         let real_bin_ptr = follow_moved(self.orig).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         // For ref-counted binaries and those that are already on the process heap,
@@ -748,6 +770,19 @@ impl CloneToProcess for SubBinary {
         }
     }
 }
+impl fmt::Debug for SubBinary {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("SubBinary")
+            .field("header", &self.header.as_usize())
+            .field("size", &self.size)
+            .field("offset", &self.offset)
+            .field("bitsize", &self.bitsize)
+            .field("bitoffs", &self.bitoffs)
+            .field("writable", &self.writable)
+            .field("orig", &self.orig)
+            .finish()
+    }
+}
 
 /// Represents a binary being matched
 ///
@@ -776,14 +811,14 @@ impl MatchBuffer {
         let bin = unsafe { *bin_ptr };
         let (base, size, offset, bitoffs, bitsize) = if bin.is_procbin() {
             let pb = unsafe { &*(bin_ptr as *mut ProcBin) };
-            (pb.data(), pb.size() * 8, 0, 0, 0)
+            (pb.bytes(), pb.size() * 8, 0, 0, 0)
         } else if bin.is_heapbin() {
             let hb = unsafe { &*(bin_ptr as *mut HeapBin) };
-            (hb.data(), hb.size() * 8, 0, 0, 0)
+            (hb.bytes(), hb.size() * 8, 0, 0, 0)
         } else {
             assert!(bin.is_subbinary());
             let sb = unsafe { &*(bin_ptr as *mut SubBinary) };
-            (sb.data(), sb.size() * 8, sb.offset, sb.bitoffs, sb.bitsize)
+            (sb.bytes(), sb.size() * 8, sb.offset, sb.bitoffs, sb.bitsize)
         };
         let offset = 8 * offset + bitoffs;
         Self {
@@ -798,10 +833,10 @@ impl MatchBuffer {
 /// Used in match contexts
 ///
 /// See `ErlBinMatchState` and `ErlBinMatchBuffer` in `erl_bits.h`
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct MatchContext {
-    header: usize,
+    header: Term,
     buffer: MatchBuffer,
     // Saved offsets for contexts created via `bs_start_match2`
     save_offset: Option<usize>,
@@ -818,8 +853,9 @@ impl MatchContext {
         } else {
             None
         };
+        let arityval = to_word_size(mem::size_of::<Self>() - mem::size_of::<Term>());
         Self {
-            header: Term::FLAG_MATCH_CTX,
+            header: Term::make_header(arityval, Term::FLAG_MATCH_CTX),
             buffer,
             save_offset,
         }
@@ -850,21 +886,21 @@ impl MatchContext {
         let real_bin = *real_bin_ptr;
         if real_bin.is_procbin() {
             let bin = &*(real_bin_ptr as *mut ProcBin);
-            let bytes = bin.data().offset(byte_offset(self.buffer.offset) as isize);
-            let flags = bin.binary_type().to_flag();
+            let bytes = bin.bytes().offset(byte_offset(self.buffer.offset) as isize);
+            let flags = bin.binary_type().to_flags();
             (bin.header, flags, bytes, num_bytes(self.buffer.size))
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);
-            let bytes = bin.data().offset(byte_offset(self.buffer.offset) as isize);
-            let flags = bin.binary_type().to_flag();
+            let bytes = bin.bytes().offset(byte_offset(self.buffer.offset) as isize);
+            let flags = bin.binary_type().to_flags();
             (bin.header, flags, bytes, num_bytes(self.buffer.size))
         }
     }
 }
 unsafe impl AsTerm for MatchContext {
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self as *const Self)
     }
 }
 
@@ -893,7 +929,7 @@ impl<B: Binary> PartialOrd<B> for MatchContext {
 }
 
 impl CloneToProcess for MatchContext {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         let real_bin_ptr = follow_moved(self.buffer.orig).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         // For ref-counted binaries and those that are already on the process heap,
@@ -915,7 +951,7 @@ impl CloneToProcess for MatchContext {
             let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
             let new_bin = bin.clone_to_process(process);
             let new_bin_ref = unsafe { &*(new_bin.boxed_val() as *mut HeapBin) };
-            let old_bin_ptr = bin.data();
+            let old_bin_ptr = bin.bytes();
             let old_bin_base = self.buffer.base;
             let base_offset = distance_absolute(old_bin_ptr, old_bin_base);
             let layout = Layout::new::<Self>();
@@ -925,7 +961,7 @@ impl CloneToProcess for MatchContext {
                 // Write header, with modifications
                 let mut buffer = self.buffer;
                 buffer.orig = new_bin_ref.as_term();
-                let new_bin_base = new_bin_ref.data().offset(base_offset as isize);
+                let new_bin_base = new_bin_ref.bytes().offset(base_offset as isize);
                 buffer.base = new_bin_base;
                 ptr::write(
                     ptr,
@@ -941,6 +977,15 @@ impl CloneToProcess for MatchContext {
         }
     }
 }
+impl fmt::Debug for MatchContext {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("MatchContext")
+            .field("header", &self.header.as_usize())
+            .field("buffer", &self.buffer)
+            .field("save_offset", &self.save_offset)
+            .finish()
+    }
+}
 
 /// This function is intended for internal use only, specifically for use
 /// by the garbage collector, which occasionally needs to update pointers
@@ -953,12 +998,12 @@ pub(crate) fn binary_bytes(term: Term) -> *mut u8 {
     let boxed = unsafe { *ptr };
     if boxed.is_heapbin() {
         let heapbin = unsafe { &*(ptr as *mut HeapBin) };
-        return heapbin.data();
+        return heapbin.bytes();
     }
     // This function is only valid if called on a procbin or a heapbin
     assert!(boxed.is_procbin());
     let procbin = unsafe { &*(ptr as *mut ProcBin) };
-    procbin.data()
+    procbin.bytes()
 }
 
 /// Creates a mask which can be used to extract bits from a byte

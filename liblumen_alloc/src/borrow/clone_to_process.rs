@@ -1,4 +1,4 @@
-use crate::erts::{ProcessControlBlock, Term};
+use crate::erts::{AllocInProcess, Term};
 
 /// This trait represents cloning, like `Clone`, but specifically
 /// in the context of terms which need to be cloned into the heap
@@ -14,8 +14,8 @@ use crate::erts::{ProcessControlBlock, Term};
 /// NOTE: You can implement both `CloneInProcess` and `Clone` for a type,
 /// just be aware that any uses of `Clone` will allocate on the global heap
 pub trait CloneToProcess {
-    /// Returns a copy of this value, performing any heap allocations
+    /// Returns boxed copy of this value, performing any heap allocations
     /// using the process heap of `process`, or using heap fragments if
     /// there is not enough space for the cloned value
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term;
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term;
 }

@@ -90,10 +90,7 @@ impl VirtualBinaryHeap {
     /// use it under any other circumstances
     #[inline]
     pub fn pop(&mut self, bin: *mut ProcBin) -> ProcBin {
-        // Remove from the list
-        let mut cursor = unsafe { self.bins.cursor_mut_from_ptr(bin) };
-        let raw = cursor.remove().unwrap();
-        let ptr = UnsafeRef::into_raw(raw);
+        let ptr = self.unlink_raw(bin);
         // Copy the header
         let bin = unsafe { ptr::read(ptr) };
         // Write the none value to the old location to ensure it is not used
@@ -105,6 +102,36 @@ impl VirtualBinaryHeap {
         self.used -= bin_size;
         // Return the raw ProcBin
         bin
+    }
+
+    /// Frees all binary references on this virtual heap
+    #[inline]
+    pub unsafe fn clear(&mut self) {
+        let mut cursor = self.bins.front_mut();
+        while let Some(binary) = cursor.get() {
+            let ptr = cursor.remove().unwrap();
+            ptr::drop_in_place(UnsafeRef::into_raw(ptr));
+        }
+    }
+
+    /// Unlinks the given ProcBin from this virtual heap, but does not free it
+    #[inline]
+    pub fn unlink(&mut self, bin: &ProcBin) {
+        debug_assert!(self.contains(bin as *const _ as *mut ProcBin));
+        // Perform unlink
+        self.unlink_raw(bin as *const _ as *mut ProcBin);
+        // Decrement heap usage
+        let bin_size = bin.size();
+        self.used -= bin_size;
+    }
+
+    #[inline]
+    fn unlink_raw(&mut self, bin: *mut ProcBin) -> *mut ProcBin {
+        // Remove from the list
+        let mut cursor = unsafe { self.bins.cursor_mut_from_ptr(bin) };
+        let raw = cursor.remove().unwrap();
+        // Return the raw pointer to the removed element
+        UnsafeRef::into_raw(raw)
     }
 
     /// Collect all binaries that are not located in `new_heap`

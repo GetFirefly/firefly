@@ -1,16 +1,11 @@
-mod hooks;
-mod stats_alloc;
-
-pub use self::stats_alloc::StatsAlloc;
+pub(crate) mod hooks;
 
 use core::cmp::Ordering;
 use core::hash;
 
-use alloc::vec::Vec;
-
 use num_traits::ToPrimitive;
 
-pub use histogram::Histogram;
+pub use histogram::{DefaultHistogram, Histogram};
 pub use minmax::MinMax;
 pub use online::{mean, stddev, variance, OnlineStats};
 
@@ -140,15 +135,6 @@ impl<T: Commute, E> Commute for Result<T, E> {
                     }
                 }
             }
-        }
-    }
-}
-
-impl<T: Commute> Commute for Vec<T> {
-    fn merge(&mut self, other: Vec<T>) {
-        assert_eq!(self.len(), other.len());
-        for (v1, v2) in self.iter_mut().zip(other.into_iter()) {
-            v1.merge(v2);
         }
     }
 }

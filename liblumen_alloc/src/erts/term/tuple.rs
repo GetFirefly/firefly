@@ -7,7 +7,6 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::ProcessControlBlock;
 
 use super::*;
 
@@ -50,7 +49,6 @@ impl From<BadArgument> for IndexError {
 /// as we still have to follow pointers to get at the individual elements,
 /// so whether they are right next to the `Tuple` itself, or elsewhere is not
 /// critical
-#[derive(Debug)]
 pub struct Tuple {
     header: Term,
 }
@@ -64,7 +62,7 @@ impl Tuple {
     #[inline]
     pub fn new(size: usize) -> Self {
         Self {
-            header: unsafe { Term::from_raw(size | Term::FLAG_TUPLE) },
+            header: Term::make_header(size, Term::FLAG_TUPLE),
         }
     }
 
@@ -79,7 +77,7 @@ impl Tuple {
     /// NOTE: This is unsafe to use unless you know the tuple has been allocated
     #[inline]
     pub fn head(&self) -> *mut Term {
-        unsafe { (self as *const _ as *const Tuple).offset(1) as *mut Term }
+        unsafe { (self as *const Tuple).offset(1) as *mut Term }
     }
 
     /// This function produces a `Layout` which represents the memory layout
@@ -98,6 +96,43 @@ impl Tuple {
     #[inline]
     pub fn iter(&self) -> TupleIter {
         TupleIter::new(self)
+    }
+
+    /// Sets an element in the tuple, returns `Ok(())` if successful,
+    /// otherwise returns `Err(IndexErr)` if the given index is invalid
+    #[inline]
+    pub fn set_element(&mut self, index: Term, element: Term) -> Result<(), IndexError> {
+        let size = self.size();
+        if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
+            match small.try_into() {
+                Ok(i) if i > 0 && i <= size => Ok(self.do_set_element(i, element)),
+                Ok(i) => Err(IndexError::new(i, size)),
+                Err(_) => Err(BadArgument::new(index).into()),
+            }
+        } else {
+            Err(BadArgument::new(index).into())
+        }
+    }
+
+    /// Like `set_element` but for internal runtime use, as it takes a `usize` directly
+    #[inline]
+    pub fn set_element_internal(&mut self, index: usize, element: Term) -> Result<(), IndexError> {
+        let size = self.size();
+        if index > 0 && index <= size {
+            Ok(self.do_set_element(index, element))
+        } else {
+            Err(IndexError::new(index, size))
+        }
+    }
+
+    #[inline]
+    fn do_set_element(&mut self, index: usize, element: Term) {
+        assert!(index > 0 && index <= self.size());
+        assert!(element.is_boxed() || element.is_list() || element.is_immediate());
+        unsafe {
+            let ptr = self.head().offset((index - 1) as isize);
+            ptr::write(ptr, element);
+        }
     }
 
     /// Fetches an element from the tuple, returns `Ok(term)` if the index is
@@ -140,11 +175,11 @@ impl Tuple {
 unsafe impl AsTerm for Tuple {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self)
     }
 }
 impl CloneToProcess for Tuple {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         // The result of calling this will be a Tuple with everything located
         // contigously in memory
         unsafe {
@@ -196,18 +231,34 @@ impl PartialOrd for Tuple {
         }
     }
 }
+impl fmt::Debug for Tuple {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Tuple(")?;
+        for element in self.iter() {
+            f.write_fmt(format_args!("{:?}", element.as_usize()))?;
+        }
+        f.write_str(")")
+    }
+}
 
 pub struct TupleIter {
     head: *mut Term,
-    size: usize,
     pos: usize,
+    last_pos: usize,
 }
 impl TupleIter {
     pub fn new(tuple: &Tuple) -> Self {
-        Self {
-            head: tuple.head(),
-            size: tuple.size(),
-            pos: 0,
+        match tuple.size() {
+            0 => Self {
+                head: tuple.head(),
+                pos: 0,
+                last_pos: 0,
+            },
+            n => Self {
+                head: tuple.head(),
+                pos: 0,
+                last_pos: n - 1,
+            },
         }
     }
 }
@@ -215,11 +266,19 @@ impl Iterator for TupleIter {
     type Item = Term;
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.size, Some(self.size))
+        if self.last_pos == 0 {
+            (0, Some(0))
+        } else {
+            (self.last_pos + 1, Some(self.last_pos + 1))
+        }
     }
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.size - 1 {
+        if self.pos > self.last_pos {
+            return None;
+        }
+        if self.last_pos == 0 {
+            // This occurs with empty tuples only
             return None;
         }
         let term = unsafe { self.head.offset(self.pos as isize) };
@@ -230,10 +289,10 @@ impl Iterator for TupleIter {
 impl FusedIterator for TupleIter {}
 impl ExactSizeIterator for TupleIter {
     fn len(&self) -> usize {
-        self.size
+        self.last_pos + 1
     }
 
     fn is_empty(&self) -> bool {
-        self.size == 0
+        self.last_pos == 0
     }
 }

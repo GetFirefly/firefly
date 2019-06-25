@@ -1,13 +1,14 @@
 use core::cmp;
+use core::fmt;
 use core::mem;
 use core::ptr;
 
 use super::{AsTerm, Term};
 
 use crate::borrow::CloneToProcess;
-use crate::erts::ProcessControlBlock;
+use crate::erts::AllocInProcess;
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct Closure {
     header: Term,
     entry: *mut (), // pointer to function entry
@@ -20,7 +21,7 @@ pub struct Closure {
 unsafe impl AsTerm for Closure {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self as *const Self)
     }
 }
 impl PartialOrd for Closure {
@@ -29,7 +30,7 @@ impl PartialOrd for Closure {
     }
 }
 impl CloneToProcess for Closure {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         // Allocate space on process heap
         let bytes = mem::size_of::<Self>() + (self.env_len * mem::size_of::<Term>());
         let mut words = bytes / mem::size_of::<Term>();
@@ -44,5 +45,18 @@ impl CloneToProcess for Closure {
             let closure = &*(ptr as *mut Self);
             closure.as_term()
         }
+    }
+}
+impl fmt::Debug for Closure {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Closure")
+            .field("header", &self.header.as_usize())
+            .field("entry", &self.entry)
+            .field("next", &self.next)
+            .field("arity", &self.arity)
+            .field("creator", &self.creator)
+            .field("env_len", &self.env_len)
+            .field("env", &self.env)
+            .finish()
     }
 }

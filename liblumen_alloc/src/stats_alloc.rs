@@ -5,12 +5,10 @@ use core::ptr::{self, NonNull};
 use core::sync::atomic::AtomicUsize;
 use core::sync::atomic::Ordering;
 
-use liblumen_core::locks::SpinLock;
+use liblumen_core::locks::RwLock;
 
-use super::histogram::Histogram;
-use super::hooks;
-
-const NUM_SIZE_CLASSES: u64 = 67;
+use crate::stats::hooks;
+use crate::stats::{DefaultHistogram, Histogram};
 
 /// `StatsAlloc` is a tracing allocator which wraps some
 /// allocator, either an implementation of `Alloc` or `GlobalAlloc`,
@@ -23,18 +21,18 @@ const NUM_SIZE_CLASSES: u64 = 67;
 /// The `StatsAlloc` can be tagged to provide useful metadata bout
 /// what type of allocator is being traced and how it is used.
 #[derive(Debug)]
-pub struct StatsAlloc<T> {
+pub struct StatsAlloc<T, H: Histogram + Clone + Default = DefaultHistogram> {
     alloc_calls: AtomicUsize,
     dealloc_calls: AtomicUsize,
     realloc_calls: AtomicUsize,
     total_bytes_alloced: AtomicUsize,
     total_bytes_freed: AtomicUsize,
+    histogram: RwLock<H>,
 
     tag: &'static str,
-    histogram: SpinLock<Histogram>,
     allocator: T,
 }
-impl<T> StatsAlloc<T> {
+impl<T, H: Histogram + Clone + Default> StatsAlloc<T, H> {
     #[inline]
     pub fn new(t: T) -> Self {
         Self {
@@ -43,8 +41,8 @@ impl<T> StatsAlloc<T> {
             realloc_calls: AtomicUsize::new(0),
             total_bytes_alloced: AtomicUsize::new(0),
             total_bytes_freed: AtomicUsize::new(0),
+            histogram: RwLock::default(),
             tag: unsafe { type_name::<T>() },
-            histogram: SpinLock::new(Histogram::with_buckets(NUM_SIZE_CLASSES)),
             allocator: t,
         }
     }
@@ -57,15 +55,15 @@ impl<T> StatsAlloc<T> {
             realloc_calls: AtomicUsize::new(0),
             total_bytes_alloced: AtomicUsize::new(0),
             total_bytes_freed: AtomicUsize::new(0),
+            histogram: RwLock::default(),
             tag,
-            histogram: SpinLock::new(Histogram::with_buckets(NUM_SIZE_CLASSES)),
             allocator: t,
         }
     }
 
     #[inline]
-    pub fn stats(&self) -> Statistics {
-        let h = self.histogram.lock();
+    pub fn stats(&self) -> Statistics<H> {
+        let h = self.histogram.read();
         let histogram = h.clone();
         drop(h);
         Statistics {
@@ -74,24 +72,24 @@ impl<T> StatsAlloc<T> {
             dealloc_calls: self.dealloc_calls.load(Ordering::Relaxed),
             total_bytes_alloced: self.total_bytes_alloced.load(Ordering::Relaxed),
             total_bytes_freed: self.total_bytes_freed.load(Ordering::Relaxed),
-            tag: self.tag,
             histogram,
+            tag: self.tag,
         }
     }
 }
-impl<T: Default> Default for StatsAlloc<T> {
+impl<T: Default, H: Histogram + Clone + Default> Default for StatsAlloc<T, H> {
     #[inline]
     fn default() -> Self {
         Self::new(T::default())
     }
 }
-unsafe impl<T: Alloc + Sync> Sync for StatsAlloc<T> {}
-unsafe impl<T: Alloc + Send> Send for StatsAlloc<T> {}
+unsafe impl<T: Alloc + Sync, H: Histogram + Clone + Default> Sync for StatsAlloc<T, H> {}
+unsafe impl<T: Alloc + Send, H: Histogram + Clone + Default> Send for StatsAlloc<T, H> {}
 
 /// This struct represents a snapshot of the stats gathered
 /// by an instances of `StatsAlloc`, and is used for display
 #[derive(Debug)]
-pub struct Statistics {
+pub struct Statistics<H: Histogram + Clone + Default> {
     alloc_calls: usize,
     dealloc_calls: usize,
     realloc_calls: usize,
@@ -99,9 +97,9 @@ pub struct Statistics {
     total_bytes_freed: usize,
 
     tag: &'static str,
-    histogram: Histogram,
+    histogram: H,
 }
-impl fmt::Display for Statistics {
+impl<H: Histogram + Clone + Default> fmt::Display for Statistics<H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "## Allocator Statistics (tag = {})", self.tag)?;
         writeln!(f, "# Calls to alloc = {}", self.alloc_calls)?;
@@ -116,7 +114,7 @@ impl fmt::Display for Statistics {
     }
 }
 
-unsafe impl<T: Alloc> Alloc for StatsAlloc<T> {
+unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H> {
     #[inline]
     unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         let size = layout.size();
@@ -129,8 +127,8 @@ unsafe impl<T: Alloc> Alloc for StatsAlloc<T> {
             Ok(result) => {
                 self.alloc_calls.fetch_add(1, Ordering::SeqCst);
                 self.total_bytes_alloced.fetch_add(size, Ordering::SeqCst);
-                let mut h = self.histogram.lock();
-                h.add(size as u64);
+                let mut h = self.histogram.write();
+                h.add(size as u64).ok();
                 drop(h);
                 hooks::on_alloc(self.tag, size, align, result.as_ptr());
                 Ok(result)
@@ -169,8 +167,8 @@ unsafe impl<T: Alloc> Alloc for StatsAlloc<T> {
                     let diff = old_size - new_size;
                     self.total_bytes_alloced.fetch_sub(diff, Ordering::SeqCst);
                 }
-                let mut h = self.histogram.lock();
-                h.add(new_size as u64);
+                let mut h = self.histogram.write();
+                h.add(new_size as u64).ok();
                 drop(h);
                 hooks::on_realloc(
                     self.tag,
@@ -197,7 +195,7 @@ unsafe impl<T: Alloc> Alloc for StatsAlloc<T> {
     }
 }
 
-unsafe impl<T: GlobalAlloc> GlobalAlloc for StatsAlloc<T> {
+unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for StatsAlloc<T, H> {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
@@ -210,8 +208,8 @@ unsafe impl<T: GlobalAlloc> GlobalAlloc for StatsAlloc<T> {
 
         self.alloc_calls.fetch_add(1, Ordering::SeqCst);
         self.total_bytes_alloced.fetch_add(size, Ordering::SeqCst);
-        let mut h = self.histogram.lock();
-        h.add(size as u64);
+        let mut h = self.histogram.write();
+        h.add(size as u64).ok();
         drop(h);
         hooks::on_alloc(self.tag, size, align, result);
 
@@ -237,8 +235,8 @@ unsafe impl<T: GlobalAlloc> GlobalAlloc for StatsAlloc<T> {
             let diff = old_size - new_size;
             self.total_bytes_alloced.fetch_sub(diff, Ordering::SeqCst);
         }
-        let mut h = self.histogram.lock();
-        h.add(new_size as u64);
+        let mut h = self.histogram.write();
+        h.add(new_size as u64).ok();
         drop(h);
         hooks::on_realloc(self.tag, old_size, new_size, align, ptr, result);
 

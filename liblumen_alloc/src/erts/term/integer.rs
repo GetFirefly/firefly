@@ -12,7 +12,7 @@ use core::ops::*;
 
 use crate::erts::{AsTerm, Term};
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TryFromIntError;
 impl Display for TryFromIntError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

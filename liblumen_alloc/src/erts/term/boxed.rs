@@ -4,7 +4,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::ProcessControlBlock;
+use crate::erts::AllocInProcess;
 
 use super::{AsTerm, Term};
 
@@ -57,9 +57,9 @@ unsafe impl<T: AsTerm> AsTerm for Boxed<T> {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         if self.literal {
-            Term::from_raw(self.term as usize | Term::FLAG_BOXED | Term::FLAG_LITERAL)
+            Term::make_boxed_literal(self.term)
         } else {
-            Term::from_raw(self.term as usize | Term::FLAG_BOXED)
+            Term::make_boxed(self.term)
         }
     }
 }
@@ -117,7 +117,7 @@ impl<T: PartialOrd> PartialOrd<T> for Boxed<T> {
 }
 
 impl<T: CloneToProcess> CloneToProcess for Boxed<T> {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         let term = unsafe { &*self.term };
         term.clone_to_process(process)
     }

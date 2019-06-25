@@ -9,7 +9,8 @@ use num_bigint::{BigInt, Sign};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::to_word_size;
-use crate::erts::{AsTerm, ProcessControlBlock, Term};
+use crate::erts::AllocInProcess;
+use crate::erts::{AsTerm, Term};
 
 use super::*;
 
@@ -29,18 +30,18 @@ impl BigInteger {
             Sign::Minus => Term::FLAG_NEG_BIG_INTEGER,
         };
         let arity = to_word_size(mem::size_of_val(&value));
-        let header = unsafe { Term::from_raw(arity | flag) };
+        let header = Term::make_header(arity, flag);
         Self { header, value }
     }
 }
 unsafe impl AsTerm for BigInteger {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self as *const Self)
     }
 }
 impl CloneToProcess for BigInteger {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         let size = mem::size_of_val(self);
         let words = to_word_size(size);
         unsafe {
@@ -139,7 +140,7 @@ impl PartialOrd<f64> for BigInteger {
 impl Debug for BigInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("BigInteger")
-            .field("header", &self.header)
+            .field("header", &self.header.as_usize())
             .field("value", &self.value)
             .finish()
     }

@@ -1,7 +1,8 @@
 use core::cmp;
+use core::fmt;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{Node, ProcessControlBlock};
+use crate::erts::{AllocInProcess, Node};
 
 use super::{AsTerm, Term};
 
@@ -19,7 +20,7 @@ impl Pid {
 unsafe impl AsTerm for Pid {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self.0 | Term::FLAG_PID)
+        Term::make_pid(self.0)
     }
 }
 impl PartialEq<ExternalPid> for Pid {
@@ -35,7 +36,6 @@ impl PartialOrd<ExternalPid> for Pid {
     }
 }
 
-#[derive(Debug)]
 pub struct ExternalPid {
     header: Term,
     node: Node,
@@ -45,12 +45,12 @@ pub struct ExternalPid {
 unsafe impl AsTerm for ExternalPid {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self as *const Self)
     }
 }
 impl CloneToProcess for ExternalPid {
     #[inline]
-    fn clone_to_process(&self, _process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, _process: &mut A) -> Term {
         unimplemented!()
     }
 }
@@ -66,5 +66,15 @@ impl PartialOrd<ExternalPid> for ExternalPid {
             Some(Ordering::Equal) => self.pid.partial_cmp(&other.pid),
             result => result,
         }
+    }
+}
+impl fmt::Debug for ExternalPid {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ExternalPid")
+            .field("header", &self.header.as_usize())
+            .field("node", &self.node)
+            .field("next", &self.next)
+            .field("pid", &self.pid)
+            .finish()
     }
 }

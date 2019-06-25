@@ -115,7 +115,7 @@ impl Atom {
 impl Debug for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(name) = ATOMS.read().get_name(self.0) {
-            f.write_char('\'')?;
+            f.write_str(":'")?;
             name.chars()
                 .flat_map(char::escape_default)
                 .try_for_each(|c| f.write_char(c))?;
@@ -128,7 +128,7 @@ impl Debug for Atom {
 unsafe impl AsTerm for Atom {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self.0 | Term::FLAG_ATOM)
+        Term::make_atom(self.0)
     }
 }
 impl PartialOrd for Atom {

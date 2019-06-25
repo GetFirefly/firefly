@@ -38,7 +38,7 @@ impl RawFragment {
 
     /// Returns true if the given pointer is contained within this fragment
     #[inline]
-    pub fn contains(&self, ptr: *const Term) -> bool {
+    pub fn contains<T>(&self, ptr: *const T) -> bool {
         let ptr = ptr as usize;
         let start = self.data as usize;
         let end = unsafe { self.data.offset(self.size as isize) } as usize;
@@ -68,7 +68,7 @@ impl HeapFragment {
 
     /// Returns true if the given pointer is contained within this fragment
     #[inline]
-    pub fn contains(&self, ptr: *const Term) -> bool {
+    pub fn contains<T>(&self, ptr: *const T) -> bool {
         self.raw.contains(ptr)
     }
 

@@ -1,7 +1,6 @@
 use core::cmp::Ordering;
 use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display};
-use core::mem;
 use core::ops::*;
 
 use num_bigint::BigInt;
@@ -16,13 +15,9 @@ use super::*;
 #[repr(transparent)]
 pub struct SmallInteger(pub(in crate::erts::term) isize);
 impl SmallInteger {
-    /// 4 bits for the immediate header, one for the sign bit
-    const RESERVED_BITS: usize = 5;
-    /// Number of bits available for integer value
-    const NUM_BITS: usize = (mem::size_of::<usize>() * 8) - Self::RESERVED_BITS;
-    const FLAG_SIGN: usize = 1usize << Self::NUM_BITS;
+    const FLAG_SIGN: usize = Term::FLAG_SMALL_INTEGER_SIGN;
 
-    pub const MAX_VALUE: isize = (usize::max_value() >> Self::RESERVED_BITS) as isize;
+    pub const MAX_VALUE: isize = Term::MAX_SMALLINT_VALUE as isize;
     pub const MIN_VALUE: isize = !Self::MAX_VALUE as isize;
 
     /// Create new `SmallInteger` from an `isize` value, returning `Err`
@@ -69,16 +64,7 @@ impl SmallInteger {
 unsafe impl AsTerm for SmallInteger {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        match self.0.signum() {
-            0 | 1 => {
-                Term::from_raw((self.0 as usize | Term::FLAG_SMALL_INTEGER) & !Self::FLAG_SIGN)
-            }
-            -1 => {
-                let val = self.0.abs() as usize;
-                Term::from_raw(val | Term::FLAG_SMALL_INTEGER | Self::FLAG_SIGN)
-            }
-            _ => unreachable!(),
-        }
+        Term::make_smallint(self.0)
     }
 }
 impl From<u8> for SmallInteger {

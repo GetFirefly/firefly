@@ -1,8 +1,9 @@
-use core::alloc::AllocErr;
+use core::alloc::{AllocErr, Layout};
 use core::mem;
 use core::ptr::{self, NonNull};
+use core::fmt;
 
-use liblumen_core::util::pointer::{distance_absolute, in_area};
+use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
 use super::*;
 use crate::erts::*;
@@ -24,23 +25,26 @@ use crate::erts::*;
 /// in the old heap; while terms above the high-water mark have not survived a
 /// collection yet, and are either garbage to be collected, or values which need to
 /// be copied to the new young heap.
-#[derive(Debug)]
 pub struct YoungHeap {
-    pub(in crate::erts::process) start: *mut Term,
-    pub(in crate::erts::process) top: *mut Term,
-    pub(in crate::erts::process) end: *mut Term,
-    pub(in crate::erts::process) stack_start: *mut Term,
-    pub(in crate::erts::process) stack_end: *mut Term,
-    pub(in crate::erts::process) stack_size: usize,
-    pub(in crate::erts::process) high_water_mark: *mut Term,
+    start: *mut Term,
+    top: *mut Term,
+    end: *mut Term,
+    stack_start: *mut Term,
+    stack_end: *mut Term,
+    stack_size: usize,
+    high_water_mark: *mut Term,
+    vheap: VirtualBinaryHeap,
 }
 impl YoungHeap {
+    /// This function creates a new `YoungHeap` which owns the given memory region
+    /// represented by the pointer `start` and the size in words of the region.
     #[inline]
     pub fn new(start: *mut Term, size: usize) -> Self {
         let end = unsafe { start.offset(size as isize) };
         let top = start;
         let stack_end = end;
         let stack_start = stack_end;
+        let vheap = VirtualBinaryHeap::new(size);
         Self {
             start,
             end,
@@ -49,7 +53,159 @@ impl YoungHeap {
             stack_end,
             stack_size: 0,
             high_water_mark: start,
+            vheap,
         }
+    }
+}
+impl AllocInProcess for YoungHeap {
+    #[inline]
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        if self.heap_available() >= need {
+            let ptr = self.top;
+            self.top = self.top.offset(need as isize);
+            Ok(NonNull::new_unchecked(ptr))
+        } else {
+            Err(AllocErr)
+        }
+    }
+
+    #[inline]
+    unsafe fn alloc_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+        let words = Self::layout_to_words(layout);
+        self.alloc(words)
+    }
+
+    #[inline]
+    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        if self.stack_available() >= need {
+            Ok(self.alloca_unchecked(need))
+        } else {
+            Err(AllocErr)
+        }
+    }
+
+    #[inline]
+    unsafe fn alloca_unchecked(&mut self, need: usize) -> NonNull<Term> {
+        self.stack_start = self.stack_start.offset(-(need as isize));
+        self.stack_size += 1;
+        NonNull::new_unchecked(self.stack_start)
+    }
+
+    #[inline]
+    unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+        let need = to_word_size(layout.size());
+        self.alloca(need)
+    }
+
+    #[inline]
+    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
+        self.vheap.push(bin)
+    }
+
+    #[inline]
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+        self.contains(ptr) || self.vheap.contains(ptr)
+    }
+}
+impl StackPrimitives for YoungHeap {
+    #[inline(always)]
+    fn stack_size(&self) -> usize {
+        self.stack_size
+    }
+
+    #[inline(always)]
+    unsafe fn set_stack_size(&mut self, size: usize) {
+        self.stack_size = size;
+    }
+
+    #[inline(always)]
+    fn stack_pointer(&mut self) -> *mut Term {
+        self.stack_start
+    }
+
+    #[inline]
+    unsafe fn set_stack_pointer(&mut self, sp: *mut Term) {
+        assert!(in_area_inclusive(sp, self.top, self.stack_end), "attempted to set stack pointer out of bounds");
+        self.stack_start = sp;
+    }
+
+    /// Gets the current amount of stack space used (in words)
+    #[inline]
+    fn stack_used(&self) -> usize {
+        distance_absolute(self.stack_end, self.stack_start)
+    }
+
+    /// Gets the current amount of space (in words) available for stack allocations
+    #[inline]
+    fn stack_available(&self) -> usize {
+        self.unused()
+    }
+
+    #[inline]
+    fn stack_slot(&mut self, n: usize) -> Option<Term> {
+        assert!(n > 0);
+        if n <= self.stack_size {
+            let stack_slot_ptr = self.stack_slot_address(n - 1);
+            Some(unsafe { *stack_slot_ptr })
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn stack_popn(&mut self, n: usize) {
+        assert!(n > 0 && n <= self.stack_size);
+        if self.stack_size - n == 0 {
+            // Freeing the whole stack
+            self.stack_start = self.stack_end;
+            self.stack_size = 0;
+        } else {
+            // Freeing a subset
+            let start_slot_ptr = self.stack_slot_address(n);
+            debug_assert!(start_slot_ptr as usize > self.stack_start as usize);
+            self.stack_start = start_slot_ptr;
+            self.stack_size -= n;
+        }
+    }
+}
+impl YoungHeap {
+    /// This function is used to reallocate the memory region this heap was originally allocated with
+    /// to a smaller size, given by `new_size`. This function will panic if the given size is not
+    /// large enough to hold the stack, if a size greater than the previous size is given, or if
+    /// reallocation in place fails.
+    /// 
+    /// On success, the heap metadata is updated to reflect the new size
+    pub(in super) fn shrink(&mut self, new_size: usize) {
+        let total_size = self.size();
+        assert!(
+            new_size < total_size,
+            "tried to shrink a heap with a new size that is larger than the old size"
+        );
+        let stack_size = self.stack_used();
+        assert!(new_size > stack_size, "cannot shrink heap to be smaller than its stack usage");
+
+        // Calculate the new start (or "top") of the stack, this will be our destination pointer
+        let old_start = self.start;
+        let old_stack_start = self.stack_start;
+        let new_stack_start = unsafe { old_start.offset((new_size - stack_size) as isize) };
+
+        // Copy the stack into its new position
+        unsafe { ptr::copy(old_stack_start, new_stack_start, stack_size) };
+
+        // Reallocate the heap to shrink it, if the heap is moved, there is a bug
+        // in the allocator which must have been introduced in a recent change
+        let new_heap = unsafe {
+            process::alloc::realloc(old_start, total_size, new_size)
+                .expect("unable to shrink heap memory for process: realloc failed!")
+        };
+        assert_eq!(
+            new_heap, old_start,
+            "expected reallocation of heap during shrink to occur in-place!"
+        );
+
+        self.end = unsafe { new_heap.offset(new_size as isize) };
+        self.stack_end = self.end;
+        self.stack_start = unsafe { self.stack_end.offset(-(stack_size as isize)) };
     }
 
     /// Gets the total size of allocated to this heap (in words)
@@ -58,22 +214,16 @@ impl YoungHeap {
         distance_absolute(self.end, self.start)
     }
 
-    /// Gets the number of terms currently allocated on the stack
-    #[inline]
-    pub fn stack_size(&self) -> usize {
-        self.stack_size
+    /// Returns the pointer to the bottom of the heap
+    #[inline(always)]
+    pub fn heap_start(&self) -> *mut Term {
+        self.start
     }
 
     /// Gets the current amount of heap space used (in words)
     #[inline]
     pub fn heap_used(&self) -> usize {
         distance_absolute(self.top, self.start)
-    }
-
-    /// Gets the current amount of stack space used (in words)
-    #[inline]
-    pub fn stack_used(&self) -> usize {
-        distance_absolute(self.stack_end, self.stack_start)
     }
 
     /// Gets the current amount of unused space (in words)
@@ -84,15 +234,21 @@ impl YoungHeap {
         distance_absolute(self.stack_start, self.top)
     }
 
+    /// Returns the used size of the virtual heap
+    #[inline]
+    pub fn virtual_heap_used(&self) -> usize {
+        self.vheap.heap_used()
+    }
+
+    /// Returns the unused size of the virtual heap
+    #[inline]
+    pub fn virtual_heap_unused(&self) -> usize {
+        self.vheap.unused()
+    }
+
     /// Gets the current amount of space (in words) available for heap allocations
     #[inline]
     pub fn heap_available(&self) -> usize {
-        self.unused()
-    }
-
-    /// Gets the current amount of space (in words) available for stack allocations
-    #[inline]
-    pub fn stack_available(&self) -> usize {
         self.unused()
     }
 
@@ -115,85 +271,9 @@ impl YoungHeap {
         self.high_water_mark = self.top;
     }
 
-    /// Perform a heap allocation of `size` words (i.e. size of `Term`)
-    ///
-    /// Returns `Err(AllocErr)` if there is not enough space available
     #[inline]
-    pub fn alloc(&mut self, size: usize) -> Result<NonNull<Term>, AllocErr> {
-        if self.heap_available() >= size {
-            let ptr = self.top;
-            self.top = unsafe { self.top.offset(size as isize) };
-            Ok(unsafe { NonNull::new_unchecked(ptr) })
-        } else {
-            Err(AllocErr)
-        }
-    }
-
-    /// Perform a stack allocation of `size` words to hold a single term.
-    ///
-    /// Returns `Err(AllocErr)` if there is not enough space available
-    /// 
-    /// NOTE: Do not use this to allocate space for multiple terms (lists
-    /// and boxes count as a single term), as the size of the stack in terms
-    /// is tied to allocations. Each time `stack_alloc` is called, the stack
-    /// size is incremented by 1, and this enables efficient implementations
-    /// of the other stack manipulation functions as the stack size in terms
-    /// does not have to be recalculated constantly.
-    #[inline]
-    pub fn stack_alloc(&mut self, size: usize) -> Result<NonNull<Term>, AllocErr> {
-        if self.stack_available() >= size {
-            let ptr = self.stack_start;
-            self.stack_start = unsafe { self.stack_start.offset(-(size as isize)) };
-            self.stack_size += 1;
-            Ok(unsafe { NonNull::new_unchecked(ptr) })
-        } else {
-            Err(AllocErr)
-        }
-    }
-
-    /// This function returns the term located in the given stack slot, if it exists.
-    /// 
-    /// The stack slots are 1-indexed, where `1` is the top of the stack, or most recent
-    /// allocation, and `S` is the bottom of the stack, or oldest allocation. 
-    /// 
-    /// If `S > stack_size`, then `None` is returned. Otherwise, `Some(Term)` is returned.
-    #[inline]
-    pub fn stack_slot(&mut self, n: usize) -> Option<Term> {
-        assert!(n > 0);
-        if n <= self.stack_size {
-            let stack_slot_ptr = self.stack_slot_address(n - 1);
-            Some(unsafe { *stack_slot_ptr })
-        } else {
-            None
-        }
-    }
-
-    /// This function "pops" the last `n` terms from the stack, making that
-    /// space available for new stack allocations.
-    ///
-    /// # Safety
-    ///
-    /// This function will panic if given a value `n` which exceeds the current
-    /// number of terms allocated on the stack
-    #[inline]
-    pub fn stack_popn(&mut self, n: usize) {
-        assert!(n > 0 && n <= self.stack_size);
-        if self.stack_size - n == 0 {
-            // Freeing the whole stack
-            self.stack_start = self.stack_end;
-            self.stack_size = 0;
-        } else {
-            // Freeing a subset
-            let start_slot_ptr = self.stack_slot_address(n - 1);
-            self.stack_start = start_slot_ptr;
-            self.stack_size -= n;
-        }
-    }
-
-    #[inline]
-    fn stack_slot_address(&self, mut slot: usize) -> *mut Term {
+    fn stack_slot_address(&self, slot: usize) -> *mut Term {
         assert!(slot < self.stack_size);
-        // Essentially a no-op
         if slot == 0 {
             return self.stack_start;
         }
@@ -205,12 +285,13 @@ impl YoungHeap {
         // lay the term out in memory normally, i.e. allocating upwards. So scanning
         // the stack requires following terms upwards, in order for us to skip over
         // non-term data on the stack.
-        let mut pos = self.stack_start;
-        while slot > 0 {
+        let mut last = self.stack_start;
+        let mut pos = last;
+        for _ in 0..=slot {
             let term = unsafe { *pos };
             if term.is_immediate() {
                 // Immediates are the typical case, and only occupy one word
-                slot -= 1;
+                last = pos;
                 pos = unsafe { pos.offset(1) };
             } else if term.is_boxed() {
                 // Boxed terms will consist of the box itself, and if stored on the stack, the
@@ -219,18 +300,21 @@ impl YoungHeap {
                 // term. In the case where the value resides on the heap, we can treat the box like
                 // an immediate
                 let ptr = term.boxed_val();
+                last = pos;
                 pos = unsafe { pos.offset(1) };
                 if ptr == pos {
                     // The boxed value is on the stack immediately following the box
                     let val = unsafe { *ptr };
                     assert!(val.is_header());
                     let skip = val.arityval() as isize;
-                    slot -= 1;
                     pos = unsafe { pos.offset(skip) };
                 } else {
                     assert!(!in_area(ptr, pos, self.stack_end), "boxed term stored on stack but not contiguously!");
                 }
             } else if term.is_list() {
+                // The list begins here
+                last = pos;
+                pos = unsafe { pos.offset(1) };
                 // Lists are essentially boxes which point to cons cells, but are a bit more complicated
                 // than boxed terms. Proper lists will have a cons cell where the head is nil, and improper
                 // lists will have a tail that contains a non-list term. For lists entirely on the stack, they
@@ -238,7 +322,7 @@ impl YoungHeap {
                 // unnecessary complexity to lay out cons cells in memory where the head term is larger than one
                 // word. This constraint also makes allocating lists on the stack easier to reason about.
                 let ptr = term.list_val() as *mut Cons;
-                let mut next_ptr = unsafe { pos.offset(1) as *mut Cons };
+                let mut next_ptr = pos as *mut Cons;
                 // If true, the first cell is correctly laid out contiguously with the list term
                 if ptr == next_ptr {
                     // This is used to hold the current cons cell
@@ -265,7 +349,7 @@ impl YoungHeap {
                                 assert!(!in_area(next_cons, next_ptr as *const Term, self.stack_end), "list stored on stack but not contiguously!");
                             }
                         } else if cons.tail.is_immediate() {
-                            // We've hit the end of an improper list, update `pos` and break out
+                            // We've hit the end of the list, update `pos` and break out
                             pos = next_ptr as *mut Term;
                             break;
                         } else if cons.tail.is_boxed() {
@@ -276,7 +360,6 @@ impl YoungHeap {
                             break;
                         }
                     }
-                    slot -= 1;
                 } else {
                     assert!(!in_area(ptr, pos, self.stack_end), "list term stored on stack but not contiguously!");
                 }
@@ -284,7 +367,7 @@ impl YoungHeap {
                 unreachable!();
             }
         }
-        pos
+        last
     }
 
     /// Copies the stack from another `YoungHeap` into this heap
@@ -301,6 +384,18 @@ impl YoungHeap {
         // Set stack_start
         self.stack_start = stack_start;
         self.stack_size = other.stack_size;
+    }
+
+    /// Returns true if the given ProcBin is on this heap's virtual binary heap
+    #[inline]
+    pub fn virtual_heap_contains<T>(&self, term: *const T) -> bool {
+        self.vheap.contains(term)
+    }
+
+    /// Unlinks the given ProcBin from the virtual binary heap, but does not free it
+    #[inline]
+    pub fn virtual_heap_unlink(&mut self, bin: &ProcBin) {
+        self.vheap.unlink(bin)
     }
 
     /// This function walks the heap, applying the given function to every term
@@ -381,6 +476,7 @@ impl YoungHeap {
     #[inline]
     pub unsafe fn move_into(&mut self, orig: *mut Term, ptr: *mut Term, header: Term) -> usize {
         assert!(header.is_header());
+        debug_assert_ne!(orig, self.top);
 
         // All other headers follow more or less the same formula,
         // the header arityval contains the size of the term in words,
@@ -402,7 +498,7 @@ impl YoungHeap {
                 // Save space for box
                 let dst = heap_top.offset(1);
                 // Create box pointing to new destination
-                let val = Term::from_raw(dst as usize | Term::FLAG_BOXED);
+                let val = Term::make_boxed(dst);
                 ptr::write(heap_top, val);
                 let dst = dst as *mut HeapBin;
                 let new_bin_ptr = dst.offset(1) as *mut u8;
@@ -411,7 +507,7 @@ impl YoungHeap {
                 // Write heapbin header
                 ptr::write(dst, HeapBin::from_raw_parts(bin_header, bin_flags));
                 // Write a move marker to the original location
-                let marker = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
+                let marker = Term::make_boxed(heap_top);
                 ptr::write(orig, marker);
                 // Update `ptr` as well
                 ptr::write(ptr, marker);
@@ -422,29 +518,23 @@ impl YoungHeap {
             }
         }
 
-        let mut num_elements = header.arityval();
+        let num_elements = header.arityval();
         let moved = num_elements + 1;
 
-        // Write the a move marker to the original location
-        let marker = Term::from_raw(heap_top as usize | Term::FLAG_BOXED);
+        let marker = Term::make_boxed(heap_top);
+        // Write the term header to the location pointed to by the boxed term
+        ptr::write(heap_top, header);
+        // Write the move marker to the original location
         ptr::write(orig, marker);
         // And to `ptr` as well
         ptr::write(ptr, marker);
         // Move `ptr` to the first arityval
-        let mut ptr = ptr.offset(1);
-        // Write the term header to the location pointed to by the boxed term
-        ptr::write(heap_top, header);
-        // Move heap_top to the first element location
+        // Move heap_top to the first data location
+        // Then copy arityval data to new location
         heap_top = heap_top.offset(1);
-        // For each additional term element, move to new location
-        while num_elements > 0 {
-            num_elements -= 1;
-            ptr::write(heap_top, *ptr);
-            heap_top = heap_top.offset(1);
-            ptr = ptr.offset(1);
-        }
+        ptr::copy_nonoverlapping(ptr.offset(1), heap_top, num_elements);
         // Update the top pointer
-        self.top = heap_top;
+        self.top = heap_top.offset(num_elements as isize);
         // Return the number of words moved into this heap
         moved
     }
@@ -457,10 +547,11 @@ impl YoungHeap {
         // Copy cons cell to this heap
         let location = self.top as *mut Cons;
         ptr::write(location, cons);
-        // Create list term to write to original location
-        let list = Term::from_raw(location as usize | Term::FLAG_LIST);
+        // New list value
+        let list = Term::make_list(location);
+        // Redirect original reference
         ptr::write(orig, list);
-        // Write marker to old list location
+        // Store forwarding indicator/address
         let marker = Cons::new(Term::NONE, list);
         ptr::write(ptr as *mut Cons, marker);
         // Update the top pointer
@@ -478,7 +569,7 @@ impl YoungHeap {
     /// heap that require moving. A reference to the old generation heap is also provided
     /// so that we can check that a candidate pointer is not in the old generation already,
     /// as those values are out of scope for this sweep
-    pub fn sweep(&mut self, old: &OldHeap) {
+    pub fn sweep(&mut self, prev: &mut YoungHeap, old: &mut OldHeap, mature: *mut Term, mature_end: *mut Term) {
         self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
             unsafe {
                 if term.is_boxed() {
@@ -488,9 +579,45 @@ impl YoungHeap {
                         assert!(boxed.is_boxed());
                         // Overwrite move marker with "real" boxed term
                         ptr::write(pos, boxed);
-                    } else if in_young_gen(ptr, boxed, old) {
-                        // Move to top of this heap
-                        heap.move_into(pos, ptr, boxed);
+                    } else if in_area(ptr, mature, mature_end) {
+                        // Move into old generation
+                        if boxed.is_procbin() {
+                            // First we need to remove the procbin from its old virtual heap
+                            let old_bin = &*(ptr as *mut ProcBin);
+                            if prev.virtual_heap_contains(old_bin) {
+                                prev.virtual_heap_unlink(old_bin);
+                            } else {
+                                heap.virtual_heap_unlink(old_bin);
+                            }
+                            // Move to top of the old gen heap
+                            old.move_into(pos, ptr, boxed);
+                            // Then add the procbin to the old gen virtual heap
+                            let marker = *ptr;
+                            assert!(marker.is_boxed());
+                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin = &*bin_ptr;
+                            old.virtual_alloc(bin);
+                        } else {
+                            old.move_into(pos, ptr, boxed);
+                        }
+                    } else if !term.is_literal() && !old.contains(ptr) && !heap.contains(ptr) {
+                        // Move into young generation (this heap)
+                        if boxed.is_procbin() {
+                            // First we need to remove the procbin from its old virtual heap
+                            let old_bin = &*(ptr as *mut ProcBin);
+                            prev.virtual_heap_unlink(old_bin);
+                            // Move to top of this heap
+                            heap.move_into(pos, ptr, boxed);
+                            // Then add the procbin to the new virtual heap
+                            let marker = *ptr;
+                            assert!(marker.is_boxed());
+                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin = &*bin_ptr;
+                            heap.virtual_alloc(bin);
+                        } else {
+                            // Move to top of this heap
+                            heap.move_into(pos, ptr, boxed);
+                        }
                     }
                     Some(pos.offset(1))
                 } else if term.is_list() {
@@ -499,7 +626,10 @@ impl YoungHeap {
                     if cons.is_move_marker() {
                         // Overwrite move marker with "real" list term
                         ptr::write(pos, cons.tail);
-                    } else if !old.contains(ptr) {
+                    } else if in_area(ptr, mature, mature_end) {
+                        // Move to old generation
+                        old.move_cons_into(pos, ptr, cons);
+                    } else if !term.is_literal() && !old.contains(ptr) && !heap.contains(ptr) {
                         // Move to top of this heap
                         heap.move_cons_into(pos, ptr, cons);
                     }
@@ -518,7 +648,11 @@ impl YoungHeap {
                         if is_move_marker(bin) {
                             ptr::write(orig, bin);
                             ptr::write(base, binary_bytes(bin));
-                        } else if in_young_gen(ptr, bin, old) {
+                        } else if in_area(ptr, mature, mature_end) {
+                            // Move to old generation
+                            old.move_into(orig, ptr, bin);
+                            ptr::write(base, binary_bytes(bin));
+                        } else if !orig_term.is_literal() && !old.contains(ptr) {
                             heap.move_into(orig, ptr, bin);
                             ptr::write(base, binary_bytes(bin));
                         }
@@ -536,7 +670,7 @@ impl YoungHeap {
     /// Essentially the same as `sweep`, except it always moves values into
     /// this heap, since the goal is to consolidate all generations into a
     /// fresh young heap, which is this heap when called
-    pub fn full_sweep(&mut self) {
+    pub fn full_sweep(&mut self, prev: &mut YoungHeap, old: &mut OldHeap) {
         self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
             unsafe {
                 if term.is_boxed() {
@@ -546,21 +680,42 @@ impl YoungHeap {
                         assert!(boxed.is_boxed());
                         // Overwrite move marker with "real" boxed term
                         ptr::write(pos, boxed);
-                    } else if !boxed.is_literal() {
-                        // Move to top of this heap
-                        heap.move_into(pos, ptr, boxed);
+                    } else if !term.is_literal() {
+                        if boxed.is_procbin() {
+                            // First we need to remove the procbin from its old virtual heap
+                            let old_bin = &*(ptr as *mut ProcBin);
+                            if old.virtual_heap_contains(old_bin) {
+                                old.virtual_heap_unlink(old_bin);
+                            } else {
+                                prev.virtual_heap_unlink(old_bin);
+                            }
+                            // Move to top of this heap
+                            heap.move_into(pos, ptr, boxed);
+                            // Then add the procbin to the new virtual heap
+                            let marker = *ptr;
+                            assert!(marker.is_boxed());
+                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin = &*bin_ptr;
+                            heap.virtual_alloc(bin);
+                        } else {
+                            // Move to top of this heap
+                            heap.move_into(pos, ptr, boxed);
+                        }
                     }
+                    // Move past box pointer to next term
                     Some(pos.offset(1))
                 } else if term.is_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
-                        // Overwrite move marker with "real" list term
+                        assert!(cons.tail.is_list());
+                        // Rewrite marker with list pointer
                         ptr::write(pos, cons.tail);
-                    } else {
-                        // Move to top of this heap
+                    } else if !term.is_literal() {
+                        // Move cons cell to top of this heap
                         heap.move_cons_into(pos, ptr, cons);
                     }
+                    // Move past list pointer to next term
                     Some(pos.offset(1))
                 } else if term.is_header() {
                     if term.is_tuple() {
@@ -576,7 +731,7 @@ impl YoungHeap {
                         if is_move_marker(bin) {
                             ptr::write(orig, bin);
                             ptr::write(base, binary_bytes(bin));
-                        } else {
+                        } else if !orig_term.is_literal() {
                             heap.move_into(orig, ptr, bin);
                             ptr::write(base, binary_bytes(bin));
                         }
@@ -593,7 +748,7 @@ impl YoungHeap {
 
     #[cfg(debug_assertions)]
     #[inline]
-    pub(crate) fn sanity_check(&self) {
+    pub(in super) fn sanity_check(&self) {
         let hb = self.start as usize;
         let st = self.stack_end as usize;
         let size = self.size() * mem::size_of::<Term>();
@@ -630,7 +785,7 @@ impl YoungHeap {
 
     #[cfg(not(debug_assertions))]
     #[inline]
-    pub(crate) fn sanity_check(&self) {
+    pub(in super) fn sanity_check(&self) {
         self.overrun_check();
     }
 
@@ -647,13 +802,164 @@ impl YoungHeap {
         }
     }
 }
+impl Drop for YoungHeap {
+    fn drop(&mut self) {
+        unsafe {
+            // Free virtual binary heap
+            self.vheap.clear();
+            // Free memory region managed by this heap instance
+            process::alloc::free(self.start, self.size());
+        }
+    }
+}
+impl fmt::Debug for YoungHeap {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "YoungHeap (heap: {:?}-{:?}, stack: {:?}-{:?}, used: {}, unused: {}) [\n",
+            self.start, self.top,
+            self.stack_start, self.stack_end,
+            self.heap_used() + self.stack_used(),
+            self.unused(),
+        ))?;
+        let mut pos = self.start;
+        while pos < self.top {
+            unsafe {
+                let term = *pos;
+                if term.is_immediate() || term.is_boxed() || term.is_list() {
+                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                    pos = pos.offset(1);
+                } else {
+                    assert!(term.is_header());
+                    let arityval = term.arityval();
+                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                    pos = pos.offset((1 + arityval) as isize);
+                }
+            }
+        }
+        f.write_str("  ==== END HEAP ====\n")?;
+        f.write_str("  ==== START STACK ==== \n")?;
+        pos = self.stack_start;
+        while pos < self.stack_end {
+            unsafe {
+                let term = *pos;
+                if term.is_immediate() || term.is_boxed() || term.is_list() {
+                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                    pos = pos.offset(1);
+                } else {
+                    assert!(term.is_header());
+                    let arityval = term.arityval();
+                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                    pos = pos.offset((1 + arityval) as isize);
+                }
+            }
+        }
+        f.write_str("]\n")
+    }
+}
 
-/// This function determines if the given term is located in the young generation heap
-///
-/// The term is provided along with its pointer, as well as a reference to
-/// the old generation heap, as any pointer into the old generation cannot be
-/// a young value by definition
-#[inline]
-pub(crate) fn in_young_gen<T>(ptr: *mut T, term: Term, old: &OldHeap) -> bool {
-    !term.is_literal() && !old.contains(ptr)
+#[cfg(test)]
+mod tests {
+    use core::ptr;
+    use super::*;
+
+    use crate::erts::process::alloc;
+
+    #[test]
+    fn young_heap_alloc() {
+        let (heap, heap_size) = alloc::default_heap().unwrap();
+        let mut yh = YoungHeap::new(heap, heap_size);
+
+        assert_eq!(yh.size(), heap_size);
+        assert_eq!(yh.stack_size(), 0);
+        unsafe { yh.set_stack_size(3); }
+        assert_eq!(yh.stack_size(), 3);
+        unsafe { yh.set_stack_size(0); }
+        assert_eq!(yh.stack_used(), 0);
+        assert_eq!(yh.heap_used(), 0);
+        assert_eq!(yh.unused(), heap_size);
+        assert_eq!(yh.unused(), yh.heap_available());
+        assert_eq!(yh.unused(), yh.stack_available());
+        assert_eq!(yh.mature_size(), 0);
+
+        let nil = unsafe { yh.alloc(1).unwrap().as_ptr() };
+        assert_eq!(yh.heap_used(), 1);
+        assert_eq!(yh.unused(), heap_size - 1);
+        unsafe { ptr::write(nil, Term::NIL) };
+
+        // Allocate the list `[101, "test"]`
+        let num = Term::make_smallint(101);
+        let string = "test";
+        let string_term = make_heapbin_from_str(&mut yh, string).unwrap();
+        let list_term = ListBuilder::on_heap(&mut yh)
+            .push(num)
+            .push(string_term)
+            .finish()
+            .unwrap();
+        let list_size = to_word_size((mem::size_of::<Cons>() * 2) + mem::size_of::<HeapBin>() + string.len());
+        assert_eq!(yh.heap_used(), 1 + list_size);
+        assert!(list_term.is_list());
+        let list_ptr = list_term.list_val();
+        let first_cell = unsafe { &*list_ptr };
+        assert!(first_cell.head.is_smallint());
+        assert!(first_cell.tail.is_list());
+        let tail_ptr = first_cell.tail.list_val();
+        let second_cell = unsafe { &*tail_ptr };
+        assert!(second_cell.head.is_boxed());
+        let bin_ptr = second_cell.head.boxed_val();
+        let bin_term = unsafe { *bin_ptr };
+        assert!(bin_term.is_heapbin());
+        let hb = unsafe { &*(bin_ptr as *mut HeapBin) };
+        assert_eq!(hb.as_str(), string);
+    }
+
+    #[test]
+    fn young_heap_stack_alloc() {
+        let (heap, heap_size) = alloc::default_heap().unwrap();
+        let mut yh = YoungHeap::new(heap, heap_size);
+
+        // Allocate the list `[101, :foo]` on the stack
+        let num = Term::make_smallint(101);
+        let foo = unsafe { Atom::try_from_str("foo").unwrap().as_term() };
+        let _list_term = ListBuilder::on_stack(&mut yh)
+            .push(num)
+            .push(foo)
+            .finish()
+            .unwrap();
+        // 2 cons cells + 1 box term
+        let list_size = to_word_size(mem::size_of::<Cons>() * 2) + 1;
+
+        assert_eq!(yh.heap_used(), 0);
+        assert_eq!(yh.stack_used(), list_size);
+        assert_eq!(yh.stack_size(), 1);
+
+        // Allocate a binary and put the pointer on the stack
+        let string = "bar";
+        let string_term = make_heapbin_from_str(&mut yh, string).unwrap();
+        unsafe {
+            let ptr = yh.alloca(1).unwrap().as_ptr();
+            ptr::write(ptr, string_term);
+        }
+
+        // Verify stack sizes
+        assert_eq!(yh.stack_used(), list_size + 1);
+        assert_eq!(yh.stack_size(), 2);
+
+        // Fetch top of stack, expect box
+        let slot_term_addr = yh.stack_slot_address(0);
+        assert_eq!(slot_term_addr, yh.stack_start);
+        let slot_term = unsafe { *slot_term_addr };
+        assert!(slot_term.is_boxed());
+
+        // Fetch top - 1 of stack, expect list
+        let slot_term_addr = yh.stack_slot_address(1);
+        assert_eq!(slot_term_addr, unsafe { yh.stack_start.offset(1) });
+        let slot_term = unsafe { *slot_term_addr };
+        assert!(slot_term.is_list());
+        let list = unsafe { *slot_term.list_val() };
+        assert!(list.head.is_smallint());
+        assert!(list.tail.is_list());
+        let tail = unsafe { *list.tail.list_val() };
+        assert!(tail.head.is_atom());
+        assert!(tail.tail.is_nil());
+    }
 }

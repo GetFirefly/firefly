@@ -1,7 +1,8 @@
 use core::cmp;
+use core::fmt;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{Node, ProcessControlBlock};
+use crate::erts::{Node, AllocInProcess};
 
 use super::{AsTerm, Term};
 
@@ -19,7 +20,7 @@ impl Port {
 unsafe impl AsTerm for Port {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self.0 | Term::FLAG_PORT)
+        Term::make_port(self.0)
     }
 }
 impl PartialEq<ExternalPort> for Port {
@@ -35,7 +36,6 @@ impl PartialOrd<ExternalPort> for Port {
     }
 }
 
-#[derive(Debug)]
 pub struct ExternalPort {
     header: Term,
     node: Node,
@@ -45,12 +45,12 @@ pub struct ExternalPort {
 unsafe impl AsTerm for ExternalPort {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self)
     }
 }
 impl CloneToProcess for ExternalPort {
     #[inline]
-    fn clone_to_process(&self, _process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, _process: &mut A) -> Term {
         unimplemented!()
     }
 }
@@ -68,5 +68,15 @@ impl PartialOrd<ExternalPort> for ExternalPort {
             Some(Ordering::Equal) => self.port.partial_cmp(&other.port),
             result => result,
         }
+    }
+}
+impl fmt::Debug for ExternalPort {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ExternalPort")
+            .field("header", &self.header.as_usize())
+            .field("node", &self.node)
+            .field("next", &self.next)
+            .field("port", &self.port)
+            .finish()
     }
 }

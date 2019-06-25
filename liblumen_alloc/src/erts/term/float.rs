@@ -24,7 +24,7 @@ impl Float {
     #[inline]
     pub fn new(value: f64) -> Self {
         Self {
-            header: unsafe { Term::from_raw(Self::ARITYVAL | Term::FLAG_FLOAT) },
+            header: Term::make_header(Self::ARITYVAL, Term::FLAG_FLOAT),
             value,
         }
     }
@@ -37,7 +37,7 @@ impl Float {
 unsafe impl AsTerm for Float {
     #[inline]
     unsafe fn as_term(&self) -> Term {
-        Term::from_raw(self as *const _ as usize | Term::FLAG_BOXED)
+        Term::make_boxed(self as *const Self)
     }
 }
 impl From<SmallInteger> for Float {

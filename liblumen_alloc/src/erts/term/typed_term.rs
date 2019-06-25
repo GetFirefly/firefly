@@ -2,7 +2,6 @@ use core::cmp;
 use core::mem;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::ProcessControlBlock;
 
 use super::*;
 
@@ -291,10 +290,8 @@ unsafe impl AsTerm for TypedTerm {
             &Self::List(ref inner) => inner.as_term(),
             &Self::Tuple(ref inner) => inner.as_term(),
             &Self::Map(ref inner) => inner.as_term(),
-            &Self::Boxed(ref inner) => Term::from_raw(inner.as_usize() | Term::FLAG_BOXED),
-            &Self::Literal(ref inner) => {
-                Term::from_raw(inner.as_usize() | Term::FLAG_BOXED | Term::FLAG_LITERAL)
-            }
+            &Self::Boxed(ref inner) => Term::make_boxed(inner),
+            &Self::Literal(ref inner) => Term::make_boxed_literal(inner),
             &Self::Pid(ref inner) => inner.as_term(),
             &Self::Port(ref inner) => inner.as_term(),
             &Self::Reference(ref inner) => inner.as_term(),
@@ -318,7 +315,7 @@ unsafe impl AsTerm for TypedTerm {
 }
 
 impl CloneToProcess for TypedTerm {
-    fn clone_to_process(&self, process: &mut ProcessControlBlock) -> Term {
+    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
         // Immediates are just copied and returned, all other terms
         // are expected to require allocation, so we delegate to those types
         match self {

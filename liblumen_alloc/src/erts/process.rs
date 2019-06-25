@@ -2,16 +2,19 @@ mod flags;
 pub use self::flags::*;
 
 mod alloc;
+pub use self::alloc::{AllocInProcess, StackPrimitives};
+
 mod gc;
 
 use core::alloc::{AllocErr, Layout};
 use core::mem;
-use core::ptr::NonNull;
+use core::ptr::{self, NonNull};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use intrusive_collections::{LinkedList, UnsafeRef};
-
 use hashbrown::HashMap;
+use liblumen_core::locks::SpinLock;
+
 
 use self::gc::*;
 use super::*;
@@ -38,10 +41,8 @@ pub struct ProcessControlBlock {
     young: YoungHeap,
     // old generation heap
     old: OldHeap,
-    // virtual binary heap
-    vheap: VirtualBinaryHeap,
     // off-heap allocations
-    off_heap: LinkedList<HeapFragmentAdapter>,
+    off_heap: SpinLock<LinkedList<HeapFragmentAdapter>>,
     off_heap_size: AtomicUsize,
     // process dictionary
     dictionary: HashMap<Term, Term>,
@@ -60,8 +61,7 @@ impl ProcessControlBlock {
     pub fn new(heap: *mut Term, heap_size: usize) -> Self {
         let young = YoungHeap::new(heap, heap_size);
         let old = OldHeap::default();
-        let vheap = VirtualBinaryHeap::new(heap_size);
-        let off_heap = LinkedList::new(HeapFragmentAdapter::new());
+        let off_heap = SpinLock::new(LinkedList::new(HeapFragmentAdapter::new()));
         let dictionary = HashMap::new();
         Self {
             flags: AtomicProcessFlag::new(ProcessFlag::Default),
@@ -73,7 +73,6 @@ impl ProcessControlBlock {
             max_gen_gcs: 65535,
             young,
             old,
-            vheap,
             off_heap,
             off_heap_size: AtomicUsize::new(0),
             dictionary,
@@ -90,26 +89,6 @@ impl ProcessControlBlock {
     #[inline]
     pub fn clear_flags(&self, flags: ProcessFlag) {
         self.flags.clear(flags);
-    }
-
-    /// Perform a heap allocation.
-    ///
-    /// If space on the process heap is not immediately available, then the allocation
-    /// will be pushed into a heap fragment which will then be later moved on to the
-    /// process heap during garbage collection
-    #[inline]
-    pub unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        match self.young.alloc(need) {
-            ok @ Ok(_) => ok,
-            Err(_) => self.alloc_fragment(need),
-        }
-    }
-
-    /// Same as `alloc`, but takes a `Layout` rather than the size in words
-    #[inline]
-    pub unsafe fn alloc_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
-        let words = Self::layout_to_words(layout);
-        self.alloc(words)
     }
 
     /// Perform a heap allocation, but do not fall back to allocating a heap fragment
@@ -149,31 +128,11 @@ impl ProcessControlBlock {
         let frag_ref = frag.as_ref();
         let size = frag_ref.size();
         let data = frag_ref.data().cast::<Term>();
-        self.off_heap.push_front(UnsafeRef::from_raw(frag.as_ptr()));
+        let mut off_heap = self.off_heap.lock();
+        off_heap.push_front(UnsafeRef::from_raw(frag.as_ptr()));
+        drop(off_heap);
         self.off_heap_size.fetch_add(size, Ordering::AcqRel);
         Ok(data)
-    }
-
-    fn layout_to_words(layout: Layout) -> usize {
-        let size = layout.size();
-        let mut words = size / mem::size_of::<Term>();
-        if size % mem::size_of::<Term>() != 0 {
-            words += 1;
-        }
-        words
-    }
-
-    /// Perform a stack allocation
-    #[inline]
-    pub unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        self.young.stack_alloc(need)
-    }
-
-    /// Perform a stack allocation, but with a `Layout`
-    #[inline]
-    pub unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
-        let need = to_word_size(layout.size());
-        self.young.stack_alloc(need)
     }
 
     /// Frees stack space occupied by the last term on the stack,
@@ -181,67 +140,33 @@ impl ProcessControlBlock {
     /// 
     /// Use `stack_popn` to pop multiple terms from the stack at once
     #[inline]
-    pub unsafe fn stack_pop(&mut self) {
-        self.stack_popn(1)
+    pub fn stack_pop(&mut self) -> Option<Term> {
+        match self.stack_top() {
+            None => None,
+            ok @ Some(_) => {
+                self.stack_popn(1);
+                ok
+            }
+        }
     }
 
-    /// Like `stack_pop`, but frees `n` terms from the stack
+    /// Pushes an immediate term or reference to term/list on top of the stack
+    /// 
+    /// Returns `Err(AllocErr)` if the process is out of stack space
     #[inline]
-    pub unsafe fn stack_popn(&mut self, n: usize) {
-        assert!(n > 0);
-        self.young.stack_popn(n);
+    pub fn stack_push(&mut self, term: Term) -> Result<(), AllocErr> {
+        assert!(term.is_immediate() || term.is_boxed() || term.is_list());
+        unsafe {
+            let stack0 = self.alloca(1)?.as_ptr();
+            ptr::write(stack0, term);
+        }
+        Ok(())
     }
 
     /// Returns the term at the top of the stack
     #[inline]
-    pub unsafe fn stack_top(&mut self) -> Option<Term> {
+    pub fn stack_top(&mut self) -> Option<Term> {
         self.stack_slot(1)
-    }
-
-    /// Returns the term located in the given stack slot
-    /// 
-    /// The stack slot index counts upwards from 1, so 1
-    /// is equivalent to calling `stack_top`, 2 is the
-    /// term immediately preceding `stack_top` in the stack,
-    /// and so on
-    #[inline]
-    pub unsafe fn stack_slot(&mut self, slot: usize) -> Option<Term> {
-        assert!(slot > 0);
-        self.young.stack_slot(slot)
-    }
-
-    /// Returns the number of terms allocated on the stack
-    #[inline]
-    pub fn stack_size(&mut self) -> usize {
-        self.young.stack_size()
-    }
-
-    /// Returns the size of the stack space availabe in units of `Term`
-    #[inline]
-    pub fn stack_available(&mut self) -> usize {
-        self.young.stack_available()
-    }
-
-    /// Pushes a reference-counted binary on to this processes virtual heap
-    ///
-    /// NOTE: It is expected that the binary reference (the actual `ProcBin` struct)
-    /// has already been allocated on the process heap, and that this function is
-    /// being called simply to add the reference to the virtual heap
-    #[inline]
-    pub fn vheap_push(&mut self, bin: &ProcBin) -> Term {
-        self.vheap.push(bin)
-    }
-
-    /// Returns a boolean for if the given pointer is owned by memory allocated to this process
-    #[inline]
-    pub fn is_owner(&mut self, ptr: *const Term) -> bool {
-        if self.young.contains(ptr) || self.old.contains(ptr) {
-            return true;
-        }
-        if self.off_heap.iter().any(|frag| frag.contains(ptr)) {
-            return true;
-        }
-        self.vheap.contains(ptr)
     }
 
     /// Puts a new value under the given key in the process dictionary
@@ -326,10 +251,15 @@ impl ProcessControlBlock {
             return true;
         }
         // Check if virtual heap size indicates we should do a collection
-        let used = self.vheap.heap_used();
-        let unused = self.vheap.unused();
-        let threshold = ((used + unused) as f64 * self.gc_threshold).ceil() as usize;
-        used >= threshold
+        let used = self.young.virtual_heap_used();
+        let unused = self.young.virtual_heap_unused();
+        if unused > 0 {
+            let threshold = ((used + unused) as f64 * self.gc_threshold).ceil() as usize;
+            used >= threshold
+        } else {
+            // We've exceeded the virtual heap size
+            true
+        }
     }
 
     #[inline(always)]
@@ -371,7 +301,7 @@ impl ProcessControlBlock {
         // we are able to pick up from the current process context
         let mut rootset = RootSet::new(roots);
         // The primary source of roots we add is the process stack
-        rootset.push_range(self.young.stack_start, self.young.stack_used());
+        rootset.push_range(self.young.stack_pointer(), self.young.stack_size());
         // The process dictionary is also used for roots
         for (k, v) in &self.dictionary {
             rootset.push(k as *const _ as *mut _);
@@ -393,15 +323,95 @@ impl Drop for ProcessControlBlock {
         // the dictionary is dropped. This leaves only the young and old heap
 
         // Free young heap
-        let young_heap_start = self.young.start;
+        let young_heap_start = self.young.heap_start();
         let young_heap_size = self.young.size();
         unsafe { alloc::free(young_heap_start, young_heap_size) };
         // Free old heap, if active
         if self.old.active() {
-            let old_heap_start = self.old.start;
+            let old_heap_start = self.old.heap_start();
             let old_heap_size = self.old.size();
             unsafe { alloc::free(old_heap_start, old_heap_size) };
         }
+    }
+}
+impl AllocInProcess for ProcessControlBlock {
+    #[inline]
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        match self.young.alloc(need) {
+            ok @ Ok(_) => ok,
+            Err(_) => self.alloc_fragment(need),
+        }
+    }
+
+    #[inline]
+    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        self.young.alloca(need)
+    }
+
+    #[inline]
+    unsafe fn alloca_unchecked(&mut self, need: usize) -> NonNull<Term> {
+        self.young.alloca_unchecked(need)
+    }
+
+    #[inline]
+    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
+        self.young.virtual_alloc(bin)
+    }
+
+    #[inline]
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+        if self.young.contains(ptr) || self.old.contains(ptr) {
+            return true;
+        }
+        if self.young.virtual_heap_contains(ptr) || self.old.virtual_heap_contains(ptr) {
+            return true;
+        }
+        let off_heap = self.off_heap.lock();
+        if off_heap.iter().any(|frag| frag.contains(ptr)) {
+            return true;
+        }
+        false
+    }
+}
+impl StackPrimitives for ProcessControlBlock {
+    #[inline]
+    fn stack_size(&self) -> usize {
+        self.young.stack_size()
+    }
+
+    #[inline]
+    unsafe fn set_stack_size(&mut self, size: usize) {
+        self.young.set_stack_size(size);
+    }
+
+    #[inline]
+    fn stack_pointer(&mut self) -> *mut Term {
+        self.young.stack_pointer()
+    }
+
+    #[inline]
+    unsafe fn set_stack_pointer(&mut self, sp: *mut Term) {
+        self.young.set_stack_pointer(sp);
+    }
+
+    #[inline]
+    fn stack_used(&self) -> usize {
+        self.young.stack_used()
+    }
+
+    #[inline]
+    fn stack_available(&self) -> usize {
+        self.young.stack_available()
+    }
+
+    #[inline]
+    fn stack_slot(&mut self, n: usize) -> Option<Term> {
+        self.young.stack_slot(n)
+    }
+
+    #[inline]
+    fn stack_popn(&mut self, n: usize) {
+        self.young.stack_popn(n);
     }
 }
 

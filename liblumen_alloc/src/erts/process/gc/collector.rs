@@ -94,6 +94,8 @@ impl<'p> GarbageCollector<'p> {
     // - When `scan_stop` hits `scan_start`, we're done with the minor collection
     // - Deallocate from space
     fn full_sweep(&mut self, need: usize) -> Result<usize, GcError> {
+        trace!("Performing a full sweep garbage collection");
+
         let old_heap_size = self.process.old.heap_used();
 
         // Determine the estimated size for the new heap which will receive all live data
@@ -135,17 +137,35 @@ impl<'p> GarbageCollector<'p> {
                         // Replace the boxed move marker with the "real" box
                         assert!(boxed.is_boxed());
                         ptr::write(root, boxed);
-                    } else if !boxed.is_literal() {
-                        // Move into new heap
-                        new_heap.move_into(root, ptr, boxed);
+                    } else if !term.is_literal() {
+                        if boxed.is_procbin() {
+                            // First we need to remove the procbin from its old virtual heap
+                            let old_bin = &*(ptr as *mut ProcBin);
+                            if self.process.young.virtual_heap_contains(old_bin) {
+                                self.process.young.virtual_heap_unlink(old_bin);
+                            } else {
+                                self.process.old.virtual_heap_unlink(old_bin);
+                            }
+                            // Move to top of the new heap
+                            new_heap.move_into(root, ptr, boxed);
+                            // Then add the procbin to the new virtual heap
+                            let marker = *ptr;
+                            assert!(marker.is_boxed());
+                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin = &*bin_ptr;
+                            new_heap.virtual_alloc(bin);
+                        } else {
+                            // Move into new heap
+                            new_heap.move_into(root, ptr, boxed);
+                        }
                     }
                 } else if term.is_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
-                    if cons.head.is_none() {
+                    if cons.is_move_marker() {
                         // Replace the move marker with the "real" value
                         ptr::write(root, cons.tail);
-                    } else {
+                    } else if !term.is_literal() {
                         // Move into new heap
                         new_heap.move_cons_into(root, ptr, cons);
                     }
@@ -155,33 +175,44 @@ impl<'p> GarbageCollector<'p> {
         // All references in the roots point to the new heap, but most of
         // the references in the values we just moved still point back to
         // the old heaps
-        new_heap.full_sweep();
+        new_heap.full_sweep(&mut self.process.young, &mut self.process.old);
+
         // Now that all live data has been swept on to the new heap, we can
         // clean up all of the off heap fragments that we still have laying around
-        self.sweep_off_heap(&new_heap);
+        self.sweep_off_heap();
+
         // Free the old generation heap, as it is no longer used post-sweep
         if self.process.old.active() {
-            let old_heap_start = self.process.old.start;
+            let old_heap_start = self.process.old.heap_start();
             let old_heap_size = self.process.old.size();
             unsafe { alloc::free(old_heap_start, old_heap_size) };
             self.process.old = OldHeap::empty();
         }
+
         // Move the stack to the end of the new heap
-        let old_stack_start = self.process.young.stack_start;
-        let new_stack_start = unsafe { new_heap.stack_end.offset(-(stack_size as isize)) };
-        unsafe { ptr::copy_nonoverlapping(old_stack_start, new_stack_start, stack_size) };
-        self.process.young.stack_start = new_stack_start;
+        let old_stack_start = self.process.young.stack_pointer();
+        let old_stack_slots = self.process.young.stack_size();
+        unsafe { 
+            let new_stack_start = new_heap.alloca_unchecked(stack_size).as_ptr();
+            ptr::copy_nonoverlapping(old_stack_start, new_stack_start, stack_size);
+            new_heap.set_stack_pointer(new_stack_start);
+            new_heap.set_stack_size(old_stack_slots);
+        }
+
         // Free the old young generation heap, as it is no longer used now that the stack is moved
-        let young_heap_start = self.process.young.start;
+        let young_heap_start = self.process.young.heap_start();
         let young_heap_size = self.process.young.size();
         unsafe { alloc::free(young_heap_start, young_heap_size) };
+
         // Update the process to use the new heap
         new_heap.set_high_water_mark();
         self.process.young = new_heap;
         self.process.gen_gc_count = 0;
+
         // TODO: Move messages to be stored on-heap, on to the heap
         // Check invariants
         self.sanity_check();
+
         // Calculate reclamation for tracing
         let stack_used = self.process.young.stack_used();
         let heap_used = self.process.young.heap_used();
@@ -253,7 +284,7 @@ impl<'p> GarbageCollector<'p> {
             return Err(GcError::FullsweepRequired);
         }
 
-        let prev_old_top = self.process.old.top;
+        let prev_old_top = self.process.old.heap_pointer();
         let stack_size = self.process.young.stack_used();
         let mut new_size = alloc::next_heap_size(stack_size + size_before);
         while new_size < (stack_size + size_before + need) {
@@ -266,11 +297,11 @@ impl<'p> GarbageCollector<'p> {
         }
 
         // Perform the "meat" of the minor collection
-        unsafe { self.do_minor_sweep(self.process.young.start, mature_size, new_size)? };
+        unsafe { self.do_minor_sweep(self.process.young.heap_start(), mature_size, new_size)? };
 
         // TODO: if using on-heap messages, move messages in the queue to the heap
 
-        let new_mature = distance_absolute(self.process.old.top, prev_old_top);
+        let new_mature = distance_absolute(self.process.old.heap_pointer(), prev_old_top);
         let heap_used = self.process.young.heap_used();
         let size_after = new_mature + heap_used; // + process.mbuf_size
 
@@ -319,7 +350,7 @@ impl<'p> GarbageCollector<'p> {
         mature_size: usize,
         new_size: usize,
     ) -> Result<(), GcError> {
-        let old_top = self.process.old.top;
+        let old_top = self.process.old.heap_pointer();
         let mature_end = mature.offset(mature_size as isize);
 
         // Allocate new tospace (young generation)
@@ -340,21 +371,50 @@ impl<'p> GarbageCollector<'p> {
                 } else if in_area(ptr, mature, mature_end) {
                     // The boxed value should be moved to the old generation,
                     // since the value is below the high water mark
-                    self.process.old.move_into(root, ptr, boxed);
-                } else if in_young_gen(ptr, boxed, &self.process.old) {
-                    // Just a normal move into the new heap
-                    new_young.move_into(root, ptr, boxed);
+                    if boxed.is_procbin() {
+                        // First we need to remove the procbin from its old virtual heap
+                        let old_bin = &*(ptr as *mut ProcBin);
+                        self.process.young.virtual_heap_unlink(old_bin);
+                        // Move to top of the old gen heap
+                        self.process.old.move_into(root, ptr, boxed);
+                        // Then add the procbin to the new virtual heap
+                        let marker = *ptr;
+                        assert!(marker.is_boxed());
+                        let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                        let bin = &*bin_ptr;
+                        self.process.old.virtual_alloc(bin);
+                    } else {
+                        self.process.old.move_into(root, ptr, boxed);
+                    }
+                } else if !term.is_literal() && !self.process.old.contains(ptr) {
+                    // The boxed value is in the young generation
+                    if boxed.is_procbin() {
+                        // First we need to remove the procbin from its old virtual heap
+                        let old_bin = &*(ptr as *mut ProcBin);
+                        self.process.young.virtual_heap_unlink(old_bin);
+                        // Move to top of the new heap
+                        new_young.move_into(root, ptr, boxed);
+                        // Then add the procbin to the new virtual heap
+                        let marker = *ptr;
+                        assert!(marker.is_boxed());
+                        let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                        let bin = &*bin_ptr;
+                        new_young.virtual_alloc(bin);
+                    } else {
+                        // Just a normal move into the new heap
+                        new_young.move_into(root, ptr, boxed);
+                    }
                 }
             } else if term.is_list() {
                 let ptr = term.list_val();
                 let cons = *ptr;
-                if cons.head.is_none() {
+                if cons.is_move_marker() {
                     // Replace the move marker with the "real" value
                     ptr::write(root, cons.tail);
                 } else if in_area(ptr, mature, mature_end) {
                     // Move to old generation
                     self.process.old.move_cons_into(root, ptr, cons);
-                } else if !self.process.old.contains(ptr) {
+                } else if !term.is_literal() && !self.process.old.contains(ptr) {
                     // Move to new young heap
                     new_young.move_cons_into(root, ptr, cons);
                 }
@@ -365,101 +425,33 @@ impl<'p> GarbageCollector<'p> {
         // most references on the new heap point to the old heap so the next stage
         // is to scan through the new heap, evacuating data to the new heap until all
         // live references have been moved
-        if mature_size == 0 {
-            // No candidates for an old generation, so simply sweep the new
-            // young heap for references into the old young heap and move them
-            new_young.sweep(&self.process.old);
-        } else {
-            // While very similar to `sweep`, this variant needs to manipulate
-            // both the new young generation heap and the old generation heap
-            new_young.walk(|heap: &mut YoungHeap, term: Term, pos: *mut Term| {
-                if term.is_boxed() {
-                    let ptr = term.boxed_val();
-                    let boxed = *ptr;
-                    if is_move_marker(boxed) {
-                        assert!(boxed.is_boxed());
-                        // Overwrite move marker with "real" value
-                        ptr::write(pos, boxed);
-                    } else if in_area(ptr, mature, mature_end) {
-                        // Move into old generation
-                        self.process.old.move_into(pos, ptr, boxed);
-                    } else if in_young_gen(ptr, boxed, &self.process.old) {
-                        heap.move_into(pos, ptr, boxed);
-                    }
-                    Some(pos.offset(1))
-                } else if term.is_list() {
-                    let ptr = term.list_val();
-                    let cons = *ptr;
-                    if cons.is_move_marker() {
-                        // Overwrite move marker with forwarding reference
-                        ptr::write(pos, cons.tail);
-                    } else if in_area(ptr, mature, mature_end) {
-                        self.process.old.move_cons_into(pos, ptr, cons);
-                    } else if !self.process.old.contains(ptr) {
-                        heap.move_cons_into(pos, ptr, cons);
-                    }
-                    Some(pos.offset(1))
-                } else if term.is_header() {
-                    if term.is_tuple() {
-                        // We need to check all elements, so we just skip over the tuple header
-                        Some(pos.offset(1))
-                    } else if term.is_match_context() {
-                        let ctx = &*(pos as *mut MatchContext);
-                        let orig = ctx.orig();
-                        let base = ctx.base();
-                        let ptr = (*orig).boxed_val();
-                        let val = *ptr;
-                        if is_move_marker(val) {
-                            // Overwrite move marker
-                            ptr::write(orig, val);
-                            ptr::write(base, binary_bytes(val));
-                        } else if in_area(ptr, mature, mature_end) {
-                            self.process.old.move_into(orig, ptr, val);
-                            ptr::write(base, binary_bytes(*ctx.orig()));
-                        } else if in_young_gen(ptr, *orig, &self.process.old) {
-                            heap.move_into(orig, ptr, val);
-                            ptr::write(base, binary_bytes(*ctx.orig()));
-                        }
-                        Some(pos.offset(1 + (term.arityval() as isize)))
-                    } else if term.is_procbin() {
-                        Some(pos.offset(word_size_of::<ProcBin>() as isize))
-                    } else {
-                        Some(pos.offset(1 + (term.arityval() as isize)))
-                    }
-                } else {
-                    Some(pos.offset(1))
-                }
-            });
-        }
+        new_young.sweep(&mut self.process.young, &mut self.process.old, mature, mature_end);
 
         // If we have been tenuring (we have an old generation and have moved values into it),
         // then those newly tenured values may hold references into the old young generation
         // heap, which is about to be freed, so we need to move them into the old generation
         // as well (we never allow pointers into the young generation from the old)
-        if self.process.old.top as usize > old_top as usize {
-            self.process.old.sweep();
+        if self.process.old.heap_pointer() as usize > old_top as usize {
+            self.process.old.sweep(&mut new_young);
         }
 
+        // Mark where this collection ended in the new heap
         new_young.set_high_water_mark();
 
         // Sweep off-heap fragments
-        self.sweep_off_heap(&new_young);
+        self.sweep_off_heap();
 
         // Copy stack to end of new heap
         new_young.copy_stack_from(&self.process.young);
 
-        // Free the old young heap
-        let free_ptr = self.process.young.start;
-        let free_size = self.process.young.size();
-        alloc::free(free_ptr, free_size);
-
         // Replace the now freed young heap with the one we've been building
+        // NOTE: Because YoungHeap implements Drop, the old young heap will be freed correctly here
         self.process.young = new_young;
 
         Ok(())
     }
 
-    fn sweep_off_heap(&mut self, new_heap: &YoungHeap) {
+    fn sweep_off_heap(&mut self) {
         // We can drop all fragments, as the data they contain has either been moved
         // after the sweep that came just before this, so no other references
         // are possible, or it is garbage that can be collected
@@ -470,19 +462,11 @@ impl<'p> GarbageCollector<'p> {
         // to do automatically, we don't have to do any more than that here, at least
         // for now. In the future we may need to have more control over this, but
         // not in the current state of the system
-        let mut cursor = self.process.off_heap.front_mut();
+        let mut off_heap = self.process.off_heap.lock();
+        let mut cursor = off_heap.front_mut();
         while let Some(fragment_ref) = cursor.remove() {
             let fragment_ptr = UnsafeRef::into_raw(fragment_ref);
             unsafe { ptr::drop_in_place(fragment_ptr) };
-        }
-
-        // For binaries on the virtual heap, we just need to check that each is still
-        // located on an active heap, which is just the new heap for full sweeps, otherwise
-        // either the old or new generation heaps for minor sweeps
-        if self.mode == CollectionType::Full {
-            self.process.vheap.full_sweep(new_heap);
-        } else {
-            self.process.vheap.sweep(new_heap, &self.process.old);
         }
     }
 
@@ -500,37 +484,7 @@ impl<'p> GarbageCollector<'p> {
     /// that the heap is not moved. In BEAM, they have to account for that condition, as the
     /// allocators do not provide a `realloc_in_place` API
     fn shrink_young_heap(&mut self, new_size: usize) {
-        let total_size = self.process.young.size();
-        assert!(
-            new_size < total_size,
-            "tried to shrink a heap with a new size that is larger than the old size"
-        );
-
-        let stack_size = self.process.young.stack_used();
-
-        // Calculate the new start (or "top") of the stack, this will be our destination pointer
-        let old_start = self.process.young.start;
-        let old_stack_start = self.process.young.stack_start;
-        let new_stack_start = unsafe { old_start.offset((new_size - stack_size) as isize) };
-
-        // Copy the stack into its new position
-        unsafe { ptr::copy(old_stack_start, new_stack_start, stack_size) };
-
-        // Reallocate the heap to shrink it, if the heap is moved, there is a bug
-        // in the allocator which must have been introduced in a recent change
-        let new_heap = unsafe {
-            alloc::realloc(old_start, total_size, new_size)
-                .expect("unable to shrink heap memory for process: realloc failed!")
-        };
-        assert_eq!(
-            new_heap, old_start,
-            "expected reallocation of heap during shrink to occur in-place!"
-        );
-
-        self.process.young.end = unsafe { new_heap.offset(new_size as isize) };
-        self.process.young.stack_end = self.process.young.end;
-        self.process.young.stack_start =
-            unsafe { self.process.young.stack_end.offset(-(stack_size as isize)) };
+        self.process.young.shrink(new_size)
     }
 
     /// Ensures the old heap is initialized, if required

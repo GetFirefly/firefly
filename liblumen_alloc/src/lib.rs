@@ -13,10 +13,17 @@
 #![feature(exact_size_is_empty)]
 // Support use of Self and other type aliases in matches on enum variants
 #![feature(type_alias_enum_variants)]
-#![feature(alloc)]
+// For static assertions that use logical operators
+#![feature(const_fn)]
+#![feature(underscore_const_names)]
+#![feature(const_compare_raw_pointers)]
+#![feature(const_raw_ptr_to_usize_cast)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;
+
+#[macro_use]
+extern crate static_assertions;
 
 mod blocks;
 mod borrow;

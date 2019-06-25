@@ -16,6 +16,7 @@ lazy_static = "1.2"
 num-traits = "0.2"
 num-bigint = "0.2"
 thread_local = "0.3"
+heapless = { git = "https://github.com/japaric/heapless" }
 liblumen_core = { path = "../liblumen_core" }
 liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
@@ -28,6 +29,10 @@ features = ["nightly"]
 
 [dependencies.intrusive-collections]
 version = "0.7"
+features = ["nightly"]
+
+[dependencies.static_assertions]
+version = "0.3"
 features = ["nightly"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

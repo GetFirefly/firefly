@@ -1,10 +1,17 @@
 #![recursion_limit = "128"]
+#![cfg_attr(not(test), no_std)]
+// Do not fail the build when feature flags are stabilized on recent nightlies, just warn
 #![allow(stable_features)]
+// Allow use of intrinsics, e.g. unlikely/copy_nonoverlapping/etc.
 #![feature(core_intrinsics)]
+// Allocator APIs
 #![feature(allocator_api)]
 #![feature(alloc_layout_extra)]
+// Support offset_from pointer calculation
 #![feature(ptr_offset_from)]
+// Support is_empty for ExactSizeIterator
 #![feature(exact_size_is_empty)]
+// Support use of Self and other type aliases in matches on enum variants
 #![feature(type_alias_enum_variants)]
 #![feature(alloc)]
 

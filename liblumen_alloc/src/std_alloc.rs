@@ -37,6 +37,9 @@ use core::alloc::{Alloc, AllocErr, Layout};
 use core::cmp;
 use core::ptr::{self, NonNull};
 
+#[cfg(not(test))]
+use alloc::vec::Vec;
+
 use cfg_if::cfg_if;
 use lazy_static::lazy_static;
 

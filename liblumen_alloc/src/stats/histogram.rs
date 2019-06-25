@@ -8,13 +8,16 @@
 //! # Examples
 //! 
 //! ```
-//! use liblumen_alloc::stats::define_histogram;
-//!
-//! define_histogram!(10);
+//! use liblumen_alloc::stats::Histogram;
+//! 
+//! mod stats {
+//!     use liblumen_alloc::define_histogram;
+//!     define_histogram!(10);
+//! }
 //! # fn main() {
 //! // Create a histogram that will spread the given range over 
 //! // the 10 buckets the `Histogram` type was defined with.
-//! let mut histogram = Histogram::with_const_width(0, 10_000);
+//! let mut histogram = stats::Histogram::with_const_width(0, 10_000);
 //!
 //! // Adds some samples to the histogram.
 //! for sample in 0..100 {
@@ -56,7 +59,6 @@
 //! // ```
 //! # }
 //! ```
-#![deny(missing_docs)]
 #![deny(unsafe_code)]
 
 use core::fmt;
@@ -65,7 +67,7 @@ pub use defaults::Histogram as DefaultHistogram;
 
 /// This trait represents the bare minimum functionality needed
 /// to interact with an implementation by a mutator
-pub trait Histogram: Clone + Default + fmt::Display {
+pub trait Histogram: fmt::Display {
     /// Add a sample to the histogram.
     ///
     /// Fails if the sample is out of range of the histogram.
@@ -219,9 +221,36 @@ macro_rules! define_histogram {
             pub fn range_max(&self) -> u64 {
                 self.range[Self::LEN]
             }
+
+            /// Return the minimum value observed so far
+            #[inline]
+            pub fn min(&self) -> u64 {
+                self.minmax.min().copied().unwrap_or(0)
+            }
+
+            /// Return the maximum value observed so far
+            #[inline]
+            pub fn max(&self) -> u64 {
+                self.minmax.max().copied().unwrap_or(0)
+            }
+
+            #[inline]
+            pub fn mean(&self) -> f64 {
+                self.stats.mean()
+            }
+
+            #[inline]
+            pub fn stddev(&self) -> f64 {
+                self.stats.stddev()
+            }
+
+            #[inline]
+            pub fn variance(&self) -> f64 {
+                self.stats.variance()
+            }
         }
 
-        impl $crate::stats::histogram::Histogram for Histogram {
+        impl $crate::stats::Histogram for Histogram {
             /// Add a sample to the histogram.
             ///
             /// Fails if the sample is out of range of the histogram.
@@ -273,6 +302,9 @@ macro_rules! define_histogram {
             fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
                 use core::cmp;
                 use core::fmt::Write;
+
+                #[cfg(not(test))]
+                use alloc::string::String;
 
                 let num_samples: u64 = self.bins().iter().sum();
                 writeln!(f, "# Number of samples = {}", num_samples)?;
@@ -357,71 +389,79 @@ mod defaults {
     // This histogram will spread all allocations across 100 buckets
     define_histogram!(100);
     // Provide a default implementation which will focus on the main sizes of concern
-    impl Default for Histogram {
+    impl Default for self::Histogram {
         fn default() -> Self {
-            let mut ranges = Vec::with_capacity(100);
+            use heapless::Vec;
+            use heapless::consts::U100;
+            let mut ranges = Vec::<_, U100>::new();
             // Use the fibonnaci sequence up to 1TB
             let mut n: u64 = 1;
             let mut m: u64 = 2;
-            ranges.push(m);
+            ranges.push(m).unwrap();
             for _ in 1..57u64 {
                 let new_m = n + m;
                 n = m;
-                ranges.push(new_m);
+                ranges.push(new_m).unwrap();
                 m = new_m;
             }
             // Grow by 20% afterwards
             for _ in 57..99u64 {
                 let new_m = m + (m as f64 * 0.2).ceil() as u64;
-                ranges.push(new_m);
+                ranges.push(new_m).unwrap();
                 m = new_m;
             }
             // Add one final range that covers the remaining address space
-            ranges.push(u64::max_value());
-            Self::from_ranges(ranges.as_slice().iter().cloned()).unwrap()
+            ranges.push(u64::max_value()).unwrap();
+            Self::from_ranges(ranges.iter().cloned()).unwrap()
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    mod defaults {
+        use crate::define_histogram;
 
-    define_histogram!(10);
+        define_histogram!(10);
+    }
+
+    use super::Histogram;
+    use self::defaults::Histogram as DefaultHistogram;
 
     #[test]
-    fn with_const_width_test() {
-        let mut h = Histogram::with_const_width(0, 100);
+    fn histogram_with_const_width_test() {
+        let mut h = DefaultHistogram::with_const_width(0, 100);
         for i in 0..100 {
-            h.add(i);
+            h.add(i).ok();
         }
         assert_eq!(h.max(), 99);
         assert_eq!(h.min(), 0);
-        assert_eq!(h.mean(), 50);
-        assert_eq!(h.bins(), &[10, 10, 10, 10, 10, 10, 10, 10, 10, 9])
+        assert_eq!(h.mean(), 49.5);
+        assert_eq!(h.bins(), &[10, 10, 10, 10, 10, 10, 10, 10, 10, 10])
     }
 
     #[test]
-    fn from_ranges_test() {
-        let ranges = [
-            (2, 4), 
-            (4, 8), 
-            (8, 16), 
-            (16, 32), 
-            (32, 64),
-            (64, 128),
-            (128, 256),
-            (256, 512),
-            (512, 1024),
-            (1024, 2048),
+    fn histogram_from_ranges_test() {
+        let ranges: [u64; 11] = [
+            2,
+            4,
+            8,
+            16,
+            32,
+            64,
+            128,
+            256,
+            512,
+            1024,
+            2048
         ];
-        let mut h = Histogram::from_ranges(&ranges);
+        let mut h = DefaultHistogram::from_ranges(ranges.iter().copied()).unwrap();
         for i in 2..2048 {
-            h.add(i);
+            h.add(i).ok();
         }
         assert_eq!(h.max(), 2047);
         assert_eq!(h.min(), 2);
-        assert_eq!(h.mean(), 50);
-        assert_eq!(h.bins(), &[10, 10, 10, 10, 10, 10, 10, 10, 10, 9])
+        assert_eq!(h.mean(), 1024.5);
+        assert_eq!(h.bins(), &[2, 4, 8, 16, 32, 64, 128, 256, 512, 1024])
     }
 }

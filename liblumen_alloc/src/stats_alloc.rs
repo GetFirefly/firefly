@@ -21,7 +21,7 @@ use crate::stats::hooks;
 /// The `StatsAlloc` can be tagged to provide useful metadata bout
 /// what type of allocator is being traced and how it is used.
 #[derive(Debug)]
-pub struct StatsAlloc<T, H: Histogram = DefaultHistogram> {
+pub struct StatsAlloc<T, H: Histogram + Clone + Default = DefaultHistogram> {
     alloc_calls: AtomicUsize,
     dealloc_calls: AtomicUsize,
     realloc_calls: AtomicUsize,
@@ -32,7 +32,7 @@ pub struct StatsAlloc<T, H: Histogram = DefaultHistogram> {
     tag: &'static str,
     allocator: T,
 }
-impl<T, H: Histogram> StatsAlloc<T, H> {
+impl<T, H: Histogram + Clone + Default> StatsAlloc<T, H> {
     #[inline]
     pub fn new(t: T) -> Self {
         Self {
@@ -77,19 +77,19 @@ impl<T, H: Histogram> StatsAlloc<T, H> {
         }
     }
 }
-impl<T: Default, H: Histogram> Default for StatsAlloc<T, H> {
+impl<T: Default, H: Histogram + Clone + Default> Default for StatsAlloc<T, H> {
     #[inline]
     fn default() -> Self {
         Self::new(T::default())
     }
 }
-unsafe impl<T: Alloc + Sync, H: Histogram> Sync for StatsAlloc<T, H> {}
-unsafe impl<T: Alloc + Send, H: Histogram> Send for StatsAlloc<T, H> {}
+unsafe impl<T: Alloc + Sync, H: Histogram + Clone + Default> Sync for StatsAlloc<T, H> {}
+unsafe impl<T: Alloc + Send, H: Histogram + Clone + Default> Send for StatsAlloc<T, H> {}
 
 /// This struct represents a snapshot of the stats gathered
 /// by an instances of `StatsAlloc`, and is used for display
 #[derive(Debug)]
-pub struct Statistics<H: Histogram> {
+pub struct Statistics<H: Histogram + Clone + Default> {
     alloc_calls: usize,
     dealloc_calls: usize,
     realloc_calls: usize,
@@ -99,7 +99,7 @@ pub struct Statistics<H: Histogram> {
     tag: &'static str,
     histogram: H,
 }
-impl<H: Histogram> fmt::Display for Statistics<H> {
+impl<H: Histogram + Clone + Default> fmt::Display for Statistics<H> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "## Allocator Statistics (tag = {})", self.tag)?;
         writeln!(f, "# Calls to alloc = {}", self.alloc_calls)?;
@@ -114,7 +114,7 @@ impl<H: Histogram> fmt::Display for Statistics<H> {
     }
 }
 
-unsafe impl<T: Alloc, H: Histogram> Alloc for StatsAlloc<T, H> {
+unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H> {
     #[inline]
     unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         let size = layout.size();
@@ -195,7 +195,7 @@ unsafe impl<T: Alloc, H: Histogram> Alloc for StatsAlloc<T, H> {
     }
 }
 
-unsafe impl<T: GlobalAlloc, H: Histogram> GlobalAlloc for StatsAlloc<T, H> {
+unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for StatsAlloc<T, H> {
     #[inline]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();

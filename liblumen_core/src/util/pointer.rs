@@ -129,7 +129,7 @@ mod tests {
         let end = unsafe { start.offset(100) };
 
         assert!(in_area(1 as *const u8, start, end));
-        assert!(in_area(101 as *const u8, start, end));
-        assert!(!in_area(102 as *const u8, start, end));
+        assert!(in_area(100 as *const u8, start, end));
+        assert!(!in_area(101 as *const u8, start, end));
     }
 }

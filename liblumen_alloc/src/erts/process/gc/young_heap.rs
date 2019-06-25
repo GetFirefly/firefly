@@ -1,7 +1,7 @@
 use core::alloc::{AllocErr, Layout};
+use core::fmt;
 use core::mem;
 use core::ptr::{self, NonNull};
-use core::fmt;
 
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
@@ -125,7 +125,10 @@ impl StackPrimitives for YoungHeap {
 
     #[inline]
     unsafe fn set_stack_pointer(&mut self, sp: *mut Term) {
-        assert!(in_area_inclusive(sp, self.top, self.stack_end), "attempted to set stack pointer out of bounds");
+        assert!(
+            in_area_inclusive(sp, self.top, self.stack_end),
+            "attempted to set stack pointer out of bounds"
+        );
         self.stack_start = sp;
     }
 
@@ -169,20 +172,23 @@ impl StackPrimitives for YoungHeap {
     }
 }
 impl YoungHeap {
-    /// This function is used to reallocate the memory region this heap was originally allocated with
-    /// to a smaller size, given by `new_size`. This function will panic if the given size is not
-    /// large enough to hold the stack, if a size greater than the previous size is given, or if
-    /// reallocation in place fails.
-    /// 
+    /// This function is used to reallocate the memory region this heap was originally allocated
+    /// with to a smaller size, given by `new_size`. This function will panic if the given size
+    /// is not large enough to hold the stack, if a size greater than the previous size is
+    /// given, or if reallocation in place fails.
+    ///
     /// On success, the heap metadata is updated to reflect the new size
-    pub(in super) fn shrink(&mut self, new_size: usize) {
+    pub(super) fn shrink(&mut self, new_size: usize) {
         let total_size = self.size();
         assert!(
             new_size < total_size,
             "tried to shrink a heap with a new size that is larger than the old size"
         );
         let stack_size = self.stack_used();
-        assert!(new_size > stack_size, "cannot shrink heap to be smaller than its stack usage");
+        assert!(
+            new_size > stack_size,
+            "cannot shrink heap to be smaller than its stack usage"
+        );
 
         // Calculate the new start (or "top") of the stack, this will be our destination pointer
         let old_start = self.start;
@@ -296,7 +302,7 @@ impl YoungHeap {
             } else if term.is_boxed() {
                 // Boxed terms will consist of the box itself, and if stored on the stack, the
                 // boxed value will follow immediately afterward. The header of that value will
-                // contain the size in words of the data, which we can use to skip over to the next 
+                // contain the size in words of the data, which we can use to skip over to the next
                 // term. In the case where the value resides on the heap, we can treat the box like
                 // an immediate
                 let ptr = term.boxed_val();
@@ -309,18 +315,23 @@ impl YoungHeap {
                     let skip = val.arityval() as isize;
                     pos = unsafe { pos.offset(skip) };
                 } else {
-                    assert!(!in_area(ptr, pos, self.stack_end), "boxed term stored on stack but not contiguously!");
+                    assert!(
+                        !in_area(ptr, pos, self.stack_end),
+                        "boxed term stored on stack but not contiguously!"
+                    );
                 }
             } else if term.is_list() {
                 // The list begins here
                 last = pos;
                 pos = unsafe { pos.offset(1) };
-                // Lists are essentially boxes which point to cons cells, but are a bit more complicated
-                // than boxed terms. Proper lists will have a cons cell where the head is nil, and improper
-                // lists will have a tail that contains a non-list term. For lists entirely on the stack, they
-                // may only consist of immediates or boxes which point to values on the heap, as it introduces
-                // unnecessary complexity to lay out cons cells in memory where the head term is larger than one
-                // word. This constraint also makes allocating lists on the stack easier to reason about.
+                // Lists are essentially boxes which point to cons cells, but are a bit more
+                // complicated than boxed terms. Proper lists will have a cons cell
+                // where the head is nil, and improper lists will have a tail that
+                // contains a non-list term. For lists entirely on the stack, they
+                // may only consist of immediates or boxes which point to values on the heap, as it
+                // introduces unnecessary complexity to lay out cons cells in memory
+                // where the head term is larger than one word. This constraint also
+                // makes allocating lists on the stack easier to reason about.
                 let ptr = term.list_val() as *mut Cons;
                 let mut next_ptr = pos as *mut Cons;
                 // If true, the first cell is correctly laid out contiguously with the list term
@@ -334,8 +345,11 @@ impl YoungHeap {
                             // We've hit the end of a proper list, update `pos` and break out
                             pos = next_ptr as *mut Term;
                             break;
-                        } 
-                        assert!(cons.head.is_immediate() || cons.head.is_boxed(), "invalid stack-allocated list, elements must be an immediate or box");
+                        }
+                        assert!(
+                            cons.head.is_immediate() || cons.head.is_boxed(),
+                            "invalid stack-allocated list, elements must be an immediate or box"
+                        );
                         if cons.tail.is_list() {
                             // The list continues, we need to check where it continues on the stack
                             let next_cons = cons.tail.list_val();
@@ -346,7 +360,10 @@ impl YoungHeap {
                                 continue;
                             } else {
                                 // It must be on the heap, otherwise we've violated an invariant
-                                assert!(!in_area(next_cons, next_ptr as *const Term, self.stack_end), "list stored on stack but not contiguously!");
+                                assert!(
+                                    !in_area(next_cons, next_ptr as *const Term, self.stack_end),
+                                    "list stored on stack but not contiguously!"
+                                );
                             }
                         } else if cons.tail.is_immediate() {
                             // We've hit the end of the list, update `pos` and break out
@@ -361,7 +378,10 @@ impl YoungHeap {
                         }
                     }
                 } else {
-                    assert!(!in_area(ptr, pos, self.stack_end), "list term stored on stack but not contiguously!");
+                    assert!(
+                        !in_area(ptr, pos, self.stack_end),
+                        "list term stored on stack but not contiguously!"
+                    );
                 }
             } else {
                 unreachable!();
@@ -569,7 +589,13 @@ impl YoungHeap {
     /// heap that require moving. A reference to the old generation heap is also provided
     /// so that we can check that a candidate pointer is not in the old generation already,
     /// as those values are out of scope for this sweep
-    pub fn sweep(&mut self, prev: &mut YoungHeap, old: &mut OldHeap, mature: *mut Term, mature_end: *mut Term) {
+    pub fn sweep(
+        &mut self,
+        prev: &mut YoungHeap,
+        old: &mut OldHeap,
+        mature: *mut Term,
+        mature_end: *mut Term,
+    ) {
         self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
             unsafe {
                 if term.is_boxed() {
@@ -748,7 +774,7 @@ impl YoungHeap {
 
     #[cfg(debug_assertions)]
     #[inline]
-    pub(in super) fn sanity_check(&self) {
+    pub(super) fn sanity_check(&self) {
         let hb = self.start as usize;
         let st = self.stack_end as usize;
         let size = self.size() * mem::size_of::<Term>();
@@ -785,7 +811,7 @@ impl YoungHeap {
 
     #[cfg(not(debug_assertions))]
     #[inline]
-    pub(in super) fn sanity_check(&self) {
+    pub(super) fn sanity_check(&self) {
         self.overrun_check();
     }
 
@@ -816,8 +842,10 @@ impl fmt::Debug for YoungHeap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_fmt(format_args!(
             "YoungHeap (heap: {:?}-{:?}, stack: {:?}-{:?}, used: {}, unused: {}) [\n",
-            self.start, self.top,
-            self.stack_start, self.stack_end,
+            self.start,
+            self.top,
+            self.stack_start,
+            self.stack_end,
             self.heap_used() + self.stack_used(),
             self.unused(),
         ))?;
@@ -859,8 +887,8 @@ impl fmt::Debug for YoungHeap {
 
 #[cfg(test)]
 mod tests {
-    use core::ptr;
     use super::*;
+    use core::ptr;
 
     use crate::erts::process::alloc;
 
@@ -871,9 +899,13 @@ mod tests {
 
         assert_eq!(yh.size(), heap_size);
         assert_eq!(yh.stack_size(), 0);
-        unsafe { yh.set_stack_size(3); }
+        unsafe {
+            yh.set_stack_size(3);
+        }
         assert_eq!(yh.stack_size(), 3);
-        unsafe { yh.set_stack_size(0); }
+        unsafe {
+            yh.set_stack_size(0);
+        }
         assert_eq!(yh.stack_used(), 0);
         assert_eq!(yh.heap_used(), 0);
         assert_eq!(yh.unused(), heap_size);
@@ -895,7 +927,8 @@ mod tests {
             .push(string_term)
             .finish()
             .unwrap();
-        let list_size = to_word_size((mem::size_of::<Cons>() * 2) + mem::size_of::<HeapBin>() + string.len());
+        let list_size =
+            to_word_size((mem::size_of::<Cons>() * 2) + mem::size_of::<HeapBin>() + string.len());
         assert_eq!(yh.heap_used(), 1 + list_size);
         assert!(list_term.is_list());
         let list_ptr = list_term.list_val();

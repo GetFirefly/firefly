@@ -60,14 +60,18 @@ pub fn in_area_inclusive<T, U>(ptr: *const T, start: *const U, end: *const U) ->
 /// Performs a byte-by-byte comparison of the values pointed to by `src` and `dst`,
 /// returning `Ok` if they are equal, and `Err(index)` if they are not equal, where
 /// `index` is the byte where the values differ
-/// 
+///
 /// # Safety
-/// 
+///
 /// This function will fail with a segmentation fault if the memory regions represented
 /// by the given pointers + size in bytes is not allocated. The caller must ensure that
 /// is the case before calling this.
 #[inline]
-pub unsafe fn compare_bytes<T: PartialEq + Sized>(src: *const T, dst: *const T, size: usize) -> bool {
+pub unsafe fn compare_bytes<T: PartialEq + Sized>(
+    src: *const T,
+    dst: *const T,
+    size: usize,
+) -> bool {
     let lhs = core::slice::from_raw_parts(src, size);
     let rhs = core::slice::from_raw_parts(dst, size);
     lhs.eq(rhs)

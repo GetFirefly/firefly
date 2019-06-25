@@ -12,8 +12,10 @@ use super::*;
 #[cfg(target_pointer_width = "64")]
 mod constants {
     #![allow(unused)]
-    ///! This module contains constants for 64-bit architectures used by the term implementation.
-    ///! 
+    use super::Term;
+    use crate::erts::Cons;
+    ///! This module contains constants for 64-bit architectures used by the term
+    /// implementation. !
     ///! On 64-bit platforms, the highest 16 bits of pointers are unused and
     ///! because we enforce 8-byte aligned allocations, the lowest 3 bits are
     ///! also unused. To keep things simple on this arch, we put all of our flags in the
@@ -22,8 +24,6 @@ mod constants {
     ///! the raw value just needs to be masked to access either the pointer or the flags,
     ///! no shifts are required.
     use core::mem;
-    use super::Term;
-    use crate::erts::Cons;
 
     const NUM_BITS: usize = mem::size_of::<usize>() * 8;
     const MIN_ALIGNMENT: usize = mem::align_of::<usize>();
@@ -31,13 +31,15 @@ mod constants {
     /// This is the highest logical 8-byte aligned address on this architecture
     const MAX_LOGICAL_ALIGNED_ADDR: usize = usize::max_value() & !(MIN_ALIGNMENT - 1);
     /// This is the highest assignable 8-byte aligned address on this architecture
-    /// 
+    ///
     /// NOTE: On all modern 64-bit systems I'm aware of, the highest 16 bits are unused
     pub const MAX_ALIGNED_ADDR: usize = MAX_LOGICAL_ALIGNED_ADDR - (0xFFFFusize << (NUM_BITS - 16));
 
-    /// This is the highest usize value that can be stored in a header term without conflicting with the tag scheme.
+    /// This is the highest usize value that can be stored in a header term without conflicting with
+    /// the tag scheme.
     pub const MAX_HEADER_VALUE: usize = usize::max_value() - (0xFFFFusize << (NUM_BITS - 16));
-    /// This is the highest usize value that can be stored in an immediate term without conflicting with the tag scheme.
+    /// This is the highest usize value that can be stored in an immediate term without conflicting
+    /// with the tag scheme.
     pub const MAX_IMMEDIATE_VALUE: usize = usize::max_value() - !(usize::max_value() >> 4);
     pub const MAX_SMALLINT_VALUE: usize = usize::max_value() - !(usize::max_value() >> 5);
 
@@ -203,8 +205,10 @@ mod constants {
 #[cfg(target_pointer_width = "32")]
 mod constants {
     #![allow(unused)]
-    ///! This module contains constants for 64-bit architectures used by the term implementation.
-    ///! 
+    use super::Term;
+    use crate::erts::Cons;
+    ///! This module contains constants for 64-bit architectures used by the term
+    /// implementation. !
     ///! On 32-bit platforms we generally can use the high bits like we
     ///! do on 64-bit platforms, as the full address space is rarely available,
     ///! e.g. Windows with 2-3gb addressable range, Linux with 3gb. But to avoid
@@ -215,24 +219,22 @@ mod constants {
     ///! non-pointer terms, the flags all go in the high bits, to make accessing
     ///! the value and tags as easy as applying a mask, no shifts needed.
     use core::mem;
-    use super::Term;
-    use crate::erts::Cons;
 
     const NUM_BITS: usize = mem::size_of::<usize>() * 8;
     const MIN_ALIGNMENT: usize = mem::align_of::<usize>();
 
     const MAX_LOGICAL_ALIGNED_ADDR: usize = usize::max_value() & !(MIN_ALIGNMENT - 1);
     /// This is the highest assignable 8-byte aligned address on this architecture
-    /// 
+    ///
     /// NOTE: On Windows and Linux, this address is actually capped at 2gb and 3gb respectively,
     /// but other platforms may not have this restriction, so our tagging scheme tries to avoid
     /// using high bits if at all possible. We do use the highest bit as a flag for literal values,
     /// i.e. pointers to literal constants
     pub const MAX_ALIGNED_ADDR: usize = MAX_LOGICAL_ALIGNED_ADDR - (1usize << (NUM_BITS - 1));
 
-    /// This is the highest raw usize value that can be stored in a term without conflicting with the tag scheme.
-    /// The value here is not intended to mean anything specific, it just represents the highest value that
-    /// is representable using those bits
+    /// This is the highest raw usize value that can be stored in a term without conflicting with
+    /// the tag scheme. The value here is not intended to mean anything specific, it just
+    /// represents the highest value that is representable using those bits
     pub const MAX_HEADER_VALUE: usize = usize::max_value() - (0xFFFFusize << (NUM_BITS - 16));
     /// Immediate values require an extra bit for flags than header values, 7 to be precise,
     /// so the maximum immediate value (such as for small integers) is the max usize value - 127
@@ -254,7 +256,7 @@ mod constants {
     pub const FLAG_LITERAL: usize = 1 << 2; // 0b100
     pub const FLAG_IMMEDIATE: usize = 3 << 0; // 0b011
     pub const FLAG_IMMEDIATE2: usize = (2 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b10_011
-    // First class immediates
+                                                                                 // First class immediates
     pub const FLAG_PID: usize = 0 | FLAG_IMMEDIATE; // 0b00_011
     pub const FLAG_PORT: usize = (1 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b01_011
     pub const FLAG_SMALL_INTEGER: usize = (3 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b11_011
@@ -264,7 +266,7 @@ mod constants {
     pub const FLAG_CATCH: usize = (1 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2; // 0b0110_011
     pub const FLAG_UNUSED_1: usize = (2 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2; // 0b1010_011
     pub const FLAG_NIL: usize = (3 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2; // 0b1110_011
-    // Header types, these flags re-use the literal flag bit, as it only applies to primary tags
+                                                                           // Header types, these flags re-use the literal flag bit, as it only applies to primary tags
     pub const FLAG_TUPLE: usize = 0 | FLAG_HEADER; // 0b000_000
     pub const FLAG_NONE: usize = (1 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b000_100
     pub const FLAG_POS_BIG_INTEGER: usize = (2 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b001_000
@@ -395,8 +397,9 @@ mod constants {
 mod typecheck {
     ///! This module contains functions which perform type checking on raw term values.
     ///!
-    ///! These functions are all constant functions, so they are also used in static assertions
-    ///! to verify that the functions are correct at compile-time, rather than depending on tests.
+    ///! These functions are all constant functions, so they are also used in static
+    /// assertions ! to verify that the functions are correct at compile-time, rather than
+    /// depending on tests.
     use super::constants;
 
     pub const NONE: usize = constants::NONE_VAL | constants::FLAG_NONE;
@@ -453,8 +456,8 @@ mod typecheck {
     /// Returns true if this term is a big integer (i.e. arbitrarily large)
     #[inline]
     pub fn is_bigint(term: usize) -> bool {
-        constants::header_tag(term) == constants::FLAG_POS_BIG_INTEGER ||
-        constants::header_tag(term) == constants::FLAG_NEG_BIG_INTEGER
+        constants::header_tag(term) == constants::FLAG_POS_BIG_INTEGER
+            || constants::header_tag(term) == constants::FLAG_NEG_BIG_INTEGER
     }
 
     /// Returns true if this term is a float
@@ -726,9 +729,12 @@ impl Term {
             -1 => {
                 let value = value.abs() as usize;
                 assert!(value <= constants::MAX_SMALLINT_VALUE);
-                Self(constants::make_immediate1(value, Self::FLAG_SMALL_INTEGER) | constants::FLAG_SMALL_INTEGER_SIGN)
+                Self(
+                    constants::make_immediate1(value, Self::FLAG_SMALL_INTEGER)
+                        | constants::FLAG_SMALL_INTEGER_SIGN,
+                )
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -1169,11 +1175,17 @@ impl fmt::Debug for Term {
                 let atom = unsafe { Atom::from_id(id) };
                 write!(f, "Term({:?}, id: {})", atom, id)
             } else if self.is_smallint() {
-                write!(f, "Term({})", unsafe { SmallInteger::from_untagged_term(constants::immediate1_value(self.0)) })
+                write!(f, "Term({})", unsafe {
+                    SmallInteger::from_untagged_term(constants::immediate1_value(self.0))
+                })
             } else if self.is_pid() {
-                write!(f, "Term({:?})", unsafe { Pid::from_raw(constants::immediate1_value(self.0)) })
+                write!(f, "Term({:?})", unsafe {
+                    Pid::from_raw(constants::immediate1_value(self.0))
+                })
             } else if self.is_port() {
-                write!(f, "Term({:?})", unsafe { Port::from_raw(constants::immediate1_value(self.0)) })
+                write!(f, "Term({:?})", unsafe {
+                    Port::from_raw(constants::immediate1_value(self.0))
+                })
             } else if self.is_nil() {
                 write!(f, "Term(Nil)")
             } else if self.is_catch() {
@@ -1263,18 +1275,35 @@ mod tests {
     #[test]
     fn boxed_term_invariants() {
         assert!(typecheck::is_boxed(0 | constants::FLAG_BOXED));
-        assert!(typecheck::is_boxed(constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED));
-        assert!(!typecheck::is_list(constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED));
-        assert!(!typecheck::is_header(constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED));
-        assert_eq!(constants::boxed_value(constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED) as usize, constants::MAX_ALIGNED_ADDR);
+        assert!(typecheck::is_boxed(
+            constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED
+        ));
+        assert!(!typecheck::is_list(
+            constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED
+        ));
+        assert!(!typecheck::is_header(
+            constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED
+        ));
+        assert_eq!(
+            constants::boxed_value(constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED) as usize,
+            constants::MAX_ALIGNED_ADDR
+        );
     }
 
     #[test]
     fn literal_term_invariants() {
-        assert!(typecheck::is_literal(0 | constants::FLAG_BOXED | constants::FLAG_LITERAL));
-        assert!(typecheck::is_literal(constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED | constants::FLAG_LITERAL));
-        assert!(typecheck::is_literal(0 | constants::FLAG_LIST | constants::FLAG_LITERAL));
-        assert!(typecheck::is_literal(constants::MAX_ALIGNED_ADDR | constants::FLAG_LIST | constants::FLAG_LITERAL));
+        assert!(typecheck::is_literal(
+            0 | constants::FLAG_BOXED | constants::FLAG_LITERAL
+        ));
+        assert!(typecheck::is_literal(
+            constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED | constants::FLAG_LITERAL
+        ));
+        assert!(typecheck::is_literal(
+            0 | constants::FLAG_LIST | constants::FLAG_LITERAL
+        ));
+        assert!(typecheck::is_literal(
+            constants::MAX_ALIGNED_ADDR | constants::FLAG_LIST | constants::FLAG_LITERAL
+        ));
         assert!(Term::make_boxed_literal(constants::MAX_ALIGNED_ADDR as *mut Term).is_literal());
     }
 
@@ -1294,7 +1323,10 @@ mod tests {
     #[test]
     fn smallint_term_invariants() {
         let a = constants::make_immediate1(1, constants::FLAG_SMALL_INTEGER);
-        let b = constants::make_immediate1(constants::MAX_IMMEDIATE_VALUE, constants::FLAG_SMALL_INTEGER);
+        let b = constants::make_immediate1(
+            constants::MAX_IMMEDIATE_VALUE,
+            constants::FLAG_SMALL_INTEGER,
+        );
         assert!(typecheck::is_smallint(a));
         assert_eq!(constants::immediate1_tag(a), constants::FLAG_SMALL_INTEGER);
         assert!(typecheck::is_smallint(b));
@@ -1316,8 +1348,14 @@ mod tests {
         assert!(!typecheck::is_boxed(b));
         assert!(!typecheck::is_header(a));
         assert!(!typecheck::is_header(b));
-        assert_eq!(constants::list_value(a) as usize, ptr::null::<Term>() as usize);
-        assert_eq!(constants::list_value(b) as usize, constants::MAX_ALIGNED_ADDR);
+        assert_eq!(
+            constants::list_value(a) as usize,
+            ptr::null::<Term>() as usize
+        );
+        assert_eq!(
+            constants::list_value(b) as usize,
+            constants::MAX_ALIGNED_ADDR
+        );
 
         let c = Term::make_list(ptr::null());
         assert!(c.is_list());
@@ -1368,8 +1406,14 @@ mod tests {
 
     #[test]
     fn is_tuple_invariants() {
-        assert!(typecheck::is_header(constants::make_header(2, constants::FLAG_TUPLE)));
-        assert!(typecheck::is_tuple(constants::make_header(2, constants::FLAG_TUPLE)));
+        assert!(typecheck::is_header(constants::make_header(
+            2,
+            constants::FLAG_TUPLE
+        )));
+        assert!(typecheck::is_tuple(constants::make_header(
+            2,
+            constants::FLAG_TUPLE
+        )));
     }
 
     #[test]

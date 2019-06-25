@@ -7,8 +7,8 @@ use core::sync::atomic::Ordering;
 
 use liblumen_core::locks::RwLock;
 
-use crate::stats::{Histogram, DefaultHistogram};
 use crate::stats::hooks;
+use crate::stats::{DefaultHistogram, Histogram};
 
 /// `StatsAlloc` is a tracing allocator which wraps some
 /// allocator, either an implementation of `Alloc` or `GlobalAlloc`,

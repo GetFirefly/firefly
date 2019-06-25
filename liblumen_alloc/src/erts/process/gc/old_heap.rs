@@ -1,12 +1,12 @@
+use core::fmt;
 use core::mem;
 use core::ptr;
-use core::fmt;
 
 use crate::erts::*;
 
 use liblumen_core::util::pointer::*;
 
-use super::{YoungHeap, VirtualBinaryHeap};
+use super::{VirtualBinaryHeap, YoungHeap};
 
 /// This type represents the old generation process heap
 ///
@@ -32,7 +32,7 @@ impl OldHeap {
             let top = start;
             let vheap = VirtualBinaryHeap::new(size);
             Self {
-                start, 
+                start,
                 end,
                 top,
                 vheap,
@@ -366,7 +366,8 @@ impl Drop for OldHeap {
     fn drop(&mut self) {
         unsafe {
             if self.active() {
-                // Free virtual binary heap, we can't free the memory of this heap until we've done this
+                // Free virtual binary heap, we can't free the memory of this heap until we've done
+                // this
                 self.vheap.clear();
                 // Free memory region managed by this heap instance
                 process::alloc::free(self.start, self.size());
@@ -378,7 +379,8 @@ impl fmt::Debug for OldHeap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_fmt(format_args!(
             "OldHeap (heap: {:?}-{:?}, used: {}, unused: {}) [\n",
-            self.start, self.top,
+            self.start,
+            self.top,
             self.heap_used(),
             self.heap_available(),
         ))?;

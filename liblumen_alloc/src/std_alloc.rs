@@ -52,11 +52,11 @@ use liblumen_core::alloc::mmap;
 use liblumen_core::locks::SpinLock;
 use liblumen_core::util::cache_padded::CachePadded;
 
-use crate::AllocatorInfo;
 use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::carriers::{MultiBlockCarrierTree, SingleBlockCarrierList};
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
+use crate::AllocatorInfo;
 
 // The global instance of StandardAlloc
 cfg_if! {

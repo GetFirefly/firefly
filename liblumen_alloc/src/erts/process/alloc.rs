@@ -2,12 +2,12 @@ use core::alloc::{AllocErr, Layout};
 use core::mem;
 use core::ptr::NonNull;
 
-use lazy_static::lazy_static;
-use heapless::Vec;
 #[cfg(target_pointer_width = "64")]
 use heapless::consts::U152 as UHEAP_SIZES_LEN;
 #[cfg(target_pointer_width = "32")]
 use heapless::consts::U57 as UHEAP_SIZES_LEN;
+use heapless::Vec;
+use lazy_static::lazy_static;
 
 use liblumen_alloc_macros::generate_heap_sizes;
 use liblumen_core::alloc::mmap;
@@ -214,7 +214,7 @@ pub trait AllocInProcess {
     /// Perform a stack allocation of `size` words to hold a single term.
     ///
     /// Returns `Err(AllocErr)` if there is not enough space available
-    /// 
+    ///
     /// NOTE: Do not use this to allocate space for multiple terms (lists
     /// and boxes count as a single term), as the size of the stack in terms
     /// is tied to allocations. Each time `stack_alloc` is called, the stack
@@ -268,9 +268,9 @@ pub trait StackPrimitives {
     fn stack_size(&self) -> usize;
 
     /// Manually sets the stack size
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This is super unsafe, its only use is when constructing objects such as lists
     /// on the stack incrementally, thus representing a single logical term but composed
     /// of many small allocations. As `alloca_*` increments the `stack_size` value each
@@ -282,11 +282,11 @@ pub trait StackPrimitives {
     fn stack_pointer(&mut self) -> *mut Term;
 
     /// Manually sets the stack pointer to the given pointer
-    /// 
+    ///
     /// NOTE: This will panic if the stack pointer is outside the process heap
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This is obviously super unsafe, but is useful as an optimization in some
     /// cases where a stack allocated object is being constructed but fails partway,
     /// and needs to be freed
@@ -299,10 +299,10 @@ pub trait StackPrimitives {
     fn stack_available(&self) -> usize;
 
     /// This function returns the term located in the given stack slot, if it exists.
-    /// 
+    ///
     /// The stack slots are 1-indexed, where `1` is the top of the stack, or most recent
-    /// allocation, and `S` is the bottom of the stack, or oldest allocation. 
-    /// 
+    /// allocation, and `S` is the bottom of the stack, or oldest allocation.
+    ///
     /// If `S > stack_size`, then `None` is returned. Otherwise, `Some(Term)` is returned.
     #[inline]
     fn stack_slot(&mut self, n: usize) -> Option<Term>;

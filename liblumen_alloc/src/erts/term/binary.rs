@@ -1,10 +1,10 @@
 use core::alloc::Layout;
 use core::cmp;
+use core::fmt;
 use core::mem;
 use core::ptr::{self, NonNull};
 use core::slice;
 use core::str;
-use core::fmt;
 use core::sync::atomic;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
@@ -47,7 +47,10 @@ impl BinaryType {
             FLAG_IS_RAW_BIN => BinaryType::Raw,
             FLAG_IS_LATIN1_BIN => BinaryType::Latin1,
             FLAG_IS_UTF8_BIN => BinaryType::Utf8,
-            _ => panic!("invalid flags value given to BinaryType::from_flags: {}", flags)
+            _ => panic!(
+                "invalid flags value given to BinaryType::from_flags: {}",
+                flags
+            ),
         }
     }
 }
@@ -94,7 +97,6 @@ impl ProcBinInner {
         self.flags & FLAG_MASK == FLAG_IS_UTF8_BIN
     }
 }
-
 
 /// Reference-counted heap-allocated binary
 ///

@@ -11,10 +11,9 @@ use core::mem;
 use core::ptr::{self, NonNull};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use intrusive_collections::{LinkedList, UnsafeRef};
 use hashbrown::HashMap;
+use intrusive_collections::{LinkedList, UnsafeRef};
 use liblumen_core::locks::SpinLock;
-
 
 use self::gc::*;
 use super::*;
@@ -137,7 +136,7 @@ impl ProcessControlBlock {
 
     /// Frees stack space occupied by the last term on the stack,
     /// adjusting the stack pointer accordingly.
-    /// 
+    ///
     /// Use `stack_popn` to pop multiple terms from the stack at once
     #[inline]
     pub fn stack_pop(&mut self) -> Option<Term> {
@@ -151,7 +150,7 @@ impl ProcessControlBlock {
     }
 
     /// Pushes an immediate term or reference to term/list on top of the stack
-    /// 
+    ///
     /// Returns `Err(AllocErr)` if the process is out of stack space
     #[inline]
     pub fn stack_push(&mut self, term: Term) -> Result<(), AllocErr> {

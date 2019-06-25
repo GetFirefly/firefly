@@ -2,7 +2,7 @@ use core::cmp;
 use core::fmt;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{Node, AllocInProcess};
+use crate::erts::{AllocInProcess, Node};
 
 use super::{AsTerm, Term};
 

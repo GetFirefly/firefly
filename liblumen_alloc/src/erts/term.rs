@@ -138,9 +138,13 @@ pub fn make_binary_from_str<A: AllocInProcess>(process: &mut A, s: &str) -> Resu
     }
 }
 
-/// Constructs a reference-counted binary from the given string, and associated with the given process
+/// Constructs a reference-counted binary from the given string, and associated with the given
+/// process
 #[inline]
-pub fn make_procbin_from_str<A: AllocInProcess>(process: &mut A, s: &str) -> Result<Term, AllocErr> {
+pub fn make_procbin_from_str<A: AllocInProcess>(
+    process: &mut A,
+    s: &str,
+) -> Result<Term, AllocErr> {
     // Allocates on global heap
     let bin = ProcBin::from_str(s)?;
     // Allocates space on the process heap for the header
@@ -154,7 +158,10 @@ pub fn make_procbin_from_str<A: AllocInProcess>(process: &mut A, s: &str) -> Res
 
 /// Constructs a heap-allocated binary from the given string, and associated with the given process
 #[inline]
-pub fn make_heapbin_from_str<A: AllocInProcess>(process: &mut A, s: &str) -> Result<Term, AllocErr> {
+pub fn make_heapbin_from_str<A: AllocInProcess>(
+    process: &mut A,
+    s: &str,
+) -> Result<Term, AllocErr> {
     let len = s.len();
     unsafe {
         // Allocates space on the process heap for the header + data
@@ -215,9 +222,13 @@ pub fn make_binary_from_bytes<A: AllocInProcess>(
     }
 }
 
-/// Constructs a reference-counted binary from the given byte slice, and associated with the given process
+/// Constructs a reference-counted binary from the given byte slice, and associated with the given
+/// process
 #[inline]
-pub fn make_procbin_from_bytes<A: AllocInProcess>(process: &mut A, s: &[u8]) -> Result<Term, AllocErr> {
+pub fn make_procbin_from_bytes<A: AllocInProcess>(
+    process: &mut A,
+    s: &[u8],
+) -> Result<Term, AllocErr> {
     // Allocates on global heap
     let bin = ProcBin::from_slice(s)?;
     // Allocates space on the process heap for the header
@@ -229,14 +240,17 @@ pub fn make_procbin_from_bytes<A: AllocInProcess>(process: &mut A, s: &[u8]) -> 
     Ok(result)
 }
 
-/// Constructs a heap-allocated binary from the given byte slice, and associated with the given process
+/// Constructs a heap-allocated binary from the given byte slice, and associated with the given
+/// process
 #[inline]
-pub fn make_heapbin_from_bytes<A: AllocInProcess>(process: &mut A, s: &[u8]) -> Result<Term, AllocErr> {
+pub fn make_heapbin_from_bytes<A: AllocInProcess>(
+    process: &mut A,
+    s: &[u8],
+) -> Result<Term, AllocErr> {
     let len = s.len();
     unsafe {
         // Allocates space on the process heap for the header + data
-        let header_ptr =
-            process.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
+        let header_ptr = process.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
         // Pointer to start of binary data
         let bin_ptr = header_ptr.offset(1) as *mut u8;
         // Construct the right header based on whether input string is only ASCII or includes
@@ -284,7 +298,7 @@ pub fn make_tuple_from_slice<A: AllocInProcess>(
 
 /// Constructs an integer value from any type that implements `Into<Integer>`,
 /// which currently includes `SmallInteger`, `BigInteger`, `usize` and `isize`.
-/// 
+///
 /// This operation will transparently handle constructing the correct type of term
 /// based on the input value, i.e. an immediate small integer for values that fit,
 /// else a heap-allocated big integer for larger values.

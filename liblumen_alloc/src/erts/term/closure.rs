@@ -1,7 +1,7 @@
 use core::cmp;
+use core::fmt;
 use core::mem;
 use core::ptr;
-use core::fmt;
 
 use super::{AsTerm, Term};
 

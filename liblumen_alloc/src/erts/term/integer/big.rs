@@ -9,8 +9,8 @@ use num_bigint::{BigInt, Sign};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::to_word_size;
-use crate::erts::{AsTerm, Term};
 use crate::erts::AllocInProcess;
+use crate::erts::{AsTerm, Term};
 
 use super::*;
 

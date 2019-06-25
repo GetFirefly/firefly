@@ -1,21 +1,21 @@
 //! This module provides a histogram view over a stream of samples.
-//! 
+//!
 //! The histogram itself is defined via the `define_histogram!` macro,
 //! which takes the number of buckets that the histogram should use, and
 //! then generates a module which will use a constant amount of space for
 //! the histogram, and can be constructed at compile-time.
 //!
 //! # Examples
-//! 
+//!
 //! ```
 //! use liblumen_alloc::stats::Histogram;
-//! 
+//!
 //! mod stats {
 //!     use liblumen_alloc::define_histogram;
 //!     define_histogram!(10);
 //! }
 //! # fn main() {
-//! // Create a histogram that will spread the given range over 
+//! // Create a histogram that will spread the given range over
 //! // the 10 buckets the `Histogram` type was defined with.
 //! let mut histogram = stats::Histogram::with_const_width(0, 10_000);
 //!
@@ -92,7 +92,6 @@ macro_rules! define_histogram {
             minmax: $crate::stats::MinMax<u64>,
         }
 
-
         impl core::fmt::Debug for Histogram {
             fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
                 f.write_str("Histogram {{ range: ")?;
@@ -136,7 +135,8 @@ macro_rules! define_histogram {
             /// and empty ranges are allowed.
             #[inline]
             pub fn from_ranges<T>(ranges: T) -> Result<Self, ()>
-                where T: IntoIterator<Item = u64>
+            where
+                T: IntoIterator<Item = u64>,
             {
                 let mut range = [0; Self::LEN + 1];
                 let mut last_i = 0;
@@ -169,15 +169,9 @@ macro_rules! define_histogram {
                 // We made sure our ranges are valid at construction, so we can
                 // safely unwrap.
                 match self.range.binary_search_by(|p| p.partial_cmp(&x).unwrap()) {
-                    Ok(i) if i < Self::LEN => {
-                        Ok(i)
-                    },
-                    Err(i) if i > 0 && i < Self::LEN + 1 => {
-                        Ok(i - 1)
-                    },
-                    _ => {
-                        Err(())
-                    },
+                    Ok(i) if i < Self::LEN => Ok(i),
+                    Err(i) if i > 0 && i < Self::LEN + 1 => Ok(i - 1),
+                    _ => Err(()),
                 }
             }
 
@@ -391,8 +385,8 @@ mod defaults {
     // Provide a default implementation which will focus on the main sizes of concern
     impl Default for self::Histogram {
         fn default() -> Self {
-            use heapless::Vec;
             use heapless::consts::U100;
+            use heapless::Vec;
             let mut ranges = Vec::<_, U100>::new();
             // Use the fibonnaci sequence up to 1TB
             let mut n: u64 = 1;
@@ -425,8 +419,8 @@ mod tests {
         define_histogram!(10);
     }
 
-    use super::Histogram;
     use self::defaults::Histogram as DefaultHistogram;
+    use super::Histogram;
 
     #[test]
     fn histogram_with_const_width_test() {
@@ -442,19 +436,7 @@ mod tests {
 
     #[test]
     fn histogram_from_ranges_test() {
-        let ranges: [u64; 11] = [
-            2,
-            4,
-            8,
-            16,
-            32,
-            64,
-            128,
-            256,
-            512,
-            1024,
-            2048
-        ];
+        let ranges: [u64; 11] = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048];
         let mut h = DefaultHistogram::from_ranges(ranges.iter().copied()).unwrap();
         for i in 2..2048 {
             h.add(i).ok();

@@ -192,7 +192,7 @@ impl<'p> GarbageCollector<'p> {
         // Move the stack to the end of the new heap
         let old_stack_start = self.process.young.stack_pointer();
         let old_stack_slots = self.process.young.stack_size();
-        unsafe { 
+        unsafe {
             let new_stack_start = new_heap.alloca_unchecked(stack_size).as_ptr();
             ptr::copy_nonoverlapping(old_stack_start, new_stack_start, stack_size);
             new_heap.set_stack_pointer(new_stack_start);
@@ -425,7 +425,12 @@ impl<'p> GarbageCollector<'p> {
         // most references on the new heap point to the old heap so the next stage
         // is to scan through the new heap, evacuating data to the new heap until all
         // live references have been moved
-        new_young.sweep(&mut self.process.young, &mut self.process.old, mature, mature_end);
+        new_young.sweep(
+            &mut self.process.young,
+            &mut self.process.old,
+            mature,
+            mature_end,
+        );
 
         // If we have been tenuring (we have an old generation and have moved values into it),
         // then those newly tenured values may hold references into the old young generation

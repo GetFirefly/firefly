@@ -249,8 +249,16 @@ pub struct TupleIter {
 impl TupleIter {
     pub fn new(tuple: &Tuple) -> Self {
         match tuple.size() {
-            0 => Self { head: tuple.head(), pos: 0, last_pos: 0 },
-            n => Self { head: tuple.head(), pos: 0, last_pos: n - 1 },
+            0 => Self {
+                head: tuple.head(),
+                pos: 0,
+                last_pos: 0,
+            },
+            n => Self {
+                head: tuple.head(),
+                pos: 0,
+                last_pos: n - 1,
+            },
         }
     }
 }

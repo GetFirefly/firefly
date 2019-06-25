@@ -1,7 +1,7 @@
-use core::cmp;
-use core::ptr;
-use core::iter::FusedIterator;
 use core::alloc::{AllocErr, Layout};
+use core::cmp;
+use core::iter::FusedIterator;
+use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{AllocInProcess, StackPrimitives};
@@ -85,7 +85,7 @@ impl Cons {
     }
 
     /// Constructs an iterator for the list represented by this cons cell
-    /// 
+    ///
     /// This iterator will panic if it reaches a cell that indicates this
     /// list is an improper list, to safely iterate such lists, use `iter_safe`
     #[inline]
@@ -224,14 +224,14 @@ impl<'a> FusedIterator for ListIter {}
 /// A trait for the way allocation of cons cells is performed by `ListBuilder`
 pub trait ListAllocationType {}
 
-use heapless::Vec;
-#[cfg(target_pointer_width = "64")]
-use heapless::consts::U8;
 #[cfg(target_pointer_width = "32")]
 use heapless::consts::U16;
+#[cfg(target_pointer_width = "64")]
+use heapless::consts::U8;
+use heapless::Vec;
 
 /// AllocationType that indicates cons cells will be allocated on the stack
-/// 
+///
 /// Lists allocated on the stack are allowed 64 bytes, or 8 elements on a 64-bit
 /// target, 16 elements on a 32-bit target. If the allocation exceeds that amount
 /// an AllocErr will be returned
@@ -270,7 +270,7 @@ impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
     }
 
     /// Pushes the given `Term` on to the end of the list being built.
-    /// 
+    ///
     /// NOTE: When using `on_heap` mode, the builder will also clone terms if they are
     /// not already on the process heap
     #[inline]
@@ -283,9 +283,7 @@ impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
                     self.failed = true;
                     self
                 }
-                Ok(_) => {
-                    self
-                }
+                Ok(_) => self,
             }
         }
     }
@@ -316,7 +314,8 @@ impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
                 self.size += 1;
             } else {
                 // This occurs when a cell has been filled and we're pushing a new element.
-                // We need to allocate a new cell and move the previous tail to the head of that cell
+                // We need to allocate a new cell and move the previous tail to the head of that
+                // cell
                 let cadr = current.tail;
                 let new_current = self.alloc_cell(cadr, Term::NIL)?;
                 current.tail = Term::make_list(new_current);
@@ -429,7 +428,8 @@ impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
 
     #[inline]
     fn alloc_cell(&mut self, head: Term, tail: Term) -> Result<*mut Cons, AllocErr> {
-        let ptr = unsafe { self.process.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons };
+        let ptr =
+            unsafe { self.process.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons };
         let mut cell = unsafe { &mut *ptr };
         cell.head = head;
         cell.tail = tail;
@@ -449,16 +449,19 @@ impl<'a, A: AllocInProcess + StackPrimitives> ListBuilder<'a, OnStack, A> {
             mode: OnStack(Vec::new()),
             failed: false,
         }
-    } 
+    }
 
     /// Pushes the given `Term` on to the end of the list being built.
-    /// 
+    ///
     /// NOTE: It is not permitted to allocate on the stack while constructing
     /// a stack-allocated list, furthermore, stack-allocated lists may only consist
     /// of immediates or boxes. If these invariants are violated, this function will panic.
     #[inline]
     pub fn push(mut self, term: Term) -> Self {
-        assert!(term.is_immediate() || term.is_boxed() || term.is_list(), "invalid list element for stack-allocated list");
+        assert!(
+            term.is_immediate() || term.is_boxed() || term.is_list(),
+            "invalid list element for stack-allocated list"
+        );
         if self.failed {
             self
         } else {
@@ -487,12 +490,8 @@ impl<'a, A: AllocInProcess + StackPrimitives> ListBuilder<'a, OnStack, A> {
                 Ok(Term::NIL)
             } else {
                 // Construct allocation layout for list
-                let (elements_layout, _) = Layout::new::<Cons>()
-                    .repeat(size)
-                    .unwrap();
-                let (layout, _) = Layout::new::<Term>()
-                    .extend(elements_layout)
-                    .unwrap();
+                let (elements_layout, _) = Layout::new::<Cons>().repeat(size).unwrap();
+                let (layout, _) = Layout::new::<Term>().extend(elements_layout).unwrap();
                 // Allocate on stack
                 let ptr = unsafe { self.process.alloca_layout(layout)?.as_ptr() };
                 // Get pointer to first cell
@@ -534,12 +533,8 @@ impl<'a, A: AllocInProcess + StackPrimitives> ListBuilder<'a, OnStack, A> {
                 self.finish()
             } else {
                 // Construct allocation layout for list
-                let (elements_layout, _) = Layout::new::<Cons>()
-                    .repeat(size)
-                    .unwrap();
-                let (layout, _) = Layout::new::<Term>()
-                    .extend(elements_layout)
-                    .unwrap();
+                let (elements_layout, _) = Layout::new::<Cons>().repeat(size).unwrap();
+                let (layout, _) = Layout::new::<Term>().extend(elements_layout).unwrap();
                 // Allocate on stack
                 let ptr = unsafe { self.process.alloca_layout(layout)?.as_ptr() };
                 // Get pointer to first cell

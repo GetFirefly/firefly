@@ -317,7 +317,8 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
     // Push reference to new list on stack
     process.stack_push(second_list_term).unwrap();
 
-    // Run second garbage collection, which should tenure everything except the new term we just allocated
+    // Run second garbage collection, which should tenure everything except the new term we just
+    // allocated
     let second_peak_size = process.young.heap_used();
     let roots = [];
     process.garbage_collect(0, &roots).unwrap();
@@ -329,13 +330,20 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
     let second_collected_size = process.young.heap_used();
     let newly_allocated_size = to_word_size(mem::size_of::<Cons>());
     assert_eq!(second_collected_size, newly_allocated_size);
-    assert_eq!(second_peak_size + newly_allocated_size, second_collected_size);
+    assert_eq!(
+        second_peak_size + newly_allocated_size,
+        second_collected_size
+    );
 
     // TODO
 
     // Verify that we now have an old generation and that it is of the expected size
     assert!(process.old.active());
-    assert_eq!(process.old.heap_used(), collected_size, "expected tenuring of older young generation heap");
+    assert_eq!(
+        process.old.heap_used(),
+        collected_size,
+        "expected tenuring of older young generation heap"
+    );
 
     // Verify roots
     let list_term = process.stack_pop().unwrap();

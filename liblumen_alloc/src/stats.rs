@@ -5,7 +5,7 @@ use core::hash;
 
 use num_traits::ToPrimitive;
 
-pub use histogram::{Histogram, DefaultHistogram};
+pub use histogram::{DefaultHistogram, Histogram};
 pub use minmax::MinMax;
 pub use online::{mean, stddev, variance, OnlineStats};
 

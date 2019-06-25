@@ -29,11 +29,11 @@ mod blocks;
 mod borrow;
 mod carriers;
 mod erts;
-mod stats_alloc;
 mod segmented_alloc;
 mod size_class_alloc;
 mod sorted;
 pub mod stats;
+mod stats_alloc;
 pub mod std_alloc;
 
 /// The system allocator. Can be used with `#[global_allocator]`, like so:

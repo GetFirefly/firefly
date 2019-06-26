@@ -1,3 +1,4 @@
+use core::alloc::AllocErr;
 use core::cmp;
 use core::fmt;
 use core::mem;
@@ -6,7 +7,7 @@ use core::ptr;
 use super::{AsTerm, Term};
 
 use crate::borrow::CloneToProcess;
-use crate::erts::AllocInProcess;
+use crate::erts::{to_word_size, HeapAlloc};
 
 #[derive(PartialEq)]
 pub struct Closure {
@@ -30,21 +31,27 @@ impl PartialOrd for Closure {
     }
 }
 impl CloneToProcess for Closure {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         // Allocate space on process heap
-        let bytes = mem::size_of::<Self>() + (self.env_len * mem::size_of::<Term>());
-        let mut words = bytes / mem::size_of::<Term>();
-        if bytes % mem::size_of::<Term>() != 0 {
-            words += 1;
-        }
+        let words = self.size_in_words();
+        let bytes = words * mem::size_of::<usize>();
         unsafe {
-            let ptr = process.alloc(words).unwrap().as_ptr();
+            let ptr = heap.alloc(words)?.as_ptr();
             // Copy to newly allocated region
             ptr::copy_nonoverlapping(self as *const _ as *const u8, ptr as *mut u8, bytes);
             // Return term
-            let closure = &*(ptr as *mut Self);
-            closure.as_term()
+            Ok(Term::make_boxed(ptr))
         }
+    }
+
+    fn size_in_words(&self) -> usize {
+        let mut size = to_word_size(mem::size_of::<Self>());
+        for offset in 0..self.env_len {
+            let ptr = unsafe { self.env.offset(offset as isize) };
+            let term = unsafe { &*ptr };
+            size += term.size_in_words()
+        }
+        size
     }
 }
 impl fmt::Debug for Closure {

@@ -1,10 +1,11 @@
 use core::alloc::{AllocErr, Layout};
 use core::cmp;
 use core::iter::FusedIterator;
+use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{AllocInProcess, StackPrimitives};
+use crate::erts::{to_word_size, HeapAlloc, StackAlloc};
 
 use super::{AsTerm, Term};
 
@@ -119,11 +120,11 @@ impl PartialOrd<Cons> for Cons {
     }
 }
 impl CloneToProcess for Cons {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         // To make sure we don't blow the stack, we do not recursively walk
         // the list. Instead we use a list builder and traverse the list iteratively,
         // cloning each element as we go via the builder
-        let mut builder = ListBuilder::on_heap(process);
+        let mut builder = ListBuilder::new(heap);
         // Start with the current cell
         let mut current = *self;
         loop {
@@ -131,7 +132,7 @@ impl CloneToProcess for Cons {
             if current.tail.is_nil() {
                 // End of proper list
                 builder = builder.push(current.head);
-                return builder.finish().unwrap();
+                return builder.finish();
             } else if current.tail.is_list() {
                 // Add current element and traverse to the next cell
                 current = unsafe { *current.tail.list_val() };
@@ -140,13 +141,24 @@ impl CloneToProcess for Cons {
             } else if current.tail.is_immediate() {
                 // End of improper list
                 builder = builder.push(current.head);
-                return builder.finish_with(current.tail).unwrap();
+                return builder.finish_with(current.tail);
             } else {
                 // End of improper list
                 builder = builder.push(current.head);
-                return builder.finish_with(current.tail).unwrap();
+                return builder.finish_with(current.tail);
             }
         }
+    }
+
+    fn size_in_words(&self) -> usize {
+        let mut elements = 0;
+        let mut words = 0;
+        for element in self.iter_safe() {
+            elements += 1;
+            words += element.size_in_words();
+        }
+        words += to_word_size(elements * mem::size_of::<Cons>());
+        words
     }
 }
 
@@ -221,50 +233,24 @@ impl Iterator for ListIter {
 }
 impl<'a> FusedIterator for ListIter {}
 
-/// A trait for the way allocation of cons cells is performed by `ListBuilder`
-pub trait ListAllocationType {}
-
-#[cfg(target_pointer_width = "32")]
-use heapless::consts::U16;
-#[cfg(target_pointer_width = "64")]
-use heapless::consts::U8;
-use heapless::Vec;
-
-/// AllocationType that indicates cons cells will be allocated on the stack
-///
-/// Lists allocated on the stack are allowed 64 bytes, or 8 elements on a 64-bit
-/// target, 16 elements on a 32-bit target. If the allocation exceeds that amount
-/// an AllocErr will be returned
-#[cfg(target_pointer_width = "64")]
-pub struct OnStack(Vec<Term, U8>);
-#[cfg(target_pointer_width = "32")]
-pub struct OnStack(Vec<Term, U16>);
-impl ListAllocationType for OnStack {}
-
-/// AllocationType that indicates cons cells will be allocated on the heap
-pub struct OnHeap;
-impl ListAllocationType for OnHeap {}
-
-pub struct ListBuilder<'a, T: ListAllocationType, A: AllocInProcess> {
-    process: &'a mut A,
+pub struct ListBuilder<'a, A: HeapAlloc> {
+    heap: &'a mut A,
     element: Option<Term>,
     first: *mut Cons,
     current: *mut Cons,
     size: usize,
-    mode: T,
     failed: bool,
 }
-impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
+impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     /// Creates a new list builder that allocates on the given processes' heap
     #[inline]
-    pub fn on_heap(process: &'a mut A) -> Self {
+    pub fn new(heap: &'a mut A) -> Self {
         Self {
-            process,
+            heap,
             element: None,
             first: ptr::null_mut(),
             current: ptr::null_mut(),
             size: 0,
-            mode: OnHeap,
             failed: false,
         }
     }
@@ -295,11 +281,11 @@ impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
             assert!(self.first.is_null());
             // We need to allocate a cell
             self.first = self.alloc_cell(Term::NIL, Term::NIL)?;
-            self.element = Some(self.clone_term_to_process(term));
+            self.element = Some(self.clone_term_to_heap(term)?);
             self.current = self.first;
             self.size += 1;
         } else {
-            let new_element = self.clone_term_to_process(term);
+            let new_element = self.clone_term_to_heap(term)?;
             // Swap the current element with the new element
             let head = self.element.replace(new_element).unwrap();
             // Set the head of the current cell to the element we just took out
@@ -383,13 +369,13 @@ impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
                     let mut current = unsafe { &mut *self.current };
                     if current.head.is_nil() {
                         current.head = next;
-                        current.tail = self.clone_term_to_process(term);
+                        current.tail = self.clone_term_to_heap(term)?;
                     } else if current.tail.is_nil() {
-                        let tail = self.clone_term_to_process(term);
+                        let tail = self.clone_term_to_heap(term)?;
                         let cdr = self.alloc_cell(next, tail)?;
                         current.tail = Term::make_list(cdr);
                     } else {
-                        let tail = self.clone_term_to_process(term);
+                        let tail = self.clone_term_to_heap(term)?;
                         let cadr_cell = self.alloc_cell(next, tail)?;
                         let cadr = Term::make_list(cadr_cell);
                         let cdr = self.alloc_cell(current.tail, cadr)?;
@@ -402,24 +388,24 @@ impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
     }
 
     #[inline]
-    fn clone_term_to_process(&mut self, term: Term) -> Term {
+    fn clone_term_to_heap(&mut self, term: Term) -> Result<Term, AllocErr> {
         if term.is_immediate() {
-            term
+            Ok(term)
         } else if term.is_boxed() {
             let ptr = term.boxed_val();
-            if !term.is_literal() && self.process.is_owner(ptr) {
+            if !term.is_literal() && self.heap.is_owner(ptr) {
                 // No need to clone
-                term
+                Ok(term)
             } else {
-                term.clone_to_process(self.process)
+                term.clone_to_heap(self.heap)
             }
         } else if term.is_list() {
             let ptr = term.list_val();
-            if !term.is_literal() && self.process.is_owner(ptr) {
+            if !term.is_literal() && self.heap.is_owner(ptr) {
                 // No need to clone
-                term
+                Ok(term)
             } else {
-                term.clone_to_process(self.process)
+                term.clone_to_heap(self.heap)
             }
         } else {
             unreachable!()
@@ -428,25 +414,35 @@ impl<'a, A: AllocInProcess> ListBuilder<'a, OnHeap, A> {
 
     #[inline]
     fn alloc_cell(&mut self, head: Term, tail: Term) -> Result<*mut Cons, AllocErr> {
-        let ptr =
-            unsafe { self.process.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons };
+        let ptr = unsafe { self.heap.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons };
         let mut cell = unsafe { &mut *ptr };
         cell.head = head;
         cell.tail = tail;
         Ok(ptr)
     }
 }
-impl<'a, A: AllocInProcess + StackPrimitives> ListBuilder<'a, OnStack, A> {
+
+#[allow(non_camel_case_types)]
+#[cfg(target_pointer_width = "32")]
+type MAX_ELEMENTS = heapless::consts::U16;
+#[allow(non_camel_case_types)]
+#[cfg(target_pointer_width = "64")]
+type MAX_ELEMENTS = heapless::consts::U8;
+
+use heapless::Vec;
+
+pub struct HeaplessListBuilder<'a, A: StackAlloc> {
+    stack: &'a mut A,
+    elements: Vec<Term, MAX_ELEMENTS>,
+    failed: bool,
+}
+impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
     /// Creates a new list builder that allocates on the given processes' heap
     #[inline]
-    pub fn on_stack(process: &'a mut A) -> Self {
+    pub fn new(stack: &'a mut A) -> Self {
         Self {
-            process,
-            element: None,
-            first: ptr::null_mut(),
-            current: ptr::null_mut(),
-            size: 0,
-            mode: OnStack(Vec::new()),
+            stack,
+            elements: Vec::new(),
             failed: false,
         }
     }
@@ -465,7 +461,7 @@ impl<'a, A: AllocInProcess + StackPrimitives> ListBuilder<'a, OnStack, A> {
         if self.failed {
             self
         } else {
-            match self.mode.0.push(term) {
+            match self.elements.push(term) {
                 Err(_) => {
                     self.failed = true;
                     self
@@ -481,10 +477,10 @@ impl<'a, A: AllocInProcess + StackPrimitives> ListBuilder<'a, OnStack, A> {
         if self.failed {
             Err(AllocErr)
         } else {
-            let size = self.mode.0.len();
+            let size = self.elements.len();
             if size == 0 {
                 unsafe {
-                    let ptr = self.process.alloca(1)?.as_ptr();
+                    let ptr = self.stack.alloca(1)?.as_ptr();
                     ptr::write(ptr, Term::NIL);
                 }
                 Ok(Term::NIL)
@@ -493,13 +489,13 @@ impl<'a, A: AllocInProcess + StackPrimitives> ListBuilder<'a, OnStack, A> {
                 let (elements_layout, _) = Layout::new::<Cons>().repeat(size).unwrap();
                 let (layout, _) = Layout::new::<Term>().extend(elements_layout).unwrap();
                 // Allocate on stack
-                let ptr = unsafe { self.process.alloca_layout(layout)?.as_ptr() };
+                let ptr = unsafe { self.stack.alloca_layout(layout)?.as_ptr() };
                 // Get pointer to first cell
                 let first_ptr = unsafe { ptr.offset(1) as *mut Cons };
                 // Write header with pointer to first cell
                 unsafe { ptr::write(ptr, Term::make_list(first_ptr)) };
                 // For each element in the list, write a cell with a pointer to the next one
-                for (i, element) in self.mode.0.iter().copied().enumerate() {
+                for (i, element) in self.elements.iter().copied().enumerate() {
                     // Offsets are relative to the first cell, first element has `i` of 0
                     let cell_ptr = unsafe { first_ptr.offset(i as isize) };
                     // Get mutable reference to cell memory
@@ -526,23 +522,23 @@ impl<'a, A: AllocInProcess + StackPrimitives> ListBuilder<'a, OnStack, A> {
         if self.failed {
             Err(AllocErr)
         } else {
-            let size = self.mode.0.len() + 1;
+            let size = self.elements.len() + 1;
             if size == 1 {
                 // Proper list
-                self.mode.0.push(term).unwrap();
+                self.elements.push(term).unwrap();
                 self.finish()
             } else {
                 // Construct allocation layout for list
                 let (elements_layout, _) = Layout::new::<Cons>().repeat(size).unwrap();
                 let (layout, _) = Layout::new::<Term>().extend(elements_layout).unwrap();
                 // Allocate on stack
-                let ptr = unsafe { self.process.alloca_layout(layout)?.as_ptr() };
+                let ptr = unsafe { self.stack.alloca_layout(layout)?.as_ptr() };
                 // Get pointer to first cell
                 let first_ptr = unsafe { ptr.offset(1) as *mut Cons };
                 // Write header with pointer to first cell
                 unsafe { ptr::write(ptr, Term::make_list(first_ptr)) };
                 // For each element in the list, write a cell with a pointer to the next one
-                for (i, element) in self.mode.0.iter().copied().enumerate() {
+                for (i, element) in self.elements.iter().copied().enumerate() {
                     // Offsets are relative to the first cell, first element has `i` of 0
                     let cell_ptr = unsafe { first_ptr.offset(i as isize) };
                     // Get mutable reference to cell memory

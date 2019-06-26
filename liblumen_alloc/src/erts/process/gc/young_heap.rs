@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::AllocErr;
 use core::fmt;
 use core::mem;
 use core::ptr::{self, NonNull};
@@ -6,6 +6,7 @@ use core::ptr::{self, NonNull};
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
 use super::*;
+use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives};
 use crate::erts::*;
 
 /// This struct represents the current heap and stack of a process,
@@ -57,7 +58,7 @@ impl YoungHeap {
         }
     }
 }
-impl AllocInProcess for YoungHeap {
+impl HeapAlloc for YoungHeap {
     #[inline]
     unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
         if self.heap_available() >= need {
@@ -70,11 +71,11 @@ impl AllocInProcess for YoungHeap {
     }
 
     #[inline]
-    unsafe fn alloc_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
-        let words = Self::layout_to_words(layout);
-        self.alloc(words)
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+        self.contains(ptr) || self.vheap.contains(ptr)
     }
-
+}
+impl StackAlloc for YoungHeap {
     #[inline]
     unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
         if self.stack_available() >= need {
@@ -89,22 +90,6 @@ impl AllocInProcess for YoungHeap {
         self.stack_start = self.stack_start.offset(-(need as isize));
         self.stack_size += 1;
         NonNull::new_unchecked(self.stack_start)
-    }
-
-    #[inline]
-    unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
-        let need = to_word_size(layout.size());
-        self.alloca(need)
-    }
-
-    #[inline]
-    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.vheap.push(bin)
-    }
-
-    #[inline]
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
-        self.contains(ptr) || self.vheap.contains(ptr)
     }
 }
 impl StackPrimitives for YoungHeap {
@@ -172,6 +157,11 @@ impl StackPrimitives for YoungHeap {
     }
 }
 impl YoungHeap {
+    #[inline]
+    pub fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
+        self.vheap.push(bin)
+    }
+
     /// This function is used to reallocate the memory region this heap was originally allocated
     /// with to a smaller size, given by `new_size`. This function will panic if the given size
     /// is not large enough to hold the stack, if a size greater than the previous size is
@@ -922,7 +912,7 @@ mod tests {
         let num = Term::make_smallint(101);
         let string = "test";
         let string_term = make_heapbin_from_str(&mut yh, string).unwrap();
-        let list_term = ListBuilder::on_heap(&mut yh)
+        let list_term = ListBuilder::new(&mut yh)
             .push(num)
             .push(string_term)
             .finish()
@@ -953,7 +943,7 @@ mod tests {
         // Allocate the list `[101, :foo]` on the stack
         let num = Term::make_smallint(101);
         let foo = unsafe { Atom::try_from_str("foo").unwrap().as_term() };
-        let _list_term = ListBuilder::on_stack(&mut yh)
+        let _list_term = HeaplessListBuilder::new(&mut yh)
             .push(num)
             .push(foo)
             .finish()

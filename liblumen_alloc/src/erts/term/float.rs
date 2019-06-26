@@ -1,11 +1,15 @@
+use core::alloc::AllocErr;
 use core::cmp::Ordering;
 use core::fmt::{self, Debug, Display};
 use core::hash::{self, Hash};
 use core::ops::*;
+use core::ptr;
 
 use num_bigint::{BigInt, Sign};
 
-use super::{AsTerm, Term};
+use crate::borrow::CloneToProcess;
+
+use super::{AsTerm, HeapAlloc, Term};
 use super::{BigInteger, SmallInteger};
 
 /// A machine-width float, but stored alongside a header value used to identify it in memory
@@ -38,6 +42,16 @@ unsafe impl AsTerm for Float {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::make_boxed(self as *const Self)
+    }
+}
+impl CloneToProcess for Float {
+    #[inline]
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+        unsafe {
+            let ptr = heap.alloc(self.size_in_words())?.as_ptr() as *mut Self;
+            ptr::copy_nonoverlapping(self as *const Self, ptr, 1);
+            Ok(Term::make_boxed(ptr))
+        }
     }
 }
 impl From<SmallInteger> for Float {

@@ -1,10 +1,12 @@
+use core::alloc::AllocErr;
 use core::cmp;
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::AllocInProcess;
+use crate::erts::ProcessControlBlock;
+use crate::erts::{HeapAlloc, HeapFragment};
 
 use super::{AsTerm, Term};
 
@@ -117,8 +119,23 @@ impl<T: PartialOrd> PartialOrd<T> for Boxed<T> {
 }
 
 impl<T: CloneToProcess> CloneToProcess for Boxed<T> {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
         let term = unsafe { &*self.term };
         term.clone_to_process(process)
+    }
+
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+        let term = unsafe { &*self.term };
+        term.clone_to_heap(heap)
+    }
+
+    fn clone_to_fragment(&self) -> Result<(Term, NonNull<HeapFragment>), AllocErr> {
+        let term = unsafe { &*self.term };
+        term.clone_to_fragment()
+    }
+
+    fn size_in_words(&self) -> usize {
+        let term = unsafe { &*self.term };
+        term.size_in_words()
     }
 }

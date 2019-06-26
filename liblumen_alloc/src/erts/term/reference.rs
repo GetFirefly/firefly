@@ -1,8 +1,11 @@
+use core::alloc::AllocErr;
 use core::cmp;
 use core::fmt;
+use core::mem;
+use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{AllocInProcess, Node};
+use crate::erts::{to_word_size, HeapAlloc, Node};
 
 use super::{AsTerm, Term};
 
@@ -25,6 +28,20 @@ unsafe impl AsTerm for Reference {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::make_boxed(self)
+    }
+}
+impl CloneToProcess for Reference {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+        unsafe {
+            let size = self.size_in_words();
+            let ptr = heap.alloc(size)?.as_ptr() as *mut Self;
+            ptr::copy_nonoverlapping(self as *const Self, ptr, size);
+            Ok(Term::make_boxed(ptr))
+        }
+    }
+
+    fn size_in_words(&self) -> usize {
+        to_word_size(mem::size_of_val(self))
     }
 }
 impl PartialEq<ExternalReference> for Reference {
@@ -56,7 +73,7 @@ unsafe impl AsTerm for ExternalReference {
 }
 impl CloneToProcess for ExternalReference {
     #[inline]
-    fn clone_to_process<A: AllocInProcess>(&self, _process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, AllocErr> {
         unimplemented!()
     }
 }

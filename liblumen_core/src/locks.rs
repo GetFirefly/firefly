@@ -3,9 +3,15 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use lock_api::{GuardSend, RawMutex};
 
+/// A standard mutex
+/// See docs for `parking_lot::Mutex<T>` for details
+pub type Mutex<T> = parking_lot::Mutex<T>;
+pub type MutexGuard<'a, T> = parking_lot::MutexGuard<'a, T>;
+
 /// A re-entrant mutex.
 /// See docs for `parking_lot::ReentrantMutex<T>` for details
-pub type Mutex<T> = parking_lot::ReentrantMutex<T>;
+pub type ReentrantMutex<T> = parking_lot::ReentrantMutex<T>;
+pub type ReentrantMutexGuard<'a, T> = parking_lot::ReentrantMutexGuard<'a, T>;
 
 /// A condition variable
 /// See docs for `parking_lot::Condvar` for details
@@ -14,6 +20,9 @@ pub type Condvar = parking_lot::Condvar;
 /// A read/write lock
 /// See docs for `parking_lot::RwLock<T>` for details
 pub type RwLock<T> = parking_lot::RwLock<T>;
+pub type RwLockReadGuard<'a, T> = parking_lot::RwLockReadGuard<'a, T>;
+pub type RwLockWriteGuard<'a, T> = parking_lot::RwLockWriteGuard<'a, T>;
+pub type RwLockUpgradeableReadGuard<'a, T> = parking_lot::RwLockUpgradableReadGuard<'a, T>;
 
 /// Used for simple spinlocks, for locking values, use one of the other mutex types
 /// See `lock_api::Mutex<T, U>` for details.

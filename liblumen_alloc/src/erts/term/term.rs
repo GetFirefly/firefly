@@ -1,11 +1,13 @@
 #![allow(unused_parens)]
 
+use core::alloc::AllocErr;
 use core::cmp;
 use core::fmt;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::InvalidTermError;
+use crate::erts::ProcessControlBlock;
 
 use super::*;
 
@@ -1261,10 +1263,40 @@ impl PartialOrd<Term> for Term {
     }
 }
 impl CloneToProcess for Term {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
-        assert!(self.is_immediate() || self.is_boxed() || self.is_list());
-        let tt = self.to_typed_term().unwrap();
-        tt.clone_to_process(process)
+    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
+        if self.is_immediate() {
+            *self
+        } else if self.is_boxed() || self.is_list() {
+            let tt = self.to_typed_term().unwrap();
+            tt.clone_to_process(process)
+        } else {
+            panic!("clone_to_process called on invalid term type: {:?}", self);
+        }
+    }
+
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+        debug_assert!(self.is_immediate() || self.is_boxed() || self.is_list());
+        if self.is_immediate() {
+            Ok(*self)
+        } else if self.is_boxed() || self.is_list() {
+            let tt = self.to_typed_term().unwrap();
+            tt.clone_to_heap(heap)
+        } else {
+            panic!("clone_to_heap called on invalid term type: {:?}", self);
+        }
+    }
+
+    fn size_in_words(&self) -> usize {
+        if self.is_immediate() {
+            return 1;
+        } else if self.is_boxed() || self.is_list() {
+            let tt = self.to_typed_term().unwrap();
+            tt.size_in_words()
+        } else {
+            assert!(self.is_header());
+            let arityval = self.arityval();
+            arityval + 1
+        }
     }
 }
 

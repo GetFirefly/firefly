@@ -8,6 +8,7 @@ use liblumen_core::util::pointer::{distance_absolute, in_area};
 
 use super::*;
 use crate::erts::process::alloc;
+use crate::erts::process::ProcessHeap;
 use crate::erts::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -53,15 +54,20 @@ enum CollectionType {
 /// to its cousin, as it doesn't handle the full set of capabilities the
 /// BEAM supports, but as Lumen builds up its feature set, we will add those
 /// missing features here correspondingly
-pub struct GarbageCollector<'p> {
+pub struct GarbageCollector<'p, 'h> {
     mode: CollectionType,
-    process: &'p mut ProcessControlBlock,
+    process: &'p ProcessControlBlock,
+    heap: &'h mut ProcessHeap,
     roots: RootSet,
 }
-impl<'p> GarbageCollector<'p> {
+impl<'p, 'h> GarbageCollector<'p, 'h> {
     /// Initializes the collector with the given process and root set
-    pub fn new(process: &'p mut ProcessControlBlock, roots: RootSet) -> Self {
-        let mode = if Self::need_fullsweep(process) {
+    pub fn new(
+        heap: &'h mut ProcessHeap,
+        process: &'p ProcessControlBlock,
+        roots: RootSet,
+    ) -> Self {
+        let mode = if Self::need_fullsweep(heap, process) {
             CollectionType::Full
         } else {
             CollectionType::Minor
@@ -69,6 +75,7 @@ impl<'p> GarbageCollector<'p> {
         Self {
             mode,
             process,
+            heap,
             roots,
         }
     }
@@ -96,12 +103,12 @@ impl<'p> GarbageCollector<'p> {
     fn full_sweep(&mut self, need: usize) -> Result<usize, GcError> {
         trace!("Performing a full sweep garbage collection");
 
-        let old_heap_size = self.process.old.heap_used();
+        let old_heap_size = self.heap.old.heap_used();
 
         // Determine the estimated size for the new heap which will receive all live data
-        let stack_size = self.process.young.stack_used();
+        let stack_size = self.heap.young.stack_used();
         let off_heap_size = self.process.off_heap_size();
-        let size_before = self.process.young.heap_used() + old_heap_size + off_heap_size;
+        let size_before = self.heap.young.heap_used() + old_heap_size + off_heap_size;
         // Conservatively pad out estimated size to include space for the requested `need`
         let mut new_size = alloc::next_heap_size(stack_size + size_before);
         while new_size < (need + stack_size + size_before) {
@@ -110,7 +117,7 @@ impl<'p> GarbageCollector<'p> {
         // If we already have a large enough heap, we don't need to grow it, but if the GROW flag is
         // set, then we should do it anyway, since it will prevent us from doing another full
         // collection for awhile (assuming one is not forced)
-        if new_size == self.process.young.size() && self.should_force_heap_growth() {
+        if new_size == self.heap.young.size() && self.should_force_heap_growth() {
             new_size = alloc::next_heap_size(new_size);
         }
         // Verify that our projected heap size is not going to blow the max heap size, if set
@@ -141,10 +148,10 @@ impl<'p> GarbageCollector<'p> {
                         if boxed.is_procbin() {
                             // First we need to remove the procbin from its old virtual heap
                             let old_bin = &*(ptr as *mut ProcBin);
-                            if self.process.young.virtual_heap_contains(old_bin) {
-                                self.process.young.virtual_heap_unlink(old_bin);
+                            if self.heap.young.virtual_heap_contains(old_bin) {
+                                self.heap.young.virtual_heap_unlink(old_bin);
                             } else {
-                                self.process.old.virtual_heap_unlink(old_bin);
+                                self.heap.old.virtual_heap_unlink(old_bin);
                             }
                             // Move to top of the new heap
                             new_heap.move_into(root, ptr, boxed);
@@ -175,23 +182,23 @@ impl<'p> GarbageCollector<'p> {
         // All references in the roots point to the new heap, but most of
         // the references in the values we just moved still point back to
         // the old heaps
-        new_heap.full_sweep(&mut self.process.young, &mut self.process.old);
+        new_heap.full_sweep(&mut self.heap.young, &mut self.heap.old);
 
         // Now that all live data has been swept on to the new heap, we can
         // clean up all of the off heap fragments that we still have laying around
         self.sweep_off_heap();
 
         // Free the old generation heap, as it is no longer used post-sweep
-        if self.process.old.active() {
-            let old_heap_start = self.process.old.heap_start();
-            let old_heap_size = self.process.old.size();
+        if self.heap.old.active() {
+            let old_heap_start = self.heap.old.heap_start();
+            let old_heap_size = self.heap.old.size();
             unsafe { alloc::free(old_heap_start, old_heap_size) };
-            self.process.old = OldHeap::empty();
+            self.heap.old = OldHeap::empty();
         }
 
         // Move the stack to the end of the new heap
-        let old_stack_start = self.process.young.stack_pointer();
-        let old_stack_slots = self.process.young.stack_size();
+        let old_stack_start = self.heap.young.stack_pointer();
+        let old_stack_slots = self.heap.young.stack_size();
         unsafe {
             let new_stack_start = new_heap.alloca_unchecked(stack_size).as_ptr();
             ptr::copy_nonoverlapping(old_stack_start, new_stack_start, stack_size);
@@ -200,22 +207,22 @@ impl<'p> GarbageCollector<'p> {
         }
 
         // Free the old young generation heap, as it is no longer used now that the stack is moved
-        let young_heap_start = self.process.young.heap_start();
-        let young_heap_size = self.process.young.size();
+        let young_heap_start = self.heap.young.heap_start();
+        let young_heap_size = self.heap.young.size();
         unsafe { alloc::free(young_heap_start, young_heap_size) };
 
         // Update the process to use the new heap
         new_heap.set_high_water_mark();
-        self.process.young = new_heap;
-        self.process.gen_gc_count = 0;
+        self.heap.young = new_heap;
+        self.heap.gen_gc_count = 0;
 
         // TODO: Move messages to be stored on-heap, on to the heap
         // Check invariants
         self.sanity_check();
 
         // Calculate reclamation for tracing
-        let stack_used = self.process.young.stack_used();
-        let heap_used = self.process.young.heap_used();
+        let stack_used = self.heap.young.stack_used();
+        let heap_used = self.heap.young.heap_used();
         let size_after = heap_used + stack_used + self.process.off_heap_size();
         if size_before >= size_after {
             trace!(
@@ -231,7 +238,7 @@ impl<'p> GarbageCollector<'p> {
         // Determine if we oversized the heap and should shrink it
         let mut adjusted = false;
         let need_after = need + stack_used + heap_used;
-        let total_size = self.process.young.size();
+        let total_size = self.heap.young.size();
         if total_size < need_after {
             // Something went horribly wrong, our collection resulted in a heap
             // that was smaller than even our worst case estimate, which means
@@ -268,8 +275,8 @@ impl<'p> GarbageCollector<'p> {
         trace!("Performing a minor garbage collection");
 
         let off_heap_size = self.process.off_heap_size();
-        let size_before = self.process.young.heap_used() + off_heap_size;
-        let mature_size = self.process.young.mature_size();
+        let size_before = self.heap.young.heap_used() + off_heap_size;
+        let mature_size = self.heap.young.mature_size();
 
         // Verify that our projected heap size does not exceed
         // the max heap size, if one was configured
@@ -280,12 +287,12 @@ impl<'p> GarbageCollector<'p> {
             .map_err(|_| GcError::AllocErr)?;
 
         // Do a minor collection if there is an old heap and it is large enough
-        if self.process.old.active() && mature_size > self.process.old.heap_available() {
+        if self.heap.old.active() && mature_size > self.heap.old.heap_available() {
             return Err(GcError::FullsweepRequired);
         }
 
-        let prev_old_top = self.process.old.heap_pointer();
-        let stack_size = self.process.young.stack_used();
+        let prev_old_top = self.heap.old.heap_pointer();
+        let stack_size = self.heap.young.stack_used();
         let mut new_size = alloc::next_heap_size(stack_size + size_before);
         while new_size < (stack_size + size_before + need) {
             // While we expect that we will free memory during collection,
@@ -297,17 +304,17 @@ impl<'p> GarbageCollector<'p> {
         }
 
         // Perform the "meat" of the minor collection
-        unsafe { self.do_minor_sweep(self.process.young.heap_start(), mature_size, new_size)? };
+        unsafe { self.do_minor_sweep(self.heap.young.heap_start(), mature_size, new_size)? };
 
         // TODO: if using on-heap messages, move messages in the queue to the heap
 
-        let new_mature = distance_absolute(self.process.old.heap_pointer(), prev_old_top);
-        let heap_used = self.process.young.heap_used();
+        let new_mature = distance_absolute(self.heap.old.heap_pointer(), prev_old_top);
+        let heap_used = self.heap.young.heap_used();
         let size_after = new_mature + heap_used; // + process.mbuf_size
 
         self.sanity_check();
 
-        self.process.gen_gc_count += 1;
+        self.heap.gen_gc_count += 1;
         let need_after = heap_used + need + stack_size;
 
         // Excessively large heaps should be shrunk, but don't even bother on reasonable small heaps
@@ -316,7 +323,7 @@ impl<'p> GarbageCollector<'p> {
         // new heap, therefore unless the heap size is substantial, we don't want to shrink
         let mut adjust_size = 0;
         let oversized_heap = heap_used > need_after * 4;
-        let old_heap_size = self.process.old.size();
+        let old_heap_size = self.heap.old.size();
         let shrink = oversized_heap && (heap_used > 8000 || heap_used > old_heap_size);
         if shrink {
             let mut wanted = need_after * 3;
@@ -350,7 +357,7 @@ impl<'p> GarbageCollector<'p> {
         mature_size: usize,
         new_size: usize,
     ) -> Result<(), GcError> {
-        let old_top = self.process.old.heap_pointer();
+        let old_top = self.heap.old.heap_pointer();
         let mature_end = mature.offset(mature_size as isize);
 
         // Allocate new tospace (young generation)
@@ -374,24 +381,24 @@ impl<'p> GarbageCollector<'p> {
                     if boxed.is_procbin() {
                         // First we need to remove the procbin from its old virtual heap
                         let old_bin = &*(ptr as *mut ProcBin);
-                        self.process.young.virtual_heap_unlink(old_bin);
+                        self.heap.young.virtual_heap_unlink(old_bin);
                         // Move to top of the old gen heap
-                        self.process.old.move_into(root, ptr, boxed);
+                        self.heap.old.move_into(root, ptr, boxed);
                         // Then add the procbin to the new virtual heap
                         let marker = *ptr;
                         assert!(marker.is_boxed());
                         let bin_ptr = marker.boxed_val() as *mut ProcBin;
                         let bin = &*bin_ptr;
-                        self.process.old.virtual_alloc(bin);
+                        self.heap.old.virtual_alloc(bin);
                     } else {
-                        self.process.old.move_into(root, ptr, boxed);
+                        self.heap.old.move_into(root, ptr, boxed);
                     }
-                } else if !term.is_literal() && !self.process.old.contains(ptr) {
+                } else if !term.is_literal() && !self.heap.old.contains(ptr) {
                     // The boxed value is in the young generation
                     if boxed.is_procbin() {
                         // First we need to remove the procbin from its old virtual heap
                         let old_bin = &*(ptr as *mut ProcBin);
-                        self.process.young.virtual_heap_unlink(old_bin);
+                        self.heap.young.virtual_heap_unlink(old_bin);
                         // Move to top of the new heap
                         new_young.move_into(root, ptr, boxed);
                         // Then add the procbin to the new virtual heap
@@ -413,8 +420,8 @@ impl<'p> GarbageCollector<'p> {
                     ptr::write(root, cons.tail);
                 } else if in_area(ptr, mature, mature_end) {
                     // Move to old generation
-                    self.process.old.move_cons_into(root, ptr, cons);
-                } else if !term.is_literal() && !self.process.old.contains(ptr) {
+                    self.heap.old.move_cons_into(root, ptr, cons);
+                } else if !term.is_literal() && !self.heap.old.contains(ptr) {
                     // Move to new young heap
                     new_young.move_cons_into(root, ptr, cons);
                 }
@@ -425,19 +432,14 @@ impl<'p> GarbageCollector<'p> {
         // most references on the new heap point to the old heap so the next stage
         // is to scan through the new heap, evacuating data to the new heap until all
         // live references have been moved
-        new_young.sweep(
-            &mut self.process.young,
-            &mut self.process.old,
-            mature,
-            mature_end,
-        );
+        new_young.sweep(&mut self.heap.young, &mut self.heap.old, mature, mature_end);
 
         // If we have been tenuring (we have an old generation and have moved values into it),
         // then those newly tenured values may hold references into the old young generation
         // heap, which is about to be freed, so we need to move them into the old generation
         // as well (we never allow pointers into the young generation from the old)
-        if self.process.old.heap_pointer() as usize > old_top as usize {
-            self.process.old.sweep(&mut new_young);
+        if self.heap.old.heap_pointer() as usize > old_top as usize {
+            self.heap.old.sweep(&mut new_young);
         }
 
         // Mark where this collection ended in the new heap
@@ -447,11 +449,11 @@ impl<'p> GarbageCollector<'p> {
         self.sweep_off_heap();
 
         // Copy stack to end of new heap
-        new_young.copy_stack_from(&self.process.young);
+        new_young.copy_stack_from(&self.heap.young);
 
         // Replace the now freed young heap with the one we've been building
         // NOTE: Because YoungHeap implements Drop, the old young heap will be freed correctly here
-        self.process.young = new_young;
+        self.heap.young = new_young;
 
         Ok(())
     }
@@ -489,16 +491,16 @@ impl<'p> GarbageCollector<'p> {
     /// that the heap is not moved. In BEAM, they have to account for that condition, as the
     /// allocators do not provide a `realloc_in_place` API
     fn shrink_young_heap(&mut self, new_size: usize) {
-        self.process.young.shrink(new_size)
+        self.heap.young.shrink(new_size)
     }
 
     /// Ensures the old heap is initialized, if required
     #[inline]
     fn ensure_old_heap(&mut self, size_before: usize, mature_size: usize) -> Result<(), AllocErr> {
-        if !self.process.old.active() && mature_size > 0 {
+        if !self.heap.old.active() && mature_size > 0 {
             let size = alloc::next_heap_size(size_before);
             let start = alloc::heap(size)?;
-            self.process.old = OldHeap::new(start, size);
+            self.heap.old = OldHeap::new(start, size);
         }
         Ok(())
     }
@@ -511,8 +513,8 @@ impl<'p> GarbageCollector<'p> {
         size_before: usize,
         mature_size: usize,
     ) -> Result<(), GcError> {
-        let young = &self.process.young;
-        let old = &self.process.old;
+        let young = &self.heap.young;
+        let old = &self.heap.old;
 
         // If a max heap size is set, make sure we're not going to exceed it
         if self.process.max_heap_size > 0 {
@@ -547,11 +549,11 @@ impl<'p> GarbageCollector<'p> {
 
     /// Determines if the current collection requires a full sweep or not
     #[inline]
-    fn need_fullsweep(process: &ProcessControlBlock) -> bool {
+    fn need_fullsweep(heap: &ProcessHeap, process: &ProcessControlBlock) -> bool {
         if process.needs_fullsweep() {
             return true;
         }
-        process.gen_gc_count >= process.max_gen_gcs
+        heap.gen_gc_count >= process.max_gen_gcs
     }
 
     /// Determines if we should try and grow the heap even when not necessary
@@ -574,6 +576,6 @@ impl<'p> GarbageCollector<'p> {
     /// Runs verification of heap invariants
     #[inline]
     fn sanity_check(&self) {
-        self.process.young.sanity_check()
+        self.heap.young.sanity_check()
     }
 }

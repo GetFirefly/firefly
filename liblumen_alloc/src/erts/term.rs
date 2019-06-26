@@ -32,7 +32,7 @@ use core::alloc::{AllocErr, Layout};
 use core::fmt;
 use core::ptr;
 
-use super::AllocInProcess;
+use super::{HeapAlloc, ProcessControlBlock};
 
 #[derive(Clone, Copy)]
 pub struct BadArgument(Term);
@@ -99,7 +99,7 @@ unsafe impl AsTerm for MapHeader {
     }
 }
 impl crate::borrow::CloneToProcess for MapHeader {
-    fn clone_to_process<A: AllocInProcess>(&self, _process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, AllocErr> {
         unimplemented!()
     }
 }
@@ -119,7 +119,7 @@ impl crate::borrow::CloneToProcess for MapHeader {
 /// indicates that a process needs to be garbage collected, but in some cases may indicate
 /// that the global heap is out of space.
 #[inline]
-pub fn make_binary_from_str<A: AllocInProcess>(process: &mut A, s: &str) -> Result<Term, AllocErr> {
+pub fn make_binary_from_str(process: &mut ProcessControlBlock, s: &str) -> Result<Term, AllocErr> {
     let len = s.len();
     // Allocate ProcBins for sizes greater than 64 bytes
     if len > 64 {
@@ -141,14 +141,11 @@ pub fn make_binary_from_str<A: AllocInProcess>(process: &mut A, s: &str) -> Resu
 /// Constructs a reference-counted binary from the given string, and associated with the given
 /// process
 #[inline]
-pub fn make_procbin_from_str<A: AllocInProcess>(
-    process: &mut A,
-    s: &str,
-) -> Result<Term, AllocErr> {
+pub fn make_procbin_from_str<A: HeapAlloc>(heap: &mut A, s: &str) -> Result<Term, AllocErr> {
     // Allocates on global heap
     let bin = ProcBin::from_str(s)?;
     // Allocates space on the process heap for the header
-    let header_ptr = unsafe { process.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
+    let header_ptr = unsafe { heap.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
     // Write the header to the process heap
     unsafe { ptr::write(header_ptr as *mut ProcBin, bin) };
     // Returns a box term that points to the header
@@ -158,14 +155,11 @@ pub fn make_procbin_from_str<A: AllocInProcess>(
 
 /// Constructs a heap-allocated binary from the given string, and associated with the given process
 #[inline]
-pub fn make_heapbin_from_str<A: AllocInProcess>(
-    process: &mut A,
-    s: &str,
-) -> Result<Term, AllocErr> {
+pub fn make_heapbin_from_str<A: HeapAlloc>(heap: &mut A, s: &str) -> Result<Term, AllocErr> {
     let len = s.len();
     unsafe {
         // Allocates space on the process heap for the header + data
-        let header_ptr = process.alloc_layout(HeapBin::layout(s))?.as_ptr() as *mut HeapBin;
+        let header_ptr = heap.alloc_layout(HeapBin::layout(s))?.as_ptr() as *mut HeapBin;
         // Pointer to start of binary data
         let bin_ptr = header_ptr.offset(1) as *mut u8;
         // Construct the right header based on whether input string is only ASCII or includes
@@ -200,8 +194,8 @@ pub fn make_heapbin_from_str<A: AllocInProcess>(
 /// indicates that a process needs to be garbage collected, but in some cases may indicate
 /// that the global heap is out of space.
 #[inline]
-pub fn make_binary_from_bytes<A: AllocInProcess>(
-    process: &mut A,
+pub fn make_binary_from_bytes(
+    process: &mut ProcessControlBlock,
     s: &[u8],
 ) -> Result<Term, AllocErr> {
     let len = s.len();
@@ -225,14 +219,11 @@ pub fn make_binary_from_bytes<A: AllocInProcess>(
 /// Constructs a reference-counted binary from the given byte slice, and associated with the given
 /// process
 #[inline]
-pub fn make_procbin_from_bytes<A: AllocInProcess>(
-    process: &mut A,
-    s: &[u8],
-) -> Result<Term, AllocErr> {
+pub fn make_procbin_from_bytes<A: HeapAlloc>(heap: &mut A, s: &[u8]) -> Result<Term, AllocErr> {
     // Allocates on global heap
     let bin = ProcBin::from_slice(s)?;
     // Allocates space on the process heap for the header
-    let header_ptr = unsafe { process.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
+    let header_ptr = unsafe { heap.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
     // Write the header to the process heap
     unsafe { ptr::write(header_ptr as *mut ProcBin, bin) };
     // Returns a box term that points to the header
@@ -243,14 +234,11 @@ pub fn make_procbin_from_bytes<A: AllocInProcess>(
 /// Constructs a heap-allocated binary from the given byte slice, and associated with the given
 /// process
 #[inline]
-pub fn make_heapbin_from_bytes<A: AllocInProcess>(
-    process: &mut A,
-    s: &[u8],
-) -> Result<Term, AllocErr> {
+pub fn make_heapbin_from_bytes<A: HeapAlloc>(heap: &mut A, s: &[u8]) -> Result<Term, AllocErr> {
     let len = s.len();
     unsafe {
         // Allocates space on the process heap for the header + data
-        let header_ptr = process.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
+        let header_ptr = heap.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
         // Pointer to start of binary data
         let bin_ptr = header_ptr.offset(1) as *mut u8;
         // Construct the right header based on whether input string is only ASCII or includes
@@ -275,13 +263,13 @@ pub fn make_heapbin_from_bytes<A: AllocInProcess>(
 /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
 /// a slice passed to `make_tuple_from_slice` to produce nested tuples.
 #[inline]
-pub fn make_tuple_from_slice<A: AllocInProcess>(
-    process: &mut A,
+pub fn make_tuple_from_slice<A: HeapAlloc>(
+    heap: &mut A,
     elements: &[Term],
 ) -> Result<Term, AllocErr> {
     let len = elements.len();
     let layout = Tuple::layout(len);
-    let tuple_ptr = unsafe { process.alloc_layout(layout)?.as_ptr() as *mut Tuple };
+    let tuple_ptr = unsafe { heap.alloc_layout(layout)?.as_ptr() as *mut Tuple };
     let head_ptr = unsafe { tuple_ptr.offset(1) as *mut Term };
     let tuple = Tuple::new(len);
     unsafe {
@@ -303,11 +291,11 @@ pub fn make_tuple_from_slice<A: AllocInProcess>(
 /// based on the input value, i.e. an immediate small integer for values that fit,
 /// else a heap-allocated big integer for larger values.
 #[inline]
-pub fn make_integer<I: Into<Integer>, A: AllocInProcess>(process: &mut A, i: I) -> Term {
+pub fn make_integer<I: Into<Integer>, A: HeapAlloc>(heap: &mut A, i: I) -> Term {
     use crate::borrow::CloneToProcess;
     match i.into() {
         Integer::Small(small) => unsafe { small.as_term() },
-        Integer::Big(big) => big.clone_to_process(process),
+        Integer::Big(big) => big.clone_to_heap(heap).unwrap(),
     }
 }
 

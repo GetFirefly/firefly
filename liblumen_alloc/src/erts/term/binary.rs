@@ -12,6 +12,7 @@ use intrusive_collections::LinkedListLink;
 use liblumen_core::util::pointer::distance_absolute;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::ProcessControlBlock;
 
 use super::*;
 
@@ -392,12 +393,23 @@ unsafe impl AsTerm for ProcBin {
 }
 
 impl CloneToProcess for ProcBin {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
+        let mut heap = process.acquire_heap();
+        let boxed = self.clone_to_heap(&mut heap).unwrap();
+        let ptr = boxed.boxed_val() as *mut Self;
         self.inner().refc.fetch_add(1, Ordering::AcqRel);
+        // Reify a reference to the newly written clone, and push it
+        // on to the process virtual heap
+        let clone = unsafe { &*ptr };
+        process.virtual_alloc(clone);
+        boxed
+    }
+
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         unsafe {
             // Allocate space for the header
             let layout = Layout::new::<Self>();
-            let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
             // Write the binary header with an empty link
             ptr::write(
                 ptr,
@@ -407,12 +419,8 @@ impl CloneToProcess for ProcBin {
                     link: LinkedListLink::new(),
                 },
             );
-            // Reify a reference to the newly written clone, and push it
-            // on to the process virtual heap
-            let clone = &*ptr;
-            process.virtual_alloc(clone);
             // Reify result term
-            Term::make_boxed(ptr)
+            Ok(Term::make_boxed(ptr))
         }
     }
 }
@@ -574,22 +582,24 @@ unsafe impl AsTerm for HeapBin {
 }
 
 impl CloneToProcess for HeapBin {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         let bin_size = self.size();
-        let size = mem::size_of::<Self>() + bin_size;
-        let words = to_word_size(size);
+        let words = self.size_in_words();
         unsafe {
             // Allocate space for header + binary
-            let ptr = process.alloc(words).unwrap().as_ptr() as *mut Self;
+            let ptr = heap.alloc(words)?.as_ptr() as *mut Self;
             // Copy header
             ptr::copy_nonoverlapping(self as *const Self, ptr, mem::size_of::<Self>());
             // Copy binary
             let bin_ptr = ptr.offset(1) as *mut u8;
             ptr::copy_nonoverlapping(self.bytes(), bin_ptr, bin_size);
             // Return term
-            let hb = &*ptr;
-            hb.as_term()
+            Ok(Term::make_boxed(ptr))
         }
+    }
+
+    fn size_in_words(&self) -> usize {
+        to_word_size(self.size() + mem::size_of::<Self>())
     }
 }
 
@@ -726,31 +736,29 @@ impl<B: Binary> PartialOrd<B> for SubBinary {
 }
 
 impl CloneToProcess for SubBinary {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         let real_bin_ptr = follow_moved(self.orig).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         // For ref-counted binaries and those that are already on the process heap,
         // we just need to copy the sub binary header, not the binary as well
-        if real_bin.is_procbin() || (real_bin.is_heapbin() && process.is_owner(real_bin_ptr)) {
-            let layout = Layout::new::<Self>();
-            let size = layout.size();
+        if real_bin.is_procbin() || (real_bin.is_heapbin() && heap.is_owner(real_bin_ptr)) {
+            let size = mem::size_of::<Self>();
             unsafe {
                 // Allocate space for header and copy it
-                let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
+                let ptr = heap.alloc(to_word_size(size))?.as_ptr() as *mut Self;
                 ptr::copy_nonoverlapping(self as *const Self, ptr, size);
-                let sb = &*ptr;
-                sb.as_term()
+                Ok(Term::make_boxed(ptr))
             }
         } else {
             assert!(real_bin.is_heapbin());
             // Need to make sure that the heapbin is cloned as well, and that the header is suitably
             // updated
             let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
-            let new_bin = bin.clone_to_process(process);
-            let layout = Layout::new::<Self>();
+            let new_bin = bin.clone_to_heap(heap)?;
+            let size = mem::size_of::<Self>();
             unsafe {
                 // Allocate space for header
-                let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
+                let ptr = heap.alloc(to_word_size(size))?.as_ptr() as *mut Self;
                 // Write header, with modifications
                 ptr::write(
                     ptr,
@@ -764,8 +772,7 @@ impl CloneToProcess for SubBinary {
                         orig: new_bin,
                     },
                 );
-                let sb = &*ptr;
-                sb.as_term()
+                Ok(Term::make_boxed(ptr))
             }
         }
     }
@@ -929,35 +936,33 @@ impl<B: Binary> PartialOrd<B> for MatchContext {
 }
 
 impl CloneToProcess for MatchContext {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         let real_bin_ptr = follow_moved(self.buffer.orig).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         // For ref-counted binaries and those that are already on the process heap,
         // we just need to copy the match context header, not the binary as well
-        if real_bin.is_procbin() || (real_bin.is_heapbin() && process.is_owner(real_bin_ptr)) {
-            let layout = Layout::new::<Self>();
-            let size = layout.size();
+        if real_bin.is_procbin() || (real_bin.is_heapbin() && heap.is_owner(real_bin_ptr)) {
+            let size = mem::size_of::<Self>();
             unsafe {
                 // Allocate space for header and copy it
-                let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
+                let ptr = heap.alloc(to_word_size(size))?.as_ptr() as *mut Self;
                 ptr::copy_nonoverlapping(self as *const Self, ptr, size);
-                let mc = &*ptr;
-                mc.as_term()
+                Ok(Term::make_boxed(ptr))
             }
         } else {
             assert!(real_bin.is_heapbin());
             // Need to make sure that the heapbin is cloned as well, and that the header is suitably
             // updated
             let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
-            let new_bin = bin.clone_to_process(process);
+            let new_bin = bin.clone_to_heap(heap)?;
             let new_bin_ref = unsafe { &*(new_bin.boxed_val() as *mut HeapBin) };
             let old_bin_ptr = bin.bytes();
             let old_bin_base = self.buffer.base;
             let base_offset = distance_absolute(old_bin_ptr, old_bin_base);
-            let layout = Layout::new::<Self>();
+            let size = mem::size_of::<Self>();
             unsafe {
                 // Allocate space for header
-                let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
+                let ptr = heap.alloc(to_word_size(size))?.as_ptr() as *mut Self;
                 // Write header, with modifications
                 let mut buffer = self.buffer;
                 buffer.orig = new_bin_ref.as_term();
@@ -971,8 +976,7 @@ impl CloneToProcess for MatchContext {
                         save_offset: self.save_offset,
                     },
                 );
-                let mc = &*ptr;
-                mc.as_term()
+                Ok(Term::make_boxed(ptr))
             }
         }
     }

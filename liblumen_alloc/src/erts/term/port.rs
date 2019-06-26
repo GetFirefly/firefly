@@ -1,8 +1,9 @@
+use core::alloc::AllocErr;
 use core::cmp;
 use core::fmt;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{AllocInProcess, Node};
+use crate::erts::{HeapAlloc, Node};
 
 use super::{AsTerm, Term};
 
@@ -49,8 +50,7 @@ unsafe impl AsTerm for ExternalPort {
     }
 }
 impl CloneToProcess for ExternalPort {
-    #[inline]
-    fn clone_to_process<A: AllocInProcess>(&self, _process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, AllocErr> {
         unimplemented!()
     }
 }

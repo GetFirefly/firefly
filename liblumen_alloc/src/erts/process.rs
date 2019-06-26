@@ -2,7 +2,10 @@ mod flags;
 pub use self::flags::*;
 
 mod alloc;
-pub use self::alloc::{AllocInProcess, StackPrimitives};
+pub use self::alloc::{HeapAlloc, StackAlloc, StackPrimitives};
+
+mod heap;
+use self::heap::ProcessHeap;
 
 mod gc;
 
@@ -13,13 +16,21 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 
 use hashbrown::HashMap;
 use intrusive_collections::{LinkedList, UnsafeRef};
-use liblumen_core::locks::SpinLock;
+use liblumen_core::locks::{Mutex, MutexGuard, SpinLock};
 
-use self::gc::*;
-use super::*;
 use crate::borrow::CloneToProcess;
 
+use self::gc::{GcError, RootSet};
+use super::*;
+
 /// Represents the primary control structure for processes
+///
+/// NOTE FOR LUKE: Like we discussed, when performing GC we will
+/// note allow other threads to hold references to this struct, so
+/// we need to wrap the acquisition of a process reference in an RwLock,
+/// so that when the owning scheduler decides to perform GC, it can upgrade
+/// to a writer lock and modify/access the heap, process dictionary, off-heap
+/// fragments and message list without requiring multiple locks
 #[repr(C)]
 pub struct ProcessControlBlock {
     // Process flags, e.g. `Process.flag/1`
@@ -32,19 +43,15 @@ pub struct ProcessControlBlock {
     min_vheap_size: usize,
     // the percentage of used to unused space at which a collection is triggered
     gc_threshold: f64,
-    // the number of minor collections
-    gen_gc_count: usize,
     // the maximum number of minor collections before a full sweep occurs
     max_gen_gcs: usize,
-    // young generation heap
-    young: YoungHeap,
-    // old generation heap
-    old: OldHeap,
     // off-heap allocations
     off_heap: SpinLock<LinkedList<HeapFragmentAdapter>>,
     off_heap_size: AtomicUsize,
     // process dictionary
     dictionary: HashMap<Term, Term>,
+    // process heap, cache line aligned to avoid false sharing with rest of struct
+    heap: Mutex<ProcessHeap>,
 }
 impl ProcessControlBlock {
     /// Creates a new PCB using default settings and heap size
@@ -58,8 +65,7 @@ impl ProcessControlBlock {
     /// `heap_size`, which is the size of the heap in words.
     #[inline]
     pub fn new(heap: *mut Term, heap_size: usize) -> Self {
-        let young = YoungHeap::new(heap, heap_size);
-        let old = OldHeap::default();
+        let heap = ProcessHeap::new(heap, heap_size);
         let off_heap = SpinLock::new(LinkedList::new(HeapFragmentAdapter::new()));
         let dictionary = HashMap::new();
         Self {
@@ -68,13 +74,11 @@ impl ProcessControlBlock {
             max_heap_size: 0,
             min_vheap_size: 0,
             gc_threshold: 0.75,
-            gen_gc_count: 0,
             max_gen_gcs: 65535,
-            young,
-            old,
             off_heap,
             off_heap_size: AtomicUsize::new(0),
             dictionary,
+            heap: Mutex::new(heap),
         }
     }
 
@@ -90,26 +94,47 @@ impl ProcessControlBlock {
         self.flags.clear(flags);
     }
 
+    /// Acquires exclusive access to the process heap, blocking the current thread until it is able
+    /// to do so.
+    ///
+    /// The resulting lock guard can be used to perform multiple allocations without needing to
+    /// acquire a lock multiple times. Once dropped, the lock is released.
+    ///
+    /// NOTE: This lock is re-entrant, so a single-thread may try to acquire a lock multiple times
+    /// without deadlock, but in general you should acquire a lock with this function and then
+    /// pass the guard into code which needs a lock, where possible.
+    #[inline]
+    pub fn acquire_heap<'a>(&'a self) -> MutexGuard<'a, ProcessHeap> {
+        self.heap.lock()
+    }
+
+    /// Like `acquire_heap`, but instead of blocking the current thread when the lock is held by
+    /// another thread, it returns `None`, allowing the caller to decide how to proceed. If lock
+    /// acquisition is successful, it returns `Some(guard)`, which may be used in the same
+    /// manner as `acquire_heap`.
+    #[inline]
+    pub fn try_acquire_heap<'a>(&'a self) -> Option<MutexGuard<'a, ProcessHeap>> {
+        self.heap.try_lock()
+    }
+
     /// Perform a heap allocation, but do not fall back to allocating a heap fragment
     /// if the process heap is not able to fulfill the allocation request
     #[inline]
-    pub unsafe fn alloc_nofrag(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        self.young.alloc(need)
+    pub unsafe fn alloc_nofrag(&self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        let mut heap = self.heap.lock();
+        heap.alloc(need)
     }
 
     /// Same as `alloc_nofrag`, but takes a `Layout` rather than the size in words
     #[inline]
-    pub unsafe fn alloc_nofrag_layout(
-        &mut self,
-        layout: Layout,
-    ) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloc_nofrag_layout(&self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
         let words = Self::layout_to_words(layout);
         self.alloc_nofrag(words)
     }
 
     /// Skip allocating on the process heap and directly allocate a heap fragment
     #[inline]
-    pub unsafe fn alloc_fragment(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloc_fragment(&self, need: usize) -> Result<NonNull<Term>, AllocErr> {
         let layout = Layout::from_size_align_unchecked(
             need * mem::size_of::<Term>(),
             mem::align_of::<Term>(),
@@ -119,19 +144,29 @@ impl ProcessControlBlock {
 
     /// Same as `alloc_fragment`, but takes a `Layout` rather than the size in words
     #[inline]
-    pub unsafe fn alloc_fragment_layout(
-        &mut self,
-        layout: Layout,
-    ) -> Result<NonNull<Term>, AllocErr> {
-        let frag = HeapFragment::new(layout)?;
-        let frag_ref = frag.as_ref();
-        let size = frag_ref.size();
+    pub unsafe fn alloc_fragment_layout(&self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+        let mut frag = HeapFragment::new(layout)?;
+        let frag_ref = frag.as_mut();
         let data = frag_ref.data().cast::<Term>();
+        self.attach_fragment(frag_ref);
+        Ok(data)
+    }
+
+    /// Attaches a `HeapFragment` to this processes' off-heap fragment list
+    #[inline]
+    pub fn attach_fragment(&self, fragment: &mut HeapFragment) {
+        let size = fragment.size();
         let mut off_heap = self.off_heap.lock();
-        off_heap.push_front(UnsafeRef::from_raw(frag.as_ptr()));
+        unsafe { off_heap.push_front(UnsafeRef::from_raw(fragment as *mut HeapFragment)) };
         drop(off_heap);
         self.off_heap_size.fetch_add(size, Ordering::AcqRel);
-        Ok(data)
+    }
+
+    /// Attaches a ProcBin to this processes' virtual binary heap
+    #[inline]
+    pub fn virtual_alloc(&self, bin: &ProcBin) -> Term {
+        let mut heap = self.heap.lock();
+        heap.virtual_alloc(bin)
     }
 
     /// Frees stack space occupied by the last term on the stack,
@@ -140,10 +175,11 @@ impl ProcessControlBlock {
     /// Use `stack_popn` to pop multiple terms from the stack at once
     #[inline]
     pub fn stack_pop(&mut self) -> Option<Term> {
-        match self.stack_top() {
+        let mut heap = self.heap.lock();
+        match heap.stack_slot(1) {
             None => None,
             ok @ Some(_) => {
-                self.stack_popn(1);
+                heap.stack_popn(1);
                 ok
             }
         }
@@ -165,7 +201,8 @@ impl ProcessControlBlock {
     /// Returns the term at the top of the stack
     #[inline]
     pub fn stack_top(&mut self) -> Option<Term> {
-        self.stack_slot(1)
+        let mut heap = self.heap.lock();
+        heap.stack_slot(1)
     }
 
     /// Puts a new value under the given key in the process dictionary
@@ -233,7 +270,7 @@ impl ProcessControlBlock {
     /// NOTE: We require a mutable reference to self to call this,
     /// since only the owning scheduler should ever be initiating a collection
     #[inline]
-    pub fn should_collect(&mut self) -> bool {
+    pub fn should_collect(&self) -> bool {
         // Check if a collection is being forced
         if self.is_gc_forced() {
             return true;
@@ -243,22 +280,8 @@ impl ProcessControlBlock {
             return false;
         }
         // Check if young generation requires collection
-        let used = self.young.heap_used();
-        let unused = self.young.unused();
-        let threshold = ((used + unused) as f64 * self.gc_threshold).ceil() as usize;
-        if used >= threshold {
-            return true;
-        }
-        // Check if virtual heap size indicates we should do a collection
-        let used = self.young.virtual_heap_used();
-        let unused = self.young.virtual_heap_unused();
-        if unused > 0 {
-            let threshold = ((used + unused) as f64 * self.gc_threshold).ceil() as usize;
-            used >= threshold
-        } else {
-            // We've exceeded the virtual heap size
-            true
-        }
+        let heap = self.heap.lock();
+        heap.should_collect(self.gc_threshold)
     }
 
     #[inline(always)]
@@ -296,75 +319,27 @@ impl ProcessControlBlock {
     /// `GcError` documentation.
     #[inline]
     pub fn garbage_collect(&mut self, need: usize, roots: &[Term]) -> Result<usize, GcError> {
+        let mut heap = self.heap.lock();
         // The roots passed in here are pointers to the native stack/registers, all other roots
         // we are able to pick up from the current process context
         let mut rootset = RootSet::new(roots);
-        // The primary source of roots we add is the process stack
-        rootset.push_range(self.young.stack_pointer(), self.young.stack_size());
         // The process dictionary is also used for roots
         for (k, v) in &self.dictionary {
             rootset.push(k as *const _ as *mut _);
             rootset.push(v as *const _ as *mut _);
         }
         // Initialize the collector with the given root set
-        let mut gc = GarbageCollector::new(self, rootset);
-        // Run the collector
-        gc.collect(need)
-    }
-}
-impl Drop for ProcessControlBlock {
-    fn drop(&mut self) {
-        // The heap fragment list will be dropped after this, so we
-        // do not need to worry about freeing those objects. Likewise,
-        // the process dictionary should only carry immediates, or boxes
-        // which point into the process heaps, so we do not need to free
-        // any objects there ourselves, as they will be cleaned up when
-        // the dictionary is dropped. This leaves only the young and old heap
-
-        // Free young heap
-        let young_heap_start = self.young.heap_start();
-        let young_heap_size = self.young.size();
-        unsafe { alloc::free(young_heap_start, young_heap_size) };
-        // Free old heap, if active
-        if self.old.active() {
-            let old_heap_start = self.old.heap_start();
-            let old_heap_size = self.old.size();
-            unsafe { alloc::free(old_heap_start, old_heap_size) };
-        }
-    }
-}
-impl AllocInProcess for ProcessControlBlock {
-    #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        match self.young.alloc(need) {
-            ok @ Ok(_) => ok,
-            Err(_) => self.alloc_fragment(need),
-        }
+        heap.garbage_collect(self, need, rootset)
     }
 
+    /// Returns true if the given pointer belongs to memory owned by this process
     #[inline]
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        self.young.alloca(need)
-    }
-
-    #[inline]
-    unsafe fn alloca_unchecked(&mut self, need: usize) -> NonNull<Term> {
-        self.young.alloca_unchecked(need)
-    }
-
-    #[inline]
-    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.young.virtual_alloc(bin)
-    }
-
-    #[inline]
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
-        if self.young.contains(ptr) || self.old.contains(ptr) {
+    pub fn is_owner<T>(&self, ptr: *const T) -> bool {
+        let mut heap = self.heap.lock();
+        if heap.is_owner(ptr) {
             return true;
         }
-        if self.young.virtual_heap_contains(ptr) || self.old.virtual_heap_contains(ptr) {
-            return true;
-        }
+        drop(heap);
         let off_heap = self.off_heap.lock();
         if off_heap.iter().any(|frag| frag.contains(ptr)) {
             return true;
@@ -372,45 +347,46 @@ impl AllocInProcess for ProcessControlBlock {
         false
     }
 }
-impl StackPrimitives for ProcessControlBlock {
+#[cfg(test)]
+impl ProcessControlBlock {
     #[inline]
-    fn stack_size(&self) -> usize {
-        self.young.stack_size()
+    fn young_heap_used(&self) -> usize {
+        let heap = self.heap.lock();
+        heap.young.heap_used()
     }
 
     #[inline]
-    unsafe fn set_stack_size(&mut self, size: usize) {
-        self.young.set_stack_size(size);
+    fn old_heap_used(&self) -> usize {
+        let heap = self.heap.lock();
+        heap.old.heap_used()
     }
 
     #[inline]
-    fn stack_pointer(&mut self) -> *mut Term {
-        self.young.stack_pointer()
+    fn has_old_heap(&self) -> bool {
+        let heap = self.heap.lock();
+        heap.old.active()
+    }
+}
+impl HeapAlloc for ProcessControlBlock {
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        let mut heap = self.heap.lock();
+        heap.alloc(need)
     }
 
-    #[inline]
-    unsafe fn set_stack_pointer(&mut self, sp: *mut Term) {
-        self.young.set_stack_pointer(sp);
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+        let mut heap = self.heap.lock();
+        heap.is_owner(ptr)
+    }
+}
+impl StackAlloc for ProcessControlBlock {
+    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        let mut heap = self.heap.lock();
+        heap.alloca(need)
     }
 
-    #[inline]
-    fn stack_used(&self) -> usize {
-        self.young.stack_used()
-    }
-
-    #[inline]
-    fn stack_available(&self) -> usize {
-        self.young.stack_available()
-    }
-
-    #[inline]
-    fn stack_slot(&mut self, n: usize) -> Option<Term> {
-        self.young.stack_slot(n)
-    }
-
-    #[inline]
-    fn stack_popn(&mut self, n: usize) {
-        self.young.stack_popn(n);
+    unsafe fn alloca_unchecked(&mut self, need: usize) -> NonNull<Term> {
+        let mut heap = self.heap.lock();
+        heap.alloca_unchecked(need)
     }
 }
 

@@ -3,10 +3,11 @@ use core::ptr::{self, NonNull};
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
+use liblumen_core::util::pointer::{distance_absolute, in_area};
 
 use crate::std_alloc;
 
-use super::Term;
+use super::{HeapAlloc, Term};
 
 // This adapter is used to track a list of heap fragments, attached to a process
 intrusive_adapter!(pub HeapFragmentAdapter = UnsafeRef<HeapFragment>: HeapFragment { link: LinkedListLink });
@@ -52,6 +53,8 @@ pub struct HeapFragment {
     pub link: LinkedListLink,
     // The memory region allocated for this fragment
     raw: RawFragment,
+    // The amount of used memory in this fragment
+    top: *mut u8,
 }
 impl HeapFragment {
     /// Returns the size (in bytes) of the fragment
@@ -80,11 +83,13 @@ impl HeapFragment {
         let align = layout.align();
         let ptr = std_alloc::alloc(full_layout)?.as_ptr() as *mut Self;
         let data = (ptr as *mut u8).offset(offset as isize);
+        let top = data;
         ptr::write(
             ptr,
             Self {
                 link: LinkedListLink::new(),
                 raw: RawFragment { size, align, data },
+                top,
             },
         );
         Ok(NonNull::new_unchecked(ptr))
@@ -103,5 +108,30 @@ impl Drop for HeapFragment {
             let ptr = NonNull::new_unchecked(self as *const _ as *mut u8);
             std_alloc::dealloc(ptr, layout);
         }
+    }
+}
+impl HeapAlloc for HeapFragment {
+    /// Perform a heap allocation.
+    ///
+    /// If space on the process heap is not immediately available, then the allocation
+    /// will be pushed into a heap fragment which will then be later moved on to the
+    /// process heap during garbage collection
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        let base = self.raw.data as *mut Term;
+        let top = self.top as *mut Term;
+        let available = distance_absolute(top, base);
+        if need > available {
+            return Err(AllocErr);
+        }
+
+        let new_top = base.offset(need as isize);
+        debug_assert!(new_top <= self.raw.data.offset(self.raw.size as isize) as *mut Term);
+        self.top = new_top as *mut u8;
+        Ok(NonNull::new_unchecked(new_top))
+    }
+
+    /// Returns true if the given pointer is owned by this process/heap
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+        in_area(ptr, self.raw.data, self.top)
     }
 }

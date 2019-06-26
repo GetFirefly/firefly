@@ -179,15 +179,15 @@ unsafe impl AsTerm for Tuple {
     }
 }
 impl CloneToProcess for Tuple {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         // The result of calling this will be a Tuple with everything located
         // contigously in memory
         unsafe {
             // Allocate the space needed for the header and all the elements
             let num_elements = self.size();
-            let size = mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>());
-            let layout = Layout::from_size_align_unchecked(size, mem::align_of::<Term>());
-            let ptr = process.alloc_layout(layout).unwrap().as_ptr() as *mut Self;
+            let words =
+                to_word_size(mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>()));
+            let ptr = heap.alloc(words)?.as_ptr() as *mut Self;
             // Get pointer to the old head element location
             let old_head = self.head();
             // Get pointer to the new head element location
@@ -206,13 +206,21 @@ impl CloneToProcess for Tuple {
                     ptr::write(head.offset(offset as isize), old);
                 } else {
                     // Recursively call clone_to_process, and then write the box header here
-                    let boxed = old.clone_to_process(process);
+                    let boxed = old.clone_to_heap(heap)?;
                     ptr::write(head.offset(offset as isize), boxed);
                 }
             }
-            let tuple = &*ptr;
-            tuple.as_term()
+            Ok(Term::make_boxed(ptr))
         }
+    }
+
+    fn size_in_words(&self) -> usize {
+        let elements = self.size();
+        let mut words = to_word_size(mem::size_of::<Self>() + (elements * mem::size_of::<Term>()));
+        for element in self.iter() {
+            words += element.size_in_words();
+        }
+        words
     }
 }
 impl PartialEq for Tuple {

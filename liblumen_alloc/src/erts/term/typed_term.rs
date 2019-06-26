@@ -1,7 +1,9 @@
+use core::alloc::AllocErr;
 use core::cmp;
 use core::mem;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::ProcessControlBlock;
 
 use super::*;
 
@@ -315,7 +317,7 @@ unsafe impl AsTerm for TypedTerm {
 }
 
 impl CloneToProcess for TypedTerm {
-    fn clone_to_process<A: AllocInProcess>(&self, process: &mut A) -> Term {
+    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
         // Immediates are just copied and returned, all other terms
         // are expected to require allocation, so we delegate to those types
         match self {
@@ -332,7 +334,7 @@ impl CloneToProcess for TypedTerm {
             &Self::ExternalReference(ref inner) => inner.clone_to_process(process),
             &Self::SmallInteger(inner) => unsafe { inner.as_term() },
             &Self::BigInteger(ref inner) => inner.clone_to_process(process),
-            &Self::Float(inner) => unsafe { inner.as_term() },
+            &Self::Float(inner) => inner.clone_to_process(process),
             &Self::Atom(inner) => unsafe { inner.as_term() },
             &Self::ProcBin(ref inner) => inner.clone_to_process(process),
             &Self::HeapBinary(ref inner) => inner.clone_to_process(process),
@@ -342,6 +344,57 @@ impl CloneToProcess for TypedTerm {
             &Self::Catch => Term::CATCH,
             &Self::Nil => Term::NIL,
             &Self::None => Term::NONE,
+        }
+    }
+
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+        // Immediates are just copied and returned, all other terms
+        // are expected to require allocation, so we delegate to those types
+        match self {
+            &Self::List(ref inner) => inner.clone_to_heap(heap),
+            &Self::Tuple(ref inner) => inner.clone_to_heap(heap),
+            &Self::Map(ref inner) => inner.clone_to_heap(heap),
+            &Self::Boxed(ref inner) => inner.clone_to_heap(heap),
+            &Self::Literal(inner) => Ok(inner),
+            &Self::Pid(inner) => Ok(unsafe { inner.as_term() }),
+            &Self::Port(inner) => Ok(unsafe { inner.as_term() }),
+            &Self::Reference(inner) => Ok(unsafe { inner.as_term() }),
+            &Self::ExternalPid(ref inner) => inner.clone_to_heap(heap),
+            &Self::ExternalPort(ref inner) => inner.clone_to_heap(heap),
+            &Self::ExternalReference(ref inner) => inner.clone_to_heap(heap),
+            &Self::SmallInteger(inner) => Ok(unsafe { inner.as_term() }),
+            &Self::BigInteger(ref inner) => inner.clone_to_heap(heap),
+            &Self::Float(inner) => inner.clone_to_heap(heap),
+            &Self::Atom(inner) => Ok(unsafe { inner.as_term() }),
+            &Self::ProcBin(ref inner) => inner.clone_to_heap(heap),
+            &Self::HeapBinary(ref inner) => inner.clone_to_heap(heap),
+            &Self::SubBinary(ref inner) => inner.clone_to_heap(heap),
+            &Self::MatchContext(ref inner) => inner.clone_to_heap(heap),
+            &Self::Closure(ref inner) => inner.clone_to_heap(heap),
+            &Self::Catch => Ok(Term::CATCH),
+            &Self::Nil => Ok(Term::NIL),
+            &Self::None => Ok(Term::NONE),
+        }
+    }
+
+    fn size_in_words(&self) -> usize {
+        match self {
+            &Self::List(ref inner) => inner.size_in_words(),
+            &Self::Tuple(ref inner) => inner.size_in_words(),
+            &Self::Map(ref inner) => inner.size_in_words(),
+            &Self::Boxed(ref inner) => inner.size_in_words(),
+            &Self::Reference(inner) => inner.size_in_words(),
+            &Self::ExternalPid(ref inner) => inner.size_in_words(),
+            &Self::ExternalPort(ref inner) => inner.size_in_words(),
+            &Self::ExternalReference(ref inner) => inner.size_in_words(),
+            &Self::BigInteger(ref inner) => inner.size_in_words(),
+            &Self::Float(inner) => inner.size_in_words(),
+            &Self::ProcBin(ref inner) => inner.size_in_words(),
+            &Self::HeapBinary(ref inner) => inner.size_in_words(),
+            &Self::SubBinary(ref inner) => inner.size_in_words(),
+            &Self::MatchContext(ref inner) => inner.size_in_words(),
+            &Self::Closure(ref inner) => inner.size_in_words(),
+            _ => 1,
         }
     }
 }

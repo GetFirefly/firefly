@@ -1,4 +1,5 @@
 use core::mem;
+use core::ops::Deref;
 use core::ptr;
 
 use crate::erts::*;
@@ -68,7 +69,7 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
     let num = make_integer(&mut process, 101usize);
     let string = "test";
     let string_term = make_binary_from_str(&mut process, string).unwrap();
-    let list_term = ListBuilder::on_heap(&mut process)
+    let list_term = ListBuilder::new(&mut process)
         .push(num)
         .push(string_term)
         .finish()
@@ -91,12 +92,12 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
     }
 
     // Grab current heap size
-    let peak_size = process.young.heap_used();
+    let peak_size = process.young_heap_used();
     // Run garbage collection, using a pointer to the boxed tuple as our sole root
     let roots = [tuple_term, list_term];
     process.garbage_collect(0, &roots).unwrap();
     // Grab post-collection size
-    let collected_size = process.young.heap_used();
+    let collected_size = process.young_heap_used();
     // We should be missing _exactly_ `greeting` bytes (rounded up to nearest word)
     let reclaimed = peak_size - collected_size;
     let greeting_size = greeting.len() + mem::size_of::<HeapBin>();
@@ -148,7 +149,7 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
     assert_eq!("test", test_string.as_str());
 }
 
-fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
+fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) {
     // Allocate an `{:ok, "hello world"}` tuple
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
@@ -182,7 +183,7 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
     let num = Term::make_smallint(101);
     let string = "this is a list";
     let string_term = make_binary_from_str(&mut process, string).unwrap();
-    let list_term = ListBuilder::on_heap(&mut process)
+    let list_term = ListBuilder::new(&mut process)
         .push(num)
         .push(string_term)
         .finish()
@@ -229,13 +230,13 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
     assert_eq!(t2str.as_str(), new_greeting);
 
     // Grab current heap size
-    let peak_size = process.young.heap_used();
+    let peak_size = process.young_heap_used();
     // Run first garbage collection
     let roots = [];
     process.garbage_collect(0, &roots).unwrap();
 
     // Verify size of garbage collected meets expectation
-    let collected_size = process.young.heap_used();
+    let collected_size = process.young_heap_used();
     // We should be missing _exactly_ `greeting` bytes (rounded up to nearest word)
     let reclaimed = peak_size - collected_size;
     let greeting_size = greeting.len() + mem::size_of::<HeapBin>();
@@ -292,7 +293,7 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
     // Allocate a fresh list for the young generation which references the older list,
     // e.g. will be equivalent to `[202, 101, "this is a list"]
     let num2 = Term::make_smallint(202);
-    let second_list_term = ListBuilder::on_heap(&mut process)
+    let second_list_term = ListBuilder::new(&mut process)
         .push(num2)
         .push(list_term)
         .finish()
@@ -311,7 +312,7 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
     let l2bin = unsafe { *l2ptr };
     assert!(l2bin.is_heapbin());
     let l1str = unsafe { &*(l2ptr as *mut HeapBin) };
-    assert_eq!(l2str.as_str(), string);
+    assert_eq!(l1str.as_str(), string);
     assert_eq!(list_iter.next(), None);
 
     // Push reference to new list on stack
@@ -319,15 +320,16 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
 
     // Run second garbage collection, which should tenure everything except the new term we just
     // allocated
-    let second_peak_size = process.young.heap_used();
+    let second_peak_size = process.young_heap_used();
     let roots = [];
     process.garbage_collect(0, &roots).unwrap();
 
     // Verify no garbage was collected, we should have just tenured some data,
     // the only data on the young heap should be a single cons cell
-    dbg!(&process.young);
-    dbg!(&process.old);
-    let second_collected_size = process.young.heap_used();
+    let heap = process.acquire_heap();
+    dbg!(heap.deref());
+    drop(heap);
+    let second_collected_size = process.young_heap_used();
     let newly_allocated_size = to_word_size(mem::size_of::<Cons>());
     assert_eq!(second_collected_size, newly_allocated_size);
     assert_eq!(
@@ -338,9 +340,9 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, perform_fullsweep: bool) {
     // TODO
 
     // Verify that we now have an old generation and that it is of the expected size
-    assert!(process.old.active());
+    assert!(process.has_old_heap());
     assert_eq!(
-        process.old.heap_used(),
+        process.old_heap_used(),
         collected_size,
         "expected tenuring of older young generation heap"
     );

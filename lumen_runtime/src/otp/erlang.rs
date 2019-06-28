@@ -12,7 +12,7 @@ use crate::atom::{Existence, Existence::*};
 use crate::binary::{heap, sub, Part, ToTerm, ToTermOptions};
 use crate::code;
 use crate::exception::{Class, Result};
-use crate::float::Float;
+use crate::float::{self, Float};
 use crate::integer::{big, small};
 use crate::list::Cons;
 use crate::map::Map;
@@ -35,7 +35,11 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::{Tuple, ZeroBasedIndex};
 
-#[cfg(test)]
+// wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
+// use proptest completely for wasm32
+//
+// See https://github.com/rust-lang/cargo/issues/4866
+#[cfg(all(not(target_arch = "wasm32"), test))]
 mod tests;
 
 pub fn abs_1(number: Term, process: &Process) -> Result {
@@ -246,7 +250,7 @@ pub fn binary_to_float_1(binary: Term, process: &Process) -> Result {
                 FpCategory::Normal | FpCategory::Subnormal =>
                 // unlike Rust, Erlang requires float strings to have a decimal point
                 {
-                    if (inner.fract() == 0.0) & !string.chars().any(|b| b == '.') {
+                    if (inner.fract() == 0.0) && !string.chars().any(|b| b == '.') {
                         Err(badarg!())
                     } else {
                         Ok(inner.into_process(&process))
@@ -334,7 +338,7 @@ pub fn binary_to_list_3(binary: Term, start: Term, stop: Term, process: &Process
             let zero_based_start_usize = one_based_start_usize - 1;
             let zero_based_stop_usize = one_based_stop_usize - 1;
 
-            let length_usize = zero_based_stop_usize - zero_based_stop_usize + 1;
+            let length_usize = zero_based_stop_usize - zero_based_start_usize + 1;
 
             otp::binary::bin_to_list(
                 binary,
@@ -523,16 +527,17 @@ pub fn ceil_1(number: Term, process: &Process) -> Result {
                     let ceil_inner = inner.ceil();
 
                     // skip creating a rug::Integer if float can fit in small integer.
-                    let ceil_term =
-                        if (small::MIN as f64) <= ceil_inner && ceil_inner <= (small::MAX as f64) {
-                            (ceil_inner as usize).into_process(&process)
-                        } else {
-                            let ceil_string = ceil_inner.to_string();
-                            let ceil_bytes = ceil_string.as_bytes();
-                            let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
+                    let ceil_term = if (small::MIN as f64).max(float::INTEGRAL_MIN) <= ceil_inner
+                        && ceil_inner <= (small::MAX as f64).min(float::INTEGRAL_MAX)
+                    {
+                        (ceil_inner as isize).into_process(&process)
+                    } else {
+                        let ceil_string = ceil_inner.to_string();
+                        let ceil_bytes = ceil_string.as_bytes();
+                        let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
 
-                            big_int.into_process(&process)
-                        };
+                        big_int.into_process(&process)
+                    };
 
                     Ok(ceil_term)
                 }
@@ -571,7 +576,7 @@ pub fn convert_time_unit_3(
     Ok(converted)
 }
 
-pub fn delete_element_2(tuple: Term, index: Term, process: &Process) -> Result {
+pub fn delete_element_2(index: Term, tuple: Term, process: &Process) -> Result {
     let initial_inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
@@ -600,7 +605,7 @@ pub fn divide_2(dividend: Term, divisor: Term, process: &Process) -> Result {
     }
 }
 
-pub fn element_2(tuple: Term, index: Term, process: &Process) -> Result {
+pub fn element_2(index: Term, tuple: Term, process: &Process) -> Result {
     let inner_tuple: &Tuple = tuple.try_into_in_process(&process)?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 
@@ -659,49 +664,15 @@ pub fn is_atom_1(term: Term) -> Term {
 }
 
 pub fn is_binary_1(term: Term) -> Term {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                HeapBinary => true,
-                Subbinary => {
-                    let subbinary: &sub::Binary = term.unbox_reference();
-
-                    subbinary.is_binary()
-                }
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_binary().into()
 }
 
 pub fn is_bitstring_1(term: Term) -> Term {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                HeapBinary | Subbinary => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_bitstring().into()
 }
 
 pub fn is_boolean_1(term: Term) -> Term {
-    match term.tag() {
-        Atom => match unsafe { term.atom_to_string() }.as_ref().as_ref() {
-            "false" | "true" => true,
-            _ => false,
-        },
-        _ => false,
-    }
-    .into()
+    term.is_boolean().into()
 }
 
 /// `=</2` infix operator.  Floats and integers are converted.
@@ -713,18 +684,7 @@ pub fn is_equal_or_less_than_2(left: Term, right: Term) -> Term {
 }
 
 pub fn is_float_1(term: Term) -> Term {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                Float => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_float().into()
 }
 
 /// `>/2` infix operator.  Floats and integers are converted.
@@ -747,26 +707,11 @@ pub fn is_less_than_2(left: Term, right: Term) -> Term {
 }
 
 pub fn is_list_1(term: Term) -> Term {
-    match term.tag() {
-        EmptyList | List => true,
-        _ => false,
-    }
-    .into()
+    term.is_list().into()
 }
 
 pub fn is_map_1(term: Term) -> Term {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                Map => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_map().into()
 }
 
 pub fn is_map_key_2(key: Term, map: Term, process: &Process) -> Result {
@@ -780,19 +725,7 @@ pub fn is_number_1(term: Term) -> Term {
 }
 
 pub fn is_pid_1(term: Term) -> Term {
-    match term.tag() {
-        LocalPid => true,
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                ExternalPid => true,
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-    .into()
+    term.is_pid().into()
 }
 
 pub fn is_record_2(term: Term, record_tag: Term) -> Result {
@@ -819,7 +752,7 @@ pub fn is_reference_1(term: Term) -> Term {
 }
 
 pub fn is_tuple_1(term: Term) -> Term {
-    (term.tag() == Boxed && term.unbox_reference::<Term>().tag() == Arity).into()
+    term.is_tuple().into()
 }
 
 pub fn length_1(list: Term, process: &Process) -> Result {
@@ -1038,12 +971,7 @@ pub fn map_get_2(key: Term, map: Term, process: &Process) -> Result {
 
     match map_map.get(key) {
         Some(value) => Ok(value),
-        None => {
-            let badmap = Term::str_to_atom("badkey", DoNotCare).unwrap();
-            let reason = Term::slice_to_tuple(&[badmap, key], &process);
-
-            Err(error!(reason))
-        }
+        None => Err(badkey!(key, &process)),
     }
 }
 
@@ -1302,7 +1230,7 @@ pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
 }
 
 pub fn spawn_3(module: Term, function: Term, arguments: Term, process: &Process) -> Result {
-    let option_pid = if (module.tag() == Atom) & (function.tag() == Atom) {
+    let option_pid = if (module.tag() == Atom) && (function.tag() == Atom) {
         match arguments.tag() {
             EmptyList => {
                 let arc_process =
@@ -1413,7 +1341,7 @@ pub fn split_binary_2(binary: Term, position: Term, process: &Process) -> Result
                             );
 
                             Ok(Term::slice_to_tuple(&[prefix, suffix], &process))
-                        } else if (index == byte_length) & (subbinary.bit_count == 0) {
+                        } else if (index == byte_length) && (subbinary.bit_count == 0) {
                             let empty_suffix = Term::subbinary(
                                 subbinary.original,
                                 subbinary.byte_offset + index,
@@ -1488,7 +1416,13 @@ pub fn subtract_list_2(minuend: Term, subtrahend: Term, process: &Process) -> Re
                 Err(badarg!())
             }
         }
-        (List, EmptyList) => Ok(minuend),
+        (List, EmptyList) => {
+            if unsafe { minuend.as_ref_cons_unchecked() }.is_proper() {
+                Ok(minuend)
+            } else {
+                Err(badarg!())
+            }
+        }
         (List, List) => {
             let minuend_cons: &Cons = unsafe { minuend.as_ref_cons_unchecked() };
             let subtrahend_cons: &Cons = unsafe { subtrahend.as_ref_cons_unchecked() };

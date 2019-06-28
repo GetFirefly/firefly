@@ -229,7 +229,7 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, binary::Binary<'b>> for Binary {
             byte_count,
         } = start_length_to_part_range(start, length, available_byte_count)?;
 
-        if (byte_offset == 0) & (byte_count == available_byte_count) {
+        if (byte_offset == 0) && (byte_count == available_byte_count) {
             Ok(binary::Binary::Heap(self))
         } else {
             let process_subbinary = process.subbinary(self.into(), byte_offset, 0, byte_count, 0);
@@ -274,7 +274,7 @@ impl PartialEq<sub::Binary> for Binary {
     /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
     fn eq(&self, other: &sub::Binary) -> bool {
-        (other.bit_count == 0) & self.byte_iter().eq(other.byte_iter())
+        (other.bit_count == 0) && self.byte_iter().eq(other.byte_iter())
     }
 }
 

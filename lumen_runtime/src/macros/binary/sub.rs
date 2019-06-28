@@ -1,4 +1,4 @@
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! bitstring {
     (@acc $bits:tt :: $bit_count:tt, $process:expr, $($byte:expr),*) => {{
        use crate::term::Term;
@@ -18,7 +18,7 @@ macro_rules! bitstring {
     };
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! replace_expr {
     ($_t:expr, $sub:expr) => {
         $sub

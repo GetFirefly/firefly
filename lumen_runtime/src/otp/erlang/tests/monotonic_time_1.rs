@@ -1,65 +1,26 @@
 use super::*;
 
+use proptest::strategy::Strategy;
+
 mod with_atom;
 mod with_small_integer;
 
 #[test]
-fn with_atom_errors_badarg() {
-    errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
-}
+fn without_atom_or_integer_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term(arc_process.clone())
+                    .prop_filter("Unit must not be an atom or integer", |unit| {
+                        !(unit.is_integer() || unit.is_atom())
+                    }),
+                |unit| {
+                    prop_assert_eq!(erlang::monotonic_time_1(unit, &arc_process), Err(badarg!()));
 
-#[test]
-fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_errors_badarg() {
-    errors_badarg(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_errors_badarg() {
-    errors_badarg(|process| list_term(&process));
-}
-
-// Skip big integer because it depends on `usize`
-
-#[test]
-fn with_float_errors_badarg() {
-    errors_badarg(|process| 1.0.into_process(&process));
-}
-
-#[test]
-fn with_local_pid_errors_badarg() {
-    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
-}
-
-#[test]
-fn with_external_pid_errors_badarg() {
-    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_binary(&[1], &process));
-}
-
-#[test]
-fn with_subbinary_errors_badarg() {
-    errors_badarg(|process| {
-        let original = Term::slice_to_binary(&[0, 1], &process);
-        Term::subbinary(original, 1, 0, 1, 0, &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 

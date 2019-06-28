@@ -1,31 +1,29 @@
 use super::*;
 
-#[test]
-fn with_small_integer_right_returns_false() {
-    is_equal_or_less_than(|_, process| 0.into_process(&process), false)
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_big_integer_right_returns_false() {
-    is_equal_or_less_than(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        false,
-    )
-}
+fn with_number_returns_false() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::atom(),
+                    strategy::term::is_number(arc_process.clone()),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(erlang::is_equal_or_less_than_2(left, right), false.into());
 
-#[test]
-fn with_float_right_returns_false() {
-    is_equal_or_less_than(|_, process| 0.0.into_process(&process), false)
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_lesser_atom_returns_false() {
     is_equal_or_less_than(|_, _| Term::str_to_atom("keft", DoNotCare).unwrap(), false);
-}
-
-#[test]
-fn with_same_atom_returns_true() {
-    is_equal_or_less_than(|left, _| left, true);
 }
 
 #[test]
@@ -39,54 +37,25 @@ fn with_greater_atom_returns_true() {
 }
 
 #[test]
-fn with_local_reference_right_returns_true() {
-    is_equal_or_less_than(|_, process| Term::next_local_reference(process), true);
-}
+fn without_number_or_atom_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::atom(),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Right cannot be a number or atom", |right| {
+                            !(right.is_atom() || right.is_number())
+                        }),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(erlang::is_equal_or_less_than_2(left, right), true.into());
 
-#[test]
-fn with_local_pid_right_returns_true() {
-    is_equal_or_less_than(|_, _| Term::local_pid(0, 1).unwrap(), true);
-}
-
-#[test]
-fn with_external_pid_right_returns_true() {
-    is_equal_or_less_than(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        true,
-    );
-}
-
-#[test]
-fn with_tuple_right_returns_true() {
-    is_equal_or_less_than(|_, process| Term::slice_to_tuple(&[], &process), true);
-}
-
-#[test]
-fn with_map_right_returns_true() {
-    is_equal_or_less_than(|_, process| Term::slice_to_map(&[], &process), true);
-}
-
-#[test]
-fn with_empty_list_right_returns_true() {
-    is_equal_or_less_than(|_, _| Term::EMPTY_LIST, true);
-}
-
-#[test]
-fn with_list_right_returns_true() {
-    is_equal_or_less_than(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        true,
-    );
-}
-
-#[test]
-fn with_heap_binary_right_returns_true() {
-    is_equal_or_less_than(|_, process| Term::slice_to_binary(&[], &process), true);
-}
-
-#[test]
-fn with_subbinary_right_returns_true() {
-    is_equal_or_less_than(|_, process| bitstring!(1 :: 1, &process), true);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)

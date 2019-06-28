@@ -1,13 +1,18 @@
 use super::*;
 
-#[test]
-fn with_atom_errors_badarg() {
-    errors_badarg(|_| Term::str_to_atom("list", DoNotCare).unwrap());
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::next_local_reference(process));
+fn without_list_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
+                prop_assert_eq!(erlang::list_to_existing_atom_1(list), Err(badarg!()));
+
+                Ok(())
+            })
+            .unwrap();
+    });
 }
 
 #[test]
@@ -22,119 +27,66 @@ fn with_empty_list() {
 
 #[test]
 fn with_improper_list_errors_badarg() {
-    errors_badarg(|process| {
-        Term::cons(
-            'a'.into_process(&process),
-            'b'.into_process(&process),
-            &process,
-        )
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::list::improper(arc_process.clone()),
+                |list| {
+                    prop_assert_eq!(erlang::list_to_existing_atom_1(list), Err(badarg!()));
+
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_list_encoding_utf8() {
-    with_process(|process| {
-        let string1 = format!("{}:{}:atom", file!(), line!());
-        let char_list1 = Term::str_to_char_list(&string1, &process);
+fn with_list_without_existing_atom_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &any::<String>().prop_map(|suffix| {
+                    let string = strategy::term::non_existent_atom(&suffix);
+                    let codepoint_terms: Vec<Term> = string
+                        .chars()
+                        .map(|c| c.into_process(&arc_process))
+                        .collect();
 
-        assert_badarg!(erlang::list_to_existing_atom_1(char_list1));
+                    Term::slice_to_list(&codepoint_terms, &arc_process)
+                }),
+                |list| {
+                    prop_assert_eq!(erlang::list_to_existing_atom_1(list), Err(badarg!()));
 
-        let existing_atom1 = Term::str_to_atom(&string1, DoNotCare).unwrap();
-
-        assert_eq!(
-            erlang::list_to_existing_atom_1(char_list1),
-            Ok(existing_atom1)
-        );
-
-        let string2 = format!("{}:{}:José", file!(), line!());
-        let char_list2 = Term::str_to_char_list(&string2, &process);
-
-        assert_badarg!(erlang::list_to_existing_atom_1(char_list2));
-
-        let existing_atom2 = Term::str_to_atom(&string2, DoNotCare).unwrap();
-
-        assert_eq!(
-            erlang::list_to_existing_atom_1(char_list2),
-            Ok(existing_atom2)
-        );
-
-        let string3 = format!("{}:{}:😈", file!(), line!());
-        let char_list3 = Term::str_to_char_list(&string3, &process);
-
-        assert_badarg!(erlang::list_to_existing_atom_1(char_list3));
-
-        let existing_atom3 = Term::str_to_atom(&string3, DoNotCare).unwrap();
-
-        assert_eq!(
-            erlang::list_to_existing_atom_1(char_list3),
-            Ok(existing_atom3)
-        );
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_list_not_encoding_ut8() {
-    errors_badarg(|process| {
-        Term::cons(
-            // from https://doc.rust-lang.org/std/char/fn.from_u32.html
-            0x110000.into_process(&process),
-            Term::EMPTY_LIST,
-            &process,
-        )
+fn with_list_with_existing_atom_returns_atom() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &any::<String>().prop_map(|string| {
+                    let codepoint_terms: Vec<Term> = string
+                        .chars()
+                        .map(|c| c.into_process(&arc_process))
+                        .collect();
+
+                    (
+                        Term::slice_to_list(&codepoint_terms, &arc_process),
+                        Term::str_to_atom(&string, DoNotCare).unwrap(),
+                    )
+                }),
+                |(list, atom)| {
+                    prop_assert_eq!(erlang::list_to_existing_atom_1(list), Ok(atom));
+
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
-}
-
-#[test]
-fn with_small_integer_errors_badarg() {
-    errors_badarg(|process| 0.into_process(&process));
-}
-
-#[test]
-fn with_big_integer_errors_badarg() {
-    errors_badarg(|process| (integer::small::MAX + 1).into_process(&process));
-}
-
-#[test]
-fn with_float_errors_badarg() {
-    errors_badarg(|process| 1.0.into_process(&process));
-}
-
-#[test]
-fn with_local_pid_errors_badarg() {
-    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
-}
-
-#[test]
-fn with_external_pid_errors_badarg() {
-    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_errors_badmap() {
-    errors_badarg(|process| Term::slice_to_binary(&[], &process));
-}
-
-#[test]
-fn with_subbinary_errors_badmap() {
-    errors_badarg(|process| {
-        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        Term::subbinary(original, 0, 7, 2, 1, &process)
-    });
-}
-
-fn errors_badarg<F>(string: F)
-where
-    F: FnOnce(&Process) -> Term,
-{
-    super::errors_badarg(|process| erlang::list_to_existing_atom_1(string(&process)));
 }

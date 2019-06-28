@@ -1,131 +1,87 @@
 use super::*;
 
-use num_traits::Num;
-
-use crate::process::IntoProcess;
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_atom_errors_badarg() {
-    errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
-}
+fn without_tuple_or_bitstring_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term(arc_process.clone())
+                    .prop_filter("Term must not be a tuple or bitstring", |term| {
+                        !(term.is_tuple() || term.is_bitstring())
+                    }),
+                |term| {
+                    prop_assert_eq!(erlang::size_1(term, &arc_process), Err(badarg!()));
 
-#[test]
-fn with_local_reference_errors_badarg() {
-    errors_badarg(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_errors_badarg() {
-    errors_badarg(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_errors_badarg() {
-    errors_badarg(|process| list_term(&process));
-}
-
-#[test]
-fn with_small_integer_errors_badarg() {
-    errors_badarg(|process| 0usize.into_process(&process));
-}
-
-#[test]
-fn with_big_integer_errors_badarg() {
-    errors_badarg(|process| {
-        <BigInt as Num>::from_str_radix("576460752303423489", 10)
-            .unwrap()
-            .into_process(&process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_float_errors_badarg() {
-    errors_badarg(|process| 1.0.into_process(&process));
-}
+fn with_tuple_returns_arity() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(0_usize..=3_usize).prop_flat_map(|size| {
+                    (
+                        Just(size),
+                        strategy::term::tuple::intermediate(
+                            strategy::term(arc_process.clone()),
+                            (size..=size).into(),
+                            arc_process.clone(),
+                        ),
+                    )
+                }),
+                |(size, term)| {
+                    prop_assert_eq!(
+                        erlang::size_1(term, &arc_process),
+                        Ok(size.into_process(&arc_process))
+                    );
 
-#[test]
-fn with_local_pid_errors_badarg() {
-    errors_badarg(|_| Term::local_pid(0, 0).unwrap());
-}
-
-#[test]
-fn with_external_pid_errors_badarg() {
-    errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_without_elements_is_zero() {
-    with_process(|process| {
-        let empty_tuple_term = Term::slice_to_tuple(&[], &process);
-        let zero_term = 0usize.into_process(&process);
-
-        assert_eq!(erlang::size_1(empty_tuple_term, &process), Ok(zero_term));
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_tuple_with_elements_is_element_count() {
-    with_process(|process| {
-        let element_vec: Vec<Term> = (0..=2usize).map(|i| i.into_process(&process)).collect();
-        let element_slice: &[Term] = element_vec.as_slice();
-        let tuple_term = Term::slice_to_tuple(element_slice, &process);
-        let arity_term = 3usize.into_process(&process);
+fn with_bitstring_is_byte_len() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term::is_bitstring(arc_process.clone()), |term| {
+                let byte_len = match term.tag() {
+                    Boxed => {
+                        let unboxed: &Term = term.unbox_reference();
 
-        assert_eq!(erlang::size_1(tuple_term, &process), Ok(arity_term));
+                        match unboxed.tag() {
+                            HeapBinary => {
+                                let heap_binary: &heap::Binary = term.unbox_reference();
+
+                                heap_binary.byte_len()
+                            }
+                            Subbinary => {
+                                let subbinary: &sub::Binary = term.unbox_reference();
+
+                                subbinary.byte_count
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+
+                prop_assert_eq!(
+                    erlang::size_1(term, &arc_process),
+                    Ok(byte_len.into_process(&arc_process))
+                );
+
+                Ok(())
+            })
+            .unwrap();
     });
-}
-
-#[test]
-fn with_map_errors_badarg() {
-    errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_is_byte_count() {
-    with_process(|process| {
-        let heap_binary_term = Term::slice_to_binary(&[0, 1, 2], &process);
-        let byte_count_term = 3usize.into_process(&process);
-
-        assert_eq!(
-            erlang::size_1(heap_binary_term, &process),
-            Ok(byte_count_term)
-        );
-    });
-}
-
-#[test]
-fn with_subbinary_with_bit_count_is_byte_count() {
-    with_process(|process| {
-        let binary_term =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 1, &process);
-        let byte_count_term = 2usize.into_process(&process);
-
-        assert_eq!(
-            erlang::size_1(subbinary_term, &process),
-            Ok(byte_count_term)
-        );
-    });
-}
-
-#[test]
-fn with_subbinary_without_bit_count_is_byte_count() {
-    with_process(|process| {
-        let binary_term =
-            Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        let subbinary_term = Term::subbinary(binary_term, 0, 7, 2, 0, &process);
-        let byte_count_term = 2usize.into_process(&process);
-
-        assert_eq!(
-            erlang::size_1(subbinary_term, &process),
-            Ok(byte_count_term)
-        );
-    });
-}
-
-fn errors_badarg<F>(binary_or_tuple: F)
-where
-    F: FnOnce(&Process) -> Term,
-{
-    super::errors_badarg(|process| erlang::size_1(binary_or_tuple(&process), &process));
 }

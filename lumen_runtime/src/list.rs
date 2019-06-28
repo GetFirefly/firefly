@@ -237,8 +237,9 @@ impl Hash for Cons {
 }
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 pub struct ImproperList {
-    tail: Term,
+    pub tail: Term,
 }
 
 impl IntoIterator for &Cons {

@@ -14,6 +14,22 @@ mod with_small_integer_left;
 mod with_subbinary_left;
 mod with_tuple_left;
 
+#[test]
+fn with_same_left_and_right_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term(arc_process.clone()), |operand| {
+                prop_assert_eq!(
+                    erlang::is_greater_than_or_equal_2(operand, operand),
+                    true.into()
+                );
+
+                Ok(())
+            })
+            .unwrap();
+    });
+}
+
 fn is_greater_than_or_equal<L, R>(left: L, right: R, expected: bool)
 where
     L: FnOnce(&Process) -> Term,

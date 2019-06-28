@@ -1,111 +1,202 @@
 use super::*;
 
+use proptest::strategy::Strategy;
+
 #[test]
-fn with_atom_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::str_to_atom("right", DoNotCare).unwrap(), true);
+fn without_small_integer_or_big_integer_or_float_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::float(arc_process.clone()),
+                    strategy::term(arc_process.clone()).prop_filter(
+                        "Right must not be a integer or float",
+                        |v| {
+                            v.tag() == SmallInteger
+                                || (v.tag() != Boxed || {
+                                    let unboxed_tag = v.unbox_reference::<Term>().tag();
+
+                                    unboxed_tag != Float && unboxed_tag != BigInteger
+                                })
+                        },
+                    ),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        true.into()
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
-fn with_local_reference_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::next_local_reference(process), true);
-}
+fn with_same_float_returns_false() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term::float(arc_process.clone()), |operand| {
+                prop_assert_eq!(
+                    erlang::are_not_equal_after_conversion_2(operand, operand),
+                    false.into()
+                );
 
-#[test]
-fn with_empty_list_right_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::EMPTY_LIST, true);
-}
-
-#[test]
-fn with_list_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        true,
-    );
-}
-
-#[test]
-fn with_same_small_integer_right_returns_false() {
-    are_not_equal_after_conversion(|left, _| left, false)
-}
-
-#[test]
-fn with_same_value_small_integer_right_returns_false() {
-    are_not_equal_after_conversion(|_, process| 0.into_process(&process), false)
-}
-
-#[test]
-fn with_different_small_integer_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| 1.into_process(&process), true)
-}
-
-#[test]
-fn with_same_value_big_integer_right_returns_false() {
-    let i = crate::integer::small::MAX + 1;
-    let f = i as f64;
-
-    if f < crate::float::INTEGRAL_MAX {
-        super::are_not_equal_after_conversion(
-            |process| f.into_process(&process),
-            |_, process| i.into_process(&process),
-            false,
-        )
-    }
-}
-
-#[test]
-fn with_different_value_big_integer_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        true,
-    )
+                Ok(())
+            })
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_same_value_float_right_returns_false() {
-    are_not_equal_after_conversion(|_, process| 0.0.into_process(&process), false)
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &any::<f64>()
+                    .prop_map(|f| (f.into_process(&arc_process), f.into_process(&arc_process))),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        false.into()
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
-fn with_different_value_float_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| 1.0.into_process(&process), true)
+fn with_different_float_right_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::float(arc_process.clone()),
+                    strategy::term::float(arc_process.clone()),
+                )
+                    .prop_filter("Right and left must be different", |(left, right)| {
+                        left != right
+                    }),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        true.into()
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
-fn with_local_pid_right_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::local_pid(0, 1).unwrap(), true);
+fn with_same_value_small_integer_right_returns_false() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::small_integer_float_integral_i64().prop_map(|i| {
+                    (
+                        (i as f64).into_process(&arc_process),
+                        i.into_process(&arc_process),
+                    )
+                }),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        false.into()
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
-fn with_external_pid_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        true,
-    );
+fn with_different_value_small_integer_right_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::small_integer_float_integral_i64().prop_map(|i| {
+                    (
+                        (i as f64).into_process(&arc_process),
+                        (i + 1).into_process(&arc_process),
+                    )
+                }),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        true.into()
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
-fn with_tuple_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_tuple(&[], &process), true);
+fn with_same_value_big_integer_right_returns_false() {
+    match strategy::term::big_integer_float_integral_i64() {
+        Some(strategy) => {
+            with_process_arc(|arc_process| {
+                TestRunner::new(Config::with_source_file(file!()))
+                    .run(
+                        &strategy.prop_map(|i| {
+                            (
+                                (i as f64).into_process(&arc_process),
+                                i.into_process(&arc_process),
+                            )
+                        }),
+                        |(left, right)| {
+                            prop_assert_eq!(
+                                erlang::are_not_equal_after_conversion_2(left, right),
+                                false.into()
+                            );
+
+                            Ok(())
+                        },
+                    )
+                    .unwrap();
+            });
+        }
+        None => (),
+    };
 }
 
 #[test]
-fn with_map_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_map(&[], &process), true);
-}
+fn with_different_value_big_integer_right_returns_true() {
+    match strategy::term::big_integer_float_integral_i64() {
+        Some(strategy) => {
+            with_process_arc(|arc_process| {
+                TestRunner::new(Config::with_source_file(file!()))
+                    .run(
+                        &strategy.prop_map(|i| {
+                            (
+                                (i as f64).into_process(&arc_process),
+                                (i + 1).into_process(&arc_process),
+                            )
+                        }),
+                        |(left, right)| {
+                            prop_assert_eq!(
+                                erlang::are_not_equal_after_conversion_2(left, right),
+                                false.into()
+                            );
 
-#[test]
-fn with_heap_binary_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_binary(&[], &process), true);
-}
-
-#[test]
-fn with_subbinary_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| bitstring!(1 :: 1, &process), true);
-}
-
-fn are_not_equal_after_conversion<R>(right: R, expected: bool)
-where
-    R: FnOnce(Term, &Process) -> Term,
-{
-    super::are_not_equal_after_conversion(|process| 0.into_process(&process), right, expected);
+                            Ok(())
+                        },
+                    )
+                    .unwrap();
+            });
+        }
+        None => (),
+    };
 }

@@ -54,7 +54,7 @@ fn term_is_location_keyword_pair(term: Term) -> bool {
 }
 
 fn tuple_is_location_keyword_pair(tuple: &Tuple) -> bool {
-    (tuple.len() == 2) & {
+    (tuple.len() == 2) && {
         let first_element = tuple[0];
 
         match first_element.tag() {
@@ -123,12 +123,12 @@ fn tuple_is_item(tuple: &Tuple) -> bool {
 
             match first_element.tag() {
                 // {M, F, arity | args}
-                Atom => tuple[1].is_atom() & is_arity_or_arguments(tuple[2]),
+                Atom => tuple[1].is_atom() && is_arity_or_arguments(tuple[2]),
                 // {function, args, location}
                 Boxed => {
                     let unboxed: &Term = first_element.unbox_reference();
 
-                    (unboxed.tag() == Function) & term_is_location(tuple[2])
+                    (unboxed.tag() == Function) && term_is_location(tuple[2])
                 }
                 _ => false,
             }
@@ -137,9 +137,9 @@ fn tuple_is_item(tuple: &Tuple) -> bool {
         4 => {
             // {M, F, arity | args, location}
             tuple[0].is_atom()
-                & tuple[1].is_atom()
-                & is_arity_or_arguments(tuple[2])
-                & term_is_location(tuple[3])
+                && tuple[1].is_atom()
+                && is_arity_or_arguments(tuple[2])
+                && term_is_location(tuple[3])
         }
         _ => false,
     }

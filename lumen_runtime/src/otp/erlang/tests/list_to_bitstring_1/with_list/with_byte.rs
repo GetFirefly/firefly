@@ -1,13 +1,26 @@
 use super::*;
 
 #[test]
-fn with_atom_errors_badarg() {
-    with_tail_errors_badarg(|_| Term::str_to_atom("", DoNotCare).unwrap());
-}
+fn without_byte_bitstring_or_list_element_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    byte(arc_process.clone()),
+                    is_not_byte_bitstring_nor_list(arc_process.clone()),
+                )
+                    .prop_map(|(head, tail)| Term::cons(head, tail, &arc_process)),
+                |list| {
+                    prop_assert_eq!(
+                        erlang::list_to_bitstring_1(list, &arc_process),
+                        Err(badarg!())
+                    );
 
-#[test]
-fn with_local_reference_errors_badarg() {
-    with_tail_errors_badarg(|process| Term::next_local_reference(process));
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
@@ -48,46 +61,6 @@ fn with_proper_list_returns_binary() {
             Ok(Term::slice_to_binary(&[0, 1], &process))
         );
     });
-}
-
-#[test]
-fn with_byte_errors_badarg() {
-    with_tail_errors_badarg(|process| 254.into_process(&process));
-}
-
-#[test]
-fn with_small_integer_with_byte_overflow_errors_badarg() {
-    with_tail_errors_badarg(|process| 256.into_process(&process));
-}
-
-#[test]
-fn with_big_integer_errors_badarg() {
-    with_tail_errors_badarg(|process| (crate::integer::small::MAX + 1).into_process(&process));
-}
-
-#[test]
-fn with_float_errors_badarg() {
-    with_tail_errors_badarg(|process| 1.0.into_process(&process));
-}
-
-#[test]
-fn with_local_pid_errors_badarg() {
-    with_tail_errors_badarg(|_| Term::local_pid(0, 0).unwrap());
-}
-
-#[test]
-fn with_external_pid_errors_badarg() {
-    with_tail_errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_errors_badarg() {
-    with_tail_errors_badarg(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_errors_badarg() {
-    with_tail_errors_badarg(|process| Term::slice_to_map(&[], &process));
 }
 
 #[test]

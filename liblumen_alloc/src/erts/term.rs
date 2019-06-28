@@ -33,6 +33,7 @@ use core::fmt;
 use core::ptr;
 
 use super::{HeapAlloc, ProcessControlBlock};
+use crate::borrow::CloneToProcess;
 
 #[derive(Clone, Copy)]
 pub struct BadArgument(Term);

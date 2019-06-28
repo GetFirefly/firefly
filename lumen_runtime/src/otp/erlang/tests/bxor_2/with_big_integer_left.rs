@@ -5,28 +5,6 @@ use std::mem::size_of;
 use num_traits::Num;
 
 #[test]
-fn with_atom_right_errors_badarith() {
-    with_right_errors_badarith(|_| Term::str_to_atom("right", DoNotCare).unwrap());
-}
-
-#[test]
-fn with_local_reference_right_errors_badarith() {
-    with_right_errors_badarith(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_right_errors_badarith() {
-    with_right_errors_badarith(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_right_errors_badarith() {
-    with_right_errors_badarith(|process| {
-        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
-    });
-}
-
-#[test]
 fn with_small_integer_right_returns_big_integer() {
     with(|left, process| {
         let right: Term = 0b1010_1010_1010_1010_1010_1010_1010.into_process(&process);
@@ -45,16 +23,6 @@ fn with_small_integer_right_returns_big_integer() {
 
         assert_eq!(unboxed_output.tag(), BigInteger);
     });
-}
-
-#[test]
-fn with_same_big_integer_right_returns_zero() {
-    with(|left, process| {
-        assert_eq!(
-            erlang::bxor_2(left, left, &process),
-            Ok(0.into_process(&process))
-        );
-    })
 }
 
 #[test]
@@ -96,41 +64,6 @@ fn with_big_integer_right_returns_big_integer() {
     })
 }
 
-#[test]
-fn with_float_right_errors_badarith() {
-    with_right_errors_badarith(|process| 1.0.into_process(&process));
-}
-
-#[test]
-fn with_local_pid_right_errors_badarith() {
-    with_right_errors_badarith(|_| Term::local_pid(0, 1).unwrap());
-}
-
-#[test]
-fn with_external_pid_right_errors_badarith() {
-    with_right_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_right_errors_badarith() {
-    with_right_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_is_right_errors_badarith() {
-    with_right_errors_badarith(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_right_errors_badarith() {
-    with_right_errors_badarith(|process| Term::slice_to_binary(&[], &process));
-}
-
-#[test]
-fn with_subbinary_right_errors_badarith() {
-    with_right_errors_badarith(|process| bitstring!(1 :: 1, &process));
-}
-
 fn with<F>(f: F)
 where
     F: FnOnce(Term, &Process) -> (),
@@ -145,23 +78,4 @@ where
 
         f(left, &process)
     })
-}
-
-fn with_right_errors_badarith<M>(right: M)
-where
-    M: FnOnce(&Process) -> Term,
-{
-    super::errors_badarith(|process| {
-        let left = (crate::integer::small::MAX + 1).into_process(&process);
-
-        assert_eq!(left.tag(), Boxed);
-
-        let unboxed_left: &Term = left.unbox_reference();
-
-        assert_eq!(unboxed_left.tag(), BigInteger);
-
-        let right = right(&process);
-
-        erlang::bxor_2(left, right, &process)
-    });
 }

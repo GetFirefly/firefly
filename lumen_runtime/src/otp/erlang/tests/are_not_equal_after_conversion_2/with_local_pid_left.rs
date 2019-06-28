@@ -1,92 +1,90 @@
 use super::*;
 
-#[test]
-fn with_atom_right_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::str_to_atom("right", DoNotCare).unwrap(), true)
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_local_reference_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::next_local_reference(process), true);
-}
+fn without_local_pid_right_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::pid::local(),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Right cannot be a local pid", |right| {
+                            right.tag() != LocalPid
+                        }),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::are_not_equal_after_conversion_2(left, right),
+                        true.into()
+                    );
 
-#[test]
-fn with_empty_list_right_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::EMPTY_LIST, true);
-}
-
-#[test]
-fn with_list_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        true,
-    );
-}
-
-#[test]
-fn with_small_integer_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| 0.into_process(&process), true)
-}
-
-#[test]
-fn with_big_integer_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        true,
-    )
-}
-
-#[test]
-fn with_float_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| 0.0.into_process(&process), true)
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_same_local_pid_returns_false() {
-    are_not_equal_after_conversion(|left, _| left, false);
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(&strategy::term::pid::local(), |operand| {
+            prop_assert_eq!(
+                erlang::are_not_equal_after_conversion_2(operand, operand),
+                false.into()
+            );
+
+            Ok(())
+        })
+        .unwrap();
 }
 
 #[test]
 fn with_same_value_local_pid_right_returns_false() {
-    are_not_equal_after_conversion(|_, _| Term::local_pid(0, 1).unwrap(), false);
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &(strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
+                |(number, serial)| {
+                    (
+                        Term::local_pid(number, serial).unwrap(),
+                        Term::local_pid(number, serial).unwrap(),
+                    )
+                },
+            ),
+            |(left, right)| {
+                prop_assert_eq!(
+                    erlang::are_not_equal_after_conversion_2(left, right),
+                    false.into()
+                );
+
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]
 fn with_different_local_pid_right_returns_true() {
-    are_not_equal_after_conversion(|_, _| Term::local_pid(2, 3).unwrap(), true);
-}
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &(strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
+                |(number, serial)| {
+                    (
+                        Term::local_pid(number, serial).unwrap(),
+                        Term::local_pid(number + 1, serial).unwrap(),
+                    )
+                },
+            ),
+            |(left, right)| {
+                prop_assert_eq!(
+                    erlang::are_not_equal_after_conversion_2(left, right),
+                    true.into()
+                );
 
-#[test]
-fn with_external_pid_right_returns_true() {
-    are_not_equal_after_conversion(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        true,
-    );
-}
-
-#[test]
-fn with_tuple_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_tuple(&[], &process), true);
-}
-
-#[test]
-fn with_map_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_map(&[], &process), true);
-}
-
-#[test]
-fn with_heap_binary_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| Term::slice_to_binary(&[], &process), true);
-}
-
-#[test]
-fn with_subbinary_right_returns_true() {
-    are_not_equal_after_conversion(|_, process| bitstring!(1 :: 1, &process), true);
-}
-
-fn are_not_equal_after_conversion<R>(right: R, expected: bool)
-where
-    R: FnOnce(Term, &Process) -> Term,
-{
-    super::are_not_equal_after_conversion(|_| Term::local_pid(0, 1).unwrap(), right, expected);
+                Ok(())
+            },
+        )
+        .unwrap();
 }

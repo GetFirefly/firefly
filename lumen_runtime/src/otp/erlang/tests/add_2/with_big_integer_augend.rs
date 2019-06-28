@@ -1,71 +1,105 @@
 use super::*;
 
 #[test]
-fn with_atom_addend_errors_badarith() {
-    with_addend_errors_badarith(|_| Term::str_to_atom("augend", DoNotCare).unwrap());
-}
+fn without_number_addend_errors_badarith() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::integer::big(arc_process.clone()),
+                    strategy::term::is_not_number(arc_process.clone()),
+                ),
+                |(augend, addend)| {
+                    prop_assert_eq!(
+                        erlang::add_2(augend, addend, &arc_process),
+                        Err(badarith!())
+                    );
 
-#[test]
-fn with_local_reference_addend_errors_badarith() {
-    with_addend_errors_badarith(|process| Term::next_local_reference(process));
-}
-
-#[test]
-fn with_empty_list_addend_errors_badarith() {
-    with_addend_errors_badarith(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_addend_errors_badarith() {
-    with_addend_errors_badarith(|process| {
-        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_small_integer_addend_returns_big_integer() {
-    with(|augend, process| {
-        let addend = crate::integer::small::MAX.into_process(&process);
+fn with_zero_small_integer_returns_same_big_integer() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::integer::big(arc_process.clone()),
+                |augend| {
+                    let addend = 0.into_process(&arc_process);
 
-        assert_eq!(addend.tag(), SmallInteger);
+                    prop_assert_eq!(erlang::add_2(augend, addend, &arc_process), Ok(augend));
 
-        let result = erlang::add_2(augend, addend, &process);
-
-        assert!(result.is_ok());
-
-        let sum = result.unwrap();
-
-        assert_eq!(sum.tag(), Boxed);
-
-        let unboxed_sum: &Term = sum.unbox_reference();
-
-        assert_eq!(unboxed_sum.tag(), BigInteger);
-    })
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
-fn with_big_integer_addend_returns_big_integer() {
-    with(|augend, process| {
-        let addend = (crate::integer::small::MAX + 1).into_process(&process);
+fn that_is_positive_with_positive_small_integer_addend_returns_greater_big_integer() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::integer::big::positive(arc_process.clone()),
+                    strategy::term::integer::small::positive(arc_process.clone()),
+                ),
+                |(augend, addend)| {
+                    let result = erlang::add_2(augend, addend, &arc_process);
 
-        assert_eq!(addend.tag(), Boxed);
+                    prop_assert!(result.is_ok());
 
-        let unboxed_addend: &Term = addend.unbox_reference();
+                    let sum = result.unwrap();
 
-        assert_eq!(unboxed_addend.tag(), BigInteger);
+                    prop_assert!(augend < sum);
+                    prop_assert!(addend < sum);
+                    prop_assert_eq!(sum.tag(), Boxed);
 
-        let result = erlang::add_2(augend, addend, &process);
+                    let unboxed_sum: &Term = sum.unbox_reference();
 
-        assert!(result.is_ok());
+                    prop_assert_eq!(unboxed_sum.tag(), BigInteger);
 
-        let sum = result.unwrap();
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
 
-        assert_eq!(sum.tag(), Boxed);
+#[test]
+fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::integer::big::positive(arc_process.clone()),
+                    strategy::term::integer::big::positive(arc_process.clone()),
+                ),
+                |(augend, addend)| {
+                    let result = erlang::add_2(augend, addend, &arc_process);
 
-        let unboxed_sum: &Term = sum.unbox_reference();
+                    prop_assert!(result.is_ok());
 
-        assert_eq!(unboxed_sum.tag(), BigInteger);
-    })
+                    let sum = result.unwrap();
+
+                    prop_assert!(augend < sum);
+                    prop_assert!(addend < sum);
+                    prop_assert_eq!(sum.tag(), Boxed);
+
+                    let unboxed_sum: &Term = sum.unbox_reference();
+
+                    prop_assert_eq!(unboxed_sum.tag(), BigInteger);
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
@@ -89,58 +123,43 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
 
 #[test]
 fn with_float_addend_with_underflow_returns_min_float() {
-    with(|augend, process| {
-        let addend = std::f64::MIN.into_process(&process);
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::integer::big::negative(arc_process.clone()),
+                |augend| {
+                    let addend = std::f64::MIN.into_process(&arc_process);
 
-        assert_eq!(
-            erlang::add_2(augend, addend, &process),
-            Ok(std::f64::MIN.into_process(&process))
-        );
-    })
+                    prop_assert_eq!(
+                        erlang::add_2(augend, addend, &arc_process),
+                        Ok(std::f64::MIN.into_process(&arc_process))
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_float_addend_with_overflow_returns_max_float() {
-    with(|augend, process| {
-        let addend = std::f64::MAX.into_process(&process);
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::integer::big::positive(arc_process.clone()),
+                |augend| {
+                    let addend = std::f64::MAX.into_process(&arc_process);
 
-        assert_eq!(
-            erlang::add_2(augend, addend, &process),
-            Ok(std::f64::MAX.into_process(&process))
-        );
-    })
-}
+                    prop_assert_eq!(
+                        erlang::add_2(augend, addend, &arc_process),
+                        Ok(std::f64::MAX.into_process(&arc_process))
+                    );
 
-#[test]
-fn with_local_pid_addend_errors_badarith() {
-    with_addend_errors_badarith(|_| Term::local_pid(0, 1).unwrap());
-}
-
-#[test]
-fn with_external_pid_addend_errors_badarith() {
-    with_addend_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_addend_errors_badarith() {
-    with_addend_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
-}
-
-#[test]
-fn with_map_is_addend_errors_badarith() {
-    with_addend_errors_badarith(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_addend_errors_badarith() {
-    with_addend_errors_badarith(|process| Term::slice_to_binary(&[], &process));
-}
-
-#[test]
-fn with_subbinary_addend_errors_badarith() {
-    with_addend_errors_badarith(|process| {
-        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        Term::subbinary(original, 0, 7, 2, 1, &process)
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
@@ -159,23 +178,4 @@ where
 
         f(augend, &process)
     })
-}
-
-fn with_addend_errors_badarith<M>(addend: M)
-where
-    M: FnOnce(&Process) -> Term,
-{
-    super::errors_badarith(|process| {
-        let augend: Term = (crate::integer::small::MAX + 1).into_process(&process);
-
-        assert_eq!(augend.tag(), Boxed);
-
-        let unboxed_augend: &Term = augend.unbox_reference();
-
-        assert_eq!(unboxed_augend.tag(), BigInteger);
-
-        let addend = addend(&process);
-
-        erlang::add_2(augend, addend, &process)
-    });
 }

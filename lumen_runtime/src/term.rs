@@ -17,7 +17,6 @@ use crate::binary::{self, heap, sub, Part, PartToList};
 use crate::code::Code;
 use crate::exception::{self, Class, Exception};
 use crate::float::{self, Float};
-#[cfg(debug_assertions)]
 use crate::function::Function;
 use crate::heap::{CloneIntoHeap, Heap};
 use crate::integer::Integer::{self, Big, Small};
@@ -284,6 +283,30 @@ impl Term {
         }
     }
 
+    #[cfg(test)]
+    pub fn byte_len(&self) -> usize {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    HeapBinary => {
+                        let heap_binary: &heap::Binary = self.unbox_reference();
+
+                        heap_binary.byte_len()
+                    }
+                    Subbinary => {
+                        let subbinary: &sub::Binary = self.unbox_reference();
+
+                        subbinary.byte_len()
+                    }
+                    unboxed_tag => panic!("unboxed {:?} does not have a byte_len", unboxed_tag),
+                }
+            }
+            tag => panic!("{:?} does not have a byte_len", tag),
+        }
+    }
+
     pub fn chars_to_list(chars: Chars, process: &Process) -> Term {
         chars.rfold(Self::EMPTY_LIST, |acc, character| {
             Term::cons(character.into_process(&process), acc, &process)
@@ -309,6 +332,26 @@ impl Term {
                 }
                 _ => break None,
             }
+        }
+    }
+
+    #[cfg(test)]
+    pub unsafe fn count_ones(&self) -> u32 {
+        match self.tag() {
+            SmallInteger => self.small_integer_to_isize().count_ones(),
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger => {
+                        let big_integer: &big::Integer = self.unbox_reference();
+
+                        big_integer.count_ones()
+                    }
+                    _ => panic!("Can't count 1s in non-integer"),
+                }
+            }
+            _ => panic!("Can't count 1s in non-integer"),
         }
     }
 
@@ -426,6 +469,49 @@ impl Term {
         self.tag() == Atom
     }
 
+    pub fn is_binary(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    HeapBinary => true,
+                    Subbinary => {
+                        let subbinary: &sub::Binary = self.unbox_reference();
+
+                        subbinary.is_binary()
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_bitstring(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    HeapBinary | Subbinary => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_boolean(&self) -> bool {
+        match self.tag() {
+            Atom => match unsafe { self.atom_to_string() }.as_ref().as_ref() {
+                "false" | "true" => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     pub fn is_char_list(&self) -> bool {
         match self.tag() {
             EmptyList => true,
@@ -440,6 +526,20 @@ impl Term {
 
     pub fn is_empty_list(&self) -> bool {
         (self.tag() == EmptyList)
+    }
+
+    pub fn is_float(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Float => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
     }
 
     pub fn is_function(&self) -> bool {
@@ -465,8 +565,29 @@ impl Term {
         }
     }
 
+    pub fn is_list(&self) -> bool {
+        match self.tag() {
+            EmptyList | List => true,
+            _ => false,
+        }
+    }
+
     pub fn is_local_pid(&self) -> bool {
         self.tag() == LocalPid
+    }
+
+    pub fn is_map(&self) -> bool {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Map => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
     }
 
     pub fn is_number(&self) -> bool {
@@ -484,6 +605,36 @@ impl Term {
         }
     }
 
+    pub fn is_pid(&self) -> bool {
+        match self.tag() {
+            LocalPid => true,
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    ExternalPid => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn is_port(&self) -> bool {
+        match self.tag() {
+            LocalPort => true,
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    ExternalPort => true,
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     pub fn is_proper_list(&self) -> bool {
         match self.tag() {
             EmptyList => true,
@@ -492,9 +643,41 @@ impl Term {
         }
     }
 
+    pub fn is_reference(&self) -> bool {
+        self.tag() == Boxed && {
+            match self.unbox_reference::<Term>().tag() {
+                LocalReference | ExternalReference => true,
+                _ => false,
+            }
+        }
+    }
+
+    pub fn is_tuple(&self) -> bool {
+        self.tag() == Boxed && self.unbox_reference::<Term>().tag() == Arity
+    }
+
     pub const unsafe fn isize_to_small_integer(i: isize) -> Term {
         Term {
             tagged: ((i << Tag::SMALL_INTEGER_BIT_COUNT) as usize) | (SmallInteger as usize),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        match self.tag() {
+            Boxed => {
+                let unboxed: &Term = self.unbox_reference();
+
+                match unboxed.tag() {
+                    Arity => {
+                        let tuple: &Tuple = self.unbox_reference();
+
+                        tuple.len()
+                    }
+                    unboxed_tag => unimplemented!("len of unboxed {:?}", unboxed_tag),
+                }
+            }
+            tag => unimplemented!("len of {:?}", tag),
         }
     }
 
@@ -643,7 +826,7 @@ impl Term {
         let float: &Float = float_term.unbox_reference();
         let float_f64 = float.inner;
 
-        (float_f64.fract() == 0.0) & {
+        (float_f64.fract() == 0.0) && {
             let small_integer_isize = small_integer.small_integer_to_isize();
 
             // float is out-of-range of SmallInteger, so it can't be equal
@@ -751,7 +934,7 @@ impl Term {
         let float: &Float = float_term.unbox_reference();
         let float_f64 = float.inner;
 
-        (float_f64.fract() == 0.0) & {
+        (float_f64.fract() == 0.0) && {
             // Float fits in small integer range, so it can't be a BigInt
             // https://github.com/erlang/otp/blob/741c5a5e1dbffd32d0478d4941ab0f725d709086/erts/emulator/beam/utils.c#L3199-L3202
             if (((small::MIN - 1) as f64) < float_f64) | (float_f64 < ((small::MAX + 1) as f64)) {
@@ -766,7 +949,7 @@ impl Term {
                 // > A float is more precise than an integer until all
                 // > significant figures of the float are to the left of the
                 // > decimal point.
-                } else if (float::INTEGRAL_MIN <= float_f64) & (float_f64 <= float::INTEGRAL_MAX) {
+                } else if (float::INTEGRAL_MIN <= float_f64) && (float_f64 <= float::INTEGRAL_MAX) {
                     let big_integer_f64: f64 = big_integer.into();
 
                     big_integer_f64 == float_f64
@@ -808,7 +991,7 @@ impl Term {
 
                 small_integer_big_int.cmp(boxed_big_int)
             }
-            LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
+            LocalReference | Function | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
             other_unboxed_tag => {
                 #[cfg(debug_assertions)]
                 unimplemented!("SmallInteger cmp unboxed {:?}", other_unboxed_tag);
@@ -850,6 +1033,12 @@ impl CloneIntoHeap for Term {
                         let heap_float = float.clone_into_heap(heap);
 
                         Term::box_reference(heap_float)
+                    }
+                    Function => {
+                        let function: &Function = self.unbox_reference();
+                        let heap_function = function.clone_into_heap(heap);
+
+                        Term::box_reference(heap_function)
                     }
                     HeapBinary => {
                         let heap_binary: &heap::Binary = self.unbox_reference();
@@ -910,9 +1099,13 @@ impl Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.tag() {
             Arity => write!(f, "Term::arity({})", unsafe { self.arity_to_usize() }),
-            Atom => write!(f, "Term::str_to_atom(\"{}\", DoNotCare).unwrap()", unsafe {
-                self.atom_to_string()
-            }),
+            Atom => unsafe {
+                f.debug_tuple("Term::str_to_atom")
+                    .field(&self.atom_to_string())
+                    .field(&DoNotCare)
+                    .finish()?;
+                write!(f, ".unwrap()")
+            },
             Boxed => {
                 let unboxed: &Term = self.unbox_reference();
 
@@ -920,19 +1113,11 @@ impl Debug for Term {
                     Arity => {
                         let tuple: &Tuple = self.unbox_reference();
 
-                        write!(f, "Term::slice_to_tuple(&[")?;
+                        write!(f, "Term::slice_to_tuple(&")?;
 
-                        let mut iter = tuple.iter();
+                        f.debug_list().entries(tuple.iter()).finish()?;
 
-                        if let Some(first_element) = iter.next() {
-                            write!(f, "{:?}", first_element)?;
-
-                            for element in iter {
-                                write!(f, ", {:?}", element)?;
-                            }
-                        }
-
-                        write!(f, "], &process)")
+                        write!(f, ", &process)")
                     }
                     BigInteger => {
                         let big_integer: &big::Integer = self.unbox_reference();
@@ -946,11 +1131,12 @@ impl Debug for Term {
                     ExternalPid => {
                         let external_pid: &process::identifier::External = self.unbox_reference();
 
-                        write!(
-                            f,
-                            "Term::external_pid({:?}, {:?}, {:?}, &process)",
-                            external_pid.node, external_pid.number, external_pid.serial
-                        )
+                        f.debug_tuple("Term::external_pid")
+                            .field(&external_pid.node)
+                            .field(&external_pid.number)
+                            .field(&external_pid.serial)
+                            .field(&format_args!("&process"))
+                            .finish()
                     }
                     Float => {
                         let float: &Float = self.unbox_reference();
@@ -960,68 +1146,50 @@ impl Debug for Term {
                     Function => {
                         let function: &Function = self.unbox_reference();
 
-                        write!(
-                            f,
-                            "Term::function({:?}, code, &process)",
-                            function.module_function_arity()
-                        )
+                        f.debug_tuple("Term::function")
+                            .field(&function.module_function_arity())
+                            .field(&format_args!("code"))
+                            .field(&format_args!("&process"))
+                            .finish()
                     }
                     HeapBinary => {
                         let binary: &heap::Binary = self.unbox_reference();
 
-                        write!(f, "Term::slice_to_binary(&[")?;
+                        write!(f, "Term::slice_to_binary(&")?;
 
-                        let mut iter = binary.iter();
+                        f.debug_list().entries(binary.iter()).finish()?;
 
-                        if let Some(first_byte) = iter.next() {
-                            write!(f, "{:?}", first_byte)?;
-
-                            for byte in iter {
-                                write!(f, ", {:?}", byte)?;
-                            }
-                        }
-
-                        write!(f, "], &process)")
+                        write!(f, ", &process)")
                     }
                     LocalReference => {
                         let local_reference: &local::Reference = self.unbox_reference();
 
-                        write!(
-                            f,
-                            "Term::local_reference({:?}, {:?}, &process)",
-                            local_reference.scheduler_id(),
-                            local_reference.number()
-                        )
+                        f.debug_tuple("Term::local_reference")
+                            .field(&local_reference.scheduler_id())
+                            .field(&local_reference.number())
+                            .field(&format_args!("&process"))
+                            .finish()
                     }
                     Map => {
                         let map: &Map = self.unbox_reference();
 
-                        write!(f, "Term::slice_to_map(&[")?;
+                        write!(f, "Term::slice_to_map(&")?;
 
-                        let mut iter = map.iter();
+                        f.debug_list().entries(map.iter()).finish()?;
 
-                        if let Some(item) = iter.next() {
-                            write!(f, "{:?}", item)?;
-
-                            for item in iter {
-                                write!(f, ", {:?}", item)?;
-                            }
-                        }
-
-                        write!(f, "], &process)")
+                        write!(f, ", &process)")
                     }
                     Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
 
-                        write!(
-                            f,
-                            "Term::subbinary({:?}, {:?}, {:?}, {:?}, {:?}, &process)",
-                            subbinary.original,
-                            subbinary.byte_offset,
-                            subbinary.bit_offset,
-                            subbinary.byte_count,
-                            subbinary.bit_count
-                        )
+                        f.debug_tuple("Term::subbinary")
+                            .field(&subbinary.original)
+                            .field(&subbinary.byte_offset)
+                            .field(&subbinary.bit_offset)
+                            .field(&subbinary.byte_count)
+                            .field(&subbinary.bit_count)
+                            .field(&format_args!("&process"))
+                            .finish()
                     }
                     unboxed_tag => unimplemented!("unboxed {:?}", unboxed_tag),
                 }
@@ -1030,17 +1198,20 @@ impl Debug for Term {
             List => {
                 let cons: &Cons = unsafe { self.as_ref_cons_unchecked() };
 
-                write!(
-                    f,
-                    "Term::cons({:?}, {:?}, &process)",
-                    cons.head(),
-                    cons.tail()
-                )
+                f.debug_tuple("Term::cons")
+                    .field(&cons.head())
+                    .field(&cons.tail())
+                    .field(&format_args!("&process"))
+                    .finish()
             }
             LocalPid => {
                 let (number, serial) = unsafe { self.decompose_local_pid() };
 
-                write!(f, "Term::local_pid({:?}, {:?}).unwrap()", number, serial)
+                f.debug_tuple("Term::local_pid")
+                    .field(&number)
+                    .field(&serial)
+                    .finish()?;
+                write!(f, ".unwrap()")
             }
             SmallInteger => write!(f, "{:?}.into_process(&process)", isize::from(self)),
             _ => write!(
@@ -1133,6 +1304,11 @@ impl Hash for Term {
 
                         float.hash(state)
                     }
+                    Function => {
+                        let function: &Function = self.unbox_reference();
+
+                        function.hash(state)
+                    }
                     HeapBinary => {
                         let heap_binary: &heap::Binary = self.unbox_reference();
 
@@ -1142,6 +1318,11 @@ impl Hash for Term {
                         let local_reference: &local::Reference = self.unbox_reference();
 
                         local_reference.hash(state)
+                    }
+                    Map => {
+                        let map: &Map = self.unbox_reference();
+
+                        map.hash(state)
                     }
                     Subbinary => {
                         let subbinary: &sub::Binary = self.unbox_reference();
@@ -1192,6 +1373,14 @@ impl IntoProcess<Term> for i32 {
         let integer: Integer = self.into();
 
         integer.into_process(&process)
+    }
+}
+
+impl IntoProcess<Term> for i64 {
+    fn into_process(self, process: &Process) -> Term {
+        let integer: Integer = self.into();
+
+        integer.into_process(process)
     }
 }
 
@@ -1323,7 +1512,8 @@ impl Ord for Term {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
+                    LocalReference | Function | ExternalPid | Arity | Map | HeapBinary
+                    | Subbinary => Less,
                     BigInteger | Float => Greater,
                     other_unboxed_tag => {
                         #[cfg(debug_assertions)]
@@ -1342,7 +1532,8 @@ impl Ord for Term {
 
                 match self_unboxed.tag() {
                     BigInteger | Float => Less,
-                    LocalReference | ExternalPid | Arity | Map | HeapBinary | Subbinary => Greater,
+                    LocalReference | Function | ExternalPid | Arity | Map | HeapBinary
+                    | Subbinary => Greater,
                     self_unboxed_tag => {
                         #[cfg(debug_assertions)]
                         unimplemented!("unboxed {:?} cmp Atom", self_unboxed_tag);
@@ -1370,6 +1561,7 @@ impl Ord for Term {
                         unsafe { Term::f64_cmp_f64(self_inner, other_inner) }
                     }
                     (Float, LocalReference)
+                    | (Float, Function)
                     | (Float, ExternalPid)
                     | (Float, Arity)
                     | (Float, Map)
@@ -1383,6 +1575,7 @@ impl Ord for Term {
                     }
                     (BigInteger, Float) => unsafe { Term::big_integer_cmp_float(&self, &other) },
                     (BigInteger, LocalReference)
+                    | (BigInteger, Function)
                     | (BigInteger, ExternalPid)
                     | (BigInteger, Arity)
                     | (BigInteger, Map)
@@ -1397,15 +1590,32 @@ impl Ord for Term {
                             .number()
                             .cmp(&other_local_reference.number())
                     }
-                    (LocalReference, LocalPid)
+                    (LocalReference, Function)
+                    | (LocalReference, LocalPid)
                     | (LocalReference, ExternalPid)
                     | (LocalReference, Arity)
                     | (LocalReference, Map)
                     | (LocalReference, HeapBinary)
                     | (LocalReference, Subbinary) => Less,
+                    (Function, Float) | (Function, BigInteger) | (Function, LocalReference) => {
+                        Greater
+                    }
+                    (Function, Function) => {
+                        let self_function: &Function = self.unbox_reference();
+                        let other_function: &Function = other.unbox_reference();
+
+                        self_function.cmp(other_function)
+                    }
+                    (Function, ExternalPid)
+                    | (Function, Arity)
+                    | (Function, Map)
+                    | (Function, List)
+                    | (Function, HeapBinary)
+                    | (Function, Subbinary) => Less,
                     (ExternalPid, Float)
                     | (ExternalPid, BigInteger)
-                    | (ExternalPid, LocalReference) => Greater,
+                    | (ExternalPid, LocalReference)
+                    | (ExternalPid, Function) => Greater,
                     (ExternalPid, ExternalPid) => {
                         let self_external_pid: &process::identifier::External =
                             self.unbox_reference();
@@ -1421,6 +1631,7 @@ impl Ord for Term {
                     (Arity, Float)
                     | (Arity, BigInteger)
                     | (Arity, LocalReference)
+                    | (Arity, Function)
                     | (Arity, ExternalPid) => Greater,
                     (Arity, Arity) => {
                         let self_tuple: &Tuple = self.unbox_reference();
@@ -1432,6 +1643,7 @@ impl Ord for Term {
                     (Map, Float)
                     | (Map, BigInteger)
                     | (Map, LocalReference)
+                    | (Map, Function)
                     | (Map, ExternalPid)
                     | (Map, Arity) => Greater,
                     (Map, Map) => {
@@ -1444,6 +1656,7 @@ impl Ord for Term {
                     (HeapBinary, Float)
                     | (HeapBinary, BigInteger)
                     | (HeapBinary, LocalReference)
+                    | (HeapBinary, Function)
                     | (HeapBinary, ExternalPid)
                     | (HeapBinary, Arity)
                     | (HeapBinary, Map) => Greater,
@@ -1468,6 +1681,7 @@ impl Ord for Term {
                     (Subbinary, Float)
                     | (Subbinary, BigInteger)
                     | (Subbinary, LocalReference)
+                    | (Subbinary, Function)
                     | (Subbinary, ExternalPid)
                     | (Subbinary, Arity)
                     | (Subbinary, Map) => Greater,
@@ -1493,7 +1707,7 @@ impl Ord for Term {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
-                    Float | BigInteger | LocalReference => Less,
+                    Float | BigInteger | LocalReference | Function => Less,
                     // local pid has node 0 while all external pids have node > 0
                     ExternalPid | Arity | Map | HeapBinary | Subbinary => Greater,
                     self_unboxed_tag => {
@@ -1508,7 +1722,9 @@ impl Ord for Term {
                 let self_unboxed: &Term = self.unbox_reference();
 
                 match self_unboxed.tag() {
-                    Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Less,
+                    Float | BigInteger | LocalReference | Function | ExternalPid | Arity | Map => {
+                        Less
+                    }
                     HeapBinary | Subbinary => Greater,
                     self_unboxed_tag => {
                         #[cfg(debug_assertions)]
@@ -1523,7 +1739,7 @@ impl Ord for Term {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    Float | BigInteger | LocalReference => Greater,
+                    Float | BigInteger | LocalReference | Function => Greater,
                     ExternalPid | Arity | Map | HeapBinary | Subbinary => Less,
                     other_unboxed_tag => {
                         #[cfg(debug_assertions)]
@@ -1539,7 +1755,9 @@ impl Ord for Term {
                 let other_unboxed: &Term = other.unbox_reference();
 
                 match other_unboxed.tag() {
-                    Float | BigInteger | LocalReference | ExternalPid | Arity | Map => Greater,
+                    Float | BigInteger | LocalReference | Function | ExternalPid | Arity | Map => {
+                        Greater
+                    }
                     HeapBinary | Subbinary => Less,
                     other_unboxed_tag => {
                         #[cfg(debug_assertions)]
@@ -1654,6 +1872,12 @@ impl PartialEq for Term {
                         let other_float: &Float = other.unbox_reference();
 
                         self_float == other_float
+                    }
+                    (Function, Function) => {
+                        let self_function: &Function = self.unbox_reference();
+                        let other_function: &Function = other.unbox_reference();
+
+                        self_function == other_function
                     }
                     (HeapBinary, HeapBinary) => {
                         let self_heap_binary: &heap::Binary = self.unbox_reference();
@@ -1946,6 +2170,18 @@ impl TryFrom<Term> for usize {
                     Err(badarg!())
                 } else {
                     Ok(term_isize as usize)
+                }
+            }
+            Boxed => {
+                let unboxed: &Term = term.unbox_reference();
+
+                match unboxed.tag() {
+                    BigInteger => {
+                        let big_integer: &big::Integer = term.unbox_reference();
+
+                        big_integer.try_into()
+                    }
+                    _ => Err(badarg!()),
                 }
             }
             _ => Err(badarg!()),

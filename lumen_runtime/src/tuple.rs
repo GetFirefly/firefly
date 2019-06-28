@@ -1,5 +1,5 @@
 use std::cmp::Ordering::{self, *};
-use std::convert::{TryFrom, TryInto};
+use std::convert::{Into, TryFrom, TryInto};
 #[cfg(test)]
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
@@ -138,16 +138,27 @@ impl Tuple {
     pub fn is_record(&self, record_tag: Term, size: Option<Term>) -> exception::Result {
         match record_tag.tag() {
             Atom => {
-                let element = self.element(ZeroBasedIndex(0))?;
+                let tagged = if 0 < self.len() {
+                    let element = self[0];
 
-                match size {
-                    Some(size_term) => {
-                        let size_usize: usize = size_term.try_into()?;
+                    match size {
+                        Some(size_term) => {
+                            let size_usize: usize = size_term.try_into()?;
 
-                        Ok(((element == record_tag) & (self.len() == size_usize)).into())
+                            (element == record_tag) && (self.len() == size_usize)
+                        }
+                        None => element == record_tag,
                     }
-                    None => Ok((element == record_tag).into()),
-                }
+                } else {
+                    // even if the `record_tag` cannot be checked, the `size` is still type checked
+                    if let Some(size_term) = size {
+                        let _: usize = size_term.try_into()?;
+                    }
+
+                    false
+                };
+
+                Ok(tagged.into())
             }
             _ => Err(badarg!()),
         }
@@ -320,7 +331,7 @@ impl Ord for Tuple {
 impl PartialEq for Tuple {
     fn eq(&self, other: &Tuple) -> bool {
         (self.arity.tagged == other.arity.tagged)
-            & self
+            && self
                 .iter()
                 .zip(other.iter())
                 .all(|(self_element, other_element)| self_element == other_element)

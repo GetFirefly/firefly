@@ -159,11 +159,11 @@ impl Binary {
         let initial = if self.bit_count == 0 {
             Term::EMPTY_LIST
         } else {
-            self.bit_count_subbinary(&process)
+            Term::cons(self.bit_count_subbinary(process), Term::EMPTY_LIST, process)
         };
 
         self.byte_iter().rfold(initial, |acc, byte| {
-            Term::cons(byte.into_process(&process), acc, &process)
+            Term::cons(byte.into_process(process), acc, process)
         })
     }
 
@@ -185,7 +185,7 @@ impl CloneIntoHeap for &'static Binary {
 
         heap.subbinary(
             heap_original,
-            self.byte_count,
+            self.byte_offset,
             self.bit_offset,
             self.byte_count,
             self.bit_count,
@@ -221,11 +221,11 @@ impl Hash for Binary {
 impl PartialEq for Binary {
     fn eq(&self, other: &Binary) -> bool {
         (self.bit_len() == other.bit_len())
-            & self
+            && self
                 .byte_iter()
                 .zip(other.byte_iter())
                 .all(|(self_byte, other_byte)| self_byte == other_byte)
-            & self
+            && self
                 .bit_count_iter()
                 .zip(other.bit_count_iter())
                 .all(|(self_bit, other_bit)| self_bit == other_bit)
@@ -321,7 +321,7 @@ impl Iterator for BitCountIter {
 
     fn next(&mut self) -> Option<u8> {
         if (self.current_byte_offset == self.max_byte_offset)
-            & (self.current_bit_offset == self.max_bit_offset)
+            && (self.current_bit_offset == self.max_bit_offset)
         {
             None
         } else {
@@ -386,7 +386,7 @@ impl PartialEq<heap::Binary> for Binary {
     /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
     /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
     fn eq(&self, other: &heap::Binary) -> bool {
-        (self.bit_count == 0) & self.byte_iter().eq(other.byte_iter())
+        (self.bit_count == 0) && self.byte_iter().eq(other.byte_iter())
     }
 }
 
@@ -461,8 +461,13 @@ impl<'b, 'a: 'b> Part<'a, usize, isize, &'b Binary> for Binary {
         if (self.bit_count == 0) && (byte_offset == 0) && (byte_count == self.byte_count) {
             Ok(self)
         } else {
-            let new_subbinary =
-                process.subbinary(self.original, byte_offset, self.bit_offset, byte_count, 0);
+            let new_subbinary = process.subbinary(
+                self.original,
+                self.byte_offset + byte_offset,
+                self.bit_offset,
+                byte_count,
+                0,
+            );
 
             Ok(new_subbinary)
         }

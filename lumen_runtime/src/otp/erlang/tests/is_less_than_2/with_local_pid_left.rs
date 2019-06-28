@@ -1,31 +1,33 @@
 use super::*;
 
-#[test]
-fn with_small_integer_right_returns_false() {
-    is_less_than(|_, process| 0.into_process(&process), false)
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_big_integer_right_returns_false() {
-    is_less_than(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        false,
-    )
-}
+fn with_number_atom_reference_function_or_port_returns_false() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::pid::local(),
+                    strategy::term(arc_process.clone()).prop_filter(
+                        "Right must be number, atom, reference, function, or port",
+                        |right| {
+                            right.is_number()
+                                || right.is_atom()
+                                || right.is_reference()
+                                || right.is_function()
+                                || right.is_port()
+                        },
+                    ),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(erlang::is_less_than_2(left, right), false.into());
 
-#[test]
-fn with_float_right_returns_false() {
-    is_less_than(|_, process| 0.0.into_process(&process), false)
-}
-
-#[test]
-fn with_atom_returns_false() {
-    is_less_than(|_, _| Term::str_to_atom("meft", DoNotCare).unwrap(), false);
-}
-
-#[test]
-fn with_local_reference_right_returns_false() {
-    is_less_than(|_, process| Term::next_local_reference(process), false);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
@@ -57,36 +59,25 @@ fn with_external_pid_right_returns_true() {
 }
 
 #[test]
-fn with_tuple_right_returns_true() {
-    is_less_than(|_, process| Term::slice_to_tuple(&[], &process), true);
-}
+fn with_list_or_bitstring_returns_true() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::pid::local(),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Right must be tuple, map, list, or bitstring", |right| {
+                            right.is_list() || right.is_bitstring()
+                        }),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(erlang::is_less_than_2(left, right), true.into());
 
-#[test]
-fn with_map_right_returns_true() {
-    is_less_than(|_, process| Term::slice_to_map(&[], &process), true);
-}
-
-#[test]
-fn with_empty_list_right_returns_true() {
-    is_less_than(|_, _| Term::EMPTY_LIST, true);
-}
-
-#[test]
-fn with_list_right_returns_true() {
-    is_less_than(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        true,
-    );
-}
-
-#[test]
-fn with_heap_binary_right_returns_true() {
-    is_less_than(|_, process| Term::slice_to_binary(&[], &process), true);
-}
-
-#[test]
-fn with_subbinary_right_returns_true() {
-    is_less_than(|_, process| bitstring!(1 :: 1, &process), true);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 fn is_less_than<R>(right: R, expected: bool)

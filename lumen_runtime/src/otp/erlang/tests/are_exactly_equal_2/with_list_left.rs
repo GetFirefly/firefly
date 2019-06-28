@@ -1,99 +1,102 @@
 use super::*;
 
-#[test]
-fn with_atom_right_returns_false() {
-    are_exactly_equal(|_, _| Term::str_to_atom("right", DoNotCare).unwrap(), false)
-}
+use proptest::collection::SizeRange;
+use proptest::strategy::Strategy;
+
+use crate::otp::erlang::tests::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
 #[test]
-fn with_local_reference_right_returns_false() {
-    are_exactly_equal(|_, process| Term::next_local_reference(process), false);
-}
+fn without_list_right_returns_false() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Right must not be list", |v| !v.is_list()),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
 
-#[test]
-fn with_empty_list_right_returns_false() {
-    are_exactly_equal(|_, _| Term::EMPTY_LIST, false);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_same_list_right_returns_true() {
-    are_exactly_equal(|left, _| left, true);
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+                |operand| {
+                    prop_assert_eq!(erlang::are_exactly_equal_2(operand, operand), true.into());
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_same_value_list_right_returns_true() {
-    are_exactly_equal(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        true,
-    );
+    let size_range: SizeRange = NON_EMPTY_RANGE_INCLUSIVE.clone().into();
+
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &proptest::collection::vec(strategy::term(arc_process.clone()), size_range)
+                    .prop_map(move |vec| match vec.len() {
+                        1 => (
+                            Term::slice_to_list(&vec, &arc_process),
+                            Term::slice_to_list(&vec, &arc_process),
+                        ),
+                        len => {
+                            let last_index = len - 1;
+
+                            (
+                                Term::slice_to_improper_list(
+                                    &vec[0..last_index],
+                                    vec[last_index],
+                                    &arc_process,
+                                ),
+                                Term::slice_to_improper_list(
+                                    &vec[0..last_index],
+                                    vec[last_index],
+                                    &arc_process,
+                                ),
+                            )
+                        }
+                    }),
+                |(left, right)| {
+                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), true.into());
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 #[test]
 fn with_different_list_right_returns_false() {
-    are_exactly_equal(
-        |_, process| Term::cons(2.into_process(&process), 3.into_process(&process), &process),
-        false,
-    );
-}
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+                    strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+                )
+                    .prop_filter("Lists must be different", |(left, right)| left != right),
+                |(left, right)| {
+                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
 
-#[test]
-fn with_small_integer_right_returns_false() {
-    are_exactly_equal(|_, process| 0.into_process(&process), false)
-}
-
-#[test]
-fn with_big_integer_right_returns_false() {
-    are_exactly_equal(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
-        false,
-    )
-}
-
-#[test]
-fn with_float_right_returns_false() {
-    are_exactly_equal(|_, process| 0.0.into_process(&process), false)
-}
-
-#[test]
-fn with_local_pid_right_returns_false() {
-    are_exactly_equal(|_, _| Term::local_pid(0, 1).unwrap(), false);
-}
-
-#[test]
-fn with_external_pid_right_returns_false() {
-    are_exactly_equal(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        false,
-    );
-}
-
-#[test]
-fn with_tuple_right_returns_false() {
-    are_exactly_equal(|_, process| Term::slice_to_tuple(&[], &process), false);
-}
-
-#[test]
-fn with_map_right_returns_false() {
-    are_exactly_equal(|_, process| Term::slice_to_map(&[], &process), false);
-}
-
-#[test]
-fn with_heap_binary_right_returns_false() {
-    are_exactly_equal(|_, process| Term::slice_to_binary(&[], &process), false);
-}
-
-#[test]
-fn with_subbinary_right_returns_false() {
-    are_exactly_equal(|_, process| bitstring!(1 :: 1, &process), false);
-}
-
-fn are_exactly_equal<R>(right: R, expected: bool)
-where
-    R: FnOnce(Term, &Process) -> Term,
-{
-    super::are_exactly_equal(
-        |process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        right,
-        expected,
-    );
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }

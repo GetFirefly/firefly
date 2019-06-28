@@ -23,11 +23,6 @@ fn with_greater_big_integer_right_returns_true() {
 }
 
 #[test]
-fn with_same_big_integer_right_returns_true() {
-    is_greater_than_or_equal(|left, _| left, true)
-}
-
-#[test]
 fn with_same_value_big_integer_right_returns_true() {
     is_greater_than_or_equal(
         |_, process| (crate::integer::small::MAX + 1).into_process(&process),
@@ -58,59 +53,25 @@ fn with_greater_float_right_returns_false() {
 }
 
 #[test]
-fn with_atom_right_returns_false() {
-    is_greater_than_or_equal(|_, _| Term::str_to_atom("right", DoNotCare).unwrap(), false);
-}
+fn without_number_returns_false() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::integer::big(arc_process.clone()),
+                    strategy::term::is_not_number(arc_process.clone()),
+                ),
+                |(left, right)| {
+                    prop_assert_eq!(
+                        erlang::is_greater_than_or_equal_2(left, right),
+                        false.into()
+                    );
 
-#[test]
-fn with_local_reference_right_returns_false() {
-    is_greater_than_or_equal(|_, process| Term::next_local_reference(process), false);
-}
-
-#[test]
-fn with_local_pid_right_returns_false() {
-    is_greater_than_or_equal(|_, _| Term::local_pid(0, 1).unwrap(), false);
-}
-
-#[test]
-fn with_external_pid_right_returns_false() {
-    is_greater_than_or_equal(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
-        false,
-    );
-}
-
-#[test]
-fn with_tuple_right_returns_false() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_tuple(&[], &process), false);
-}
-
-#[test]
-fn with_map_right_returns_false() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_map(&[], &process), false);
-}
-
-#[test]
-fn with_empty_list_right_returns_false() {
-    is_greater_than_or_equal(|_, _| Term::EMPTY_LIST, false);
-}
-
-#[test]
-fn with_list_right_returns_false() {
-    is_greater_than_or_equal(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
-        false,
-    );
-}
-
-#[test]
-fn with_heap_binary_right_returns_false() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_binary(&[], &process), false);
-}
-
-#[test]
-fn with_subbinary_right_returns_false() {
-    is_greater_than_or_equal(|_, process| bitstring!(1 :: 1, &process), false);
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
 }
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)

@@ -1,6 +1,9 @@
+use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use crate::code::Code;
+use crate::heap::{CloneIntoHeap, Heap};
 use crate::process::stack::frame::Frame;
 use crate::process::ModuleFunctionArity;
 use crate::term::{Tag, Term};
@@ -45,5 +48,40 @@ impl Function {
 
     fn frame(&self) -> Frame {
         Frame::new(Arc::clone(&self.module_function_arity), self.code)
+    }
+}
+
+impl CloneIntoHeap for &'static Function {
+    fn clone_into_heap(&self, heap: &Heap) -> Self {
+        heap.function(self.module_function_arity.clone(), self.code)
+    }
+}
+
+impl Eq for Function {}
+
+impl Hash for Function {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.module_function_arity.hash(state);
+        state.write_usize(self.code as usize);
+    }
+}
+
+impl Ord for Function {
+    fn cmp(&self, other: &Function) -> Ordering {
+        (self.module_function_arity.cmp(&other.module_function_arity))
+            .then_with(|| (self.code as usize).cmp(&(other.code as usize)))
+    }
+}
+
+impl PartialEq for Function {
+    fn eq(&self, other: &Function) -> bool {
+        (self.module_function_arity == other.module_function_arity)
+            && ((self.code as usize) == (other.code as usize))
+    }
+}
+
+impl PartialOrd for Function {
+    fn partial_cmp(&self, other: &Function) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

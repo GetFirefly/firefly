@@ -1,9 +1,7 @@
 use std::cmp::Ordering::{self, Equal};
 use std::convert::{TryFrom, TryInto};
-#[cfg(test)]
-use std::fmt::{self, Debug};
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 
 use crate::exception::Exception;
 
@@ -12,19 +10,10 @@ pub mod small;
 
 use crate::integer::big::big_int_to_usize;
 
+#[cfg_attr(test, derive(Debug))]
 pub enum Integer {
     Small(small::Integer),
     Big(BigInt),
-}
-
-#[cfg(test)]
-impl Debug for Integer {
-    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Integer::Small(_) => unimplemented!(),
-            Integer::Big(_) => unimplemented!(),
-        }
-    }
 }
 
 impl Eq for Integer {}
@@ -38,6 +27,16 @@ impl From<char> for Integer {
 impl From<i32> for Integer {
     fn from(i: i32) -> Integer {
         (i as isize).into()
+    }
+}
+
+impl From<i64> for Integer {
+    fn from(i: i64) -> Integer {
+        if (small::MIN as i64) <= i && i <= (small::MAX as i64) {
+            Integer::Small(small::Integer(i as isize))
+        } else {
+            Integer::Big(i.into())
+        }
     }
 }
 
@@ -72,11 +71,16 @@ impl From<BigInt> for Integer {
         let small_min_big_int: BigInt = small::MIN.into();
         let small_max_big_int: BigInt = small::MAX.into();
 
-        if (small_min_big_int <= big_int) & (big_int <= small_max_big_int) {
-            let small_isize = big_int
-                .to_signed_bytes_be()
+        if (small_min_big_int <= big_int) && (big_int <= small_max_big_int) {
+            let (sign, bytes) = big_int.to_bytes_be();
+            let small_usize = bytes
                 .iter()
-                .fold(0_isize, |acc, byte| (acc << 8) | (*byte as isize));
+                .fold(0_usize, |acc, byte| (acc << 8) | (*byte as usize));
+
+            let small_isize = match sign {
+                Sign::Minus => -1 * (small_usize as isize),
+                _ => small_usize as isize,
+            };
 
             Integer::Small(small::Integer(small_isize))
         } else {
@@ -117,5 +121,19 @@ impl TryFrom<Integer> for usize {
             Integer::Small(small::Integer(untagged)) => untagged.try_into().map_err(|_| badarg!()),
             Integer::Big(big_int) => big_int_to_usize(&big_int),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn negative_one() {
+        let big_int: BigInt = (-1).into();
+
+        let integer: Integer = big_int.into();
+
+        assert_eq!(integer, Integer::Small(small::Integer(-1)));
     }
 }

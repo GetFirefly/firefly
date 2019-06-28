@@ -2,6 +2,11 @@ use super::*;
 
 use std::sync::atomic::AtomicUsize;
 
+use proptest::arbitrary::any;
+use proptest::strategy::{BoxedStrategy, Just};
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq};
+
 use crate::exception::Result;
 use crate::integer;
 use crate::message::{self, Message};
@@ -112,6 +117,7 @@ mod spawn_3;
 mod split_binary_2;
 mod start_timer_3;
 mod start_timer_4;
+mod strategy;
 mod subtract_2;
 mod subtract_list_2;
 mod throw_1;

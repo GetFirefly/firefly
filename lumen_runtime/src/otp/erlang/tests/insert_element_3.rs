@@ -1,171 +1,103 @@
 use super::*;
 
-#[test]
-fn with_atom_errors_badarg() {
-    with_tuple_errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
-}
+use proptest::strategy::Strategy;
 
 #[test]
-fn with_local_reference_errors_badarg() {
-    with_tuple_errors_badarg(|process| Term::next_local_reference(process));
-}
+fn without_tuple_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::is_not_tuple(arc_process.clone()),
+                    strategy::term::is_integer(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
+                ),
+                |(tuple, index, element)| {
+                    prop_assert_eq!(
+                        erlang::insert_element_3(index, tuple, element, &arc_process),
+                        Err(badarg!())
+                    );
 
-#[test]
-fn with_empty_list_errors_badarg() {
-    with_tuple_errors_badarg(|_| Term::EMPTY_LIST);
-}
-
-#[test]
-fn with_list_errors_badarg() {
-    with_tuple_errors_badarg(|process| list_term(&process));
-}
-
-#[test]
-fn with_small_integer_errors_badarg() {
-    with_tuple_errors_badarg(|process| 0.into_process(&process));
-}
-
-#[test]
-fn with_big_integer_errors_badarg() {
-    with_tuple_errors_badarg(|process| (integer::small::MAX + 1).into_process(&process));
-}
-
-#[test]
-fn with_float_errors_badarg() {
-    with_tuple_errors_badarg(|process| 1.0.into_process(&process));
-}
-
-#[test]
-fn with_local_pid_errors_badarg() {
-    with_tuple_errors_badarg(|_| Term::local_pid(0, 0).unwrap());
-}
-
-#[test]
-fn with_external_pid_errors_badarg() {
-    with_tuple_errors_badarg(|process| Term::external_pid(1, 0, 0, &process).unwrap());
-}
-
-#[test]
-fn with_tuple_without_small_integer_index_errors_badarg() {
-    with_process(|process| {
-        let tuple = Term::slice_to_tuple(
-            &[1.into_process(&process), 3.into_process(&process)],
-            &process,
-        );
-        let index = 2usize;
-        let invalid_index_term = Term::arity(index);
-
-        assert_ne!(invalid_index_term.tag(), SmallInteger);
-        assert_badarg!(erlang::insert_element_3(
-            tuple,
-            invalid_index_term,
-            0.into_process(&process),
-            &process
-        ));
-
-        let valid_index_term: Term = index.into_process(&process);
-
-        assert_eq!(valid_index_term.tag(), SmallInteger);
-        assert_eq!(
-            erlang::insert_element_3(valid_index_term, tuple, 2.into_process(&process), &process),
-            Ok(Term::slice_to_tuple(
-                &[
-                    1.into_process(&process),
-                    2.into_process(&process),
-                    3.into_process(&process)
-                ],
-                &process
-            ))
-        );
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_tuple_without_index_in_range_errors_badarg() {
-    with_process(|process| {
-        let tuple = Term::slice_to_tuple(&[], &process);
+fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_badarg() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(
+                    strategy::term::tuple(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
+                    strategy::term(arc_process.clone())
+                )
+                    .prop_filter("Index either needs to not be an integer or not be an integer in the index range 1..=(len + 1)", |(tuple, index, _element)| {
+            let index_big_int_result: std::result::Result<BigInt, _> = index.try_into();
 
-        assert_badarg!(erlang::insert_element_3(
-            tuple,
-            2.into_process(&process),
-            0.into_process(&process),
-            &process
-        ));
+            match index_big_int_result {
+                Ok(index_big_int) => {
+                    let tuple_tuple: &Tuple = tuple.unbox_reference();
+                    let min_index: BigInt = 1.into();
+                    let max_index: BigInt = (tuple_tuple.len() + 1).into();
+
+                    !((min_index <= index_big_int) && (index_big_int <= max_index))
+                }
+                _ => true,
+            }
+        }),
+                |(tuple, index, element)| {
+                    prop_assert_eq!(
+                        erlang::insert_element_3(index, tuple, element, &arc_process),
+                        Err(badarg!())
+                    );
+
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }
 
 #[test]
-fn with_tuple_with_index_in_range_returns_tuple_with_new_element_at_index() {
-    with_process(|process| {
-        let tuple = Term::slice_to_tuple(
-            &[1.into_process(&process), 3.into_process(&process)],
-            &process,
-        );
+fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tuple_with_element() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &(1_usize..=4_usize)
+                    .prop_flat_map(|len| {
+                        (
+                            proptest::collection::vec(
+                                strategy::term(arc_process.clone()),
+                                len..=len,
+                            ),
+                            0..=len,
+                            strategy::term(arc_process.clone()),
+                        )
+                    })
+                    .prop_map(|(element_vec, zero_based_index, element)| {
+                        (
+                            element_vec.clone(),
+                            zero_based_index,
+                            Term::slice_to_tuple(&element_vec, &arc_process),
+                            (zero_based_index + 1).into_process(&arc_process),
+                            element,
+                        )
+                    }),
+                |(mut element_vec, element_vec_index, tuple, index, element)| {
+                    element_vec.insert(element_vec_index, element);
 
-        assert_eq!(
-            erlang::insert_element_3(
-                2.into_process(&process),
-                tuple,
-                2.into_process(&process),
-                &process
-            ),
-            Ok(Term::slice_to_tuple(
-                &[
-                    1.into_process(&process),
-                    2.into_process(&process),
-                    3.into_process(&process)
-                ],
-                &process
-            ))
-        );
-    });
-}
+                    prop_assert_eq!(
+                        erlang::insert_element_3(index, tuple, element, &arc_process),
+                        Ok(Term::slice_to_tuple(&element_vec, &arc_process))
+                    );
 
-#[test]
-fn with_tuple_with_index_at_size_return_tuples_with_new_element_at_end() {
-    with_process(|process| {
-        let tuple = Term::slice_to_tuple(&[1.into_process(&process)], &process);
-
-        assert_eq!(
-            erlang::insert_element_3(
-                2.into_process(&process),
-                tuple,
-                3.into_process(&process),
-                &process
-            ),
-            Ok(Term::slice_to_tuple(
-                &[1.into_process(&process), 3.into_process(&process)],
-                &process
-            ))
-        );
-    });
-}
-
-#[test]
-fn with_map_errors_badarg() {
-    with_tuple_errors_badarg(|process| Term::slice_to_map(&[], &process));
-}
-
-#[test]
-fn with_heap_binary_errors_badarg() {
-    with_tuple_errors_badarg(|process| Term::slice_to_binary(&[], &process));
-}
-
-#[test]
-fn with_subbinary_errors_badarg() {
-    with_tuple_errors_badarg(|process| bitstring!(1 :: 1, &process));
-}
-
-fn with_tuple_errors_badarg<T>(tuple: T)
-where
-    T: FnOnce(&Process) -> Term,
-{
-    super::errors_badarg(|process| {
-        erlang::insert_element_3(
-            0.into_process(&process),
-            tuple(&process),
-            Term::str_to_atom("element", DoNotCare).unwrap(),
-            &process,
-        )
+                    Ok(())
+                },
+            )
+            .unwrap();
     });
 }

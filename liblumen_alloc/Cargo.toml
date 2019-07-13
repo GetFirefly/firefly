@@ -23,8 +23,6 @@ liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
 
 [dependencies.hashbrown]
 version = "0.5"
-git = "https://github.com/KronicDeth/hashbrown.git"
-branch = "E0658"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]

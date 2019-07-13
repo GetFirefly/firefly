@@ -26,7 +26,7 @@ fn with_number_or_atom_second_returns_second() {
 
 #[test]
 fn with_lesser_local_reference_second_returns_second() {
-    min(|_, process| Term::local_reference(0, process), Second);
+    min(|_, process| process.reference(0).unwrap(), Second);
 }
 
 #[test]
@@ -36,12 +36,12 @@ fn with_same_local_reference_second_returns_first() {
 
 #[test]
 fn with_same_value_local_reference_second_returns_first() {
-    min(|_, process| Term::local_reference(1, process), First);
+    min(|_, process| process.reference(1).unwrap(), First);
 }
 
 #[test]
 fn with_greater_local_reference_second_returns_first() {
-    min(|_, process| Term::local_reference(2, process), First);
+    min(|_, process| process.reference(2).unwrap(), First);
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn with_function_port_pid_tuple_map_list_or_bitstring_second_returns_first() {
                     strategy::term(arc_process.clone()).prop_filter(
                         "Second must be function, port, pid, tuple, map, list, or bitstring",
                         |second| {
-                            second.is_function()
+                            second.is_closure()
                                 || second.is_port()
                                 || second.is_pid()
                                 || second.is_tuple()
@@ -76,7 +76,7 @@ fn with_function_port_pid_tuple_map_list_or_bitstring_second_returns_first() {
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::min(|process| Term::local_reference(1, process), second, which);
+    super::min(|process| process.reference(1).unwrap(), second, which);
 }

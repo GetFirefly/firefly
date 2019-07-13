@@ -1,41 +1,40 @@
-use std::cmp::Ordering::{self, *};
-use std::collections::HashMap;
-use std::ops::{Index, IndexMut, RangeBounds};
-use std::sync::{Arc, Mutex, Weak};
-use std::vec::Drain;
-
-use crate::atom::Existence::DoNotCare;
-use crate::heap::{CloneIntoHeap, Heap};
-use crate::message;
-use crate::process::Process;
-use crate::reference;
-use crate::registry::{self, Registered};
-use crate::scheduler::{self, Scheduler};
-use crate::term::Term;
-use crate::time::monotonic::{self, Milliseconds};
-
 pub mod cancel;
+mod message;
 pub mod read;
 pub mod start;
 
-pub fn cancel(timer_reference: &reference::local::Reference) -> Option<Milliseconds> {
-    timer_reference.scheduler().and_then(|scheduler| {
-        scheduler
-            .hierarchy
-            .write()
-            .unwrap()
-            .cancel(timer_reference.number())
-    })
+use core::alloc::AllocErr;
+use core::cmp::Ordering::{self, *};
+use core::ops::{Index, IndexMut, RangeBounds};
+use core::ptr::NonNull;
+use core::result::Result;
+
+use alloc::sync::{Arc, Weak};
+use alloc::vec::Drain;
+
+use hashbrown::HashMap;
+
+use liblumen_core::locks::Mutex;
+
+use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::term::{atom_unchecked, reference, Atom, Reference, Term};
+use liblumen_alloc::CloneToProcess;
+use liblumen_alloc::ProcessControlBlock;
+
+use crate::registry;
+use crate::scheduler::{self, Scheduled, Scheduler};
+use crate::time::monotonic::{self, Milliseconds};
+
+pub fn cancel(timer_reference: &Reference) -> Option<Milliseconds> {
+    timer_reference
+        .scheduler()
+        .and_then(|scheduler| scheduler.hierarchy.write().cancel(timer_reference.number()))
 }
 
-pub fn read(timer_reference: &reference::local::Reference) -> Option<Milliseconds> {
-    timer_reference.scheduler().and_then(|scheduler| {
-        scheduler
-            .hierarchy
-            .read()
-            .unwrap()
-            .read(timer_reference.number())
-    })
+pub fn read(timer_reference: &Reference) -> Option<Milliseconds> {
+    timer_reference
+        .scheduler()
+        .and_then(|scheduler| scheduler.hierarchy.read().read(timer_reference.number()))
 }
 
 pub fn start(
@@ -43,34 +42,38 @@ pub fn start(
     destination: Destination,
     timeout: Timeout,
     process_message: Term,
-    process: &Process,
-) -> Term {
+    process_control_block: &ProcessControlBlock,
+) -> Result<Term, AllocErr> {
     let scheduler = Scheduler::current();
-    let reference = scheduler.hierarchy.write().unwrap().start(
+
+    let result = scheduler.hierarchy.write().start(
         monotonic_time_milliseconds,
         destination,
         timeout,
         process_message,
-        process,
+        process_control_block,
         &scheduler,
     );
 
-    Term::box_reference(reference)
+    result
 }
 
 /// Times out the timers for the thread that have timed out since the last time `timeout` was
 /// called.
-pub fn timeout() {
+#[cfg(test)]
+pub fn timeout() -> Result<(), AllocErr> {
     let scheduler = Scheduler::current();
 
-    scheduler.hierarchy.write().unwrap().timeout(&scheduler.id);
+    let result = scheduler.hierarchy.write().timeout(&scheduler.id);
+
+    result
 }
 
 #[derive(Clone)]
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Destination {
-    Name(Term),
-    Process(Weak<Process>),
+    Name(Atom),
+    Process(Weak<ProcessControlBlock>),
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -79,7 +82,7 @@ pub struct Hierarchy {
     soon: Wheel,
     later: Wheel,
     long_term: Slot,
-    timer_by_reference_number: HashMap<reference::local::Number, Weak<Timer>>,
+    timer_by_reference_number: HashMap<reference::Number, Weak<Timer>>,
 }
 
 impl Hierarchy {
@@ -90,14 +93,14 @@ impl Hierarchy {
     const LATER_TOTAL_MILLISECONDS: Milliseconds =
         Self::LATER_MILLISECONDS_PER_SLOT * (Wheel::LENGTH as Milliseconds);
 
-    fn cancel(&mut self, timer_reference_number: reference::local::Number) -> Option<Milliseconds> {
+    fn cancel(&mut self, timer_reference_number: reference::Number) -> Option<Milliseconds> {
         self.timer_by_reference_number
             .remove(&timer_reference_number)
             .and_then(|weak_timer| weak_timer.upgrade())
             .map(|arc_timer| {
                 use Position::*;
 
-                match *arc_timer.position.lock().unwrap() {
+                match *arc_timer.position.lock() {
                     // can't be found in O(1), mark as canceled for later cleanup
                     AtOnce => self.at_once.cancel(timer_reference_number),
                     Soon { slot_index } => self.soon.cancel(slot_index, timer_reference_number),
@@ -127,7 +130,7 @@ impl Hierarchy {
         }
     }
 
-    fn read(&self, timer_reference_number: reference::local::Number) -> Option<Milliseconds> {
+    fn read(&self, timer_reference_number: reference::Number) -> Option<Milliseconds> {
         self.timer_by_reference_number
             .get(&timer_reference_number)
             .and_then(|weak_timer| weak_timer.upgrade())
@@ -142,13 +145,13 @@ impl Hierarchy {
         destination: Destination,
         timeout: Timeout,
         process_message: Term,
-        process: &Process,
+        process_control_block: &ProcessControlBlock,
         scheduler: &Scheduler,
-    ) -> &'static reference::local::Reference {
-        let reference = scheduler.next_reference(process);
-        let reference_number = reference.number();
-        let heap: Heap = Default::default();
-        let message = process_message.clone_into_heap(&heap);
+    ) -> Result<Term, AllocErr> {
+        let reference_number = scheduler.next_reference_number();
+        let reference =
+            process_control_block.reference_from_scheduler(scheduler.id, reference_number)?;
+        let (heap_fragment_message, heap_fragment) = process_message.clone_to_fragment()?;
         let position = self.position(monotonic_time_milliseconds);
 
         let timer = Timer {
@@ -156,9 +159,9 @@ impl Hierarchy {
             monotonic_time_milliseconds,
             destination,
             timeout,
-            message_heap: Mutex::new(message::Heap {
-                heap,
-                term: message,
+            message_heap: Mutex::new(message::HeapFragment {
+                heap_fragment,
+                term: heap_fragment_message,
             }),
             position: Mutex::new(position),
         };
@@ -177,17 +180,17 @@ impl Hierarchy {
         self.timer_by_reference_number
             .insert(reference_number, cancellable);
 
-        reference
+        Ok(reference)
     }
 
-    pub fn timeout(&mut self, scheduler_id: &scheduler::ID) {
-        self.timeout_at_once(scheduler_id);
+    pub fn timeout(&mut self, scheduler_id: &scheduler::ID) -> Result<(), AllocErr> {
+        self.timeout_at_once(scheduler_id)?;
 
         let monotonic_time_milliseconds = monotonic::time_in_milliseconds();
         let milliseconds = monotonic_time_milliseconds - self.soon.slot_monotonic_time_milliseconds;
 
         for _ in 0..milliseconds {
-            self.timeout_soon_slot(&scheduler_id);
+            self.timeout_soon_slot(&scheduler_id)?;
 
             assert!(self.soon.is_empty());
             self.soon.next_slot();
@@ -213,27 +216,36 @@ impl Hierarchy {
                 }
             }
         }
+
+        Ok(())
     }
 
-    fn timeout_at_once(&mut self, scheduler_id: &scheduler::ID) {
+    fn timeout_at_once(&mut self, scheduler_id: &scheduler::ID) -> Result<(), AllocErr> {
         for arc_timer in self.at_once.drain(..) {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
 
-            Self::timeout_arc_timer(arc_timer, scheduler_id);
+            Self::timeout_arc_timer(arc_timer, scheduler_id)?;
         }
+
+        Ok(())
     }
 
-    fn timeout_soon_slot(&mut self, scheduler_id: &scheduler::ID) {
+    fn timeout_soon_slot(&mut self, scheduler_id: &scheduler::ID) -> Result<(), AllocErr> {
         for arc_timer in self.soon.drain(..) {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
 
-            Self::timeout_arc_timer(arc_timer, scheduler_id);
+            Self::timeout_arc_timer(arc_timer, scheduler_id)?;
         }
+
+        Ok(())
     }
 
-    fn timeout_arc_timer(arc_timer: Arc<Timer>, scheduler_id: &scheduler::ID) {
+    fn timeout_arc_timer(
+        arc_timer: Arc<Timer>,
+        scheduler_id: &scheduler::ID,
+    ) -> Result<(), AllocErr> {
         match Arc::try_unwrap(arc_timer) {
             Ok(timer) => timer.timeout(scheduler_id),
             Err(_) => panic!("Timer Dropped"),
@@ -260,8 +272,7 @@ impl Hierarchy {
         *Arc::get_mut(&mut transferable_arc_timer)
             .unwrap()
             .position
-            .lock()
-            .unwrap() = position;
+            .lock() = position;
 
         let timeoutable = Arc::clone(&transferable_arc_timer);
         let cancellable = Arc::downgrade(&transferable_arc_timer);
@@ -338,6 +349,10 @@ impl Default for Hierarchy {
     }
 }
 
+// Hierarchies belong to Schedulers and Schedulers will never change threads
+unsafe impl Send for Hierarchy {}
+unsafe impl Sync for Hierarchy {}
+
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Timeout {
     // Sends only the `Timer` `message`
@@ -350,66 +365,50 @@ pub enum Timeout {
 struct Timer {
     // Can't be a `Boxed` `LocalReference` `Term` because those are boxed and the original Process
     // could GC the unboxed `LocalReference` `Term`.
-    reference_number: reference::local::Number,
+    reference_number: reference::Number,
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,
-    message_heap: Mutex<message::Heap>,
+    message_heap: Mutex<message::HeapFragment>,
     timeout: Timeout,
     position: Mutex<Position>,
 }
 
 impl Timer {
-    fn timeout(self, scheduler_id: &scheduler::ID) {
-        match &self.destination {
-            Destination::Name(ref name) => {
-                let readable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.read().unwrap();
+    fn timeout(self, scheduler_id: &scheduler::ID) -> Result<(), AllocErr> {
+        let option_destination_arc_process = match &self.destination {
+            Destination::Name(ref name) => registry::atom_to_process(name),
+            Destination::Process(destination_process_weak) => destination_process_weak.upgrade(),
+        };
 
-                match readable_registry.get(name) {
-                    Some(Registered::Process(destination_weak_process)) => {
-                        match destination_weak_process.upgrade() {
-                            Some(destination_arc_process) => {
-                                let (heap, timeout_message) = self.timeout_message(scheduler_id);
+        if let Some(destination_arc_process) = option_destination_arc_process {
+            let (heap_fragment, timeout_message) = self.timeout_message(scheduler_id)?;
 
-                                destination_arc_process.send_heap_message(heap, timeout_message);
-                            }
-                            None => (),
-                        }
-                    }
-                    None => (),
-                }
-            }
-            Destination::Process(destination_process_weak) => {
-                if let Some(destination_process_arc) = destination_process_weak.upgrade() {
-                    let (heap, timeout_message) = self.timeout_message(scheduler_id);
-
-                    destination_process_arc.send_heap_message(heap, timeout_message);
-                }
-            }
+            destination_arc_process.send_heap_message(heap_fragment, timeout_message)
+        } else {
+            Ok(())
         }
     }
 
-    fn timeout_message(self, scheduler_id: &scheduler::ID) -> (Heap, Term) {
-        let message_heap = self.message_heap.into_inner().unwrap();
+    fn timeout_message(
+        self,
+        scheduler_id: &scheduler::ID,
+    ) -> Result<(NonNull<liblumen_alloc::erts::HeapFragment>, Term), AllocErr> {
+        let mut message_heap = self.message_heap.into_inner();
 
         let message = match self.timeout {
             Timeout::Message => message_heap.term,
             Timeout::TimeoutTuple => {
-                let reference = message_heap
-                    .heap
-                    .local_reference(&scheduler_id, self.reference_number);
-                let reference_term = Term::box_reference(reference);
+                let scheduler = Scheduler::from_id(scheduler_id).unwrap();
+                let reference_number = scheduler.next_reference_number();
+                let tag = atom_unchecked("timeout");
+                let heap_fragment = unsafe { message_heap.heap_fragment.as_mut() };
+                let reference = heap_fragment.reference(*scheduler_id, reference_number)?;
 
-                let tuple = message_heap.heap.slice_to_tuple(&[
-                    Term::str_to_atom("timeout", DoNotCare).unwrap(),
-                    reference_term,
-                    message_heap.term,
-                ]);
-
-                Term::box_reference(tuple)
+                heap_fragment.tuple_from_slice(&[tag, reference])?
             }
         };
 
-        (message_heap.heap, message)
+        Ok((message_heap.heap_fragment, message))
     }
 }
 
@@ -454,7 +453,7 @@ enum Position {
 struct Slot(Vec<Arc<Timer>>);
 
 impl Slot {
-    fn cancel(&mut self, reference_number: reference::local::Number) -> Option<Arc<Timer>> {
+    fn cancel(&mut self, reference_number: reference::Number) -> Option<Arc<Timer>> {
         self.0
             .iter()
             .position(|timer_rc| timer_rc.reference_number == reference_number)
@@ -549,7 +548,7 @@ impl Wheel {
     fn cancel(
         &mut self,
         slot_index: SlotIndex,
-        reference_number: reference::local::Number,
+        reference_number: reference::Number,
     ) -> Option<Arc<Timer>> {
         self.slots[slot_index as usize].cancel(reference_number)
     }

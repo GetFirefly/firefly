@@ -13,11 +13,13 @@ fn without_atom_name_errors_badarg() {
                     valid_options(arc_process.clone()),
                 ),
                 |(name, message, options)| {
-                    let destination = Term::slice_to_tuple(&[name, erlang::node_0()], &arc_process);
+                    let destination = arc_process
+                        .tuple_from_slice(&[name, erlang::node_0()])
+                        .unwrap();
 
                     prop_assert_eq!(
                         erlang::send_3(destination, message, options, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

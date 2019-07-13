@@ -7,7 +7,10 @@ fn without_bitstring_errors_badarg() {
             .run(
                 &strategy::term::is_not_bitstring(arc_process.clone()),
                 |binary| {
-                    prop_assert_eq!(erlang::bit_size_1(binary, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::bit_size_1(binary, &arc_process),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -28,13 +31,14 @@ fn with_heap_binary_is_eight_times_byte_count() {
                     prop_assert!(result.is_ok());
 
                     let bit_size_term = result.unwrap();
-                    let bit_size = unsafe { bit_size_term.small_integer_to_isize() } as usize;
+                    let bit_size_small_integer: SmallInteger = bit_size_term.try_into().unwrap();
+                    let bit_size: usize = bit_size_small_integer.try_into().unwrap();
 
                     prop_assert_eq!(bit_size % 8, 0);
 
-                    let heap_binary: &heap::Binary = binary.unbox_reference();
+                    let heap_binary: HeapBin = binary.try_into().unwrap();
 
-                    prop_assert_eq!(heap_binary.byte_len() * 8, bit_size);
+                    prop_assert_eq!(heap_binary.total_byte_len() * 8, bit_size);
 
                     Ok(())
                 },
@@ -55,12 +59,13 @@ fn with_subbinary_is_eight_times_byte_count_plus_bit_count() {
                     prop_assert!(result.is_ok());
 
                     let bit_size_term = result.unwrap();
-                    let bit_size = unsafe { bit_size_term.small_integer_to_isize() } as usize;
+                    let bit_size_small_integer: SmallInteger = bit_size_term.try_into().unwrap();
+                    let bit_size: usize = bit_size_small_integer.try_into().unwrap();
 
-                    let subbinary: &sub::Binary = binary.unbox_reference();
+                    let subbinary: SubBinary = binary.try_into().unwrap();
 
                     prop_assert_eq!(
-                        subbinary.byte_count * 8 + subbinary.bit_count as usize,
+                        subbinary.full_byte_len() * 8 + subbinary.partial_byte_bit_len() as usize,
                         bit_size
                     );
 

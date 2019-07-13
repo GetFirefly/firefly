@@ -16,11 +16,11 @@ fn without_integer_start_without_integer_length_errors_badarg() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -41,11 +41,11 @@ fn without_integer_start_with_integer_length_errors_badarg() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -66,11 +66,11 @@ fn with_integer_start_without_integer_length_errors_badarg() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -93,16 +93,16 @@ fn with_negative_start_with_valid_length_errors_badarg() {
                         (
                             Just(binary),
                             Just(start),
-                            (0..=binary.byte_len())
-                                .prop_map(|length| length.into_process(&arc_process)),
+                            (0..=total_byte_len(binary))
+                                .prop_map(|length| arc_process.integer(length)),
                         )
                     }),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -120,17 +120,16 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
                 &strategy::term::is_bitstring(arc_process.clone()).prop_flat_map(|binary| {
                     (
                         Just(binary),
-                        Just((binary.byte_len() + 1).into_process(&arc_process)),
-                        (0..=binary.byte_len())
-                            .prop_map(|length| length.into_process(&arc_process)),
+                        Just(arc_process.integer(total_byte_len(binary) + 1)),
+                        (0..=total_byte_len(binary)).prop_map(|length| arc_process.integer(length)),
                     )
                 }),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -149,20 +148,20 @@ fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
                     strategy::NON_EMPTY_RANGE_INCLUSIVE.into(),
                     arc_process.clone(),
                 )
-                .prop_flat_map(|binary| (Just(binary), 0..binary.byte_len()))
+                .prop_flat_map(|binary| (Just(binary), 0..total_byte_len(binary)))
                 .prop_map(|(binary, start)| {
                     (
                         binary,
-                        start.into_process(&arc_process),
-                        (-((start as isize) + 1)).into_process(&arc_process),
+                        arc_process.integer(start),
+                        arc_process.integer(-((start as isize) + 1)),
                     )
                 }),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -181,20 +180,22 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
                     strategy::NON_EMPTY_RANGE_INCLUSIVE.into(),
                     arc_process.clone(),
                 )
-                .prop_flat_map(|binary| (Just(binary), 0..binary.byte_len()))
+                .prop_flat_map(|binary| (Just(binary), 0..total_byte_len(binary)))
                 .prop_map(|(binary, start)| {
+                    let mut heap = arc_process.acquire_heap();
+
                     (
                         binary,
-                        start.into_process(&arc_process),
-                        (binary.byte_len() - start + 1).into_process(&arc_process),
+                        heap.integer(start),
+                        heap.integer(total_byte_len(binary) - start + 1),
                     )
                 }),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -214,7 +215,7 @@ fn with_positive_start_and_negative_length_returns_subbinary() {
                     arc_process.clone(),
                 )
                 .prop_flat_map(|binary| {
-                    let byte_len = binary.byte_len();
+                    let byte_len = total_byte_len(binary);
 
                     (Just(binary), (1..byte_len))
                 })
@@ -222,26 +223,20 @@ fn with_positive_start_and_negative_length_returns_subbinary() {
                     (Just(binary), Just(start), (-(start as isize))..=(-1))
                 })
                 .prop_map(|(binary, start, length)| {
-                    (
-                        binary,
-                        start.into_process(&arc_process),
-                        length.into_process(&arc_process),
-                    )
+                    let mut heap = arc_process.acquire_heap();
+
+                    (binary, heap.integer(start), heap.integer(length))
                 }),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     let result = erlang::binary_part_2(binary, start_length, &arc_process);
 
                     prop_assert!(result.is_ok());
 
-                    let returned_boxed = result.unwrap();
+                    let returned = result.unwrap();
 
-                    prop_assert_eq!(returned_boxed.tag(), Boxed);
-
-                    let returned_unboxed: &Term = returned_boxed.unbox_reference();
-
-                    prop_assert_eq!(returned_unboxed.tag(), Subbinary);
+                    prop_assert!(returned.is_subbinary());
 
                     Ok(())
                 },

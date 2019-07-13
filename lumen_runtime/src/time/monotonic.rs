@@ -1,6 +1,6 @@
-use std::sync::RwLock;
-
 use num_bigint::BigInt;
+
+use liblumen_core::locks::RwLock;
 
 use crate::time::convert;
 use crate::time::Unit::{self, *};
@@ -26,11 +26,11 @@ pub fn time(unit: Unit) -> BigInt {
 }
 
 pub fn time_in_milliseconds() -> Milliseconds {
-    (*RW_LOCK_SOURCE.read().unwrap())()
+    (*RW_LOCK_SOURCE.read())()
 }
 
 pub fn set_source(source: Source) {
-    *RW_LOCK_SOURCE.write().unwrap() = source;
+    *RW_LOCK_SOURCE.write() = source;
 }
 
 // Private

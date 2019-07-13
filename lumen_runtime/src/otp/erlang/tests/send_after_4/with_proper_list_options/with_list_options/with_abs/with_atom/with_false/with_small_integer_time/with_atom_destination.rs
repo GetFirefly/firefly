@@ -12,7 +12,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let time = milliseconds.into_process(&arc_process);
+                    let time = arc_process.integer(milliseconds);
                     let destination = registered_name();
                     let options = options(&arc_process);
 
@@ -32,16 +32,11 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
                     let timer_reference = result.unwrap();
 
-                    prop_assert_eq!(timer_reference.tag(), Boxed);
-
-                    let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                    prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
-
+                    prop_assert!(timer_reference.is_local_reference());
                     prop_assert!(!has_message(&arc_process, message));
 
                     thread::sleep(Duration::from_millis(milliseconds + 1));
-                    timer::timeout();
+                    timer::timeout().unwrap();
 
                     prop_assert!(!has_message(&arc_process, message));
 

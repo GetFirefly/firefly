@@ -14,7 +14,7 @@ fn without_number_addend_errors_badarith() {
                 |(augend, addend)| {
                     prop_assert_eq!(
                         erlang::add_2(augend, addend, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -40,11 +40,7 @@ fn with_small_integer_addend_returns_float() {
 
                     let sum = result.unwrap();
 
-                    prop_assert_eq!(sum.tag(), Boxed);
-
-                    let unboxed_sum: &Term = sum.unbox_reference();
-
-                    prop_assert_eq!(unboxed_sum.tag(), Float);
+                    prop_assert!(sum.is_float());
 
                     Ok(())
                 },
@@ -69,11 +65,7 @@ fn with_big_integer_addend_returns_float() {
 
                     let sum = result.unwrap();
 
-                    prop_assert_eq!(sum.tag(), Boxed);
-
-                    let unboxed_sum: &Term = sum.unbox_reference();
-
-                    prop_assert_eq!(unboxed_sum.tag(), Float);
+                    prop_assert!(sum.is_float());
 
                     Ok(())
                 },
@@ -97,9 +89,11 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
                         )
                     })
                     .prop_map(|(augend_f64, addend_f64)| {
+                        let mut heap = arc_process.acquire_heap();
+
                         (
-                            augend_f64.into_process(&arc_process),
-                            addend_f64.into_process(&arc_process),
+                            heap.float(augend_f64).unwrap(),
+                            heap.float(addend_f64).unwrap(),
                         )
                     }),
                 |(augend, addend)| {
@@ -109,11 +103,7 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
 
                     let sum = result.unwrap();
 
-                    prop_assert_eq!(sum.tag(), Boxed);
-
-                    let unboxed_sum: &Term = sum.unbox_reference();
-
-                    prop_assert_eq!(unboxed_sum.tag(), Float);
+                    prop_assert!(sum.is_float());
 
                     Ok(())
                 },
@@ -125,11 +115,11 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
 #[test]
 fn with_float_addend_with_underflow_returns_min_float() {
     with(|augend, process| {
-        let addend = std::f64::MIN.into_process(&process);
+        let addend = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
             erlang::add_2(augend, addend, &process),
-            Ok(std::f64::MIN.into_process(&process))
+            Ok(process.float(std::f64::MIN).unwrap())
         );
     })
 }
@@ -137,21 +127,21 @@ fn with_float_addend_with_underflow_returns_min_float() {
 #[test]
 fn with_float_addend_with_overflow_returns_max_float() {
     with(|augend, process| {
-        let addend = std::f64::MAX.into_process(&process);
+        let addend = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
             erlang::add_2(augend, addend, &process),
-            Ok(std::f64::MAX.into_process(&process))
+            Ok(process.float(std::f64::MAX).unwrap())
         );
     })
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let augend = 2.0.into_process(&process);
+        let augend = process.float(2.0).unwrap();
 
         f(augend, &process)
     })

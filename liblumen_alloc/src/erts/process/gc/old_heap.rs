@@ -2,9 +2,11 @@ use core::fmt;
 use core::mem;
 use core::ptr;
 
-use crate::erts::*;
-
 use liblumen_core::util::pointer::*;
+
+use crate::erts::term::binary_bytes;
+use crate::erts::term::{is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary};
+use crate::erts::*;
 
 use super::{VirtualBinaryHeap, YoungHeap};
 
@@ -163,7 +165,7 @@ impl OldHeap {
                 } else {
                     break;
                 }
-            } else if term.is_list() {
+            } else if term.is_non_empty_list() {
                 if let Some(new_pos) = fun(self, term, pos) {
                     pos = new_pos;
                 } else {
@@ -317,7 +319,7 @@ impl OldHeap {
                         }
                     }
                     Some(pos.offset(1))
-                } else if term.is_list() {
+                } else if term.is_non_empty_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
@@ -329,7 +331,7 @@ impl OldHeap {
                     }
                     Some(pos.offset(1))
                 } else if term.is_header() {
-                    if term.is_tuple() {
+                    if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.offset(1))
                     } else if term.is_match_context() {

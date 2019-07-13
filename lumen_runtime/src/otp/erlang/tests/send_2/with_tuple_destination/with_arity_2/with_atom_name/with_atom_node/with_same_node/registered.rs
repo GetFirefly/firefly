@@ -15,15 +15,17 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_message() {
                 let name = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2(name, arc_process.pid, arc_process.clone()),
+                    erlang::register_2(name, arc_process.pid_term(), arc_process.clone()),
                     Ok(true.into()),
                     "Cannot register process ({:?}) pid ({:?}) with name ({:?})",
                     arc_process,
-                    arc_process.pid,
+                    arc_process.pid_term(),
                     name
                 );
 
-                let destination = Term::slice_to_tuple(&[name, erlang::node_0()], &arc_process);
+                let destination = arc_process
+                    .tuple_from_slice(&[name, erlang::node_0()])
+                    .unwrap();
 
                 prop_assert_eq!(
                     erlang::send_2(destination, message, &arc_process),

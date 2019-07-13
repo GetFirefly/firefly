@@ -16,7 +16,7 @@ fn without_tuple_start_length_errors_badarg() {
                 |(binary, start_length)| {
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -33,15 +33,19 @@ fn with_tuple_without_arity_2_errors_badarg() {
             .run(
                 &(
                     strategy::term::is_bitstring(arc_process.clone()),
-                    strategy::term::tuple(arc_process.clone())
-                        .prop_filter("Tuple must not be arity 2", |start_length| {
-                            start_length.len() != 2
-                        }),
+                    strategy::term::tuple(arc_process.clone()).prop_filter(
+                        "Tuple must not be arity 2",
+                        |start_length| {
+                            let tuple: Boxed<Tuple> = (*start_length).try_into().unwrap();
+
+                            tuple.len() != 2
+                        },
+                    ),
                 ),
                 |(binary, start_length)| {
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

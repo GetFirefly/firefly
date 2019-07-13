@@ -32,11 +32,12 @@ fn with_heap_binary_right_with_same_bytes_returns_true() {
             .run(
                 &strategy::term::binary::sub::is_binary(arc_process.clone()).prop_map(
                     |subbinary_term| {
-                        let subbinary: &sub::Binary = subbinary_term.unbox_reference();
+                        let subbinary: SubBinary = subbinary_term.try_into().unwrap();
                         let heap_binary_byte_vec: Vec<u8> = subbinary.byte_iter().collect();
 
-                        let heap_binary =
-                            Term::slice_to_binary(&heap_binary_byte_vec, &arc_process);
+                        let heap_binary = arc_process
+                            .binary_from_bytes(&heap_binary_byte_vec)
+                            .unwrap();
                         (subbinary_term, heap_binary)
                     },
                 ),
@@ -60,13 +61,14 @@ fn with_heap_binary_right_with_different_bytes_returns_false() {
             .run(
                 &strategy::term::binary::sub::is_binary::is_not_empty(arc_process.clone())
                     .prop_map(|subbinary_term| {
-                        let subbinary: &sub::Binary = subbinary_term.unbox_reference();
+                        let subbinary: SubBinary = subbinary_term.try_into().unwrap();
                         // same size, but different values by inverting
                         let heap_binary_byte_vec: Vec<u8> =
                             subbinary.byte_iter().map(|b| !b).collect();
 
-                        let heap_binary =
-                            Term::slice_to_binary(&heap_binary_byte_vec, &arc_process);
+                        let heap_binary = arc_process
+                            .binary_from_bytes(&heap_binary_byte_vec)
+                            .unwrap();
                         (subbinary_term, heap_binary)
                     }),
                 |(left, right)| {
@@ -137,23 +139,25 @@ fn with_same_value_subbinary_right_returns_true() {
                     })
                     .prop_map(
                         move |(byte_offset, bit_offset, byte_count, bit_count, original)| {
+                            let mut heap = subbinary_arc_process.acquire_heap();
+
                             (
-                                Term::subbinary(
+                                heap.subbinary_from_original(
                                     original,
                                     byte_offset,
                                     bit_offset,
                                     byte_count,
                                     bit_count,
-                                    &subbinary_arc_process,
-                                ),
-                                Term::subbinary(
+                                )
+                                .unwrap(),
+                                heap.subbinary_from_original(
                                     original,
                                     byte_offset,
                                     bit_offset,
                                     byte_count,
                                     bit_count,
-                                    &subbinary_arc_process,
-                                ),
+                                )
+                                .unwrap(),
                             )
                         },
                     ),

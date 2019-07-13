@@ -32,8 +32,8 @@ fn with_same_left_and_right_returns_true() {
 
 fn is_equal_or_less_than<L, R>(left: L, right: R, expected: bool)
 where
-    L: FnOnce(&Process) -> Term,
-    R: FnOnce(Term, &Process) -> Term,
+    L: FnOnce(&ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     with_process(|process| {
         let left = left(&process);

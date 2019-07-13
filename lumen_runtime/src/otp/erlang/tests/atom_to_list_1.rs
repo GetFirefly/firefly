@@ -7,7 +7,10 @@ fn without_atom_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_atom(arc_process.clone()), |atom| {
-                prop_assert_eq!(erlang::atom_to_list_1(atom, &arc_process), Err(badarg!()));
+                prop_assert_eq!(
+                    erlang::atom_to_list_1(atom, &arc_process),
+                    Err(badarg!().into())
+                );
 
                 Ok(())
             })
@@ -20,17 +23,16 @@ fn with_atom_returns_chars_in_list() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &any::<String>()
-                    .prop_map(|string| (Term::str_to_atom(&string, DoNotCare).unwrap(), string)),
+                &any::<String>().prop_map(|string| (atom_unchecked(&string), string)),
                 |(atom, string)| {
-                    let codepoint_terms: Vec<Term> = string
-                        .chars()
-                        .map(|c| c.into_process(&arc_process))
-                        .collect();
+                    let mut heap = arc_process.acquire_heap();
+
+                    let codepoint_terms: Vec<Term> =
+                        string.chars().map(|c| heap.integer(c)).collect();
 
                     prop_assert_eq!(
                         erlang::atom_to_list_1(atom, &arc_process),
-                        Ok(Term::slice_to_list(&codepoint_terms, &arc_process))
+                        Ok(arc_process.list_from_slice(&codepoint_terms).unwrap())
                     );
 
                     Ok(())

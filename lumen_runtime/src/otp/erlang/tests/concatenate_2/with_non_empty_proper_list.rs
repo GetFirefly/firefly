@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::list::ImproperList;
-
 #[test]
 fn without_list_right_returns_improper_list_with_right_as_tail() {
     with_process_arc(|arc_process| {
@@ -17,23 +15,24 @@ fn without_list_right_returns_improper_list_with_right_as_tail() {
                     prop_assert!(result.is_ok());
 
                     let concatenated = result.unwrap();
+                    let concatenated_result_cons: core::result::Result<Boxed<Cons>, _> =
+                        concatenated.try_into();
 
-                    prop_assert_eq!(concatenated.tag(), List);
+                    prop_assert!(concatenated_result_cons.is_ok());
 
-                    let concatenated_cons: &Cons = unsafe { concatenated.as_ref_cons_unchecked() };
-
+                    let concatenated_cons = concatenated_result_cons.unwrap();
                     let mut concatenated_iter = concatenated_cons.into_iter();
 
-                    match left.tag() {
-                        EmptyList => {
+                    match left.to_typed_term().unwrap() {
+                        TypedTerm::Nil => {
                             prop_assert_eq!(
                                 concatenated_iter.next(),
                                 Some(Err(ImproperList { tail: right }))
                             );
                             prop_assert_eq!(concatenated_iter.next(), None);
                         }
-                        List => {
-                            let mut left_iter = unsafe { left.as_ref_cons_unchecked() }.into_iter();
+                        TypedTerm::List(cons) => {
+                            let mut left_iter = cons.into_iter();
 
                             loop {
                                 let left_element = left_iter.next();
@@ -77,30 +76,32 @@ fn with_improper_list_right_returns_improper_list_with_right_as_tail() {
                     prop_assert!(result.is_ok());
 
                     let concatenated = result.unwrap();
+                    let concatenated_result_cons: core::result::Result<Boxed<Cons>, _> =
+                        concatenated.try_into();
 
-                    prop_assert_eq!(concatenated.tag(), List);
+                    prop_assert!(concatenated_result_cons.is_ok());
 
-                    let concatenated_cons: &Cons = unsafe { concatenated.as_ref_cons_unchecked() };
+                    let concatenated_cons = concatenated_result_cons.unwrap();
 
                     let mut concatenated_iter = concatenated_cons.into_iter();
 
-                    match left.tag() {
-                        EmptyList => {
+                    match left.to_typed_term().unwrap() {
+                        TypedTerm::Nil => {
                             prop_assert_eq!(
                                 concatenated_iter.next(),
                                 Some(Err(ImproperList { tail: right }))
                             );
                             prop_assert_eq!(concatenated_iter.next(), None);
                         }
-                        List => {
-                            let mut left_iter = unsafe { left.as_ref_cons_unchecked() }.into_iter();
+                        TypedTerm::List(cons) => {
+                            let mut left_iter = cons.into_iter();
 
                             loop {
                                 let left_element = left_iter.next();
 
                                 if left_element == None {
-                                    let mut right_iter =
-                                        unsafe { right.as_ref_cons_unchecked() }.into_iter();
+                                    let right_cons: Boxed<Cons> = right.try_into().unwrap();
+                                    let mut right_iter = right_cons.into_iter();
 
                                     loop {
                                         let right_element = right_iter.next();
@@ -147,17 +148,19 @@ fn with_list_right_returns_proper_list_with_right_as_tail() {
                     prop_assert!(result.is_ok());
 
                     let concatenated = result.unwrap();
+                    let concatenated_result_cons: core::result::Result<Boxed<Cons>, _> =
+                        concatenated.try_into();
 
-                    prop_assert_eq!(concatenated.tag(), List);
+                    prop_assert!(concatenated_result_cons.is_ok());
 
-                    let concatenated_cons: &Cons = unsafe { concatenated.as_ref_cons_unchecked() };
+                    let concatenated_cons = concatenated_result_cons.unwrap();
 
                     let mut concatenated_iter = concatenated_cons.into_iter();
 
-                    match left.tag() {
-                        EmptyList => {
-                            let mut right_iter =
-                                unsafe { right.as_ref_cons_unchecked() }.into_iter();
+                    match left.to_typed_term().unwrap() {
+                        TypedTerm::Nil => {
+                            let right_cons: Boxed<Cons> = right.try_into().unwrap();
+                            let mut right_iter = right_cons.into_iter();
 
                             loop {
                                 let right_element = right_iter.next();
@@ -169,15 +172,15 @@ fn with_list_right_returns_proper_list_with_right_as_tail() {
                                 }
                             }
                         }
-                        List => {
-                            let mut left_iter = unsafe { left.as_ref_cons_unchecked() }.into_iter();
+                        TypedTerm::List(left_cons) => {
+                            let mut left_iter = left_cons.into_iter();
 
                             loop {
                                 let left_element = left_iter.next();
 
                                 if left_element == None {
-                                    let mut right_iter =
-                                        unsafe { right.as_ref_cons_unchecked() }.into_iter();
+                                    let right_cons: Boxed<Cons> = right.try_into().unwrap();
+                                    let mut right_iter = right_cons.into_iter();
 
                                     loop {
                                         let right_element = right_iter.next();

@@ -14,7 +14,7 @@ fn without_bitstring_binary_errors_badarg() {
                 |(binary, position)| {
                     prop_assert_eq!(
                         erlang::split_binary_2(binary, position, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

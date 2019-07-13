@@ -15,7 +15,7 @@ fn without_integer_dividend_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::rem_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -37,7 +37,7 @@ fn with_integer_dividend_without_integer_divisor_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::rem_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -54,12 +54,12 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
             .run(
                 &(
                     strategy::term::is_integer(arc_process.clone()),
-                    Just(0.into_process(&arc_process)),
+                    Just(arc_process.integer(0)),
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::rem_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -71,66 +71,72 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
 
 #[test]
 fn with_atom_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| Term::str_to_atom("dividend", DoNotCare).unwrap());
+    with_dividend_errors_badarith(|_| atom_unchecked("dividend"));
 }
 
 #[test]
 fn with_local_reference_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::next_local_reference(process));
+    with_dividend_errors_badarith(|process| process.next_reference().unwrap());
 }
 
 #[test]
 fn with_empty_list_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| Term::EMPTY_LIST);
+    with_dividend_errors_badarith(|_| Term::NIL);
 }
 
 #[test]
 fn with_list_dividend_errors_badarith() {
     with_dividend_errors_badarith(|process| {
-        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
+        process
+            .cons(process.integer(0), process.integer(1))
+            .unwrap()
     });
 }
 
 #[test]
 fn with_local_pid_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| Term::local_pid(0, 1).unwrap());
+    with_dividend_errors_badarith(|_| make_pid(0, 1).unwrap());
 }
 
 #[test]
 fn with_external_pid_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::external_pid(1, 2, 3, &process).unwrap());
+    with_dividend_errors_badarith(|process| process.external_pid_with_node_id(1, 2, 3).unwrap());
 }
 
 #[test]
 fn with_tuple_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::slice_to_tuple(&[], &process));
+    with_dividend_errors_badarith(|process| process.tuple_from_slice(&[]).unwrap());
 }
 
 #[test]
 fn with_map_is_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::slice_to_map(&[], &process));
+    with_dividend_errors_badarith(|process| process.map_from_slice(&[]).unwrap());
 }
 
 #[test]
 fn with_heap_binary_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| Term::slice_to_binary(&[], &process));
+    with_dividend_errors_badarith(|process| process.binary_from_bytes(&[]).unwrap());
 }
 
 #[test]
 fn with_subbinary_dividend_errors_badarith() {
     with_dividend_errors_badarith(|process| {
-        let original = Term::slice_to_binary(&[0b0000_00001, 0b1111_1110, 0b1010_1011], &process);
-        Term::subbinary(original, 0, 7, 2, 1, &process)
+        let original = process
+            .binary_from_bytes(&[0b0000_00001, 0b1111_1110, 0b1010_1011])
+            .unwrap();
+        process
+            .subbinary_from_original(original, 0, 7, 2, 1)
+            .unwrap()
     });
 }
 
 fn with_dividend_errors_badarith<M>(dividend: M)
 where
-    M: FnOnce(&Process) -> Term,
+    M: FnOnce(&ProcessControlBlock) -> Term,
 {
     super::errors_badarith(|process| {
         let dividend = dividend(&process);
-        let divisor = 0.into_process(&process);
+        let divisor = process.integer(0);
 
         erlang::rem_2(dividend, divisor, &process)
     });

@@ -9,6 +9,7 @@ use liblumen_core::util::pointer::{distance_absolute, in_area};
 use super::*;
 use crate::erts::process::alloc;
 use crate::erts::process::ProcessHeap;
+use crate::erts::term::{is_move_marker, ProcBin};
 use crate::erts::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -166,7 +167,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                             new_heap.move_into(root, ptr, boxed);
                         }
                     }
-                } else if term.is_list() {
+                } else if term.is_non_empty_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
@@ -412,7 +413,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                         new_young.move_into(root, ptr, boxed);
                     }
                 }
-            } else if term.is_list() {
+            } else if term.is_non_empty_list() {
                 let ptr = term.list_val();
                 let cons = *ptr;
                 if cons.is_move_marker() {

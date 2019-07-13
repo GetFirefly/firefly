@@ -12,7 +12,7 @@ fn errors_with_reason_and_arguments() {
                 |(reason, arguments)| {
                     prop_assert_eq!(
                         erlang::error_2(reason, arguments),
-                        Err(error!(reason, Some(arguments)))
+                        Err(error!(reason, Some(arguments)).into())
                     );
 
                     Ok(())

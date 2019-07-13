@@ -3,11 +3,13 @@ use core::ptr::{self, NonNull};
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
+
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
+use crate::erts::term::Term;
 use crate::std_alloc;
 
-use super::{HeapAlloc, Term};
+use super::HeapAlloc;
 
 // This adapter is used to track a list of heap fragments, attached to a process
 intrusive_adapter!(pub HeapFragmentAdapter = UnsafeRef<HeapFragment>: HeapFragment { link: LinkedListLink });

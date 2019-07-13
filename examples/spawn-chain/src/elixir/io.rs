@@ -1,11 +1,4 @@
-use std::convert::TryInto;
 use std::sync::Arc;
-
-use lumen_runtime::atom::Existence::DoNotCare;
-use lumen_runtime::exception::Exception;
-use lumen_runtime::process::stack::frame::Frame;
-use lumen_runtime::process::{ModuleFunctionArity, Process};
-use lumen_runtime::term::Term;
 
 pub fn puts_frame() -> Frame {
     let module_function_arity = Arc::new(ModuleFunctionArity {

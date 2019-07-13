@@ -57,23 +57,19 @@ fn with_same_value_list_right_returns_false() {
                 &proptest::collection::vec(strategy::term(arc_process.clone()), size_range)
                     .prop_map(move |vec| match vec.len() {
                         1 => (
-                            Term::slice_to_list(&vec, &arc_process),
-                            Term::slice_to_list(&vec, &arc_process),
+                            arc_process.list_from_slice(&vec).unwrap(),
+                            arc_process.list_from_slice(&vec).unwrap(),
                         ),
                         len => {
                             let last_index = len - 1;
 
                             (
-                                Term::slice_to_improper_list(
-                                    &vec[0..last_index],
-                                    vec[last_index],
-                                    &arc_process,
-                                ),
-                                Term::slice_to_improper_list(
-                                    &vec[0..last_index],
-                                    vec[last_index],
-                                    &arc_process,
-                                ),
+                                arc_process
+                                    .improper_list_from_slice(&vec[0..last_index], vec[last_index])
+                                    .unwrap(),
+                                arc_process
+                                    .improper_list_from_slice(&vec[0..last_index], vec[last_index])
+                                    .unwrap(),
                             )
                         }
                     }),

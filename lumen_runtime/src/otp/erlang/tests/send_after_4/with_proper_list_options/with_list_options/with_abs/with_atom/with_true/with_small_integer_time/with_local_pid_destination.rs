@@ -12,10 +12,10 @@ fn with_different_process_sends_message_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = milliseconds.into_process(&arc_process);
+                let time = arc_process.integer(milliseconds);
 
-                let destination_arc_process = process::local::test(&arc_process);
-                let destination = destination_arc_process.pid;
+                let destination_arc_process = process::test(&arc_process);
+                let destination = destination_arc_process.pid_term();
 
                 let options = options(&arc_process);
 
@@ -30,18 +30,13 @@ fn with_different_process_sends_message_when_timer_expires() {
 
                 let timer_reference = result.unwrap();
 
-                prop_assert_eq!(timer_reference.tag(), Boxed);
-
-                let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
-
+                prop_assert!(timer_reference.is_local_reference());
                 prop_assert!(!has_message(&destination_arc_process, message));
 
                 // No sleeping is necessary because timeout is in the past and so the timer will
                 // timeout at once
 
-                timer::timeout();
+                timer::timeout().unwrap();
 
                 prop_assert!(has_message(&destination_arc_process, message));
 
@@ -63,8 +58,8 @@ fn with_same_process_sends_message_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = milliseconds.into_process(&arc_process);
-                let destination = arc_process.pid;
+                let time = arc_process.integer(milliseconds);
+                let destination = arc_process.pid_term();
                 let options = options(&arc_process);
 
                 let result =
@@ -78,18 +73,13 @@ fn with_same_process_sends_message_when_timer_expires() {
 
                 let timer_reference = result.unwrap();
 
-                prop_assert_eq!(timer_reference.tag(), Boxed);
-
-                let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
-
+                prop_assert!(timer_reference.is_local_reference());
                 prop_assert!(!has_message(&arc_process, message));
 
                 // No sleeping is necessary because timeout is in the past and so the timer will
                 // timeout at once
 
-                timer::timeout();
+                timer::timeout().unwrap();
 
                 prop_assert!(has_message(&arc_process, message));
 
@@ -111,8 +101,8 @@ fn without_process_sends_nothing_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = milliseconds.into_process(&arc_process);
-                let destination = process::identifier::local::next();
+                let time = arc_process.integer(milliseconds);
+                let destination = next_pid();
                 let options = options(&arc_process);
 
                 let result =
@@ -126,18 +116,13 @@ fn without_process_sends_nothing_when_timer_expires() {
 
                 let timer_reference = result.unwrap();
 
-                prop_assert_eq!(timer_reference.tag(), Boxed);
-
-                let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
-
+                prop_assert!(timer_reference.is_local_reference());
                 prop_assert!(!has_message(&arc_process, message));
 
                 // No sleeping is necessary because timeout is in the past and so the timer will
                 // timeout at once
 
-                timer::timeout();
+                timer::timeout().unwrap();
 
                 prop_assert!(!has_message(&arc_process, message));
 

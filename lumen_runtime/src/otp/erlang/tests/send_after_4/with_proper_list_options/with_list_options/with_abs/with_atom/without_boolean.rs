@@ -18,7 +18,7 @@ fn without_non_negative_integer_time_error_badarg() {
                     options(arc_process.clone()),
                 ),
                 |(time, message, options)| {
-                    let destination = arc_process.pid;
+                    let destination = arc_process.pid_term();
 
                     prop_assert_eq!(
                         erlang::send_after_4(
@@ -28,7 +28,7 @@ fn without_non_negative_integer_time_error_badarg() {
                             options,
                             arc_process.clone()
                         ),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -38,7 +38,7 @@ fn without_non_negative_integer_time_error_badarg() {
     });
 }
 
-fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn options(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     strategy::term(arc_process.clone())
         .prop_map(move |value| super::options(value, &arc_process))
         .boxed()

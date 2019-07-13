@@ -10,10 +10,10 @@ fn with_different_process_sends_message_when_timer_expires() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let time = milliseconds.into_process(&arc_process);
+                    let time = arc_process.integer(milliseconds);
 
-                    let destination_arc_process = process::local::test(&arc_process);
-                    let destination = destination_arc_process.pid;
+                    let destination_arc_process = process::test(&arc_process);
+                    let destination = destination_arc_process.pid_term();
 
                     let result =
                         erlang::start_timer_3(time, destination, message, arc_process.clone());
@@ -26,11 +26,7 @@ fn with_different_process_sends_message_when_timer_expires() {
 
                     let timer_reference = result.unwrap();
 
-                    prop_assert_eq!(timer_reference.tag(), Boxed);
-
-                    let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                    prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
+                    prop_assert!(timer_reference.is_local_reference());
 
                     let timeout_message = timeout_message(timer_reference, message, &arc_process);
 
@@ -38,7 +34,7 @@ fn with_different_process_sends_message_when_timer_expires() {
 
                     thread::sleep(Duration::from_millis(milliseconds + 1));
 
-                    timer::timeout();
+                    timer::timeout().unwrap();
 
                     prop_assert!(has_message(&destination_arc_process, timeout_message));
 
@@ -61,8 +57,8 @@ fn with_same_process_sends_message_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = milliseconds.into_process(&arc_process);
-                let destination = arc_process.pid;
+                let time = arc_process.integer(milliseconds);
+                let destination = arc_process.pid_term();
 
                 let result = erlang::start_timer_3(time, destination, message, arc_process.clone());
 
@@ -74,18 +70,14 @@ fn with_same_process_sends_message_when_timer_expires() {
 
                 let timer_reference = result.unwrap();
 
-                prop_assert_eq!(timer_reference.tag(), Boxed);
-
-                let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
+                prop_assert!(timer_reference.is_local_reference());
 
                 let timeout_message = timeout_message(timer_reference, message, &arc_process);
 
                 prop_assert!(!has_message(&arc_process, timeout_message));
 
                 thread::sleep(Duration::from_millis(milliseconds + 1));
-                timer::timeout();
+                timer::timeout().unwrap();
 
                 prop_assert!(has_message(&arc_process, timeout_message));
 
@@ -102,8 +94,8 @@ fn without_process_sends_nothing_when_timer_expires() {
             .run(
                 &(milliseconds(), strategy::term(arc_process.clone())),
                 |(milliseconds, message)| {
-                    let time = milliseconds.into_process(&arc_process);
-                    let destination = process::identifier::local::next();
+                    let time = arc_process.integer(milliseconds);
+                    let destination = next_pid();
 
                     let result =
                         erlang::start_timer_3(time, destination, message, arc_process.clone());
@@ -116,23 +108,14 @@ fn without_process_sends_nothing_when_timer_expires() {
 
                     let timer_reference = result.unwrap();
 
-                    prop_assert_eq!(timer_reference.tag(), Boxed);
+                    prop_assert!(timer_reference.is_local_reference());
 
-                    let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                    prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
-
-                    let timeout_message = Term::slice_to_tuple(
-                        &[
-                            Term::str_to_atom("timeout", DoNotCare).unwrap(),
-                            timer_reference,
-                            message,
-                        ],
-                        &arc_process,
-                    );
+                    let timeout_message = arc_process
+                        .tuple_from_slice(&[atom_unchecked("timeout"), timer_reference, message])
+                        .unwrap();
 
                     thread::sleep(Duration::from_millis(milliseconds + 1));
-                    timer::timeout();
+                    timer::timeout().unwrap();
 
                     // does not send to original process either
                     prop_assert!(!has_message(&arc_process, timeout_message));

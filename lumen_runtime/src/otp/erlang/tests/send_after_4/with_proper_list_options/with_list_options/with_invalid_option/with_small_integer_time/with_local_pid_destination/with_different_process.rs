@@ -10,10 +10,10 @@ fn sends_message_when_timer_expires() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let time = milliseconds.into_process(&arc_process);
+                    let time = arc_process.integer(milliseconds);
 
-                    let destination_arc_process = process::local::test(&arc_process);
-                    let destination = destination_arc_process.pid;
+                    let destination_arc_process = process::test(&arc_process);
+                    let destination = destination_arc_process.pid_term();
 
                     let options = options(&arc_process);
 
@@ -25,7 +25,7 @@ fn sends_message_when_timer_expires() {
                             options,
                             arc_process.clone()
                         ),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

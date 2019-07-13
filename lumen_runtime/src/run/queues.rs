@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::process::{Process, Status};
+use liblumen_alloc::erts::process::{Priority, ProcessControlBlock, Status};
+
 use crate::run::queues::delayed::Delayed;
 use crate::run::queues::immediate::Immediate;
 use crate::run::queues::Next::*;
 use crate::run::Run;
-use crate::scheduler::Priority;
 
 mod delayed;
 mod immediate;
@@ -42,7 +42,7 @@ impl Queues {
         }
     }
 
-    pub fn enqueue(&mut self, arc_process: Arc<Process>) {
+    pub fn enqueue(&mut self, arc_process: Arc<ProcessControlBlock>) {
         match arc_process.priority {
             Priority::Low | Priority::Normal => self.normal_low.enqueue(arc_process),
             Priority::High => self.high.enqueue(arc_process),
@@ -56,8 +56,11 @@ impl Queues {
 
     /// Returns the process is not pushed back because it is exiting
     #[must_use]
-    pub fn requeue(&mut self, arc_process: Arc<Process>) -> Option<Arc<Process>> {
-        let next = Next::from_status(&arc_process.status.read().unwrap());
+    pub fn requeue(
+        &mut self,
+        arc_process: Arc<ProcessControlBlock>,
+    ) -> Option<Arc<ProcessControlBlock>> {
+        let next = Next::from_status(&arc_process.status.read());
 
         // has to be separate so that `arc_process` can be moved
         match next {
@@ -73,7 +76,7 @@ impl Queues {
         }
     }
 
-    pub fn stop_waiting(&mut self, process: &Process) {
+    pub fn stop_waiting(&mut self, process: &ProcessControlBlock) {
         match self.waiting.get(process) {
             Some(arc_process) => {
                 let arc_process = Arc::clone(arc_process);
@@ -107,4 +110,4 @@ impl Next {
     }
 }
 
-type Waiting = HashSet<Arc<Process>>;
+type Waiting = HashSet<Arc<ProcessControlBlock>>;

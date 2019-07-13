@@ -11,7 +11,7 @@ fn without_binary_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_float_1(binary, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -35,7 +35,7 @@ fn with_binary_with_integer_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_float_1(binary, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -61,7 +61,7 @@ fn with_binary_with_f64_returns_floats() {
                 |(f, binary)| {
                     prop_assert_eq!(
                         erlang::binary_to_float_1(binary, &arc_process),
-                        Ok(f.into_process(&arc_process))
+                        Ok(arc_process.float(f).unwrap())
                     );
 
                     Ok(())
@@ -80,7 +80,7 @@ fn with_binary_with_less_than_min_f64_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_float_1(binary, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -99,7 +99,7 @@ fn with_binary_with_greater_than_max_f64_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_float_1(binary, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

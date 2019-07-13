@@ -16,7 +16,7 @@ fn without_proper_list_options_errors_badarg() {
                     strategy::term::is_not_proper_list(arc_process.clone()),
                 ),
                 |(time, message, options)| {
-                    let destination = arc_process.pid;
+                    let destination = arc_process.pid_term();
 
                     prop_assert_eq!(
                         erlang::start_timer_4(
@@ -26,7 +26,7 @@ fn without_proper_list_options_errors_badarg() {
                             options,
                             arc_process.clone()
                         ),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

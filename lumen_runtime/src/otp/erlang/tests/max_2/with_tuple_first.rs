@@ -15,7 +15,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_first() {
                             second.is_number()
                                 || second.is_atom()
                                 || second.is_reference()
-                                || second.is_function()
+                                || second.is_closure()
                                 || second.is_port()
                                 || second.is_pid()
                         },
@@ -34,7 +34,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_first() {
 #[test]
 fn with_smaller_tuple_second_returns_first() {
     max(
-        |_, process| Term::slice_to_tuple(&[1.into_process(&process)], &process),
+        |_, process| process.tuple_from_slice(&[process.integer(1)]).unwrap(),
         First,
     );
 }
@@ -43,10 +43,9 @@ fn with_smaller_tuple_second_returns_first() {
 fn with_same_size_tuple_with_lesser_elements_returns_first() {
     max(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 1.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1), process.integer(1)])
+                .unwrap()
         },
         First,
     );
@@ -61,10 +60,9 @@ fn with_same_tuple_returns_first() {
 fn with_same_value_tuple_returns_first() {
     max(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 2.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1), process.integer(2)])
+                .unwrap()
         },
         First,
     );
@@ -74,10 +72,9 @@ fn with_same_value_tuple_returns_first() {
 fn with_same_size_tuple_with_greater_elements_returns_second() {
     max(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 3.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1), process.integer(3)])
+                .unwrap()
         },
         Second,
     );
@@ -87,14 +84,9 @@ fn with_same_size_tuple_with_greater_elements_returns_second() {
 fn with_greater_size_tuple_returns_second() {
     max(
         |_, process| {
-            Term::slice_to_tuple(
-                &[
-                    1.into_process(&process),
-                    2.into_process(&process),
-                    3.into_process(&process),
-                ],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1), process.integer(2), process.integer(3)])
+                .unwrap()
         },
         Second,
     );
@@ -124,14 +116,13 @@ fn with_map_list_or_bitstring_second_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::max(
         |process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 2.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1), process.integer(2)])
+                .unwrap()
         },
         second,
         which,

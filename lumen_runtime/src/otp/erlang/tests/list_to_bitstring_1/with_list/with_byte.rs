@@ -9,11 +9,11 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
                     byte(arc_process.clone()),
                     is_not_byte_bitstring_nor_list(arc_process.clone()),
                 )
-                    .prop_map(|(head, tail)| Term::cons(head, tail, &arc_process)),
+                    .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
                     prop_assert_eq!(
                         erlang::list_to_bitstring_1(list, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -26,12 +26,12 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
 #[test]
 fn with_empty_list_returns_1_byte_binary() {
     with(|head_byte, head, process| {
-        let tail = Term::EMPTY_LIST;
-        let iolist = Term::cons(head, tail, &process);
+        let tail = Term::NIL;
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
-            Ok(Term::slice_to_binary(&[head_byte], &process))
+            Ok(process.binary_from_bytes(&[head_byte]).unwrap())
         );
     })
 }
@@ -39,10 +39,10 @@ fn with_empty_list_returns_1_byte_binary() {
 #[test]
 fn with_improper_list_returns_binary() {
     with_tail_errors_badarg(|process| {
-        let tail_head = 1.into_process(&process);
-        let tail_tail = 2.into_process(&process);
+        let tail_head = process.integer(1);
+        let tail_tail = process.integer(2);
 
-        Term::cons(tail_head, tail_tail, &process)
+        process.cons(tail_head, tail_tail).unwrap()
     });
 }
 
@@ -50,15 +50,15 @@ fn with_improper_list_returns_binary() {
 fn with_proper_list_returns_binary() {
     with(|_, head, process| {
         let tail_head_byte = 1;
-        let tail_head = tail_head_byte.into_process(&process);
-        let tail_tail = Term::EMPTY_LIST;
-        let tail = Term::cons(tail_head, tail_tail, &process);
+        let tail_head = process.integer(tail_head_byte);
+        let tail_tail = Term::NIL;
+        let tail = process.cons(tail_head, tail_tail).unwrap();
 
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
-            Ok(Term::slice_to_binary(&[0, 1], &process))
+            Ok(process.binary_from_bytes(&[0, 1]).unwrap())
         );
     });
 }
@@ -66,13 +66,13 @@ fn with_proper_list_returns_binary() {
 #[test]
 fn with_heap_binary_returns_binary() {
     with(|head_byte, head, process| {
-        let tail = Term::slice_to_binary(&[1, 2], &process);
+        let tail = process.binary_from_bytes(&[1, 2]).unwrap();
 
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
-            Ok(Term::slice_to_binary(&[head_byte, 1, 2], &process))
+            Ok(process.binary_from_bytes(&[head_byte, 1, 2]).unwrap())
         );
     })
 }
@@ -80,14 +80,16 @@ fn with_heap_binary_returns_binary() {
 #[test]
 fn with_subbinary_with_bit_count_0_returns_binary() {
     with(|head_byte, head, process| {
-        let original = Term::slice_to_binary(&[1], &process);
-        let tail = Term::subbinary(original, 0, 0, 1, 0, &process);
+        let original = process.binary_from_bytes(&[1]).unwrap();
+        let tail = process
+            .subbinary_from_original(original, 0, 0, 1, 0)
+            .unwrap();
 
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
-            Ok(Term::slice_to_binary(&[head_byte, 1], &process))
+            Ok(process.binary_from_bytes(&[head_byte, 1]).unwrap())
         );
     });
 }
@@ -96,7 +98,7 @@ fn with_subbinary_with_bit_count_0_returns_binary() {
 fn with_subbinary_with_bit_count_1_returns_subbinary() {
     with(|head_byte, head, process| {
         let tail = bitstring!(2, 0b1 :: 1, &process);
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
@@ -109,7 +111,7 @@ fn with_subbinary_with_bit_count_1_returns_subbinary() {
 fn with_subbinary_with_bit_count_2_returns_subbinary() {
     with(|_head_byte, head, process| {
         let tail = bitstring!(1, 3 :: 2, &process);
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
@@ -123,7 +125,7 @@ fn with_subbinary_with_bit_count_3_returns_subbinary() {
     with(|_head_byte, head, process| {
         let tail = bitstring!(1, 0b101 :: 3, &process);
 
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
@@ -136,7 +138,7 @@ fn with_subbinary_with_bit_count_3_returns_subbinary() {
 fn with_subbinary_with_bit_count_4_returns_subbinary() {
     with(|_head_byte, head, process| {
         let tail = bitstring!(1, 0b0101 :: 4, &process);
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
@@ -149,7 +151,7 @@ fn with_subbinary_with_bit_count_4_returns_subbinary() {
 fn with_subbinary_with_bit_count_5_returns_subbinary() {
     with(|_head_byte, head, process| {
         let tail = bitstring!(1, 0b10101 :: 5, &process);
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
@@ -162,7 +164,7 @@ fn with_subbinary_with_bit_count_5_returns_subbinary() {
 fn with_subbinary_with_bit_count_6_returns_subbinary() {
     with(|_head_byte, head, process| {
         let tail = bitstring!(1, 0b010101 :: 6, &process);
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
@@ -175,7 +177,7 @@ fn with_subbinary_with_bit_count_6_returns_subbinary() {
 fn with_subbinary_with_bit_count_7_returns_subbinary() {
     with(|_head_byte, head, process| {
         let tail = bitstring!(1, 0b1010101 :: 7, &process);
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
@@ -186,10 +188,10 @@ fn with_subbinary_with_bit_count_7_returns_subbinary() {
 
 fn with_tail_errors_badarg<T>(tail: T)
 where
-    T: FnOnce(&Process) -> Term,
+    T: FnOnce(&ProcessControlBlock) -> Term,
 {
     with(|_, head, process| {
-        let iolist = Term::cons(head, tail(&process), &process);
+        let iolist = process.cons(head, tail(&process)).unwrap();
 
         assert_badarg!(erlang::list_to_bitstring_1(iolist, &process));
     });
@@ -197,11 +199,11 @@ where
 
 fn with<F>(f: F)
 where
-    F: FnOnce(u8, Term, &Process) -> (),
+    F: FnOnce(u8, Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
         let head_byte: u8 = 0;
-        let head = head_byte.into_process(&process);
+        let head = process.integer(head_byte);
 
         f(head_byte, head, &process);
     })

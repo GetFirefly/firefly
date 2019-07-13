@@ -13,7 +13,10 @@ fn without_integer_left_errors_badarith() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::bor_2(left, right, &arc_process), Err(badarith!()));
+                    prop_assert_eq!(
+                        erlang::bor_2(left, right, &arc_process),
+                        Err(badarith!().into())
+                    );
 
                     Ok(())
                 },
@@ -32,7 +35,10 @@ fn with_integer_left_without_integer_right_errors_badarith() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::bor_2(left, right, &arc_process), Err(badarith!()));
+                    prop_assert_eq!(
+                        erlang::bor_2(left, right, &arc_process),
+                        Err(badarith!().into())
+                    );
 
                     Ok(())
                 },

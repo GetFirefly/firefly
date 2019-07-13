@@ -23,7 +23,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                 |(destination, message, options)| {
                     prop_assert_eq!(
                         erlang::send_3(destination, message, options, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -33,15 +33,19 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
     });
 }
 
-fn valid_options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    let noconnect = Term::str_to_atom("noconnect", DoNotCare).unwrap();
-    let nosuspend = Term::str_to_atom("nosuspend", DoNotCare).unwrap();
+fn valid_options(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    let noconnect = atom_unchecked("noconnect");
+    let nosuspend = atom_unchecked("nosuspend");
 
     prop_oneof![
         Just(empty::OPTIONS),
-        Just(Term::slice_to_list(&[noconnect], &arc_process)),
-        Just(Term::slice_to_list(&[nosuspend], &arc_process)),
-        Just(Term::slice_to_list(&[noconnect, nosuspend], &arc_process))
+        Just(arc_process.list_from_slice(&[noconnect]).unwrap()),
+        Just(arc_process.list_from_slice(&[nosuspend]).unwrap()),
+        Just(
+            arc_process
+                .list_from_slice(&[noconnect, nosuspend])
+                .unwrap()
+        )
     ]
     .boxed()
 }

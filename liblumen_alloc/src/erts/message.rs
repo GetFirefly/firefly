@@ -1,9 +1,14 @@
-#![allow(unused)]
+use core::alloc::{AllocErr, Layout};
 use core::mem;
+use core::ptr::{self, NonNull};
 
-use intrusive_collections::LinkedListLink;
+use intrusive_collections::{intrusive_adapter, LinkedListLink, UnsafeRef};
 
-use super::{InvalidTermError, Term, TypedTerm};
+use crate::erts::term::Term;
+use crate::std_alloc;
+
+// This adapter is used to track a queue of messages, attach to a process's mailbox.
+intrusive_adapter!(pub Adapter = UnsafeRef<Message>: Message { link: LinkedListLink });
 
 #[derive(Debug)]
 pub struct Message {
@@ -13,6 +18,7 @@ pub struct Message {
 }
 impl Message {
     const STORAGE_TYPE_SHIFT: usize = (mem::size_of::<usize>() * 8) - 1;
+    #[allow(dead_code)]
     const MASK_STORAGE_TYPE: usize = 1 << Self::STORAGE_TYPE_SHIFT;
     const FLAG_STORAGE_ON_HEAP: usize = 0;
     const FLAG_STORAGE_OFF_HEAP: usize = 1 << Self::STORAGE_TYPE_SHIFT;
@@ -21,7 +27,7 @@ impl Message {
     pub fn on_heap(data: Term) -> Self {
         Self {
             header: Self::FLAG_STORAGE_ON_HEAP,
-            link: LinkedListLink::new(),
+            link: Default::default(),
             data,
         }
     }
@@ -30,9 +36,17 @@ impl Message {
     pub fn off_heap(data: Term) -> Self {
         Self {
             header: Self::FLAG_STORAGE_OFF_HEAP,
-            link: LinkedListLink::new(),
+            link: Default::default(),
             data,
         }
+    }
+
+    pub unsafe fn alloc(self) -> Result<NonNull<Self>, AllocErr> {
+        let layout = Layout::new::<Self>();
+        let ptr = std_alloc::alloc(layout)?.as_ptr() as *mut Self;
+        ptr::write(ptr, self);
+
+        Ok(NonNull::new_unchecked(ptr))
     }
 
     #[inline]
@@ -46,10 +60,11 @@ impl Message {
     }
 
     #[inline]
-    pub fn data(&self) -> Result<TypedTerm, InvalidTermError> {
-        self.data.to_typed_term()
+    pub fn data(&self) -> Term {
+        self.data
     }
 }
+
 #[cfg(debug_assertions)]
 impl Drop for Message {
     fn drop(&mut self) {

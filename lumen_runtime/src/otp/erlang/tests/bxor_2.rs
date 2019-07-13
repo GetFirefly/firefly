@@ -13,7 +13,10 @@ fn without_integer_left_errors_badarith() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::bxor_2(left, right, &arc_process), Err(badarith!()));
+                    prop_assert_eq!(
+                        erlang::bxor_2(left, right, &arc_process),
+                        Err(badarith!().into())
+                    );
 
                     Ok(())
                 },
@@ -32,7 +35,10 @@ fn without_integer_left_without_integer_right_errors_badarith() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::bxor_2(left, right, &arc_process), Err(badarith!()));
+                    prop_assert_eq!(
+                        erlang::bxor_2(left, right, &arc_process),
+                        Err(badarith!().into())
+                    );
 
                     Ok(())
                 },
@@ -50,7 +56,7 @@ fn with_same_integer_returns_zero() {
                 |operand| {
                     prop_assert_eq!(
                         erlang::bxor_2(operand, operand, &arc_process),
-                        Ok(0.into_process(&arc_process))
+                        Ok(arc_process.integer(0))
                     );
 
                     Ok(())

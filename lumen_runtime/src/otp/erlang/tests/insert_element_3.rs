@@ -15,7 +15,7 @@ fn without_tuple_errors_badarg() {
                 |(tuple, index, element)| {
                     prop_assert_eq!(
                         erlang::insert_element_3(index, tuple, element, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -36,11 +36,11 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
                     strategy::term(arc_process.clone())
                 )
                     .prop_filter("Index either needs to not be an integer or not be an integer in the index range 1..=(len + 1)", |(tuple, index, _element)| {
-            let index_big_int_result: std::result::Result<BigInt, _> = index.try_into();
+            let index_big_int_result: std::result::Result<BigInt, _> = (*index).try_into();
 
             match index_big_int_result {
                 Ok(index_big_int) => {
-                    let tuple_tuple: &Tuple = tuple.unbox_reference();
+                    let tuple_tuple: Boxed<Tuple> = (*tuple).try_into().unwrap();
                     let min_index: BigInt = 1.into();
                     let max_index: BigInt = (tuple_tuple.len() + 1).into();
 
@@ -52,7 +52,7 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
                 |(tuple, index, element)| {
                     prop_assert_eq!(
                         erlang::insert_element_3(index, tuple, element, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -82,8 +82,8 @@ fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tup
                         (
                             element_vec.clone(),
                             zero_based_index,
-                            Term::slice_to_tuple(&element_vec, &arc_process),
-                            (zero_based_index + 1).into_process(&arc_process),
+                            arc_process.tuple_from_slice(&element_vec).unwrap(),
+                            arc_process.integer(zero_based_index + 1),
                             element,
                         )
                     }),
@@ -92,7 +92,7 @@ fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tup
 
                     prop_assert_eq!(
                         erlang::insert_element_3(index, tuple, element, &arc_process),
-                        Ok(Term::slice_to_tuple(&element_vec, &arc_process))
+                        Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
                     );
 
                     Ok(())

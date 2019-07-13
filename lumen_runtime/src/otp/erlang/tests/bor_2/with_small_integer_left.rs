@@ -5,12 +5,12 @@ use super::*;
 fn with_small_integer_right_returns_small_integer() {
     with_process(|process| {
         // all combinations of `0` and `1` bit.
-        let left = 0b1100.into_process(&process);
-        let right = 0b1010.into_process(&process);
+        let left = process.integer(0b1100);
+        let right = process.integer(0b1010);
 
         assert_eq!(
             erlang::bor_2(left, right, &process),
-            Ok(0b1110.into_process(&process))
+            Ok(process.integer(0b1110))
         );
     })
 }
@@ -32,11 +32,8 @@ fn with_integer_right_returns_bitwise_or() {
                     let bor = result.unwrap();
 
                     prop_assert!(bor.is_integer());
-
-                    unsafe {
-                        prop_assert!(left.count_ones() <= bor.count_ones());
-                        prop_assert!(right.count_ones() <= bor.count_ones());
-                    }
+                    prop_assert!(count_ones(left) <= count_ones(bor));
+                    prop_assert!(count_ones(right) <= count_ones(bor));
 
                     Ok(())
                 },

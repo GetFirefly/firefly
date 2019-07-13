@@ -12,7 +12,7 @@ fn without_tuple_errors_badarg() {
                 |(tuple, element)| {
                     prop_assert_eq!(
                         erlang::append_element_2(tuple, element, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -38,14 +38,13 @@ fn with_tuple_returns_tuple_with_new_element_at_end() {
 
                     let appended_tuple = result.unwrap();
 
-                    prop_assert_eq!(appended_tuple.tag(), Boxed);
+                    let appended_tuple_tuple_result: core::result::Result<Boxed<Tuple>, _> =
+                        appended_tuple.try_into();
 
-                    let unboxed_appended_tuple: &Term = appended_tuple.unbox_reference();
+                    prop_assert!(appended_tuple_tuple_result.is_ok());
 
-                    prop_assert_eq!(unboxed_appended_tuple.tag(), Arity);
-
-                    let appended_tuple_tuple: &Tuple = appended_tuple.unbox_reference();
-                    let tuple_tuple: &Tuple = tuple.unbox_reference();
+                    let appended_tuple_tuple = appended_tuple_tuple_result.unwrap();
+                    let tuple_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
 
                     prop_assert_eq!(appended_tuple_tuple.len(), tuple_tuple.len() + 1);
                     prop_assert_eq!(appended_tuple_tuple[tuple_tuple.len()], element);

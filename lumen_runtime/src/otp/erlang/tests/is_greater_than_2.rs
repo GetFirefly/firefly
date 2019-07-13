@@ -29,8 +29,8 @@ fn with_same_left_and_right_returns_false() {
 
 fn is_greater_than<L, R>(left: L, right: R, expected: bool)
 where
-    L: FnOnce(&Process) -> Term,
-    R: FnOnce(Term, &Process) -> Term,
+    L: FnOnce(&ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     with_process(|process| {
         let left = left(&process);

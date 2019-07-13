@@ -3,10 +3,10 @@ use super::*;
 #[test]
 fn with_small_integer_subtrahend_with_underflow_returns_big_integer() {
     with_process(|process| {
-        let minuend = crate::integer::small::MIN.into_process(&process);
-        let subtrahend = crate::integer::small::MAX.into_process(&process);
+        let minuend = process.integer(SmallInteger::MIN_VALUE);
+        let subtrahend = process.integer(SmallInteger::MAX_VALUE);
 
-        assert_eq!(subtrahend.tag(), SmallInteger);
+        assert!(subtrahend.is_smallint());
 
         let result = erlang::subtract_2(minuend, subtrahend, &process);
 
@@ -14,20 +14,16 @@ fn with_small_integer_subtrahend_with_underflow_returns_big_integer() {
 
         let difference = result.unwrap();
 
-        assert_eq!(difference.tag(), Boxed);
-
-        let unboxed_difference: &Term = difference.unbox_reference();
-
-        assert_eq!(unboxed_difference.tag(), BigInteger);
+        assert!(difference.is_bigint());
     })
 }
 
 #[test]
 fn with_small_integer_subtrahend_with_overflow_returns_big_integer() {
     with(|minuend, process| {
-        let subtrahend = crate::integer::small::MIN.into_process(&process);
+        let subtrahend = process.integer(SmallInteger::MIN_VALUE);
 
-        assert_eq!(subtrahend.tag(), SmallInteger);
+        assert!(subtrahend.is_smallint());
 
         let result = erlang::subtract_2(minuend, subtrahend, &process);
 
@@ -35,22 +31,18 @@ fn with_small_integer_subtrahend_with_overflow_returns_big_integer() {
 
         let difference = result.unwrap();
 
-        assert_eq!(difference.tag(), Boxed);
-
-        let unboxed_difference: &Term = difference.unbox_reference();
-
-        assert_eq!(unboxed_difference.tag(), BigInteger);
+        assert!(difference.is_bigint());
     })
 }
 
 #[test]
 fn with_float_subtrahend_with_underflow_returns_min_float() {
     with(|minuend, process| {
-        let subtrahend = std::f64::MAX.into_process(&process);
+        let subtrahend = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
             erlang::subtract_2(minuend, subtrahend, &process),
-            Ok(std::f64::MIN.into_process(&process))
+            Ok(process.float(std::f64::MIN).unwrap())
         );
     })
 }
@@ -58,21 +50,21 @@ fn with_float_subtrahend_with_underflow_returns_min_float() {
 #[test]
 fn with_float_subtrahend_with_overflow_returns_max_float() {
     with(|minuend, process| {
-        let subtrahend = std::f64::MIN.into_process(&process);
+        let subtrahend = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
             erlang::subtract_2(minuend, subtrahend, &process),
-            Ok(std::f64::MAX.into_process(&process))
+            Ok(process.float(std::f64::MAX).unwrap())
         );
     })
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let minuend = 2.into_process(&process);
+        let minuend = process.integer(2);
 
         f(minuend, &process)
     })

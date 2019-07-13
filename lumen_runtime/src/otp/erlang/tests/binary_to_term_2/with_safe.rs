@@ -14,7 +14,7 @@ fn with_binary_encoding_atom_that_does_not_exist_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_term_2(binary, options(&arc_process), &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -39,7 +39,7 @@ fn with_binary_encoding_list_containing_atom_that_does_not_exist_errors_badarg()
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_term_2(binary, options(&arc_process), &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -63,7 +63,7 @@ fn with_binary_encoding_small_tuple_containing_atom_that_does_not_exist_errors_b
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_term_2(binary, options(&arc_process), &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -88,7 +88,7 @@ fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_term_2(binary, options(&arc_process), &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -98,10 +98,6 @@ fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
     });
 }
 
-fn options(process: &Process) -> Term {
-    Term::cons(
-        Term::str_to_atom("safe", DoNotCare).unwrap(),
-        Term::EMPTY_LIST,
-        &process,
-    )
+fn options(process: &ProcessControlBlock) -> Term {
+    process.cons(atom_unchecked("safe"), Term::NIL).unwrap()
 }

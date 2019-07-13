@@ -16,7 +16,7 @@ fn without_number_multiplier_errors_badarith() {
                 |(multiplier, multiplicand)| {
                     prop_assert_eq!(
                         erlang::multiply_2(multiplier, multiplicand, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())

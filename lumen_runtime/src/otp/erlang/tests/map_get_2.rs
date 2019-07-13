@@ -14,7 +14,7 @@ fn without_map_errors_badmap() {
                 |(map, key)| {
                     prop_assert_eq!(
                         erlang::map_get_2(key, map, &arc_process),
-                        Err(badmap!(map, &arc_process))
+                        Err(badmap!(&mut arc_process.acquire_heap(), map))
                     );
 
                     Ok(())
@@ -45,12 +45,15 @@ fn with_map_without_key_errors_badkey() {
                         )
                     })
                     .prop_map(|(key, non_key, value)| {
-                        (Term::slice_to_map(&[(key, value)], &arc_process), non_key)
+                        (
+                            arc_process.map_from_slice(&[(key, value)]).unwrap(),
+                            non_key,
+                        )
                     }),
                 |(map, key)| {
                     prop_assert_eq!(
                         erlang::map_get_2(key, map, &arc_process),
-                        Err(badkey!(key, &arc_process))
+                        Err(badkey!(&mut arc_process.acquire_heap(), key))
                     );
 
                     Ok(())
@@ -71,7 +74,7 @@ fn with_map_with_key_returns_value() {
                 )
                     .prop_map(|(key, value)| {
                         (
-                            Term::slice_to_map(&[(key, value)], &arc_process),
+                            arc_process.map_from_slice(&[(key, value)]).unwrap(),
                             key,
                             value,
                         )

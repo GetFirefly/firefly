@@ -9,13 +9,10 @@ fn without_local_reference_right_returns_false() {
             .run(
                 &(
                     strategy::term::local_reference(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right cannot be a local reference",
-                        |right| {
-                            right.tag() != Boxed
-                                || right.unbox_reference::<Term>().tag() != LocalReference
-                        },
-                    ),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Right cannot be a local reference", |right| {
+                            !right.is_local_reference()
+                        }),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
@@ -50,8 +47,8 @@ fn with_different_local_reference_right_returns_false() {
             .run(
                 &proptest::prelude::any::<u64>().prop_map(move |number| {
                     (
-                        Term::local_reference(number, &arc_process),
-                        Term::local_reference(number + 1, &arc_process),
+                        arc_process.reference(number).unwrap(),
+                        arc_process.reference(number + 1).unwrap(),
                     )
                 }),
                 |(left, right)| {

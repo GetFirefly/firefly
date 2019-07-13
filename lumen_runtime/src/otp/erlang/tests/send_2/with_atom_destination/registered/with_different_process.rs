@@ -14,10 +14,14 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_message() {
             }),
             |(arc_process, message)| {
                 let destination = registered_name();
-                let different_arc_process = process::local::test(&arc_process);
+                let different_arc_process = process::test(&arc_process);
 
                 prop_assert_eq!(
-                    erlang::register_2(destination, different_arc_process.pid, arc_process.clone()),
+                    erlang::register_2(
+                        destination,
+                        different_arc_process.pid_term(),
+                        arc_process.clone()
+                    ),
                     Ok(true.into())
                 );
 
@@ -46,14 +50,18 @@ fn with_locked_adds_heap_message_to_mailbox_and_returns_message() {
             }),
             |(arc_process, message)| {
                 let destination = registered_name();
-                let different_arc_process = process::local::test(&arc_process);
+                let different_arc_process = process::test(&arc_process);
 
                 prop_assert_eq!(
-                    erlang::register_2(destination, different_arc_process.pid, arc_process.clone()),
+                    erlang::register_2(
+                        destination,
+                        different_arc_process.pid_term(),
+                        arc_process.clone()
+                    ),
                     Ok(true.into())
                 );
 
-                let _different_process_heap_lock = different_arc_process.heap.lock().unwrap();
+                let _different_process_heap_lock = different_arc_process.acquire_heap();
 
                 prop_assert_eq!(
                     erlang::send_2(destination, message, &arc_process),

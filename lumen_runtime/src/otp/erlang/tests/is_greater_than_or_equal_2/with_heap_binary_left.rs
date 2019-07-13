@@ -15,7 +15,7 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_true()
                             right.is_number()
                                 || right.is_atom()
                                 || right.is_reference()
-                                || right.is_function()
+                                || right.is_closure()
                                 || right.is_port()
                                 || right.is_pid()
                                 || right.is_tuple()
@@ -34,48 +34,59 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_true()
 
 #[test]
 fn with_prefix_heap_binary_right_returns_true() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_binary(&[1], &process), true);
+    is_greater_than_or_equal(|_, process| process.binary_from_bytes(&[1]).unwrap(), true);
 }
 
 #[test]
 fn with_same_length_heap_binary_with_greater_byte_right_returns_true() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_binary(&[0], &process), true);
+    is_greater_than_or_equal(|_, process| process.binary_from_bytes(&[0]).unwrap(), true);
 }
 
 #[test]
 fn with_longer_heap_binary_with_greater_byte_right_returns_true() {
     is_greater_than_or_equal(
-        |_, process| Term::slice_to_binary(&[0, 1, 2], &process),
+        |_, process| process.binary_from_bytes(&[0, 1, 2]).unwrap(),
         true,
     );
 }
 
 #[test]
 fn with_same_value_heap_binary_right_returns_true() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_binary(&[1, 1], &process), true)
+    is_greater_than_or_equal(
+        |_, process| process.binary_from_bytes(&[1, 1]).unwrap(),
+        true,
+    )
 }
 
 #[test]
 fn with_shorter_heap_binary_with_greater_byte_right_returns_false() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_binary(&[2], &process), false);
+    is_greater_than_or_equal(|_, process| process.binary_from_bytes(&[2]).unwrap(), false);
 }
 
 #[test]
 fn with_heap_binary_with_greater_byte_right_returns_false() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_binary(&[2, 1], &process), false);
+    is_greater_than_or_equal(
+        |_, process| process.binary_from_bytes(&[2, 1]).unwrap(),
+        false,
+    );
 }
 
 #[test]
 fn with_heap_binary_with_different_greater_byte_right_returns_false() {
-    is_greater_than_or_equal(|_, process| Term::slice_to_binary(&[1, 2], &process), false);
+    is_greater_than_or_equal(
+        |_, process| process.binary_from_bytes(&[1, 2]).unwrap(),
+        false,
+    );
 }
 
 #[test]
 fn with_prefix_subbinary_right_returns_true() {
     is_greater_than_or_equal(
         |_, process| {
-            let original = Term::slice_to_binary(&[1], &process);
-            Term::subbinary(original, 0, 0, 1, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[1]).unwrap();
+
+            heap.subbinary_from_original(original, 0, 0, 1, 0).unwrap()
         },
         true,
     );
@@ -85,8 +96,10 @@ fn with_prefix_subbinary_right_returns_true() {
 fn with_same_length_subbinary_with_greater_byte_right_returns_true() {
     is_greater_than_or_equal(
         |_, process| {
-            let original = Term::slice_to_binary(&[0, 1], &process);
-            Term::subbinary(original, 0, 0, 2, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[0, 1]).unwrap();
+
+            heap.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
         },
         true,
     );
@@ -101,8 +114,10 @@ fn with_longer_subbinary_with_greater_byte_right_returns_true() {
 fn with_same_value_subbinary_right_returns_true() {
     is_greater_than_or_equal(
         |_, process| {
-            let original = Term::slice_to_binary(&[1, 1], &process);
-            Term::subbinary(original, 0, 0, 2, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[1, 1]).unwrap();
+
+            heap.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
         },
         true,
     )
@@ -112,8 +127,10 @@ fn with_same_value_subbinary_right_returns_true() {
 fn with_shorter_subbinary_with_greater_byte_right_returns_false() {
     is_greater_than_or_equal(
         |_, process| {
-            let original = Term::slice_to_binary(&[2], &process);
-            Term::subbinary(original, 0, 0, 1, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[2]).unwrap();
+
+            heap.subbinary_from_original(original, 0, 0, 1, 0).unwrap()
         },
         false,
     );
@@ -123,8 +140,10 @@ fn with_shorter_subbinary_with_greater_byte_right_returns_false() {
 fn with_subbinary_with_greater_byte_right_returns_false() {
     is_greater_than_or_equal(
         |_, process| {
-            let original = Term::slice_to_binary(&[2, 1], &process);
-            Term::subbinary(original, 0, 0, 2, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[2, 1]).unwrap();
+
+            heap.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
         },
         false,
     );
@@ -134,8 +153,10 @@ fn with_subbinary_with_greater_byte_right_returns_false() {
 fn with_subbinary_with_different_greater_byte_right_returns_false() {
     is_greater_than_or_equal(
         |_, process| {
-            let original = Term::slice_to_binary(&[1, 2], &process);
-            Term::subbinary(original, 0, 0, 2, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[1, 2]).unwrap();
+
+            heap.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
         },
         false,
     );
@@ -148,10 +169,10 @@ fn with_subbinary_with_value_with_shorter_length_returns_false() {
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_greater_than_or_equal(
-        |process| Term::slice_to_binary(&[1, 1], &process),
+        |process| process.binary_from_bytes(&[1, 1]).unwrap(),
         right,
         expected,
     );

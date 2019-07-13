@@ -45,9 +45,11 @@ fn with_same_value_tuple_right_returns_true() {
                     strategy::size_range(),
                 )
                 .prop_map(move |vec| {
+                    let mut heap = arc_process.acquire_heap();
+
                     (
-                        Term::slice_to_tuple(&vec, &arc_process),
-                        Term::slice_to_tuple(&vec, &arc_process),
+                        heap.tuple_from_slice(&vec).unwrap(),
+                        heap.tuple_from_slice(&vec).unwrap(),
                     )
                 }),
                 |(left, right)| {

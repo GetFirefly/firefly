@@ -13,7 +13,7 @@ fn without_non_empty_list_or_bitstring_returns_true() {
                         !(right.is_list() || right.is_bitstring())
                     }),
                 |right| {
-                    let left = Term::EMPTY_LIST;
+                    let left = Term::NIL;
 
                     prop_assert_eq!(erlang::is_greater_than_2(left, right), true.into());
 
@@ -34,7 +34,7 @@ fn with_non_empty_list_or_bitstring_right_returns_false() {
                     strategy::term::is_bitstring(arc_process)
                 ],
                 |right| {
-                    let left = Term::EMPTY_LIST;
+                    let left = Term::NIL;
 
                     prop_assert_eq!(erlang::is_greater_than_2(left, right), false.into());
 

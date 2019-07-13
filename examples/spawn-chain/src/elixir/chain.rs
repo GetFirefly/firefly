@@ -31,18 +31,13 @@
 //! end
 //! ```
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use num_bigint::BigInt;
 
-use lumen_runtime::atom::Existence::DoNotCare;
-use lumen_runtime::heap::CloneIntoHeap;
-use lumen_runtime::message::{self, Message};
+use liblumen_alloc::erts::process::code::stack::frame::Frame;
+
 use lumen_runtime::otp::erlang;
-use lumen_runtime::process::stack::frame::Frame;
-use lumen_runtime::process::{IntoProcess, ModuleFunctionArity, Process};
-use lumen_runtime::term::Term;
 
 use crate::elixir;
 
@@ -57,7 +52,7 @@ use crate::elixir;
 pub fn counter_0_code(arc_process: &Arc<Process>) {
     // because there is a guardless match in the receive block, the first message will always be
     // removed and no loop is necessary
-    let option_message = arc_process.mailbox.lock().unwrap().pop();
+    let option_unsafe_ref_message = arc_process.mailbox.lock().unwrap().pop();
 
     arc_process.reduce();
 

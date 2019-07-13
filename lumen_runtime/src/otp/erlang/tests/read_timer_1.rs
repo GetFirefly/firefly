@@ -11,7 +11,7 @@ fn without_reference_errors_badarg() {
                 |timer_reference| {
                     prop_assert_eq!(
                         erlang::read_timer_1(timer_reference, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

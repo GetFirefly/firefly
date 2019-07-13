@@ -17,7 +17,7 @@ fn without_number_dividend_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::divide_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -39,7 +39,7 @@ fn with_number_dividend_without_number_divisor_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::divide_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -61,7 +61,7 @@ fn with_number_dividend_with_zero_divisor_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::divide_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -87,11 +87,7 @@ fn with_number_dividend_without_zero_number_divisor_returns_float() {
 
                     let quotient = result.unwrap();
 
-                    prop_assert_eq!(quotient.tag(), Boxed);
-
-                    let unboxed_quotient: &Term = quotient.unbox_reference();
-
-                    prop_assert_eq!(unboxed_quotient.tag(), Float);
+                    prop_assert!(quotient.is_float());
 
                     Ok(())
                 },
@@ -100,31 +96,33 @@ fn with_number_dividend_without_zero_number_divisor_returns_float() {
     });
 }
 
-fn number_is_not_zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn number_is_not_zero(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     strategy::term::is_number(arc_process)
-        .prop_filter("Number must not be zero", |number| match number.tag() {
-            SmallInteger => (unsafe { number.small_integer_to_isize() }) != 0,
-            Boxed => {
-                let unboxed: &Term = number.unbox_reference();
+        .prop_filter("Number must not be zero", |number| {
+            match number.to_typed_term().unwrap() {
+                TypedTerm::SmallInteger(small_integer) => {
+                    let i: isize = small_integer.into();
 
-                match unboxed.tag() {
-                    Float => {
-                        let float: &Float = number.unbox_reference();
+                    i != 0
+                }
+                TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                    TypedTerm::Float(float) => {
+                        let f: f64 = float.into();
 
-                        float.inner != 0.0
+                        f != 0.0
                     }
                     _ => true,
-                }
+                },
+                _ => true,
             }
-            _ => true,
         })
         .boxed()
 }
 
-fn zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn zero(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     prop_oneof![
-        Just(0.into_process(&arc_process)),
-        Just(0.0.into_process(&arc_process))
+        Just(arc_process.integer(0)),
+        Just(arc_process.float(0.0).unwrap())
     ]
     .boxed()
 }

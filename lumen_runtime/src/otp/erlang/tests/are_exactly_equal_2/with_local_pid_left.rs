@@ -10,9 +10,7 @@ fn without_local_pid_right_returns_false() {
                 &(
                     strategy::term::pid::local(),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right cannot be a local pid", |right| {
-                            right.tag() != LocalPid
-                        }),
+                        .prop_filter("Right cannot be a local pid", |right| right.is_local_pid()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
@@ -42,8 +40,8 @@ fn with_same_value_local_pid_right_returns_true() {
             &(strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
                 |(number, serial)| {
                     (
-                        Term::local_pid(number, serial).unwrap(),
-                        Term::local_pid(number, serial).unwrap(),
+                        make_pid(number, serial).unwrap(),
+                        make_pid(number, serial).unwrap(),
                     )
                 },
             ),
@@ -63,8 +61,8 @@ fn with_different_local_pid_right_returns_false() {
             &(strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
                 |(number, serial)| {
                     (
-                        Term::local_pid(number, serial).unwrap(),
-                        Term::local_pid(number + 1, serial).unwrap(),
+                        make_pid(number, serial).unwrap(),
+                        make_pid(number + 1, serial).unwrap(),
                     )
                 },
             ),

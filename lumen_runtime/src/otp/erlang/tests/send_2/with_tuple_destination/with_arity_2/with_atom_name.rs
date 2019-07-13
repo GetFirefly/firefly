@@ -13,11 +13,11 @@ fn without_atom_node_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(name, node, message)| {
-                    let destination = Term::slice_to_tuple(&[name, node], &arc_process);
+                    let destination = arc_process.tuple_from_slice(&[name, node]).unwrap();
 
                     prop_assert_eq!(
                         erlang::send_2(destination, message, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

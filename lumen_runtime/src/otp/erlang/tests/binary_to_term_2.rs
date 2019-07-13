@@ -15,29 +15,22 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
                 &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
                 |binary| {
                     let options = options(&arc_process);
-                    let term = Term::str_to_atom("hello", DoNotCare).unwrap();
+                    let term = atom_unchecked("hello");
 
                     prop_assert_eq!(
                         erlang::binary_to_term_2(binary, options, &arc_process),
-                        Ok(Term::slice_to_tuple(
-                            &[term, 9.into_process(&arc_process)],
-                            &arc_process
-                        ))
+                        Ok(arc_process
+                            .tuple_from_slice(&[term, arc_process.integer(9)])
+                            .unwrap())
                     );
 
                     // Using only `used` portion of binary returns the same result
                     let tuple = erlang::binary_to_term_2(binary, options, &arc_process).unwrap();
-                    let used_term =
-                        erlang::element_2(2.into_process(&arc_process), tuple, &arc_process)
-                            .unwrap();
+                    let used_term = erlang::element_2(arc_process.integer(2), tuple).unwrap();
                     let split_binary_tuple =
                         erlang::split_binary_2(binary, used_term, &arc_process).unwrap();
-                    let prefix = erlang::element_2(
-                        1.into_process(&arc_process),
-                        split_binary_tuple,
-                        &arc_process,
-                    )
-                    .unwrap();
+                    let prefix =
+                        erlang::element_2(arc_process.integer(1), split_binary_tuple).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_to_term_2(prefix, options, &arc_process),
@@ -47,7 +40,7 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
                     // Without used returns only term
 
                     prop_assert_eq!(
-                        erlang::binary_to_term_2(binary, Term::EMPTY_LIST, &arc_process),
+                        erlang::binary_to_term_2(binary, Term::NIL, &arc_process),
                         Ok(term)
                     );
 
@@ -57,11 +50,7 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
             .unwrap();
     });
 
-    fn options(process: &Process) -> Term {
-        Term::cons(
-            Term::str_to_atom("used", DoNotCare).unwrap(),
-            Term::EMPTY_LIST,
-            process,
-        )
+    fn options(process: &ProcessControlBlock) -> Term {
+        process.cons(atom_unchecked("used"), Term::NIL).unwrap()
     }
 }

@@ -14,18 +14,18 @@ fn with_less_than_byte_len_returns_binary_prefix_and_suffix_binary() {
                     )
                 }),
                 |(byte_vec, index)| {
-                    let binary = Term::slice_to_binary(&byte_vec, &arc_process);
-                    let position = index.into_process(&arc_process);
+                    let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
+                    let position = arc_process.integer(index);
 
                     let prefix_bytes = &byte_vec[0..index];
-                    let prefix = Term::slice_to_binary(prefix_bytes, &arc_process);
+                    let prefix = arc_process.binary_from_bytes(prefix_bytes).unwrap();
 
                     let suffix_bytes = &byte_vec[index..];
-                    let suffix = Term::slice_to_binary(suffix_bytes, &arc_process);
+                    let suffix = arc_process.binary_from_bytes(suffix_bytes).unwrap();
 
                     prop_assert_eq!(
                         erlang::split_binary_2(binary, position, &arc_process),
-                        Ok(Term::slice_to_tuple(&[prefix, suffix], &arc_process))
+                        Ok(arc_process.tuple_from_slice(&[prefix, suffix]).unwrap())
                     );
 
                     Ok(())
@@ -40,15 +40,14 @@ fn with_byte_len_returns_subbinary_and_empty_suffix() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::byte_vec(), |byte_vec| {
-                let binary = Term::slice_to_binary(&byte_vec, &arc_process);
-                let position = byte_vec.len().into_process(&arc_process);
+                let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
+                let position = arc_process.integer(byte_vec.len());
 
                 prop_assert_eq!(
                     erlang::split_binary_2(binary, position, &arc_process),
-                    Ok(Term::slice_to_tuple(
-                        &[binary, Term::slice_to_binary(&[], &arc_process)],
-                        &arc_process
-                    ))
+                    Ok(arc_process
+                        .tuple_from_slice(&[binary, arc_process.binary_from_bytes(&[]).unwrap()],)
+                        .unwrap())
                 );
 
                 Ok(())
@@ -69,12 +68,12 @@ fn with_greater_than_byte_len_errors_badarg() {
                     (Just(byte_vec), min..=max)
                 }),
                 |(byte_vec, index)| {
-                    let binary = Term::slice_to_binary(&byte_vec, &arc_process);
-                    let position = index.into_process(&arc_process);
+                    let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
+                    let position = arc_process.integer(index);
 
                     prop_assert_eq!(
                         erlang::split_binary_2(binary, position, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

@@ -14,13 +14,13 @@ fn sends_message_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let destination = arc_process.pid;
-                let time = milliseconds.into_process(&arc_process);
+                let destination = arc_process.pid_term();
+                let time = arc_process.integer(milliseconds);
                 let options = options(&arc_process);
 
                 prop_assert_eq!(
                     erlang::start_timer_4(time, destination, message, options, arc_process.clone()),
-                    Err(badarg!())
+                    Err(badarg!().into())
                 );
 
                 Ok(())

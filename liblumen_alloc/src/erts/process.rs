@@ -1,27 +1,49 @@
+pub mod alloc;
+pub mod code;
 mod flags;
-pub use self::flags::*;
-
-mod alloc;
-pub use self::alloc::{HeapAlloc, StackAlloc, StackPrimitives};
-
-mod heap;
-use self::heap::ProcessHeap;
-
 mod gc;
+mod heap;
+mod mailbox;
+mod priority;
 
 use core::alloc::{AllocErr, Layout};
+use core::cell::RefCell;
+use core::fmt;
+use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr::{self, NonNull};
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::str::Chars;
+use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
+
+use ::alloc::sync::Arc;
+use ::alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use intrusive_collections::{LinkedList, UnsafeRef};
-use liblumen_core::locks::{Mutex, MutexGuard, SpinLock};
+
+use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::runtime;
+use crate::erts::process::alloc::layout_to_words;
+use crate::erts::term::{atom_unchecked, pid, reference, Atom, Integer, Pid, ProcBin};
 
-use self::gc::{GcError, RootSet};
 use super::*;
+
+pub use self::alloc::heap_alloc::{self, HeapAlloc};
+pub use self::alloc::{default_heap, StackAlloc, StackPrimitives, VirtualAlloc};
+use self::code::stack::frame::Frame;
+pub use self::flags::*;
+pub use self::flags::*;
+use self::gc::{GcError, RootSet};
+use self::heap::ProcessHeap;
+pub use self::mailbox::*;
+pub use self::priority::Priority;
+use crate::erts::process::alloc::heap_alloc::MakePidError;
+use crate::erts::process::code::Code;
+
+// 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
+pub const MAX_REDUCTIONS_PER_RUN: Reductions = 4_000;
 
 /// Represents the primary control structure for processes
 ///
@@ -33,41 +55,58 @@ use super::*;
 /// fragments and message list without requiring multiple locks
 #[repr(C)]
 pub struct ProcessControlBlock {
-    // Process flags, e.g. `Process.flag/1`
+    /// ID of the scheduler that is running the process
+    scheduler_id: Mutex<Option<scheduler::ID>>,
+    /// The priority of the process in `scheduler`.
+    pub priority: Priority,
+    /// Process flags, e.g. `Process.flag/1`
     flags: AtomicProcessFlag,
-    // minimum size of the heap that this process will start with
+    /// Minimum size of the heap that this process will start with
     min_heap_size: usize,
-    // the maximum size of the heap allowed for this process
+    /// The maximum size of the heap allowed for this process
     max_heap_size: usize,
-    // minimum virtual heap size for this process
+    /// Minimum virtual heap size for this process
     min_vheap_size: usize,
-    // the percentage of used to unused space at which a collection is triggered
+    /// The percentage of used to unused space at which a collection is triggered
     gc_threshold: f64,
-    // the maximum number of minor collections before a full sweep occurs
+    /// The maximum number of minor collections before a full sweep occurs
     max_gen_gcs: usize,
-    // off-heap allocations
+    /// off-heap allocations
     off_heap: SpinLock<LinkedList<HeapFragmentAdapter>>,
     off_heap_size: AtomicUsize,
-    // process dictionary
+    /// {rocess dictionary
     dictionary: HashMap<Term, Term>,
+    /// The `pid` of the process that `spawn`ed this process.
+    parent_pid: Option<Pid>,
+    pid: Pid,
+    #[allow(dead_code)]
+    initial_module_function_arity: Arc<ModuleFunctionArity>,
+    /// The number of reductions in the current `run`.  `code` MUST return when `run_reductions`
+    /// exceeds `MAX_REDUCTIONS_PER_RUN`.
+    run_reductions: AtomicU16,
+    pub total_reductions: AtomicU64,
+    code_stack: Mutex<code::stack::Stack>,
+    pub status: RwLock<Status>,
+    pub registered_name: RwLock<Option<Atom>>,
+    pub mailbox: Mutex<RefCell<Mailbox>>,
     // process heap, cache line aligned to avoid false sharing with rest of struct
     heap: Mutex<ProcessHeap>,
 }
 impl ProcessControlBlock {
-    /// Creates a new PCB using default settings and heap size
-    #[inline]
-    pub fn default() -> Self {
-        let (heap, heap_size) = alloc::default_heap().unwrap();
-        Self::new(heap, heap_size)
-    }
-
     /// Creates a new PCB with a heap defined by the given pointer, and
     /// `heap_size`, which is the size of the heap in words.
-    #[inline]
-    pub fn new(heap: *mut Term, heap_size: usize) -> Self {
+    pub fn new(
+        priority: Priority,
+        parent_pid: Option<Pid>,
+        initial_module_function_arity: Arc<ModuleFunctionArity>,
+        heap: *mut Term,
+        heap_size: usize,
+    ) -> Self {
         let heap = ProcessHeap::new(heap, heap_size);
         let off_heap = SpinLock::new(LinkedList::new(HeapFragmentAdapter::new()));
         let dictionary = HashMap::new();
+        let pid = pid::next();
+
         Self {
             flags: AtomicProcessFlag::new(ProcessFlag::Default),
             min_heap_size: heap_size,
@@ -78,9 +117,32 @@ impl ProcessControlBlock {
             off_heap,
             off_heap_size: AtomicUsize::new(0),
             dictionary,
+            pid,
+            status: Default::default(),
+            mailbox: Default::default(),
             heap: Mutex::new(heap),
+            code_stack: Default::default(),
+            scheduler_id: Mutex::new(None),
+            priority,
+            parent_pid,
+            initial_module_function_arity,
+            run_reductions: Default::default(),
+            total_reductions: Default::default(),
+            registered_name: Default::default(),
         }
     }
+
+    // Scheduler
+
+    pub fn scheduler_id(&self) -> Option<scheduler::ID> {
+        *self.scheduler_id.lock()
+    }
+
+    pub fn schedule_with(&self, scheduler_id: scheduler::ID) {
+        *self.scheduler_id.lock() = Some(scheduler_id);
+    }
+
+    // Flags
 
     /// Set the given process flag
     #[inline]
@@ -128,7 +190,7 @@ impl ProcessControlBlock {
     /// Same as `alloc_nofrag`, but takes a `Layout` rather than the size in words
     #[inline]
     pub unsafe fn alloc_nofrag_layout(&self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
-        let words = Self::layout_to_words(layout);
+        let words = layout_to_words(layout);
         self.alloc_nofrag(words)
     }
 
@@ -174,7 +236,7 @@ impl ProcessControlBlock {
     ///
     /// Use `stack_popn` to pop multiple terms from the stack at once
     #[inline]
-    pub fn stack_pop(&mut self) -> Option<Term> {
+    pub fn stack_pop(&self) -> Option<Term> {
         let mut heap = self.heap.lock();
         match heap.stack_slot(1) {
             None => None,
@@ -185,11 +247,16 @@ impl ProcessControlBlock {
         }
     }
 
+    unsafe fn alloca(&self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+        let mut heap = self.heap.lock();
+        heap.alloca(need)
+    }
+
     /// Pushes an immediate term or reference to term/list on top of the stack
     ///
     /// Returns `Err(AllocErr)` if the process is out of stack space
     #[inline]
-    pub fn stack_push(&mut self, term: Term) -> Result<(), AllocErr> {
+    pub fn stack_push(&self, term: Term) -> Result<(), AllocErr> {
         assert!(term.is_immediate() || term.is_boxed() || term.is_list());
         unsafe {
             let stack0 = self.alloca(1)?.as_ptr();
@@ -204,6 +271,206 @@ impl ProcessControlBlock {
         let mut heap = self.heap.lock();
         heap.stack_slot(1)
     }
+
+    pub fn pid(&self) -> Pid {
+        self.pid
+    }
+
+    pub fn pid_term(&self) -> Term {
+        unsafe { self.pid().as_term() }
+    }
+
+    // Send
+
+    pub fn send_heap_message(
+        &self,
+        heap_fragment: NonNull<HeapFragment>,
+        data: Term,
+    ) -> Result<(), AllocErr> {
+        let heap_fragment_ptr = heap_fragment.as_ptr();
+        let unsafe_ref_heap_fragment = unsafe { UnsafeRef::from_raw(heap_fragment_ptr) };
+        self.off_heap.lock().push_back(unsafe_ref_heap_fragment);
+
+        self.send_message(Message::off_heap(data))
+    }
+
+    pub fn send_from_self(&self, data: Term) -> Result<(), AllocErr> {
+        self.send_message(Message::on_heap(data))
+    }
+
+    /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
+    pub fn send_from_other(&self, data: Term) -> Result<bool, AllocErr> {
+        match self.heap.try_lock() {
+            Some(ref mut destination_heap) => {
+                let destination_message = data.clone_to_heap(destination_heap)?;
+
+                self.send_message(Message::on_heap(destination_message))?;
+            }
+            None => {
+                let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
+
+                self.send_heap_message(heap_fragment, heap_fragment_data)?;
+            }
+        }
+
+        // status.write() scope
+        {
+            let mut writable_status = self.status.write();
+
+            if *writable_status == Status::Waiting {
+                *writable_status = Status::Runnable;
+
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        }
+    }
+
+    fn send_message(&self, message: Message) -> Result<(), AllocErr> {
+        let unsafe_ref_message = unsafe {
+            let non_null_message = message.alloc()?;
+
+            UnsafeRef::from_raw(non_null_message.as_ptr())
+        };
+
+        self.mailbox.lock().borrow_mut().push(unsafe_ref_message);
+
+        Ok(())
+    }
+
+    // Terms
+
+    pub fn binary_from_bytes(&self, bytes: &[u8]) -> Result<Term, AllocErr> {
+        self.acquire_heap().binary_from_bytes(bytes)
+    }
+
+    pub fn binary_from_str(&self, s: &str) -> Result<Term, AllocErr> {
+        self.acquire_heap().binary_from_str(s)
+    }
+
+    pub fn charlist_from_str(&self, s: &str) -> Result<Term, AllocErr> {
+        self.acquire_heap().charlist_from_str(s)
+    }
+
+    pub fn closure(
+        &self,
+        creator: Term,
+        module_function_arity: Arc<ModuleFunctionArity>,
+        code: Code,
+    ) -> Result<Term, AllocErr> {
+        self.acquire_heap()
+            .closure(creator, module_function_arity, code)
+    }
+
+    /// Constructs a list of only the head and tail, and associated with the given process.
+    pub fn cons(&self, head: Term, tail: Term) -> Result<Term, AllocErr> {
+        self.acquire_heap().cons(head, tail)
+    }
+
+    pub fn external_pid_with_node_id(
+        &self,
+        node_id: usize,
+        number: usize,
+        serial: usize,
+    ) -> Result<Term, MakePidError> {
+        self.acquire_heap()
+            .external_pid_with_node_id(node_id, number, serial)
+    }
+
+    pub fn float(&self, f: f64) -> Result<Term, AllocErr> {
+        self.acquire_heap().float(f)
+    }
+
+    pub fn integer<I: Into<Integer>>(&self, i: I) -> Term {
+        self.acquire_heap().integer(i)
+    }
+
+    pub fn list_from_chars(&self, chars: Chars) -> Result<Term, AllocErr> {
+        self.acquire_heap().list_from_chars(chars)
+    }
+
+    pub fn list_from_iter<I>(&self, iter: I) -> Result<Term, AllocErr>
+    where
+        I: DoubleEndedIterator + Iterator<Item = Term>,
+    {
+        self.acquire_heap().list_from_iter(iter)
+    }
+
+    pub fn list_from_slice(&self, slice: &[Term]) -> Result<Term, AllocErr> {
+        self.acquire_heap().list_from_slice(slice)
+    }
+
+    pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> Result<Term, AllocErr>
+    where
+        I: DoubleEndedIterator + Iterator<Item = Term>,
+    {
+        self.acquire_heap().improper_list_from_iter(iter, last)
+    }
+
+    pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> Result<Term, AllocErr> {
+        self.acquire_heap().improper_list_from_slice(slice, tail)
+    }
+
+    pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> Result<Term, AllocErr> {
+        self.acquire_heap().map_from_slice(slice)
+    }
+
+    pub fn pid_with_node_id(
+        &self,
+        node_id: usize,
+        number: usize,
+        serial: usize,
+    ) -> Result<Term, MakePidError> {
+        self.acquire_heap()
+            .pid_with_node_id(node_id, number, serial)
+    }
+
+    pub fn reference(&self, number: reference::Number) -> Result<Term, AllocErr> {
+        self.reference_from_scheduler(self.scheduler_id.lock().unwrap(), number)
+    }
+
+    pub fn reference_from_scheduler(
+        &self,
+        scheduler_id: scheduler::ID,
+        number: reference::Number,
+    ) -> Result<Term, AllocErr> {
+        self.acquire_heap().reference(scheduler_id, number)
+    }
+
+    pub fn subbinary_from_original(
+        &self,
+        original: Term,
+        byte_offset: usize,
+        bit_offset: u8,
+        full_byte_len: usize,
+        partial_byte_bit_len: u8,
+    ) -> Result<Term, AllocErr> {
+        self.acquire_heap().subbinary_from_original(
+            original,
+            byte_offset,
+            bit_offset,
+            full_byte_len,
+            partial_byte_bit_len,
+        )
+    }
+
+    pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> Result<Term, AllocErr>
+    where
+        I: Iterator<Item = Term>,
+    {
+        self.acquire_heap().tuple_from_iter(iterator, len)
+    }
+
+    pub fn tuple_from_slice(&self, slice: &[Term]) -> Result<Term, AllocErr> {
+        self.acquire_heap().tuple_from_slice(slice)
+    }
+
+    pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> Result<Term, AllocErr> {
+        self.acquire_heap().tuple_from_slices(slices)
+    }
+
+    // Process Dictionary
 
     /// Puts a new value under the given key in the process dictionary
     #[inline]
@@ -264,6 +531,8 @@ impl ProcessControlBlock {
             Some(old_value) => old_value,
         }
     }
+
+    // Garbage Collection
 
     /// Determines if this heap should be collected
     ///
@@ -346,7 +615,163 @@ impl ProcessControlBlock {
         }
         false
     }
+
+    // Running
+
+    pub fn reduce(&self) {
+        self.run_reductions.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn is_reduced(&self) -> bool {
+        MAX_REDUCTIONS_PER_RUN <= self.run_reductions.load(Ordering::SeqCst)
+    }
+
+    /// Run process until `reductions` exceeds `MAX_REDUCTIONS` or process exits
+    pub fn run(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+        arc_process.start_running();
+
+        // `code` is expected to set `code` before it returns to be the next spot to continue
+        let option_code = arc_process
+            .code_stack
+            .lock()
+            .get(0)
+            .map(|frame| frame.code());
+
+        let code_result = match option_code {
+            Some(code) => code(arc_process),
+            None => Ok(arc_process.exit()),
+        };
+
+        arc_process.stop_running();
+
+        code_result
+    }
+
+    fn start_running(&self) {
+        *self.status.write() = Status::Running;
+    }
+
+    fn stop_running(&self) {
+        self.total_reductions.fetch_add(
+            self.run_reductions.load(Ordering::SeqCst) as u64,
+            Ordering::SeqCst,
+        );
+        self.run_reductions.store(0, Ordering::SeqCst);
+
+        let mut writable_status = self.status.write();
+
+        if *writable_status == Status::Running {
+            *writable_status = Status::Runnable
+        }
+    }
+
+    /// Puts the process in the waiting status
+    pub fn wait(&self) {
+        *self.status.write() = Status::Waiting;
+        self.run_reductions.fetch_add(1, Ordering::AcqRel);
+    }
+
+    pub fn exit(&self) {
+        self.reduce();
+        self.exception(exit!(atom_unchecked("normal")));
+    }
+
+    pub fn exception(&self, exception: runtime::Exception) {
+        *self.status.write() = Status::Exiting(exception);
+    }
+
+    // Code Stack
+
+    pub fn code_stack_len(&self) -> usize {
+        self.code_stack.lock().len()
+    }
+
+    pub fn pop_code_stack(&self) {
+        let mut locked_stack = self.code_stack.lock();
+        locked_stack.pop().unwrap();
+    }
+
+    /// Calls top `Frame`'s `Code` if it exists and the process is not reduced.
+    pub fn call_code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+        if !arc_process.is_reduced() {
+            let option_code = arc_process
+                .code_stack
+                .lock()
+                .get(0)
+                .map(|frame| frame.code());
+
+            match option_code {
+                Some(code) => code(arc_process),
+                None => Ok(()),
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn current_module_function_arity(&self) -> Option<Arc<ModuleFunctionArity>> {
+        self.code_stack
+            .lock()
+            .get(0)
+            .map(|frame| frame.module_function_arity())
+    }
+
+    pub fn push_frame(&self, frame: Frame) {
+        self.code_stack.lock().push(frame)
+    }
+
+    #[cfg(test)]
+    pub fn print_code_stack(&self) {
+        println!("{:?}", self.stack.lock());
+    }
+
+    pub fn replace_frame(&self, frame: Frame) {
+        let mut locked_code_stack = self.code_stack.lock();
+
+        // unwrap to ensure there is a frame to replace
+        locked_code_stack.pop().unwrap();
+
+        locked_code_stack.push(frame);
+    }
+
+    pub fn return_from_call(&self, term: Term) -> Result<(), AllocErr> {
+        let has_caller = {
+            let mut locked_stack = self.code_stack.lock();
+
+            // remove current frame.  The caller becomes the top frame, so it's
+            // `module_function_arity` will be returned from
+            // `current_module_function_arity`.
+            locked_stack.pop();
+
+            0 < locked_stack.len()
+        };
+
+        if has_caller {
+            self.stack_push(term)
+        } else {
+            // no caller, return value is thrown away, process will exit when `Scheduler.run_once`
+            // detects it has no frames.
+            Ok(())
+        }
+    }
+
+    pub fn stacktrace(&self) -> Vec<Arc<ModuleFunctionArity>> {
+        let locked_code_stack = self.code_stack.lock();
+        let mut stacktrace = Vec::with_capacity(locked_code_stack.len());
+
+        for frame in locked_code_stack.iter() {
+            stacktrace.push(frame.module_function_arity())
+        }
+
+        stacktrace
+    }
+
+    #[cfg(test)]
+    pub fn code_stack_len(&self) -> usize {
+        self.stack.lock().len()
+    }
 }
+
 #[cfg(test)]
 impl ProcessControlBlock {
     #[inline]
@@ -367,26 +792,65 @@ impl ProcessControlBlock {
         heap.old.active()
     }
 }
-impl HeapAlloc for ProcessControlBlock {
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        let mut heap = self.heap.lock();
-        heap.alloc(need)
-    }
 
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
-        let mut heap = self.heap.lock();
-        heap.is_owner(ptr)
+#[cfg(debug_assertions)]
+impl fmt::Debug for ProcessControlBlock {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.pid)?;
+
+        match *self.registered_name.read() {
+            Some(registered_name) => write!(f, " ({:?})", registered_name),
+            None => Ok(()),
+        }
     }
 }
-impl StackAlloc for ProcessControlBlock {
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        let mut heap = self.heap.lock();
-        heap.alloca(need)
-    }
 
-    unsafe fn alloca_unchecked(&mut self, need: usize) -> NonNull<Term> {
-        let mut heap = self.heap.lock();
-        heap.alloca_unchecked(need)
+impl fmt::Display for ProcessControlBlock {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let pid = self.pid;
+        let (number, serial) = (pid.number(), pid.serial());
+
+        write!(f, "#PID<0.{}.{}>", number, serial)?;
+
+        match *self.registered_name.read() {
+            Some(registered_name_atom) => write!(f, "({})", registered_name_atom.name()),
+            None => Ok(()),
+        }
+    }
+}
+
+impl Eq for ProcessControlBlock {}
+
+impl Hash for ProcessControlBlock {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pid.hash(state);
+    }
+}
+
+impl PartialEq for ProcessControlBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.pid == other.pid
+    }
+}
+
+unsafe impl Send for ProcessControlBlock {}
+unsafe impl Sync for ProcessControlBlock {}
+
+type Reductions = u16;
+
+// [BEAM statuses](https://github.com/erlang/otp/blob/551d03fe8232a66daf1c9a106194aa38ef660ef6/erts/emulator/beam/erl_process.c#L8944-L8972)
+#[derive(PartialEq)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub enum Status {
+    Runnable,
+    Running,
+    Waiting,
+    Exiting(runtime::Exception),
+}
+
+impl Default for Status {
+    fn default() -> Status {
+        Status::Runnable
     }
 }
 

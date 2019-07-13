@@ -9,7 +9,10 @@ fn without_tuple_errors_badarg() {
             .run(
                 &strategy::term::is_not_tuple(arc_process.clone()),
                 |tuple| {
-                    prop_assert_eq!(erlang::tuple_size_1(tuple, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::tuple_size_1(tuple, &arc_process),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -36,7 +39,7 @@ fn with_tuple_returns_arity() {
                 |(size, term)| {
                     prop_assert_eq!(
                         erlang::size_1(term, &arc_process),
-                        Ok(size.into_process(&arc_process))
+                        Ok(arc_process.integer(size))
                     );
 
                     Ok(())

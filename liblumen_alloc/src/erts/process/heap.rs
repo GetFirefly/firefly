@@ -1,9 +1,9 @@
 use core::alloc::AllocErr;
 use core::ptr::NonNull;
 
-use crate::erts::{ProcBin, Term};
+use crate::erts::term::{ProcBin, Term};
 
-use super::alloc::{self, HeapAlloc, StackAlloc, StackPrimitives};
+use super::alloc::{self, HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use super::gc::*;
 use super::ProcessControlBlock;
 
@@ -26,11 +26,6 @@ impl ProcessHeap {
             young,
             old,
         }
-    }
-
-    #[inline]
-    pub fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.young.virtual_alloc(bin)
     }
 
     #[inline]
@@ -98,6 +93,12 @@ impl HeapAlloc for ProcessHeap {
             return true;
         }
         false
+    }
+}
+impl VirtualAlloc for ProcessHeap {
+    #[inline]
+    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
+        self.young.virtual_alloc(bin)
     }
 }
 impl StackAlloc for ProcessHeap {

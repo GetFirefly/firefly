@@ -1,9 +1,10 @@
-use std::collections::vec_deque::VecDeque;
-use std::sync::Arc;
+use alloc::collections::vec_deque::VecDeque;
+use alloc::sync::Arc;
 
-use crate::process::Process;
+use liblumen_alloc::erts::process::Priority;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+
 use crate::run::Run;
-use crate::scheduler::Priority;
 
 /// A run queue where the `Arc<Process` is run only when its delay is `0`.  This allows
 /// the `Priority::Normal` and `Priority::Low` to be in same `Delayed` run queue, but for the
@@ -33,7 +34,7 @@ impl Delayed {
         }
     }
 
-    pub fn enqueue(&mut self, arc_process: Arc<Process>) {
+    pub fn enqueue(&mut self, arc_process: Arc<ProcessControlBlock>) {
         let delayed_process = DelayedProcess::new(arc_process);
         self.0.push_back(delayed_process);
     }
@@ -44,11 +45,11 @@ type Delay = u8;
 #[cfg_attr(debug_assertions, derive(Debug))]
 struct DelayedProcess {
     delay: Delay,
-    arc_process: Arc<Process>,
+    arc_process: Arc<ProcessControlBlock>,
 }
 
 impl DelayedProcess {
-    fn new(arc_process: Arc<Process>) -> DelayedProcess {
+    fn new(arc_process: Arc<ProcessControlBlock>) -> DelayedProcess {
         DelayedProcess {
             delay: Self::priority_to_delay(arc_process.priority),
             arc_process,

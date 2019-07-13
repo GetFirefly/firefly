@@ -15,7 +15,7 @@ fn with_number_atom_reference_function_port_or_local_pid_returns_second() {
                             second.is_number()
                                 || second.is_atom()
                                 || second.is_reference()
-                                || second.is_function()
+                                || second.is_closure()
                                 || second.is_port()
                                 || second.is_local_pid()
                         },
@@ -34,7 +34,7 @@ fn with_number_atom_reference_function_port_or_local_pid_returns_second() {
 #[test]
 fn with_lesser_external_pid_second_returns_second() {
     min(
-        |_, process| Term::external_pid(1, 1, 3, &process).unwrap(),
+        |_, process| process.external_pid_with_node_id(1, 1, 3).unwrap(),
         Second,
     );
 }
@@ -47,7 +47,7 @@ fn with_same_external_pid_second_returns_first() {
 #[test]
 fn with_same_value_external_pid_second_returns_first() {
     min(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
+        |_, process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
         First,
     );
 }
@@ -55,7 +55,7 @@ fn with_same_value_external_pid_second_returns_first() {
 #[test]
 fn with_greater_external_pid_second_returns_first() {
     min(
-        |_, process| Term::external_pid(1, 3, 3, &process).unwrap(),
+        |_, process| process.external_pid_with_node_id(1, 3, 3).unwrap(),
         First,
     );
 }
@@ -89,10 +89,10 @@ fn with_tuple_map_list_or_bitstring_returns_first() {
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::min(
-        |process| Term::external_pid(1, 2, 3, &process).unwrap(),
+        |process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
         second,
         which,
     );

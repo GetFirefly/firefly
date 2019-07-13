@@ -9,7 +9,10 @@ fn without_integer_errors_badarith() {
             .run(
                 &strategy::term::is_not_integer(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(erlang::bnot_1(operand, &arc_process), Err(badarith!()));
+                    prop_assert_eq!(
+                        erlang::bnot_1(operand, &arc_process),
+                        Err(badarith!().into())
+                    );
 
                     Ok(())
                 },
@@ -31,7 +34,7 @@ fn with_small_integer_returns_small_integer() {
 
                     let inverted = result.unwrap();
 
-                    prop_assert_eq!(inverted.tag(), SmallInteger);
+                    prop_assert!(inverted.is_smallint());
 
                     Ok(())
                 },
@@ -43,38 +46,28 @@ fn with_small_integer_returns_small_integer() {
 #[test]
 fn with_small_integer_inverts_bits() {
     with_process(|process| {
-        let integer = 0b10.into_process(&process);
+        let integer = process.integer(0b10);
 
-        assert_eq!(
-            erlang::bnot_1(integer, &process),
-            Ok((-3).into_process(&process))
-        );
+        assert_eq!(erlang::bnot_1(integer, &process), Ok(process.integer(-3)));
     });
 }
 
 #[test]
 fn with_big_integer_inverts_bits() {
     with_process(|process| {
-        let integer = <BigInt as Num>::from_str_radix(
+        let integer_big_int = <BigInt as Num>::from_str_radix(
             "1010101010101010101010101010101010101010101010101010101010101010",
             2,
         )
-        .unwrap()
-        .into_process(&process);
+        .unwrap();
+        let integer = process.integer(integer_big_int);
 
-        assert_eq!(integer.tag(), Boxed);
-
-        let unboxed_integer: &Term = integer.unbox_reference();
-
-        assert_eq!(unboxed_integer.tag(), BigInteger);
+        assert!(integer.is_bigint());
 
         assert_eq!(
             erlang::bnot_1(integer, &process),
-            Ok(
-                <BigInt as Num>::from_str_radix("-12297829382473034411", 10,)
-                    .unwrap()
-                    .into_process(&process)
-            )
+            Ok(process
+                .integer(<BigInt as Num>::from_str_radix("-12297829382473034411", 10,).unwrap()))
         );
     });
 }
@@ -92,11 +85,13 @@ fn with_big_integer_returns_big_integer() {
 
                     let inverted = result.unwrap();
 
-                    prop_assert_eq!(inverted.tag(), Boxed);
-
-                    let unboxed: &Term = inverted.unbox_reference();
-
-                    prop_assert_eq!(unboxed.tag(), BigInteger);
+                    match inverted.to_typed_term().unwrap() {
+                        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                            TypedTerm::BigInteger(_) => prop_assert!(true),
+                            _ => prop_assert!(false),
+                        },
+                        _ => prop_assert!(false),
+                    }
 
                     Ok(())
                 },

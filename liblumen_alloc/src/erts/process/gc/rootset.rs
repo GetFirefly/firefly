@@ -38,7 +38,7 @@ impl RootSet {
         let mut pos = start;
         while (pos as usize) < (end as usize) {
             let term = unsafe { *pos };
-            if term.is_immediate() || term.is_boxed() || term.is_list() {
+            if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                 self.0.push(pos);
                 pos = unsafe { pos.offset(1) };
             } else {

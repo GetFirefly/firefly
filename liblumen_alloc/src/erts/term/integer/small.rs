@@ -5,7 +5,7 @@ use core::ops::*;
 
 use num_bigint::BigInt;
 
-use crate::erts::Float;
+use crate::erts::term::{Float, TypeError, TypedTerm};
 use crate::erts::{AsTerm, Term};
 
 use super::*;
@@ -149,9 +149,33 @@ impl TryFrom<isize> for SmallInteger {
         Self::new(n)
     }
 }
+impl Into<isize> for SmallInteger {
+    fn into(self) -> isize {
+        self.0
+    }
+}
+impl Into<f64> for SmallInteger {
+    fn into(self) -> f64 {
+        self.0 as f64
+    }
+}
 impl Into<BigInt> for SmallInteger {
     fn into(self) -> BigInt {
         BigInt::from(self.0)
+    }
+}
+impl TryInto<u8> for SmallInteger {
+    type Error = core::num::TryFromIntError;
+
+    fn try_into(self) -> Result<u8, Self::Error> {
+        self.0.try_into()
+    }
+}
+impl TryInto<u64> for SmallInteger {
+    type Error = core::num::TryFromIntError;
+
+    fn try_into(self) -> Result<u64, Self::Error> {
+        self.0.try_into()
     }
 }
 impl TryInto<usize> for SmallInteger {
@@ -332,5 +356,24 @@ impl PartialOrd<BigInteger> for SmallInteger {
     #[inline]
     fn partial_cmp(&self, other: &BigInteger) -> Option<Ordering> {
         Some(BigInt::from(self.0 as i64).cmp(&other.value))
+    }
+}
+
+impl TryFrom<Term> for SmallInteger {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryFrom<TypedTerm> for SmallInteger {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::SmallInteger(small_integer) => Ok(small_integer),
+            _ => Err(TypeError),
+        }
     }
 }

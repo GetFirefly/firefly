@@ -6,6 +6,7 @@ use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedList, LinkedListLink, UnsafeRef};
 
 use super::{OldHeap, YoungHeap};
+use crate::erts::term::{Bitstring, ProcBin};
 use crate::erts::*;
 
 intrusive_adapter!(pub ProcBinAdapter = UnsafeRef<ProcBin>: ProcBin { link: LinkedListLink });
@@ -74,10 +75,10 @@ impl VirtualBinaryHeap {
     #[inline]
     pub fn push(&mut self, bin: &ProcBin) -> Term {
         let term = unsafe { bin.as_term() };
-        let size = bin.size();
+        let full_byte_len = bin.full_byte_len();
         self.bins
             .push_front(unsafe { UnsafeRef::from_raw(bin as *const _ as *mut ProcBin) });
-        self.used += size;
+        self.used += full_byte_len;
         term
     }
 
@@ -98,8 +99,8 @@ impl VirtualBinaryHeap {
             ptr::write(ptr as *mut Term, Term::NONE);
         }
         // Decrement the heap size
-        let bin_size = bin.size();
-        self.used -= bin_size;
+        let full_byte_len = bin.full_byte_len();
+        self.used -= full_byte_len;
         // Return the raw ProcBin
         bin
     }
@@ -121,7 +122,7 @@ impl VirtualBinaryHeap {
         // Perform unlink
         self.unlink_raw(bin as *const _ as *mut ProcBin);
         // Decrement heap usage
-        let bin_size = bin.size();
+        let bin_size = bin.full_byte_len();
         self.used -= bin_size;
     }
 

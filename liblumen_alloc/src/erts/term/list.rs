@@ -1,13 +1,38 @@
 use core::alloc::{AllocErr, Layout};
 use core::cmp;
+use core::convert::{TryFrom, TryInto};
 use core::iter::FusedIterator;
 use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::term::{AsTerm, Boxed, Term, TypeError, TypedTerm};
 use crate::erts::{to_word_size, HeapAlloc, StackAlloc};
 
-use super::{AsTerm, Term};
+pub enum List {
+    Empty,
+    NonEmpty(Boxed<Cons>),
+}
+
+impl TryFrom<Term> for List {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<List, TypeError> {
+        term.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryFrom<TypedTerm> for List {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<List, TypeError> {
+        match typed_term {
+            TypedTerm::Nil => Ok(List::Empty),
+            TypedTerm::List(cons) => Ok(List::NonEmpty(cons)),
+            _ => Err(TypeError),
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MaybeImproper<P, I> {
@@ -42,10 +67,37 @@ impl Cons {
         Self { head, tail }
     }
 
+    pub fn contains(&self, term: Term) -> bool {
+        self.into_iter().any(|result| match result {
+            Ok(ref element) => element == &term,
+            _ => false,
+        })
+    }
+
+    /// Returns the count only if the list is proper.
+    pub fn count(&self) -> Option<usize> {
+        let mut count = 0;
+
+        for result in self {
+            match result {
+                Ok(_) => count += 1,
+                Err(_) => return None,
+            }
+        }
+
+        Some(count)
+    }
+
     /// Returns true if this cons cell is actually a move marker
     #[inline]
     pub fn is_move_marker(&self) -> bool {
         self.head.is_none()
+    }
+
+    /// Returns true if this cons is the head oflumen_runtime/src/otp/erlang.rs:1818:26
+    ///a proper list.
+    pub fn is_proper(&self) -> bool {
+        self.into_iter().all(|result| result.is_ok())
     }
 
     /// Reify a cons cell from a pointer to the head of a cons cell
@@ -84,22 +136,6 @@ impl Cons {
         }
         Some(MaybeImproper::Improper(self.tail))
     }
-
-    /// Constructs an iterator for the list represented by this cons cell
-    ///
-    /// This iterator will panic if it reaches a cell that indicates this
-    /// list is an improper list, to safely iterate such lists, use `iter_safe`
-    #[inline]
-    pub fn iter(&self) -> ListIter {
-        ListIter::new_strict(*self)
-    }
-
-    /// Same as `iter`, except it will not panic on improper lists, it will
-    /// simply return `None` as if it had reached the end of a proper list
-    #[inline]
-    pub fn iter_safe(&self) -> ListIter {
-        ListIter::new(*self)
-    }
 }
 unsafe impl AsTerm for Cons {
     #[inline]
@@ -114,9 +150,7 @@ impl PartialEq<Cons> for Cons {
 }
 impl PartialOrd<Cons> for Cons {
     fn partial_cmp(&self, other: &Cons) -> Option<cmp::Ordering> {
-        self.iter()
-            .map(|t| t.to_typed_term().unwrap())
-            .partial_cmp(other.iter().map(|t| t.to_typed_term().unwrap()))
+        self.into_iter().partial_cmp(other.into_iter())
     }
 }
 impl CloneToProcess for Cons {
@@ -153,85 +187,100 @@ impl CloneToProcess for Cons {
     fn size_in_words(&self) -> usize {
         let mut elements = 0;
         let mut words = 0;
-        for element in self.iter_safe() {
+
+        for result in self.into_iter() {
+            let element = match result {
+                Ok(element) => element,
+                Err(ImproperList { tail }) => tail,
+            };
+
             elements += 1;
             words += element.size_in_words();
         }
+
         words += to_word_size(elements * mem::size_of::<Cons>());
         words
     }
 }
 
-pub struct ListIter {
-    head: Option<Term>,
-    tail: Option<MaybeImproper<Cons, Term>>,
-    pos: usize,
-    panic_on_improper: bool,
-}
-impl ListIter {
-    /// Creates a new list iterator which works for both improper and proper lists
-    #[inline]
-    pub fn new(cons: Cons) -> Self {
-        assert!(!cons.is_move_marker());
-        let pos = 0;
-        let panic_on_improper = false;
-        Self {
-            head: Some(cons.head),
-            tail: cons.tail(),
-            pos,
-            panic_on_improper,
-        }
-    }
+impl IntoIterator for &Cons {
+    type Item = Result<Term, ImproperList>;
+    type IntoIter = Iter;
 
-    /// Creates a new list itertator which panics if the list is improper
-    #[inline]
-    pub fn new_strict(cons: Cons) -> Self {
-        let pos = 0;
-        let panic_on_improper = true;
-        Self {
-            head: Some(cons.head),
-            tail: cons.tail(),
-            pos,
-            panic_on_improper,
+    fn into_iter(self) -> Iter {
+        Iter {
+            head: Some(Ok(self.head)),
+            tail: Some(self.tail),
         }
     }
 }
-impl Iterator for ListIter {
-    type Item = Term;
+
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd)]
+pub struct ImproperList {
+    pub tail: Term,
+}
+
+pub struct Iter {
+    head: Option<Result<Term, ImproperList>>,
+    tail: Option<Term>,
+}
+
+impl FusedIterator for Iter {}
+
+impl Iterator for Iter {
+    type Item = Result<Term, ImproperList>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.head {
-                Some(head) => {
-                    assert!(!head.is_none(), "unexpected move marker in cons cell");
-                    self.pos += 1;
-                    self.head = None;
-                    return Some(head);
-                }
-                None => match self.tail {
-                    Some(MaybeImproper::Improper(_)) if self.panic_on_improper => {
-                        panic!("tried to iterate over improper list!");
-                    }
-                    Some(MaybeImproper::Improper(tail)) => {
-                        self.pos += 1;
+        let next = self.head.clone();
+
+        match next {
+            None => (),
+            Some(Err(_)) => {
+                self.head = None;
+                self.tail = None;
+            }
+            _ => {
+                let tail = self.tail.unwrap();
+
+                match tail.to_typed_term().unwrap() {
+                    TypedTerm::Nil => {
                         self.head = None;
                         self.tail = None;
-                        return Some(tail);
                     }
-                    Some(MaybeImproper::Proper(cons)) => {
-                        self.head = Some(cons.head);
-                        self.tail = cons.tail();
-                        continue;
+                    TypedTerm::List(cons) => {
+                        self.head = Some(Ok(cons.head));
+                        self.tail = Some(cons.tail);
                     }
-                    None => {
-                        return None;
+                    _ => {
+                        self.head = Some(Err(ImproperList { tail }));
+                        self.tail = None;
                     }
-                },
+                }
             }
+        }
+
+        next
+    }
+}
+
+impl TryFrom<Term> for Boxed<Cons> {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryFrom<TypedTerm> for Boxed<Cons> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::List(cons) => Ok(cons),
+            _ => Err(TypeError),
         }
     }
 }
-impl<'a> FusedIterator for ListIter {}
 
 pub struct ListBuilder<'a, A: HeapAlloc> {
     heap: &'a mut A,

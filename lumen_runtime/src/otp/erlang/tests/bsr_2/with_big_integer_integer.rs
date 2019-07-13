@@ -5,16 +5,17 @@ use num_traits::Num;
 #[test]
 fn with_negative_shifts_left_and_returns_big_integer() {
     with(|integer, process| {
-        let shift = (-1).into_process(&process);
+        let shift = process.integer(-1);
 
         assert_eq!(
             erlang::bsr_2(integer, shift, &process),
-            Ok(<BigInt as Num>::from_str_radix(
-                "1011001110001111000011111000001111110000001111111000000011111111000000000",
-                2
-            )
-            .unwrap()
-            .into_process(&process))
+            Ok(process.integer(
+                <BigInt as Num>::from_str_radix(
+                    "1011001110001111000011111000001111110000001111111000000011111111000000000",
+                    2
+                )
+                .unwrap()
+            ))
         );
     });
 }
@@ -23,7 +24,7 @@ fn with_negative_shifts_left_and_returns_big_integer() {
 fn with_positive_with_big_integer_underflow_without_small_integer_underflow_returns_small_integer()
 {
     with(|integer, process| {
-        let shift = 71.into_process(&process);
+        let shift = process.integer(71);
 
         let result = erlang::bsr_2(integer, shift, &process);
 
@@ -31,40 +32,37 @@ fn with_positive_with_big_integer_underflow_without_small_integer_underflow_retu
 
         let shifted = result.unwrap();
 
-        assert_eq!(shifted.tag(), SmallInteger);
-        assert_eq!(shifted, 0b1.into_process(&process));
+        assert!(shifted.is_smallint());
+        assert_eq!(shifted, process.integer(0b1));
     })
 }
 
 #[test]
 fn with_positive_with_underflow_returns_zero() {
     with(|integer, process| {
-        let shift = 80.into_process(&process);
+        let shift = process.integer(80);
 
         assert_eq!(
             erlang::bsr_2(integer, shift, &process),
-            Ok(0.into_process(&process))
+            Ok(process.integer(0))
         );
     });
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let integer = <BigInt as Num>::from_str_radix(
-            "101100111000111100001111100000111111000000111111100000001111111100000000",
-            2,
-        )
-        .unwrap()
-        .into_process(&process);
+        let integer = process.integer(
+            <BigInt as Num>::from_str_radix(
+                "101100111000111100001111100000111111000000111111100000001111111100000000",
+                2,
+            )
+            .unwrap(),
+        );
 
-        assert_eq!(integer.tag(), Boxed);
-
-        let integer_unboxed: &Term = integer.unbox_reference();
-
-        assert_eq!(integer_unboxed.tag(), BigInteger);
+        assert!(integer.is_bigint());
 
         f(integer, &process)
     })

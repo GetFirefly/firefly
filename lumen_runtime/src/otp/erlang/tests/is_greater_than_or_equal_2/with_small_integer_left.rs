@@ -2,23 +2,23 @@ use super::*;
 
 #[test]
 fn with_greater_small_integer_right_returns_true() {
-    is_greater_than_or_equal(|_, process| (-1).into_process(&process), true);
+    is_greater_than_or_equal(|_, process| process.integer(-1), true);
 }
 
 #[test]
 fn with_same_value_small_integer_right_returns_true() {
-    is_greater_than_or_equal(|_, process| 0.into_process(&process), true);
+    is_greater_than_or_equal(|_, process| process.integer(0), true);
 }
 
 #[test]
 fn with_greater_small_integer_right_returns_false() {
-    is_greater_than_or_equal(|_, process| 1.into_process(&process), false);
+    is_greater_than_or_equal(|_, process| process.integer(1), false);
 }
 
 #[test]
 fn with_greater_big_integer_right_returns_true() {
     is_greater_than_or_equal(
-        |_, process| (crate::integer::small::MIN - 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
         true,
     )
 }
@@ -26,24 +26,24 @@ fn with_greater_big_integer_right_returns_true() {
 #[test]
 fn with_greater_big_integer_right_returns_false() {
     is_greater_than_or_equal(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
         false,
     )
 }
 
 #[test]
 fn with_greater_float_right_returns_true() {
-    is_greater_than_or_equal(|_, process| (-1.0).into_process(&process), true)
+    is_greater_than_or_equal(|_, process| process.float(-1.0).unwrap(), true)
 }
 
 #[test]
 fn with_same_value_float_right_returns_true() {
-    is_greater_than_or_equal(|_, process| 0.0.into_process(&process), true)
+    is_greater_than_or_equal(|_, process| process.float(1.0).unwrap(), true)
 }
 
 #[test]
 fn with_greater_float_right_returns_false() {
-    is_greater_than_or_equal(|_, process| 1.0.into_process(&process), false)
+    is_greater_than_or_equal(|_, process| process.float(1.0).unwrap(), false)
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn without_number_returns_false() {
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::is_greater_than_or_equal(|process| 0.into_process(&process), right, expected);
+    super::is_greater_than_or_equal(|process| process.integer(0), right, expected);
 }

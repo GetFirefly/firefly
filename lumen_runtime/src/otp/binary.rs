@@ -1,7 +1,11 @@
-use crate::binary::{heap, sub, PartToList};
-use crate::exception::Exception;
-use crate::process::Process;
-use crate::term::{Tag::*, Term};
+use core::convert::TryInto;
+use core::ops::Range;
+
+use liblumen_alloc::erts::exception::Result;
+use liblumen_alloc::erts::term::{Bitstring, Term, TypedTerm};
+use liblumen_alloc::{badarg, ProcessControlBlock};
+
+use crate::binary::start_length_to_part_range;
 
 /// Converts `binary` to a list of bytes, each representing the value of one byte.
 ///
@@ -21,26 +25,75 @@ pub fn bin_to_list(
     binary: Term,
     position: Term,
     length: Term,
-    process: &Process,
-) -> Result<Term, Exception> {
-    match binary.tag() {
-        Boxed => {
-            let unboxed: &Term = binary.unbox_reference();
+    process_control_block: &ProcessControlBlock,
+) -> Result {
+    let position_usize: usize = position.try_into()?;
+    let length_isize: isize = length.try_into()?;
 
-            match unboxed.tag() {
-                HeapBinary => {
-                    let heap_binary: &heap::Binary = binary.unbox_reference();
+    match binary.to_typed_term().unwrap() {
+        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::HeapBinary(heap_binary) => {
+                let available_byte_count = heap_binary.full_byte_len();
+                let part_range =
+                    start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
+                let range: Range<usize> = part_range.into();
+                let byte_slice: &[u8] = &heap_binary.as_bytes()[range];
+                let byte_iter = byte_slice.iter();
+                let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
-                    heap_binary.part_to_list(position, length, &process)
-                }
-                Subbinary => {
-                    let subbinary: &sub::Binary = binary.unbox_reference();
+                let list = process_control_block.list_from_iter(byte_term_iter)?;
 
-                    subbinary.part_to_list(position, length, &process)
-                }
-                _ => Err(badarg!()),
+                Ok(list)
             }
-        }
-        _ => Err(badarg!()),
+            TypedTerm::ProcBin(process_binary) => {
+                let available_byte_count = process_binary.full_byte_len();
+                let part_range =
+                    start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
+                let range: Range<usize> = part_range.into();
+                let byte_slice: &[u8] = &process_binary.as_bytes()[range];
+                let byte_iter = byte_slice.iter();
+                let byte_term_iter = byte_iter.map(|byte| (*byte).into());
+
+                let list = process_control_block.list_from_iter(byte_term_iter)?;
+
+                Ok(list)
+            }
+            TypedTerm::SubBinary(subbinary) => {
+                let available_byte_count = subbinary.full_byte_len();
+                let part_range =
+                    start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
+
+                let result = if subbinary.is_aligned() {
+                    let range: Range<usize> = part_range.into();
+                    let byte_slice: &[u8] = &subbinary.as_bytes()[range];
+                    let byte_iter = byte_slice.iter();
+                    let byte_term_iter = byte_iter.map(|byte| (*byte).into());
+
+                    process_control_block.list_from_iter(byte_term_iter)
+                } else {
+                    let mut byte_iter = subbinary.byte_iter();
+
+                    // skip byte_offset
+                    for _ in 0..part_range.byte_offset {
+                        byte_iter.next();
+                    }
+
+                    for _ in part_range.byte_len..byte_iter.len() {
+                        byte_iter.next_back();
+                    }
+
+                    let byte_term_iter = byte_iter.map(|byte| byte.into());
+
+                    process_control_block.list_from_iter(byte_term_iter)
+                };
+
+                match result {
+                    Ok(term) => Ok(term),
+                    Err(error) => Err(error.into()),
+                }
+            }
+            _ => Err(badarg!().into()),
+        },
+        _ => Err(badarg!().into()),
     }
 }

@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::process::IntoProcess;
-
 use crate::otp::erlang::tests::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 use proptest::strategy::Strategy;
 
@@ -12,12 +10,12 @@ fn without_binary_errors_badarg() {
             .run(
                 &strategy::term::is_not_binary(arc_process.clone()),
                 |binary| {
-                    let start = 1.into_process(&arc_process);
-                    let stop = 1.into_process(&arc_process);
+                    let start = arc_process.integer(1);
+                    let stop = arc_process.integer(1);
 
                     prop_assert_eq!(
                         erlang::binary_to_list_3(binary, start, stop, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -37,11 +35,11 @@ fn with_binary_without_integer_start_errors_badarg() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(binary, start)| {
-                    let stop = 1.into_process(&arc_process);
+                    let stop = arc_process.integer(1);
 
                     prop_assert_eq!(
                         erlang::binary_to_list_3(binary, start, stop, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -64,7 +62,7 @@ fn with_binary_with_integer_start_without_integer_stop_errors_badarg() {
                 |(binary, start, stop)| {
                     prop_assert_eq!(
                         erlang::binary_to_list_3(binary, start, stop, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -95,65 +93,58 @@ fn with_binary_with_start_less_than_or_equal_to_stop_returns_list_of_bytes() {
                         (Just(byte_vec), Just(binary), Just(start), start..=max_stop)
                     }),
                 |(byte_vec, binary, start, stop)| {
-                    // not using an iterator because that would too closely match the code under
-                    // test
-                    let list = match (start, stop) {
-                        (1, 1) => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::EMPTY_LIST,
-                            &arc_process,
-                        ),
-                        (1, 2) => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[1].into_process(&arc_process),
-                                Term::EMPTY_LIST,
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
-                        (1, 3) => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[1].into_process(&arc_process),
-                                Term::cons(
-                                    byte_vec[2].into_process(&arc_process),
-                                    Term::EMPTY_LIST,
-                                    &arc_process,
-                                ),
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
-                        (2, 2) => Term::cons(
-                            byte_vec[1].into_process(&arc_process),
-                            Term::EMPTY_LIST,
-                            &arc_process,
-                        ),
-                        (2, 3) => Term::cons(
-                            byte_vec[1].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[2].into_process(&arc_process),
-                                Term::EMPTY_LIST,
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
-                        (3, 3) => Term::cons(
-                            byte_vec[2].into_process(&arc_process),
-                            Term::EMPTY_LIST,
-                            &arc_process,
-                        ),
-                        _ => unimplemented!("(start, stop) = ({:?}, {:?})", start, stop),
+                    let (list, start_term, stop_term) = {
+                        // not using an iterator because that would too closely match the code under
+                        // test
+                        let list = match (start, stop) {
+                            (1, 1) => arc_process
+                                .cons(arc_process.integer(byte_vec[0]), Term::NIL)
+                                .unwrap(),
+                            (1, 2) => arc_process
+                                .cons(
+                                    arc_process.integer(byte_vec[0]),
+                                    arc_process
+                                        .cons(arc_process.integer(byte_vec[1]), Term::NIL)
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            (1, 3) => arc_process
+                                .cons(
+                                    arc_process.integer(byte_vec[0]),
+                                    arc_process
+                                        .cons(
+                                            arc_process.integer(byte_vec[1]),
+                                            arc_process
+                                                .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                                .unwrap(),
+                                        )
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            (2, 2) => arc_process
+                                .cons(arc_process.integer(byte_vec[1]), Term::NIL)
+                                .unwrap(),
+                            (2, 3) => arc_process
+                                .cons(
+                                    arc_process.integer(byte_vec[1]),
+                                    arc_process
+                                        .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                        .unwrap(),
+                                )
+                                .unwrap(),
+                            (3, 3) => arc_process
+                                .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                .unwrap(),
+                            _ => unimplemented!("(start, stop) = ({:?}, {:?})", start, stop),
+                        };
+                        let start_term = arc_process.integer(start);
+                        let stop_term = arc_process.integer(stop);
+
+                        (list, start_term, stop_term)
                     };
 
                     prop_assert_eq!(
-                        erlang::binary_to_list_3(
-                            binary,
-                            start.into_process(&arc_process),
-                            stop.into_process(&arc_process),
-                            &arc_process
-                        ),
+                        erlang::binary_to_list_3(binary, start_term, stop_term, &arc_process),
                         Ok(list)
                     );
 
@@ -184,14 +175,18 @@ fn with_binary_with_start_greater_than_stop_errors_badarg() {
                         (Just(binary), (stop + 1)..=max_start, Just(stop))
                     }),
                 |(binary, start, stop)| {
+                    let (start_term, stop_term) = {
+                        let mut heap = arc_process.acquire_heap();
+
+                        let start_term = heap.integer(start);
+                        let stop_term = heap.integer(stop);
+
+                        (start_term, stop_term)
+                    };
+
                     prop_assert_eq!(
-                        erlang::binary_to_list_3(
-                            binary,
-                            start.into_process(&arc_process),
-                            stop.into_process(&arc_process),
-                            &arc_process
-                        ),
-                        Err(badarg!())
+                        erlang::binary_to_list_3(binary, start_term, stop_term, &arc_process),
+                        Err(badarg!().into())
                     );
 
                     Ok(())

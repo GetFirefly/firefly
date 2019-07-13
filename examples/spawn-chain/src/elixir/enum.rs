@@ -1,13 +1,7 @@
 use std::sync::Arc;
 
-use lumen_runtime::atom::Existence::DoNotCare;
 use lumen_runtime::code::Code;
-use lumen_runtime::function::Function;
-use lumen_runtime::map::Map;
 use lumen_runtime::otp::erlang;
-use lumen_runtime::process::stack::frame::Frame;
-use lumen_runtime::process::{IntoProcess, ModuleFunctionArity, Process};
-use lumen_runtime::term::{Tag::*, Term};
 
 pub fn reduce_frame_with_arguments(enumerable: Term, initial: Term, reducer: Term) -> Frame {
     let module_function_arity = Arc::new(ModuleFunctionArity {

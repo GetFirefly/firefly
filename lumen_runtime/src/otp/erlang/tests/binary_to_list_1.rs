@@ -11,7 +11,7 @@ fn without_binary_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_list_1(binary, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -36,34 +36,31 @@ fn with_binary_returns_list_of_bytes() {
                     // not using an iterator because that would too closely match the code under
                     // test
                     let list = match byte_vec.len() {
-                        0 => Term::EMPTY_LIST,
-                        1 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::EMPTY_LIST,
-                            &arc_process,
-                        ),
-                        2 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[1].into_process(&arc_process),
-                                Term::EMPTY_LIST,
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
-                        3 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[1].into_process(&arc_process),
-                                Term::cons(
-                                    byte_vec[2].into_process(&arc_process),
-                                    Term::EMPTY_LIST,
-                                    &arc_process,
-                                ),
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
+                        0 => Term::NIL,
+                        1 => arc_process
+                            .cons(arc_process.integer(byte_vec[0]), Term::NIL)
+                            .unwrap(),
+                        2 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]),
+                                arc_process
+                                    .cons(arc_process.integer(byte_vec[1]), Term::NIL)
+                                    .unwrap(),
+                            )
+                            .unwrap(),
+                        3 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]),
+                                arc_process
+                                    .cons(
+                                        arc_process.integer(byte_vec[1]),
+                                        arc_process
+                                            .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                            .unwrap(),
+                                    )
+                                    .unwrap(),
+                            )
+                            .unwrap(),
                         len => unimplemented!("len = {:?}", len),
                     };
 

@@ -17,11 +17,8 @@ fn with_integer_right_returns_bitwise_and() {
                     let bor = result.unwrap();
 
                     prop_assert!(bor.is_integer());
-
-                    unsafe {
-                        prop_assert!(left.count_ones() <= bor.count_ones());
-                        prop_assert!(right.count_ones() <= bor.count_ones());
-                    }
+                    prop_assert!(count_ones(left) <= count_ones(bor));
+                    prop_assert!(count_ones(right) <= count_ones(bor));
 
                     Ok(())
                 },

@@ -12,7 +12,7 @@ fn without_tuple_or_bitstring_errors_badarg() {
                         !(term.is_tuple() || term.is_bitstring())
                     }),
                 |term| {
-                    prop_assert_eq!(erlang::size_1(term, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(erlang::size_1(term, &arc_process), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -39,7 +39,7 @@ fn with_tuple_returns_arity() {
                 |(size, term)| {
                     prop_assert_eq!(
                         erlang::size_1(term, &arc_process),
-                        Ok(size.into_process(&arc_process))
+                        Ok(arc_process.integer(size))
                     );
 
                     Ok(())
@@ -54,30 +54,18 @@ fn with_bitstring_is_byte_len() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_bitstring(arc_process.clone()), |term| {
-                let byte_len = match term.tag() {
-                    Boxed => {
-                        let unboxed: &Term = term.unbox_reference();
-
-                        match unboxed.tag() {
-                            HeapBinary => {
-                                let heap_binary: &heap::Binary = term.unbox_reference();
-
-                                heap_binary.byte_len()
-                            }
-                            Subbinary => {
-                                let subbinary: &sub::Binary = term.unbox_reference();
-
-                                subbinary.byte_count
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
+                let full_byte_len = match term.to_typed_term().unwrap() {
+                    TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                        TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
+                        TypedTerm::SubBinary(subbinary) => subbinary.full_byte_len(),
+                        _ => unreachable!(),
+                    },
                     _ => unreachable!(),
                 };
 
                 prop_assert_eq!(
                     erlang::size_1(term, &arc_process),
-                    Ok(byte_len.into_process(&arc_process))
+                    Ok(arc_process.integer(full_byte_len))
                 );
 
                 Ok(())

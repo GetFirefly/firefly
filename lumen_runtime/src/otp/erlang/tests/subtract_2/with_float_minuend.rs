@@ -53,11 +53,11 @@ fn with_float_minuend_with_float_subtrahend_returns_float() {
 #[test]
 fn with_float_subtrahend_with_underflow_returns_min_float() {
     with(|minuend, process| {
-        let subtrahend = std::f64::MAX.into_process(&process);
+        let subtrahend = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
             erlang::subtract_2(minuend, subtrahend, &process),
-            Ok(std::f64::MIN.into_process(&process))
+            Ok(process.float(std::f64::MIN).unwrap())
         );
     })
 }
@@ -65,21 +65,21 @@ fn with_float_subtrahend_with_underflow_returns_min_float() {
 #[test]
 fn with_float_subtrahend_with_overflow_returns_max_float() {
     with(|minuend, process| {
-        let subtrahend = std::f64::MIN.into_process(&process);
+        let subtrahend = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
             erlang::subtract_2(minuend, subtrahend, &process),
-            Ok(std::f64::MAX.into_process(&process))
+            Ok(process.float(std::f64::MAX).unwrap())
         );
     })
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let minuend = 2.0.into_process(&process);
+        let minuend = process.float(2.0).unwrap();
 
         f(minuend, &process)
     })

@@ -26,7 +26,7 @@ fn with_number_or_atom_returns_true() {
 
 #[test]
 fn with_greater_local_reference_right_returns_true() {
-    is_greater_than(|_, process| Term::local_reference(0, process), true);
+    is_greater_than(|_, process| process.reference(0).unwrap(), true);
 }
 
 #[test]
@@ -36,12 +36,12 @@ fn with_same_local_reference_right_returns_false() {
 
 #[test]
 fn with_same_value_local_reference_right_returns_false() {
-    is_greater_than(|_, process| Term::local_reference(1, process), false);
+    is_greater_than(|_, process| process.reference(1).unwrap(), false);
 }
 
 #[test]
 fn with_greater_local_reference_right_returns_false() {
-    is_greater_than(|_, process| Term::local_reference(2, process), false);
+    is_greater_than(|_, process| process.reference(2).unwrap(), false);
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn with_function_port_pid_tuple_map_list_or_bitstring_returns_false() {
                     strategy::term(arc_process.clone()).prop_filter(
                         "Right must be function, port, pid, tuple, map, list, or bitstring",
                         |right| {
-                            right.is_function()
+                            right.is_closure()
                                 || right.is_port()
                                 || right.is_pid()
                                 || right.is_tuple()
@@ -76,7 +76,7 @@ fn with_function_port_pid_tuple_map_list_or_bitstring_returns_false() {
 
 fn is_greater_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::is_greater_than(|process| Term::local_reference(1, process), right, expected);
+    super::is_greater_than(|process| process.reference(1).unwrap(), right, expected);
 }

@@ -17,7 +17,7 @@ fn without_reference_errors_badarg() {
                 |(timer_reference, options)| {
                     prop_assert_eq!(
                         erlang::read_timer_2(timer_reference, options, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -39,7 +39,7 @@ fn with_reference_without_list_options_errors_badarg() {
                 |(timer_reference, options)| {
                     prop_assert_eq!(
                         erlang::read_timer_2(timer_reference, options, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -49,22 +49,22 @@ fn with_reference_without_list_options_errors_badarg() {
     });
 }
 
-fn async_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn async_option(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     strategy::term::is_boolean()
         .prop_map(move |async_value| {
-            Term::slice_to_tuple(
-                &[Term::str_to_atom("async", DoNotCare).unwrap(), async_value],
-                &arc_process,
-            )
+            arc_process
+                .tuple_from_slice(&[atom_unchecked("async"), async_value])
+                .unwrap()
         })
         .boxed()
 }
 
-fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn options(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     prop_oneof![
-        Just(Term::EMPTY_LIST),
-        async_option(arc_process.clone())
-            .prop_map(move |async_option| { Term::slice_to_list(&[async_option], &arc_process) })
+        Just(Term::NIL),
+        async_option(arc_process.clone()).prop_map(move |async_option| {
+            arc_process.list_from_slice(&[async_option]).unwrap()
+        })
     ]
     .boxed()
 }

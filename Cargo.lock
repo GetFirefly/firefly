@@ -394,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "typenum 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -434,7 +434,7 @@ dependencies = [
 [[package]]
 name = "hashbrown"
 version = "0.5.0"
-source = "git+https://github.com/KronicDeth/hashbrown.git?branch=E0658#c6b00ca287cd5b38a070301b4186f109c9665150"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "heapless"
@@ -442,7 +442,7 @@ version = "0.5.0-alpha.2"
 source = "git+https://github.com/japaric/heapless#531432b75b8d28efb35b8d7b3998b0cacc5e83ee"
 dependencies = [
  "as-slice 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "generic-array 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "generic-array 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hash32 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -588,7 +588,7 @@ name = "liblumen_alloc"
 version = "0.1.0"
 dependencies = [
  "cfg-if 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "hashbrown 0.5.0 (git+https://github.com/KronicDeth/hashbrown.git?branch=E0658)",
+ "hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "heapless 0.5.0-alpha.2 (git+https://github.com/japaric/heapless)",
  "intrusive-collections 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -753,11 +753,15 @@ dependencies = [
  "cfg-if 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "im 12.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "internment 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "intrusive-collections 0.7.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.54 (registry+https://github.com/rust-lang/crates.io-index)",
+ "liblumen_alloc 0.1.0",
  "liblumen_arena 0.1.0",
+ "liblumen_core 0.1.0",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1418,6 +1422,7 @@ name = "spawn-chain"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "liblumen_alloc 0.1.0",
  "lumen_runtime 0.1.0",
  "num-bigint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "time-test 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1954,12 +1959,12 @@ dependencies = [
 "checksum fuchsia-cprng 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 "checksum futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)" = "a2037ec1c6c1c4f79557762eab1f7eae1f64f6cb418ace90fae88f0942b60139"
 "checksum generic-array 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3c0f28c2f5bfb5960175af447a2da7c18900693738343dc896ffbcabd9839592"
-"checksum generic-array 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1d3904420fad470d07ec9e4dbac00c2dc46765d3c4eb6cd1d9bb4d9c8a09c5f6"
+"checksum generic-array 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)" = "1d9582501ecd567475c637337f51232d8adac81f31e4bd241edd40ad25a12bdf"
 "checksum glob 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)" = "8be18de09a56b60ed0edf84bc9df007e30040691af7acd1c41874faac5895bfb"
 "checksum gmp-mpfr-sys 1.1.12 (registry+https://github.com/rust-lang/crates.io-index)" = "988a7234dbdea4e1269c399407ebb848d1241714b3bfc80fdc16f5c1116b0a60"
 "checksum hash32 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "12d790435639c06a7b798af9e1e331ae245b7ef915b92f70a39b4cf8c00686af"
 "checksum hashbrown 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "3bae29b6653b3412c2e71e9d486db9f9df5d701941d86683005efb9f2d28e3da"
-"checksum hashbrown 0.5.0 (git+https://github.com/KronicDeth/hashbrown.git?branch=E0658)" = "<none>"
+"checksum hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e1de41fb8dba9714efd92241565cdff73f78508c95697dd56787d3cba27e2353"
 "checksum heapless 0.5.0-alpha.2 (git+https://github.com/japaric/heapless)" = "<none>"
 "checksum heck 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "20564e78d53d2bb135c343b3f47714a56af2061f1c928fdb541dc7b9fdd94205"
 "checksum human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "21638c5955a6daf3ecc42cae702335fc37a72a4abcc6959ce457b31a7d43bbdd"

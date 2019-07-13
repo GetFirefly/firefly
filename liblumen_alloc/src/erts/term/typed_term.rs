@@ -1,8 +1,14 @@
 use core::alloc::AllocErr;
 use core::cmp;
+use core::convert::TryInto;
 use core::mem;
 
+use alloc::string::String;
+
+use num_bigint::{BigInt, Sign};
+
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::runtime;
 use crate::erts::ProcessControlBlock;
 
 use super::*;
@@ -395,6 +401,86 @@ impl CloneToProcess for TypedTerm {
             &Self::MatchContext(ref inner) => inner.size_in_words(),
             &Self::Closure(ref inner) => inner.size_in_words(),
             _ => 1,
+        }
+    }
+}
+
+impl TryInto<bool> for TypedTerm {
+    type Error = BoolError;
+
+    fn try_into(self) -> Result<bool, Self::Error> {
+        match self {
+            TypedTerm::Atom(atom) => match atom.name() {
+                "false" => Ok(false),
+                "true" => Ok(true),
+                _ => Err(BoolError::NotABooleanName),
+            },
+            _ => Err(BoolError::Type),
+        }
+    }
+}
+
+impl TryInto<f64> for TypedTerm {
+    type Error = TypeError;
+
+    fn try_into(self) -> Result<f64, Self::Error> {
+        match self {
+            TypedTerm::SmallInteger(small_integer) => Ok(small_integer.into()),
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::BigInteger(big_integer) => Ok(big_integer.into()),
+                TypedTerm::Float(float) => Ok(float.into()),
+                _ => Err(TypeError),
+            },
+            _ => Err(TypeError),
+        }
+    }
+}
+
+impl TryInto<isize> for TypedTerm {
+    type Error = TypeError;
+
+    fn try_into(self) -> Result<isize, Self::Error> {
+        match self {
+            TypedTerm::SmallInteger(small_integer) => Ok(small_integer.into()),
+            TypedTerm::BigInteger(big_integer) => {
+                let big_int: &BigInt = big_integer.as_ref().into();
+
+                match big_int.to_bytes_be() {
+                    (Sign::NoSign, _) => Ok(0),
+                    (sign, bytes) => {
+                        let integer_usize = bytes
+                            .iter()
+                            .fold(0_usize, |acc, byte| (acc << 8) | (*byte as usize));
+
+                        let integer_isize = if sign == Sign::Minus {
+                            -(integer_usize as isize)
+                        } else {
+                            assert_eq!(sign, Sign::Plus);
+
+                            integer_usize as isize
+                        };
+
+                        Ok(integer_isize)
+                    }
+                }
+            }
+            TypedTerm::Boxed(unboxed) => unboxed.to_typed_term().unwrap().try_into(),
+            _ => Err(TypeError),
+        }
+    }
+}
+
+impl TryInto<String> for TypedTerm {
+    type Error = runtime::Exception;
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        match self {
+            TypedTerm::Boxed(unboxed) => unboxed.to_typed_term().unwrap().try_into(),
+            TypedTerm::HeapBinary(heap_binary) => heap_binary.try_into(),
+            TypedTerm::SubBinary(subbinary) => subbinary.try_into(),
+            TypedTerm::ProcBin(process_binary) => process_binary.try_into(),
+            TypedTerm::MatchContext(match_context) => match_context.try_into(),
+            _ => Err(badarg!()),
         }
     }
 }

@@ -14,7 +14,7 @@ fn without_atom_errors_badarg() {
                 |(atom, encoding)| {
                     prop_assert_eq!(
                         erlang::atom_to_binary_2(atom, encoding, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -36,7 +36,7 @@ fn with_atom_without_encoding_errors_badarg() {
                 |(atom, encoding)| {
                     prop_assert_eq!(
                         erlang::atom_to_binary_2(atom, encoding, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -51,17 +51,12 @@ fn with_atom_with_encoding_atom_returns_name_in_binary() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &(any::<String>(), strategy::term::is_encoding()).prop_map(|(string, encoding)| {
-                    (
-                        Term::str_to_atom(&string, DoNotCare).unwrap(),
-                        encoding,
-                        string,
-                    )
-                }),
+                &(any::<String>(), strategy::term::is_encoding())
+                    .prop_map(|(string, encoding)| (atom_unchecked(&string), encoding, string)),
                 |(atom, encoding, string)| {
                     prop_assert_eq!(
                         erlang::atom_to_binary_2(atom, encoding, &arc_process),
-                        Ok(Term::slice_to_binary(string.as_bytes(), &arc_process))
+                        Ok(arc_process.binary_from_bytes(string.as_bytes()).unwrap())
                     );
 
                     Ok(())

@@ -10,19 +10,19 @@ fn with_different_process_sends_message_when_timer_expires() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let destination_arc_process = process::local::test(&arc_process);
+                    let destination_arc_process = process::test(&arc_process);
                     let destination = registered_name();
 
                     prop_assert_eq!(
                         erlang::register_2(
                             destination,
-                            destination_arc_process.pid,
+                            destination_arc_process.pid_term(),
                             arc_process.clone()
                         ),
                         Ok(true.into())
                     );
 
-                    let time = milliseconds.into_process(&arc_process);
+                    let time = arc_process.integer(milliseconds);
 
                     let result = erlang::send_after_4(
                         time,
@@ -40,17 +40,12 @@ fn with_different_process_sends_message_when_timer_expires() {
 
                     let timer_reference = result.unwrap();
 
-                    prop_assert_eq!(timer_reference.tag(), Boxed);
-
-                    let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                    prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
-
+                    prop_assert!(timer_reference.is_local_reference());
                     prop_assert!(!has_message(&destination_arc_process, message));
 
                     thread::sleep(Duration::from_millis(milliseconds + 1));
 
-                    timer::timeout();
+                    timer::timeout().unwrap();
 
                     prop_assert!(has_message(&destination_arc_process, message));
 
@@ -76,11 +71,11 @@ fn with_same_process_sends_message_when_timer_expires() {
                 let destination = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2(destination, arc_process.pid, arc_process.clone()),
+                    erlang::register_2(destination, arc_process.pid_term(), arc_process.clone()),
                     Ok(true.into())
                 );
 
-                let time = milliseconds.into_process(&arc_process);
+                let time = arc_process.integer(milliseconds);
 
                 let result =
                     erlang::send_after_4(time, destination, message, OPTIONS, arc_process.clone());
@@ -93,17 +88,12 @@ fn with_same_process_sends_message_when_timer_expires() {
 
                 let timer_reference = result.unwrap();
 
-                prop_assert_eq!(timer_reference.tag(), Boxed);
-
-                let unboxed_timer_reference: &Term = timer_reference.unbox_reference();
-
-                prop_assert_eq!(unboxed_timer_reference.tag(), LocalReference);
-
+                prop_assert!(timer_reference.is_local_reference());
                 prop_assert!(!has_message(&arc_process, message));
 
                 thread::sleep(Duration::from_millis(milliseconds + 1));
 
-                timer::timeout();
+                timer::timeout().unwrap();
 
                 prop_assert!(has_message(&arc_process, message));
 

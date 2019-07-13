@@ -13,11 +13,13 @@ fn unregistered_errors_badarg() {
                 ),
                 |(message, options)| {
                     let name = registered_name();
-                    let destination = Term::slice_to_tuple(&[name, erlang::node_0()], &arc_process);
+                    let destination = arc_process
+                        .tuple_from_slice(&[name, erlang::node_0()])
+                        .unwrap();
 
                     prop_assert_eq!(
                         erlang::send_3(destination, message, options, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

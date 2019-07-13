@@ -1,41 +1,41 @@
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock, Weak};
+use core::alloc::AllocErr;
+use core::sync::atomic::{AtomicU64, Ordering};
 
-use crate::code::Code;
+use alloc::sync::{Arc, Weak};
+
+use hashbrown::HashMap;
+
+use liblumen_core::locks::{Mutex, RwLock};
+
+use liblumen_alloc::erts::process::code::Code;
 #[cfg(test)]
+use liblumen_alloc::erts::process::Priority;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+pub use liblumen_alloc::erts::scheduler::ID;
+use liblumen_alloc::erts::term::{reference, Atom, Reference, Term};
+
 use crate::process;
-use crate::process::local::put_pid_to_process;
-use crate::process::Process;
-use crate::reference;
+use crate::registry::put_pid_to_process;
 use crate::run;
 use crate::run::Run;
-use crate::term::Term;
 use crate::timer::Hierarchy;
 
 mod id;
 
-#[derive(Clone, Eq, Hash, PartialEq)]
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct ID(id::Raw);
+pub trait Scheduled {
+    fn scheduler(&self) -> Option<Arc<Scheduler>>;
+}
 
-impl ID {
-    fn new(raw: id::Raw) -> ID {
-        ID(raw)
+impl Scheduled for ProcessControlBlock {
+    fn scheduler(&self) -> Option<Arc<Scheduler>> {
+        self.scheduler_id()
+            .and_then(|scheduler_id| Scheduler::from_id(&scheduler_id))
     }
 }
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub enum Priority {
-    Low,
-    Normal,
-    High,
-    Max,
-}
-
-impl Default for Priority {
-    fn default() -> Priority {
-        Priority::Normal
+impl Scheduled for Reference {
+    fn scheduler(&self) -> Option<Arc<Scheduler>> {
+        Scheduler::from_id(&self.scheduler_id())
     }
 }
 
@@ -56,7 +56,6 @@ impl Scheduler {
         Self::current_from_id(id).or_else(|| {
             SCHEDULERS
                 .lock()
-                .unwrap()
                 .scheduler_by_id
                 .get(id)
                 .and_then(|arc_scheduler| arc_scheduler.upgrade())
@@ -73,20 +72,8 @@ impl Scheduler {
         })
     }
 
-    pub fn next_reference_number(&self) -> reference::local::Number {
+    pub fn next_reference_number(&self) -> reference::Number {
         self.reference_count.fetch_add(1, Ordering::SeqCst)
-    }
-
-    pub fn next_reference(&self, process: &Process) -> &'static reference::local::Reference {
-        self.reference(self.next_reference_number(), process)
-    }
-
-    pub fn reference(
-        &self,
-        number: reference::local::Number,
-        process: &Process,
-    ) -> &'static reference::local::Reference {
-        process.local_reference(&self.id, number)
     }
 
     /// > 1. Update reduction counters
@@ -114,18 +101,26 @@ impl Scheduler {
     /// > 8. Pick a process to execute
     /// > -- [The Scheduler Loop](https://blog.stenmans.org/theBeamBook/#_the_scheduler_loop)
     fn run_once(&self) {
-        self.hierarchy.write().unwrap().timeout(&self.id);
+        match self.hierarchy.write().timeout(&self.id) {
+            Ok(()) => (),
+            Err(_) => unimplemented!(
+                "GC _everything_ to get free space for `Messages.alloc` during `send_message`"
+            ),
+        };
 
         loop {
             // separate from `match` below so that WriteGuard temporary is not held while process
             // runs.
-            let run = self.run_queues.write().unwrap().dequeue();
+            let run = self.run_queues.write().dequeue();
 
             match run {
                 Run::Now(arc_process) => {
-                    Process::run(&arc_process);
+                    match ProcessControlBlock::run(&arc_process) {
+                        Ok(()) => (),
+                        Err(_) => unimplemented!("GC `arc_process`"),
+                    }
 
-                    match self.run_queues.write().unwrap().requeue(arc_process) {
+                    match self.run_queues.write().requeue(arc_process) {
                         // TODO exit logging
                         Some(_exiting_arc_process) => {}
                         None => (),
@@ -141,15 +136,15 @@ impl Scheduler {
     }
 
     pub fn run_queues_len(&self) -> usize {
-        self.run_queues.read().unwrap().len()
+        self.run_queues.read().len()
     }
 
     #[cfg(test)]
     pub fn run_queue_len(&self, priority: Priority) -> usize {
-        self.run_queues.read().unwrap().run_queue_len(priority)
+        self.run_queues.read().run_queue_len(priority)
     }
 
-    pub fn run_through(&self, arc_process: &Arc<Process>) {
+    pub fn run_through(&self, arc_process: &Arc<ProcessControlBlock>) {
         let ordering = Ordering::SeqCst;
         let reductions_before = arc_process.total_reductions.load(ordering);
 
@@ -159,76 +154,67 @@ impl Scheduler {
         }
     }
 
+    fn schedule(
+        self: Arc<Scheduler>,
+        process_control_block: ProcessControlBlock,
+    ) -> Arc<ProcessControlBlock> {
+        let mut writable_run_queues = self.run_queues.write();
+
+        process_control_block.schedule_with(self.id);
+
+        let arc_process_control_block = Arc::new(process_control_block);
+
+        writable_run_queues.enqueue(Arc::clone(&arc_process_control_block));
+
+        arc_process_control_block
+    }
+
     /// `arguments` are put in reverse order on the stack where `code` can use them
     pub fn spawn(
-        parent_process: &Process,
-        module: Term,
-        function: Term,
+        parent_process: &ProcessControlBlock,
+        module: Atom,
+        function: Atom,
         arguments: Term,
         code: Code,
-    ) -> Arc<Process> {
-        let process = Process::spawn(parent_process, module, function, arguments, code);
-        let parent_locked_option_weak_scheduler = parent_process.scheduler.lock().unwrap();
-
-        let arc_scheduler = match *parent_locked_option_weak_scheduler {
-            Some(ref weak_scheduler) => match weak_scheduler.upgrade() {
-                Some(arc_scheduler) => arc_scheduler,
-                None => {
-                    #[cfg(debug_assertions)]
-                    panic!(
-                        "Parent process ({:?}) Scheduler has been Dropped",
-                        parent_process
-                    );
-                    #[cfg(not(debug_assertions))]
-                    panic!("Parent process Scheduler has been Dropped");
-                }
-            },
-            None => {
-                #[cfg(debug_assertions)]
-                panic!(
-                    "Parent process ({:?}) is not assigned to a Scheduler",
-                    parent_process
-                );
-                #[cfg(not(debug_assertions))]
-                panic!("Parent process is not assigned to a Scheduler");
-            }
-        };
-
-        let mut writable_run_queues = arc_scheduler.run_queues.write().unwrap();
-
-        {
-            let mut locked_option_weak_scheduler = process.scheduler.lock().unwrap();
-            *locked_option_weak_scheduler = Some(Arc::downgrade(&arc_scheduler));
-        }
-
-        let arc_process = Arc::new(process);
-
-        writable_run_queues.enqueue(Arc::clone(&arc_process));
+        heap: *mut Term,
+        heap_size: usize,
+    ) -> Result<Arc<ProcessControlBlock>, AllocErr> {
+        let process = process::spawn(
+            parent_process,
+            module,
+            function,
+            arguments,
+            code,
+            heap,
+            heap_size,
+        )?;
+        let arc_scheduler = parent_process.scheduler().unwrap();
+        let arc_process = arc_scheduler.schedule(process);
 
         put_pid_to_process(&arc_process);
 
-        arc_process
+        Ok(arc_process)
     }
 
-    pub fn spawn_init(self: Arc<Scheduler>) -> Arc<Process> {
-        let arc_process = Arc::new(Process::init());
+    pub fn spawn_init(self: Arc<Scheduler>) -> Result<Arc<ProcessControlBlock>, AllocErr> {
+        let process = process::init()?;
+        let arc_process = Arc::new(process);
         let scheduler_arc_process = Arc::clone(&arc_process);
 
         // `parent_process.scheduler.lock` has to be taken first to even get the run queue in
         // `spawn`, so copy that lock order here.
-        let mut locked_option_weak_scheduler = scheduler_arc_process.scheduler.lock().unwrap();
-        let mut writable_run_queues = self.run_queues.write().unwrap();
+        scheduler_arc_process.schedule_with(self.id);
+        let mut writable_run_queues = self.run_queues.write();
 
-        *locked_option_weak_scheduler = Some(Arc::downgrade(&self));
         writable_run_queues.enqueue(Arc::clone(&arc_process));
 
         put_pid_to_process(&arc_process);
 
-        arc_process
+        Ok(arc_process)
     }
 
-    pub fn stop_waiting(&self, process: &Process) {
-        self.run_queues.write().unwrap().stop_waiting(process);
+    pub fn stop_waiting(&self, process: &ProcessControlBlock) {
+        self.run_queues.write().stop_waiting(process);
     }
 
     // Private
@@ -243,7 +229,7 @@ impl Scheduler {
     }
 
     fn registered() -> Arc<Scheduler> {
-        let mut locked_schedulers = SCHEDULERS.lock().unwrap();
+        let mut locked_schedulers = SCHEDULERS.lock();
         let raw_id = locked_schedulers.id_manager.alloc();
         let arc_scheduler = Arc::new(Scheduler::new(raw_id));
 
@@ -266,7 +252,7 @@ impl Scheduler {
 
 impl Drop for Scheduler {
     fn drop(&mut self) {
-        let mut locked_schedulers = SCHEDULERS.lock().unwrap();
+        let mut locked_schedulers = SCHEDULERS.lock();
 
         locked_schedulers
             .scheduler_by_id
@@ -315,17 +301,17 @@ lazy_static! {
 #[cfg(test)]
 pub fn with_process<F>(f: F)
 where
-    F: FnOnce(&Process) -> (),
+    F: FnOnce(&ProcessControlBlock) -> (),
 {
-    f(&process::local::test(&process::local::test_init()))
+    f(&process::test(&process::test_init()))
 }
 
 #[cfg(test)]
 pub fn with_process_arc<F>(f: F)
 where
-    F: FnOnce(Arc<Process>) -> (),
+    F: FnOnce(Arc<ProcessControlBlock>) -> (),
 {
-    f(process::local::test(&process::local::test_init()))
+    f(process::test(&process::test_init()))
 }
 
 #[cfg(test)]
@@ -338,34 +324,48 @@ mod tests {
         mod new_process {
             use super::*;
 
-            use crate::atom::Existence::DoNotCare;
+            use liblumen_alloc::erts::process::default_heap;
+            use liblumen_alloc::erts::term::atom_unchecked;
+
             use crate::code;
             use crate::otp::erlang;
 
             #[test]
             fn different_processes_have_different_pids() {
-                let erlang = Term::str_to_atom("erlang", DoNotCare).unwrap();
-                let exit = Term::str_to_atom("exit", DoNotCare).unwrap();
-                let normal = Term::str_to_atom("normal", DoNotCare).unwrap();
-                let parent_arc_process = process::local::test_init();
+                let erlang = Atom::try_from_str("erlang").unwrap();
+                let exit = Atom::try_from_str("exit").unwrap();
+                let normal = atom_unchecked("normal");
+                let parent_arc_process_control_block = process::test_init();
 
-                let first_process_arguments = Term::slice_to_list(&[normal], &parent_arc_process);
+                let first_process_arguments = parent_arc_process_control_block
+                    .list_from_slice(&[normal])
+                    .unwrap();
+                let (first_heap, first_heap_size) = default_heap().unwrap();
                 let first_process = Scheduler::spawn(
-                    &parent_arc_process,
+                    &parent_arc_process_control_block,
                     erlang,
                     exit,
                     first_process_arguments,
                     code::apply_fn(),
-                );
+                    first_heap,
+                    first_heap_size,
+                )
+                .unwrap();
 
-                let second_process_arguments = Term::slice_to_list(&[normal], &parent_arc_process);
+                let second_process_arguments = parent_arc_process_control_block
+                    .list_from_slice(&[normal])
+                    .unwrap();
+                let (second_heap, second_heap_size) = default_heap().unwrap();
                 let second_process = Scheduler::spawn(
                     &first_process,
                     erlang,
                     exit,
                     second_process_arguments,
                     code::apply_fn(),
-                );
+                    second_heap,
+                    second_heap_size,
+                )
+                .unwrap();
 
                 assert_ne!(
                     erlang::self_0(&first_process),

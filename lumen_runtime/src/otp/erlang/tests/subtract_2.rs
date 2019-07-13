@@ -15,7 +15,7 @@ fn without_number_minuend_errors_badarith() {
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
                         erlang::subtract_2(minuend, subtrahend, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -37,7 +37,7 @@ fn with_number_minuend_without_number_subtrahend_errors_badarith() {
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
                         erlang::subtract_2(minuend, subtrahend, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())

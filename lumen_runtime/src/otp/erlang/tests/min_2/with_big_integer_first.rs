@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn with_lesser_small_integer_second_returns_second() {
-    min(|_, process| 0.into_process(&process), Second)
+    min(|_, process| process.integer(0), Second)
 }
 
 #[test]
 fn with_greater_small_integer_second_returns_first() {
     super::min(
-        |process| (crate::integer::small::MIN - 1).into_process(&process),
-        |_, process| crate::integer::small::MIN.into_process(&process),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.integer(SmallInteger::MIN_VALUE),
         First,
     );
 }
@@ -17,7 +17,7 @@ fn with_greater_small_integer_second_returns_first() {
 #[test]
 fn with_lesser_big_integer_second_returns_second() {
     min(
-        |_, process| (crate::integer::small::MIN - 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
         Second,
     )
 }
@@ -30,7 +30,7 @@ fn with_same_big_integer_second_returns_first() {
 #[test]
 fn with_same_value_big_integer_second_returns_first() {
     min(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
         First,
     )
 }
@@ -38,21 +38,21 @@ fn with_same_value_big_integer_second_returns_first() {
 #[test]
 fn with_greater_big_integer_second_returns_first() {
     min(
-        |_, process| (crate::integer::small::MAX + 2).into_process(&process),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 2),
         First,
     )
 }
 
 #[test]
 fn with_lesser_float_second_returns_second() {
-    min(|_, process| 0.0.into_process(&process), Second)
+    min(|_, process| process.float(1.0).unwrap(), Second)
 }
 
 #[test]
 fn with_greater_float_second_returns_first() {
     super::min(
-        |process| (crate::integer::small::MIN - 1).into_process(&process),
-        |_, process| 0.0.into_process(&process),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.float(1.0).unwrap(),
         First,
     );
 }
@@ -78,10 +78,10 @@ fn without_second_number_returns_first() {
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::min(
-        |process| (crate::integer::small::MAX + 1).into_process(&process),
+        |process| process.integer(SmallInteger::MAX_VALUE + 1),
         second,
         which,
     );

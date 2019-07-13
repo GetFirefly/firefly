@@ -26,13 +26,17 @@ fn without_list_or_bitstring_returns_false() {
 
 #[test]
 fn with_empty_list_right_returns_false() {
-    is_less_than(|_, _| Term::EMPTY_LIST, false);
+    is_less_than(|_, _| Term::NIL, false);
 }
 
 #[test]
 fn with_lesser_list_right_returns_false() {
     is_less_than(
-        |_, process| Term::cons(0.into_process(&process), 0.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0), process.integer(0))
+                .unwrap()
+        },
         false,
     );
 }
@@ -45,7 +49,11 @@ fn with_same_list_right_returns_false() {
 #[test]
 fn with_same_value_list_right_returns_false() {
     is_less_than(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0), process.integer(1))
+                .unwrap()
+        },
         false,
     );
 }
@@ -53,7 +61,11 @@ fn with_same_value_list_right_returns_false() {
 #[test]
 fn with_greater_list_right_returns_true() {
     is_less_than(
-        |_, process| Term::cons(0.into_process(&process), 2.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0), process.integer(2))
+                .unwrap()
+        },
         true,
     );
 }
@@ -79,10 +91,14 @@ fn with_bitstring_right_returns_true() {
 
 fn is_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_less_than(
-        |process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
+        |process| {
+            process
+                .cons(process.integer(0), process.integer(1))
+                .unwrap()
+        },
         right,
         expected,
     );

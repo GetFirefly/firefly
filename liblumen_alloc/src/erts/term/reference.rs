@@ -1,26 +1,52 @@
-use core::alloc::AllocErr;
+use core::alloc::{AllocErr, Layout};
 use core::cmp;
 use core::fmt;
 use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{to_word_size, HeapAlloc, Node};
+use crate::erts::{scheduler, to_word_size, HeapAlloc, Node};
 
 use super::{AsTerm, Term};
 
-#[cfg(target_pointer_width = "32")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Reference([u32; 3]);
+pub type Number = u64;
 
-#[cfg(target_pointer_width = "64")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Reference([u64; 2]);
+#[derive(Debug, Clone, Copy, Eq)]
+pub struct Reference {
+    header: Term,
+    scheduler_id: scheduler::ID,
+    number: Number,
+}
 
 impl Reference {
+    /// Create a new `Reference` struct
+    pub fn new(scheduler_id: scheduler::ID, number: Number) -> Self {
+        Self {
+            header: Term::make_header(0, Term::FLAG_REFERENCE),
+            scheduler_id,
+            number,
+        }
+    }
+
     /// Reifies a `Reference` from a raw pointer
     pub unsafe fn from_raw(ptr: *mut Reference) -> Self {
         *ptr
+    }
+
+    /// This function produces a `Layout` which represents the memory layout
+    /// needed for the reference header, scheduler ID and number.
+    #[inline]
+    pub const fn layout() -> Layout {
+        let size = mem::size_of::<Self>();
+        unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
+    }
+
+    pub fn scheduler_id(&self) -> scheduler::ID {
+        self.scheduler_id
+    }
+
+    pub fn number(&self) -> Number {
+        self.number
     }
 }
 
@@ -44,10 +70,27 @@ impl CloneToProcess for Reference {
         to_word_size(mem::size_of_val(self))
     }
 }
+impl Ord for Reference {
+    fn cmp(&self, other: &Reference) -> cmp::Ordering {
+        self.scheduler_id
+            .cmp(&other.scheduler_id)
+            .then_with(|| self.number.cmp(&other.number))
+    }
+}
+impl PartialEq<Reference> for Reference {
+    fn eq(&self, other: &Reference) -> bool {
+        (self.scheduler_id == other.scheduler_id) && (self.number == other.number)
+    }
+}
 impl PartialEq<ExternalReference> for Reference {
     #[inline]
     fn eq(&self, _other: &ExternalReference) -> bool {
         false
+    }
+}
+impl PartialOrd<Reference> for Reference {
+    fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 impl PartialOrd<ExternalReference> for Reference {

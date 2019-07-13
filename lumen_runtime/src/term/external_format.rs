@@ -1,9 +1,8 @@
 //! [External Term Format](http://erlang.org/doc/apps/erts/erl_ext_dist.html)
+use core::convert::TryFrom;
 
-use crate::exception::Exception;
-use crate::process::{Process, TryFromInProcess};
-
-pub const VERSION_NUMBER: u8 = 131;
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::exception::runtime::Exception;
 
 pub enum Tag {
     NewFloat = 70,
@@ -20,8 +19,10 @@ pub enum Tag {
     SmallAtomUTF8 = 119,
 }
 
-impl TryFromInProcess<u8> for Tag {
-    fn try_from_in_process(tag_byte: u8, _process: &Process) -> Result<Tag, Exception> {
+impl TryFrom<u8> for Tag {
+    type Error = Exception;
+
+    fn try_from(tag_byte: u8) -> Result<Tag, Exception> {
         use crate::term::external_format::Tag::*;
 
         match tag_byte {
@@ -37,7 +38,7 @@ impl TryFromInProcess<u8> for Tag {
             109 => Ok(Binary),
             110 => Ok(SmallBigInteger),
             119 => Ok(SmallAtomUTF8),
-            _ => panic!("tag_byte = {}", tag_byte),
+            _ => Err(badarg!()),
         }
     }
 }

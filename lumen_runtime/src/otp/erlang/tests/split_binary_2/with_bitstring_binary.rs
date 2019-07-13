@@ -15,7 +15,7 @@ fn without_non_negative_integer_position_errors_badarg() {
                 |(binary, position)| {
                     prop_assert_eq!(
                         erlang::split_binary_2(binary, position, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -28,7 +28,7 @@ fn without_non_negative_integer_position_errors_badarg() {
 #[test]
 fn with_zero_position_returns_empty_prefix_and_binary() {
     with_process_arc(|arc_process| {
-        let position = 0.into_process(&arc_process);
+        let position = arc_process.integer(0);
 
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -36,10 +36,12 @@ fn with_zero_position_returns_empty_prefix_and_binary() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::split_binary_2(binary, position, &arc_process),
-                        Ok(Term::slice_to_tuple(
-                            &[Term::slice_to_binary(&[], &arc_process), binary],
-                            &arc_process
-                        ))
+                        Ok(arc_process
+                            .tuple_from_slice(&[
+                                arc_process.binary_from_bytes(&[]).unwrap(),
+                                binary
+                            ],)
+                            .unwrap())
                     );
 
                     Ok(())

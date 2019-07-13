@@ -14,13 +14,13 @@ fn errors_badarg() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = milliseconds.into_process(&arc_process);
+                let time = arc_process.integer(milliseconds);
                 let destination = registered_name();
                 let options = options(&arc_process);
 
                 prop_assert_eq!(
                     erlang::start_timer_4(time, destination, message, options, arc_process.clone()),
-                    Err(badarg!())
+                    Err(badarg!().into())
                 );
 
                 Ok(())

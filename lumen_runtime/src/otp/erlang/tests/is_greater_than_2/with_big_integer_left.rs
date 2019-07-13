@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn with_greater_small_integer_right_returns_true() {
-    is_greater_than(|_, process| 0.into_process(&process), true)
+    is_greater_than(|_, process| process.integer(0), true)
 }
 
 #[test]
 fn with_greater_small_integer_right_returns_false() {
     super::is_greater_than(
-        |process| (crate::integer::small::MIN - 1).into_process(&process),
-        |_, process| crate::integer::small::MIN.into_process(&process),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.integer(SmallInteger::MIN_VALUE),
         false,
     );
 }
@@ -17,7 +17,7 @@ fn with_greater_small_integer_right_returns_false() {
 #[test]
 fn with_greater_big_integer_right_returns_true() {
     is_greater_than(
-        |_, process| (crate::integer::small::MIN - 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
         true,
     )
 }
@@ -25,7 +25,7 @@ fn with_greater_big_integer_right_returns_true() {
 #[test]
 fn with_same_value_big_integer_right_returns_false() {
     is_greater_than(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
         false,
     )
 }
@@ -33,21 +33,21 @@ fn with_same_value_big_integer_right_returns_false() {
 #[test]
 fn with_greater_big_integer_right_returns_false() {
     is_greater_than(
-        |_, process| (crate::integer::small::MAX + 2).into_process(&process),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 2),
         false,
     )
 }
 
 #[test]
 fn with_greater_float_right_returns_true() {
-    is_greater_than(|_, process| 0.0.into_process(&process), true)
+    is_greater_than(|_, process| process.float(1.0).unwrap(), true)
 }
 
 #[test]
 fn with_greater_float_right_returns_false() {
     super::is_greater_than(
-        |process| (crate::integer::small::MIN - 1).into_process(&process),
-        |_, process| 0.0.into_process(&process),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.float(1.0).unwrap(),
         false,
     );
 }
@@ -73,10 +73,10 @@ fn without_number_returns_false() {
 
 fn is_greater_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_greater_than(
-        |process| (crate::integer::small::MAX + 1).into_process(&process),
+        |process| process.integer(SmallInteger::MAX_VALUE + 1),
         right,
         expected,
     );

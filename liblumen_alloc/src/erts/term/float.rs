@@ -1,5 +1,6 @@
 use core::alloc::AllocErr;
 use core::cmp::Ordering;
+use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display};
 use core::hash::{self, Hash};
 use core::ops::*;
@@ -11,6 +12,7 @@ use crate::borrow::CloneToProcess;
 
 use super::{AsTerm, HeapAlloc, Term};
 use super::{BigInteger, SmallInteger};
+use crate::erts::term::{TypeError, TypedTerm};
 
 /// A machine-width float, but stored alongside a header value used to identify it in memory
 #[derive(Clone, Copy)]
@@ -20,10 +22,18 @@ pub struct Float {
     pub(crate) value: f64,
 }
 impl Float {
+    pub const INTEGRAL_MIN: f64 = -9007199254740992.0;
+    pub const INTEGRAL_MAX: f64 = 9007199254740992.0;
+
     #[cfg(target_pointer_width = "32")]
     const ARITYVAL: usize = 2;
     #[cfg(target_pointer_width = "64")]
     const ARITYVAL: usize = 1;
+
+    pub fn clamp_inclusive_range(overflowing_range: RangeInclusive<f64>) -> RangeInclusive<f64> {
+        Self::clamp_value(overflowing_range.start().clone())
+            ..=Self::clamp_value(overflowing_range.end().clone())
+    }
 
     #[inline]
     pub fn new(value: f64) -> Self {
@@ -36,6 +46,16 @@ impl Float {
     #[inline]
     pub fn from_raw(term: *mut Float) -> Self {
         unsafe { *term }
+    }
+
+    fn clamp_value(overflowing: f64) -> f64 {
+        if overflowing == core::f64::NEG_INFINITY {
+            core::f64::MIN
+        } else if overflowing == core::f64::INFINITY {
+            core::f64::MAX
+        } else {
+            overflowing
+        }
     }
 }
 unsafe impl AsTerm for Float {
@@ -194,6 +214,27 @@ impl PartialOrd<BigInteger> for Float {
         }
     }
 }
+
+impl TryFrom<Term> for Float {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryFrom<TypedTerm> for Float {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Boxed(unboxed) => unboxed.try_into(),
+            TypedTerm::Float(float) => Ok(float),
+            _ => Err(TypeError),
+        }
+    }
+}
+
 impl Debug for Float {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Float")

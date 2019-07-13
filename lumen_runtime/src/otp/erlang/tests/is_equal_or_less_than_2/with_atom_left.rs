@@ -23,17 +23,17 @@ fn with_number_returns_false() {
 
 #[test]
 fn with_lesser_atom_returns_false() {
-    is_equal_or_less_than(|_, _| Term::str_to_atom("keft", DoNotCare).unwrap(), false);
+    is_equal_or_less_than(|_, _| atom_unchecked("keft"), false);
 }
 
 #[test]
 fn with_same_atom_value_returns_true() {
-    is_equal_or_less_than(|_, _| Term::str_to_atom("left", DoNotCare).unwrap(), true);
+    is_equal_or_less_than(|_, _| atom_unchecked("left"), true);
 }
 
 #[test]
 fn with_greater_atom_returns_true() {
-    is_equal_or_less_than(|_, _| Term::str_to_atom("meft", DoNotCare).unwrap(), true);
+    is_equal_or_less_than(|_, _| atom_unchecked("meft"), true);
 }
 
 #[test]
@@ -60,11 +60,7 @@ fn without_number_or_atom_returns_true() {
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::is_equal_or_less_than(
-        |_| Term::str_to_atom("left", DoNotCare).unwrap(),
-        right,
-        expected,
-    );
+    super::is_equal_or_less_than(|_| atom_unchecked("left"), right, expected);
 }

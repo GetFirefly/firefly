@@ -7,10 +7,11 @@ use core::ops::*;
 use core::ptr;
 
 use num_bigint::{BigInt, Sign};
+use num_traits::cast::ToPrimitive;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::term::{AsTerm, Boxed, Term, TryIntoIntegerError};
 use crate::erts::{to_word_size, HeapAlloc};
-use crate::erts::{AsTerm, Term};
 
 use super::*;
 
@@ -57,6 +58,11 @@ impl From<SmallInteger> for BigInteger {
         Self::new(BigInt::from(n.0 as i64))
     }
 }
+impl From<u64> for BigInteger {
+    fn from(n: u64) -> Self {
+        Self::new(BigInt::from(n))
+    }
+}
 impl From<usize> for BigInteger {
     #[inline]
     fn from(n: usize) -> Self {
@@ -67,6 +73,35 @@ impl From<isize> for BigInteger {
     #[inline]
     fn from(n: isize) -> Self {
         Self::new(BigInt::from(n as i64))
+    }
+}
+impl From<i64> for BigInteger {
+    #[inline]
+    fn from(n: i64) -> Self {
+        Self::new(BigInt::from(n))
+    }
+}
+impl Into<BigInt> for BigInteger {
+    fn into(self) -> BigInt {
+        self.value
+    }
+}
+impl<'a> Into<&'a BigInt> for &'a BigInteger {
+    fn into(self) -> &'a BigInt {
+        &self.value
+    }
+}
+impl Into<f64> for Boxed<BigInteger> {
+    fn into(self) -> f64 {
+        let (sign, bytes) = self.value.to_bytes_be();
+        let unsigned_f64 = bytes
+            .iter()
+            .fold(0_f64, |acc, byte| 256.0 * acc + (*byte as f64));
+
+        match sign {
+            Sign::Minus => -1.0 * unsigned_f64,
+            _ => unsigned_f64,
+        }
     }
 }
 impl Eq for BigInteger {}
@@ -202,5 +237,30 @@ impl Shr<usize> for BigInteger {
 
     fn shr(self, rhs: usize) -> Self {
         BigInteger::new(self.value.shr(rhs))
+    }
+}
+
+impl TryInto<u64> for Boxed<BigInteger> {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<u64, Self::Error> {
+        let big_int: &BigInt = self.as_ref().into();
+
+        match big_int.to_u64() {
+            Some(self_u64) => self_u64
+                .try_into()
+                .map_err(|_| TryIntoIntegerError::OutOfRange),
+            None => Err(TryIntoIntegerError::OutOfRange),
+        }
+    }
+}
+
+impl TryInto<usize> for Boxed<BigInteger> {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        let u: u64 = self.try_into()?;
+
+        u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
     }
 }

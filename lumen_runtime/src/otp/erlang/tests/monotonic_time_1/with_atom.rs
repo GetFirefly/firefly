@@ -5,13 +5,13 @@ use std::time::Duration;
 
 #[test]
 fn with_invalid_unit_errors_badarg() {
-    errors_badarg(|_| Term::str_to_atom("invalid", DoNotCare).unwrap());
+    errors_badarg(|_| atom_unchecked("invalid"));
 }
 
 #[test]
 fn with_second_increases_after_2_seconds() {
     with_process(|process| {
-        let unit = Term::str_to_atom("second", DoNotCare).unwrap();
+        let unit = atom_unchecked("second");
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 
@@ -26,7 +26,7 @@ fn with_second_increases_after_2_seconds() {
 #[test]
 fn with_millisecond_increases_after_2_milliseconds() {
     with_process(|process| {
-        let unit = Term::str_to_atom("millisecond", DoNotCare).unwrap();
+        let unit = atom_unchecked("millisecond");
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 
@@ -41,7 +41,7 @@ fn with_millisecond_increases_after_2_milliseconds() {
 #[test]
 fn with_microsecond_increases_after_2_milliseconds() {
     with_process(|process| {
-        let unit = Term::str_to_atom("microsecond", DoNotCare).unwrap();
+        let unit = atom_unchecked("microsecond");
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 
@@ -56,7 +56,7 @@ fn with_microsecond_increases_after_2_milliseconds() {
 #[test]
 fn with_nanosecond_increases_after_2_milliseconds() {
     with_process(|process| {
-        let unit = Term::str_to_atom("nanosecond", DoNotCare).unwrap();
+        let unit = atom_unchecked("nanosecond");
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 
@@ -71,7 +71,7 @@ fn with_nanosecond_increases_after_2_milliseconds() {
 #[test]
 fn with_native_increases_after_2_native_time_units() {
     with_process(|process| {
-        let unit = Term::str_to_atom("native", DoNotCare).unwrap();
+        let unit = atom_unchecked("native");
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 
@@ -86,7 +86,7 @@ fn with_native_increases_after_2_native_time_units() {
 #[test]
 fn with_perf_counter_increases_after_2_perf_counter_ticks() {
     with_process(|process| {
-        let unit = Term::str_to_atom("perf_counter", DoNotCare).unwrap();
+        let unit = atom_unchecked("perf_counter");
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 

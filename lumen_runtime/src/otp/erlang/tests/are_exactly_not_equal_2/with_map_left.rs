@@ -51,11 +51,12 @@ fn with_same_value_map_right_returns_false() {
                     strategy::size_range(),
                 )
                 .prop_map(move |mut hash_map| {
+                    let mut heap = arc_process.acquire_heap();
                     let entry_vec: Vec<(Term, Term)> = hash_map.drain().collect();
 
                     (
-                        Term::slice_to_map(&entry_vec, &arc_process),
-                        Term::slice_to_map(&entry_vec, &arc_process),
+                        heap.map_from_slice(&entry_vec).unwrap(),
+                        heap.map_from_slice(&entry_vec).unwrap(),
                     )
                 }),
                 |(left, right)| {

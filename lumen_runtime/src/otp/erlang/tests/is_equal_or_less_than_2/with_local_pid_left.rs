@@ -15,7 +15,7 @@ fn with_number_atom_reference_function_or_port_returns_false() {
                             right.is_number()
                                 || right.is_atom()
                                 || right.is_reference()
-                                || right.is_function()
+                                || right.is_closure()
                                 || right.is_port()
                         },
                     ),
@@ -32,23 +32,23 @@ fn with_number_atom_reference_function_or_port_returns_false() {
 
 #[test]
 fn with_lesser_local_pid_right_returns_false() {
-    is_equal_or_less_than(|_, _| Term::local_pid(0, 0).unwrap(), false);
+    is_equal_or_less_than(|_, _| make_pid(0, 0).unwrap(), false);
 }
 
 #[test]
 fn with_same_value_local_pid_right_returns_true() {
-    is_equal_or_less_than(|_, _| Term::local_pid(0, 1).unwrap(), true);
+    is_equal_or_less_than(|_, _| make_pid(0, 1).unwrap(), true);
 }
 
 #[test]
 fn with_greater_local_pid_right_returns_true() {
-    is_equal_or_less_than(|_, _| Term::local_pid(1, 1).unwrap(), true);
+    is_equal_or_less_than(|_, _| make_pid(1, 1).unwrap(), true);
 }
 
 #[test]
 fn with_external_pid_right_returns_true() {
     is_equal_or_less_than(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
+        |_, process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
         true,
     );
 }
@@ -77,7 +77,7 @@ fn with_list_or_bitstring_returns_true() {
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::is_equal_or_less_than(|_| Term::local_pid(0, 1).unwrap(), right, expected);
+    super::is_equal_or_less_than(|_| make_pid(0, 1).unwrap(), right, expected);
 }

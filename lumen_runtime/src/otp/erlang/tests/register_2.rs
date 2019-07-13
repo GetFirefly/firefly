@@ -14,7 +14,7 @@ fn without_atom_name_errors_badarg() {
                 |(name, pid_or_port)| {
                     prop_assert_eq!(
                         erlang::register_2(name, pid_or_port, arc_process.clone()),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

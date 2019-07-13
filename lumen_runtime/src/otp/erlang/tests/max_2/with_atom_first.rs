@@ -21,7 +21,7 @@ fn with_number_second_returns_first() {
 
 #[test]
 fn with_lesser_atom_returns_first() {
-    max(|_, _| Term::str_to_atom("eirst", DoNotCare).unwrap(), First);
+    max(|_, _| atom_unchecked("eirst"), First);
 }
 
 #[test]
@@ -31,15 +31,12 @@ fn with_same_atom_returns_first() {
 
 #[test]
 fn with_same_atom_value_returns_first() {
-    max(|_, _| Term::str_to_atom("first", DoNotCare).unwrap(), First);
+    max(|_, _| atom_unchecked("first"), First);
 }
 
 #[test]
 fn with_greater_atom_returns_second() {
-    max(
-        |_, _| Term::str_to_atom("second", DoNotCare).unwrap(),
-        Second,
-    );
+    max(|_, _| atom_unchecked("second"), Second);
 }
 
 #[test]
@@ -66,11 +63,7 @@ fn without_number_or_atom_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::max(
-        |_| Term::str_to_atom("first", DoNotCare).unwrap(),
-        second,
-        which,
-    );
+    super::max(|_| atom_unchecked("first"), second, which);
 }

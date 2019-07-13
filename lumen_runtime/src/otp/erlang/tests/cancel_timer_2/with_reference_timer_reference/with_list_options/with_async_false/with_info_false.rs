@@ -4,47 +4,49 @@ mod with_local_reference;
 
 #[test]
 fn with_small_integer_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| 1.into_process(process))
+    with_timer_reference_errors_badarg(|process| process.integer(1))
 }
 
 #[test]
 fn with_float_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| 1.0.into_process(process));
+    with_timer_reference_errors_badarg(|process| process.float(1.0).unwrap());
 }
 
 #[test]
 fn with_big_integer_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| (integer::small::MAX + 1).into_process(process));
+    with_timer_reference_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1));
 }
 
 #[test]
 fn with_atom_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|_| Term::str_to_atom("atom", DoNotCare).unwrap());
+    with_timer_reference_errors_badarg(|_| atom_unchecked("atom"));
 }
 
 #[test]
 fn with_local_pid_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|_| Term::local_pid(0, 0).unwrap());
+    with_timer_reference_errors_badarg(|_| make_pid(0, 0).unwrap());
 }
 
 #[test]
 fn with_external_pid_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| Term::external_pid(1, 0, 0, process).unwrap());
+    with_timer_reference_errors_badarg(|process| {
+        process.external_pid_with_node_id(1, 0, 0).unwrap()
+    });
 }
 
 #[test]
 fn with_tuple_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| Term::slice_to_tuple(&[], process));
+    with_timer_reference_errors_badarg(|process| process.tuple_from_slice(&[]).unwrap());
 }
 
 #[test]
 fn with_map_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| Term::slice_to_map(&[], process));
+    with_timer_reference_errors_badarg(|process| process.map_from_slice(&[]).unwrap());
 }
 
 #[test]
 fn with_empty_list_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|_| Term::EMPTY_LIST);
+    with_timer_reference_errors_badarg(|_| Term::NIL);
 }
 
 #[test]
@@ -54,7 +56,7 @@ fn with_list_timer_reference_errors_badarg() {
 
 #[test]
 fn with_heap_binary_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| Term::slice_to_binary(&[1], process));
+    with_timer_reference_errors_badarg(|process| process.binary_from_bytes(&[1]).unwrap());
 }
 
 #[test]
@@ -62,17 +64,15 @@ fn with_subbinary_timer_reference_errors_badarg() {
     with_timer_reference_errors_badarg(|process| bitstring!(1 :: 1, process));
 }
 
-fn options(process: &Process) -> Term {
-    Term::cons(
-        info_option(false, process),
-        super::options(process),
-        process,
-    )
+fn options(process: &ProcessControlBlock) -> Term {
+    process
+        .cons(info_option(false, process), super::options(process))
+        .unwrap()
 }
 
 fn with_timer_reference_errors_badarg<T>(timer_reference: T)
 where
-    T: FnOnce(&Process) -> Term,
+    T: FnOnce(&ProcessControlBlock) -> Term,
 {
     with_process(|process| {
         assert_badarg!(erlang::cancel_timer_2(

@@ -6,7 +6,10 @@ use core::ptr::{self, NonNull};
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
 use super::*;
-use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives};
+use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
+use crate::erts::term::{
+    binary_bytes, is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
+};
 use crate::erts::*;
 
 /// This struct represents the current heap and stack of a process,
@@ -73,6 +76,12 @@ impl HeapAlloc for YoungHeap {
     #[inline]
     fn is_owner<T>(&mut self, ptr: *const T) -> bool {
         self.contains(ptr) || self.vheap.contains(ptr)
+    }
+}
+impl VirtualAlloc for YoungHeap {
+    #[inline]
+    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
+        self.vheap.push(bin)
     }
 }
 impl StackAlloc for YoungHeap {
@@ -157,11 +166,6 @@ impl StackPrimitives for YoungHeap {
     }
 }
 impl YoungHeap {
-    #[inline]
-    pub fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.vheap.push(bin)
-    }
-
     /// This function is used to reallocate the memory region this heap was originally allocated
     /// with to a smaller size, given by `new_size`. This function will panic if the given size
     /// is not large enough to hold the stack, if a size greater than the previous size is
@@ -450,7 +454,7 @@ impl YoungHeap {
                 } else {
                     break;
                 }
-            } else if term.is_list() {
+            } else if term.is_non_empty_list() {
                 if let Some(new_pos) = fun(self, term, pos) {
                     pos = new_pos;
                 } else {
@@ -636,7 +640,7 @@ impl YoungHeap {
                         }
                     }
                     Some(pos.offset(1))
-                } else if term.is_list() {
+                } else if term.is_non_empty_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
@@ -651,7 +655,7 @@ impl YoungHeap {
                     }
                     Some(pos.offset(1))
                 } else if term.is_header() {
-                    if term.is_tuple() {
+                    if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.offset(1))
                     } else if term.is_match_context() {
@@ -720,7 +724,7 @@ impl YoungHeap {
                     }
                     // Move past box pointer to next term
                     Some(pos.offset(1))
-                } else if term.is_list() {
+                } else if term.is_non_empty_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
@@ -734,7 +738,7 @@ impl YoungHeap {
                     // Move past list pointer to next term
                     Some(pos.offset(1))
                 } else if term.is_header() {
-                    if term.is_tuple() {
+                    if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.offset(1))
                     } else if term.is_match_context() {

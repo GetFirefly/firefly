@@ -2,9 +2,9 @@ use super::*;
 
 mod with_tuple_destination;
 
-fn options(process: &Process) -> Term {
-    let noconnect = Term::str_to_atom("noconnect", DoNotCare).unwrap();
-    let nosuspend = Term::str_to_atom("nosuspend", DoNotCare).unwrap();
+fn options(process: &ProcessControlBlock) -> Term {
+    let noconnect = atom_unchecked("noconnect");
+    let nosuspend = atom_unchecked("nosuspend");
 
-    Term::slice_to_list(&[noconnect, nosuspend], process)
+    process.list_from_slice(&[noconnect, nosuspend]).unwrap()
 }

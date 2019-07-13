@@ -11,7 +11,7 @@ fn unregistered_errors_badarg() {
                 |(destination, message)| {
                     prop_assert_eq!(
                         erlang::send_2(destination, message, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

@@ -20,6 +20,7 @@
 // `crate::registry::<Registered as PartialEq>::eq`
 #![feature(weak_ptr_eq)]
 
+extern crate alloc;
 #[macro_use]
 extern crate cfg_if;
 #[macro_use]
@@ -28,34 +29,15 @@ extern crate lazy_static;
 #[macro_use]
 mod macros;
 
-// `pub` for `examples/spawn-chain`
-pub mod atom;
 mod binary;
 // `pub` or `examples/spawn-chain`
 pub mod code;
 mod config;
-// `pub` or `examples/spawn-chain`
-pub mod exception;
-mod float;
-// `pub` or `examples/spawn-chain`
-pub mod function;
-// `pub` or `examples/spawn-chain`
-pub mod heap;
-mod integer;
-mod list;
 mod logging;
-mod mailbox;
-// `pub` or `examples/spawn-chain`
-pub mod map;
-// `pub` or `examples/spawn-chain`
-pub mod message;
 mod node;
-// `pub` for `examples/spawn-chain`
-pub mod number;
+mod number;
 pub mod otp;
-// `pub` or `examples/spawn-chain`
 pub mod process;
-mod reference;
 // `pub` or `examples/spawn-chain`
 pub mod registry;
 mod run;
@@ -65,11 +47,11 @@ mod send;
 mod stacktrace;
 mod system;
 // `pub` for `examples/spawn-chain`
-pub mod term;
+mod term;
 // `pub` to allow `time::monotonic::set_source(callback)`
 pub mod time;
 // Public so that external code can all `timer::expire` to expire timers
-pub mod timer;
+mod timer;
 mod tuple;
 
 use self::config::Config;

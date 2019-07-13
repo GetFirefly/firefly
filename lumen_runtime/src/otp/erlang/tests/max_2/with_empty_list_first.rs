@@ -13,7 +13,7 @@ fn without_non_empty_list_or_bitstring_second_returns_firsts() {
                         !(second.is_list() || second.is_bitstring())
                     }),
                 |second| {
-                    let first = Term::EMPTY_LIST;
+                    let first = Term::NIL;
 
                     prop_assert_eq!(erlang::max_2(first, second), first);
 
@@ -34,7 +34,7 @@ fn with_non_empty_list_or_bitstring_second_returns_second() {
                     strategy::term::is_bitstring(arc_process)
                 ],
                 |second| {
-                    let first = Term::EMPTY_LIST;
+                    let first = Term::NIL;
 
                     prop_assert_eq!(erlang::max_2(first, second), second);
 

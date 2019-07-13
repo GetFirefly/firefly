@@ -1,9 +1,11 @@
 use core::alloc::Layout;
 use core::cmp;
-use core::convert::TryInto;
+use core::convert::{TryFrom, TryInto};
 use core::fmt;
+use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::mem;
+use core::ops::Deref;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
@@ -66,9 +68,9 @@ impl Tuple {
         }
     }
 
-    /// Returns the size of this tuple
+    /// Returns the length of this tuple
     #[inline]
-    pub fn size(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.header.arityval()
     }
 
@@ -94,19 +96,19 @@ impl Tuple {
 
     /// Constructs an iterator over elements of the tuple
     #[inline]
-    pub fn iter(&self) -> TupleIter {
-        TupleIter::new(self)
+    pub fn iter(&self) -> Iter {
+        Iter::new(self)
     }
 
     /// Sets an element in the tuple, returns `Ok(())` if successful,
     /// otherwise returns `Err(IndexErr)` if the given index is invalid
     #[inline]
     pub fn set_element(&mut self, index: Term, element: Term) -> Result<(), IndexError> {
-        let size = self.size();
+        let len = self.len();
         if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
             match small.try_into() {
-                Ok(i) if i > 0 && i <= size => Ok(self.do_set_element(i, element)),
-                Ok(i) => Err(IndexError::new(i, size)),
+                Ok(i) if i > 0 && i <= len => Ok(self.do_set_element(i, element)),
+                Ok(i) => Err(IndexError::new(i, len)),
                 Err(_) => Err(BadArgument::new(index).into()),
             }
         } else {
@@ -117,17 +119,17 @@ impl Tuple {
     /// Like `set_element` but for internal runtime use, as it takes a `usize` directly
     #[inline]
     pub fn set_element_internal(&mut self, index: usize, element: Term) -> Result<(), IndexError> {
-        let size = self.size();
-        if index > 0 && index <= size {
+        let len = self.len();
+        if index > 0 && index <= len {
             Ok(self.do_set_element(index, element))
         } else {
-            Err(IndexError::new(index, size))
+            Err(IndexError::new(index, len))
         }
     }
 
     #[inline]
     fn do_set_element(&mut self, index: usize, element: Term) {
-        assert!(index > 0 && index <= self.size());
+        assert!(index > 0 && index <= self.len());
         assert!(element.is_boxed() || element.is_list() || element.is_immediate());
         unsafe {
             let ptr = self.head().offset((index - 1) as isize);
@@ -139,11 +141,12 @@ impl Tuple {
     /// valid, otherwise returns `Err(IndexErr)`
     #[inline]
     pub fn get_element(&self, index: Term) -> Result<Term, IndexError> {
-        let size = self.size();
+        let len = self.len();
+
         if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
             match small.try_into() {
-                Ok(i) if i > 0 && i <= size => Ok(self.do_get_element(i)),
-                Ok(i) => Err(IndexError::new(i, size)),
+                Ok(i) if i > 0 && i <= len => Ok(self.do_get_element(i)),
+                Ok(i) => Err(IndexError::new(i, len)),
                 Err(_) => Err(BadArgument::new(index).into()),
             }
         } else {
@@ -155,17 +158,18 @@ impl Tuple {
     /// directly, rather than a value of type `Term`
     #[inline]
     pub fn get_element_internal(&self, index: usize) -> Result<Term, IndexError> {
-        let size = self.size();
-        if index > 0 && index <= size {
+        let len = self.len();
+
+        if 0 < index && index <= len {
             Ok(self.do_get_element(index))
         } else {
-            Err(IndexError::new(index, size))
+            Err(IndexError::new(index, len))
         }
     }
 
     #[inline]
     fn do_get_element(&self, index: usize) -> Term {
-        assert!(index > 0 && index <= self.size());
+        assert!(index > 0 && index <= self.len());
         unsafe {
             let ptr = self.head().offset((index - 1) as isize);
             follow_moved(*ptr)
@@ -184,7 +188,7 @@ impl CloneToProcess for Tuple {
         // contigously in memory
         unsafe {
             // Allocate the space needed for the header and all the elements
-            let num_elements = self.size();
+            let num_elements = self.len();
             let words =
                 to_word_size(mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>()));
             let ptr = heap.alloc(words)?.as_ptr() as *mut Self;
@@ -215,7 +219,7 @@ impl CloneToProcess for Tuple {
     }
 
     fn size_in_words(&self) -> usize {
-        let elements = self.size();
+        let elements = self.len();
         let mut words = to_word_size(mem::size_of::<Self>() + (elements * mem::size_of::<Term>()));
         for element in self.iter() {
             words += element.size_in_words();
@@ -223,6 +227,23 @@ impl CloneToProcess for Tuple {
         words
     }
 }
+
+impl Deref for Tuple {
+    type Target = [Term];
+
+    fn deref(&self) -> &[Term] {
+        unsafe { core::slice::from_raw_parts(self.head(), self.len()) }
+    }
+}
+
+impl Hash for Tuple {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for element in self.iter() {
+            element.hash(state);
+        }
+    }
+}
+
 impl PartialEq for Tuple {
     fn eq(&self, other: &Tuple) -> bool {
         self.iter().eq(other.iter())
@@ -232,7 +253,7 @@ impl PartialOrd for Tuple {
     fn partial_cmp(&self, other: &Tuple) -> Option<cmp::Ordering> {
         use core::cmp::Ordering;
 
-        match self.size().cmp(&other.size()) {
+        match self.len().cmp(&other.len()) {
             Ordering::Less => return Some(Ordering::Less),
             Ordering::Greater => return Some(Ordering::Greater),
             Ordering::Equal => self.iter().partial_cmp(other.iter()),
@@ -249,58 +270,69 @@ impl fmt::Debug for Tuple {
     }
 }
 
-pub struct TupleIter {
-    head: *mut Term,
-    pos: usize,
-    last_pos: usize,
+impl TryFrom<Term> for Boxed<Tuple> {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
 }
-impl TupleIter {
-    pub fn new(tuple: &Tuple) -> Self {
-        match tuple.size() {
-            0 => Self {
-                head: tuple.head(),
-                pos: 0,
-                last_pos: 0,
-            },
-            n => Self {
-                head: tuple.head(),
-                pos: 0,
-                last_pos: n - 1,
-            },
+
+impl TryFrom<TypedTerm> for Boxed<Tuple> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Tuple(tuple) => Ok(tuple),
+            _ => Err(TypeError),
         }
     }
 }
-impl Iterator for TupleIter {
+
+pub struct Iter {
+    pointer: *const Term,
+    limit: *const Term,
+}
+
+impl Iter {
+    pub fn new(tuple: &Tuple) -> Self {
+        let pointer = tuple.head();
+        let limit = unsafe { pointer.offset(tuple.len() as isize) };
+
+        Self { pointer, limit }
+    }
+}
+
+impl DoubleEndedIterator for Iter {
+    fn next_back(&mut self) -> Option<Term> {
+        if self.pointer == self.limit {
+            None
+        } else {
+            unsafe {
+                // limit is +1 past he actual elements, so pre-decrement unlike `next`, which
+                // post-decrements
+                self.limit = self.limit.offset(-1);
+                self.limit.as_ref().map(|r| *r)
+            }
+        }
+    }
+}
+
+impl Iterator for Iter {
     type Item = Term;
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.last_pos == 0 {
-            (0, Some(0))
+    fn next(&mut self) -> Option<Term> {
+        if self.pointer == self.limit {
+            None
         } else {
-            (self.last_pos + 1, Some(self.last_pos + 1))
-        }
-    }
+            let old_pointer = self.pointer;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.pos > self.last_pos {
-            return None;
+            unsafe {
+                self.pointer = self.pointer.offset(1);
+                old_pointer.as_ref().map(|r| *r)
+            }
         }
-        if self.last_pos == 0 {
-            // This occurs with empty tuples only
-            return None;
-        }
-        let term = unsafe { self.head.offset(self.pos as isize) };
-        self.pos += 1;
-        unsafe { Some(*term) }
     }
 }
-impl FusedIterator for TupleIter {}
-impl ExactSizeIterator for TupleIter {
-    fn len(&self) -> usize {
-        self.last_pos + 1
-    }
 
-    fn is_empty(&self) -> bool {
-        self.last_pos == 0
-    }
-}
+impl FusedIterator for Iter {}

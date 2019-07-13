@@ -31,7 +31,10 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_not_atom(arc_process.clone()),
                 ),
                 |(tuple, record_tag)| {
-                    prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::is_record_2(tuple, record_tag),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -45,7 +48,7 @@ fn with_empty_tuple_with_atom_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::atom(), |record_tag| {
-                let tuple = Term::slice_to_tuple(&[], &arc_process);
+                let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
                 prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Ok(false.into()));
 
@@ -71,12 +74,15 @@ fn with_non_empty_tuple_without_atom_with_first_element_errors_badarg() {
                         tail_element_vec.insert(0, first_element);
 
                         (
-                            Term::slice_to_tuple(&tail_element_vec, &arc_process),
+                            arc_process.tuple_from_slice(&tail_element_vec).unwrap(),
                             first_element,
                         )
                     }),
                 |(tuple, record_tag)| {
-                    prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::is_record_2(tuple, record_tag),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -101,7 +107,10 @@ fn with_non_empty_tuple_with_atom_without_record_tag_returns_false() {
                     .prop_map(|(first_element, mut tail_element_vec, atom)| {
                         tail_element_vec.insert(0, first_element);
 
-                        (Term::slice_to_tuple(&tail_element_vec, &arc_process), atom)
+                        (
+                            arc_process.tuple_from_slice(&tail_element_vec).unwrap(),
+                            atom,
+                        )
                     }),
                 |(tuple, record_tag)| {
                     prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Ok(false.into()));
@@ -129,7 +138,7 @@ fn with_non_empty_tuple_with_atom_with_record_tag_returns_ok() {
                         tail_element_vec.insert(0, record_tag);
 
                         (
-                            Term::slice_to_tuple(&tail_element_vec, &arc_process),
+                            arc_process.tuple_from_slice(&tail_element_vec).unwrap(),
                             record_tag,
                         )
                     }),

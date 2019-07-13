@@ -16,7 +16,7 @@ fn without_number_augend_errors_badarith() {
                 |(augend, addend)| {
                     prop_assert_eq!(
                         erlang::add_2(augend, addend, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())

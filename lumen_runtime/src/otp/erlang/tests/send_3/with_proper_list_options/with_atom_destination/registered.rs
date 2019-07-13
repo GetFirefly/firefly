@@ -19,13 +19,13 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_ok() {
                 let destination = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2(destination, arc_process.pid, arc_process.clone()),
+                    erlang::register_2(destination, arc_process.pid_term(), arc_process.clone()),
                     Ok(true.into())
                 );
 
                 prop_assert_eq!(
                     erlang::send_3(destination, message, options, &arc_process),
-                    Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+                    Ok(atom_unchecked("ok"))
                 );
 
                 assert!(has_process_message(&arc_process, message));

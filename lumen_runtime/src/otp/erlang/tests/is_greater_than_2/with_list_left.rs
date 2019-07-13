@@ -26,13 +26,17 @@ fn without_list_or_bitstring_returns_true() {
 
 #[test]
 fn with_empty_list_right_returns_true() {
-    is_greater_than(|_, _| Term::EMPTY_LIST, true);
+    is_greater_than(|_, _| Term::NIL, true);
 }
 
 #[test]
 fn with_greater_list_right_returns_true() {
     is_greater_than(
-        |_, process| Term::cons(0.into_process(&process), 0.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0), process.integer(0))
+                .unwrap()
+        },
         true,
     );
 }
@@ -45,7 +49,11 @@ fn with_same_list_right_returns_false() {
 #[test]
 fn with_same_value_list_right_returns_false() {
     is_greater_than(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0), process.integer(1))
+                .unwrap()
+        },
         false,
     );
 }
@@ -53,7 +61,11 @@ fn with_same_value_list_right_returns_false() {
 #[test]
 fn with_greater_list_right_returns_false() {
     is_greater_than(
-        |_, process| Term::cons(0.into_process(&process), 2.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0), process.integer(2))
+                .unwrap()
+        },
         false,
     );
 }
@@ -79,10 +91,14 @@ fn with_bitstring_right_returns_false() {
 
 fn is_greater_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_greater_than(
-        |process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
+        |process| {
+            process
+                .cons(process.integer(0), process.integer(1))
+                .unwrap()
+        },
         right,
         expected,
     );

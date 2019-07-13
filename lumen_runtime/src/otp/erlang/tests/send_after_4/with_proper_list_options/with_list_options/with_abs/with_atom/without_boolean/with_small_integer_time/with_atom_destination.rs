@@ -17,11 +17,11 @@ fn unregistered_sends_nothing_when_timer_expires() {
             |(milliseconds, arc_process, message, options)| {
                 let destination = registered_name();
 
-                let time = milliseconds.into_process(&arc_process);
+                let time = arc_process.integer(milliseconds);
 
                 prop_assert_eq!(
                     erlang::send_after_4(time, destination, message, options, arc_process.clone(),),
-                    Err(badarg!())
+                    Err(badarg!().into())
                 );
 
                 Ok(())

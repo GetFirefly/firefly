@@ -15,7 +15,7 @@ fn with_number_atom_reference_function_port_pid_or_tuple_returns_false() {
                             right.is_number()
                                 || right.is_atom()
                                 || right.is_reference()
-                                || right.is_function()
+                                || right.is_closure()
                                 || right.is_port()
                                 || right.is_pid()
                                 || right.is_tuple()
@@ -36,13 +36,9 @@ fn with_number_atom_reference_function_port_pid_or_tuple_returns_false() {
 fn with_smaller_map_right_returns_false() {
     is_equal_or_less_than(
         |_, process| {
-            Term::slice_to_map(
-                &[(
-                    Term::str_to_atom("a", DoNotCare).unwrap(),
-                    1.into_process(&process),
-                )],
-                &process,
-            )
+            process
+                .map_from_slice(&[(atom_unchecked("a"), process.integer(1))])
+                .unwrap()
         },
         false,
     );
@@ -52,19 +48,12 @@ fn with_smaller_map_right_returns_false() {
 fn with_same_size_map_with_lesser_keys_returns_false() {
     is_equal_or_less_than(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("a", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("a"), process.integer(2)),
+                    (atom_unchecked("b"), process.integer(3)),
+                ])
+                .unwrap()
         },
         false,
     );
@@ -74,19 +63,12 @@ fn with_same_size_map_with_lesser_keys_returns_false() {
 fn with_same_size_map_with_same_keys_with_lesser_values_returns_false() {
     is_equal_or_less_than(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("b"), process.integer(2)),
+                    (atom_unchecked("c"), process.integer(2)),
+                ])
+                .unwrap()
         },
         false,
     );
@@ -96,19 +78,12 @@ fn with_same_size_map_with_same_keys_with_lesser_values_returns_false() {
 fn with_same_value_map_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("b"), process.integer(2)),
+                    (atom_unchecked("c"), process.integer(3)),
+                ])
+                .unwrap()
         },
         true,
     );
@@ -118,19 +93,12 @@ fn with_same_value_map_returns_true() {
 fn with_same_size_map_with_same_keys_with_greater_values_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        4.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("b"), process.integer(3)),
+                    (atom_unchecked("c"), process.integer(4)),
+                ])
+                .unwrap()
         },
         true,
     );
@@ -140,19 +108,12 @@ fn with_same_size_map_with_same_keys_with_greater_values_returns_true() {
 fn with_same_size_map_with_greater_keys_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("d", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("c"), process.integer(2)),
+                    (atom_unchecked("d"), process.integer(3)),
+                ])
+                .unwrap()
         },
         true,
     );
@@ -162,23 +123,13 @@ fn with_same_size_map_with_greater_keys_returns_true() {
 fn with_greater_size_map_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("a", DoNotCare).unwrap(),
-                        1.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("a"), process.integer(1)),
+                    (atom_unchecked("b"), process.integer(2)),
+                    (atom_unchecked("c"), process.integer(3)),
+                ])
+                .unwrap()
         },
         true,
     );
@@ -186,7 +137,7 @@ fn with_greater_size_map_returns_true() {
 
 #[test]
 fn with_map_right_returns_false() {
-    is_equal_or_less_than(|_, process| Term::slice_to_map(&[], &process), false);
+    is_equal_or_less_than(|_, process| process.map_from_slice(&[]).unwrap(), false);
 }
 
 #[test]
@@ -213,23 +164,16 @@ fn with_list_or_bitstring_returns_true() {
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_equal_or_less_than(
         |process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("b"), process.integer(2)),
+                    (atom_unchecked("c"), process.integer(3)),
+                ])
+                .unwrap()
         },
         right,
         expected,

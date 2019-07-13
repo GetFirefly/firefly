@@ -13,7 +13,10 @@ fn without_atom_class_errors_badarg() {
                     strategy::term::list::proper(arc_process.clone()),
                 ),
                 |(class, reason, stacktrace)| {
-                    prop_assert_eq!(erlang::raise_3(class, reason, stacktrace), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::raise_3(class, reason, stacktrace),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },

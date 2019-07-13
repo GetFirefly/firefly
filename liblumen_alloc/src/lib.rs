@@ -15,6 +15,8 @@
 #![feature(type_alias_enum_variants)]
 // For static assertions that use logical operators
 #![feature(const_fn)]
+// Allow `[#cfg(debug_assertions)]` to enable file, line, and column for runtime::Exception
+#![feature(param_attrs)]
 #![feature(underscore_const_names)]
 #![feature(const_compare_raw_pointers)]
 #![feature(const_raw_ptr_to_usize_cast)]
@@ -25,10 +27,13 @@ extern crate alloc;
 #[macro_use]
 extern crate static_assertions;
 
+#[macro_use]
+mod macros;
+
 mod blocks;
 mod borrow;
 mod carriers;
-mod erts;
+pub mod erts;
 mod segmented_alloc;
 mod size_class_alloc;
 mod sorted;
@@ -57,6 +62,8 @@ pub use self::size_class_alloc::SizeClassAlloc;
 
 // Runtime system support, e.g. process heaps, etc.
 pub use erts::*;
+
+pub use borrow::CloneToProcess;
 
 /// Provides information about an allocator from `liblumen_alloc`
 #[derive(Debug)]

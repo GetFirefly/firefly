@@ -10,9 +10,7 @@ fn without_big_integer_returns_false() {
                 &(
                     strategy::term::integer::big(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a big integer or float", |v| {
-                            v.tag() != Boxed || v.unbox_reference::<Term>().tag() == BigInteger
-                        }),
+                        .prop_filter("Right must not be a big integer", |v| !v.is_bigint()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());

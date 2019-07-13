@@ -9,7 +9,7 @@ fn without_timeout_returns_milliseconds_remaining() {
     with_timer(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
 
-        let message = Term::str_to_atom("different", DoNotCare).unwrap();
+        let message = atom_unchecked("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
         assert!(!has_message(process, timeout_message));
@@ -18,8 +18,8 @@ fn without_timeout_returns_milliseconds_remaining() {
             erlang::read_timer_1(timer_reference, process).expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
-        assert!(0.into_process(process) < first_milliseconds_remaining);
-        assert!(first_milliseconds_remaining <= (milliseconds / 2).into_process(process));
+        assert!(process.integer(0) < first_milliseconds_remaining);
+        assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2));
 
         // again before timeout
         let second_milliseconds_remaining =
@@ -46,14 +46,14 @@ fn with_timeout_returns_false() {
         timeout_after_half(milliseconds, barrier);
         timeout_after_half(milliseconds, barrier);
 
-        let message = Term::str_to_atom("different", DoNotCare).unwrap();
+        let message = atom_unchecked("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
         assert!(
             has_message(process, timeout_message),
             "Mailbox does not contain {:?} and instead contains {:?}",
             timeout_message,
-            process.mailbox.lock().unwrap()
+            process.mailbox.lock().borrow()
         );
 
         assert_eq!(
@@ -71,9 +71,9 @@ fn with_timeout_returns_false() {
 
 fn with_timer<F>(f: F)
 where
-    F: FnOnce(u64, &Barrier, Term, &Process) -> (),
+    F: FnOnce(u64, &Barrier, Term, &ProcessControlBlock) -> (),
 {
-    let same_thread_process_arc = process::local::test(&process::local::test_init());
+    let same_thread_process_arc = process::test(&process::test_init());
     let milliseconds: u64 = 100;
 
     // no wait to receive implemented yet, so use barrier for signalling
@@ -83,27 +83,22 @@ where
     let different_thread_barrier = same_thread_barrier.clone();
 
     let different_thread = thread::spawn(move || {
-        let different_thread_process_arc =
-            process::local::test(&different_thread_same_thread_process_arc);
-        let same_thread_pid = different_thread_same_thread_process_arc.pid;
+        let different_thread_process_arc = process::test(&different_thread_same_thread_process_arc);
+        let same_thread_pid = unsafe { different_thread_same_thread_process_arc.pid().as_term() };
 
         let timer_reference = erlang::start_timer_3(
-            milliseconds.into_process(&different_thread_process_arc),
+            different_thread_process_arc.integer(milliseconds),
             same_thread_pid,
-            Term::str_to_atom("different", DoNotCare).unwrap(),
+            atom_unchecked("different"),
             different_thread_process_arc.clone(),
         )
         .unwrap();
 
         erlang::send_2(
             same_thread_pid,
-            Term::slice_to_tuple(
-                &[
-                    Term::str_to_atom("timer_reference", DoNotCare).unwrap(),
-                    timer_reference,
-                ],
-                &different_thread_process_arc,
-            ),
+            different_thread_process_arc
+                .tuple_from_slice(&[atom_unchecked("timer_reference"), timer_reference])
+                .unwrap(),
             &different_thread_process_arc,
         )
         .expect("Different thread could not send to same thread");
@@ -121,12 +116,8 @@ where
     let timer_reference_tuple =
         receive_message(&same_thread_process_arc).expect("Cross-thread receive failed");
 
-    let timer_reference = erlang::element_2(
-        2.into_process(&same_thread_process_arc),
-        timer_reference_tuple,
-        &same_thread_process_arc,
-    )
-    .unwrap();
+    let timer_reference =
+        erlang::element_2(same_thread_process_arc.integer(2), timer_reference_tuple).unwrap();
 
     f(
         milliseconds,
@@ -144,7 +135,7 @@ where
 
 fn timeout_after_half(milliseconds: Milliseconds, barrier: &Barrier) {
     thread::sleep(Duration::from_millis(milliseconds / 2 + 1));
-    timer::timeout();
+    timer::timeout().unwrap();
     barrier.wait();
 }
 

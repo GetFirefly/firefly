@@ -1,9 +1,9 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use lumen_runtime::process::stack::frame::Frame;
-use lumen_runtime::process::{ModuleFunctionArity, Process};
-use lumen_runtime::term::Term;
+use liblumen_alloc::erts::process::code::stack::frame::Frame;
+use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::ProcessControlBlock;
 
 use crate::elixir;
 
@@ -46,7 +46,7 @@ pub fn apply(arc_process: &Arc<Process>) {
 
                     // don't count finding the function as a reduction if it is found, only on
                     // exception in `undef`, so that each path is at least one reduction.
-                    Process::call_code(arc_process);
+                    ProcessControlBlock::call_code(arc_process);
                 }
                 _ => undef(arc_process, module, function, argument_list),
             },
@@ -66,7 +66,7 @@ pub fn apply(arc_process: &Arc<Process>) {
 
                     // don't count finding the function as a reduction if it is found, only on
                     // exception in `undef`, so that each path is at least one reduction.
-                    Process::call_code(arc_process);
+                    ProcessControlBlock::call_code(arc_process);
                 }
                 _ => undef(arc_process, module, function, argument_list),
             },
@@ -91,7 +91,7 @@ pub fn print_stacktrace(process: &Process) {
 
 fn undef(arc_process: &Arc<Process>, module: Term, function: Term, arguments: Term) {
     arc_process.reduce();
-    arc_process.exception(lumen_runtime::undef!(
+    arc_process.exception(liblumen_alloc::undef!(
         module,
         function,
         arguments,

@@ -59,8 +59,8 @@ fn max_is_second_if_first_is_less_than_second() {
 
 fn max<F, S>(first: F, second: S, which: FirstSecond)
 where
-    F: FnOnce(&Process) -> Term,
-    S: FnOnce(Term, &Process) -> Term,
+    F: FnOnce(&ProcessControlBlock) -> Term,
+    S: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     with_process(|process| {
         let first = first(&process);
@@ -75,8 +75,5 @@ where
 
         // expected value
         assert_eq!(max, expected);
-        // expected which when equal.  Can only really detect flipping for boxed with different
-        // addresses
-        assert_eq!(max.tagged, expected.tagged);
     });
 }

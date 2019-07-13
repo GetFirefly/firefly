@@ -3,12 +3,8 @@
 
 use std::sync::Arc;
 
-use lumen_runtime::atom::Existence::DoNotCare;
-use lumen_runtime::exception::{self, Exception};
-use lumen_runtime::process::{IntoProcess, Process, Status};
 use lumen_runtime::registry;
 use lumen_runtime::scheduler::Scheduler;
-use lumen_runtime::term::Term;
 
 use wasm_bindgen::prelude::*;
 

@@ -2,12 +2,18 @@
 
 use core::alloc::AllocErr;
 use core::cmp;
+use core::convert::TryInto;
 use core::fmt;
 use core::ptr;
 
+use alloc::string::String;
+
 use crate::borrow::CloneToProcess;
-use crate::erts::InvalidTermError;
+use crate::erts::exception::runtime;
+use crate::erts::term::InvalidTermError;
 use crate::erts::ProcessControlBlock;
+
+use num_bigint::BigInt;
 
 use super::*;
 
@@ -15,7 +21,7 @@ use super::*;
 mod constants {
     #![allow(unused)]
     use super::Term;
-    use crate::erts::Cons;
+    use crate::erts::term::list::Cons;
     ///! This module contains constants for 64-bit architectures used by the term
     /// implementation. !
     ///! On 64-bit platforms, the highest 16 bits of pointers are unused and
@@ -437,18 +443,6 @@ mod typecheck {
         is_immediate2(term) && constants::immediate1_tag(term) == constants::FLAG_ATOM
     }
 
-    /// Returns true if this term is a number (float or integer)
-    #[inline]
-    pub fn is_number(term: usize) -> bool {
-        is_integer(term) || is_float(term)
-    }
-
-    /// Returns true if this term is either a small or big integer
-    #[inline]
-    pub fn is_integer(term: usize) -> bool {
-        is_smallint(term) || is_bigint(term)
-    }
-
     /// Returns true if this term is a small integer (i.e. fits in a usize)
     #[inline]
     pub fn is_smallint(term: usize) -> bool {
@@ -462,12 +456,6 @@ mod typecheck {
             || constants::header_tag(term) == constants::FLAG_NEG_BIG_INTEGER
     }
 
-    /// Returns true if this term is a float
-    #[inline]
-    pub const fn is_float(term: usize) -> bool {
-        constants::header_tag(term) == constants::FLAG_FLOAT
-    }
-
     /// Returns true if this term is a tuple
     #[inline]
     pub const fn is_tuple(term: usize) -> bool {
@@ -478,12 +466,6 @@ mod typecheck {
     #[inline]
     pub const fn is_map(term: usize) -> bool {
         constants::header_tag(term) == constants::FLAG_MAP
-    }
-
-    /// Returns true if this term is a pid
-    #[inline]
-    pub fn is_pid(term: usize) -> bool {
-        is_local_pid(term) || is_remote_pid(term)
     }
 
     /// Returns true if this term is a pid on the local node
@@ -532,12 +514,6 @@ mod typecheck {
     #[inline]
     pub const fn is_remote_reference(term: usize) -> bool {
         constants::header_tag(term) == constants::FLAG_EXTERN_REF
-    }
-
-    /// Returns true if this term is a binary
-    #[inline]
-    pub fn is_binary(term: usize) -> bool {
-        is_procbin(term) || is_heapbin(term) || is_subbinary(term) || is_match_context(term)
     }
 
     /// Returns true if this term is a reference-counted binary
@@ -770,7 +746,7 @@ impl Term {
                 return;
             }
             // Ensure we walk tuples and release all their elements
-            if boxed.is_tuple() {
+            if boxed.is_tuple_header() {
                 let tuple = unsafe { &*(boxed_ptr as *mut Tuple) };
                 for element in tuple.iter() {
                     element.release();
@@ -780,7 +756,7 @@ impl Term {
             return;
         }
         // Ensure we walk lists and release all their elements
-        if self.is_list() {
+        if self.is_non_empty_list() {
             let cons_ptr = self.list_val();
             let mut cons = unsafe { *cons_ptr };
             loop {
@@ -799,7 +775,7 @@ impl Term {
                     return;
                 }
                 // If the tail is proper, move into the cell it represents
-                if cons.tail.is_list() {
+                if cons.tail.is_non_empty_list() {
                     let tail_ptr = cons.tail.list_val();
                     cons = unsafe { *tail_ptr };
                     continue;
@@ -815,6 +791,35 @@ impl Term {
     #[inline]
     pub fn as_usize(self) -> usize {
         self.0
+    }
+
+    /// Returns `true` if `self` and `other` are equal without converting integers and floats.
+    pub fn exactly_eq(self, other: &Term) -> bool {
+        match (
+            self.to_typed_term().unwrap(),
+            other.to_typed_term().unwrap(),
+        ) {
+            (TypedTerm::SmallInteger(_), TypedTerm::Boxed(_)) => false,
+            (TypedTerm::Boxed(_), TypedTerm::SmallInteger(_)) => false,
+            (TypedTerm::Boxed(self_unboxed), TypedTerm::Boxed(other_unboxed)) => {
+                match (
+                    self_unboxed.to_typed_term().unwrap(),
+                    other_unboxed.to_typed_term().unwrap(),
+                ) {
+                    (TypedTerm::BigInteger(_), TypedTerm::Float(_)) => false,
+                    (TypedTerm::Float(_), TypedTerm::BigInteger(_)) => false,
+                    (self_unboxed_typed_term, other_unboxed_typed_term) => {
+                        self_unboxed_typed_term.eq(&other_unboxed_typed_term)
+                    }
+                }
+            }
+            (self_typed_term, other_typed_term) => self_typed_term.eq(&other_typed_term),
+        }
+    }
+
+    /// Returns `false` if `self` and `other` are equal without converting integers and floats.
+    pub fn exactly_ne(self, other: &Term) -> bool {
+        !self.exactly_eq(other)
     }
 
     /// Returns true if this term is the none value
@@ -840,6 +845,10 @@ impl Term {
     /// Returns true if this term is a list
     #[inline]
     pub fn is_list(&self) -> bool {
+        self.is_nil() || self.is_non_empty_list()
+    }
+
+    pub fn is_non_empty_list(&self) -> bool {
         typecheck::is_list(self.0)
     }
 
@@ -849,16 +858,42 @@ impl Term {
         typecheck::is_atom(self.0)
     }
 
+    /// Returns `true` if this term in atom of either `true` or `false`.
+    pub fn is_boolean(&self) -> bool {
+        match self.to_typed_term().unwrap() {
+            TypedTerm::Atom(atom) => {
+                let name = atom.name();
+
+                (name == "true") || (name == "false")
+            }
+            _ => false,
+        }
+    }
+
     /// Returns true if this term is a number (float or integer)
     #[inline]
     pub fn is_number(&self) -> bool {
-        typecheck::is_number(self.0)
+        match self.to_typed_term().unwrap() {
+            TypedTerm::SmallInteger(_) => true,
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::BigInteger(_) | TypedTerm::Float(_) => true,
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     /// Returns true if this term is either a small or big integer
     #[inline]
     pub fn is_integer(&self) -> bool {
-        typecheck::is_integer(self.0)
+        match self.to_typed_term().unwrap() {
+            TypedTerm::SmallInteger(_) => true,
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::BigInteger(_) => true,
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     /// Returns true if this term is a small integer (i.e. fits in a usize)
@@ -867,28 +902,55 @@ impl Term {
         typecheck::is_smallint(self.0)
     }
 
-    /// Returns true if this term is a big integer (i.e. arbitrarily large)
+    /// Returns true if this term is a boxed big integer (i.e. arbitrarily large).
     #[inline]
     pub fn is_bigint(&self) -> bool {
+        match self.to_typed_term().unwrap() {
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::BigInteger(_) => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// Returns true if this term is a big integer (i.e. arbitrarily large) header that has already
+    /// been unboxed.
+    #[inline]
+    pub fn is_bigint_header(&self) -> bool {
         typecheck::is_bigint(self.0)
     }
 
     /// Returns true if this term is a float
     #[inline]
     pub fn is_float(&self) -> bool {
-        typecheck::is_float(self.0)
+        match self.to_typed_term().unwrap() {
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::Float(_) => true,
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
-    /// Returns true if this term is a tuple
-    #[inline]
+    /// Returns true if this term is a boxed tuple
     pub fn is_tuple(&self) -> bool {
+        match self.to_typed_term().unwrap() {
+            TypedTerm::Boxed(unboxed) => unboxed.is_tuple_header(),
+            _ => false,
+        }
+    }
+
+    /// Returns true if this term is a tuple header that has already been unboxed.
+    #[inline]
+    pub fn is_tuple_header(&self) -> bool {
         typecheck::is_tuple(self.0)
     }
 
-    /// Returns true if this term is a tuple of arity `arity`
+    /// Returns true if this term is a tuple header that has already been unboxed of arity `arity`.
     #[inline]
-    pub fn is_tuple_with_arity(&self, arity: usize) -> bool {
-        if typecheck::is_tuple(self.0) {
+    pub fn is_tuple_header_with_arity(&self, arity: usize) -> bool {
+        if self.is_tuple_header() {
             self.arityval() == arity
         } else {
             false
@@ -898,13 +960,21 @@ impl Term {
     /// Returns true if this term is a map
     #[inline]
     pub fn is_map(&self) -> bool {
+        match self.to_typed_term().unwrap() {
+            TypedTerm::Boxed(unboxed) => unboxed.is_map_header(),
+            _ => false,
+        }
+    }
+
+    /// Returns true if this term is a map header that has already been unboxed.
+    pub fn is_map_header(&self) -> bool {
         typecheck::is_map(self.0)
     }
 
     /// Returns true if this term is a pid
     #[inline]
     pub fn is_pid(&self) -> bool {
-        typecheck::is_pid(self.0)
+        self.is_local_pid() || self.is_external_pid()
     }
 
     /// Returns true if this term is a pid on the local node
@@ -913,9 +983,17 @@ impl Term {
         typecheck::is_local_pid(self.0)
     }
 
+    /// Returns true if this term is a boxed external pid
+    pub fn is_external_pid(&self) -> bool {
+        match self.to_typed_term().unwrap() {
+            TypedTerm::Boxed(unboxed) => unboxed.is_external_pid_header(),
+            _ => false,
+        }
+    }
+
     /// Returns true if this term is a pid on some other node
     #[inline]
-    pub fn is_remote_pid(&self) -> bool {
+    pub fn is_external_pid_header(&self) -> bool {
         typecheck::is_remote_pid(self.0)
     }
 
@@ -943,9 +1021,21 @@ impl Term {
         typecheck::is_reference(self.0)
     }
 
-    /// Returns true if this term is a reference on the local node
+    /// Returns true if this term is a boxed reference on the local node.
     #[inline]
     pub fn is_local_reference(&self) -> bool {
+        let tagged = self.0;
+
+        typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
+            let ptr = constants::boxed_value(tagged);
+
+            unsafe { *ptr }.is_local_reference_header()
+        }
+    }
+
+    /// Returns true if this term is a reference on the local node that has already been unboxed.
+    #[inline]
+    pub fn is_local_reference_header(&self) -> bool {
         typecheck::is_local_reference(self.0)
     }
 
@@ -953,12 +1043,6 @@ impl Term {
     #[inline]
     pub fn is_remote_reference(&self) -> bool {
         typecheck::is_remote_reference(self.0)
-    }
-
-    /// Returns true if this term is a binary
-    #[inline]
-    pub fn is_binary(&self) -> bool {
-        typecheck::is_binary(self.0)
     }
 
     /// Returns true if this term is a reference-counted binary
@@ -985,9 +1069,15 @@ impl Term {
         typecheck::is_match_context(self.0)
     }
 
-    /// Returns true if this term is a closure
-    #[inline]
+    /// Returns true if this term is a boxed closure
     pub fn is_closure(&self) -> bool {
+        typecheck::is_boxed(self.0)
+            && typecheck::is_closure(unsafe { *constants::boxed_value(self.0) }.0)
+    }
+
+    /// Returns true if this term is an unboxed closure header
+    #[inline]
+    pub fn is_closure_header(&self) -> bool {
         typecheck::is_closure(self.0)
     }
 
@@ -1021,6 +1111,35 @@ impl Term {
         typecheck::is_boxed(self.0)
     }
 
+    /// Returns `true` if this term is a boxed pointer and it points to a `HeapBin`, `ProcBin`, or
+    /// `SubBinary`, or `MatchContext` with a complete number of bytes.
+    pub fn is_binary(&self) -> bool {
+        match self.to_typed_term().unwrap() {
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::HeapBinary(_) | TypedTerm::ProcBin(_) => true,
+                TypedTerm::SubBinary(subbinary) => subbinary.partial_byte_bit_len() == 0,
+                TypedTerm::MatchContext(match_context) => match_context.partial_byte_bit_len() == 0,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if this term is a boxed pointer and it points to a `HeapBin`, `ProcBin`, or
+    /// `SubBinary`, or `MatchContext`
+    pub fn is_bitstring(&self) -> bool {
+        match self.to_typed_term().unwrap() {
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::HeapBinary(_)
+                | TypedTerm::ProcBin(_)
+                | TypedTerm::SubBinary(_)
+                | TypedTerm::MatchContext(_) => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     /// Returns true if this term is a header
     #[inline]
     pub fn is_header(&self) -> bool {
@@ -1036,12 +1155,12 @@ impl Term {
         constants::boxed_value(self.0)
     }
 
-    /// Given a list term, this function returns a pointer to the underlying `Cons`
+    /// Given a non-empty list term, this function returns a pointer to the underlying `Cons`
     ///
     /// NOTE: This is used internally by GC, you should use `to_typed_term` everywhere else
     #[inline]
     pub(crate) fn list_val(&self) -> *mut Cons {
-        assert!(self.is_list());
+        assert!(self.is_non_empty_list());
         constants::list_value(self.0)
     }
 
@@ -1202,11 +1321,11 @@ impl fmt::Debug for Term {
                     write!(f, "Term({:?})", *(ptr as *const Tuple))
                 } else if self.is_none() {
                     write!(f, "Term(None)")
-                } else if self.is_bigint() {
+                } else if self.is_bigint_header() {
                     write!(f, "Term({})", *(ptr as *const BigInteger))
                 } else if self.is_reference() {
                     write!(f, "Term({:?})", Reference::from_raw(ptr as *mut Reference))
-                } else if self.is_closure() {
+                } else if self.is_closure_header() {
                     write!(f, "Term(Closure({:?}))", ptr as *const Closure)
                 } else if self.is_float() {
                     let float = Float::from_raw(ptr as *mut Float);
@@ -1231,7 +1350,7 @@ impl fmt::Debug for Term {
                 } else if self.is_match_context() {
                     let bin = &*(ptr as *const MatchContext);
                     write!(f, "Term(MatchCtx({:?}))", bin)
-                } else if self.is_remote_pid() {
+                } else if self.is_external_pid() {
                     let val = &*(ptr as *const ExternalPid);
                     write!(f, "Term({:?})", val)
                 } else if self.is_remote_port() {
@@ -1252,6 +1371,19 @@ impl fmt::Debug for Term {
         }
     }
 }
+impl From<bool> for Term {
+    fn from(b: bool) -> Term {
+        use crate::alloc::string::ToString;
+        atom_unchecked(&b.to_string())
+    }
+}
+impl From<u8> for Term {
+    fn from(byte: u8) -> Term {
+        let small_integer: SmallInteger = byte.into();
+
+        unsafe { small_integer.as_term() }
+    }
+}
 impl PartialOrd<Term> for Term {
     fn partial_cmp(&self, other: &Term) -> Option<cmp::Ordering> {
         if let Ok(ref lhs) = self.to_typed_term() {
@@ -1262,6 +1394,13 @@ impl PartialOrd<Term> for Term {
         None
     }
 }
+
+impl Ord for Term {
+    fn cmp(&self, other: &Term) -> cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
 impl CloneToProcess for Term {
     fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
         if self.is_immediate() {
@@ -1289,7 +1428,7 @@ impl CloneToProcess for Term {
     fn size_in_words(&self) -> usize {
         if self.is_immediate() {
             return 1;
-        } else if self.is_boxed() || self.is_list() {
+        } else if self.is_boxed() || self.is_non_empty_list() {
             let tt = self.to_typed_term().unwrap();
             tt.size_in_words()
         } else {
@@ -1298,6 +1437,129 @@ impl CloneToProcess for Term {
             arityval + 1
         }
     }
+}
+
+unsafe impl Send for Term {}
+
+impl TryInto<bool> for Term {
+    type Error = BoolError;
+
+    fn try_into(self) -> Result<bool, Self::Error> {
+        self.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryInto<char> for Term {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<char, Self::Error> {
+        let self_u32: u32 = self
+            .try_into()
+            .map_err(|_| TryIntoIntegerError::OutOfRange)?;
+
+        match core::char::from_u32(self_u32) {
+            Some(c) => Ok(c),
+            None => Err(TryIntoIntegerError::OutOfRange),
+        }
+    }
+}
+
+impl TryInto<f64> for Term {
+    type Error = TypeError;
+
+    fn try_into(self) -> Result<f64, Self::Error> {
+        self.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryInto<isize> for Term {
+    type Error = TypeError;
+
+    fn try_into(self) -> Result<isize, Self::Error> {
+        self.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryInto<u32> for Term {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<u32, Self::Error> {
+        let u: u64 = self.try_into()?;
+
+        u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
+    }
+}
+
+impl TryInto<u64> for Term {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<u64, Self::Error> {
+        match self.to_typed_term().unwrap() {
+            TypedTerm::SmallInteger(small_integer) => small_integer
+                .try_into()
+                .map_err(|_| TryIntoIntegerError::OutOfRange),
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::BigInteger(big_integer) => big_integer.try_into(),
+                _ => Err(TryIntoIntegerError::Type),
+            },
+            _ => Err(TryIntoIntegerError::Type),
+        }
+    }
+}
+
+impl TryInto<usize> for Term {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        let u: u64 = self.try_into()?;
+
+        u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
+    }
+}
+
+impl TryInto<BigInt> for Term {
+    type Error = TypeError;
+
+    fn try_into(self) -> Result<BigInt, Self::Error> {
+        let option_big_int = match self.to_typed_term().unwrap() {
+            TypedTerm::SmallInteger(small_integer) => Some(small_integer.into()),
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::BigInteger(big_integer) => {
+                    let big_int: BigInt = big_integer.clone().into();
+
+                    Some(big_int.clone())
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+
+        match option_big_int {
+            Some(big_int) => Ok(big_int),
+            None => Err(TypeError),
+        }
+    }
+}
+
+impl TryInto<String> for Term {
+    type Error = runtime::Exception;
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        self.to_typed_term().unwrap().try_into()
+    }
+}
+
+pub enum BoolError {
+    Type,
+    NotABooleanName,
+}
+
+#[derive(Debug)]
+pub struct TypeError;
+
+pub enum TryIntoIntegerError {
+    Type,
+    OutOfRange,
 }
 
 #[cfg(test)]

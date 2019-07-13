@@ -17,7 +17,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, destination, message)| {
-                    let time = milliseconds.into_process(&arc_process);
+                    let time = arc_process.integer(milliseconds);
 
                     prop_assert_eq!(
                         erlang::send_after_4(
@@ -27,7 +27,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                             OPTIONS,
                             arc_process.clone()
                         ),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

@@ -1,15 +1,11 @@
-use std::convert::{TryFrom, TryInto};
+use core::convert::{TryFrom, TryInto};
 
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-#[cfg(test)]
-use crate::atom::Existence::DoNotCare;
-use crate::exception::Exception;
-use crate::integer::big;
-#[cfg(test)]
-use crate::process::{IntoProcess, Process};
-use crate::term::{Tag::*, Term};
+use liblumen_alloc::erts::exception::runtime::Exception;
+use liblumen_alloc::erts::term::{atom_unchecked, Term, TypedTerm};
+use liblumen_alloc::{badarg, ProcessControlBlock};
 
 pub mod monotonic;
 
@@ -63,19 +59,16 @@ impl Unit {
             Unit::PerformanceCounter => Self::MILLISECOND_HERTZ,
         }
     }
-}
 
-#[cfg(test)]
-impl IntoProcess<Term> for Unit {
-    fn into_process(self, process: &Process) -> Term {
+    pub fn to_term(&self, process_control_block: &ProcessControlBlock) -> Term {
         match self {
-            Unit::Hertz(hertz) => hertz.into_process(process),
-            Unit::Second => Term::str_to_atom("second", DoNotCare).unwrap(),
-            Unit::Millisecond => Term::str_to_atom("millisecond", DoNotCare).unwrap(),
-            Unit::Microsecond => Term::str_to_atom("microsecond", DoNotCare).unwrap(),
-            Unit::Nanosecond => Term::str_to_atom("nanosecond", DoNotCare).unwrap(),
-            Unit::Native => Term::str_to_atom("native", DoNotCare).unwrap(),
-            Unit::PerformanceCounter => Term::str_to_atom("perf_counter", DoNotCare).unwrap(),
+            Unit::Hertz(hertz) => process_control_block.integer(*hertz),
+            Unit::Second => atom_unchecked("second"),
+            Unit::Millisecond => atom_unchecked("millisecond"),
+            Unit::Microsecond => atom_unchecked("microsecond"),
+            Unit::Nanosecond => atom_unchecked("nanosecond"),
+            Unit::Native => atom_unchecked("native"),
+            Unit::PerformanceCounter => atom_unchecked("perf_counter"),
         }
     }
 }
@@ -84,9 +77,9 @@ impl TryFrom<Term> for Unit {
     type Error = Exception;
 
     fn try_from(term: Term) -> Result<Unit, Exception> {
-        match term.tag() {
-            SmallInteger => {
-                let hertz: usize = term.try_into()?;
+        match term.to_typed_term().unwrap() {
+            TypedTerm::SmallInteger(small_integer) => {
+                let hertz: usize = small_integer.try_into()?;
 
                 if 0 < hertz {
                     Ok(Unit::Hertz(hertz))
@@ -94,21 +87,16 @@ impl TryFrom<Term> for Unit {
                     Err(badarg!())
                 }
             }
-            Boxed => {
-                let unboxed: &Term = term.unbox_reference();
+            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::BigInteger(big_integer) => {
+                    let big_integer_usize: usize = big_integer.try_into()?;
 
-                match unboxed.tag() {
-                    BigInteger => {
-                        let big_integer: &big::Integer = term.unbox_reference();
-                        let big_integer_usize: usize = big_integer.try_into()?;
-
-                        Ok(Unit::Hertz(big_integer_usize))
-                    }
-                    _ => Err(badarg!()),
+                    Ok(Unit::Hertz(big_integer_usize))
                 }
-            }
-            Atom => {
-                let term_string = unsafe { term.atom_to_string() };
+                _ => Err(badarg!()),
+            },
+            TypedTerm::Atom(atom) => {
+                let term_string = atom.name();
                 let mut result = Err(badarg!());
 
                 for (s, unit) in [
@@ -125,7 +113,7 @@ impl TryFrom<Term> for Unit {
                 ]
                 .iter()
                 {
-                    if term_string.as_ref() == s {
+                    if &term_string == s {
                         result = Ok(*unit);
                         break;
                     }
@@ -145,13 +133,12 @@ mod tests {
     mod unit {
         use super::*;
 
-        use crate::process::IntoProcess;
         use crate::scheduler::with_process;
 
         #[test]
         fn zero_errors_badarg() {
             with_process(|process| {
-                let term: Term = 0.into_process(&process);
+                let term: Term = process.integer(0);
 
                 let result: Result<Unit, Exception> = term.try_into();
 

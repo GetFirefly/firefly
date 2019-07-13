@@ -3,13 +3,9 @@ use super::*;
 #[test]
 fn with_big_integer_subtrahend_with_underflow_returns_small_integer() {
     with(|minuend, process| {
-        let subtrahend = (crate::integer::small::MAX + 1).into_process(&process);
+        let subtrahend = process.integer(SmallInteger::MAX_VALUE + 1);
 
-        assert_eq!(subtrahend.tag(), Boxed);
-
-        let unboxed_subtrahend: &Term = subtrahend.unbox_reference();
-
-        assert_eq!(unboxed_subtrahend.tag(), BigInteger);
+        assert!(subtrahend.is_bigint());
 
         let result = erlang::subtract_2(minuend, subtrahend, &process);
 
@@ -17,18 +13,18 @@ fn with_big_integer_subtrahend_with_underflow_returns_small_integer() {
 
         let difference = result.unwrap();
 
-        assert_eq!(difference.tag(), SmallInteger);
+        assert!(difference.is_smallint());
     })
 }
 
 #[test]
 fn with_float_subtrahend_with_underflow_returns_min_float() {
     with(|minuend, process| {
-        let subtrahend = std::f64::MAX.into_process(&process);
+        let subtrahend = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
             erlang::subtract_2(minuend, subtrahend, &process),
-            Ok(std::f64::MIN.into_process(&process))
+            Ok(process.float(std::f64::MIN).unwrap())
         );
     })
 }
@@ -36,27 +32,23 @@ fn with_float_subtrahend_with_underflow_returns_min_float() {
 #[test]
 fn with_float_subtrahend_with_overflow_returns_max_float() {
     with(|minuend, process| {
-        let subtrahend = std::f64::MIN.into_process(&process);
+        let subtrahend = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
             erlang::subtract_2(minuend, subtrahend, &process),
-            Ok(std::f64::MAX.into_process(&process))
+            Ok(process.float(std::f64::MAX).unwrap())
         );
     })
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let minuend: Term = (crate::integer::small::MAX + 1).into_process(&process);
+        let minuend: Term = process.integer(SmallInteger::MAX_VALUE + 1);
 
-        assert_eq!(minuend.tag(), Boxed);
-
-        let unboxed_minuend: &Term = minuend.unbox_reference();
-
-        assert_eq!(unboxed_minuend.tag(), BigInteger);
+        assert!(minuend.is_bigint());
 
         f(minuend, &process)
     })

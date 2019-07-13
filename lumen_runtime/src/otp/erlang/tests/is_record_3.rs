@@ -36,7 +36,10 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(erlang::is_record_3(tuple, record_tag, size), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::is_record_3(tuple, record_tag, size),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -54,13 +57,16 @@ fn with_empty_tuple_with_atom_without_non_negative_size_errors_badarg() {
                     strategy::term::atom(),
                     strategy::term(arc_process.clone())
                         .prop_filter("Size must not be a non-negative integer", |size| {
-                            !(size.is_integer() && &0.into_process(&arc_process) <= size)
+                            !(size.is_integer() && &arc_process.integer(0) <= size)
                         }),
                 ),
                 |(record_tag, size)| {
-                    let tuple = Term::slice_to_tuple(&[], &arc_process);
+                    let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
-                    prop_assert_eq!(erlang::is_record_3(tuple, record_tag, size), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::is_record_3(tuple, record_tag, size),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -79,7 +85,7 @@ fn with_empty_tuple_with_atom_with_non_negative_size_returns_false() {
                     strategy::term::integer::non_negative(arc_process.clone()),
                 ),
                 |(record_tag, size)| {
-                    let tuple = Term::slice_to_tuple(&[], &arc_process);
+                    let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
                     prop_assert_eq!(
                         erlang::is_record_3(tuple, record_tag, size),
@@ -118,10 +124,13 @@ fn with_non_empty_tuple_without_record_tag_with_size_returns_false() {
                     .prop_map(
                         |(actual_record_tag, mut tail_element_vec, tested_record_tag)| {
                             tail_element_vec.insert(0, actual_record_tag);
-                            let size = tail_element_vec.len().into_process(&arc_process);
+
+                            let mut heap = arc_process.acquire_heap();
+
+                            let size = heap.integer(tail_element_vec.len());
 
                             (
-                                Term::slice_to_tuple(&tail_element_vec, &arc_process),
+                                heap.tuple_from_slice(&tail_element_vec).unwrap(),
                                 tested_record_tag,
                                 size,
                             )
@@ -154,10 +163,10 @@ fn with_non_empty_tuple_with_record_tag_without_size_returns_false() {
                 )
                     .prop_flat_map(|(record_tag, mut tail_element_vec)| {
                         tail_element_vec.insert(0, record_tag);
-                        let tuple_size = tail_element_vec.len().into_process(&arc_process);
+                        let tuple_size = arc_process.integer(tail_element_vec.len());
 
                         (
-                            Just(Term::slice_to_tuple(&tail_element_vec, &arc_process)),
+                            Just(arc_process.tuple_from_slice(&tail_element_vec).unwrap()),
                             Just(record_tag),
                             strategy::term::integer::non_negative(arc_process.clone())
                                 .prop_filter("Size cannot match tuple size", move |size| {
@@ -192,10 +201,10 @@ fn with_non_empty_tuple_with_record_tag_with_size_returns_true() {
                 )
                     .prop_map(|(record_tag, mut tail_element_vec)| {
                         tail_element_vec.insert(0, record_tag);
-                        let size = tail_element_vec.len().into_process(&arc_process);
+                        let size = arc_process.integer(tail_element_vec.len());
 
                         (
-                            Term::slice_to_tuple(&tail_element_vec, &arc_process),
+                            arc_process.tuple_from_slice(&tail_element_vec).unwrap(),
                             record_tag,
                             size,
                         )

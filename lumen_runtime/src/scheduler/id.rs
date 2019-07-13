@@ -1,8 +1,7 @@
 // Based on https://github.com/Amanieu/thread_local-rs/blob/8c956ed8642175f1a3afc409bf5f8844d3ea994a/src/thread_id.rs
 use std::collections::BinaryHeap;
 
-// A separate type so this can be resized easily if we ever need more concurrent schedulers.
-pub type Raw = u8;
+pub use liblumen_alloc::erts::scheduler::id::Raw;
 
 // Manager which allocates scheduler IDs. It attempts to aggressively reuse scheduler IDs to allow
 // scheduler ID to keep inside the number of expected concurrent schedulers and not the total number

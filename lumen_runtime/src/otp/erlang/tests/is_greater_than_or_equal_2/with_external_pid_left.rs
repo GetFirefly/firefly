@@ -15,7 +15,7 @@ fn with_number_atom_reference_function_port_or_local_pid_returns_true() {
                             right.is_number()
                                 || right.is_atom()
                                 || right.is_reference()
-                                || right.is_function()
+                                || right.is_closure()
                                 || right.is_port()
                                 || right.is_local_pid()
                         },
@@ -34,7 +34,7 @@ fn with_number_atom_reference_function_port_or_local_pid_returns_true() {
 #[test]
 fn with_greater_external_pid_right_returns_true() {
     is_greater_than_or_equal(
-        |_, process| Term::external_pid(1, 1, 3, &process).unwrap(),
+        |_, process| process.external_pid_with_node_id(1, 1, 3).unwrap(),
         true,
     );
 }
@@ -42,7 +42,7 @@ fn with_greater_external_pid_right_returns_true() {
 #[test]
 fn with_same_value_external_pid_right_returns_true() {
     is_greater_than_or_equal(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
+        |_, process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
         true,
     );
 }
@@ -50,7 +50,7 @@ fn with_same_value_external_pid_right_returns_true() {
 #[test]
 fn with_greater_external_pid_right_returns_false() {
     is_greater_than_or_equal(
-        |_, process| Term::external_pid(1, 3, 3, &process).unwrap(),
+        |_, process| process.external_pid_with_node_id(1, 3, 3).unwrap(),
         false,
     );
 }
@@ -87,10 +87,10 @@ fn with_tuple_map_list_or_bitstring_returns_false() {
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_greater_than_or_equal(
-        |process| Term::external_pid(1, 2, 3, &process).unwrap(),
+        |process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
         right,
         expected,
     );

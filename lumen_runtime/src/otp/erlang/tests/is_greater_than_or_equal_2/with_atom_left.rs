@@ -23,17 +23,17 @@ fn with_number_returns_true() {
 
 #[test]
 fn with_greater_atom_returns_true() {
-    is_greater_than_or_equal(|_, _| Term::str_to_atom("keft", DoNotCare).unwrap(), true);
+    is_greater_than_or_equal(|_, _| atom_unchecked("keft"), true);
 }
 
 #[test]
 fn with_same_atom_value_returns_true() {
-    is_greater_than_or_equal(|_, _| Term::str_to_atom("left", DoNotCare).unwrap(), true);
+    is_greater_than_or_equal(|_, _| atom_unchecked("left"), true);
 }
 
 #[test]
 fn with_greater_atom_returns_false() {
-    is_greater_than_or_equal(|_, _| Term::str_to_atom("meft", DoNotCare).unwrap(), false);
+    is_greater_than_or_equal(|_, _| atom_unchecked("meft"), false);
 }
 
 #[test]
@@ -63,11 +63,7 @@ fn without_number_or_atom_returns_false() {
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::is_greater_than_or_equal(
-        |_| Term::str_to_atom("left", DoNotCare).unwrap(),
-        right,
-        expected,
-    );
+    super::is_greater_than_or_equal(|_| atom_unchecked("left"), right, expected);
 }

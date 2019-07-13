@@ -285,7 +285,10 @@ pub trait HeapAlloc {
     {
         match i.into() {
             Integer::Small(small) => unsafe { small.as_term() },
-            Integer::Big(big) => big.clone_to_heap(self).unwrap(),
+            Integer::Big(big) => {
+                dbg!(&big);
+                big.clone_to_heap(self).unwrap()
+            }
         }
     }
 

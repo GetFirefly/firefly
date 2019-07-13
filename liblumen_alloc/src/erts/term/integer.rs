@@ -135,12 +135,12 @@ impl From<usize> for Integer {
 }
 impl From<i32> for Integer {
     fn from(n: i32) -> Integer {
-        (n as isize).into()
+        (n as i64).into()
     }
 }
 impl From<i64> for Integer {
     fn from(n: i64) -> Integer {
-        if (SmallInteger::MAX_VALUE as i64) <= n || n <= (SmallInteger::MIN_VALUE as i64) {
+        if (SmallInteger::MIN_VALUE as i64) <= n && n <= (SmallInteger::MAX_VALUE as i64) {
             Integer::Small(unsafe { SmallInteger::new_unchecked(n as isize) })
         } else {
             Integer::Big(n.into())

@@ -101,8 +101,8 @@ pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Resul
 }
 
 /// `+/2` infix operator
-pub fn add_2(augend: Term, addend: Term, process_controll_block: &ProcessControlBlock) -> Result {
-    number_infix_operator!(augend, addend, process_controll_block, checked_add, +)
+pub fn add_2(augend: Term, addend: Term, process_control_block: &ProcessControlBlock) -> Result {
+    number_infix_operator!(augend, addend, process_control_block, checked_add, +)
 }
 
 /// `and/2` infix operator.

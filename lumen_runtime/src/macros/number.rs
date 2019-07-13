@@ -46,6 +46,7 @@ macro_rules! number_infix_operator {
                 }
             }
             (TypedTerm::Boxed(left_unboxed), TypedTerm::Boxed(right_unboxed)) => {
+                dbg!();
                 match (left_unboxed.to_typed_term().unwrap(), right_unboxed.to_typed_term().unwrap()) {
                     (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
                         let left_big_int: &BigInt = left_big_integer.as_ref().into();
@@ -54,8 +55,11 @@ macro_rules! number_infix_operator {
                         BigInts(left_big_int.clone(), right_big_int.clone())
                     }
                     (TypedTerm::BigInteger(left_big_integer), TypedTerm::Float(right_float)) => {
+                        dbg!("big float");
                         let left_f64: f64 = left_big_integer.into();
+                        dbg!(left_f64);
                         let right_f64 = right_float.into();
+                        dbg!(right_f64);
 
                         Floats(left_f64, right_f64)
                     }
@@ -94,6 +98,8 @@ macro_rules! number_infix_operator {
                 }
             }
             Floats(left, right) => {
+                dbg!(left);
+                dbg!(right);
                 let output = left $infix right;
                 let output_term = $process.float(output)?;
 

@@ -258,17 +258,23 @@ macro_rules! partial_cmp_impl {
 
         // Fallback
         // Flip the arguments, then invert the result to avoid duplicating the above
-        match $rhs.partial_cmp($lhs) {
-            Some(Ordering::Greater) => Some(Ordering::Less),
-            Some(Ordering::Less) => Some(Ordering::Greater),
-            same => same
-        }
+        $rhs.partial_cmp($lhs).map(|option| option.reverse())
     };
 }
 
 impl PartialOrd<TypedTerm> for TypedTerm {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         use core::cmp::Ordering;
+        if let Self::Boxed(boxed) = self {
+            return boxed.to_typed_term().unwrap().partial_cmp(other);
+        };
+        if let Self::Boxed(boxed) = other {
+            return boxed
+                .to_typed_term()
+                .unwrap()
+                .partial_cmp(self)
+                .map(|option| option.reverse());
+        };
         // number < atom < reference < fun < port < pid < tuple < map < nil < list < bit string
         partial_cmp_impl! { (self, other) =>
             Self::Catch where invalid,

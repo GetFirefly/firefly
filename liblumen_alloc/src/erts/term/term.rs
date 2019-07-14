@@ -875,7 +875,7 @@ impl Term {
     pub fn is_number(&self) -> bool {
         match self.to_typed_term().unwrap() {
             TypedTerm::SmallInteger(_) => true,
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::BigInteger(_) | TypedTerm::Float(_) => true,
                 _ => false,
             },
@@ -888,7 +888,7 @@ impl Term {
     pub fn is_integer(&self) -> bool {
         match self.to_typed_term().unwrap() {
             TypedTerm::SmallInteger(_) => true,
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::BigInteger(_) => true,
                 _ => false,
             },
@@ -906,7 +906,7 @@ impl Term {
     #[inline]
     pub fn is_bigint(&self) -> bool {
         match self.to_typed_term().unwrap() {
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::BigInteger(_) => true,
                 _ => false,
             },
@@ -925,7 +925,7 @@ impl Term {
     #[inline]
     pub fn is_float(&self) -> bool {
         match self.to_typed_term().unwrap() {
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Float(_) => true,
                 _ => false,
             },
@@ -936,7 +936,7 @@ impl Term {
     /// Returns true if this term is a boxed tuple
     pub fn is_tuple(&self) -> bool {
         match self.to_typed_term().unwrap() {
-            TypedTerm::Boxed(unboxed) => unboxed.is_tuple_header(),
+            TypedTerm::Boxed(boxed) => boxed.is_tuple_header(),
             _ => false,
         }
     }
@@ -961,7 +961,7 @@ impl Term {
     #[inline]
     pub fn is_map(&self) -> bool {
         match self.to_typed_term().unwrap() {
-            TypedTerm::Boxed(unboxed) => unboxed.is_map_header(),
+            TypedTerm::Boxed(boxed) => boxed.is_map_header(),
             _ => false,
         }
     }
@@ -986,7 +986,7 @@ impl Term {
     /// Returns true if this term is a boxed external pid
     pub fn is_external_pid(&self) -> bool {
         match self.to_typed_term().unwrap() {
-            TypedTerm::Boxed(unboxed) => unboxed.is_external_pid_header(),
+            TypedTerm::Boxed(boxed) => boxed.is_external_pid_header(),
             _ => false,
         }
     }
@@ -1115,7 +1115,7 @@ impl Term {
     /// `SubBinary`, or `MatchContext` with a complete number of bytes.
     pub fn is_binary(&self) -> bool {
         match self.to_typed_term().unwrap() {
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::HeapBinary(_) | TypedTerm::ProcBin(_) => true,
                 TypedTerm::SubBinary(subbinary) => subbinary.partial_byte_bit_len() == 0,
                 TypedTerm::MatchContext(match_context) => match_context.partial_byte_bit_len() == 0,
@@ -1129,7 +1129,7 @@ impl Term {
     /// `SubBinary`, or `MatchContext`
     pub fn is_bitstring(&self) -> bool {
         match self.to_typed_term().unwrap() {
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::HeapBinary(_)
                 | TypedTerm::ProcBin(_)
                 | TypedTerm::SubBinary(_)
@@ -1192,7 +1192,7 @@ impl Term {
                 if constants::is_literal(val) {
                     Ok(TypedTerm::Literal(unsafe { *ptr }))
                 } else {
-                    Ok(TypedTerm::Boxed(unsafe { *ptr }))
+                    Ok(TypedTerm::Boxed(unsafe { Boxed::from_raw(ptr) }))
                 }
             }
             Self::FLAG_IMMEDIATE => match constants::immediate1_tag(val) {
@@ -1268,6 +1268,13 @@ impl Term {
             _ => unreachable!(),
         };
         Ok(ty)
+    }
+}
+// Needed so that `Boxed` can be `Boxed<Term>` when `to_typed_term` returns a
+// `TypedTerm::Boxed(Boxed<Term>)`.
+unsafe impl AsTerm for Term {
+    unsafe fn as_term(&self) -> Term {
+        *self
     }
 }
 impl fmt::Debug for Term {
@@ -1498,7 +1505,7 @@ impl TryInto<u64> for Term {
             TypedTerm::SmallInteger(small_integer) => small_integer
                 .try_into()
                 .map_err(|_| TryIntoIntegerError::OutOfRange),
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::BigInteger(big_integer) => big_integer.try_into(),
                 _ => Err(TryIntoIntegerError::Type),
             },
@@ -1523,7 +1530,7 @@ impl TryInto<BigInt> for Term {
     fn try_into(self) -> Result<BigInt, Self::Error> {
         let option_big_int = match self.to_typed_term().unwrap() {
             TypedTerm::SmallInteger(small_integer) => Some(small_integer.into()),
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::BigInteger(big_integer) => {
                     let big_int: BigInt = big_integer.clone().into();
 

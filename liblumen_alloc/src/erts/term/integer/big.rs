@@ -93,14 +93,10 @@ impl<'a> Into<&'a BigInt> for &'a BigInteger {
 }
 impl Into<f64> for Boxed<BigInteger> {
     fn into(self) -> f64 {
-        std::dbg!();
-        std::dbg!(&self.value);
         let (sign, bytes) = self.value.to_bytes_be();
-        std::dbg!();
         let unsigned_f64 = bytes
             .iter()
             .fold(0_f64, |acc, byte| 256.0 * acc + (*byte as f64));
-        std::dbg!();
 
         match sign {
             Sign::Minus => -1.0 * unsigned_f64,
@@ -178,7 +174,7 @@ impl PartialOrd<f64> for BigInteger {
 impl Debug for BigInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("BigInteger")
-            .field("header", &self.header.as_usize())
+            .field("header", &self.header)
             .field("value", &self.value)
             .finish()
     }

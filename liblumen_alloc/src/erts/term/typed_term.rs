@@ -28,7 +28,7 @@ pub enum TypedTerm {
     List(Boxed<Cons>),
     Tuple(Boxed<Tuple>),
     Map(Boxed<MapHeader>),
-    Boxed(Term),
+    Boxed(Boxed<Term>),
     Literal(Term),
     Pid(Pid),
     Port(Port),
@@ -426,7 +426,7 @@ impl TryInto<f64> for TypedTerm {
     fn try_into(self) -> Result<f64, Self::Error> {
         match self {
             TypedTerm::SmallInteger(small_integer) => Ok(small_integer.into()),
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::BigInteger(big_integer) => Ok(big_integer.into()),
                 TypedTerm::Float(float) => Ok(float.into()),
                 _ => Err(TypeError),
@@ -464,7 +464,7 @@ impl TryInto<isize> for TypedTerm {
                     }
                 }
             }
-            TypedTerm::Boxed(unboxed) => unboxed.to_typed_term().unwrap().try_into(),
+            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             _ => Err(TypeError),
         }
     }
@@ -475,7 +475,7 @@ impl TryInto<String> for TypedTerm {
 
     fn try_into(self) -> Result<String, Self::Error> {
         match self {
-            TypedTerm::Boxed(unboxed) => unboxed.to_typed_term().unwrap().try_into(),
+            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             TypedTerm::HeapBinary(heap_binary) => heap_binary.try_into(),
             TypedTerm::SubBinary(subbinary) => subbinary.try_into(),
             TypedTerm::ProcBin(process_binary) => process_binary.try_into(),

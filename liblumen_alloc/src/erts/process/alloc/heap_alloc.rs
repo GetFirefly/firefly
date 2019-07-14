@@ -86,7 +86,7 @@ pub trait HeapAlloc {
         Self: VirtualAlloc,
     {
         match binary.to_typed_term().unwrap() {
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::HeapBinary(heap_binary) => {
                     Ok(unsafe { bytes::inherit_lifetime(heap_binary.as_bytes()) })
                 }
@@ -285,10 +285,7 @@ pub trait HeapAlloc {
     {
         match i.into() {
             Integer::Small(small) => unsafe { small.as_term() },
-            Integer::Big(big) => {
-                dbg!(&big);
-                big.clone_to_heap(self).unwrap()
-            }
+            Integer::Big(big) => big.clone_to_heap(self).unwrap(),
         }
     }
 

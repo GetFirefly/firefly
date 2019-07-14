@@ -60,7 +60,7 @@ pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Resul
                 Some(number)
             }
         }
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::BigInteger(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let zero_big_int: &BigInt = &Zero::zero();
@@ -308,7 +308,7 @@ pub fn binary_to_atom_2(binary: Term, encoding: Term) -> Result {
     let _: Encoding = encoding.try_into()?;
 
     match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => {
                 Atom::try_from_latin1_bytes(heap_binary.as_bytes()).map_err(|error| error.into())
             }
@@ -342,7 +342,7 @@ pub fn binary_to_existing_atom_2(binary: Term, encoding: Term) -> Result {
     let _: Encoding = encoding.try_into()?;
 
     match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => {
                 Atom::try_from_latin1_bytes_existing(heap_binary.as_bytes())
                     .map_err(|error| error.into())
@@ -507,7 +507,7 @@ pub fn binary_to_term_2(
     let _to_term_options: ToTermOptions = options.try_into()?;
 
     match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(_heap_binary) => unimplemented!(),
             TypedTerm::ProcBin(_process_binary) => unimplemented!(),
             TypedTerm::SubBinary(_subbinary) => unimplemented!(),
@@ -519,7 +519,7 @@ pub fn binary_to_term_2(
 
 pub fn bit_size_1(bitstring: Term, process_control_block: &ProcessControlBlock) -> Result {
     let option_total_bit_len = match bitstring.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_bit_len()),
             TypedTerm::ProcBin(process_binary) => Some(process_binary.total_bit_len()),
             TypedTerm::SubBinary(subbinary) => Some(subbinary.total_bit_len()),
@@ -542,7 +542,7 @@ pub fn bitstring_to_list_1<'process>(
     process_control_block: &'process ProcessControlBlock,
 ) -> Result {
     match bitstring.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => {
                 let byte_term_iter = heap_binary.as_bytes().iter().map(|byte| (*byte).into());
                 let last = Term::NIL;
@@ -594,7 +594,7 @@ pub fn bnot_1(integer: Term, process_control_block: &ProcessControlBlock) -> Res
 
             Ok(output_term)
         }
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::BigInteger(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let output_big_int = !big_int;
@@ -640,7 +640,7 @@ pub fn bxor_2(
 
 pub fn byte_size_1(bitstring: Term, process_control_block: &ProcessControlBlock) -> Result {
     let option_total_byte_len = match bitstring.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_byte_len()),
             TypedTerm::ProcBin(process_binary) => Some(process_binary.total_byte_len()),
             TypedTerm::SubBinary(subbinary) => Some(subbinary.total_byte_len()),
@@ -675,8 +675,8 @@ pub fn cancel_timer_2(
 pub fn ceil_1(number: Term, process_control_block: &ProcessControlBlock) -> Result {
     let option_ceil = match number.to_typed_term().unwrap() {
         TypedTerm::SmallInteger(_) => Some(number),
-        TypedTerm::Boxed(unboxed) => {
-            match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => {
+            match boxed.to_typed_term().unwrap() {
                 TypedTerm::BigInteger(_) => Some(number),
                 TypedTerm::Float(float) => {
                     let inner: f64 = float.into();
@@ -961,7 +961,7 @@ pub fn is_record_3(term: Term, record_tag: Term, size: Term) -> Result {
 
 pub fn is_reference_1(term: Term) -> Term {
     match term.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => unboxed.to_typed_term().unwrap().is_reference(),
+        TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().is_reference(),
         _ => false,
     }
     .into()
@@ -1029,7 +1029,7 @@ pub fn list_to_binary_1(iolist: Term, process_control_block: &ProcessControlBloc
 
                         stack.push(boxed_cons.head);
                     }
-                    TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                         TypedTerm::HeapBinary(heap_binary) => {
                             byte_vec.extend_from_slice(heap_binary.as_bytes());
                         }
@@ -1093,7 +1093,7 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
 
                         stack.push(boxed_cons.head);
                     }
-                    TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                         TypedTerm::HeapBinary(heap_binary) => {
                             if bit_offset == 0 {
                                 byte_vec.extend_from_slice(heap_binary.as_bytes());
@@ -1287,7 +1287,7 @@ pub fn negate_1(number: Term, process_control_block: &ProcessControlBlock) -> Re
 
             Some(negated_number)
         }
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::BigInteger(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let negated_big_int = -big_int;
@@ -1515,7 +1515,7 @@ pub fn setelement_3(
 
 pub fn size_1(binary_or_tuple: Term, process_control_block: &ProcessControlBlock) -> Result {
     let option_size = match binary_or_tuple.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::Tuple(tuple) => Some(tuple.len()),
             TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.full_byte_len()),
             TypedTerm::ProcBin(process_binary) => Some(process_binary.full_byte_len()),
@@ -1590,8 +1590,8 @@ pub fn split_binary_2(
     let index: usize = position.try_into()?;
 
     match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => {
-            match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => {
+            match boxed.to_typed_term().unwrap() {
                 unboxed_typed_term @ TypedTerm::HeapBinary(_)
                 | unboxed_typed_term @ TypedTerm::ProcBin(_) => {
                     if index == 0 {
@@ -1906,7 +1906,7 @@ fn cancel_timer(
 
 fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> Result {
     match term.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::Tuple(tuple) => {
                 match record_tag.to_typed_term().unwrap() {
                     TypedTerm::Atom(_) => {

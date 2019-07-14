@@ -87,7 +87,7 @@ impl TryFrom<Term> for Unit {
                     Err(badarg!())
                 }
             }
-            TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::BigInteger(big_integer) => {
                     let big_integer_usize: usize = big_integer.try_into()?;
 

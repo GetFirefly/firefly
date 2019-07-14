@@ -82,7 +82,7 @@ fn with_utf8_binary_with_valid_encoding_with_existing_atom_returns_atom() {
                 ),
                 |(binary, encoding)| {
                     let byte_vec: Vec<u8> = match binary.to_typed_term().unwrap() {
-                        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                             TypedTerm::HeapBinary(heap_binary) => heap_binary.as_bytes().to_vec(),
                             TypedTerm::SubBinary(subbinary) => subbinary.byte_iter().collect(),
                             unboxed_typed_term => {

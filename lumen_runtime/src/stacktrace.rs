@@ -78,7 +78,7 @@ fn cons_is_charlist(cons: Boxed<Cons>) -> bool {
 fn is_line(term: Term) -> bool {
     match term.to_typed_term().unwrap() {
         TypedTerm::SmallInteger(small_integer) => 0_isize < small_integer.into(),
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::BigInteger(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let zero_big_int: &BigInt = &0.into();
@@ -112,7 +112,7 @@ fn tuple_is_item(tuple: Boxed<Tuple>) -> bool {
                 // {M, F, arity | args}
                 TypedTerm::Atom(_) => tuple[1].is_atom() && is_arity_or_arguments(tuple[2]),
                 // {function, args, location}
-                TypedTerm::Boxed(unboxed) => unboxed.is_closure() && term_is_location(tuple[2]),
+                TypedTerm::Boxed(boxed) => boxed.is_closure() && term_is_location(tuple[2]),
                 _ => false,
             }
         }
@@ -139,7 +139,7 @@ fn is_arity_or_arguments(term: Term) -> bool {
             0 <= arity
         }
         // arity
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::BigInteger(big_integer) => {
                 let big_int = big_integer.as_ref().into();
                 let zero_big_int: &BigInt = &0.into();

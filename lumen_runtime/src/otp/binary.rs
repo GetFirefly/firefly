@@ -31,7 +31,7 @@ pub fn bin_to_list(
     let length_isize: isize = length.try_into()?;
 
     match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => {
                 let available_byte_count = heap_binary.full_byte_len();
                 let part_range =

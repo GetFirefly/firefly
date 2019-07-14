@@ -96,22 +96,16 @@ fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer
 
 #[test]
 fn with_float_addend_without_underflow_or_overflow_returns_float() {
-    dbg!();
     with(|augend, process| {
-        dbg!();
         let addend = process.float(3.0).unwrap();
-        dbg!(addend);
 
         let result = erlang::add_2(augend, addend, &process);
-        dbg!(&result);
 
         assert!(result.is_ok());
 
         let sum = result.unwrap();
-        dbg!(sum);
 
         assert!(sum.is_float());
-        dbg!(sum.is_float());
     })
 }
 
@@ -162,7 +156,6 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        dbg!();
         let augend = process.integer(SmallInteger::MAX_VALUE + 1);
 
         assert!(augend.is_bigint());

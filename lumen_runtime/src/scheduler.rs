@@ -303,7 +303,6 @@ pub fn with_process<F>(f: F)
 where
     F: FnOnce(&ProcessControlBlock) -> (),
 {
-    dbg!();
     f(&process::test(&process::test_init()))
 }
 

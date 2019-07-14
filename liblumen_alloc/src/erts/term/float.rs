@@ -228,7 +228,7 @@ impl TryFrom<TypedTerm> for Float {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
-            TypedTerm::Boxed(unboxed) => unboxed.try_into(),
+            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             TypedTerm::Float(float) => Ok(float),
             _ => Err(TypeError),
         }

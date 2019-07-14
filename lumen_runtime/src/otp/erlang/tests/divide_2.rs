@@ -105,7 +105,7 @@ fn number_is_not_zero(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Te
 
                     i != 0
                 }
-                TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+                TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                     TypedTerm::Float(float) => {
                         let f: f64 = float.into();
 

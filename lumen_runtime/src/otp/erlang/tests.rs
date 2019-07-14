@@ -152,7 +152,7 @@ fn count_ones(term: Term) -> u32 {
 
             i.count_ones()
         }
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::BigInteger(big_integer) => count_ones_in_big_integer(big_integer),
             _ => panic!("Can't count 1s in non-integer"),
         },
@@ -262,7 +262,7 @@ fn timer_message(
 
 fn total_byte_len(term: Term) -> usize {
     match term.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed) => match unboxed.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => heap_binary.total_byte_len(),
             TypedTerm::SubBinary(subbinary) => subbinary.total_byte_len(),
             unboxed_typed_term => panic!(

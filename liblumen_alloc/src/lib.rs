@@ -1,5 +1,5 @@
 #![recursion_limit = "128"]
-//#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(test), no_std)]
 // Do not fail the build when feature flags are stabilized on recent nightlies, just warn
 #![allow(stable_features)]
 // Allow use of intrinsics, e.g. unlikely/copy_nonoverlapping/etc.

@@ -314,7 +314,7 @@ impl YoungHeap {
                         "boxed term stored on stack but not contiguously!"
                     );
                 }
-            } else if term.is_list() {
+            } else if term.is_non_empty_list() {
                 // The list begins here
                 last = pos;
                 pos = unsafe { pos.offset(1) };
@@ -847,7 +847,7 @@ impl fmt::Debug for YoungHeap {
         while pos < self.top {
             unsafe {
                 let term = *pos;
-                if term.is_immediate() || term.is_boxed() || term.is_list() {
+                if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.offset(1);
                 } else {
@@ -864,7 +864,7 @@ impl fmt::Debug for YoungHeap {
         while pos < self.stack_end {
             unsafe {
                 let term = *pos;
-                if term.is_immediate() || term.is_boxed() || term.is_list() {
+                if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.offset(1);
                 } else {
@@ -981,10 +981,10 @@ mod tests {
         let slot_term_addr = yh.stack_slot_address(1);
         assert_eq!(slot_term_addr, unsafe { yh.stack_start.offset(1) });
         let slot_term = unsafe { *slot_term_addr };
-        assert!(slot_term.is_list());
+        assert!(slot_term.is_non_empty_list());
         let list = unsafe { *slot_term.list_val() };
         assert!(list.head.is_smallint());
-        assert!(list.tail.is_list());
+        assert!(list.tail.is_non_empty_list());
         let tail = unsafe { *list.tail.list_val() };
         assert!(tail.head.is_atom());
         assert!(tail.tail.is_nil());

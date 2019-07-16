@@ -130,7 +130,7 @@ impl Cons {
         if self.tail.is_nil() {
             return None;
         }
-        if self.tail.is_list() {
+        if self.tail.is_non_empty_list() {
             let tail = self.tail.list_val();
             return Some(MaybeImproper::Proper(unsafe { *tail }));
         }
@@ -167,7 +167,7 @@ impl CloneToProcess for Cons {
                 // End of proper list
                 builder = builder.push(current.head);
                 return builder.finish();
-            } else if current.tail.is_list() {
+            } else if current.tail.is_non_empty_list() {
                 // Add current element and traverse to the next cell
                 current = unsafe { *current.tail.list_val() };
                 builder = builder.push(current.head);
@@ -448,7 +448,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
             } else {
                 term.clone_to_heap(self.heap)
             }
-        } else if term.is_list() {
+        } else if term.is_non_empty_list() {
             let ptr = term.list_val();
             if !term.is_literal() && self.heap.is_owner(ptr) {
                 // No need to clone

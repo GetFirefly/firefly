@@ -249,7 +249,7 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
 
     // Verify roots, starting with the list since it is on top of the stack
     let list_term = process.stack_pop().unwrap();
-    assert!(list_term.is_list());
+    assert!(list_term.is_non_empty_list());
     let list_term_ptr = list_term.list_val();
     let list = unsafe { &*list_term_ptr };
     assert!(!list.is_move_marker());
@@ -349,7 +349,7 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
 
     // Verify roots
     let list_term = process.stack_pop().unwrap();
-    assert!(list_term.is_list());
+    assert!(list_term.is_non_empty_list());
     let list_term_ptr = list_term.list_val();
     let list = unsafe { &*list_term_ptr };
     assert!(!list.is_move_marker());

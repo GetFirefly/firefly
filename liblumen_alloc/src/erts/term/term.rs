@@ -1288,7 +1288,7 @@ impl fmt::Debug for Term {
             } else {
                 write!(f, "Term(Boxed({:?}))", self.boxed_val())
             }
-        } else if self.is_list() {
+        } else if self.is_non_empty_list() {
             let ptr = self.list_val();
             let cons = unsafe { *ptr };
             if cons.is_move_marker() {

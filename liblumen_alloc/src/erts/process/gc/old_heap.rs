@@ -390,7 +390,7 @@ impl fmt::Debug for OldHeap {
         while pos < self.top {
             unsafe {
                 let term = *pos;
-                if term.is_immediate() || term.is_boxed() || term.is_list() {
+                if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.offset(1);
                 } else {

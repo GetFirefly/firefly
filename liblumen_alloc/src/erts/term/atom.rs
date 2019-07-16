@@ -244,13 +244,19 @@ impl AtomTable {
         let arena = &mut self.arena;
         Ok(*self.ids.entry(name).or_insert_with(|| {
             let size = name.len();
-            // Copy string into arena
-            let s = unsafe {
-                let ptr = arena.alloc_raw(size, mem::align_of::<u8>());
-                ptr::copy_nonoverlapping(name as *const _ as *const u8, ptr, size);
-                let bytes = slice::from_raw_parts(ptr, size);
-                str::from_utf8_unchecked(bytes)
+
+            let s = if size > 0 {
+                // Copy string into arena
+                unsafe {
+                    let ptr = arena.alloc_raw(size, mem::align_of::<u8>());
+                    ptr::copy_nonoverlapping(name as *const _ as *const u8, ptr, size);
+                    let bytes = slice::from_raw_parts(ptr, size);
+                    str::from_utf8_unchecked(bytes)
+                }
+            } else {
+                ""
             };
+
             // Push into id map
             names.push(s);
             id

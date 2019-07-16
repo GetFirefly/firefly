@@ -31,7 +31,9 @@ use crate::erts::term::{atom_unchecked, pid, reference, Atom, Integer, Pid, Proc
 use super::*;
 
 pub use self::alloc::heap_alloc::{self, HeapAlloc};
-pub use self::alloc::{default_heap, StackAlloc, StackPrimitives, VirtualAlloc};
+pub use self::alloc::{
+    default_heap, heap, next_heap_size, StackAlloc, StackPrimitives, VirtualAlloc,
+};
 use self::code::stack::frame::Frame;
 pub use self::flags::*;
 pub use self::flags::*;

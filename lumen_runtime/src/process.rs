@@ -8,10 +8,9 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLockWriteGuard;
 
-use liblumen_alloc::default_heap;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Code;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::{self, ProcessControlBlock};
 #[cfg(test)]
 use liblumen_alloc::erts::term::atom_unchecked;
 use liblumen_alloc::erts::term::{AsTerm, Atom, Term, TypedTerm};
@@ -51,7 +50,7 @@ pub fn init() -> Result<ProcessControlBlock, AllocErr> {
         arity: 0,
     });
 
-    let (heap, heap_size) = default_heap()?;
+    let (heap, heap_size) = process::default_heap()?;
 
     let process = ProcessControlBlock::new(
         Default::default(),
@@ -143,7 +142,8 @@ pub fn test_init() -> Arc<ProcessControlBlock> {
 
 #[cfg(test)]
 pub fn test(parent_process: &ProcessControlBlock) -> Arc<ProcessControlBlock> {
-    let (heap, heap_size) = default_heap().unwrap();
+    let heap_size = process::next_heap_size(4000);
+    let heap = process::heap(heap_size).unwrap();
     let erlang = Atom::try_from_str("erlang").unwrap();
     let exit = Atom::try_from_str("exit").unwrap();
 

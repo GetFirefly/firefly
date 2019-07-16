@@ -245,7 +245,9 @@ impl Debug for Float {
 }
 impl Display for Float {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
+        // Use Debug format so that decimal point is always included so that it is obvious it is a
+        // float and not an integer
+        write!(f, "{:?}", self.value)
     }
 }
 impl Hash for Float {

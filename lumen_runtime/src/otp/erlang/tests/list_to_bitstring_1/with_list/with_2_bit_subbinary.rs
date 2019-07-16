@@ -46,8 +46,8 @@ fn with_empty_list_returns_bitstring() {
 #[test]
 fn with_improper_list_returns_binary() {
     with_tail_errors_badarg(|process| {
-        let tail_head = process.integer(254);
-        let tail_tail = process.integer(253);
+        let tail_head = process.integer(254).unwrap();
+        let tail_tail = process.integer(253).unwrap();
 
         process.cons(tail_head, tail_tail).unwrap()
     })
@@ -56,7 +56,7 @@ fn with_improper_list_returns_binary() {
 #[test]
 fn with_proper_list_returns_binary() {
     with(|head, process| {
-        let tail_head = process.integer(254);
+        let tail_head = process.integer(254).unwrap();
         let tail_tail = Term::NIL;
         let tail = process.cons(tail_head, tail_tail).unwrap();
 

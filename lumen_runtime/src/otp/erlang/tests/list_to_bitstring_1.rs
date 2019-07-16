@@ -50,11 +50,15 @@ fn otp_doctest_returns_binary() {
             .improper_list_from_slice(
                 &[
                     bin1,
-                    process.integer(1),
+                    process.integer(1).unwrap(),
                     process
-                        .list_from_slice(&[process.integer(2), process.integer(3), bin2])
+                        .list_from_slice(&[
+                            process.integer(2).unwrap(),
+                            process.integer(3).unwrap(),
+                            bin2,
+                        ])
                         .unwrap(),
-                    process.integer(4),
+                    process.integer(4).unwrap(),
                 ],
                 bin3,
             )
@@ -87,7 +91,7 @@ fn with_recursive_lists_of_bitstrings_and_bytes_ending_in_bitstring_or_empty_lis
 
 fn byte(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     any::<u8>()
-        .prop_map(move |byte| arc_process.integer(byte))
+        .prop_map(move |byte| arc_process.integer(byte).unwrap())
         .boxed()
 }
 

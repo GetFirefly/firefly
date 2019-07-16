@@ -31,7 +31,7 @@ fn with_empty_list_returns_1_byte_binary() {
                 &any::<u8>().prop_map(|byte| {
                     (
                         arc_process
-                            .cons(arc_process.integer(byte), Term::NIL)
+                            .cons(arc_process.integer(byte).unwrap(), Term::NIL)
                             .unwrap(),
                         byte,
                     )
@@ -72,7 +72,7 @@ fn with_byte_errors_badarg() {
 fn with_list_without_byte_tail_returns_binary() {
     with(|head_byte, head, process| {
         let tail_head_byte = 254;
-        let tail_head = process.integer(tail_head_byte);
+        let tail_head = process.integer(tail_head_byte).unwrap();
 
         let tail_tail = Term::NIL;
 
@@ -151,7 +151,7 @@ where
 {
     with_process(|process| {
         let head_byte: u8 = 0;
-        let head = process.integer(head_byte);
+        let head = process.integer(head_byte).unwrap();
 
         f(head_byte, head, &process);
     })

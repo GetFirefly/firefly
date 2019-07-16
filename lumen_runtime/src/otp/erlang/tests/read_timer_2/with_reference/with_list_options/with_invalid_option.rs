@@ -34,12 +34,12 @@ fn with_local_reference_option_errors_badarg() {
 
 #[test]
 fn with_small_integer_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.integer(0));
+    with_option_errors_badarg(|process| process.integer(0).unwrap());
 }
 
 #[test]
 fn with_big_integer_option_errors_badarg() {
-    with_option_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1));
+    with_option_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap());
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn with_map_option_errors_badarg() {
 fn with_empty_list_option_errors_badarg() {
     with_option_errors_badarg(|process| {
         process
-            .cons(process.integer(0), process.integer(1))
+            .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
             .unwrap()
     });
 }
@@ -80,7 +80,7 @@ fn with_empty_list_option_errors_badarg() {
 fn with_list_option_errors_badarg() {
     with_option_errors_badarg(|process| {
         process
-            .cons(process.integer(0), process.integer(1))
+            .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
             .unwrap()
     });
 }

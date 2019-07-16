@@ -11,7 +11,10 @@ fn without_bitstring_errors_badarg() {
                 |binary| {
                     let start_length = {
                         arc_process
-                            .tuple_from_slice(&[arc_process.integer(0), arc_process.integer(0)])
+                            .tuple_from_slice(&[
+                                arc_process.integer(0).unwrap(),
+                                arc_process.integer(0).unwrap(),
+                            ])
                             .unwrap()
                     };
 

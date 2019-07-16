@@ -15,7 +15,7 @@ fn sends_message_when_timer_expires() {
             }),
             |(milliseconds, arc_process, message)| {
                 let destination = arc_process.pid_term();
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
                 let options = options(&arc_process);
 
                 prop_assert_eq!(

@@ -20,7 +20,7 @@ fn without_atom_or_pid_destination_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(milliseconds, destination, message)| {
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
 
                     prop_assert_eq!(
                         erlang::send_after_3(time, destination, message, arc_process.clone()),

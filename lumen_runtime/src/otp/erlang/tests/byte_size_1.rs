@@ -35,7 +35,7 @@ fn with_heap_binary_is_byte_count() {
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
                         erlang::byte_size_1(bitstring, &arc_process),
-                        Ok(arc_process.integer(byte_count))
+                        Ok(arc_process.integer(byte_count).unwrap())
                     );
 
                     Ok(())
@@ -62,7 +62,7 @@ fn with_subbinary_without_bit_count_is_byte_count() {
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
                         erlang::byte_size_1(bitstring, &arc_process),
-                        Ok(arc_process.integer(byte_count))
+                        Ok(arc_process.integer(byte_count).unwrap())
                     );
 
                     Ok(())
@@ -92,7 +92,7 @@ fn with_subbinary_with_bit_count_is_byte_count_plus_one() {
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
                         erlang::byte_size_1(bitstring, &arc_process),
-                        Ok(arc_process.integer(byte_count + 1))
+                        Ok(arc_process.integer(byte_count + 1).unwrap())
                     );
 
                     Ok(())

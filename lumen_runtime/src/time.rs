@@ -1,3 +1,4 @@
+use core::alloc::AllocErr;
 use core::convert::{TryFrom, TryInto};
 
 use num_bigint::BigInt;
@@ -60,15 +61,15 @@ impl Unit {
         }
     }
 
-    pub fn to_term(&self, process_control_block: &ProcessControlBlock) -> Term {
+    pub fn to_term(&self, process_control_block: &ProcessControlBlock) -> Result<Term, AllocErr> {
         match self {
             Unit::Hertz(hertz) => process_control_block.integer(*hertz),
-            Unit::Second => atom_unchecked("second"),
-            Unit::Millisecond => atom_unchecked("millisecond"),
-            Unit::Microsecond => atom_unchecked("microsecond"),
-            Unit::Nanosecond => atom_unchecked("nanosecond"),
-            Unit::Native => atom_unchecked("native"),
-            Unit::PerformanceCounter => atom_unchecked("perf_counter"),
+            Unit::Second => Ok(atom_unchecked("second")),
+            Unit::Millisecond => Ok(atom_unchecked("millisecond")),
+            Unit::Microsecond => Ok(atom_unchecked("microsecond")),
+            Unit::Nanosecond => Ok(atom_unchecked("nanosecond")),
+            Unit::Native => Ok(atom_unchecked("native")),
+            Unit::PerformanceCounter => Ok(atom_unchecked("perf_counter")),
         }
     }
 }
@@ -138,7 +139,7 @@ mod tests {
         #[test]
         fn zero_errors_badarg() {
             with_process(|process| {
-                let term: Term = process.integer(0);
+                let term: Term = process.integer(0).unwrap();
 
                 let result: Result<Unit, Exception> = term.try_into();
 

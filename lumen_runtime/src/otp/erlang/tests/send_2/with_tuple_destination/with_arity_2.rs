@@ -42,19 +42,19 @@ fn with_empty_list_name_errors_badarg() {
 fn with_list_name_errors_badarg() {
     with_name_errors_badarg(|process| {
         process
-            .cons(process.integer(0), process.integer(1))
+            .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
             .unwrap()
     });
 }
 
 #[test]
 fn with_small_integer_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.integer(0));
+    with_name_errors_badarg(|process| process.integer(0).unwrap());
 }
 
 #[test]
 fn with_big_integer_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1));
+    with_name_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap());
 }
 
 #[test]

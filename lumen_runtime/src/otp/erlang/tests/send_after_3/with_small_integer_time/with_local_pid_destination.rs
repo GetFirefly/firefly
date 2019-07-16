@@ -10,7 +10,7 @@ fn with_different_process_sends_message_when_timer_expires() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
 
                     let destination_arc_process = process::test(&arc_process);
                     let destination = destination_arc_process.pid_term();
@@ -54,7 +54,7 @@ fn with_same_process_sends_message_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
 
                 let destination = arc_process.pid_term();
 
@@ -91,7 +91,7 @@ fn without_process_sends_nothing_when_timer_expires() {
                 |(milliseconds, message)| {
                     let destination = next_pid();
 
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
 
                     let result =
                         erlang::send_after_3(time, destination, message, arc_process.clone());

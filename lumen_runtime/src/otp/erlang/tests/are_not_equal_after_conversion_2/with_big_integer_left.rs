@@ -81,7 +81,7 @@ fn with_same_value_float_right_returns_false() {
                         &strategy.prop_map(|i| {
                             let mut heap = arc_process.acquire_heap();
 
-                            (heap.integer(i), heap.float(i as f64).unwrap())
+                            (heap.integer(i).unwrap(), heap.float(i as f64).unwrap())
                         }),
                         |(left, right)| {
                             prop_assert_eq!(
@@ -109,7 +109,7 @@ fn with_different_value_float_right_returns_true() {
                         &strategy.prop_map(|i| {
                             let mut heap = arc_process.acquire_heap();
 
-                            (heap.integer(i + 1), heap.float(i as f64).unwrap())
+                            (heap.integer(i + 1).unwrap(), heap.float(i as f64).unwrap())
                         }),
                         |(left, right)| {
                             prop_assert_eq!(

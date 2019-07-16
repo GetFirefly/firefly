@@ -7,7 +7,9 @@ use num_traits::Num;
 #[test]
 fn with_small_integer_right_returns_big_integer() {
     with(|left, process| {
-        let right: Term = process.integer(0b1010_1010_1010_1010_1010_1010_1010);
+        let right: Term = process
+            .integer(0b1010_1010_1010_1010_1010_1010_1010)
+            .unwrap();
 
         assert!(right.is_smallint());
 
@@ -24,13 +26,15 @@ fn with_small_integer_right_returns_big_integer() {
 #[test]
 fn with_big_integer_right_returns_big_integer() {
     with(|left, process| {
-        let right = process.integer(
-            <BigInt as Num>::from_str_radix(
-                "1010".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
-                2,
+        let right = process
+            .integer(
+                <BigInt as Num>::from_str_radix(
+                    "1010".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
+                    2,
+                )
+                .unwrap(),
             )
-            .unwrap(),
-        );
+            .unwrap();
 
         assert!(right.is_bigint());
 
@@ -44,13 +48,15 @@ fn with_big_integer_right_returns_big_integer() {
 
         assert_eq!(
             output,
-            process.integer(
-                <BigInt as Num>::from_str_radix(
-                    "0110".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
-                    2
+            process
+                .integer(
+                    <BigInt as Num>::from_str_radix(
+                        "0110".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
+                        2
+                    )
+                    .unwrap()
                 )
                 .unwrap()
-            )
         );
     })
 }
@@ -60,13 +66,15 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let left = process.integer(
-            <BigInt as Num>::from_str_radix(
-                "1100".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
-                2,
+        let left = process
+            .integer(
+                <BigInt as Num>::from_str_radix(
+                    "1100".repeat(size_of::<usize>() * (8 / 4) * 2).as_ref(),
+                    2,
+                )
+                .unwrap(),
             )
-            .unwrap(),
-        );
+            .unwrap();
 
         f(left, &process)
     })

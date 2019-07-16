@@ -38,7 +38,7 @@ pub fn with_index(
                 element_vec.clone(),
                 zero_based_index,
                 heap.tuple_from_slice(&element_vec).unwrap(),
-                heap.integer(zero_based_index + 1),
+                heap.integer(zero_based_index + 1).unwrap(),
             )
         })
         .boxed()

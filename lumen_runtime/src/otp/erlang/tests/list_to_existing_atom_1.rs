@@ -48,8 +48,10 @@ fn with_list_without_existing_atom_errors_badarg() {
             .run(
                 &any::<String>().prop_map(|suffix| {
                     let string = strategy::term::non_existent_atom(&suffix);
-                    let codepoint_terms: Vec<Term> =
-                        string.chars().map(|c| arc_process.integer(c)).collect();
+                    let codepoint_terms: Vec<Term> = string
+                        .chars()
+                        .map(|c| arc_process.integer(c).unwrap())
+                        .collect();
 
                     arc_process.list_from_slice(&codepoint_terms).unwrap()
                 }),
@@ -69,8 +71,10 @@ fn with_list_with_existing_atom_returns_atom() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &any::<String>().prop_map(|string| {
-                    let codepoint_terms: Vec<Term> =
-                        string.chars().map(|c| arc_process.integer(c)).collect();
+                    let codepoint_terms: Vec<Term> = string
+                        .chars()
+                        .map(|c| arc_process.integer(c).unwrap())
+                        .collect();
 
                     (
                         arc_process.list_from_slice(&codepoint_terms).unwrap(),

@@ -16,12 +16,12 @@ pub fn isize() -> BoxedStrategy<isize> {
 
 pub fn negative(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     (std::isize::MIN..(SmallInteger::MIN_VALUE - 1))
-        .prop_map(move |i| arc_process.integer(i))
+        .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()
 }
 
 pub fn positive(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     ((SmallInteger::MAX_VALUE + 1)..std::isize::MAX)
-        .prop_map(move |i| arc_process.integer(i))
+        .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()
 }

@@ -15,7 +15,7 @@ fn with_less_than_byte_len_returns_binary_prefix_and_suffix_binary() {
                 }),
                 |(byte_vec, index)| {
                     let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
-                    let position = arc_process.integer(index);
+                    let position = arc_process.integer(index).unwrap();
 
                     let prefix_bytes = &byte_vec[0..index];
                     let prefix = arc_process.binary_from_bytes(prefix_bytes).unwrap();
@@ -41,7 +41,7 @@ fn with_byte_len_returns_subbinary_and_empty_suffix() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::byte_vec(), |byte_vec| {
                 let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
-                let position = arc_process.integer(byte_vec.len());
+                let position = arc_process.integer(byte_vec.len()).unwrap();
 
                 prop_assert_eq!(
                     erlang::split_binary_2(binary, position, &arc_process),
@@ -69,7 +69,7 @@ fn with_greater_than_byte_len_errors_badarg() {
                 }),
                 |(byte_vec, index)| {
                     let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
-                    let position = arc_process.integer(index);
+                    let position = arc_process.integer(index).unwrap();
 
                     prop_assert_eq!(
                         erlang::split_binary_2(binary, position, &arc_process),

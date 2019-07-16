@@ -37,7 +37,7 @@ fn with_smaller_map_second_returns_first() {
     max(
         |_, process| {
             process
-                .map_from_slice(&[(atom_unchecked("a"), process.integer(1))])
+                .map_from_slice(&[(atom_unchecked("a"), process.integer(1).unwrap())])
                 .unwrap()
         },
         First,
@@ -50,8 +50,8 @@ fn with_same_size_map_with_lesser_keys_returns_first() {
         |_, process| {
             process
                 .map_from_slice(&[
-                    (atom_unchecked("a"), process.integer(2)),
-                    (atom_unchecked("b"), process.integer(3)),
+                    (atom_unchecked("a"), process.integer(2).unwrap()),
+                    (atom_unchecked("b"), process.integer(3).unwrap()),
                 ])
                 .unwrap()
         },
@@ -65,8 +65,8 @@ fn with_same_size_map_with_same_keys_with_lesser_values_returns_first() {
         |_, process| {
             process
                 .map_from_slice(&[
-                    (atom_unchecked("b"), process.integer(2)),
-                    (atom_unchecked("c"), process.integer(2)),
+                    (atom_unchecked("b"), process.integer(2).unwrap()),
+                    (atom_unchecked("c"), process.integer(2).unwrap()),
                 ])
                 .unwrap()
         },
@@ -85,8 +85,8 @@ fn with_same_value_map_returns_first() {
         |_, process| {
             process
                 .map_from_slice(&[
-                    (atom_unchecked("b"), process.integer(2)),
-                    (atom_unchecked("c"), process.integer(3)),
+                    (atom_unchecked("b"), process.integer(2).unwrap()),
+                    (atom_unchecked("c"), process.integer(3).unwrap()),
                 ])
                 .unwrap()
         },
@@ -100,8 +100,8 @@ fn with_same_size_map_with_same_keys_with_greater_values_returns_second() {
         |_, process| {
             process
                 .map_from_slice(&[
-                    (atom_unchecked("b"), process.integer(3)),
-                    (atom_unchecked("c"), process.integer(4)),
+                    (atom_unchecked("b"), process.integer(3).unwrap()),
+                    (atom_unchecked("c"), process.integer(4).unwrap()),
                 ])
                 .unwrap()
         },
@@ -115,8 +115,8 @@ fn with_same_size_map_with_greater_keys_returns_second() {
         |_, process| {
             process
                 .map_from_slice(&[
-                    (atom_unchecked("c"), process.integer(2)),
-                    (atom_unchecked("d"), process.integer(3)),
+                    (atom_unchecked("c"), process.integer(2).unwrap()),
+                    (atom_unchecked("d"), process.integer(3).unwrap()),
                 ])
                 .unwrap()
         },
@@ -130,9 +130,9 @@ fn with_greater_size_map_returns_second() {
         |_, process| {
             process
                 .map_from_slice(&[
-                    (atom_unchecked("a"), process.integer(1)),
-                    (atom_unchecked("b"), process.integer(2)),
-                    (atom_unchecked("c"), process.integer(3)),
+                    (atom_unchecked("a"), process.integer(1).unwrap()),
+                    (atom_unchecked("b"), process.integer(2).unwrap()),
+                    (atom_unchecked("c"), process.integer(3).unwrap()),
                 ])
                 .unwrap()
         },
@@ -175,8 +175,8 @@ where
         |process| {
             process
                 .map_from_slice(&[
-                    (atom_unchecked("b"), process.integer(2)),
-                    (atom_unchecked("c"), process.integer(3)),
+                    (atom_unchecked("b"), process.integer(2).unwrap()),
+                    (atom_unchecked("c"), process.integer(3).unwrap()),
                 ])
                 .unwrap()
         },

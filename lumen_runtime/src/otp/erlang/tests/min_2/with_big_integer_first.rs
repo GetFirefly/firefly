@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn with_lesser_small_integer_second_returns_second() {
-    min(|_, process| process.integer(0), Second)
+    min(|_, process| process.integer(0).unwrap(), Second)
 }
 
 #[test]
 fn with_greater_small_integer_second_returns_first() {
     super::min(
-        |process| process.integer(SmallInteger::MIN_VALUE - 1),
-        |_, process| process.integer(SmallInteger::MIN_VALUE),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
+        |_, process| process.integer(SmallInteger::MIN_VALUE).unwrap(),
         First,
     );
 }
@@ -17,7 +17,7 @@ fn with_greater_small_integer_second_returns_first() {
 #[test]
 fn with_lesser_big_integer_second_returns_second() {
     min(
-        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
         Second,
     )
 }
@@ -30,7 +30,7 @@ fn with_same_big_integer_second_returns_first() {
 #[test]
 fn with_same_value_big_integer_second_returns_first() {
     min(
-        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
         First,
     )
 }
@@ -38,7 +38,7 @@ fn with_same_value_big_integer_second_returns_first() {
 #[test]
 fn with_greater_big_integer_second_returns_first() {
     min(
-        |_, process| process.integer(SmallInteger::MAX_VALUE + 2),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 2).unwrap(),
         First,
     )
 }
@@ -51,7 +51,7 @@ fn with_lesser_float_second_returns_second() {
 #[test]
 fn with_greater_float_second_returns_first() {
     super::min(
-        |process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
         |_, process| process.float(1.0).unwrap(),
         First,
     );
@@ -81,7 +81,7 @@ where
     R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::min(
-        |process| process.integer(SmallInteger::MAX_VALUE + 1),
+        |process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
         second,
         which,
     );

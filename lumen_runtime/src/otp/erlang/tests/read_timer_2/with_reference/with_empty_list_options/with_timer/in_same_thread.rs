@@ -19,8 +19,8 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
             .expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
-        assert!(process.integer(0) < first_milliseconds_remaining);
-        assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2));
+        assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
+        assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         // again before timeout
         let second_milliseconds_remaining = erlang::read_timer_2(timer_reference, OPTIONS, process)
@@ -78,7 +78,7 @@ where
 
     let message = atom_unchecked("message");
     let timer_reference = erlang::start_timer_3(
-        same_thread_process_arc.integer(milliseconds),
+        same_thread_process_arc.integer(milliseconds).unwrap(),
         unsafe { same_thread_process_arc.pid().as_term() },
         message,
         same_thread_process_arc.clone(),

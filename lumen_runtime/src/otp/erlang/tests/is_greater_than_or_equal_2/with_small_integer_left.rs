@@ -2,23 +2,23 @@ use super::*;
 
 #[test]
 fn with_greater_small_integer_right_returns_true() {
-    is_greater_than_or_equal(|_, process| process.integer(-1), true);
+    is_greater_than_or_equal(|_, process| process.integer(-1).unwrap(), true);
 }
 
 #[test]
 fn with_same_value_small_integer_right_returns_true() {
-    is_greater_than_or_equal(|_, process| process.integer(0), true);
+    is_greater_than_or_equal(|_, process| process.integer(0).unwrap(), true);
 }
 
 #[test]
 fn with_greater_small_integer_right_returns_false() {
-    is_greater_than_or_equal(|_, process| process.integer(1), false);
+    is_greater_than_or_equal(|_, process| process.integer(1).unwrap(), false);
 }
 
 #[test]
 fn with_greater_big_integer_right_returns_true() {
     is_greater_than_or_equal(
-        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
         true,
     )
 }
@@ -26,7 +26,7 @@ fn with_greater_big_integer_right_returns_true() {
 #[test]
 fn with_greater_big_integer_right_returns_false() {
     is_greater_than_or_equal(
-        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
         false,
     )
 }
@@ -72,5 +72,5 @@ fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
     R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::is_greater_than_or_equal(|process| process.integer(0), right, expected);
+    super::is_greater_than_or_equal(|process| process.integer(0).unwrap(), right, expected);
 }

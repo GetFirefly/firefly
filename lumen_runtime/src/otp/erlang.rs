@@ -53,7 +53,7 @@ pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Resul
 
             if i < 0 {
                 let positive = -i;
-                let abs_number = process_control_block.integer(positive);
+                let abs_number = process_control_block.integer(positive)?;
 
                 Some(abs_number)
             } else {
@@ -68,7 +68,7 @@ pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Resul
                 let abs_number: Term = if big_int < zero_big_int {
                     let positive_big_int: BigInt = -1 * big_int;
 
-                    process_control_block.integer(positive_big_int)
+                    process_control_block.integer(positive_big_int)?
                 } else {
                     number
                 };
@@ -417,7 +417,7 @@ pub fn binary_to_integer_1<'process>(
 
     match BigInt::parse_bytes(bytes, 10) {
         Some(big_int) => {
-            let term = process_control_block.integer(big_int);
+            let term = process_control_block.integer(big_int)?;
 
             Ok(term)
         }
@@ -439,7 +439,7 @@ pub fn binary_to_integer_2<'process>(
 
         match BigInt::parse_bytes(bytes, radix as u32) {
             Some(big_int) => {
-                let term = process_control_block.integer(big_int);
+                let term = process_control_block.integer(big_int)?;
 
                 Ok(term)
             }
@@ -483,8 +483,8 @@ pub fn binary_to_list_3(
 
             otp::binary::bin_to_list(
                 binary,
-                process_control_block.integer(zero_based_start_usize),
-                process_control_block.integer(length_usize),
+                process_control_block.integer(zero_based_start_usize)?,
+                process_control_block.integer(length_usize)?,
                 process_control_block,
             )
         } else {
@@ -529,7 +529,7 @@ pub fn bit_size_1(bitstring: Term, process_control_block: &ProcessControlBlock) 
     };
 
     match option_total_bit_len {
-        Some(total_bit_len) => Ok(process_control_block.integer(total_bit_len)),
+        Some(total_bit_len) => Ok(process_control_block.integer(total_bit_len)?),
         None => Err(badarg!().into()),
     }
 }
@@ -590,7 +590,7 @@ pub fn bnot_1(integer: Term, process_control_block: &ProcessControlBlock) -> Res
         TypedTerm::SmallInteger(small_integer) => {
             let integer_isize: isize = small_integer.into();
             let output = !integer_isize;
-            let output_term = process_control_block.integer(output);
+            let output_term = process_control_block.integer(output)?;
 
             Ok(output_term)
         }
@@ -598,7 +598,7 @@ pub fn bnot_1(integer: Term, process_control_block: &ProcessControlBlock) -> Res
             TypedTerm::BigInteger(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let output_big_int = !big_int;
-                let output_term = process_control_block.integer(output_big_int);
+                let output_term = process_control_block.integer(output_big_int)?;
 
                 Ok(output_term)
             }
@@ -650,7 +650,7 @@ pub fn byte_size_1(bitstring: Term, process_control_block: &ProcessControlBlock)
     };
 
     match option_total_byte_len {
-        Some(total_byte_len) => Ok(process_control_block.integer(total_byte_len)),
+        Some(total_byte_len) => Ok(process_control_block.integer(total_byte_len)?),
         None => Err(badarg!().into()),
     }
 }
@@ -687,13 +687,13 @@ pub fn ceil_1(number: Term, process_control_block: &ProcessControlBlock) -> Resu
                         <= ceil_inner
                         && ceil_inner <= (SmallInteger::MAX_VALUE as f64).min(Float::INTEGRAL_MAX)
                     {
-                        process_control_block.integer(ceil_inner as isize)
+                        process_control_block.integer(ceil_inner as isize)?
                     } else {
                         let ceil_string = ceil_inner.to_string();
                         let ceil_bytes = ceil_string.as_bytes();
                         let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
 
-                        process_control_block.integer(big_int)
+                        process_control_block.integer(big_int)?
                     };
 
                     Some(ceil_term)
@@ -741,7 +741,7 @@ pub fn convert_time_unit_3(
     let from_unit_unit: crate::time::Unit = from_unit.try_into()?;
     let to_unit_unit: crate::time::Unit = to_unit.try_into()?;
     let converted_big_int = time::convert(time_big_int, from_unit_unit, to_unit_unit);
-    let converted_term = process_control_block.integer(converted_big_int);
+    let converted_term = process_control_block.integer(converted_big_int)?;
 
     Ok(converted_term)
 }
@@ -972,17 +972,13 @@ pub fn is_tuple_1(term: Term) -> Term {
 }
 
 pub fn length_1(list: Term, process_control_block: &ProcessControlBlock) -> Result {
-    let option_length = match list.to_typed_term().unwrap() {
-        TypedTerm::Nil => Some(0.into()),
-        TypedTerm::List(cons) => cons
-            .count()
-            .map(|count| process_control_block.integer(count)),
-        _ => None,
-    };
-
-    match option_length {
-        Some(length) => Ok(length),
-        None => Err(badarg!().into()),
+    match list.to_typed_term().unwrap() {
+        TypedTerm::Nil => Ok(0.into()),
+        TypedTerm::List(cons) => match cons.count() {
+            Some(count) => Ok(process_control_block.integer(count)?),
+            None => Err(badarg!().into()),
+        },
+        _ => Err(badarg!().into()),
     }
 }
 
@@ -1230,7 +1226,7 @@ pub fn map_size_1(map: Term, process_control_block: &ProcessControlBlock) -> Res
     match result {
         Ok(map_header) => {
             let len = map_header.len();
-            let len_term = process_control_block.integer(len);
+            let len_term = process_control_block.integer(len)?;
 
             Ok(len_term)
         }
@@ -1254,16 +1250,16 @@ pub fn min_2(term1: Term, term2: Term) -> Term {
     term1.min(term2)
 }
 
-pub fn monotonic_time_0(process_control_block: &ProcessControlBlock) -> Term {
+pub fn monotonic_time_0(process_control_block: &ProcessControlBlock) -> Result {
     let big_int = monotonic::time(Native);
 
-    process_control_block.integer(big_int)
+    Ok(process_control_block.integer(big_int)?)
 }
 
 pub fn monotonic_time_1(unit: Term, process_control_block: &ProcessControlBlock) -> Result {
     let unit_unit: crate::time::Unit = unit.try_into()?;
     let big_int = monotonic::time(unit_unit);
-    let term = process_control_block.integer(big_int);
+    let term = process_control_block.integer(big_int)?;
 
     Ok(term)
 }
@@ -1283,7 +1279,7 @@ pub fn negate_1(number: Term, process_control_block: &ProcessControlBlock) -> Re
         TypedTerm::SmallInteger(small_integer) => {
             let number_isize: isize = small_integer.into();
             let negated_isize = -number_isize;
-            let negated_number: Term = process_control_block.integer(negated_isize);
+            let negated_number: Term = process_control_block.integer(negated_isize)?;
 
             Some(negated_number)
         }
@@ -1291,7 +1287,7 @@ pub fn negate_1(number: Term, process_control_block: &ProcessControlBlock) -> Re
             TypedTerm::BigInteger(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let negated_big_int = -big_int;
-                let negated_number = process_control_block.integer(negated_big_int);
+                let negated_number = process_control_block.integer(negated_big_int)?;
 
                 Some(negated_number)
             }
@@ -1526,7 +1522,7 @@ pub fn size_1(binary_or_tuple: Term, process_control_block: &ProcessControlBlock
     };
 
     match option_size {
-        Some(size) => Ok(process_control_block.integer(size)),
+        Some(size) => Ok(process_control_block.integer(size)?),
         None => Err(badarg!().into()),
     }
 }
@@ -1811,7 +1807,7 @@ pub fn tl_1(list: Term) -> Result {
 
 pub fn tuple_size_1(tuple: Term, process_control_block: &ProcessControlBlock) -> Result {
     let tuple: Boxed<Tuple> = tuple.try_into()?;
-    let size = process_control_block.integer(tuple.len());
+    let size = process_control_block.integer(tuple.len())?;
 
     Ok(size)
 }
@@ -1875,7 +1871,7 @@ fn cancel_timer(
                     let term = if options.info {
                         let mut heap = process_control_block.acquire_heap();
                         let canceled_term = match canceled {
-                            Some(milliseconds_remaining) => heap.integer(milliseconds_remaining),
+                            Some(milliseconds_remaining) => heap.integer(milliseconds_remaining)?,
                             None => false.into(),
                         };
 
@@ -1989,7 +1985,7 @@ fn read_timer(
                     let mut heap = process_control_block.acquire_heap();
 
                     let read_term = match read {
-                        Some(milliseconds_remaining) => heap.integer(milliseconds_remaining),
+                        Some(milliseconds_remaining) => heap.integer(milliseconds_remaining)?,
                         None => false.into(),
                     };
 

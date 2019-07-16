@@ -28,9 +28,9 @@ fn with_integer_returns_integer_of_opposite_sign() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &prop_oneof![std::isize::MIN..=-1, 1..=std::isize::MAX]
-                    .prop_map(|i| (arc_process.integer(i), i)),
+                    .prop_map(|i| (arc_process.integer(i).unwrap(), i)),
                 |(number, i)| {
-                    let negated = arc_process.integer(-i);
+                    let negated = arc_process.integer(-i).unwrap();
 
                     prop_assert_eq!(erlang::negate_1(number, &arc_process), Ok(negated));
 

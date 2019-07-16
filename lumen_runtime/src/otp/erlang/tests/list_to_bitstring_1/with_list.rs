@@ -48,8 +48,8 @@ fn is_not_byte_bitstring_nor_list(arc_process: Arc<ProcessControlBlock>) -> Boxe
         .prop_filter("Element must not be a binary or byte", move |element| {
             !(element.is_bitstring()
                 || (element.is_integer()
-                    && &arc_process.integer(0) <= element
-                    && element <= &arc_process.integer(256))
+                    && &arc_process.integer(0).unwrap() <= element
+                    && element <= &arc_process.integer(256).unwrap())
                 || element.is_list())
         })
         .boxed()

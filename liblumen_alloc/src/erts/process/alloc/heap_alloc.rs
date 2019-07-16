@@ -279,13 +279,13 @@ pub trait HeapAlloc {
     /// This operation will transparently handle constructing the correct type of term
     /// based on the input value, i.e. an immediate small integer for values that fit,
     /// else a heap-allocated big integer for larger values.
-    fn integer<I: Into<Integer>>(&mut self, i: I) -> Term
+    fn integer<I: Into<Integer>>(&mut self, i: I) -> Result<Term, AllocErr>
     where
         Self: core::marker::Sized,
     {
         match i.into() {
-            Integer::Small(small) => unsafe { small.as_term() },
-            Integer::Big(big) => big.clone_to_heap(self).unwrap(),
+            Integer::Small(small) => Ok(unsafe { small.as_term() }),
+            Integer::Big(big) => big.clone_to_heap(self),
         }
     }
 
@@ -304,7 +304,7 @@ pub trait HeapAlloc {
         let mut acc = Term::NIL;
 
         for character in chars.rev() {
-            let code_point = self.integer(character);
+            let code_point = self.integer(character)?;
 
             acc = self.cons(code_point, acc)?;
         }

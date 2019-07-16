@@ -382,7 +382,7 @@ impl ProcessControlBlock {
         self.acquire_heap().float(f)
     }
 
-    pub fn integer<I: Into<Integer>>(&self, i: I) -> Term {
+    pub fn integer<I: Into<Integer>>(&self, i: I) -> Result<Term, AllocErr> {
         self.acquire_heap().integer(i)
     }
 

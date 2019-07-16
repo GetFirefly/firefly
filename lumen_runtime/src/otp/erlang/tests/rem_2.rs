@@ -54,7 +54,7 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
             .run(
                 &(
                     strategy::term::is_integer(arc_process.clone()),
-                    Just(arc_process.integer(0)),
+                    Just(arc_process.integer(0).unwrap()),
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
@@ -88,7 +88,7 @@ fn with_empty_list_dividend_errors_badarith() {
 fn with_list_dividend_errors_badarith() {
     with_dividend_errors_badarith(|process| {
         process
-            .cons(process.integer(0), process.integer(1))
+            .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
             .unwrap()
     });
 }
@@ -136,7 +136,7 @@ where
 {
     super::errors_badarith(|process| {
         let dividend = dividend(&process);
-        let divisor = process.integer(0);
+        let divisor = process.integer(0).unwrap();
 
         erlang::rem_2(dividend, divisor, &process)
     });

@@ -57,7 +57,7 @@ fn with_empty_tuple_with_atom_without_non_negative_size_errors_badarg() {
                     strategy::term::atom(),
                     strategy::term(arc_process.clone())
                         .prop_filter("Size must not be a non-negative integer", |size| {
-                            !(size.is_integer() && &arc_process.integer(0) <= size)
+                            !(size.is_integer() && &arc_process.integer(0).unwrap() <= size)
                         }),
                 ),
                 |(record_tag, size)| {
@@ -127,7 +127,7 @@ fn with_non_empty_tuple_without_record_tag_with_size_returns_false() {
 
                             let mut heap = arc_process.acquire_heap();
 
-                            let size = heap.integer(tail_element_vec.len());
+                            let size = heap.integer(tail_element_vec.len()).unwrap();
 
                             (
                                 heap.tuple_from_slice(&tail_element_vec).unwrap(),
@@ -163,7 +163,7 @@ fn with_non_empty_tuple_with_record_tag_without_size_returns_false() {
                 )
                     .prop_flat_map(|(record_tag, mut tail_element_vec)| {
                         tail_element_vec.insert(0, record_tag);
-                        let tuple_size = arc_process.integer(tail_element_vec.len());
+                        let tuple_size = arc_process.integer(tail_element_vec.len()).unwrap();
 
                         (
                             Just(arc_process.tuple_from_slice(&tail_element_vec).unwrap()),
@@ -201,7 +201,7 @@ fn with_non_empty_tuple_with_record_tag_with_size_returns_true() {
                 )
                     .prop_map(|(record_tag, mut tail_element_vec)| {
                         tail_element_vec.insert(0, record_tag);
-                        let size = arc_process.integer(tail_element_vec.len());
+                        let size = arc_process.integer(tail_element_vec.len()).unwrap();
 
                         (
                             arc_process.tuple_from_slice(&tail_element_vec).unwrap(),

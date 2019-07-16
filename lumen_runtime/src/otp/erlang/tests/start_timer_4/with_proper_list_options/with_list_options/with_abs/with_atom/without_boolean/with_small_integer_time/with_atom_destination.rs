@@ -17,7 +17,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
             |(milliseconds, arc_process, message, options)| {
                 let destination = registered_name();
 
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
 
                 prop_assert_eq!(
                     erlang::start_timer_4(time, destination, message, options, arc_process.clone(),),

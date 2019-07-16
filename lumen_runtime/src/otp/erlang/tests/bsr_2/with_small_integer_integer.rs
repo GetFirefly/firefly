@@ -5,17 +5,19 @@ use num_traits::Num;
 #[test]
 fn with_negative_with_overflow_shifts_left_and_returns_big_integer() {
     with(|integer, process| {
-        let shift = process.integer(-64);
+        let shift = process.integer(-64).unwrap();
 
         assert_eq!(
             erlang::bsr_2(integer, shift, &process),
-            Ok(process.integer(
-                <BigInt as Num>::from_str_radix(
-                    "100000000000000000000000000000000000000000000000000000000000000000",
-                    2
+            Ok(process
+                .integer(
+                    <BigInt as Num>::from_str_radix(
+                        "100000000000000000000000000000000000000000000000000000000000000000",
+                        2
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            ))
+                .unwrap())
         );
     });
 }
@@ -23,11 +25,11 @@ fn with_negative_with_overflow_shifts_left_and_returns_big_integer() {
 #[test]
 fn with_negative_without_overflow_shifts_left_and_returns_small_integer() {
     with(|integer, process| {
-        let shift = process.integer(-1);
+        let shift = process.integer(-1).unwrap();
 
         assert_eq!(
             erlang::bsr_2(integer, shift, &process),
-            Ok(process.integer(0b100))
+            Ok(process.integer(0b100).unwrap())
         );
     });
 }
@@ -35,7 +37,7 @@ fn with_negative_without_overflow_shifts_left_and_returns_small_integer() {
 #[test]
 fn with_positive_without_underflow_returns_small_integer() {
     with(|integer, process| {
-        let shift = process.integer(1);
+        let shift = process.integer(1).unwrap();
 
         let result = erlang::bsr_2(integer, shift, &process);
 
@@ -44,18 +46,18 @@ fn with_positive_without_underflow_returns_small_integer() {
         let shifted = result.unwrap();
 
         assert!(shifted.is_smallint());
-        assert_eq!(shifted, process.integer(0b1));
+        assert_eq!(shifted, process.integer(0b1).unwrap());
     })
 }
 
 #[test]
 fn with_positive_with_underflow_returns_zero() {
     with(|integer, process| {
-        let shift = process.integer(3);
+        let shift = process.integer(3).unwrap();
 
         assert_eq!(
             erlang::bsr_2(integer, shift, &process),
-            Ok(process.integer(0))
+            Ok(process.integer(0).unwrap())
         );
     });
 }
@@ -65,7 +67,7 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let integer = process.integer(0b10);
+        let integer = process.integer(0b10).unwrap();
 
         f(integer, &process)
     })

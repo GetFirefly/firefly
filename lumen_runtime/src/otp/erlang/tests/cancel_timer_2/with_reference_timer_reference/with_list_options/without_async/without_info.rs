@@ -4,7 +4,7 @@ mod with_local_reference;
 
 #[test]
 fn with_small_integer_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| process.integer(1))
+    with_timer_reference_errors_badarg(|process| process.integer(1).unwrap())
 }
 
 #[test]
@@ -14,7 +14,9 @@ fn with_float_timer_reference_errors_badarg() {
 
 #[test]
 fn with_big_integer_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|process| process.integer(SmallInteger::MAX_VALUE + 1));
+    with_timer_reference_errors_badarg(|process| {
+        process.integer(SmallInteger::MAX_VALUE + 1).unwrap()
+    });
 }
 
 #[test]

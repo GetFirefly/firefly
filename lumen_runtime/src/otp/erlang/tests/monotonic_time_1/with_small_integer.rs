@@ -5,18 +5,18 @@ use std::time::Duration;
 
 #[test]
 fn with_negative_errors_badarg() {
-    errors_badarg(|process| process.integer(-1));
+    errors_badarg(|process| process.integer(-1).unwrap());
 }
 
 #[test]
 fn with_zero_errors_badarg() {
-    errors_badarg(|process| process.integer(0));
+    errors_badarg(|process| process.integer(0).unwrap());
 }
 
 #[test]
 fn with_positive_increases_after_2_time_units() {
     with_process(|process| {
-        let unit = process.integer(2);
+        let unit = process.integer(2).unwrap();
 
         let first = erlang::monotonic_time_1(unit, process).unwrap();
 

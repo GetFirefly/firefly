@@ -25,20 +25,17 @@ fn without_number_addend_errors_badarith() {
 #[test]
 fn with_small_integer_addend_without_underflow_or_overflow_returns_small_integer() {
     with(|augend, process| {
-        let addend = process.integer(3);
+        let addend = process.integer(3).unwrap();
 
-        assert_eq!(
-            erlang::add_2(augend, addend, &process),
-            Ok(process.integer(5))
-        );
+        assert_eq!(erlang::add_2(augend, addend, &process), Ok(5.into()));
     })
 }
 
 #[test]
 fn with_small_integer_addend_with_underflow_returns_big_integer() {
     with_process(|process| {
-        let augend = process.integer(-1_isize);
-        let addend = process.integer(SmallInteger::MIN_VALUE);
+        let augend = process.integer(-1_isize).unwrap();
+        let addend = process.integer(SmallInteger::MIN_VALUE).unwrap();
 
         assert!(addend.is_smallint());
 
@@ -55,7 +52,7 @@ fn with_small_integer_addend_with_underflow_returns_big_integer() {
 #[test]
 fn with_small_integer_addend_with_overflow_returns_big_integer() {
     with(|augend, process| {
-        let addend = process.integer(SmallInteger::MAX_VALUE);
+        let addend = process.integer(SmallInteger::MAX_VALUE).unwrap();
 
         assert!(addend.is_smallint());
 
@@ -72,7 +69,7 @@ fn with_small_integer_addend_with_overflow_returns_big_integer() {
 #[test]
 fn with_big_integer_addend_returns_big_integer() {
     with(|augend, process| {
-        let addend = process.integer(SmallInteger::MAX_VALUE + 1);
+        let addend = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
         assert!(addend.is_bigint());
 
@@ -127,7 +124,7 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let augend = process.integer(2);
+        let augend = process.integer(2).unwrap();
 
         f(augend, &process)
     })

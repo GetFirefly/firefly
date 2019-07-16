@@ -2,18 +2,18 @@ use super::*;
 
 #[test]
 fn with_lesser_small_integer_second_returns_second() {
-    min(|_, process| process.integer(-1), Second)
+    min(|_, process| process.integer(-1).unwrap(), Second)
 }
 
 #[test]
 fn with_greater_small_integer_second_returns_first() {
-    min(|_, process| process.integer(1), First)
+    min(|_, process| process.integer(1).unwrap(), First)
 }
 
 #[test]
 fn with_lesser_big_integer_second_returns_second() {
     min(
-        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
         Second,
     )
 }
@@ -21,7 +21,7 @@ fn with_lesser_big_integer_second_returns_second() {
 #[test]
 fn with_greater_big_integer_second_returns_first() {
     min(
-        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
         First,
     )
 }

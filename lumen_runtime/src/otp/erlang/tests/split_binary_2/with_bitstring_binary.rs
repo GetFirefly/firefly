@@ -28,7 +28,7 @@ fn without_non_negative_integer_position_errors_badarg() {
 #[test]
 fn with_zero_position_returns_empty_prefix_and_binary() {
     with_process_arc(|arc_process| {
-        let position = arc_process.integer(0);
+        let position = arc_process.integer(0).unwrap();
 
         TestRunner::new(Config::with_source_file(file!()))
             .run(

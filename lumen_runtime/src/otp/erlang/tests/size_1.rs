@@ -39,7 +39,7 @@ fn with_tuple_returns_arity() {
                 |(size, term)| {
                     prop_assert_eq!(
                         erlang::size_1(term, &arc_process),
-                        Ok(arc_process.integer(size))
+                        Ok(arc_process.integer(size).unwrap())
                     );
 
                     Ok(())
@@ -65,7 +65,7 @@ fn with_bitstring_is_byte_len() {
 
                 prop_assert_eq!(
                     erlang::size_1(term, &arc_process),
-                    Ok(arc_process.integer(full_byte_len))
+                    Ok(arc_process.integer(full_byte_len).unwrap())
                 );
 
                 Ok(())

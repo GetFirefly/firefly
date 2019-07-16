@@ -94,7 +94,7 @@ fn with_negative_start_with_valid_length_errors_badarg() {
                             Just(binary),
                             Just(start),
                             (0..=total_byte_len(binary))
-                                .prop_map(|length| arc_process.integer(length)),
+                                .prop_map(|length| arc_process.integer(length).unwrap()),
                         )
                     }),
                 |(binary, start, length)| {
@@ -120,8 +120,9 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
                 &strategy::term::is_bitstring(arc_process.clone()).prop_flat_map(|binary| {
                     (
                         Just(binary),
-                        Just(arc_process.integer(total_byte_len(binary) + 1)),
-                        (0..=total_byte_len(binary)).prop_map(|length| arc_process.integer(length)),
+                        Just(arc_process.integer(total_byte_len(binary) + 1).unwrap()),
+                        (0..=total_byte_len(binary))
+                            .prop_map(|length| arc_process.integer(length).unwrap()),
                     )
                 }),
                 |(binary, start, length)| {
@@ -152,8 +153,8 @@ fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
                 .prop_map(|(binary, start)| {
                     (
                         binary,
-                        arc_process.integer(start),
-                        arc_process.integer(-((start as isize) + 1)),
+                        arc_process.integer(start).unwrap(),
+                        arc_process.integer(-((start as isize) + 1)).unwrap(),
                     )
                 }),
                 |(binary, start, length)| {
@@ -186,8 +187,8 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
 
                     (
                         binary,
-                        heap.integer(start),
-                        heap.integer(total_byte_len(binary) - start + 1),
+                        heap.integer(start).unwrap(),
+                        heap.integer(total_byte_len(binary) - start + 1).unwrap(),
                     )
                 }),
                 |(binary, start, length)| {
@@ -225,7 +226,11 @@ fn with_positive_start_and_negative_length_returns_subbinary() {
                 .prop_map(|(binary, start, length)| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (binary, heap.integer(start), heap.integer(length))
+                    (
+                        binary,
+                        heap.integer(start).unwrap(),
+                        heap.integer(length).unwrap(),
+                    )
                 }),
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();

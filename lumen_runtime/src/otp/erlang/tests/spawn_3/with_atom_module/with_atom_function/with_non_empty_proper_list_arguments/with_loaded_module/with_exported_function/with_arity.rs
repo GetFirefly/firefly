@@ -14,7 +14,7 @@ fn with_valid_arguments_when_run_returns() {
         let function_atom = Atom::try_from_str("+").unwrap();
         let function = unsafe { function_atom.as_term() };
 
-        let number = parent_process.integer(0);
+        let number = parent_process.integer(0).unwrap();
         let arguments = parent_process.cons(number, Term::NIL).unwrap();
 
         let result = erlang::spawn_3(module, function, arguments, parent_process);

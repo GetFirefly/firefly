@@ -97,7 +97,7 @@ fn with_same_value_small_integer_right_returns_false() {
                 &strategy::term::small_integer_float_integral_i64().prop_map(|i| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.float(i as f64).unwrap(), heap.integer(i))
+                    (heap.float(i as f64).unwrap(), heap.integer(i).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -120,7 +120,7 @@ fn with_different_value_small_integer_right_returns_true() {
                 &strategy::term::small_integer_float_integral_i64().prop_map(|i| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.float(i as f64).unwrap(), heap.integer(i + 1))
+                    (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -145,7 +145,7 @@ fn with_same_value_big_integer_right_returns_false() {
                         &strategy.prop_map(|i| {
                             let mut heap = arc_process.acquire_heap();
 
-                            (heap.float(i as f64).unwrap(), heap.integer(i))
+                            (heap.float(i as f64).unwrap(), heap.integer(i).unwrap())
                         }),
                         |(left, right)| {
                             prop_assert_eq!(
@@ -173,7 +173,7 @@ fn with_different_value_big_integer_right_returns_true() {
                         &strategy.prop_map(|i| {
                             let mut heap = arc_process.acquire_heap();
 
-                            (heap.float(i as f64).unwrap(), heap.integer(i + 1))
+                            (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
                         }),
                         |(left, right)| {
                             prop_assert_eq!(

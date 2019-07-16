@@ -67,7 +67,7 @@ fn with_byte_errors_badarg() {
 fn with_list_without_byte_tail_returns_binary() {
     with(|head, process| {
         let tail_head_byte = 3;
-        let tail_head = process.integer(tail_head_byte);
+        let tail_head = process.integer(tail_head_byte).unwrap();
         let tail_tail = Term::NIL;
         let tail = process.cons(tail_head, tail_tail).unwrap();
         let iolist = process.cons(head, tail).unwrap();

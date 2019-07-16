@@ -63,8 +63,8 @@ fn is_not_byte_binary_nor_list(arc_process: Arc<ProcessControlBlock>) -> BoxedSt
         .prop_filter("Element must not be a binary or byte", move |element| {
             !(element.is_binary()
                 || (element.is_integer()
-                    && &arc_process.integer(0) <= element
-                    && element <= &arc_process.integer(256_isize))
+                    && &arc_process.integer(0).unwrap() <= element
+                    && element <= &arc_process.integer(256_isize).unwrap())
                 || element.is_list())
         })
         .boxed()

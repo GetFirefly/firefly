@@ -48,7 +48,9 @@ fn with_binary_encoding_list_returns_list() {
             process
                 .cons(
                     atom_unchecked("zero"),
-                    process.cons(process.integer(1), Term::NIL).unwrap(),
+                    process
+                        .cons(process.integer(1).unwrap(), Term::NIL)
+                        .unwrap(),
                 )
                 .unwrap()
         },
@@ -60,7 +62,7 @@ fn with_binary_encoding_small_integer_returns_small_integer() {
     with_binary_returns_term(
         // :erlang.term_to_binary(0)
         vec![131, 97, 0],
-        |process| process.integer(0),
+        |process| process.integer(0).unwrap(),
     );
 }
 
@@ -69,7 +71,7 @@ fn with_binary_encoding_integer_returns_integer() {
     with_binary_returns_term(
         // :erlang.term_to_binary(-2147483648)
         vec![131, 98, 128, 0, 0, 0],
-        |process| process.integer(-2147483648_isize),
+        |process| process.integer(-2147483648_isize).unwrap(),
     );
 }
 
@@ -89,7 +91,7 @@ fn with_binary_encoding_small_tuple_returns_tuple() {
         vec![131, 104, 2, 100, 0, 4, 122, 101, 114, 111, 97, 1],
         |process| {
             process
-                .tuple_from_slice(&[atom_unchecked("zero"), process.integer(1)])
+                .tuple_from_slice(&[atom_unchecked("zero"), process.integer(1).unwrap()])
                 .unwrap()
         },
     );
@@ -103,8 +105,10 @@ fn with_binary_encoding_byte_list_returns_list() {
         |process| {
             process
                 .cons(
-                    process.integer(48),
-                    process.cons(process.integer(49), Term::NIL).unwrap(),
+                    process.integer(48).unwrap(),
+                    process
+                        .cons(process.integer(49).unwrap(), Term::NIL)
+                        .unwrap(),
                 )
                 .unwrap()
         },
@@ -125,7 +129,7 @@ fn with_binary_encoding_small_big_integer_returns_big_integer() {
     with_binary_returns_term(
         // :erlang.term_to_binary(4294967295)
         vec![131, 110, 4, 0, 255, 255, 255, 255],
-        |process| process.integer(4294967295_usize),
+        |process| process.integer(4294967295_usize).unwrap(),
     );
 }
 

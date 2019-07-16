@@ -10,7 +10,7 @@ fn errors_badarg() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
                     let destination = next_pid();
                     let options = options(&arc_process);
 

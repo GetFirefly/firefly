@@ -19,9 +19,9 @@ fn without_arity_when_run_exits_undef() {
         // erlang.+/1 and erlang.+/2 exists so use 3 for invalid arity
         let arguments = parent_process
             .list_from_slice(&[
-                parent_process.integer(0),
-                parent_process.integer(1),
-                parent_process.integer(2),
+                parent_process.integer(0).unwrap(),
+                parent_process.integer(1).unwrap(),
+                parent_process.integer(2).unwrap(),
             ])
             .unwrap();
 

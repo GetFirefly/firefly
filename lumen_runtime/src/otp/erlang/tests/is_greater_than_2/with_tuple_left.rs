@@ -34,7 +34,11 @@ fn with_number_atom_reference_function_port_or_pid_returns_true() {
 #[test]
 fn with_smaller_tuple_right_returns_true() {
     is_greater_than(
-        |_, process| process.tuple_from_slice(&[process.integer(1)]).unwrap(),
+        |_, process| {
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap()])
+                .unwrap()
+        },
         true,
     );
 }
@@ -44,7 +48,7 @@ fn with_same_size_tuple_with_greater_elements_returns_true() {
     is_greater_than(
         |_, process| {
             process
-                .tuple_from_slice(&[process.integer(1), process.integer(1)])
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(1).unwrap()])
                 .unwrap()
         },
         true,
@@ -61,7 +65,7 @@ fn with_same_value_tuple_returns_false() {
     is_greater_than(
         |_, process| {
             process
-                .tuple_from_slice(&[process.integer(1), process.integer(2)])
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap()])
                 .unwrap()
         },
         false,
@@ -73,7 +77,7 @@ fn with_same_size_tuple_with_greater_elements_returns_false() {
     is_greater_than(
         |_, process| {
             process
-                .tuple_from_slice(&[process.integer(1), process.integer(3)])
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(3).unwrap()])
                 .unwrap()
         },
         false,
@@ -85,7 +89,11 @@ fn with_greater_size_tuple_returns_false() {
     is_greater_than(
         |_, process| {
             process
-                .tuple_from_slice(&[process.integer(1), process.integer(2), process.integer(3)])
+                .tuple_from_slice(&[
+                    process.integer(1).unwrap(),
+                    process.integer(2).unwrap(),
+                    process.integer(3).unwrap(),
+                ])
                 .unwrap()
         },
         false,
@@ -121,7 +129,7 @@ where
     super::is_greater_than(
         |process| {
             process
-                .tuple_from_slice(&[process.integer(1), process.integer(2)])
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap()])
                 .unwrap()
         },
         right,

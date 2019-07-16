@@ -83,7 +83,7 @@ fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tup
                             element_vec.clone(),
                             zero_based_index,
                             arc_process.tuple_from_slice(&element_vec).unwrap(),
-                            arc_process.integer(zero_based_index + 1),
+                            arc_process.integer(zero_based_index + 1).unwrap(),
                             element,
                         )
                     }),

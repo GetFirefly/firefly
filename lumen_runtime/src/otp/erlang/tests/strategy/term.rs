@@ -69,8 +69,10 @@ pub fn heap_fragment_safe(arc_process: Arc<ProcessControlBlock>) -> BoxedStrateg
 pub fn charlist(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     any::<String>()
         .prop_map(move |string| {
-            let codepoint_terms: Vec<Term> =
-                string.chars().map(|c| arc_process.integer(c)).collect();
+            let codepoint_terms: Vec<Term> = string
+                .chars()
+                .map(|c| arc_process.integer(c).unwrap())
+                .collect();
 
             arc_process.list_from_slice(&codepoint_terms).unwrap()
         })
@@ -308,7 +310,7 @@ pub fn is_not_map(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> 
 }
 
 pub fn is_not_non_negative_integer(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
-    let zero = arc_process.integer(0);
+    let zero = arc_process.integer(0).unwrap();
 
     super::term(arc_process)
         .prop_filter("Term must no be a non-negative integer", move |term| {

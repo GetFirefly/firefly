@@ -29,18 +29,20 @@ fn with_empty_list_right_returns_true() {
 fn with_list_right_returns_true() {
     with_right_returns_right(|process| {
         let mut heap = process.acquire_heap();
-        heap.cons(heap.integer(0), heap.integer(1)).unwrap();
+        heap.cons(heap.integer(0).unwrap(), heap.integer(1).unwrap())
+            .unwrap()
+            .unwrap();
     });
 }
 
 #[test]
 fn with_small_integer_right_returns_true() {
-    with_right_returns_right(|process| process.integer(1))
+    with_right_returns_right(|process| process.integer(1).unwrap())
 }
 
 #[test]
 fn with_big_integer_right_returns_true() {
-    with_right_returns_right(|process| process.integer(SmallInteger::MAX_VALUE + 1))
+    with_right_returns_right(|process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap())
 }
 
 #[test]

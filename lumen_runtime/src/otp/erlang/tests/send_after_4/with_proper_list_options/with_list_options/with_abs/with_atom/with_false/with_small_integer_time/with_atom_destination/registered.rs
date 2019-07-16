@@ -10,7 +10,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
 
                     let destination_arc_process = process::test(&arc_process);
                     let destination = registered_name();
@@ -69,7 +69,7 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
                 let destination = registered_name();
 
                 prop_assert_eq!(

@@ -25,7 +25,11 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                 .prop_map(|(binary, start, length)| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (binary, heap.integer(start), heap.integer(length))
+                    (
+                        binary,
+                        heap.integer(start).unwrap(),
+                        heap.integer(length).unwrap(),
+                    )
                 }),
                 |(binary, start, length)| {
                     let result = erlang::binary_part_3(binary, start, length, &arc_process);
@@ -56,8 +60,8 @@ fn with_size_start_and_negative_size_length_returns_binary() {
 
                         (
                             binary,
-                            heap.integer(byte_len),
-                            heap.integer(-(byte_len as isize)),
+                            heap.integer(byte_len).unwrap(),
+                            heap.integer(-(byte_len as isize)).unwrap(),
                         )
                     }),
                 |(binary, start, length)| {
@@ -88,8 +92,8 @@ fn with_zero_start_and_size_length_returns_binary() {
 
                     (
                         binary,
-                        heap.integer(0),
-                        heap.integer(total_byte_len(binary)),
+                        heap.integer(0).unwrap(),
+                        heap.integer(total_byte_len(binary)).unwrap(),
                     )
                 }),
                 |(binary, start, length)| {

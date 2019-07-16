@@ -10,7 +10,7 @@ fn errors_badarg() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
 
                     let destination_arc_process = process::test(&arc_process);
                     let destination = registered_name();

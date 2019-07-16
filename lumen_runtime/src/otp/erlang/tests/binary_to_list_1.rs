@@ -38,24 +38,27 @@ fn with_binary_returns_list_of_bytes() {
                     let list = match byte_vec.len() {
                         0 => Term::NIL,
                         1 => arc_process
-                            .cons(arc_process.integer(byte_vec[0]), Term::NIL)
+                            .cons(arc_process.integer(byte_vec[0]).unwrap(), Term::NIL)
                             .unwrap(),
                         2 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process
-                                    .cons(arc_process.integer(byte_vec[1]), Term::NIL)
+                                    .cons(arc_process.integer(byte_vec[1]).unwrap(), Term::NIL)
                                     .unwrap(),
                             )
                             .unwrap(),
                         3 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process
                                     .cons(
-                                        arc_process.integer(byte_vec[1]),
+                                        arc_process.integer(byte_vec[1]).unwrap(),
                                         arc_process
-                                            .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                            .cons(
+                                                arc_process.integer(byte_vec[2]).unwrap(),
+                                                Term::NIL,
+                                            )
                                             .unwrap(),
                                     )
                                     .unwrap(),

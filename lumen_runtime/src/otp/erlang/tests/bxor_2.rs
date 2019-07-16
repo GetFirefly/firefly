@@ -56,7 +56,7 @@ fn with_same_integer_returns_zero() {
                 |operand| {
                     prop_assert_eq!(
                         erlang::bxor_2(operand, operand, &arc_process),
-                        Ok(arc_process.integer(0))
+                        Ok(arc_process.integer(0).unwrap())
                     );
 
                     Ok(())

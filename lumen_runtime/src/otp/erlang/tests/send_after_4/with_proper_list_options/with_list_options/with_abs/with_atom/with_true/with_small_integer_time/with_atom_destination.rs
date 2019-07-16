@@ -12,7 +12,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
                     strategy::term::heap_fragment_safe(arc_process.clone()),
                 ),
                 |(milliseconds, message)| {
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
                     let destination = registered_name();
                     let options = options(&arc_process);
 

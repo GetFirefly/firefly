@@ -34,7 +34,7 @@ fn with_greater_list_right_returns_true() {
     is_greater_than_or_equal(
         |_, process| {
             process
-                .cons(process.integer(0), process.integer(0))
+                .cons(process.integer(0).unwrap(), process.integer(0).unwrap())
                 .unwrap()
         },
         true,
@@ -46,7 +46,7 @@ fn with_same_value_list_right_returns_true() {
     is_greater_than_or_equal(
         |_, process| {
             process
-                .cons(process.integer(0), process.integer(1))
+                .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
                 .unwrap()
         },
         true,
@@ -58,7 +58,7 @@ fn with_greater_list_right_returns_false() {
     is_greater_than_or_equal(
         |_, process| {
             process
-                .cons(process.integer(0), process.integer(2))
+                .cons(process.integer(0).unwrap(), process.integer(2).unwrap())
                 .unwrap()
         },
         false,
@@ -94,7 +94,7 @@ where
     super::is_greater_than_or_equal(
         |process| {
             process
-                .cons(process.integer(0), process.integer(1))
+                .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
                 .unwrap()
         },
         right,

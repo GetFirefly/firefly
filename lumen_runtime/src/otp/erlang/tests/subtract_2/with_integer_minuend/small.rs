@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn with_small_integer_subtrahend_with_underflow_returns_big_integer() {
     with_process(|process| {
-        let minuend = process.integer(SmallInteger::MIN_VALUE);
-        let subtrahend = process.integer(SmallInteger::MAX_VALUE);
+        let minuend = process.integer(SmallInteger::MIN_VALUE).unwrap();
+        let subtrahend = process.integer(SmallInteger::MAX_VALUE).unwrap();
 
         assert!(subtrahend.is_smallint());
 
@@ -21,7 +21,7 @@ fn with_small_integer_subtrahend_with_underflow_returns_big_integer() {
 #[test]
 fn with_small_integer_subtrahend_with_overflow_returns_big_integer() {
     with(|minuend, process| {
-        let subtrahend = process.integer(SmallInteger::MIN_VALUE);
+        let subtrahend = process.integer(SmallInteger::MIN_VALUE).unwrap();
 
         assert!(subtrahend.is_smallint());
 
@@ -64,7 +64,7 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let minuend = process.integer(2);
+        let minuend = process.integer(2).unwrap();
 
         f(minuend, &process)
     })

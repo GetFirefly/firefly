@@ -79,7 +79,7 @@ fn with_binary_with_big_integer_returns_big_integer() {
                     let term = result.unwrap();
 
                     prop_assert!(term.is_bigint());
-                    prop_assert_eq!(term, arc_process.integer(integer));
+                    prop_assert_eq!(term, arc_process.integer(integer).unwrap());
 
                     Ok(())
                 },

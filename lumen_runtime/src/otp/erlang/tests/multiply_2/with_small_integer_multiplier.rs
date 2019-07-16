@@ -25,11 +25,11 @@ fn without_number_multiplicand_errors_badarith() {
 #[test]
 fn with_small_integer_multiplicand_without_underflow_or_overflow_returns_small_integer() {
     with(|multiplier, process| {
-        let multiplicand = process.integer(3);
+        let multiplicand = process.integer(3).unwrap();
 
         assert_eq!(
             erlang::multiply_2(multiplier, multiplicand, &process),
-            Ok(process.integer(6))
+            Ok(process.integer(6).unwrap())
         );
     })
 }
@@ -37,7 +37,7 @@ fn with_small_integer_multiplicand_without_underflow_or_overflow_returns_small_i
 #[test]
 fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
     with(|multiplier, process| {
-        let multiplicand = process.integer(SmallInteger::MIN_VALUE);
+        let multiplicand = process.integer(SmallInteger::MIN_VALUE).unwrap();
 
         assert!(multiplicand.is_smallint());
 
@@ -54,7 +54,7 @@ fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
 #[test]
 fn with_small_integer_multiplicand_with_overflow_returns_big_integer() {
     with(|multiplier, process| {
-        let multiplicand = process.integer(SmallInteger::MAX_VALUE);
+        let multiplicand = process.integer(SmallInteger::MAX_VALUE).unwrap();
 
         assert!(multiplicand.is_smallint());
 
@@ -134,7 +134,7 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let multiplier = process.integer(2);
+        let multiplier = process.integer(2).unwrap();
 
         f(multiplier, &process)
     })

@@ -20,7 +20,7 @@ fn without_list_errors_badarg() {
 fn with_empty_list_is_zero() {
     with_process(|process| {
         let list = Term::NIL;
-        let zero_term = process.integer(0);
+        let zero_term = process.integer(0).unwrap();
 
         assert_eq!(erlang::length_1(list, &process), Ok(zero_term));
     });
@@ -59,7 +59,7 @@ fn with_non_empty_proper_list_is_number_of_elements() {
                 |(list, element_count)| {
                     prop_assert_eq!(
                         erlang::length_1(list, &arc_process),
-                        Ok(arc_process.integer(element_count))
+                        Ok(arc_process.integer(element_count).unwrap())
                     );
 
                     Ok(())

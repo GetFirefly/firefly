@@ -29,7 +29,7 @@ fn with_zero_small_integer_returns_same_big_integer() {
             .run(
                 &strategy::term::integer::big(arc_process.clone()),
                 |augend| {
-                    let addend = arc_process.integer(0);
+                    let addend = 0.into();
 
                     prop_assert_eq!(erlang::add_2(augend, addend, &arc_process), Ok(augend));
 
@@ -156,7 +156,7 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let augend = process.integer(SmallInteger::MAX_VALUE + 1);
+        let augend = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
         assert!(augend.is_bigint());
 

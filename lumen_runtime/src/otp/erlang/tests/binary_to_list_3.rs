@@ -10,8 +10,8 @@ fn without_binary_errors_badarg() {
             .run(
                 &strategy::term::is_not_binary(arc_process.clone()),
                 |binary| {
-                    let start = arc_process.integer(1);
-                    let stop = arc_process.integer(1);
+                    let start = arc_process.integer(1).unwrap();
+                    let stop = arc_process.integer(1).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_to_list_3(binary, start, stop, &arc_process),
@@ -35,7 +35,7 @@ fn with_binary_without_integer_start_errors_badarg() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(binary, start)| {
-                    let stop = arc_process.integer(1);
+                    let stop = arc_process.integer(1).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_to_list_3(binary, start, stop, &arc_process),
@@ -98,47 +98,50 @@ fn with_binary_with_start_less_than_or_equal_to_stop_returns_list_of_bytes() {
                         // test
                         let list = match (start, stop) {
                             (1, 1) => arc_process
-                                .cons(arc_process.integer(byte_vec[0]), Term::NIL)
+                                .cons(arc_process.integer(byte_vec[0]).unwrap(), Term::NIL)
                                 .unwrap(),
                             (1, 2) => arc_process
                                 .cons(
-                                    arc_process.integer(byte_vec[0]),
+                                    arc_process.integer(byte_vec[0]).unwrap(),
                                     arc_process
-                                        .cons(arc_process.integer(byte_vec[1]), Term::NIL)
+                                        .cons(arc_process.integer(byte_vec[1]).unwrap(), Term::NIL)
                                         .unwrap(),
                                 )
                                 .unwrap(),
                             (1, 3) => arc_process
                                 .cons(
-                                    arc_process.integer(byte_vec[0]),
+                                    arc_process.integer(byte_vec[0]).unwrap(),
                                     arc_process
                                         .cons(
-                                            arc_process.integer(byte_vec[1]),
+                                            arc_process.integer(byte_vec[1]).unwrap(),
                                             arc_process
-                                                .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                                .cons(
+                                                    arc_process.integer(byte_vec[2]).unwrap(),
+                                                    Term::NIL,
+                                                )
                                                 .unwrap(),
                                         )
                                         .unwrap(),
                                 )
                                 .unwrap(),
                             (2, 2) => arc_process
-                                .cons(arc_process.integer(byte_vec[1]), Term::NIL)
+                                .cons(arc_process.integer(byte_vec[1]).unwrap(), Term::NIL)
                                 .unwrap(),
                             (2, 3) => arc_process
                                 .cons(
-                                    arc_process.integer(byte_vec[1]),
+                                    arc_process.integer(byte_vec[1]).unwrap(),
                                     arc_process
-                                        .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                        .cons(arc_process.integer(byte_vec[2]).unwrap(), Term::NIL)
                                         .unwrap(),
                                 )
                                 .unwrap(),
                             (3, 3) => arc_process
-                                .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                .cons(arc_process.integer(byte_vec[2]).unwrap(), Term::NIL)
                                 .unwrap(),
                             _ => unimplemented!("(start, stop) = ({:?}, {:?})", start, stop),
                         };
-                        let start_term = arc_process.integer(start);
-                        let stop_term = arc_process.integer(stop);
+                        let start_term = arc_process.integer(start).unwrap();
+                        let stop_term = arc_process.integer(stop).unwrap();
 
                         (list, start_term, stop_term)
                     };
@@ -178,8 +181,8 @@ fn with_binary_with_start_greater_than_stop_errors_badarg() {
                     let (start_term, stop_term) = {
                         let mut heap = arc_process.acquire_heap();
 
-                        let start_term = heap.integer(start);
-                        let stop_term = heap.integer(stop);
+                        let start_term = heap.integer(start).unwrap();
+                        let stop_term = heap.integer(stop).unwrap();
 
                         (start_term, stop_term)
                     };

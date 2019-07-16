@@ -84,7 +84,7 @@ where
         let same_thread_pid = unsafe { different_thread_same_thread_process_arc.pid().as_term() };
 
         let timer_reference = erlang::start_timer_3(
-            different_thread_process_arc.integer(milliseconds),
+            different_thread_process_arc.integer(milliseconds).unwrap(),
             same_thread_pid,
             atom_unchecked("different"),
             different_thread_process_arc.clone(),
@@ -113,8 +113,11 @@ where
     let timer_reference_tuple =
         receive_message(&same_thread_process_arc).expect("Cross-thread receive failed");
 
-    let timer_reference =
-        erlang::element_2(same_thread_process_arc.integer(2), timer_reference_tuple).unwrap();
+    let timer_reference = erlang::element_2(
+        same_thread_process_arc.integer(2).unwrap(),
+        timer_reference_tuple,
+    )
+    .unwrap();
 
     f(
         milliseconds,

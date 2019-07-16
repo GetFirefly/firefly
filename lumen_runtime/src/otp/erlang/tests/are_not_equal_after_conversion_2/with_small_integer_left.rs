@@ -54,7 +54,7 @@ fn with_same_value_small_integer_right_returns_false() {
                 &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.integer(i), heap.integer(i))
+                    (heap.integer(i).unwrap(), heap.integer(i).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -77,7 +77,7 @@ fn with_different_small_integer_right_returns_true() {
                 &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.integer(i), heap.integer(i + 1))
+                    (heap.integer(i).unwrap(), heap.integer(i + 1).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -100,7 +100,7 @@ fn with_same_value_float_right_returns_false() {
                 &strategy::term::small_integer_float_integral_i64().prop_map(move |i| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.integer(i), heap.float(i as f64).unwrap())
+                    (heap.integer(i).unwrap(), heap.float(i as f64).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -126,7 +126,10 @@ fn with_different_value_float_right_returns_true() {
                     // change float toward zero to ensure it remains in integral range
                     let diff = if i < 0 { 1 } else { -1 };
 
-                    (heap.integer(i), heap.float((i + diff) as f64).unwrap())
+                    (
+                        heap.integer(i).unwrap(),
+                        heap.float((i + diff) as f64).unwrap(),
+                    )
                 }),
                 |(left, right)| {
                     prop_assert_eq!(

@@ -13,7 +13,7 @@ fn with_different_process_errors_badarg() {
                     options(arc_process.clone()),
                 ),
                 |(milliseconds, message, options)| {
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
 
                     let destination_arc_process = process::test(&arc_process);
                     let destination = registered_name();
@@ -65,7 +65,7 @@ fn with_same_process_errors_badarg() {
                     Ok(true.into())
                 );
 
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
 
                 prop_assert_eq!(
                     erlang::send_after_4(time, destination, message, options, arc_process.clone()),

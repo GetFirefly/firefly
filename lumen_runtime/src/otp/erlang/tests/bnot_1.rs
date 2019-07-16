@@ -46,9 +46,12 @@ fn with_small_integer_returns_small_integer() {
 #[test]
 fn with_small_integer_inverts_bits() {
     with_process(|process| {
-        let integer = process.integer(0b10);
+        let integer = process.integer(0b10).unwrap();
 
-        assert_eq!(erlang::bnot_1(integer, &process), Ok(process.integer(-3)));
+        assert_eq!(
+            erlang::bnot_1(integer, &process),
+            Ok(process.integer(-3).unwrap())
+        )
     });
 }
 
@@ -60,14 +63,15 @@ fn with_big_integer_inverts_bits() {
             2,
         )
         .unwrap();
-        let integer = process.integer(integer_big_int);
+        let integer = process.integer(integer_big_int).unwrap();
 
         assert!(integer.is_bigint());
 
         assert_eq!(
             erlang::bnot_1(integer, &process),
             Ok(process
-                .integer(<BigInt as Num>::from_str_radix("-12297829382473034411", 10,).unwrap()))
+                .integer(<BigInt as Num>::from_str_radix("-12297829382473034411", 10,).unwrap())
+                .unwrap())
         );
     });
 }

@@ -39,8 +39,8 @@ fn with_empty_list_returns_1_byte_binary() {
 #[test]
 fn with_improper_list_returns_binary() {
     with_tail_errors_badarg(|process| {
-        let tail_head = process.integer(1);
-        let tail_tail = process.integer(2);
+        let tail_head = process.integer(1).unwrap();
+        let tail_tail = process.integer(2).unwrap();
 
         process.cons(tail_head, tail_tail).unwrap()
     });
@@ -50,7 +50,7 @@ fn with_improper_list_returns_binary() {
 fn with_proper_list_returns_binary() {
     with(|_, head, process| {
         let tail_head_byte = 1;
-        let tail_head = process.integer(tail_head_byte);
+        let tail_head = process.integer(tail_head_byte).unwrap();
         let tail_tail = Term::NIL;
         let tail = process.cons(tail_head, tail_tail).unwrap();
 
@@ -203,7 +203,7 @@ where
 {
     with_process(|process| {
         let head_byte: u8 = 0;
-        let head = process.integer(head_byte);
+        let head = process.integer(head_byte).unwrap();
 
         f(head_byte, head, &process);
     })

@@ -34,7 +34,7 @@ fn with_lesser_list_second_returns_first() {
     max(
         |_, process| {
             process
-                .cons(process.integer(0), process.integer(0))
+                .cons(process.integer(0).unwrap(), process.integer(0).unwrap())
                 .unwrap()
         },
         First,
@@ -51,7 +51,7 @@ fn with_same_value_list_second_returns_first() {
     max(
         |_, process| {
             process
-                .cons(process.integer(0), process.integer(1))
+                .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
                 .unwrap()
         },
         First,
@@ -63,7 +63,7 @@ fn with_greater_list_second_returns_second() {
     max(
         |_, process| {
             process
-                .cons(process.integer(0), process.integer(2))
+                .cons(process.integer(0).unwrap(), process.integer(2).unwrap())
                 .unwrap()
         },
         Second,
@@ -96,7 +96,7 @@ where
     super::max(
         |process| {
             process
-                .cons(process.integer(0), process.integer(1))
+                .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
                 .unwrap()
         },
         second,

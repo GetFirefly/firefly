@@ -91,7 +91,7 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let multiplier: Term = process.integer(SmallInteger::MAX_VALUE + 1);
+        let multiplier: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
         assert!(multiplier.is_bigint());
 

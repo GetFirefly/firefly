@@ -18,7 +18,7 @@ fn without_exported_function_when_run_exits_undef() {
         let function = unsafe { function_atom.as_term() };
 
         let arguments = parent_process
-            .cons(parent_process.integer(0), Term::NIL)
+            .cons(parent_process.integer(0).unwrap(), Term::NIL)
             .unwrap();
 
         let result = erlang::spawn_3(module, function, arguments, parent_process);

@@ -84,7 +84,9 @@ fn with_nested_list_returns_tuple_with_list_element() {
             let second_element = process
                 .cons(
                     atom_unchecked("Ericsson_B"),
-                    process.cons(process.integer(163), Term::NIL).unwrap(),
+                    process
+                        .cons(process.integer(163).unwrap(), Term::NIL)
+                        .unwrap(),
                 )
                 .unwrap();
 

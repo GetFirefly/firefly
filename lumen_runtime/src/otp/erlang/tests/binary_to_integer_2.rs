@@ -65,13 +65,13 @@ fn with_binary_with_integer_in_base_returns_integers() {
                     (
                         Just(integer),
                         strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                        Just(arc_process.integer(base)),
+                        Just(arc_process.integer(base).unwrap()),
                     )
                 }),
                 |(integer, binary, base)| {
                     prop_assert_eq!(
                         erlang::binary_to_integer_2(binary, base, &arc_process),
-                        Ok(arc_process.integer(integer))
+                        Ok(arc_process.integer(integer).unwrap())
                     );
 
                     Ok(())
@@ -97,7 +97,7 @@ fn with_binary_without_integer_in_base_errors_badarg() {
 
                     (
                         strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                        Just(arc_process.integer(base)),
+                        Just(arc_process.integer(base).unwrap()),
                     )
                 }),
                 |(binary, base)| {
@@ -119,7 +119,7 @@ fn base() -> BoxedStrategy<u8> {
 
 fn term_is_base(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     base()
-        .prop_map(move |base| arc_process.integer(base))
+        .prop_map(move |base| arc_process.integer(base).unwrap())
         .boxed()
 }
 

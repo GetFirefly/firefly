@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn with_small_integer_divisor_with_underflow_returns_small_integer() {
     with(|dividend, process| {
-        let divisor: Term = process.integer(2);
+        let divisor: Term = process.integer(2).unwrap();
 
         assert!(divisor.is_smallint());
 
@@ -20,12 +20,12 @@ fn with_small_integer_divisor_with_underflow_returns_small_integer() {
 #[test]
 fn with_big_integer_divisor_with_underflow_returns_small_integer() {
     with_process(|process| {
-        let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 2);
-        let divisor: Term = process.integer(SmallInteger::MAX_VALUE + 1);
+        let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 2).unwrap();
+        let divisor: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
         assert_eq!(
             erlang::rem_2(dividend, divisor, &process),
-            Ok(process.integer(1))
+            Ok(process.integer(1).unwrap())
         );
     })
 }
@@ -33,8 +33,8 @@ fn with_big_integer_divisor_with_underflow_returns_small_integer() {
 #[test]
 fn with_big_integer_divisor_without_underflow_returns_big_integer() {
     with_process(|process| {
-        let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1);
-        let divisor: Term = process.integer(SmallInteger::MAX_VALUE + 2);
+        let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
+        let divisor: Term = process.integer(SmallInteger::MAX_VALUE + 2).unwrap();
 
         assert_eq!(erlang::rem_2(dividend, divisor, &process), Ok(dividend));
     })
@@ -45,7 +45,7 @@ where
     F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1);
+        let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
         assert!(dividend.is_bigint());
 

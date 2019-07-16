@@ -42,8 +42,10 @@ fn with_non_empty_proper_list_returns_atom() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &any::<String>().prop_map(|string| {
-                    let codepoint_terms: Vec<Term> =
-                        string.chars().map(|c| arc_process.integer(c)).collect();
+                    let codepoint_terms: Vec<Term> = string
+                        .chars()
+                        .map(|c| arc_process.integer(c).unwrap())
+                        .collect();
                     let list = arc_process.list_from_slice(&codepoint_terms).unwrap();
 
                     (list, string)

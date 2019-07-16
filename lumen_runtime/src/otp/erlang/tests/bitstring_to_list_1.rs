@@ -32,24 +32,27 @@ fn with_heap_binary_returns_list_of_integer() {
                     match byte_vec.len() {
                         0 => Term::NIL,
                         1 => arc_process
-                            .cons(arc_process.integer(byte_vec[0]), Term::NIL)
+                            .cons(arc_process.integer(byte_vec[0]).unwrap(), Term::NIL)
                             .unwrap(),
                         2 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process
-                                    .cons(arc_process.integer(byte_vec[1]), Term::NIL)
+                                    .cons(arc_process.integer(byte_vec[1]).unwrap(), Term::NIL)
                                     .unwrap(),
                             )
                             .unwrap(),
                         3 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process
                                     .cons(
-                                        arc_process.integer(byte_vec[1]),
+                                        arc_process.integer(byte_vec[1]).unwrap(),
                                         arc_process
-                                            .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                            .cons(
+                                                arc_process.integer(byte_vec[2]).unwrap(),
+                                                Term::NIL,
+                                            )
                                             .unwrap(),
                                     )
                                     .unwrap(),
@@ -92,24 +95,27 @@ fn with_subbinary_without_bit_count_returns_list_of_integer() {
                     let list = match byte_vec.len() {
                         0 => Term::NIL,
                         1 => arc_process
-                            .cons(arc_process.integer(byte_vec[0]), Term::NIL)
+                            .cons(arc_process.integer(byte_vec[0]).unwrap(), Term::NIL)
                             .unwrap(),
                         2 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process
-                                    .cons(arc_process.integer(byte_vec[1]), Term::NIL)
+                                    .cons(arc_process.integer(byte_vec[1]).unwrap(), Term::NIL)
                                     .unwrap(),
                             )
                             .unwrap(),
                         3 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process
                                     .cons(
-                                        arc_process.integer(byte_vec[1]),
+                                        arc_process.integer(byte_vec[1]).unwrap(),
                                         arc_process
-                                            .cons(arc_process.integer(byte_vec[2]), Term::NIL)
+                                            .cons(
+                                                arc_process.integer(byte_vec[2]).unwrap(),
+                                                Term::NIL,
+                                            )
                                             .unwrap(),
                                     )
                                     .unwrap(),
@@ -167,16 +173,16 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
                         0 => arc_process.cons(bits_subbinary, Term::NIL).unwrap(),
                         1 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process.cons(bits_subbinary, Term::NIL).unwrap(),
                             )
                             .unwrap(),
                         2 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process
                                     .cons(
-                                        arc_process.integer(byte_vec[1]),
+                                        arc_process.integer(byte_vec[1]).unwrap(),
                                         arc_process.cons(bits_subbinary, Term::NIL).unwrap(),
                                     )
                                     .unwrap(),
@@ -184,13 +190,13 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
                             .unwrap(),
                         3 => arc_process
                             .cons(
-                                arc_process.integer(byte_vec[0]),
+                                arc_process.integer(byte_vec[0]).unwrap(),
                                 arc_process
                                     .cons(
-                                        arc_process.integer(byte_vec[1]),
+                                        arc_process.integer(byte_vec[1]).unwrap(),
                                         arc_process
                                             .cons(
-                                                arc_process.integer(byte_vec[2]),
+                                                arc_process.integer(byte_vec[2]).unwrap(),
                                                 arc_process
                                                     .cons(bits_subbinary, Term::NIL)
                                                     .unwrap(),

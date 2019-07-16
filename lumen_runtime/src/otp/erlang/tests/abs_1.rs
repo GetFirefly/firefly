@@ -26,8 +26,9 @@ fn with_number_returns_non_negative() {
                 prop_assert!(result.is_ok());
 
                 let abs = result.unwrap();
+                let zero: Term = 0.into();
 
-                prop_assert!(arc_process.integer(0) <= abs);
+                prop_assert!(zero <= abs);
 
                 Ok(())
             })

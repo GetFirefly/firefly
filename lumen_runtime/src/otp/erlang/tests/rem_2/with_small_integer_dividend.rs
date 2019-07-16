@@ -12,11 +12,11 @@ fn with_small_integer_divisor_returns_small_integer() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::rem_2(
-                            arc_process.integer(dividend),
-                            arc_process.integer(divisor),
+                            arc_process.integer(dividend).unwrap(),
+                            arc_process.integer(divisor).unwrap(),
                             &arc_process
                         ),
-                        Ok(arc_process.integer(dividend % divisor))
+                        Ok(arc_process.integer(dividend % divisor).unwrap())
                     );
 
                     Ok(())

@@ -22,8 +22,8 @@ fn without_timeout_returns_milliseconds() {
         let first_milliseconds_remaining = first_result.unwrap();
 
         assert!(first_milliseconds_remaining.is_integer());
-        assert!(process.integer(0) < first_milliseconds_remaining);
-        assert!(first_milliseconds_remaining <= process.integer(half_milliseconds));
+        assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
+        assert!(first_milliseconds_remaining <= process.integer(half_milliseconds).unwrap());
 
         // again before timeout
         let second_milliseconds_remaining =
@@ -82,7 +82,7 @@ where
 
     let message = atom_unchecked("message");
     let timer_reference = erlang::start_timer_3(
-        same_thread_process_arc.integer(milliseconds),
+        same_thread_process_arc.integer(milliseconds).unwrap(),
         unsafe { same_thread_process_arc.pid().as_term() },
         message,
         same_thread_process_arc.clone(),

@@ -46,7 +46,7 @@ fn with_same_value_small_integer_right_returns_true() {
                 &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.integer(i), heap.integer(i))
+                    (heap.integer(i).unwrap(), heap.integer(i).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), true.into());
@@ -66,7 +66,7 @@ fn with_different_small_integer_right_returns_false() {
                 &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (heap.integer(i), heap.integer(i + 1))
+                    (heap.integer(i).unwrap(), heap.integer(i + 1).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());

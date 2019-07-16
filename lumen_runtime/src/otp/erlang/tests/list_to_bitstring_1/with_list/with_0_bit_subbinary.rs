@@ -49,10 +49,10 @@ fn with_improper_list_errors_badarg() {
         let mut heap = process.acquire_heap();
 
         let tail_head_byte = 2;
-        let tail_head = heap.integer(tail_head_byte);
+        let tail_head = heap.integer(tail_head_byte).unwrap();
 
         let tail_tail_byte = 3;
-        let tail_tail = heap.integer(tail_tail_byte);
+        let tail_tail = heap.integer(tail_tail_byte).unwrap();
 
         heap.cons(tail_head, tail_tail).unwrap()
     });
@@ -62,7 +62,7 @@ fn with_improper_list_errors_badarg() {
 fn with_proper_list_returns_binary() {
     with(|head, process| {
         let tail_head_byte = 2;
-        let tail_head = process.integer(tail_head_byte);
+        let tail_head = process.integer(tail_head_byte).unwrap();
         let tail_tail = Term::NIL;
         let tail = process.cons(tail_head, tail_tail).unwrap();
 

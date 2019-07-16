@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn with_lesser_small_integer_right_returns_false() {
-    is_equal_or_less_than(|_, process| process.integer(-1), false);
+    is_equal_or_less_than(|_, process| process.integer(-1).unwrap(), false);
 }
 
 #[test]
@@ -12,18 +12,18 @@ fn with_same_small_integer_right_returns_true() {
 
 #[test]
 fn with_same_value_small_integer_right_returns_true() {
-    is_equal_or_less_than(|_, process| process.integer(0), true);
+    is_equal_or_less_than(|_, process| process.integer(0).unwrap(), true);
 }
 
 #[test]
 fn with_greater_small_integer_right_returns_true() {
-    is_equal_or_less_than(|_, process| process.integer(1), true);
+    is_equal_or_less_than(|_, process| process.integer(1).unwrap(), true);
 }
 
 #[test]
 fn with_lesser_big_integer_right_returns_false() {
     is_equal_or_less_than(
-        |_, process| process.integer(SmallInteger::MIN_VALUE - 1),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
         false,
     )
 }
@@ -31,7 +31,7 @@ fn with_lesser_big_integer_right_returns_false() {
 #[test]
 fn with_greater_big_integer_right_returns_true() {
     is_equal_or_less_than(
-        |_, process| process.integer(SmallInteger::MAX_VALUE + 1),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
         true,
     )
 }
@@ -74,5 +74,5 @@ fn is_equal_or_less_than<R>(right: R, expected: bool)
 where
     R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::is_equal_or_less_than(|process| process.integer(0), right, expected);
+    super::is_equal_or_less_than(|process| process.integer(0).unwrap(), right, expected);
 }

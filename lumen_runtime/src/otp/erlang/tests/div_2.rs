@@ -54,7 +54,7 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
             .run(
                 &(
                     strategy::term::is_integer(arc_process.clone()),
-                    Just(arc_process.integer(0)),
+                    Just(arc_process.integer(0).unwrap()),
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(

@@ -35,8 +35,8 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         let milliseconds_remaining = received_tuple[2];
 
         assert!(milliseconds_remaining.is_integer());
-        assert!(process.integer(0) < milliseconds_remaining);
-        assert!(milliseconds_remaining <= process.integer(milliseconds / 2));
+        assert!(process.integer(0).unwrap() < milliseconds_remaining);
+        assert!(milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         let false_cancel_timer_message =
             cancel_timer_message(timer_reference, false.into(), process);
@@ -98,7 +98,7 @@ where
 
     let message = atom_unchecked("message");
     let timer_reference = erlang::start_timer_3(
-        same_thread_process_arc.integer(milliseconds),
+        same_thread_process_arc.integer(milliseconds).unwrap(),
         unsafe { same_thread_process_arc.pid().as_term() },
         message,
         same_thread_process_arc.clone(),

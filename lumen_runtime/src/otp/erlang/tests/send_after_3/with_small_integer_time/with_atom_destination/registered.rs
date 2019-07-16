@@ -22,7 +22,7 @@ fn with_different_process_sends_message_when_timer_expires() {
                         Ok(true.into())
                     );
 
-                    let time = arc_process.integer(milliseconds);
+                    let time = arc_process.integer(milliseconds).unwrap();
 
                     let result =
                         erlang::send_after_3(time, destination, message, arc_process.clone());
@@ -70,7 +70,7 @@ fn with_same_process_sends_message_when_timer_expires() {
                     Ok(true.into())
                 );
 
-                let time = arc_process.integer(milliseconds);
+                let time = arc_process.integer(milliseconds).unwrap();
 
                 let result = erlang::send_after_3(time, destination, message, arc_process.clone());
 

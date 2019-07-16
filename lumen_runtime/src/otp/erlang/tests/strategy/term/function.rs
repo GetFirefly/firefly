@@ -16,7 +16,7 @@ pub fn function() -> BoxedStrategy<Term> {
 
 pub fn arity(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     arity_usize()
-        .prop_map(move |u| arc_process.integer(u))
+        .prop_map(move |u| arc_process.integer(u).unwrap())
         .boxed()
 }
 

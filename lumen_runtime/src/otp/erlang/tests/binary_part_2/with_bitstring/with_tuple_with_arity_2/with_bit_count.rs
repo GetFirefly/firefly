@@ -32,7 +32,11 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                 .prop_map(|(binary, start, length)| {
                     let mut heap = arc_process.acquire_heap();
 
-                    (binary, heap.integer(start), heap.integer(length))
+                    (
+                        binary,
+                        heap.integer(start).unwrap(),
+                        heap.integer(length).unwrap(),
+                    )
                 }),
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
@@ -72,8 +76,8 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
 
                     (
                         binary,
-                        heap.integer(byte_count),
-                        heap.integer(-(byte_count as isize)),
+                        heap.integer(byte_count).unwrap(),
+                        heap.integer(-(byte_count as isize)).unwrap(),
                     )
                 }),
                 |(binary, start, length)| {
@@ -129,8 +133,8 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
 
                     (
                         binary,
-                        heap.integer(0),
-                        heap.integer(subbinary.full_byte_len()),
+                        heap.integer(0).unwrap(),
+                        heap.integer(subbinary.full_byte_len()).unwrap(),
                     )
                 }),
                 |(binary, start, length)| {

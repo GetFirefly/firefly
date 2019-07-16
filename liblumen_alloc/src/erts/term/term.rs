@@ -456,6 +456,11 @@ mod typecheck {
             || constants::header_tag(term) == constants::FLAG_NEG_BIG_INTEGER
     }
 
+    /// Returns true if this term is a float
+    pub const fn is_float(term: usize) -> bool {
+        constants::header_tag(term) == constants::FLAG_FLOAT
+    }
+
     /// Returns true if this term is a tuple
     #[inline]
     pub const fn is_tuple(term: usize) -> bool {
@@ -921,7 +926,7 @@ impl Term {
         typecheck::is_bigint(self.0)
     }
 
-    /// Returns true if this term is a float
+    /// Returns true if this term is a boxed float.
     #[inline]
     pub fn is_float(&self) -> bool {
         match self.to_typed_term().unwrap() {
@@ -931,6 +936,11 @@ impl Term {
             },
             _ => false,
         }
+    }
+
+    /// Return true if this term is a float header that has already been unboxed.
+    pub fn is_float_header(&self) -> bool {
+        typecheck::is_float(self.0)
     }
 
     /// Returns true if this term is a boxed tuple
@@ -1324,17 +1334,17 @@ impl fmt::Debug for Term {
         } else if self.is_header() {
             let ptr = self as *const _;
             unsafe {
-                if self.is_tuple() {
+                if self.is_tuple_header() {
                     write!(f, "Term({:?})", *(ptr as *const Tuple))
                 } else if self.is_none() {
                     write!(f, "Term(None)")
                 } else if self.is_bigint_header() {
                     write!(f, "Term({})", *(ptr as *const BigInteger))
-                } else if self.is_reference() {
+                } else if self.is_local_reference_header() {
                     write!(f, "Term({:?})", Reference::from_raw(ptr as *mut Reference))
                 } else if self.is_closure_header() {
                     write!(f, "Term(Closure({:?}))", ptr as *const Closure)
-                } else if self.is_float() {
+                } else if self.is_float_header() {
                     let float = Float::from_raw(ptr as *mut Float);
                     write!(f, "Term({})", float)
                 } else if self.is_procbin() {
@@ -1357,7 +1367,7 @@ impl fmt::Debug for Term {
                 } else if self.is_match_context() {
                     let bin = &*(ptr as *const MatchContext);
                     write!(f, "Term(MatchCtx({:?}))", bin)
-                } else if self.is_external_pid() {
+                } else if self.is_external_pid_header() {
                     let val = &*(ptr as *const ExternalPid);
                     write!(f, "Term({:?})", val)
                 } else if self.is_remote_port() {
@@ -1366,11 +1376,11 @@ impl fmt::Debug for Term {
                 } else if self.is_remote_reference() {
                     let val = &*(ptr as *const ExternalReference);
                     write!(f, "Term({:?})", val)
-                } else if self.is_map() {
+                } else if self.is_map_header() {
                     let val = &*(ptr as *const MapHeader);
                     write!(f, "Term({:?})", val)
                 } else {
-                    write!(f, "Term(UnknownHeader({:?}))", self.0)
+                    write!(f, "Term(UnknownHeader({:#x}))", self.0)
                 }
             }
         } else {

@@ -1,12 +1,39 @@
+use core::alloc::AllocErr;
+use core::cmp;
 use core::convert::{TryFrom, TryInto};
+use core::fmt::{self, Debug};
+use core::mem;
+use core::ptr;
 
-use super::*;
+use alloc::vec::Vec;
 
-/// Placeholder for map header
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct MapHeader(usize);
+use hashbrown::HashMap;
 
-impl MapHeader {
+use crate::erts::process::HeapAlloc;
+use crate::erts::term::{AsTerm, Boxed, Term, TypeError, TypedTerm};
+use crate::erts::to_word_size;
+
+#[derive(Clone)]
+#[repr(C)]
+pub struct Map {
+    header: Term,
+    value: HashMap<Term, Term>,
+}
+
+impl Map {
+    pub(in crate::erts) fn from_slice(slice: &[(Term, Term)]) -> Self {
+        let mut value: HashMap<Term, Term> = HashMap::with_capacity(slice.len());
+
+        for (entry_key, entry_value) in slice {
+            value.insert(*entry_key, *entry_value);
+        }
+
+        let arity = to_word_size(mem::size_of_val(&value));
+        let header = Term::make_header(arity, Term::FLAG_MAP);
+
+        Self { header, value }
+    }
+
     pub fn get(&self, _key: Term) -> Option<Term> {
         unimplemented!()
     }
@@ -18,33 +45,115 @@ impl MapHeader {
     pub fn len(&self) -> usize {
         unimplemented!()
     }
+
+    // Private
+
+    fn sorted_keys(&self) -> Vec<Term> {
+        let mut key_vec: Vec<Term> = Vec::new();
+        key_vec.extend(self.value.keys());
+        key_vec.sort_unstable_by(|key1, key2| key1.cmp(&key2));
+
+        key_vec
+    }
 }
 
-unsafe impl AsTerm for MapHeader {
+unsafe impl AsTerm for Map {
     unsafe fn as_term(&self) -> Term {
         Term::make_boxed(self)
     }
 }
-impl crate::borrow::CloneToProcess for MapHeader {
-    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, AllocErr> {
-        unimplemented!()
+impl crate::borrow::CloneToProcess for Map {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+        let size = mem::size_of_val(self);
+        let size_in_words = to_word_size(size);
+        let ptr = unsafe { heap.alloc(size_in_words)?.as_ptr() };
+
+        unsafe {
+            ptr::copy_nonoverlapping(self as *const _ as *const u8, ptr as *mut u8, size);
+        }
+
+        Ok(Term::make_boxed(ptr as *mut Self))
     }
 }
 
-impl TryFrom<Term> for Boxed<MapHeader> {
+impl Debug for Map {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Map")
+            .field("header", &self.header)
+            .field("value", &self.value)
+            .finish()
+    }
+}
+
+impl Eq for Map {}
+
+impl PartialEq for Map {
+    fn eq(&self, other: &Map) -> bool {
+        self.value.eq(&other.value)
+    }
+}
+
+impl PartialOrd for Map {
+    fn partial_cmp(&self, other: &Map) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Map {
+    /// > * Maps are compared by size, then by keys in ascending term order,
+    /// >   then by values in key order.   In the specific case of maps' key
+    /// >   ordering, integers are always considered to be less than floats.
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        match self.len().cmp(&other.len()) {
+            cmp::Ordering::Equal => {
+                let self_key_vec = self.sorted_keys();
+                let other_key_vec = other.sorted_keys();
+
+                match self_key_vec.cmp(&other_key_vec) {
+                    cmp::Ordering::Equal => {
+                        let self_value = &self.value;
+                        let other_value = &other.value;
+                        let mut final_ordering = cmp::Ordering::Equal;
+
+                        for key in self_key_vec {
+                            match self_value
+                                .get(&key)
+                                .unwrap()
+                                .cmp(other_value.get(&key).unwrap())
+                            {
+                                cmp::Ordering::Equal => continue,
+                                ordering => {
+                                    final_ordering = ordering;
+
+                                    break;
+                                }
+                            }
+                        }
+
+                        final_ordering
+                    }
+                    ordering => ordering,
+                }
+            }
+            ordering => ordering,
+        }
+    }
+}
+
+impl TryFrom<Term> for Boxed<Map> {
     type Error = TypeError;
 
-    fn try_from(term: Term) -> Result<Boxed<MapHeader>, Self::Error> {
+    fn try_from(term: Term) -> Result<Boxed<Map>, Self::Error> {
         term.to_typed_term().unwrap().try_into()
     }
 }
 
-impl TryFrom<TypedTerm> for Boxed<MapHeader> {
+impl TryFrom<TypedTerm> for Boxed<Map> {
     type Error = TypeError;
 
-    fn try_from(typed_term: TypedTerm) -> Result<Boxed<MapHeader>, Self::Error> {
+    fn try_from(typed_term: TypedTerm) -> Result<Boxed<Map>, Self::Error> {
         match typed_term {
-            TypedTerm::Map(map_header) => Ok(map_header),
+            TypedTerm::Map(map) => Ok(map),
             _ => Err(TypeError),
         }
     }

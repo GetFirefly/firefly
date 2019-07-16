@@ -14,7 +14,7 @@ use crate::erts::process::code::Code;
 use crate::erts::term::reference::{self, Reference};
 use crate::erts::term::{
     make_pid, pid, AsTerm, Bitstring, BytesFromBinaryError, Closure, Cons, Float, HeapBin, Integer,
-    ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
+    Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
 };
 use crate::{erts, ModuleFunctionArity};
 use crate::{scheduler, VirtualAlloc};
@@ -324,8 +324,11 @@ pub trait HeapAlloc {
     }
 
     /// Constructs a map and associated with the given process.
-    fn map_from_slice(&mut self, _slice: &[(Term, Term)]) -> Result<Term, AllocErr> {
-        unimplemented!()
+    fn map_from_slice(&mut self, slice: &[(Term, Term)]) -> Result<Term, AllocErr>
+    where
+        Self: core::marker::Sized,
+    {
+        Map::from_slice(slice).clone_to_heap(self)
     }
 
     /// Creates a `Pid` or `ExternalPid` with the given `node`, `number` and `serial`.

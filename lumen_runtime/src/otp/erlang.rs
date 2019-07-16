@@ -14,7 +14,7 @@ use liblumen_core::locks::MutexGuard;
 use liblumen_alloc::erts::exception::runtime::Class;
 use liblumen_alloc::erts::exception::{Exception, Result};
 use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Bitstring, Boxed, Cons, Encoding, Float, ImproperList, MapHeader,
+    atom_unchecked, AsTerm, Atom, Bitstring, Boxed, Cons, Encoding, Float, ImproperList, Map,
     SmallInteger, Term, Tuple, TypedTerm,
 };
 use liblumen_alloc::erts::ProcessControlBlock;
@@ -935,7 +935,7 @@ pub fn is_map_1(term: Term) -> Term {
 }
 
 pub fn is_map_key_2(key: Term, map: Term, process_control_block: &ProcessControlBlock) -> Result {
-    let result: core::result::Result<Boxed<MapHeader>, _> = map.try_into();
+    let result: core::result::Result<Boxed<Map>, _> = map.try_into();
 
     match result {
         Ok(map_header) => Ok(map_header.is_key(key).into()),
@@ -1209,7 +1209,7 @@ pub fn make_ref_0(process_control_block: &ProcessControlBlock) -> Result {
 }
 
 pub fn map_get_2(key: Term, map: Term, process_control_block: &ProcessControlBlock) -> Result {
-    let result: core::result::Result<Boxed<MapHeader>, _> = map.try_into();
+    let result: core::result::Result<Boxed<Map>, _> = map.try_into();
 
     match result {
         Ok(map_header) => match map_header.get(key) {
@@ -1221,7 +1221,7 @@ pub fn map_get_2(key: Term, map: Term, process_control_block: &ProcessControlBlo
 }
 
 pub fn map_size_1(map: Term, process_control_block: &ProcessControlBlock) -> Result {
-    let result: core::result::Result<Boxed<MapHeader>, _> = map.try_into();
+    let result: core::result::Result<Boxed<Map>, _> = map.try_into();
 
     match result {
         Ok(map_header) => {

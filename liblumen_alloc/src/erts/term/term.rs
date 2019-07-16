@@ -1274,7 +1274,7 @@ impl Term {
             Self::FLAG_EXTERN_REF => {
                 TypedTerm::ExternalReference(Boxed::from_raw(ptr as *mut ExternalReference))
             }
-            Self::FLAG_MAP => TypedTerm::Map(Boxed::from_raw(ptr as *mut MapHeader)),
+            Self::FLAG_MAP => TypedTerm::Map(Boxed::from_raw(ptr as *mut Map)),
             _ => unreachable!(),
         };
         Ok(ty)
@@ -1379,7 +1379,7 @@ impl fmt::Debug for Term {
                     let val = &*(ptr as *const ExternalReference);
                     write!(f, "Term({:?})", val)
                 } else if self.is_map_header() {
-                    let val = &*(ptr as *const MapHeader);
+                    let val = &*(ptr as *const Map);
                     write!(f, "Term({:?})", val)
                 } else {
                     write!(f, "Term(UnknownHeader({:#x}))", self.0)

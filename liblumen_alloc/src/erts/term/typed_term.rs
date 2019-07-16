@@ -27,7 +27,7 @@ use super::*;
 pub enum TypedTerm {
     List(Boxed<Cons>),
     Tuple(Boxed<Tuple>),
-    Map(Boxed<MapHeader>),
+    Map(Boxed<Map>),
     Boxed(Boxed<Term>),
     Literal(Term),
     Pid(Pid),

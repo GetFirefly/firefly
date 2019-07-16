@@ -612,7 +612,7 @@ mod typecheck {
 ///
 /// Since `Term` values are often pointers, it should be given the same considerations
 /// that you would give a raw pointer/reference anywhere else
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Eq, Hash)]
 #[repr(transparent)]
 pub struct Term(usize);
 impl Term {
@@ -1401,6 +1401,17 @@ impl From<u8> for Term {
         let small_integer: SmallInteger = byte.into();
 
         unsafe { small_integer.as_term() }
+    }
+}
+impl PartialEq<Term> for Term {
+    fn eq(&self, other: &Term) -> bool {
+        match (self.to_typed_term(), other.to_typed_term()) {
+            (Ok(ref self_typed_term), Ok(ref other_typed_term)) => {
+                self_typed_term.eq(other_typed_term)
+            }
+            (Err(_), Err(_)) => true,
+            _ => false,
+        }
     }
 }
 impl PartialOrd<Term> for Term {

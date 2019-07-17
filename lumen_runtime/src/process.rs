@@ -142,7 +142,7 @@ pub fn test_init() -> Arc<ProcessControlBlock> {
 
 #[cfg(test)]
 pub fn test(parent_process: &ProcessControlBlock) -> Arc<ProcessControlBlock> {
-    let heap_size = process::next_heap_size(4000);
+    let heap_size = process::next_heap_size(16_000);
     let heap = process::heap(heap_size).unwrap();
     let erlang = Atom::try_from_str("erlang").unwrap();
     let exit = Atom::try_from_str("exit").unwrap();

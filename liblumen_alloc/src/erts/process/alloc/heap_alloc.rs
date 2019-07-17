@@ -13,8 +13,8 @@ use crate::borrow::CloneToProcess;
 use crate::erts::process::code::Code;
 use crate::erts::term::reference::{self, Reference};
 use crate::erts::term::{
-    make_pid, pid, AsTerm, Bitstring, BytesFromBinaryError, Closure, Cons, Float, HeapBin, Integer,
-    Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
+    make_pid, pid, AsTerm, Bitstring, BytesFromBinaryError, Closure, Cons, ExternalPid, Float,
+    HeapBin, Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
 };
 use crate::{erts, ModuleFunctionArity};
 use crate::{scheduler, VirtualAlloc};
@@ -184,12 +184,16 @@ pub trait HeapAlloc {
     fn external_pid_with_node_id(
         &mut self,
         node_id: usize,
-        _number: usize,
-        _serial: usize,
-    ) -> Result<Term, MakePidError> {
-        assert_ne!(node_id, 0, "node_id 0 is reserved for the local node.  Use `make_pid_with_node_id` to make local pids.");
+        number: usize,
+        serial: usize,
+    ) -> Result<Term, MakePidError>
+    where
+        Self: core::marker::Sized,
+    {
+        let external_pid = ExternalPid::with_node_id(node_id, number, serial)?;
+        let heap_external_pid = external_pid.clone_to_heap(self)?;
 
-        unimplemented!()
+        Ok(heap_external_pid)
     }
 
     fn float(&mut self, f: f64) -> Result<Term, AllocErr> {
@@ -337,7 +341,10 @@ pub trait HeapAlloc {
         node_id: usize,
         number: usize,
         serial: usize,
-    ) -> Result<Term, MakePidError> {
+    ) -> Result<Term, MakePidError>
+    where
+        Self: core::marker::Sized,
+    {
         if node_id == 0 {
             make_pid(number, serial).map_err(|error| error.into())
         } else {
@@ -545,6 +552,11 @@ pub enum MakePidError {
     Alloc(AllocErr),
 }
 
+impl From<AllocErr> for MakePidError {
+    fn from(alloc_err: AllocErr) -> Self {
+        MakePidError::Alloc(alloc_err)
+    }
+}
 impl From<pid::OutOfRange> for MakePidError {
     fn from(out_of_range: pid::OutOfRange) -> Self {
         match out_of_range {

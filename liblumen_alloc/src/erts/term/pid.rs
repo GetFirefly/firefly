@@ -5,6 +5,7 @@ use core::default::Default;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::mem;
+use core::ptr;
 
 use liblumen_core::locks::RwLock;
 
@@ -15,6 +16,7 @@ use crate::erts::{HeapAlloc, Node};
 
 use super::{AsTerm, Term};
 use crate::erts::term::{TypeError, TypedTerm};
+use crate::to_word_size;
 
 /// Generates the next `Pid`.  `Pid`s are not reused for the lifetime of the VM.
 pub fn next() -> Pid {
@@ -97,6 +99,32 @@ pub struct ExternalPid {
     next: *mut u8, // off heap header
     pid: Pid,
 }
+impl ExternalPid {
+    pub(in crate::erts) fn with_node_id(
+        node_id: usize,
+        number: usize,
+        serial: usize,
+    ) -> Result<Self, OutOfRange> {
+        let node = Node::new(node_id);
+
+        Self::new(node, number, serial)
+    }
+
+    fn new(node: Node, number: usize, serial: usize) -> Result<Self, OutOfRange> {
+        let pid = Pid::new(number, serial)?;
+
+        let arity = to_word_size(mem::size_of::<ExternalPid>() - mem::size_of::<Term>());
+        let header = Term::make_header(arity, Term::FLAG_EXTERN_PID);
+
+        Ok(Self {
+            header,
+            node,
+            next: ptr::null_mut(),
+            pid,
+        })
+    }
+}
+
 unsafe impl AsTerm for ExternalPid {
     #[inline]
     unsafe fn as_term(&self) -> Term {
@@ -105,8 +133,13 @@ unsafe impl AsTerm for ExternalPid {
 }
 
 impl CloneToProcess for ExternalPid {
-    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, AllocErr> {
-        unimplemented!()
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+        unsafe {
+            let ptr = heap.alloc(self.size_in_words())?.as_ptr() as *mut Self;
+            ptr::copy_nonoverlapping(self as *const Self, ptr, 1);
+
+            Ok(Term::make_boxed(ptr))
+        }
     }
 }
 

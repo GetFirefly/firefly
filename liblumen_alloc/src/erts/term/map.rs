@@ -68,14 +68,26 @@ impl crate::borrow::CloneToProcess for Map {
         let size_in_words = to_word_size(size);
         let ptr = unsafe { heap.alloc(size_in_words)?.as_ptr() };
 
-        // Clone to ensure `value` remains valid if caller is dropped
-        let heap_clone = self.clone();
+        let self_value = &self.value;
+        let mut heap_value = HashMap::with_capacity(self_value.len());
 
-        unsafe {
-            ptr::copy_nonoverlapping(self as *const _ as *const u8, ptr as *mut u8, size);
+        for (entry_key, entry_value) in self_value {
+            let heap_entry_key = entry_key.clone_to_heap(heap)?;
+            let heap_entry_value = entry_value.clone_to_heap(heap)?;
+            heap_value.insert(heap_entry_key, heap_entry_value);
         }
 
-        mem::forget(heap_clone);
+        // Clone to ensure `value` remains valid if caller is dropped
+        let heap_self = Self {
+            header: self.header,
+            value: heap_value,
+        };
+
+        unsafe {
+            ptr::copy_nonoverlapping(&heap_self as *const _ as *const u8, ptr as *mut u8, size);
+        }
+
+        mem::forget(heap_self);
 
         Ok(Term::make_boxed(ptr as *mut Self))
     }

@@ -389,14 +389,14 @@ impl fmt::Debug for OldHeap {
         let mut pos = self.start;
         while pos < self.top {
             unsafe {
-                let term = *pos;
+                let term = &*pos;
                 if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.offset(1);
                 } else {
                     assert!(term.is_header());
                     let arityval = term.arityval();
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term.as_usize()))?;
+                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.offset((1 + arityval) as isize);
                 }
             }

@@ -69,7 +69,7 @@ impl Pid {
     pub const NUMBER_MAX: usize = (1 << (Self::NUMBER_BIT_COUNT as usize)) - 1;
 
     const SERIAL_BIT_COUNT: u8 =
-        (mem::size_of::<usize>() * 8 - (Self::NUMBER_BIT_COUNT as usize) - 2) as u8;
+        (mem::size_of::<usize>() * 8 - (Self::NUMBER_BIT_COUNT as usize) - 7) as u8;
     const SERIAL_MASK: usize = !Self::NUMBER_MASK;
     pub const SERIAL_MAX: usize = (1 << (Self::SERIAL_BIT_COUNT as usize)) - 1;
 }

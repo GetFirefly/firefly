@@ -46,10 +46,25 @@ impl CloneToProcess for BigInteger {
         let size = mem::size_of_val(self);
         let size_in_words = to_word_size(size);
         let ptr = unsafe { heap.alloc(size_in_words)?.as_ptr() };
+
+        // the `Vec<u32>` `data` in the `BigUInt` that is the `data` in `self` is not copied by
+        // `ptr::copy_nonoverlapping`, so clone `self` first to make a disconnected `Vec<u32>`
+        // that can't be dropped if `self` is dropped.
+        //
+        // It would be better if we could allocate directly on the `heap`, but until `BigInt`
+        // supports setting the allocator, which only happens when `Vec` does, we can't.
+        let heap_clone = self.clone();
+
         unsafe {
-            ptr::copy_nonoverlapping(self as *const _ as *const u8, ptr as *mut u8, size);
+            ptr::copy_nonoverlapping(&heap_clone as *const _ as *const u8, ptr as *mut u8, size);
         }
-        Ok(Term::make_boxed(ptr as *mut Self))
+
+        // make sure the heap_clone `Vec<u32>` address is not dropped
+        mem::forget(heap_clone);
+
+        let boxed = Term::make_boxed(ptr);
+
+        Ok(boxed)
     }
 }
 impl From<SmallInteger> for BigInteger {

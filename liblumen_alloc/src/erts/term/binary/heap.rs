@@ -31,12 +31,12 @@ pub struct HeapBin {
 impl HeapBin {
     pub const MAX_SIZE: usize = 64;
     // The size of the extra fields in bytes
-    const EXTRA_ARITYVAL: usize = mem::size_of::<Self>() - mem::size_of::<usize>();
+    const EXTRA_BYTE_LEN: usize = mem::size_of::<Self>() - mem::size_of::<usize>();
 
     /// Create a new `HeapBin` header which will point to a binary of size `size`
     #[inline]
     pub fn new(size: usize) -> Self {
-        let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
+        let words = to_word_size(size) + to_word_size(Self::EXTRA_BYTE_LEN);
         Self {
             header: Term::make_header(words, Term::FLAG_HEAPBIN),
             flags: size | FLAG_IS_RAW_BIN,
@@ -46,7 +46,7 @@ impl HeapBin {
     /// Like `new`, but for latin1-encoded binaries
     #[inline]
     pub fn new_latin1(size: usize) -> Self {
-        let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
+        let words = to_word_size(size) + to_word_size(Self::EXTRA_BYTE_LEN);
         Self {
             header: Term::make_header(words, Term::FLAG_HEAPBIN),
             flags: size | FLAG_IS_LATIN1_BIN,
@@ -55,7 +55,7 @@ impl HeapBin {
     /// Like `new`, but for utf8-encoded binaries
     #[inline]
     pub fn new_utf8(size: usize) -> Self {
-        let words = to_word_size(size) + to_word_size(Self::EXTRA_ARITYVAL);
+        let words = to_word_size(size) + to_word_size(Self::EXTRA_BYTE_LEN);
         Self {
             header: Term::make_header(words, Term::FLAG_HEAPBIN),
             flags: size | FLAG_IS_UTF8_BIN,
@@ -156,7 +156,7 @@ impl Bitstring for HeapBin {
     }
 
     fn full_byte_len(&self) -> usize {
-        (self.header.arityval() * mem::size_of::<usize>()) - Self::EXTRA_ARITYVAL
+        (self.header.arityval() * mem::size_of::<usize>()) - Self::EXTRA_BYTE_LEN
     }
 
     fn partial_byte_bit_len(&self) -> u8 {

@@ -887,6 +887,8 @@ mod tests {
     use core::ptr;
 
     use crate::erts::process::alloc;
+    use crate::erts::term::list::{HeaplessListBuilder, ListBuilder};
+    use crate::erts::term::Atom;
 
     #[test]
     fn young_heap_alloc() {
@@ -917,7 +919,7 @@ mod tests {
         // Allocate the list `[101, "test"]`
         let num = Term::make_smallint(101);
         let string = "test";
-        let string_term = make_heapbin_from_str(&mut yh, string).unwrap();
+        let string_term = yh.heapbin_from_str(string).unwrap();
         let list_term = ListBuilder::new(&mut yh)
             .push(num)
             .push(string_term)
@@ -963,7 +965,7 @@ mod tests {
 
         // Allocate a binary and put the pointer on the stack
         let string = "bar";
-        let string_term = make_heapbin_from_str(&mut yh, string).unwrap();
+        let string_term = yh.heapbin_from_str(string).unwrap();
         unsafe {
             let ptr = yh.alloca(1).unwrap().as_ptr();
             ptr::write(ptr, string_term);

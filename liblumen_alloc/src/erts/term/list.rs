@@ -612,7 +612,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::erts::SmallInteger;
+    use crate::erts::term::SmallInteger;
 
     #[test]
     fn proper_list_iter_test() {
@@ -625,19 +625,19 @@ mod tests {
         let second_term = Term::make_list(&second);
         let first = Cons::new(a, second_term);
 
-        let mut list_iter = first.iter_safe();
+        let mut list_iter = first.into_iter();
         let l0 = list_iter.next().unwrap();
-        assert_eq!(l0, a);
+        assert_eq!(l0, Ok(a));
         let l1 = list_iter.next().unwrap();
-        assert_eq!(l1, b);
+        assert_eq!(l1, Ok(b));
         let l2 = list_iter.next().unwrap();
-        assert_eq!(l2, c);
+        assert_eq!(l2, Ok(c));
         assert_eq!(list_iter.next(), None);
         assert_eq!(list_iter.next(), None);
     }
 
     #[test]
-    fn improper_list_iter_safe_test() {
+    fn improper_list_iter_test() {
         let a = unsafe { SmallInteger::new(42).unwrap().as_term() };
         let b = unsafe { SmallInteger::new(24).unwrap().as_term() };
         let c = unsafe { SmallInteger::new(11).unwrap().as_term() };
@@ -648,41 +648,16 @@ mod tests {
         let second_term = Term::make_list(&second);
         let first = Cons::new(a, second_term);
 
-        let mut list_iter = first.iter_safe();
+        let mut list_iter = first.into_iter();
         let l0 = list_iter.next().unwrap();
-        assert_eq!(l0, a);
+        assert_eq!(l0, Ok(a));
         let l1 = list_iter.next().unwrap();
-        assert_eq!(l1, b);
+        assert_eq!(l1, Ok(b));
         let l2 = list_iter.next().unwrap();
-        assert_eq!(l2, c);
+        assert_eq!(l2, Ok(c));
         let l3 = list_iter.next().unwrap();
-        assert_eq!(l3, d);
+        assert_eq!(l3, Err(ImproperList { tail: d }));
         assert_eq!(list_iter.next(), None);
-        assert_eq!(list_iter.next(), None);
-    }
-
-    #[test]
-    #[should_panic(expected = "tried to iterate over improper list!")]
-    fn improper_list_strict_iter_test() {
-        let a = unsafe { SmallInteger::new(42).unwrap().as_term() };
-        let b = unsafe { SmallInteger::new(24).unwrap().as_term() };
-        let c = unsafe { SmallInteger::new(11).unwrap().as_term() };
-        let d = unsafe { SmallInteger::new(99).unwrap().as_term() };
-        let last = Cons::new(c, d);
-        let last_term = Term::make_list(&last);
-        let second = Cons::new(b, last_term);
-        let second_term = Term::make_list(&second);
-        let first = Cons::new(a, second_term);
-
-        let mut list_iter = first.iter();
-        let l0 = list_iter.next().unwrap();
-        assert_eq!(l0, a);
-        let l1 = list_iter.next().unwrap();
-        assert_eq!(l1, b);
-        let l2 = list_iter.next().unwrap();
-        assert_eq!(l2, c);
-        let l3 = list_iter.next().unwrap();
-        assert_eq!(l3, d);
         assert_eq!(list_iter.next(), None);
     }
 }

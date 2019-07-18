@@ -251,13 +251,13 @@ mod tests {
                 let mut counter: Counter = Default::default();
                 let mut pid = counter.next();
 
-                assert_eq!(pid, Term::local_pid(0, 0).unwrap());
+                assert_eq!(pid, Pid::new(0, 0).unwrap());
 
-                for _ in 0..NUMBER_MAX + 1 {
+                for _ in 0..Pid::NUMBER_MAX + 1 {
                     pid = counter.next();
                 }
 
-                assert_eq!(pid, Term::local_pid(0, 1).unwrap());
+                assert_eq!(pid, Pid::new(0, 1).unwrap());
             }
         }
     }

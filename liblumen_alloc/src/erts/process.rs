@@ -716,11 +716,6 @@ impl ProcessControlBlock {
         self.code_stack.lock().push(frame)
     }
 
-    #[cfg(test)]
-    pub fn print_code_stack(&self) {
-        println!("{:?}", self.stack.lock());
-    }
-
     pub fn replace_frame(&self, frame: Frame) {
         let mut locked_code_stack = self.code_stack.lock();
 
@@ -760,11 +755,6 @@ impl ProcessControlBlock {
         }
 
         stacktrace
-    }
-
-    #[cfg(test)]
-    pub fn code_stack_len(&self) -> usize {
-        self.stack.lock().len()
     }
 }
 

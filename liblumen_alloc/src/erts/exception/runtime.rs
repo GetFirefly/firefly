@@ -374,7 +374,7 @@ mod tests {
         use super::Class::*;
         use super::*;
 
-        use liblumen_alloc::atom_unchecked;
+        use crate::erts::term::atom_unchecked;
 
         #[test]
         fn without_arguments_stores_none() {

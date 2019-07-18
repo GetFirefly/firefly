@@ -456,9 +456,21 @@ mod typecheck {
             || constants::header_tag(term) == constants::FLAG_NEG_BIG_INTEGER
     }
 
+    /// Returns true fi this term is a small or big integer
+    #[cfg(test)]
+    pub fn is_integer(term: usize) -> bool {
+        is_smallint(term) || is_bigint(term)
+    }
+
     /// Returns true if this term is a float
     pub const fn is_float(term: usize) -> bool {
         constants::header_tag(term) == constants::FLAG_FLOAT
+    }
+
+    /// Returns true fi this term is a small integer, big integer, or float.
+    #[cfg(test)]
+    pub fn is_number(term: usize) -> bool {
+        is_integer(term) || is_float(term)
     }
 
     /// Returns true if this term is a tuple
@@ -483,6 +495,12 @@ mod typecheck {
     #[inline]
     pub const fn is_remote_pid(term: usize) -> bool {
         constants::header_tag(term) == constants::FLAG_EXTERN_PID
+    }
+
+    /// Returns true if this term is a pid on the locale node or some other node
+    #[cfg(test)]
+    pub fn is_pid(term: usize) -> bool {
+        is_local_pid(term) || is_remote_pid(term)
     }
 
     /// Returns true if this term is a pid
@@ -519,6 +537,12 @@ mod typecheck {
     #[inline]
     pub const fn is_remote_reference(term: usize) -> bool {
         constants::header_tag(term) == constants::FLAG_EXTERN_REF
+    }
+
+    /// Returns true if this term is a bitstring
+    #[cfg(test)]
+    pub fn is_bitstring(term: usize) -> bool {
+        is_heapbin(term) || is_match_context(term) || is_procbin(term) || is_subbinary(term)
     }
 
     /// Returns true if this term is a reference-counted binary
@@ -1825,10 +1849,10 @@ mod tests {
 
     #[test]
     fn is_binary_invariants() {
-        assert!(typecheck::is_binary(constants::FLAG_PROCBIN));
-        assert!(typecheck::is_binary(constants::FLAG_HEAPBIN));
-        assert!(typecheck::is_binary(constants::FLAG_SUBBINARY));
-        assert!(typecheck::is_binary(constants::FLAG_MATCH_CTX));
+        assert!(typecheck::is_bitstring(constants::FLAG_PROCBIN));
+        assert!(typecheck::is_bitstring(constants::FLAG_HEAPBIN));
+        assert!(typecheck::is_bitstring(constants::FLAG_SUBBINARY));
+        assert!(typecheck::is_bitstring(constants::FLAG_MATCH_CTX));
     }
 
     #[test]

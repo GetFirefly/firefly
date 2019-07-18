@@ -1,7 +1,5 @@
 use core::alloc::AllocErr;
 use core::default::Default;
-#[cfg(test)]
-use core::fmt::{self, Debug};
 
 use intrusive_collections::linked_list::Iter;
 use intrusive_collections::{LinkedList, UnsafeRef};
@@ -94,13 +92,6 @@ impl Mailbox {
 
     pub fn unmark_seen(&mut self) {
         self.seen = -1;
-    }
-}
-
-#[cfg(test)]
-impl Debug for Mailbox {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.messages)
     }
 }
 

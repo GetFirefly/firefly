@@ -857,6 +857,11 @@ impl Term {
         typecheck::is_list(self.0)
     }
 
+    /// Returns true if this a term that the runtime should accept as an argument.
+    pub fn is_runtime(&self) -> bool {
+        self.is_immediate() || self.is_boxed() || self.is_non_empty_list()
+    }
+
     /// Returns true if this term is an atom
     #[inline]
     pub fn is_atom(&self) -> bool {
@@ -1184,6 +1189,12 @@ impl Term {
         constants::header_value(self.0)
     }
 
+    /// Returns `true` if the underlying direct type of the term has no arity, so any ptr math can
+    /// increment by `1`.
+    pub fn has_no_arity(&self) -> bool {
+        self.is_immediate() || self.is_boxed() || self.is_non_empty_list()
+    }
+
     /// Given a pointer to a generic term, converts it to its typed representation
     pub fn to_typed_term(&self) -> Result<TypedTerm, InvalidTermError> {
         let val = self.0;
@@ -1443,7 +1454,7 @@ impl CloneToProcess for Term {
     }
 
     fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
-        debug_assert!(self.is_immediate() || self.is_boxed() || self.is_non_empty_list());
+        debug_assert!(self.is_runtime());
         if self.is_immediate() {
             Ok(*self)
         } else if self.is_boxed() || self.is_non_empty_list() {

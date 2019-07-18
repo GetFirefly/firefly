@@ -254,12 +254,15 @@ impl ProcessControlBlock {
         heap.alloca(need)
     }
 
-    /// Pushes an immediate term or reference to term/list on top of the stack
+    /// Pushes an immediate term or reference to term/list on top of the stack.
+    ///
+    /// For boxed terms, the unboxed term needs to be allocated on the process and for non-empty
+    /// lists both the head and tail needs to be allocated on the process.
     ///
     /// Returns `Err(AllocErr)` if the process is out of stack space
     #[inline]
     pub fn stack_push(&self, term: Term) -> Result<(), AllocErr> {
-        assert!(term.is_immediate() || term.is_boxed() || term.is_non_empty_list());
+        assert!(term.is_runtime());
         unsafe {
             let stack0 = self.alloca(1)?.as_ptr();
             ptr::write(stack0, term);
@@ -477,12 +480,9 @@ impl ProcessControlBlock {
     /// Puts a new value under the given key in the process dictionary
     #[inline]
     pub fn put(&mut self, key: Term, value: Term) -> Term {
+        assert!(key.is_runtime(), "invalid key term for process dictionary");
         assert!(
-            key.is_immediate() || key.is_boxed() || key.is_non_empty_list(),
-            "invalid key term for process dictionary"
-        );
-        assert!(
-            value.is_immediate() || value.is_boxed() || value.is_non_empty_list(),
+            value.is_runtime(),
             "invalid value term for process dictionary"
         );
 
@@ -506,10 +506,7 @@ impl ProcessControlBlock {
     /// Gets a value from the process dictionary using the given key
     #[inline]
     pub fn get(&self, key: Term) -> Term {
-        assert!(
-            key.is_immediate() || key.is_boxed() || key.is_non_empty_list(),
-            "invalid key term for process dictionary"
-        );
+        assert!(key.is_runtime(), "invalid key term for process dictionary");
 
         match self.dictionary.get(&key) {
             None => Term::NIL,
@@ -523,10 +520,7 @@ impl ProcessControlBlock {
     /// Deletes a key/value pair from the process dictionary
     #[inline]
     pub fn delete(&mut self, key: Term) -> Term {
-        assert!(
-            key.is_immediate() || key.is_boxed() || key.is_non_empty_list(),
-            "invalid key term for process dictionary"
-        );
+        assert!(key.is_runtime(), "invalid key term for process dictionary");
 
         match self.dictionary.remove(&key) {
             None => Term::NIL,

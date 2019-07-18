@@ -848,15 +848,15 @@ impl fmt::Debug for YoungHeap {
             unsafe {
                 let term = &*pos;
 
-                if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset(1);
+                let arityval = if term.has_no_arity() {
+                    0
                 } else {
                     assert!(term.is_header());
-                    let arityval = term.arityval();
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset((1 + arityval) as isize);
-                }
+                    term.arityval()
+                };
+
+                f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                pos = pos.offset((1 + arityval) as isize);
             }
         }
         f.write_str("  ==== END HEAP ====\n")?;
@@ -866,15 +866,15 @@ impl fmt::Debug for YoungHeap {
             unsafe {
                 let term = &*pos;
 
-                if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset(1);
+                let arityval = if term.has_no_arity() {
+                    0
                 } else {
                     assert!(term.is_header());
-                    let arityval = term.arityval();
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset((1 + arityval) as isize);
-                }
+                    term.arityval()
+                };
+
+                f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                pos = pos.offset((1 + arityval) as isize);
             }
         }
         f.write_str("]\n")

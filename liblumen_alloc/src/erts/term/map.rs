@@ -170,6 +170,7 @@ impl TryFrom<TypedTerm> for Boxed<Map> {
 
     fn try_from(typed_term: TypedTerm) -> Result<Boxed<Map>, Self::Error> {
         match typed_term {
+            TypedTerm::Boxed(boxed_map) => boxed_map.to_typed_term().unwrap().try_into(),
             TypedTerm::Map(map) => Ok(map),
             _ => Err(TypeError),
         }

@@ -846,7 +846,8 @@ impl fmt::Debug for YoungHeap {
         let mut pos = self.start;
         while pos < self.top {
             unsafe {
-                let term = *pos;
+                let term = &*pos;
+
                 if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.offset(1);
@@ -863,7 +864,8 @@ impl fmt::Debug for YoungHeap {
         pos = self.stack_start;
         while pos < self.stack_end {
             unsafe {
-                let term = *pos;
+                let term = &*pos;
+
                 if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.offset(1);

@@ -711,7 +711,14 @@ impl Term {
             }
             -1 => {
                 let value = value.abs() as usize;
-                assert!(value <= constants::MAX_SMALLINT_VALUE);
+                assert!(
+                    value <= constants::MAX_SMALLINT_VALUE,
+                    "{} <= {} or ({:#b} <= {:#b}) (value <= constants::MAX_SMALLINT_VALUE)",
+                    value,
+                    constants::MAX_SMALLINT_VALUE,
+                    value,
+                    constants::MAX_SMALLINT_VALUE,
+                );
                 Self(
                     constants::make_immediate1(value, Self::FLAG_SMALL_INTEGER)
                         | constants::FLAG_SMALL_INTEGER_SIGN,

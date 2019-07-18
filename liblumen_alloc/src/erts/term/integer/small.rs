@@ -18,7 +18,7 @@ impl SmallInteger {
     const FLAG_SIGN: usize = Term::FLAG_SMALL_INTEGER_SIGN;
 
     pub const MAX_VALUE: isize = Term::MAX_SMALLINT_VALUE as isize;
-    pub const MIN_VALUE: isize = !Self::MAX_VALUE as isize;
+    pub const MIN_VALUE: isize = -(Self::MAX_VALUE as isize);
 
     /// Create new `SmallInteger` from an `isize` value, returning `Err`
     /// if the value is out of range

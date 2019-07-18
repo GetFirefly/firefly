@@ -1434,7 +1434,7 @@ impl CloneToProcess for Term {
     fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
         if self.is_immediate() {
             *self
-        } else if self.is_boxed() || self.is_list() {
+        } else if self.is_boxed() || self.is_non_empty_list() {
             let tt = self.to_typed_term().unwrap();
             tt.clone_to_process(process)
         } else {
@@ -1443,10 +1443,10 @@ impl CloneToProcess for Term {
     }
 
     fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
-        debug_assert!(self.is_immediate() || self.is_boxed() || self.is_list());
+        debug_assert!(self.is_immediate() || self.is_boxed() || self.is_non_empty_list());
         if self.is_immediate() {
             Ok(*self)
-        } else if self.is_boxed() || self.is_list() {
+        } else if self.is_boxed() || self.is_non_empty_list() {
             let tt = self.to_typed_term().unwrap();
             tt.clone_to_heap(heap)
         } else {

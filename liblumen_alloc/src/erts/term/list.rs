@@ -504,7 +504,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
     #[inline]
     pub fn push(mut self, term: Term) -> Self {
         assert!(
-            term.is_immediate() || term.is_boxed() || term.is_list(),
+            term.is_immediate() || term.is_boxed() || term.is_non_empty_list(),
             "invalid list element for stack-allocated list"
         );
         if self.failed {

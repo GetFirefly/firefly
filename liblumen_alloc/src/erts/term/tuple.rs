@@ -130,7 +130,7 @@ impl Tuple {
     #[inline]
     fn do_set_element(&mut self, index: usize, element: Term) {
         assert!(index > 0 && index <= self.len());
-        assert!(element.is_boxed() || element.is_list() || element.is_immediate());
+        assert!(element.is_boxed() || element.is_non_empty_list() || element.is_immediate());
         unsafe {
             let ptr = self.head().offset((index - 1) as isize);
             ptr::write(ptr, element);

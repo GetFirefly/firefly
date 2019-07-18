@@ -259,7 +259,7 @@ impl ProcessControlBlock {
     /// Returns `Err(AllocErr)` if the process is out of stack space
     #[inline]
     pub fn stack_push(&self, term: Term) -> Result<(), AllocErr> {
-        assert!(term.is_immediate() || term.is_boxed() || term.is_list());
+        assert!(term.is_immediate() || term.is_boxed() || term.is_non_empty_list());
         unsafe {
             let stack0 = self.alloca(1)?.as_ptr();
             ptr::write(stack0, term);
@@ -478,11 +478,11 @@ impl ProcessControlBlock {
     #[inline]
     pub fn put(&mut self, key: Term, value: Term) -> Term {
         assert!(
-            key.is_immediate() || key.is_boxed() || key.is_list(),
+            key.is_immediate() || key.is_boxed() || key.is_non_empty_list(),
             "invalid key term for process dictionary"
         );
         assert!(
-            value.is_immediate() || value.is_boxed() || value.is_list(),
+            value.is_immediate() || value.is_boxed() || value.is_non_empty_list(),
             "invalid value term for process dictionary"
         );
 
@@ -507,7 +507,7 @@ impl ProcessControlBlock {
     #[inline]
     pub fn get(&self, key: Term) -> Term {
         assert!(
-            key.is_immediate() || key.is_boxed() || key.is_list(),
+            key.is_immediate() || key.is_boxed() || key.is_non_empty_list(),
             "invalid key term for process dictionary"
         );
 
@@ -524,7 +524,7 @@ impl ProcessControlBlock {
     #[inline]
     pub fn delete(&mut self, key: Term) -> Term {
         assert!(
-            key.is_immediate() || key.is_boxed() || key.is_list(),
+            key.is_immediate() || key.is_boxed() || key.is_non_empty_list(),
             "invalid key term for process dictionary"
         );
 

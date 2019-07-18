@@ -344,7 +344,7 @@ impl YoungHeap {
                             cons.head.is_immediate() || cons.head.is_boxed(),
                             "invalid stack-allocated list, elements must be an immediate or box"
                         );
-                        if cons.tail.is_list() {
+                        if cons.tail.is_non_empty_list() {
                             // The list continues, we need to check where it continues on the stack
                             let next_cons = cons.tail.list_val();
                             if next_cons == next_ptr {
@@ -728,7 +728,7 @@ impl YoungHeap {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
-                        assert!(cons.tail.is_list());
+                        assert!(cons.tail.is_non_empty_list());
                         // Rewrite marker with list pointer
                         ptr::write(pos, cons.tail);
                     } else if !term.is_literal() {

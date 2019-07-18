@@ -366,7 +366,7 @@ impl CloneToProcess for TypedTerm {
             &Self::List(ref inner) => inner.clone_to_heap(heap),
             &Self::Tuple(ref inner) => inner.clone_to_heap(heap),
             &Self::Map(ref inner) => inner.clone_to_heap(heap),
-            &Self::Boxed(ref inner) => inner.clone_to_heap(heap),
+            &Self::Boxed(ref inner) => inner.to_typed_term().unwrap().clone_to_heap(heap),
             &Self::Literal(inner) => Ok(inner),
             &Self::Pid(inner) => Ok(unsafe { inner.as_term() }),
             &Self::Port(inner) => Ok(unsafe { inner.as_term() }),

@@ -68,9 +68,14 @@ impl crate::borrow::CloneToProcess for Map {
         let size_in_words = to_word_size(size);
         let ptr = unsafe { heap.alloc(size_in_words)?.as_ptr() };
 
+        // Clone to ensure `value` remains valid if caller is dropped
+        let heap_clone = self.clone();
+
         unsafe {
             ptr::copy_nonoverlapping(self as *const _ as *const u8, ptr as *mut u8, size);
         }
+
+        mem::forget(heap_clone);
 
         Ok(Term::make_boxed(ptr as *mut Self))
     }

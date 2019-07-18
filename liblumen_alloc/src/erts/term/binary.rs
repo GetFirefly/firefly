@@ -33,9 +33,10 @@ pub trait Bitstring {
     fn total_byte_len(&self) -> usize;
 }
 
-const FLAG_IS_RAW_BIN: usize = 0;
-const FLAG_IS_LATIN1_BIN: usize = 1;
-const FLAG_IS_UTF8_BIN: usize = 2;
+const FLAG_SHIFT: usize = mem::size_of::<usize>() * 8 - 2;
+const FLAG_IS_RAW_BIN: usize = 1 << FLAG_SHIFT;
+const FLAG_IS_LATIN1_BIN: usize = 2 << FLAG_SHIFT;
+const FLAG_IS_UTF8_BIN: usize = 3 << FLAG_SHIFT;
 const FLAG_MASK: usize = FLAG_IS_RAW_BIN | FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

@@ -156,7 +156,7 @@ impl Bitstring for HeapBin {
     }
 
     fn full_byte_len(&self) -> usize {
-        (self.header.arityval() * mem::size_of::<usize>()) - Self::EXTRA_BYTE_LEN
+        self.flags & !FLAG_MASK
     }
 
     fn partial_byte_bit_len(&self) -> u8 {

@@ -1337,18 +1337,17 @@ impl fmt::Debug for Term {
             let ptr = self as *const _;
             unsafe {
                 if self.is_tuple_header() {
-                    write!(f, "Term({:?})", *(ptr as *const Tuple))
+                    write!(f, "Term({:?})", &*(ptr as *const Tuple))
                 } else if self.is_none() {
                     write!(f, "Term(None)")
                 } else if self.is_bigint_header() {
-                    write!(f, "Term({})", *(ptr as *const BigInteger))
+                    write!(f, "Term({})", &*(ptr as *const BigInteger))
                 } else if self.is_local_reference_header() {
-                    write!(f, "Term({:?})", Reference::from_raw(ptr as *mut Reference))
+                    write!(f, "Term({:?})", &*(ptr as *mut Reference))
                 } else if self.is_closure_header() {
-                    write!(f, "Term(Closure({:?}))", ptr as *const Closure)
+                    write!(f, "Term(Closure({:?}))", &*(ptr as *const Closure))
                 } else if self.is_float_header() {
-                    let float = Float::from_raw(ptr as *mut Float);
-                    write!(f, "Term({})", float)
+                    write!(f, "Term({})", &*(ptr as *mut Float))
                 } else if self.is_procbin() {
                     let bin = &*(ptr as *const ProcBin);
                     if bin.is_raw() {

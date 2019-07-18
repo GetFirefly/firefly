@@ -283,6 +283,7 @@ impl TryFrom<TypedTerm> for Boxed<Tuple> {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
+            TypedTerm::Boxed(boxed_tuple) => boxed_tuple.to_typed_term().unwrap().try_into(),
             TypedTerm::Tuple(tuple) => Ok(tuple),
             _ => Err(TypeError),
         }

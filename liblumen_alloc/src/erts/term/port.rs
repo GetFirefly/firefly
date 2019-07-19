@@ -73,7 +73,7 @@ impl PartialOrd<ExternalPort> for ExternalPort {
 impl fmt::Debug for ExternalPort {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ExternalPort")
-            .field("header", &self.header.as_usize())
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("node", &self.node)
             .field("next", &self.next)
             .field("port", &self.port)

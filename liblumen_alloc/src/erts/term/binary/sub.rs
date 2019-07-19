@@ -413,7 +413,7 @@ impl CloneToProcess for SubBinary {
 impl fmt::Debug for SubBinary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("SubBinary")
-            .field("header", &self.header.as_usize())
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("original", &self.original)
             .field("full_byte_len", &self.full_byte_len)
             .field("byte_offset", &self.byte_offset)

@@ -95,7 +95,10 @@ impl crate::borrow::CloneToProcess for Map {
 
 impl Debug for Map {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Map").field("value", &self.value).finish()
+        f.debug_struct("Map")
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
+            .field("value", &self.value)
+            .finish()
     }
 }
 

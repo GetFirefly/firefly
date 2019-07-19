@@ -72,6 +72,7 @@ impl CloneToProcess for Reference {
 impl Debug for Reference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Reference")
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("scheduler_id", &self.scheduler_id)
             .field("number", &self.number)
             .finish()
@@ -144,7 +145,7 @@ impl PartialOrd<ExternalReference> for ExternalReference {
 impl fmt::Debug for ExternalReference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ExternalReference")
-            .field("header", &self.header.as_usize())
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("node", &self.node)
             .field("next", &self.next)
             .field("reference", &self.reference)

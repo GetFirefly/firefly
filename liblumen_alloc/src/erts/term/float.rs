@@ -238,7 +238,7 @@ impl TryFrom<TypedTerm> for Float {
 impl Debug for Float {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Float")
-            .field("header", &self.header)
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("value", &self.value)
             .finish()
     }

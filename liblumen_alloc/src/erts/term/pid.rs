@@ -168,7 +168,7 @@ impl PartialOrd<ExternalPid> for ExternalPid {
 impl fmt::Debug for ExternalPid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ExternalPid")
-            .field("header", &self.header.as_usize())
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("node", &self.node)
             .field("next", &self.next)
             .field("pid", &self.pid)

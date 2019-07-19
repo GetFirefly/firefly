@@ -84,7 +84,7 @@ impl CloneToProcess for Closure {
 impl fmt::Debug for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Closure")
-            .field("header", &self.header.as_usize())
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("code", &(self.code as usize))
             .field("next", &self.next)
             .field("module_function_arity", &self.module_function_arity)

@@ -242,7 +242,7 @@ impl CloneToProcess for MatchContext {
 impl fmt::Debug for MatchContext {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("MatchContext")
-            .field("header", &self.header.as_usize())
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("buffer", &self.buffer)
             .field("save_offset", &self.save_offset)
             .finish()

@@ -162,6 +162,10 @@ impl PartialEq<TypedTerm> for TypedTerm {
             (&Self::Catch, &Self::Catch) => true,
             (&Self::Nil, &Self::Nil) => true,
             (&Self::None, &Self::None) => true,
+            (Self::Boxed(self_boxed), Self::Boxed(other_boxed)) => self_boxed
+                .to_typed_term()
+                .unwrap()
+                .eq(&other_boxed.to_typed_term().unwrap()),
             boxed => {
                 partial_eq_impl_boxed! { boxed =>
                     Self::List,

@@ -5,7 +5,7 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{scheduler, to_word_size, HeapAlloc, Node};
+use crate::erts::{scheduler, HeapAlloc, Node};
 
 use super::{AsTerm, Term};
 
@@ -60,15 +60,13 @@ unsafe impl AsTerm for Reference {
 impl CloneToProcess for Reference {
     fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         unsafe {
-            let size = self.size_in_words();
-            let ptr = heap.alloc(size)?.as_ptr() as *mut Self;
-            ptr::copy_nonoverlapping(self as *const Self, ptr, size);
+            let word_size = self.size_in_words();
+            let ptr = heap.alloc(word_size)?.as_ptr() as *mut Self;
+            let byte_size = mem::size_of_val(self);
+            ptr::copy_nonoverlapping(self as *const Self, ptr, byte_size);
+
             Ok(Term::make_boxed(ptr))
         }
-    }
-
-    fn size_in_words(&self) -> usize {
-        to_word_size(mem::size_of_val(self))
     }
 }
 impl Debug for Reference {

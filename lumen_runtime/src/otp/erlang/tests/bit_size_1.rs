@@ -36,7 +36,7 @@ fn with_heap_binary_is_eight_times_byte_count() {
 
                     prop_assert_eq!(bit_size % 8, 0);
 
-                    let heap_binary: HeapBin = binary.try_into().unwrap();
+                    let heap_binary: Boxed<HeapBin> = binary.try_into().unwrap();
 
                     prop_assert_eq!(heap_binary.total_byte_len() * 8, bit_size);
 

@@ -41,7 +41,7 @@ pub enum TypedTerm {
     Float(Float),
     Atom(Atom),
     ProcBin(ProcBin),
-    HeapBinary(HeapBin),
+    HeapBinary(Boxed<HeapBin>),
     SubBinary(SubBinary),
     MatchContext(MatchContext),
     Closure(Boxed<Closure>),

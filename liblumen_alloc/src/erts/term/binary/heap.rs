@@ -12,7 +12,7 @@ use alloc::string::String;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::term::term::Term;
-use crate::erts::term::{to_word_size, AsTerm, TypeError, TypedTerm};
+use crate::erts::term::{to_word_size, AsTerm, Boxed, ProcBin, TypeError, TypedTerm};
 use crate::erts::HeapAlloc;
 
 use super::{
@@ -193,10 +193,20 @@ impl<B: Bitstring> PartialEq<B> for HeapBin {
         self.as_bytes().eq(other.as_bytes())
     }
 }
-impl Eq for HeapBin {}
+impl PartialEq<ProcBin> for Boxed<HeapBin> {
+    fn eq(&self, other: &ProcBin) -> bool {
+        self.as_bytes().eq(other.as_bytes())
+    }
+}
+impl Eq for Boxed<HeapBin> {}
 impl<B: Bitstring> PartialOrd<B> for HeapBin {
     #[inline]
     fn partial_cmp(&self, other: &B) -> Option<cmp::Ordering> {
+        self.as_bytes().partial_cmp(other.as_bytes())
+    }
+}
+impl PartialOrd<ProcBin> for Boxed<HeapBin> {
+    fn partial_cmp(&self, other: &ProcBin) -> Option<cmp::Ordering> {
         self.as_bytes().partial_cmp(other.as_bytes())
     }
 }
@@ -230,7 +240,7 @@ impl CloneToProcess for HeapBin {
     }
 }
 
-impl TryFrom<Term> for HeapBin {
+impl TryFrom<Term> for Boxed<HeapBin> {
     type Error = TypeError;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
@@ -238,7 +248,7 @@ impl TryFrom<Term> for HeapBin {
     }
 }
 
-impl TryFrom<TypedTerm> for HeapBin {
+impl TryFrom<TypedTerm> for Boxed<HeapBin> {
     type Error = TypeError;
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
@@ -249,7 +259,7 @@ impl TryFrom<TypedTerm> for HeapBin {
     }
 }
 
-impl TryInto<String> for HeapBin {
+impl TryInto<String> for Boxed<HeapBin> {
     type Error = runtime::Exception;
 
     fn try_into(self) -> Result<String, Self::Error> {

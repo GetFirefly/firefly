@@ -1298,7 +1298,7 @@ impl Term {
             Self::FLAG_FLOAT => TypedTerm::Float(Float::from_raw(ptr as *mut Float)),
             Self::FLAG_UNUSED_3 => return Err(InvalidTermError::InvalidTag),
             Self::FLAG_PROCBIN => TypedTerm::ProcBin(ProcBin::from_raw(ptr as *mut ProcBin)),
-            Self::FLAG_HEAPBIN => TypedTerm::HeapBinary(HeapBin::from_raw(ptr as *mut HeapBin)),
+            Self::FLAG_HEAPBIN => TypedTerm::HeapBinary(Boxed::from_raw(ptr as *mut HeapBin)),
             Self::FLAG_SUBBINARY => {
                 TypedTerm::SubBinary(SubBinary::from_raw(ptr as *mut SubBinary))
             }

@@ -1,6 +1,6 @@
 use core::alloc::{AllocErr, Layout};
 use core::cmp;
-use core::fmt;
+use core::fmt::{self, Debug};
 use core::mem;
 use core::ptr;
 
@@ -11,8 +11,9 @@ use super::{AsTerm, Term};
 
 pub type Number = u64;
 
-#[derive(Debug, Clone, Copy, Eq)]
+#[derive(Clone, Copy, Eq)]
 pub struct Reference {
+    #[allow(dead_code)]
     header: Term,
     scheduler_id: scheduler::ID,
     number: Number,
@@ -68,6 +69,14 @@ impl CloneToProcess for Reference {
 
     fn size_in_words(&self) -> usize {
         to_word_size(mem::size_of_val(self))
+    }
+}
+impl Debug for Reference {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Reference")
+            .field("scheduler_id", &self.scheduler_id)
+            .field("number", &self.number)
+            .finish()
     }
 }
 impl Ord for Reference {

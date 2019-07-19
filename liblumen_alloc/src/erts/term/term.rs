@@ -1293,9 +1293,7 @@ impl Term {
             Self::FLAG_NEG_BIG_INTEGER => {
                 TypedTerm::BigInteger(Boxed::from_raw(ptr as *mut BigInteger))
             }
-            Self::FLAG_REFERENCE => {
-                TypedTerm::Reference(Reference::from_raw(ptr as *mut Reference))
-            } // RefThing in erl_term.h
+            Self::FLAG_REFERENCE => TypedTerm::Reference(Boxed::from_raw(ptr as *mut Reference)), /* RefThing in erl_term.h */
             Self::FLAG_CLOSURE => TypedTerm::Closure(Boxed::from_raw(ptr as *mut Closure)), /* ErlFunThing in erl_fun.h */
             Self::FLAG_FLOAT => TypedTerm::Float(Float::from_raw(ptr as *mut Float)),
             Self::FLAG_UNUSED_3 => return Err(InvalidTermError::InvalidTag),

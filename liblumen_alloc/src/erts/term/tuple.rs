@@ -337,3 +337,183 @@ impl Iterator for Iter {
 }
 
 impl FusedIterator for Iter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use core::convert::TryInto;
+
+    use alloc::sync::Arc;
+
+    use crate::erts::process::{default_heap, Priority, ProcessControlBlock};
+    use crate::erts::scheduler;
+    use crate::erts::term::{Boxed, Tuple};
+    use crate::erts::ModuleFunctionArity;
+
+    mod element {
+        use super::*;
+
+        #[test]
+        fn without_valid_index() {
+            let process = process();
+            let tuple_term = process.tuple_from_slice(&[]).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(
+                boxed_tuple.get_element_internal(0),
+                Err(IndexError::new(0, 0))
+            );
+        }
+
+        #[test]
+        fn with_valid_index() {
+            let process = process();
+            let tuple_term = process
+                .tuple_from_slice(&[process.integer(0).unwrap()])
+                .unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(
+                boxed_tuple.get_element_internal(1),
+                Ok(process.integer(0).unwrap())
+            );
+        }
+    }
+
+    mod eq {
+        use super::*;
+
+        #[test]
+        fn without_element() {
+            let process = process();
+            let tuple = process.tuple_from_slice(&[]).unwrap();
+            let equal = process.tuple_from_slice(&[]).unwrap();
+
+            assert_eq!(tuple, tuple);
+            assert_eq!(tuple, equal);
+        }
+
+        #[test]
+        fn with_unequal_length() {
+            let process = process();
+            let tuple = process
+                .tuple_from_slice(&[process.integer(0).unwrap()])
+                .unwrap();
+            let unequal = process
+                .tuple_from_slice(&[process.integer(0).unwrap(), process.integer(1).unwrap()])
+                .unwrap();
+
+            assert_ne!(tuple, unequal);
+        }
+    }
+
+    mod iter {
+        use super::*;
+
+        #[test]
+        fn without_elements() {
+            let process = process();
+            let tuple_term = process.tuple_from_slice(&[]).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(boxed_tuple.iter().count(), 0);
+
+            let length = boxed_tuple.len();
+
+            assert_eq!(boxed_tuple.iter().count(), length);
+        }
+
+        #[test]
+        fn with_elements() {
+            let process = process();
+            // one of every type
+            let slice = &[
+                // small integer
+                process.integer(0).unwrap(),
+                // big integer
+                process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
+                process.reference(0).unwrap(),
+                closure(&process),
+                process.float(0.0).unwrap(),
+                process.external_pid_with_node_id(1, 0, 0).unwrap(),
+                Term::NIL,
+                make_pid(0, 0).unwrap(),
+                atom_unchecked("atom"),
+                process.tuple_from_slice(&[]).unwrap(),
+                process.map_from_slice(&[]).unwrap(),
+                process.list_from_slice(&[]).unwrap(),
+            ];
+            let tuple_term = process.tuple_from_slice(slice).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(boxed_tuple.iter().count(), 12);
+
+            let length = boxed_tuple.len();
+
+            assert_eq!(boxed_tuple.iter().count(), length);
+        }
+    }
+
+    mod len {
+        use super::*;
+
+        #[test]
+        fn without_elements() {
+            let tuple = Tuple::new(0);
+
+            assert_eq!(tuple.len(), 0);
+        }
+
+        #[test]
+        fn with_elements() {
+            let tuple = Tuple::new(1);
+
+            assert_eq!(tuple.len(), 1);
+        }
+    }
+
+    fn closure(process: &ProcessControlBlock) -> Term {
+        let creator = process.pid_term();
+
+        let module = Atom::try_from_str("module").unwrap();
+        let function = Atom::try_from_str("function").unwrap();
+        let arity = 0;
+        let module_function_arity = Arc::new(ModuleFunctionArity {
+            module,
+            function,
+            arity,
+        });
+        let code = |arc_process: &Arc<ProcessControlBlock>| {
+            arc_process.wait();
+
+            Ok(())
+        };
+
+        process
+            .closure(creator, module_function_arity, code)
+            .unwrap()
+    }
+
+    fn process() -> ProcessControlBlock {
+        let init = Atom::try_from_str("init").unwrap();
+        let initial_module_function_arity = Arc::new(ModuleFunctionArity {
+            module: init,
+            function: init,
+            arity: 0,
+        });
+        let (heap, heap_size) = default_heap().unwrap();
+
+        let process = ProcessControlBlock::new(
+            Priority::Normal,
+            None,
+            initial_module_function_arity,
+            heap,
+            heap_size,
+        );
+
+        process.schedule_with(scheduler::ID::new(0));
+
+        process
+    }
+}

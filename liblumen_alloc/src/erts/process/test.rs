@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 use core::mem;
 use core::ops::Deref;
 use core::ptr;
@@ -45,6 +46,93 @@ fn gc_minor_tenuring_test() {
 fn gc_fullsweep_after_tenuring_test() {
     let process = process();
     tenuring_gc_test(process, true);
+}
+
+mod tuple_from_slice {
+    use super::*;
+
+    use core::convert::TryInto;
+
+    use crate::erts::term::{atom_unchecked, make_pid, Boxed, SmallInteger, Tuple};
+
+    #[test]
+    fn without_elements() {
+        let process = process();
+        let tuple_term = process.tuple_from_slice(&[]).unwrap();
+
+        let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+        let tuple_ref = boxed_tuple.as_ref();
+        let tuple_pointer = tuple_ref as *const Tuple;
+        let arity_pointer = tuple_pointer as *const Term;
+
+        assert_eq!(
+            unsafe { *arity_pointer },
+            Term::make_header(0, Term::FLAG_TUPLE)
+        );
+    }
+
+    #[test]
+    fn with_elements() {
+        let process = process();
+        // one of every type
+        let slice = &[
+            // small integer
+            process.integer(0).unwrap(),
+            // big integer
+            process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
+            process.reference(0).unwrap(),
+            closure(&process),
+            process.float(0.0).unwrap(),
+            process.external_pid_with_node_id(1, 0, 0).unwrap(),
+            Term::NIL,
+            make_pid(0, 0).unwrap(),
+            atom_unchecked("atom"),
+            process.tuple_from_slice(&[]).unwrap(),
+            process.map_from_slice(&[]).unwrap(),
+            process.list_from_slice(&[]).unwrap(),
+        ];
+
+        let tuple_term = process.tuple_from_slice(slice).unwrap();
+
+        let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+        let tuple_ref = boxed_tuple.as_ref();
+        let tuple_pointer = tuple_ref as *const Tuple;
+        let arity_pointer = tuple_pointer as *const Term;
+
+        assert_eq!(
+            // arity is a header, so it is not safe to dereference as it causes a copy.
+            unsafe { &*arity_pointer }.as_usize(),
+            Term::make_header(slice.len(), Term::FLAG_TUPLE).as_usize()
+        );
+
+        let element_pointer = unsafe { arity_pointer.offset(1) };
+
+        for (i, element) in slice.iter().enumerate() {
+            assert_eq!(unsafe { *element_pointer.offset(i as isize) }, *element);
+        }
+    }
+
+    fn closure(process: &ProcessControlBlock) -> Term {
+        let creator = process.pid_term();
+
+        let module = Atom::try_from_str("module").unwrap();
+        let function = Atom::try_from_str("function").unwrap();
+        let arity = 0;
+        let module_function_arity = Arc::new(ModuleFunctionArity {
+            module,
+            function,
+            arity,
+        });
+        let code = |arc_process: &Arc<ProcessControlBlock>| {
+            arc_process.wait();
+
+            Ok(())
+        };
+
+        process
+            .closure(creator, module_function_arity, code)
+            .unwrap()
+    }
 }
 
 fn simple_gc_test(mut process: ProcessControlBlock) {
@@ -410,13 +498,17 @@ fn process() -> ProcessControlBlock {
     });
     let (heap, heap_size) = alloc::default_heap().unwrap();
 
-    ProcessControlBlock::new(
+    let process = ProcessControlBlock::new(
         Priority::Normal,
         None,
         initial_module_function_arity,
         heap,
         heap_size,
-    )
+    );
+
+    process.schedule_with(scheduler::ID::new(0));
+
+    process
 }
 
 fn verify_tuple_root(tuple_root: Term, tuple_ptr: *mut Term) {

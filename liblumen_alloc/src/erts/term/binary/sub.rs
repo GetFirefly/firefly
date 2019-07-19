@@ -463,6 +463,7 @@ impl TryFrom<TypedTerm> for SubBinary {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
+            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             TypedTerm::SubBinary(subbinary) => Ok(subbinary),
             _ => Err(TypeError),
         }

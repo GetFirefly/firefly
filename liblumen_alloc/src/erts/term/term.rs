@@ -1061,9 +1061,21 @@ impl Term {
         typecheck::is_remote_port(self.0)
     }
 
-    /// Returns true if this term is a reference
-    #[inline]
+    /// Returns true if this term is a boxed reference.
     pub fn is_reference(&self) -> bool {
+        let tagged = self.0;
+
+        typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
+            let ptr = constants::boxed_value(tagged);
+            let term = unsafe { &*ptr };
+
+            term.is_local_reference_header() || term.is_remote_reference_header()
+        }
+    }
+
+    /// Returns true if this term is an unboxed reference
+    #[inline]
+    pub fn is_reference_header(&self) -> bool {
         typecheck::is_reference(self.0)
     }
 
@@ -1087,7 +1099,7 @@ impl Term {
 
     /// Returns true if this term is a reference on some other node
     #[inline]
-    pub fn is_remote_reference(&self) -> bool {
+    pub fn is_remote_reference_header(&self) -> bool {
         typecheck::is_remote_reference(self.0)
     }
 
@@ -1420,7 +1432,7 @@ impl fmt::Debug for Term {
                 } else if self.is_remote_port() {
                     let val = &*(ptr as *const ExternalPort);
                     write!(f, "Term({:?})", val)
-                } else if self.is_remote_reference() {
+                } else if self.is_remote_reference_header() {
                     let val = &*(ptr as *const ExternalReference);
                     write!(f, "Term({:?})", val)
                 } else if self.is_map_header() {

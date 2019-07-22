@@ -74,7 +74,7 @@ mod constants {
     pub const FLAG_PORT: usize = (1 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE;
     pub const FLAG_SMALL_INTEGER: usize = (3 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE;
     // We store the sign for small ints in the highest of the immediate2 bits
-    pub const FLAG_SMALL_INTEGER_SIGN: usize = (1 << (IMMEDIATE2_SHIFT + 1)) | FLAG_IMMEDIATE;
+    pub const FLAG_SMALL_INTEGER_SIGN: usize = (1 << (IMMEDIATE2_SHIFT + 1));
     // Second class immediates
     pub const FLAG_ATOM: usize = 0 | FLAG_IMMEDIATE2;
     pub const FLAG_CATCH: usize = (1 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2;
@@ -268,7 +268,7 @@ mod constants {
     pub const FLAG_PID: usize = 0 | FLAG_IMMEDIATE; // 0b00_011
     pub const FLAG_PORT: usize = (1 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b01_011
     pub const FLAG_SMALL_INTEGER: usize = (3 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b11_011
-    pub const FLAG_SMALL_INTEGER_SIGN: usize = (1 << IMMEDIATE1_VALUE_SHIFT) | FLAG_SMALL_INTEGER;
+    pub const FLAG_SMALL_INTEGER_SIGN: usize = (1 << IMMEDIATE1_VALUE_SHIFT);
     // Second class immediates
     pub const FLAG_ATOM: usize = 0 | FLAG_IMMEDIATE2; // 0b0010_011
     pub const FLAG_CATCH: usize = (1 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2; // 0b0110_011

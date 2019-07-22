@@ -1410,7 +1410,7 @@ impl fmt::Debug for Term {
                     }
                 } else if self.is_subbinary_header() {
                     let bin = &*(ptr as *const SubBinary);
-                    write!(f, "Term(SubBinary({:?}))", bin)
+                    write!(f, "Term({:?})", bin)
                 } else if self.is_match_context() {
                     let bin = &*(ptr as *const MatchContext);
                     write!(f, "Term(MatchCtx({:?}))", bin)

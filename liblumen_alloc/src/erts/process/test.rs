@@ -48,6 +48,23 @@ fn gc_fullsweep_after_tenuring_test() {
     tenuring_gc_test(process, true);
 }
 
+mod integer {
+    use super::*;
+
+    use core::convert::TryInto;
+
+    #[test]
+    fn with_negative_can_convert_back_to_isize() {
+        let process = process();
+        let i: isize = -1;
+        let negative = process.integer(i).unwrap();
+
+        let negative_isize: isize = negative.try_into().unwrap();
+
+        assert_eq!(negative_isize, i);
+    }
+}
+
 mod tuple_from_slice {
     use super::*;
 

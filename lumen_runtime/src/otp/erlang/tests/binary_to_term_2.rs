@@ -3,6 +3,7 @@ use super::*;
 mod with_safe;
 
 #[test]
+#[ignore]
 fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() {
     // <<131,100,0,5,"hello","world">>
     let byte_vec = vec![

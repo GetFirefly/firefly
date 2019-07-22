@@ -17,7 +17,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                 )
                 .prop_flat_map(|binary| {
                     let subbinary: SubBinary = binary.try_into().unwrap();
-                    let byte_count = subbinary.total_byte_len();
+                    let byte_count = subbinary.full_byte_len();
 
                     // `start` must be 2 less than `byte_count` so that `length` can be at least 1
                     // and still get a full byte
@@ -25,7 +25,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                 })
                 .prop_flat_map(|(binary, start)| {
                     let subbinary: SubBinary = binary.try_into().unwrap();
-                    let byte_count = subbinary.total_byte_len();
+                    let byte_count = subbinary.full_byte_len();
 
                     (Just(binary), Just(start), 1..=(byte_count - start))
                 })
@@ -70,7 +70,7 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                 )
                 .prop_map(|binary| {
                     let subbinary: SubBinary = binary.try_into().unwrap();
-                    let byte_count = subbinary.total_byte_len();
+                    let byte_count = subbinary.full_byte_len();
 
                     let mut heap = arc_process.acquire_heap();
 

@@ -145,7 +145,7 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
                 |bitstring| {
                     let subbinary: SubBinary = bitstring.try_into().unwrap();
 
-                    let byte_vec: Vec<u8> = subbinary.byte_iter().collect();
+                    let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
                     let mut bit_count_byte: u8 = 0;
 

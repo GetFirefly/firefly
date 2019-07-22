@@ -16,8 +16,8 @@ use crate::erts::term::{to_word_size, AsTerm, Boxed, ProcBin, TypeError, TypedTe
 use crate::erts::HeapAlloc;
 
 use super::{
-    BinaryType, Bitstring, Original, FLAG_IS_LATIN1_BIN, FLAG_IS_RAW_BIN, FLAG_IS_UTF8_BIN,
-    FLAG_MASK,
+    AlignedBinary, BinaryType, Bitstring, Original, FLAG_IS_LATIN1_BIN, FLAG_IS_RAW_BIN,
+    FLAG_IS_UTF8_BIN, FLAG_MASK,
 };
 
 /// Process heap allocated binary, smaller than 64 bytes
@@ -150,25 +150,20 @@ impl HeapBin {
 }
 
 impl Bitstring for HeapBin {
-    #[inline]
-    fn as_bytes(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.bytes(), self.full_byte_len()) }
-    }
-
     fn full_byte_len(&self) -> usize {
         self.flags & !FLAG_MASK
     }
+}
 
-    fn partial_byte_bit_len(&self) -> u8 {
-        0
+impl AlignedBinary for HeapBin {
+    fn as_bytes(&self) -> &[u8] {
+        unsafe { slice::from_raw_parts(self.bytes(), self.full_byte_len()) }
     }
+}
 
-    fn total_bit_len(&self) -> usize {
-        self.full_byte_len() * 8
-    }
-
-    fn total_byte_len(&self) -> usize {
-        self.full_byte_len()
+impl AlignedBinary for Boxed<HeapBin> {
+    fn as_bytes(&self) -> &[u8] {
+        self.as_ref().as_bytes()
     }
 }
 
@@ -184,30 +179,6 @@ impl Original for HeapBin {
         );
 
         unsafe { *self.bytes().offset(index as isize) }
-    }
-}
-
-impl<B: Bitstring> PartialEq<B> for HeapBin {
-    #[inline]
-    fn eq(&self, other: &B) -> bool {
-        self.as_bytes().eq(other.as_bytes())
-    }
-}
-impl PartialEq<ProcBin> for Boxed<HeapBin> {
-    fn eq(&self, other: &ProcBin) -> bool {
-        self.as_bytes().eq(other.as_bytes())
-    }
-}
-impl Eq for Boxed<HeapBin> {}
-impl<B: Bitstring> PartialOrd<B> for HeapBin {
-    #[inline]
-    fn partial_cmp(&self, other: &B) -> Option<cmp::Ordering> {
-        self.as_bytes().partial_cmp(other.as_bytes())
-    }
-}
-impl PartialOrd<ProcBin> for Boxed<HeapBin> {
-    fn partial_cmp(&self, other: &ProcBin) -> Option<cmp::Ordering> {
-        self.as_bytes().partial_cmp(other.as_bytes())
     }
 }
 
@@ -237,6 +208,18 @@ impl CloneToProcess for HeapBin {
 
     fn size_in_words(&self) -> usize {
         to_word_size(self.size() + mem::size_of::<Self>())
+    }
+}
+
+impl PartialEq<ProcBin> for Boxed<HeapBin> {
+    fn eq(&self, other: &ProcBin) -> bool {
+        other.eq(self)
+    }
+}
+
+impl PartialOrd<ProcBin> for Boxed<HeapBin> {
+    fn partial_cmp(&self, other: &ProcBin) -> Option<cmp::Ordering> {
+        other.partial_cmp(self)
     }
 }
 

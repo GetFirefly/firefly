@@ -1,5 +1,4 @@
 use core::alloc::AllocErr;
-use core::cmp;
 use core::convert::TryInto;
 use core::fmt;
 use core::mem;
@@ -15,10 +14,39 @@ use liblumen_core::util::pointer::distance_absolute;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::term::term::Term;
-use crate::erts::term::{follow_moved, to_word_size, AsTerm, HeapBin, ProcBin, SubBinary};
+use crate::erts::term::{
+    follow_moved, to_word_size, AsTerm, HeapBin, IterableBitstring, ProcBin, SubBinary,
+};
 use crate::erts::HeapAlloc;
 
-use super::{byte_offset, num_bytes, Bitstring};
+use super::{
+    byte_offset, num_bytes, Bitstring, ByteIterator, MaybeAlignedMaybeBinary, MaybePartialByte,
+};
+use crate::erts::term::binary::sub::PartialByteBitIter;
+
+pub struct FullByteIter {}
+
+impl<'a> ByteIterator<'a> for FullByteIter {}
+
+impl DoubleEndedIterator for FullByteIter {
+    fn next_back(&mut self) -> Option<u8> {
+        unimplemented!()
+    }
+}
+
+impl ExactSizeIterator for FullByteIter {}
+
+impl Iterator for FullByteIter {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        unimplemented!()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        unimplemented!()
+    }
+}
 
 /// Represents a binary being matched
 ///
@@ -154,42 +182,8 @@ unsafe impl AsTerm for MatchContext {
 }
 
 impl Bitstring for MatchContext {
-    #[inline]
-    fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            let (_header, _flags, ptr, size) = self.to_raw_parts();
-            slice::from_raw_parts(ptr, size)
-        }
-    }
-
     fn full_byte_len(&self) -> usize {
         self.buffer.bit_len / 8
-    }
-
-    fn partial_byte_bit_len(&self) -> u8 {
-        (self.buffer.bit_len % 8) as u8
-    }
-
-    fn total_bit_len(&self) -> usize {
-        self.buffer.bit_len
-    }
-
-    fn total_byte_len(&self) -> usize {
-        (self.buffer.bit_len + (8 - 1)) / 8
-    }
-}
-
-impl<B: Bitstring> PartialEq<B> for MatchContext {
-    #[inline]
-    fn eq(&self, other: &B) -> bool {
-        self.as_bytes().eq(other.as_bytes())
-    }
-}
-impl Eq for MatchContext {}
-impl<B: Bitstring> PartialOrd<B> for MatchContext {
-    #[inline]
-    fn partial_cmp(&self, other: &B) -> Option<cmp::Ordering> {
-        self.as_bytes().partial_cmp(other.as_bytes())
     }
 }
 
@@ -249,13 +243,67 @@ impl fmt::Debug for MatchContext {
     }
 }
 
+impl Eq for MatchContext {}
+
+impl IterableBitstring<'_, FullByteIter> for MatchContext {
+    /// Iterator for the [byte_len] bytes.  For the [partial_byte_bit_len] bits in the partial byte
+    /// at the end, use [partial_byte_bit_iter].
+    fn full_byte_iter(&self) -> FullByteIter {
+        unimplemented!()
+    }
+}
+
+impl MaybeAlignedMaybeBinary for MatchContext {
+    type Iter = PartialByteBitIter;
+
+    unsafe fn as_bytes(&self) -> &[u8] {
+        let (_header, _flags, ptr, size) = self.to_raw_parts();
+
+        slice::from_raw_parts(ptr, size)
+    }
+
+    fn is_aligned(&self) -> bool {
+        unimplemented!()
+    }
+
+    fn is_binary(&self) -> bool {
+        unimplemented!()
+    }
+
+    fn partial_byte_bit_iter(&self) -> PartialByteBitIter {
+        unimplemented!()
+    }
+}
+
+impl MaybePartialByte for MatchContext {
+    fn partial_byte_bit_len(&self) -> u8 {
+        (self.buffer.bit_len % 8) as u8
+    }
+
+    fn total_bit_len(&self) -> usize {
+        self.buffer.bit_len
+    }
+
+    fn total_byte_len(&self) -> usize {
+        (self.buffer.bit_len + (8 - 1)) / 8
+    }
+}
+
 impl TryInto<String> for MatchContext {
     type Error = runtime::Exception;
 
     fn try_into(self) -> Result<String, Self::Error> {
-        match str::from_utf8(self.as_bytes()) {
-            Ok(s) => Ok(s.to_owned()),
-            Err(_) => Err(badarg!()),
+        if self.is_binary() {
+            if self.is_aligned() {
+                match str::from_utf8(unsafe { self.as_bytes() }) {
+                    Ok(s) => Ok(s.to_owned()),
+                    Err(_) => Err(badarg!()),
+                }
+            } else {
+                String::from_utf8(self.full_byte_iter().collect()).map_err(|_| badarg!())
+            }
+        } else {
+            Err(badarg!())
         }
     }
 }

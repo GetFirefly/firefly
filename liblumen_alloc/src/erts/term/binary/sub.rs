@@ -53,7 +53,7 @@ impl Iterator for PartialByteBitIter {
     }
 }
 
-pub struct ByteIter {
+pub struct FullByteIter {
     original: Term,
     base_byte_offset: usize,
     bit_offset: u8,
@@ -61,7 +61,7 @@ pub struct ByteIter {
     max_byte_offset: usize,
 }
 
-impl ByteIter {
+impl FullByteIter {
     fn is_aligned(&self) -> bool {
         self.bit_offset == 0
     }
@@ -100,11 +100,9 @@ impl ByteIter {
     }
 }
 
-impl ByteIterator for ByteIter {}
+impl<'a> ByteIterator<'a> for FullByteIter {}
 
-impl ExactSizeIterator for ByteIter {}
-
-impl DoubleEndedIterator for ByteIter {
+impl DoubleEndedIterator for FullByteIter {
     fn next_back(&mut self) -> Option<u8> {
         if self.current_byte_offset == self.max_byte_offset {
             None
@@ -117,9 +115,11 @@ impl DoubleEndedIterator for ByteIter {
     }
 }
 
-impl FusedIterator for ByteIter {}
+impl ExactSizeIterator for FullByteIter {}
 
-impl Iterator for ByteIter {
+impl FusedIterator for FullByteIter {}
+
+impl Iterator for FullByteIter {
     type Item = u8;
 
     fn next(&mut self) -> Option<u8> {
@@ -138,12 +138,6 @@ impl Iterator for ByteIter {
 
         (size, Some(size))
     }
-}
-
-trait ByteIterator: ExactSizeIterator + DoubleEndedIterator + Iterator<Item = u8>
-where
-    Self: Sized,
-{
 }
 
 pub trait Original {
@@ -223,47 +217,6 @@ impl SubBinary {
         self.bit_offset
     }
 
-    pub fn is_aligned(&self) -> bool {
-        self.bit_offset == 0
-    }
-
-    /// Iterator of the [bit_size] bits.  To get the [byte_size] bytes at the beginning of the
-    /// bitstring use [byte_iter] if the subbinary may not have [bit_offset] `0` or [as_bytes] has
-    /// [bit_offset] `0`.
-    pub fn partial_byte_bit_iter(&self) -> PartialByteBitIter {
-        let current_byte_offset = self.byte_offset + self.full_byte_len;
-        let current_bit_offset = self.bit_offset;
-
-        let improper_bit_offset = current_bit_offset + self.partial_byte_bit_len;
-        let max_byte_offset = current_byte_offset + (improper_bit_offset / 8) as usize;
-        let max_bit_offset = improper_bit_offset % 8;
-
-        PartialByteBitIter {
-            original: self.original,
-            current_byte_offset,
-            current_bit_offset,
-            max_byte_offset,
-            max_bit_offset,
-        }
-    }
-
-    /// Iterator for the [size] bytes.  For the [bit_size] bits in the partial byte at the
-    /// end, use [bit_count_iter].
-    pub fn byte_iter(&self) -> ByteIter {
-        ByteIter {
-            original: self.original,
-            base_byte_offset: self.byte_offset,
-            bit_offset: self.bit_offset,
-            current_byte_offset: 0,
-            max_byte_offset: self.full_byte_len,
-        }
-    }
-
-    #[inline]
-    pub fn is_binary(&self) -> bool {
-        self.partial_byte_bit_len == 0
-    }
-
     #[inline]
     pub fn byte_offset(&self) -> usize {
         self.byte_offset
@@ -339,30 +292,8 @@ unsafe impl AsTerm for SubBinary {
 
 impl Bitstring for SubBinary {
     #[inline]
-    fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            let (_header, _flags, ptr, size) = self.to_raw_parts();
-            slice::from_raw_parts(ptr, size.into())
-        }
-    }
-
-    #[inline]
     fn full_byte_len(&self) -> usize {
         self.full_byte_len
-    }
-
-    #[inline]
-    fn partial_byte_bit_len(&self) -> u8 {
-        self.partial_byte_bit_len
-    }
-
-    #[inline]
-    fn total_bit_len(&self) -> usize {
-        self.full_byte_len * 8 + (self.partial_byte_bit_len as usize)
-    }
-
-    fn total_byte_len(&self) -> usize {
-        self.full_byte_len + if self.is_binary() { 0 } else { 1 }
     }
 }
 
@@ -424,29 +355,98 @@ impl fmt::Debug for SubBinary {
     }
 }
 
+impl Eq for SubBinary {}
+
 impl Hash for SubBinary {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        for byte in self.byte_iter() {
-            byte.hash(state);
-        }
+        if self.is_binary() {
+            if self.is_aligned() {
+                unsafe { self.as_bytes() }.hash(state);
+            } else {
+                for byte in self.full_byte_iter() {
+                    byte.hash(state);
+                }
+            }
+        } else {
+            for byte in self.full_byte_iter() {
+                byte.hash(state);
+            }
 
-        for bit in self.partial_byte_bit_iter() {
-            bit.hash(state);
+            for bit in self.partial_byte_bit_iter() {
+                bit.hash(state);
+            }
         }
     }
 }
 
-impl<B: Bitstring> PartialEq<B> for SubBinary {
-    #[inline]
-    fn eq(&self, other: &B) -> bool {
-        self.as_bytes().eq(other.as_bytes())
+impl IterableBitstring<'_, FullByteIter> for SubBinary {
+    /// Iterator for the [byte_len] bytes.  For the [partial_byte_bit_len] bits in the partial byte
+    /// at the end, use [partial_byte_bit_iter].
+    fn full_byte_iter(&self) -> FullByteIter {
+        FullByteIter {
+            original: self.original,
+            base_byte_offset: self.byte_offset,
+            bit_offset: self.bit_offset,
+            current_byte_offset: 0,
+            max_byte_offset: self.full_byte_len,
+        }
     }
 }
-impl Eq for SubBinary {}
-impl<B: Bitstring> PartialOrd<B> for SubBinary {
+impl MaybeAlignedMaybeBinary for SubBinary {
+    type Iter = PartialByteBitIter;
+
+    /// This is only safe to call if `is_aligned` and `is_binary`.
+    ///
+    /// If `is_binary`, but not not `is_aligned` use `byte_iter`.
     #[inline]
-    fn partial_cmp(&self, other: &B) -> Option<cmp::Ordering> {
-        self.as_bytes().partial_cmp(other.as_bytes())
+    unsafe fn as_bytes(&self) -> &[u8] {
+        let (_header, _flags, ptr, size) = self.to_raw_parts();
+
+        slice::from_raw_parts(ptr, size.into())
+    }
+
+    fn is_aligned(&self) -> bool {
+        self.bit_offset == 0
+    }
+
+    fn is_binary(&self) -> bool {
+        self.partial_byte_bit_len == 0
+    }
+
+    /// Iterator of the [bit_size] bits.  To get the [byte_size] bytes at the beginning of the
+    /// bitstring use [byte_iter] if the subbinary may not have [bit_offset] `0` or [as_bytes] has
+    /// [bit_offset] `0`.
+    fn partial_byte_bit_iter(&self) -> PartialByteBitIter {
+        let current_byte_offset = self.byte_offset + self.full_byte_len;
+        let current_bit_offset = self.bit_offset;
+
+        let improper_bit_offset = current_bit_offset + self.partial_byte_bit_len;
+        let max_byte_offset = current_byte_offset + (improper_bit_offset / 8) as usize;
+        let max_bit_offset = improper_bit_offset % 8;
+
+        PartialByteBitIter {
+            original: self.original,
+            current_byte_offset,
+            current_bit_offset,
+            max_byte_offset,
+            max_bit_offset,
+        }
+    }
+}
+
+impl MaybePartialByte for SubBinary {
+    #[inline]
+    fn partial_byte_bit_len(&self) -> u8 {
+        self.partial_byte_bit_len
+    }
+
+    #[inline]
+    fn total_bit_len(&self) -> usize {
+        self.full_byte_len * 8 + (self.partial_byte_bit_len as usize)
+    }
+
+    fn total_byte_len(&self) -> usize {
+        self.full_byte_len + if self.is_binary() { 0 } else { 1 }
     }
 }
 
@@ -476,12 +476,14 @@ impl TryInto<String> for SubBinary {
     fn try_into(self) -> Result<String, Self::Error> {
         if self.is_binary() {
             if self.is_aligned() {
-                match str::from_utf8(self.as_bytes()) {
+                let bytes = unsafe { self.as_bytes() };
+
+                match str::from_utf8(bytes) {
                     Ok(s) => Ok(s.to_owned()),
                     Err(_) => Err(badarg!()),
                 }
             } else {
-                let byte_vec: Vec<u8> = self.byte_iter().collect();
+                let byte_vec: Vec<u8> = self.full_byte_iter().collect();
 
                 String::from_utf8(byte_vec).map_err(|_| badarg!())
             }

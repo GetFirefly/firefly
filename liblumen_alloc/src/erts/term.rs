@@ -1,5 +1,5 @@
 pub(in crate::erts) mod atom;
-mod binary;
+pub mod binary;
 mod boxed;
 mod closure;
 mod float;

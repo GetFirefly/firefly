@@ -11,10 +11,11 @@ use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetim
 
 use crate::borrow::CloneToProcess;
 use crate::erts::process::code::Code;
+use crate::erts::term::binary::{AlignedBinary, IterableBitstring, MaybeAlignedMaybeBinary};
 use crate::erts::term::reference::{self, Reference};
 use crate::erts::term::{
-    make_pid, pid, AsTerm, Bitstring, BytesFromBinaryError, Closure, Cons, ExternalPid, Float,
-    HeapBin, Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
+    make_pid, pid, AsTerm, BytesFromBinaryError, Closure, Cons, ExternalPid, Float, HeapBin,
+    Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
 };
 use crate::{erts, ModuleFunctionArity};
 use crate::{scheduler, VirtualAlloc};
@@ -98,7 +99,7 @@ pub trait HeapAlloc {
                         if subbinary.bit_offset() == 0 {
                             Ok(unsafe { bytes::inherit_lifetime(subbinary.as_bytes()) })
                         } else {
-                            let aligned_byte_vec: Vec<u8> = subbinary.byte_iter().collect();
+                            let aligned_byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
                             let aligned = self
                                 .binary_from_bytes(&aligned_byte_vec)
                                 .map_err(|error| BytesFromBinaryError::Alloc(error))?;

@@ -34,7 +34,7 @@ fn with_tuple_returns_tuple_with_new_element_at_end() {
                 |(tuple, element)| {
                     let result = erlang::append_element_2(tuple, element, &arc_process);
 
-                    prop_assert!(result.is_ok());
+                    prop_assert!(result.is_ok(), "{:?}", result);
 
                     let appended_tuple = result.unwrap();
 

@@ -13,9 +13,12 @@ use liblumen_core::locks::MutexGuard;
 
 use liblumen_alloc::erts::exception::runtime::Class;
 use liblumen_alloc::erts::exception::{Exception, Result};
+use liblumen_alloc::erts::term::binary::{
+    AlignedBinary, Bitstring, IterableBitstring, MaybeAlignedMaybeBinary, MaybePartialByte,
+};
 use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Bitstring, Boxed, Cons, Encoding, Float, ImproperList, Map,
-    SmallInteger, Term, Tuple, TypedTerm,
+    atom_unchecked, AsTerm, Atom, Boxed, Cons, Encoding, Float, ImproperList, Map, SmallInteger,
+    Term, Tuple, TypedTerm,
 };
 use liblumen_alloc::erts::ProcessControlBlock;
 use liblumen_alloc::{badarg, badarith, badkey, badmap, default_heap, error, exit, raise, throw};
@@ -317,12 +320,12 @@ pub fn binary_to_atom_2(binary: Term, encoding: Term) -> Result {
             }
             TypedTerm::SubBinary(subbinary) => {
                 if subbinary.is_binary() {
-                    if subbinary.bit_offset() == 0 {
-                        let bytes = subbinary.as_bytes();
+                    if subbinary.is_aligned() {
+                        let bytes = unsafe { subbinary.as_bytes() };
 
                         Atom::try_from_latin1_bytes(bytes)
                     } else {
-                        let byte_vec: Vec<u8> = subbinary.byte_iter().collect();
+                        let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
                         Atom::try_from_latin1_bytes(&byte_vec)
                     }
@@ -353,12 +356,12 @@ pub fn binary_to_existing_atom_2(binary: Term, encoding: Term) -> Result {
             }
             TypedTerm::SubBinary(subbinary) => {
                 if subbinary.is_binary() {
-                    if subbinary.bit_offset() == 0 {
-                        let bytes = subbinary.as_bytes();
+                    if subbinary.is_aligned() {
+                        let bytes = unsafe { subbinary.as_bytes() };
 
                         Atom::try_from_latin1_bytes_existing(bytes)
                     } else {
-                        let byte_vec: Vec<u8> = subbinary.byte_iter().collect();
+                        let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
                         Atom::try_from_latin1_bytes_existing(&byte_vec)
                     }
@@ -572,7 +575,7 @@ pub fn bitstring_to_list_1<'process>(
                     )?
                 };
 
-                let byte_term_iter = subbinary.byte_iter().map(|byte| byte.into());
+                let byte_term_iter = subbinary.full_byte_iter().map(|byte| byte.into());
 
                 process_control_block
                     .improper_list_from_iter(byte_term_iter, last)
@@ -1031,7 +1034,11 @@ pub fn list_to_binary_1(iolist: Term, process_control_block: &ProcessControlBloc
                         }
                         TypedTerm::SubBinary(subbinary) => {
                             if subbinary.is_binary() {
-                                byte_vec.extend(subbinary.as_bytes());
+                                if subbinary.is_aligned() {
+                                    byte_vec.extend(unsafe { subbinary.as_bytes() });
+                                } else {
+                                    byte_vec.extend(subbinary.full_byte_iter());
+                                }
                             } else {
                                 return Err(badarg!().into());
                             }
@@ -1104,9 +1111,13 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
                         }
                         TypedTerm::SubBinary(subbinary) => {
                             if bit_offset == 0 {
-                                byte_vec.extend(subbinary.as_bytes());
+                                if subbinary.is_aligned() {
+                                    byte_vec.extend(unsafe { subbinary.as_bytes() });
+                                } else {
+                                    byte_vec.extend(subbinary.full_byte_iter());
+                                }
                             } else {
-                                for byte in subbinary.byte_iter() {
+                                for byte in subbinary.full_byte_iter() {
                                     tail_byte |= byte >> bit_offset;
                                     byte_vec.push(tail_byte);
 

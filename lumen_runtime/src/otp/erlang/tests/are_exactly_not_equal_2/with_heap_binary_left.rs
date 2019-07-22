@@ -92,7 +92,7 @@ fn with_subbinary_right_with_same_bytes_returns_false() {
                 &strategy::term::binary::sub::is_binary(arc_process.clone()).prop_map(
                     |subbinary_term| {
                         let subbinary: SubBinary = subbinary_term.try_into().unwrap();
-                        let heap_binary_byte_vec: Vec<u8> = subbinary.byte_iter().collect();
+                        let heap_binary_byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
                         let heap_binary = arc_process
                             .binary_from_bytes(&heap_binary_byte_vec)
@@ -120,7 +120,7 @@ fn with_subbinary_right_with_different_bytes_returns_true() {
                         let subbinary: SubBinary = subbinary_term.try_into().unwrap();
                         // same size, but different values by inverting
                         let heap_binary_byte_vec: Vec<u8> =
-                            subbinary.byte_iter().map(|b| !b).collect();
+                            subbinary.full_byte_iter().map(|b| !b).collect();
 
                         let heap_binary = arc_process
                             .binary_from_bytes(&heap_binary_byte_vec)

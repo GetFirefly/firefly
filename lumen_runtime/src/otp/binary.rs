@@ -2,6 +2,9 @@ use core::convert::TryInto;
 use core::ops::Range;
 
 use liblumen_alloc::erts::exception::Result;
+use liblumen_alloc::erts::term::binary::{
+    AlignedBinary, IterableBitstring, MaybeAlignedMaybeBinary,
+};
 use liblumen_alloc::erts::term::{Bitstring, Term, TypedTerm};
 use liblumen_alloc::{badarg, ProcessControlBlock};
 
@@ -65,13 +68,13 @@ pub fn bin_to_list(
 
                 let result = if subbinary.is_aligned() {
                     let range: Range<usize> = part_range.into();
-                    let byte_slice: &[u8] = &subbinary.as_bytes()[range];
+                    let byte_slice: &[u8] = &unsafe { subbinary.as_bytes() }[range];
                     let byte_iter = byte_slice.iter();
                     let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
                     process_control_block.list_from_iter(byte_term_iter)
                 } else {
-                    let mut byte_iter = subbinary.byte_iter();
+                    let mut byte_iter = subbinary.full_byte_iter();
 
                     // skip byte_offset
                     for _ in 0..part_range.byte_offset {

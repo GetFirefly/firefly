@@ -32,7 +32,7 @@ fn with_empty_list_returns_binary_containing_subbinary_bytes() {
                     .prop_map(|element| (element, arc_process.cons(element, Term::NIL).unwrap())),
                 |(element, list)| {
                     let subbinary: SubBinary = element.try_into().unwrap();
-                    let byte_vec: Vec<u8> = subbinary.byte_iter().collect();
+                    let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
                     let binary = arc_process.binary_from_bytes(&byte_vec).unwrap();
 
                     prop_assert_eq!(erlang::list_to_binary_1(list, &arc_process), Ok(binary));

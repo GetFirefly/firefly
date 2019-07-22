@@ -15,13 +15,14 @@ use intrusive_collections::LinkedListLink;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::process::ProcessControlBlock;
-use crate::erts::term::binary::sub::Original;
-use crate::erts::term::term::Term;
-use crate::erts::term::{to_word_size, AsTerm};
+use crate::erts::term::binary::heap::HeapBin;
+use crate::erts::term::binary::sub::{Original, SubBinary};
+use crate::erts::term::{to_word_size, AsTerm, Boxed, MatchContext, Term};
 use crate::erts::HeapAlloc;
 
 use super::{
-    BinaryType, Bitstring, FLAG_IS_LATIN1_BIN, FLAG_IS_RAW_BIN, FLAG_IS_UTF8_BIN, FLAG_MASK,
+    AlignedBinary, BinaryType, Bitstring, FLAG_IS_LATIN1_BIN, FLAG_IS_RAW_BIN, FLAG_IS_UTF8_BIN,
+    FLAG_MASK,
 };
 
 /// This is the header written alongside all procbin binaries in the heap,
@@ -270,6 +271,29 @@ impl ProcBin {
         }
     }
 }
+
+unsafe impl AsTerm for ProcBin {
+    #[inline]
+    unsafe fn as_term(&self) -> Term {
+        Term::make_boxed(self as *const Self)
+    }
+}
+
+impl AlignedBinary for ProcBin {
+    fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            let inner = self.inner();
+            slice::from_raw_parts(inner.bytes(), inner.full_byte_len())
+        }
+    }
+}
+
+impl Bitstring for ProcBin {
+    fn full_byte_len(&self) -> usize {
+        self.inner().full_byte_len()
+    }
+}
+
 impl Clone for ProcBin {
     #[inline]
     fn clone(&self) -> Self {
@@ -283,28 +307,36 @@ impl Clone for ProcBin {
     }
 }
 
-impl Bitstring for ProcBin {
-    fn as_bytes(&self) -> &[u8] {
+impl CloneToProcess for ProcBin {
+    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
+        let mut heap = process.acquire_heap();
+        let boxed = self.clone_to_heap(&mut heap).unwrap();
+        let ptr = boxed.boxed_val() as *mut Self;
+        self.inner().refc.fetch_add(1, atomic::Ordering::AcqRel);
+        // Reify a reference to the newly written clone, and push it
+        // on to the process virtual heap
+        let clone = unsafe { &*ptr };
+        process.virtual_alloc(clone);
+        boxed
+    }
+
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
         unsafe {
-            let inner = self.inner();
-            slice::from_raw_parts(inner.bytes(), inner.full_byte_len())
+            // Allocate space for the header
+            let layout = Layout::new::<Self>();
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
+            // Write the binary header with an empty link
+            ptr::write(
+                ptr,
+                Self {
+                    header: self.header,
+                    inner: self.inner,
+                    link: LinkedListLink::new(),
+                },
+            );
+            // Reify result term
+            Ok(Term::make_boxed(ptr))
         }
-    }
-
-    fn full_byte_len(&self) -> usize {
-        self.inner().full_byte_len()
-    }
-
-    fn partial_byte_bit_len(&self) -> u8 {
-        0
-    }
-
-    fn total_bit_len(&self) -> usize {
-        self.full_byte_len() * 8
-    }
-
-    fn total_byte_len(&self) -> usize {
-        self.full_byte_len()
     }
 }
 
@@ -352,6 +384,8 @@ impl Drop for ProcBin {
     }
 }
 
+impl Eq for ProcBin {}
+
 impl Original for ProcBin {
     fn byte(&self, index: usize) -> u8 {
         let inner = self.inner();
@@ -368,55 +402,39 @@ impl Original for ProcBin {
     }
 }
 
-impl<B: Bitstring> PartialEq<B> for ProcBin {
-    fn eq(&self, other: &B) -> bool {
-        self.as_bytes().eq(other.as_bytes())
-    }
-}
-impl Eq for ProcBin {}
-impl<B: Bitstring> PartialOrd<B> for ProcBin {
-    fn partial_cmp(&self, other: &B) -> Option<cmp::Ordering> {
-        self.as_bytes().partial_cmp(other.as_bytes())
+impl PartialEq<Boxed<HeapBin>> for ProcBin {
+    fn eq(&self, other: &Boxed<HeapBin>) -> bool {
+        self.eq(other.as_ref())
     }
 }
 
-unsafe impl AsTerm for ProcBin {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self as *const Self)
+impl PartialEq<MatchContext> for ProcBin {
+    fn eq(&self, other: &MatchContext) -> bool {
+        other.eq(self)
     }
 }
 
-impl CloneToProcess for ProcBin {
-    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
-        let mut heap = process.acquire_heap();
-        let boxed = self.clone_to_heap(&mut heap).unwrap();
-        let ptr = boxed.boxed_val() as *mut Self;
-        self.inner().refc.fetch_add(1, atomic::Ordering::AcqRel);
-        // Reify a reference to the newly written clone, and push it
-        // on to the process virtual heap
-        let clone = unsafe { &*ptr };
-        process.virtual_alloc(clone);
-        boxed
+impl PartialEq<SubBinary> for ProcBin {
+    fn eq(&self, other: &SubBinary) -> bool {
+        other.eq(self)
     }
+}
 
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
-        unsafe {
-            // Allocate space for the header
-            let layout = Layout::new::<Self>();
-            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
-            // Write the binary header with an empty link
-            ptr::write(
-                ptr,
-                Self {
-                    header: self.header,
-                    inner: self.inner,
-                    link: LinkedListLink::new(),
-                },
-            );
-            // Reify result term
-            Ok(Term::make_boxed(ptr))
-        }
+impl PartialOrd<Boxed<HeapBin>> for ProcBin {
+    fn partial_cmp(&self, other: &Boxed<HeapBin>) -> Option<cmp::Ordering> {
+        self.partial_cmp(other.as_ref())
+    }
+}
+
+impl PartialOrd<MatchContext> for ProcBin {
+    fn partial_cmp(&self, other: &MatchContext) -> Option<cmp::Ordering> {
+        other.partial_cmp(self).map(|ordering| ordering.reverse())
+    }
+}
+
+impl PartialOrd<SubBinary> for ProcBin {
+    fn partial_cmp(&self, other: &SubBinary) -> Option<cmp::Ordering> {
+        other.partial_cmp(self).map(|ordering| ordering.reverse())
     }
 }
 

@@ -34,22 +34,22 @@ pub fn process() -> BoxedStrategy<Arc<ProcessControlBlock>> {
 }
 
 pub fn term(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
-    let container_arc_process = arc_process.clone();
+    //    let container_arc_process = arc_process.clone();
 
     term::leaf(RANGE_INCLUSIVE, arc_process)
-        .prop_recursive(
-            DEPTH,
-            (MAX_LEN * (DEPTH as usize + 1)) as u32,
-            MAX_LEN as u32,
-            move |element| {
-                term::container(
-                    element,
-                    RANGE_INCLUSIVE.clone().into(),
-                    container_arc_process.clone(),
-                )
-            },
-        )
-        .boxed()
+    //        .prop_recursive(
+    //            DEPTH,
+    //            (MAX_LEN * (DEPTH as usize + 1)) as u32,
+    //            MAX_LEN as u32,
+    //            move |element| {
+    //                term::container(
+    //                    element,
+    //                    RANGE_INCLUSIVE.clone().into(),
+    //                    container_arc_process.clone(),
+    //                )
+    //            },
+    //        )
+    //        .boxed()
 }
 
 const DEPTH: u32 = 3;

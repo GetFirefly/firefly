@@ -84,7 +84,8 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                 |(binary, start, length)| {
                     let subbinary: SubBinary = binary.try_into().unwrap();
 
-                    let expected_returned_binary_bytes: Vec<u8> = subbinary.byte_iter().collect();
+                    let expected_returned_binary_bytes: Vec<u8> =
+                        subbinary.full_byte_iter().collect();
                     let expected_returned_binary = arc_process
                         .binary_from_bytes(&expected_returned_binary_bytes)
                         .unwrap();
@@ -139,7 +140,8 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
                 }),
                 |(binary, start, length)| {
                     let subbinary: SubBinary = binary.try_into().unwrap();
-                    let expected_returned_binary_bytes: Vec<u8> = subbinary.byte_iter().collect();
+                    let expected_returned_binary_bytes: Vec<u8> =
+                        subbinary.full_byte_iter().collect();
                     let expected_returned_binary = arc_process
                         .binary_from_bytes(&expected_returned_binary_bytes)
                         .unwrap();

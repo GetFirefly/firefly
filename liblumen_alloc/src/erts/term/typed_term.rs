@@ -1,7 +1,6 @@
 use core::alloc::AllocErr;
 use core::cmp;
 use core::convert::TryInto;
-use core::mem;
 
 use alloc::string::String;
 
@@ -155,9 +154,6 @@ macro_rules! partial_eq_impl_boxed {
 
 impl PartialEq<TypedTerm> for TypedTerm {
     fn eq(&self, other: &Self) -> bool {
-        if mem::discriminant(self) != mem::discriminant(other) {
-            return false;
-        }
         match (self, other) {
             (&Self::Catch, &Self::Catch) => true,
             (&Self::Nil, &Self::Nil) => true,
@@ -166,6 +162,46 @@ impl PartialEq<TypedTerm> for TypedTerm {
                 .to_typed_term()
                 .unwrap()
                 .eq(&other_boxed.to_typed_term().unwrap()),
+            // For BitString types do `eq` in order of complexity, so that we don't have to
+            // implement it twice
+            (Self::ProcBin(proc_bin), Self::HeapBinary(boxed_heap_binary)) => {
+                proc_bin.eq(boxed_heap_binary.as_ref())
+            }
+            (Self::ProcBin(proc_bin), Self::SubBinary(subbinary)) => subbinary.eq(proc_bin),
+            (Self::ProcBin(proc_bin), Self::MatchContext(match_context)) => {
+                match_context.eq(proc_bin)
+            }
+            (
+                Self::HeapBinary(self_boxed_heap_binary),
+                Self::HeapBinary(other_boxed_heap_binary),
+            ) => self_boxed_heap_binary
+                .as_ref()
+                .eq(other_boxed_heap_binary.as_ref()),
+            (Self::HeapBinary(boxed_heap_binary), Self::ProcBin(proc_bin)) => {
+                proc_bin.eq(boxed_heap_binary.as_ref())
+            }
+            (Self::HeapBinary(boxed_heap_binary), Self::SubBinary(subbinary)) => {
+                subbinary.eq(boxed_heap_binary.as_ref())
+            }
+            (Self::HeapBinary(boxed_heap_binary), Self::MatchContext(match_context)) => {
+                match_context.eq(boxed_heap_binary.as_ref())
+            }
+            (Self::SubBinary(subbinary), Self::ProcBin(proc_bin)) => subbinary.eq(proc_bin),
+            (Self::SubBinary(subbinary), Self::HeapBinary(boxed_heap_binary)) => {
+                subbinary.eq(boxed_heap_binary.as_ref())
+            }
+            (Self::SubBinary(subbinary), Self::MatchContext(match_context)) => {
+                subbinary.eq(match_context)
+            }
+            (Self::MatchContext(match_context), Self::ProcBin(proc_bin)) => {
+                match_context.eq(proc_bin)
+            }
+            (Self::MatchContext(match_context), Self::HeapBinary(boxed_heap_binary)) => {
+                match_context.eq(boxed_heap_binary.as_ref())
+            }
+            (Self::MatchContext(match_context), Self::SubBinary(subbinary)) => {
+                subbinary.eq(match_context)
+            }
             boxed => {
                 partial_eq_impl_boxed! { boxed =>
                     Self::List,
@@ -179,7 +215,6 @@ impl PartialEq<TypedTerm> for TypedTerm {
                     Self::ExternalReference,
                     Self::BigInteger,
                     Self::ProcBin,
-                    Self::HeapBinary,
                     Self::SubBinary,
                     Self::MatchContext,
                     Self::Closure,

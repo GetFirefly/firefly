@@ -79,24 +79,8 @@ impl<T: AsTerm> AsMut<T> for Boxed<T> {
     }
 }
 impl<T: Bitstring + AsTerm> Bitstring for Boxed<T> {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_ref().as_bytes()
-    }
-
     fn full_byte_len(&self) -> usize {
         self.as_ref().full_byte_len()
-    }
-
-    fn partial_byte_bit_len(&self) -> u8 {
-        self.as_ref().partial_byte_bit_len()
-    }
-
-    fn total_bit_len(&self) -> usize {
-        self.as_ref().total_bit_len()
-    }
-
-    fn total_byte_len(&self) -> usize {
-        self.as_ref().total_byte_len()
     }
 }
 impl<T: AsTerm> Deref for Boxed<T> {

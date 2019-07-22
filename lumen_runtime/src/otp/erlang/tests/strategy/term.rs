@@ -86,8 +86,8 @@ pub fn container(
 ) -> BoxedStrategy<Term> {
     prop_oneof![
         tuple::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
-        map::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
-        list::intermediate(element, size_range.clone(), arc_process.clone())
+        /*        map::intermediate(element.clone(), size_range.clone(), arc_process.clone()),
+         *        list::intermediate(element, size_range.clone(), arc_process.clone()) */
     ]
     .boxed()
 }
@@ -404,38 +404,24 @@ pub fn leaf(
     range_inclusive: RangeInclusive<usize>,
     arc_process: Arc<ProcessControlBlock>,
 ) -> BoxedStrategy<Term> {
-    let big_integer_arc_process = arc_process.clone();
-    let local_reference_arc_process = arc_process.clone();
-    let function_arc_process = arc_process.clone();
-    let float_arc_process = arc_process.clone();
-
-    let heap_binary_arc_process = arc_process.clone();
-    let heap_binary_size_range = range_inclusive.clone().into();
-
-    let subbinary_arc_process = arc_process.clone();
-
-    let external_pid_arc_process = arc_process.clone();
-
-    let small_integer_arc_process = arc_process.clone();
-
     prop_oneof![
         // TODO `BinaryAggregate`
-        integer::big(big_integer_arc_process),
-        local_reference(local_reference_arc_process),
-        function(function_arc_process),
-        float(float_arc_process),
+        integer::big(arc_process.clone()),
+        local_reference(arc_process.clone()),
+        function(arc_process.clone()),
+        float(arc_process.clone()),
         // TODO `Export`
         // TODO `ReferenceCountedBinary`
-        binary::heap::with_size_range(heap_binary_size_range, heap_binary_arc_process),
-        binary::sub(subbinary_arc_process),
-        pid::external(external_pid_arc_process),
+        binary::heap::with_size_range(range_inclusive.into(), arc_process.clone()),
+        binary::sub(arc_process.clone()),
+        pid::external(arc_process.clone()),
         // TODO `ExternalPort`
         // TODO `ExternalReference`
         Just(Term::NIL),
         pid::local(),
         // TODO `LocalPort`,
         atom(),
-        integer::small(small_integer_arc_process)
+        integer::small(arc_process.clone())
     ]
     .boxed()
 }

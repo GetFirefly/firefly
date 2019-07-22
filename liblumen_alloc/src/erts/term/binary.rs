@@ -3,7 +3,6 @@ mod match_context;
 mod process;
 mod sub;
 
-use core::cmp;
 use core::mem;
 use core::ptr;
 use core::slice;
@@ -17,12 +16,39 @@ pub use match_context::MatchContext;
 pub use process::ProcBin;
 pub use sub::{Original, SubBinary};
 
-pub trait Bitstring {
-    fn as_bytes(&self) -> &[u8];
+struct PartialByteBitIter {
+    byte: u8,
+    current_bit_offset: u8,
+    max_bit_offset: u8,
+}
 
-    /// The total number of full bytes, not including any final partial byte.
-    fn full_byte_len(&self) -> usize;
+impl PartialByteBitIter {
+    fn new(byte: u8, bit_len: u8) -> Self {
+        Self {
+            byte,
+            current_bit_offset: 0,
+            max_bit_offset: bit_len,
+        }
+    }
+}
 
+impl Iterator for PartialByteBitIter {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        if self.current_bit_offset == self.max_bit_offset {
+            None
+        } else {
+            let bit = (self.byte >> (7 - self.current_bit_offset)) & 0b1;
+
+            self.current_bit_offset += 1;
+
+            Some(bit)
+        }
+    }
+}
+
+pub trait MaybePartialByte {
     /// The number of bits in the partial byte.
     fn partial_byte_bit_len(&self) -> u8;
 
@@ -32,6 +58,252 @@ pub trait Bitstring {
     /// The total of number of bytes needed to hold `total_bit_len`
     fn total_byte_len(&self) -> usize;
 }
+
+pub trait Bitstring {
+    /// The total number of full bytes, not including any final partial byte.
+    fn full_byte_len(&self) -> usize;
+}
+
+/// A `BitString` that is guaranteed to always be a binary of aligned bytes
+pub trait AlignedBinary {
+    fn as_bytes(&self) -> &[u8];
+}
+
+// Has to have explicit types to prevent E0119: conflicting implementations of trait
+macro_rules! partial_eq_aligned_binary_aligned_binary {
+    ($o:tt for $s:tt) => {
+        impl PartialEq<$o> for $s {
+            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+            fn eq(&self, other: &$o) -> bool {
+                self.as_bytes().eq(other.as_bytes())
+            }
+        }
+    };
+}
+
+partial_eq_aligned_binary_aligned_binary!(HeapBin for HeapBin);
+// No (ProcBin for HeapBin) as we always reverse order to save space
+partial_eq_aligned_binary_aligned_binary!(HeapBin for ProcBin);
+partial_eq_aligned_binary_aligned_binary!(ProcBin for ProcBin);
+
+// Has to have explicit types to prevent E0119: conflicting implementations of trait
+macro_rules! partial_ord_aligned_binary_aligned_binary {
+    ($o:tt for $s:tt) => {
+        impl PartialOrd<$o> for $s {
+            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+            fn partial_cmp(&self, other: &$o) -> Option<core::cmp::Ordering> {
+                self.as_bytes().partial_cmp(other.as_bytes())
+            }
+        }
+    };
+}
+
+partial_ord_aligned_binary_aligned_binary!(HeapBin for HeapBin);
+// No (ProcBin for HeapBin) as we always reverse order to save space
+partial_ord_aligned_binary_aligned_binary!(HeapBin for ProcBin);
+partial_ord_aligned_binary_aligned_binary!(ProcBin for ProcBin);
+
+pub trait ByteIterator<'a>: ExactSizeIterator + DoubleEndedIterator + Iterator<Item = u8>
+where
+    Self: Sized,
+{
+}
+
+impl<'a> ByteIterator<'a> for core::iter::Copied<core::slice::Iter<'a, u8>> {}
+
+impl<A: AlignedBinary + Bitstring> MaybePartialByte for A {
+    fn partial_byte_bit_len(&self) -> u8 {
+        0
+    }
+
+    fn total_bit_len(&self) -> usize {
+        self.full_byte_len() * 8
+    }
+
+    fn total_byte_len(&self) -> usize {
+        self.full_byte_len()
+    }
+}
+
+pub trait IterableBitstring<'a, I: ByteIterator<'a>> {
+    fn full_byte_iter(&'a self) -> I;
+}
+
+impl<'a, A: AlignedBinary> IterableBitstring<'a, core::iter::Copied<core::slice::Iter<'a, u8>>>
+    for A
+{
+    fn full_byte_iter(&'a self) -> core::iter::Copied<core::slice::Iter<'a, u8>> {
+        self.as_bytes().iter().copied()
+    }
+}
+
+pub trait MaybeAlignedMaybeBinary {
+    type Iter: Iterator<Item = u8>;
+
+    unsafe fn as_bytes(&self) -> &[u8];
+
+    fn is_aligned(&self) -> bool;
+
+    fn is_binary(&self) -> bool;
+
+    fn partial_byte_bit_iter(&self) -> Self::Iter;
+}
+
+// Has to have explicit types to prevent E0119: conflicting implementations of trait
+macro_rules! partial_eq_aligned_binary_maybe_aligned_maybe_binary {
+    ($o:tt for $s:tt) => {
+        impl PartialEq<$o> for $s {
+            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+            fn eq(&self, other: &$o) -> bool {
+                if self.is_binary() {
+                    if self.is_aligned() {
+                        unsafe { self.as_bytes() }.eq(other.as_bytes())
+                    } else {
+                        self.full_byte_iter().eq(other.full_byte_iter())
+                    }
+                } else {
+                    false
+                }
+            }
+        }
+    };
+}
+
+partial_eq_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for MatchContext);
+partial_eq_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for MatchContext);
+partial_eq_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for SubBinary);
+partial_eq_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for SubBinary);
+
+// Has to have explicit types to prevent E0119: conflicting implementations of trait
+macro_rules! partial_ord_aligned_binary_maybe_aligned_maybe_binary {
+    ($o:tt for $s:tt) => {
+        impl PartialOrd<$o> for $s {
+            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+            fn partial_cmp(&self, other: &$o) -> Option<core::cmp::Ordering> {
+                use core::cmp::Ordering::*;
+
+                let mut self_full_byte_iter = self.full_byte_iter();
+                let mut other_full_byte_iter = other.full_byte_iter();
+                let mut partial_ordering = Some(Equal);
+
+                while let Some(Equal) = partial_ordering {
+                    match (self_full_byte_iter.next(), other_full_byte_iter.next()) {
+                        (Some(self_byte), Some(other_byte)) => {
+                            partial_ordering = self_byte.partial_cmp(&other_byte)
+                        }
+                        (None, Some(other_byte)) => {
+                            let partial_byte_bit_len = self.partial_byte_bit_len();
+
+                            partial_ordering =
+                                if partial_byte_bit_len > 0 {
+                                    self.partial_byte_bit_iter().partial_cmp(
+                                        PartialByteBitIter::new(other_byte, partial_byte_bit_len),
+                                    )
+                                } else {
+                                    Some(Less)
+                                };
+
+                            break;
+                        }
+                        (Some(_), None) => {
+                            partial_ordering = Some(Greater);
+
+                            break;
+                        }
+                        (None, None) => {
+                            if 0 < self.partial_byte_bit_len() {
+                                partial_ordering = Some(Greater);
+                            }
+
+                            break;
+                        }
+                    }
+                }
+
+                partial_ordering
+            }
+        }
+    };
+}
+
+partial_ord_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for MatchContext);
+partial_ord_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for MatchContext);
+partial_ord_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for SubBinary);
+partial_ord_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for SubBinary);
+
+// Has to have explicit types to prevent E0119: conflicting implementations of trait
+macro_rules! partial_eq_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary {
+    ($o:tt for $s:ty) => {
+        impl PartialEq<$o> for $s {
+            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+            fn eq(&self, other: &$o) -> bool {
+                if self.is_binary() && other.is_binary() {
+                    if self.is_aligned() && other.is_aligned() {
+                        unsafe { self.as_bytes().eq(other.as_bytes()) }
+                    } else {
+                        self.full_byte_iter().eq(other.full_byte_iter())
+                    }
+                } else {
+                    let bytes_equal = if self.is_aligned() && other.is_aligned() {
+                        unsafe { self.as_bytes().eq(other.as_bytes()) }
+                    } else {
+                        self.full_byte_iter().eq(other.full_byte_iter())
+                    };
+
+                    bytes_equal || {
+                        self.partial_byte_bit_iter()
+                            .eq(other.partial_byte_bit_iter())
+                    }
+                }
+            }
+        }
+    };
+}
+
+partial_eq_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(SubBinary for SubBinary);
+partial_eq_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(MatchContext for SubBinary);
+partial_eq_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(MatchContext for MatchContext);
+
+// Has to have explicit types to prevent E0119: conflicting implementations of trait
+macro_rules! partial_ord_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary {
+    ($o:tt for $s:ty) => {
+        impl PartialOrd<$o> for $s {
+            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+            fn partial_cmp(&self, other: &$o) -> Option<core::cmp::Ordering> {
+                if self.is_binary() && other.is_binary() {
+                    if self.is_aligned() && other.is_aligned() {
+                        unsafe { self.as_bytes().partial_cmp(other.as_bytes()) }
+                    } else {
+                        self.full_byte_iter().partial_cmp(other.full_byte_iter())
+                    }
+                } else {
+                    let bytes_partial_ordering = if self.is_aligned() && other.is_aligned() {
+                        unsafe { self.as_bytes().partial_cmp(other.as_bytes()) }
+                    } else {
+                        self.full_byte_iter().partial_cmp(other.full_byte_iter())
+                    };
+
+                    match bytes_partial_ordering {
+                        Some(core::cmp::Ordering::Equal) => self
+                            .partial_byte_bit_iter()
+                            .partial_cmp(other.partial_byte_bit_iter()),
+                        _ => bytes_partial_ordering,
+                    }
+                }
+            }
+        }
+    };
+}
+
+partial_ord_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(SubBinary for SubBinary);
+partial_ord_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(MatchContext for SubBinary);
+partial_ord_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(MatchContext for MatchContext);
 
 const FLAG_SHIFT: usize = mem::size_of::<usize>() * 8 - 2;
 const FLAG_IS_RAW_BIN: usize = 1 << FLAG_SHIFT;

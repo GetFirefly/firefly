@@ -1103,9 +1103,15 @@ impl Term {
         typecheck::is_heapbin(self.0)
     }
 
-    /// Returns true if this term is a sub-binary reference
-    #[inline]
+    /// Returns true if this term is a boxed sub-binary.
     pub fn is_subbinary(&self) -> bool {
+        typecheck::is_boxed(self.0)
+            && unsafe { &*constants::boxed_value(self.0) }.is_subbinary_header()
+    }
+
+    /// Returns true if this term is an unboxed sub-binary.
+    #[inline]
+    pub fn is_subbinary_header(&self) -> bool {
         typecheck::is_subbinary(self.0)
     }
 
@@ -1402,7 +1408,7 @@ impl fmt::Debug for Term {
                     } else {
                         write!(f, "Term(HeapBin({}))", bin.as_str())
                     }
-                } else if self.is_subbinary() {
+                } else if self.is_subbinary_header() {
                     let bin = &*(ptr as *const SubBinary);
                     write!(f, "Term(SubBinary({:?}))", bin)
                 } else if self.is_match_context() {

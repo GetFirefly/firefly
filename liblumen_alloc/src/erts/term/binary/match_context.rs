@@ -82,7 +82,7 @@ impl MatchBuffer {
                 let hb = unsafe { &*(bin_ptr as *mut HeapBin) };
                 (hb.bytes(), hb.full_byte_len() * 8, 0, 0, 0)
             } else {
-                assert!(bin.is_subbinary());
+                assert!(bin.is_subbinary_header());
                 let sb = unsafe { &*(bin_ptr as *mut SubBinary) };
                 (
                     sb.bytes(),

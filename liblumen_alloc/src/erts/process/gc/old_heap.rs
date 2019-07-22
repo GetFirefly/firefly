@@ -216,7 +216,7 @@ impl OldHeap {
         // is too large to build a heap binary, then the original must be a ProcBin,
         // so we don't need to worry about it being collected out from under us
         // TODO: Handle other subtype cases, see erl_gc.h:60
-        if header.is_subbinary() {
+        if header.is_subbinary_header() {
             let bin = &*(ptr as *mut SubBinary);
             // Convert to HeapBin if applicable
             if let Ok((bin_header, bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {

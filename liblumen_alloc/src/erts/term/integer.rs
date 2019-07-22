@@ -4,7 +4,7 @@ mod small;
 pub use big::*;
 pub use small::*;
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 
 use core::cmp::Ordering;
 use core::convert::TryInto;
@@ -86,7 +86,24 @@ impl Integer {
 impl From<BigInt> for Integer {
     #[inline]
     fn from(big_int: BigInt) -> Self {
-        Self::Big(BigInteger::new(big_int))
+        let small_min_big_int: BigInt = SmallInteger::MIN_VALUE.into();
+        let small_max_big_int: BigInt = SmallInteger::MAX_VALUE.into();
+
+        if (small_min_big_int <= big_int) && (big_int <= small_max_big_int) {
+            let (sign, bytes) = big_int.to_bytes_be();
+            let small_usize = bytes
+                .iter()
+                .fold(0_usize, |acc, byte| (acc << 8) | (*byte as usize));
+
+            let small_isize = match sign {
+                Sign::Minus => -1 * (small_usize as isize),
+                _ => small_usize as isize,
+            };
+
+            Integer::Small(SmallInteger(small_isize))
+        } else {
+            Integer::Big(BigInteger::new(big_int))
+        }
     }
 }
 impl From<BigInteger> for Integer {

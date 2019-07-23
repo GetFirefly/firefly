@@ -119,19 +119,19 @@ impl HeapAlloc for HeapFragment {
     /// will be pushed into a heap fragment which will then be later moved on to the
     /// process heap during garbage collection
     unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        let max_top = self.raw.data.add(self.raw.size) as *mut Term;
+        let top_limit = self.raw.data.add(self.raw.size) as *mut Term;
         let top = self.top as *mut Term;
-        let available = distance_absolute(max_top, top);
+        let available = distance_absolute(top_limit, top);
 
         if need > available {
             return Err(AllocErr);
         }
 
         let new_top = top.add(need);
-        debug_assert!(new_top <= max_top);
+        debug_assert!(new_top <= top_limit);
         self.top = new_top as *mut u8;
 
-        Ok(NonNull::new_unchecked(new_top))
+        Ok(NonNull::new_unchecked(top))
     }
 
     /// Returns true if the given pointer is owned by this process/heap

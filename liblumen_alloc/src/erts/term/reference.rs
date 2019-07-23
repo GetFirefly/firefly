@@ -63,7 +63,6 @@ impl CloneToProcess for Reference {
             let ptr = heap.alloc(word_size)?.as_ptr() as *mut Self;
             let byte_size = mem::size_of_val(self);
             ptr::copy_nonoverlapping(self as *const Self, ptr, byte_size);
-            dbg!(ptr);
 
             Ok(Term::make_boxed(ptr))
         }

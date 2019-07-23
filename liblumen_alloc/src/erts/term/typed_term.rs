@@ -433,7 +433,7 @@ impl CloneToProcess for TypedTerm {
             &Self::List(ref inner) => inner.size_in_words(),
             &Self::Tuple(ref inner) => inner.size_in_words(),
             &Self::Map(ref inner) => inner.size_in_words(),
-            &Self::Boxed(ref inner) => inner.size_in_words(),
+            &Self::Boxed(ref inner) => inner.to_typed_term().unwrap().size_in_words(),
             &Self::Reference(ref inner) => inner.size_in_words(),
             &Self::ExternalPid(ref inner) => inner.size_in_words(),
             &Self::ExternalPort(ref inner) => inner.size_in_words(),

@@ -39,7 +39,7 @@ impl Float {
     pub fn new(value: f64) -> Self {
         Self {
             header: Term::make_header(Self::ARITYVAL, Term::FLAG_FLOAT),
-            value,
+            value: Self::clamp_value(value),
         }
     }
 

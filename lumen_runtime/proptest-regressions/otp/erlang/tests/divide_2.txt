@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 670e4e170a10b39d1d00a91ea41c55bd4f8b6a4e800a912a37c543274c1ee7e0 # shrinks to (Term(Boxed(0x1079c5e98 => Term(HeapBin([])))), Term(Boxed(0x1079c5ea8 => Term(-576460752303423490))))
+cc 226eb6a092e611daf2e849e8d9969c2ad9824d992fed32a75cd6c56c8db66d46 # shrinks to (Term(Boxed(0x108102de0 => Term(-576460752303423490))), Term(Boxed(0x108102e08 => Term(Tuple))))

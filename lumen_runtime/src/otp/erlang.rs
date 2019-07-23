@@ -792,8 +792,8 @@ pub fn divide_2(
     divisor: Term,
     process_control_block: &ProcessControlBlock,
 ) -> Result {
-    let dividend_f64: f64 = dividend.try_into()?;
-    let divisor_f64: f64 = divisor.try_into()?;
+    let dividend_f64: f64 = dividend.try_into().map_err(|_| badarith!())?;
+    let divisor_f64: f64 = divisor.try_into().map_err(|_| badarith!())?;
 
     if divisor_f64 == 0.0 {
         Err(badarith!().into())

@@ -119,16 +119,18 @@ impl HeapAlloc for HeapFragment {
     /// will be pushed into a heap fragment which will then be later moved on to the
     /// process heap during garbage collection
     unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        let base = self.raw.data as *mut Term;
+        let max_top = self.raw.data.add(self.raw.size) as *mut Term;
         let top = self.top as *mut Term;
-        let available = distance_absolute(top, base);
+        let available = distance_absolute(max_top, top);
+
         if need > available {
             return Err(AllocErr);
         }
 
-        let new_top = base.offset(need as isize);
-        debug_assert!(new_top <= self.raw.data.offset(self.raw.size as isize) as *mut Term);
+        let new_top = top.add(need);
+        debug_assert!(new_top <= max_top);
         self.top = new_top as *mut u8;
+
         Ok(NonNull::new_unchecked(new_top))
     }
 

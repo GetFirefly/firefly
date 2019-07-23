@@ -6,7 +6,6 @@ pub mod start;
 use core::alloc::AllocErr;
 use core::cmp::Ordering::{self, *};
 use core::ops::{Index, IndexMut, RangeBounds};
-use core::ptr::NonNull;
 use core::result::Result;
 
 use alloc::sync::{Arc, Weak};
@@ -16,13 +15,12 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::Mutex;
 
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::term::{atom_unchecked, reference, Atom, Reference, Term};
 use liblumen_alloc::CloneToProcess;
 use liblumen_alloc::ProcessControlBlock;
 
 use crate::registry;
-use crate::scheduler::{self, Scheduled, Scheduler};
+use crate::scheduler::{Scheduled, Scheduler};
 use crate::time::monotonic::{self, Milliseconds};
 
 pub fn cancel(timer_reference: &Reference) -> Option<Milliseconds> {
@@ -64,7 +62,7 @@ pub fn start(
 pub fn timeout() -> Result<(), AllocErr> {
     let scheduler = Scheduler::current();
 
-    let result = scheduler.hierarchy.write().timeout(&scheduler.id);
+    let result = scheduler.hierarchy.write().timeout();
 
     result
 }
@@ -149,16 +147,27 @@ impl Hierarchy {
         scheduler: &Scheduler,
     ) -> Result<Term, AllocErr> {
         let reference_number = scheduler.next_reference_number();
-        let reference =
+        let process_reference =
             process_control_block.reference_from_scheduler(scheduler.id, reference_number)?;
-        let (heap_fragment_message, heap_fragment) = process_message.clone_to_fragment()?;
+        let (heap_fragment_message, heap_fragment) = match timeout {
+            Timeout::Message => process_message.clone_to_fragment()?,
+            Timeout::TimeoutTuple => {
+                let tag = atom_unchecked("timeout");
+                let process_tuple = process_control_block.tuple_from_slice(&[
+                    tag,
+                    process_reference,
+                    process_message,
+                ])?;
+
+                process_tuple.clone_to_fragment()?
+            }
+        };
         let position = self.position(monotonic_time_milliseconds);
 
         let timer = Timer {
             reference_number,
             monotonic_time_milliseconds,
             destination,
-            timeout,
             message_heap: Mutex::new(message::HeapFragment {
                 heap_fragment,
                 term: heap_fragment_message,
@@ -180,17 +189,17 @@ impl Hierarchy {
         self.timer_by_reference_number
             .insert(reference_number, cancellable);
 
-        Ok(reference)
+        Ok(process_reference)
     }
 
-    pub fn timeout(&mut self, scheduler_id: &scheduler::ID) -> Result<(), AllocErr> {
-        self.timeout_at_once(scheduler_id)?;
+    pub fn timeout(&mut self) -> Result<(), AllocErr> {
+        self.timeout_at_once()?;
 
         let monotonic_time_milliseconds = monotonic::time_in_milliseconds();
         let milliseconds = monotonic_time_milliseconds - self.soon.slot_monotonic_time_milliseconds;
 
         for _ in 0..milliseconds {
-            self.timeout_soon_slot(&scheduler_id)?;
+            self.timeout_soon_slot()?;
 
             assert!(self.soon.is_empty());
             self.soon.next_slot();
@@ -220,34 +229,31 @@ impl Hierarchy {
         Ok(())
     }
 
-    fn timeout_at_once(&mut self, scheduler_id: &scheduler::ID) -> Result<(), AllocErr> {
+    fn timeout_at_once(&mut self) -> Result<(), AllocErr> {
         for arc_timer in self.at_once.drain(..) {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
 
-            Self::timeout_arc_timer(arc_timer, scheduler_id)?;
+            Self::timeout_arc_timer(arc_timer)?;
         }
 
         Ok(())
     }
 
-    fn timeout_soon_slot(&mut self, scheduler_id: &scheduler::ID) -> Result<(), AllocErr> {
+    fn timeout_soon_slot(&mut self) -> Result<(), AllocErr> {
         for arc_timer in self.soon.drain(..) {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
 
-            Self::timeout_arc_timer(arc_timer, scheduler_id)?;
+            Self::timeout_arc_timer(arc_timer)?;
         }
 
         Ok(())
     }
 
-    fn timeout_arc_timer(
-        arc_timer: Arc<Timer>,
-        scheduler_id: &scheduler::ID,
-    ) -> Result<(), AllocErr> {
+    fn timeout_arc_timer(arc_timer: Arc<Timer>) -> Result<(), AllocErr> {
         match Arc::try_unwrap(arc_timer) {
-            Ok(timer) => timer.timeout(scheduler_id),
+            Ok(timer) => timer.timeout(),
             Err(_) => panic!("Timer Dropped"),
         }
     }
@@ -369,46 +375,26 @@ struct Timer {
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,
     message_heap: Mutex<message::HeapFragment>,
-    timeout: Timeout,
     position: Mutex<Position>,
 }
 
 impl Timer {
-    fn timeout(self, scheduler_id: &scheduler::ID) -> Result<(), AllocErr> {
+    fn timeout(self) -> Result<(), AllocErr> {
         let option_destination_arc_process = match &self.destination {
             Destination::Name(ref name) => registry::atom_to_process(name),
             Destination::Process(destination_process_weak) => destination_process_weak.upgrade(),
         };
 
         if let Some(destination_arc_process) = option_destination_arc_process {
-            let (heap_fragment, timeout_message) = self.timeout_message(scheduler_id)?;
+            let message::HeapFragment {
+                heap_fragment,
+                term,
+            } = self.message_heap.into_inner();
 
-            destination_arc_process.send_heap_message(heap_fragment, timeout_message)
+            destination_arc_process.send_heap_message(heap_fragment, term)
         } else {
             Ok(())
         }
-    }
-
-    fn timeout_message(
-        self,
-        scheduler_id: &scheduler::ID,
-    ) -> Result<(NonNull<liblumen_alloc::erts::HeapFragment>, Term), AllocErr> {
-        let mut message_heap = self.message_heap.into_inner();
-
-        let message = match self.timeout {
-            Timeout::Message => message_heap.term,
-            Timeout::TimeoutTuple => {
-                let scheduler = Scheduler::from_id(scheduler_id).unwrap();
-                let reference_number = scheduler.next_reference_number();
-                let tag = atom_unchecked("timeout");
-                let heap_fragment = unsafe { message_heap.heap_fragment.as_mut() };
-                let reference = heap_fragment.reference(*scheduler_id, reference_number)?;
-
-                heap_fragment.tuple_from_slice(&[tag, reference])?
-            }
-        };
-
-        Ok((message_heap.heap_fragment, message))
     }
 }
 

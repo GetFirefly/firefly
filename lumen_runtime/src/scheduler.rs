@@ -101,7 +101,7 @@ impl Scheduler {
     /// > 8. Pick a process to execute
     /// > -- [The Scheduler Loop](https://blog.stenmans.org/theBeamBook/#_the_scheduler_loop)
     fn run_once(&self) {
-        match self.hierarchy.write().timeout(&self.id) {
+        match self.hierarchy.write().timeout() {
             Ok(()) => (),
             Err(_) => unimplemented!(
                 "GC _everything_ to get free space for `Messages.alloc` during `send_message`"

@@ -262,11 +262,14 @@ impl PartialOrd for Tuple {
 }
 impl fmt::Debug for Tuple {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("Tuple(")?;
+        let mut debug_tuple = f.debug_tuple("Tuple");
+        let mut debug_tuple_ref = &mut debug_tuple;
+
         for element in self.iter() {
-            f.write_fmt(format_args!("{:?}", element.as_usize()))?;
+            debug_tuple_ref = debug_tuple_ref.field(&element);
         }
-        f.write_str(")")
+
+        debug_tuple_ref.finish()
     }
 }
 

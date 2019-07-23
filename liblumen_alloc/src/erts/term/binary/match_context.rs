@@ -15,7 +15,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::term::term::Term;
 use crate::erts::term::{
-    follow_moved, to_word_size, AsTerm, HeapBin, IterableBitstring, ProcBin, SubBinary,
+    arity_of, follow_moved, to_word_size, AsTerm, HeapBin, IterableBitstring, ProcBin, SubBinary,
 };
 use crate::erts::HeapAlloc;
 
@@ -121,14 +121,15 @@ impl MatchContext {
     #[inline]
     pub fn new(orig: Term) -> Self {
         let buffer = MatchBuffer::start_match(orig);
+
         let save_offset = if buffer.bit_offset > 0 {
             Some(buffer.bit_offset)
         } else {
             None
         };
-        let arityval = to_word_size(mem::size_of::<Self>() - mem::size_of::<Term>());
+
         Self {
-            header: Term::make_header(arityval, Term::FLAG_MATCH_CTX),
+            header: Term::make_header(arity_of::<Self>(), Term::FLAG_MATCH_CTX),
             buffer,
             save_offset,
         }

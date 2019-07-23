@@ -12,7 +12,8 @@ use super::{AsTerm, Term};
 use crate::borrow::CloneToProcess;
 use crate::erts::process::code::stack::frame::Frame;
 use crate::erts::process::code::Code;
-use crate::erts::{to_word_size, HeapAlloc, ModuleFunctionArity};
+use crate::erts::term::{arity_of, to_word_size};
+use crate::erts::{HeapAlloc, ModuleFunctionArity};
 
 pub struct Closure {
     header: Term,
@@ -26,13 +27,15 @@ pub struct Closure {
 
 impl Closure {
     pub fn new(module_function_arity: Arc<ModuleFunctionArity>, code: Code, creator: Term) -> Self {
+        let env_len = 0;
+
         Self {
-            header: Term::make_header(arity, Term::FLAG_CLOSURE),
+            header: Term::make_header(Self::arity(env_len), Term::FLAG_CLOSURE),
             creator,
             module_function_arity,
             code,
             next: ptr::null_mut(),
-            env_len: 0,
+            env_len,
             env: ptr::null_mut(),
         }
     }
@@ -45,12 +48,9 @@ impl Closure {
         Frame::new(Arc::clone(&self.module_function_arity), self.code)
     }
 
-    /// The size of the non-header fields in bytes
-    const ARITY_IN_BYTES: usize = mem::size_of::<Self>() - mem::size_of::<Term>();
-
     /// The size of the non-header fields in words
-    fn arity() -> usize {
-        to_word_size(Self::ARITY_IN_BYTES)
+    fn arity(env_len: usize) -> usize {
+        arity_of::<Self>() + env_len
     }
 }
 

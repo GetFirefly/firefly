@@ -5,10 +5,8 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::term::{arity_of, AsTerm, Term};
 use crate::erts::{scheduler, HeapAlloc, Node};
-
-use super::{AsTerm, Term};
-use crate::to_word_size;
 
 pub type Number = u64;
 
@@ -24,7 +22,7 @@ impl Reference {
     /// Create a new `Reference` struct
     pub fn new(scheduler_id: scheduler::ID, number: Number) -> Self {
         Self {
-            header: Term::make_header(arity(), Term::FLAG_REFERENCE),
+            header: Term::make_header(arity_of::<Self>(), Term::FLAG_REFERENCE),
             scheduler_id,
             number,
         }
@@ -49,14 +47,6 @@ impl Reference {
 
     pub fn number(&self) -> Number {
         self.number
-    }
-
-    /// The size of the non-header fields in bytes
-    const ARITY_IN_BYTES: usize = mem::size_of::<Self>() - mem::size_of::<Term>();
-
-    /// The size of the non-header fields in words
-    fn arity() -> usize {
-        to_word_size(Self::ARITY_IN_BYTES)
     }
 }
 

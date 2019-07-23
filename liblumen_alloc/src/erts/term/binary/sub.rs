@@ -277,17 +277,9 @@ impl SubBinary {
         }
     }
 
-    /// The size of the non-header fields in bytes
-    const ARITY_IN_BYTES: usize = mem::size_of::<Self>() - mem::size_of::<Term>();
-
-    /// The size of the non-header fields in words
-    fn arity() -> usize {
-        to_word_size(Self::ARITY_IN_BYTES)
-    }
-
     #[inline]
     fn header() -> Term {
-        Term::make_header(arity(), Term::FLAG_SUBBINARY)
+        Term::make_header(arity_of::<Self>(), Term::FLAG_SUBBINARY)
     }
 }
 

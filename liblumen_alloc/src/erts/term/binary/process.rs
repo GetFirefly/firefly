@@ -17,7 +17,7 @@ use crate::erts::exception::runtime;
 use crate::erts::process::ProcessControlBlock;
 use crate::erts::term::binary::heap::HeapBin;
 use crate::erts::term::binary::sub::{Original, SubBinary};
-use crate::erts::term::{to_word_size, AsTerm, Boxed, MatchContext, Term};
+use crate::erts::term::{arity_of, AsTerm, Boxed, MatchContext, Term};
 use crate::erts::HeapAlloc;
 
 use super::{
@@ -187,9 +187,8 @@ impl ProcBin {
             );
             ptr::copy_nonoverlapping(s.as_ptr(), bytes, full_byte_len);
 
-            let arityval = to_word_size(mem::size_of::<Self>() - mem::size_of::<Term>());
             Ok(Self {
-                header: Term::make_header(arityval, Term::FLAG_PROCBIN),
+                header: Term::make_header(arity_of::<Self>(), Term::FLAG_PROCBIN),
                 inner: NonNull::new_unchecked(header_ptr),
                 link: LinkedListLink::new(),
             })
@@ -219,9 +218,8 @@ impl ProcBin {
             );
             ptr::copy_nonoverlapping(s.as_ptr(), bytes, size);
 
-            let arityval = to_word_size(mem::size_of::<Self>() - mem::size_of::<Term>());
             Ok(Self {
-                header: Term::make_header(arityval, Term::FLAG_PROCBIN),
+                header: Term::make_header(arity_of::<Self>(), Term::FLAG_PROCBIN),
                 inner: NonNull::new_unchecked(header_ptr),
                 link: LinkedListLink::new(),
             })

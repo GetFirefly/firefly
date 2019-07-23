@@ -209,9 +209,9 @@ pub(crate) fn to_word_size(bytes: usize) -> usize {
     round_up_to_multiple_of(bytes, mem::size_of::<usize>()) / mem::size_of::<usize>()
 }
 
-/// Returns the size in words required to hold a value of type `T`
+/// Returns the size in words required to hold the non-header fields of type `T`
 #[inline]
-pub(crate) fn word_size_of<T: Sized>() -> usize {
+pub(crate) fn arity_of<T: Sized>() -> usize {
     use core::mem;
-    to_word_size(mem::size_of::<T>())
+    to_word_size(mem::size_of::<T>() - mem::size_of::<Term>())
 }

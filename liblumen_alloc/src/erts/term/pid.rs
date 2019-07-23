@@ -14,9 +14,7 @@ use lazy_static::lazy_static;
 use crate::borrow::CloneToProcess;
 use crate::erts::{HeapAlloc, Node};
 
-use super::{AsTerm, Term};
-use crate::erts::term::{TypeError, TypedTerm};
-use crate::to_word_size;
+use crate::erts::term::{arity_of, AsTerm, Term, TypeError, TypedTerm};
 
 /// Generates the next `Pid`.  `Pid`s are not reused for the lifetime of the VM.
 pub fn next() -> Pid {
@@ -112,9 +110,7 @@ impl ExternalPid {
 
     fn new(node: Node, number: usize, serial: usize) -> Result<Self, OutOfRange> {
         let pid = Pid::new(number, serial)?;
-
-        let arity = to_word_size(mem::size_of::<ExternalPid>() - mem::size_of::<Term>());
-        let header = Term::make_header(arity, Term::FLAG_EXTERN_PID);
+        let header = Term::make_header(arity_of::<Self>(), Term::FLAG_EXTERN_PID);
 
         Ok(Self {
             header,

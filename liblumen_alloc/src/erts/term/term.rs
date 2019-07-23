@@ -686,10 +686,13 @@ impl Term {
     /// Represents the catch flag
     pub const CATCH: Self = Self(Self::FLAG_CATCH);
 
-    /// Creates a header term from a raw usize value and a tag (e.g. FLAG_PROCBIN)
+    /// Creates a header term from an arity and a tag (e.g. FLAG_PROCBIN)
+    ///
+    /// The `arity` is the number of _extra_ `core::mem::size_of::<Term>` that struct takes.  It
+    /// *DOES NOT* include the `core::mem::size_of::<Term>` size of this header itself.
     #[inline]
-    pub const fn make_header(value: usize, tag: usize) -> Self {
-        Self(constants::make_header(value, tag))
+    pub const fn make_header(arity: usize, tag: usize) -> Self {
+        Self(constants::make_header(arity, tag))
     }
 
     /// Creates a boxed term from a pointer to the inner term

@@ -30,7 +30,7 @@ impl BigInteger {
             Sign::NoSign | Sign::Plus => Term::FLAG_POS_BIG_INTEGER,
             Sign::Minus => Term::FLAG_NEG_BIG_INTEGER,
         };
-        let arity = to_word_size(mem::size_of_val(&value));
+        let arity = to_word_size(mem::size_of_val(&value) - mem::size_of::<Term>());
         let header = Term::make_header(arity, flag);
         Self { header, value }
     }

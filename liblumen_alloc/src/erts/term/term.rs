@@ -440,7 +440,7 @@ mod typecheck {
     /// Returns true if this term is an atom
     #[inline]
     pub fn is_atom(term: usize) -> bool {
-        is_immediate2(term) && constants::immediate1_tag(term) == constants::FLAG_ATOM
+        is_immediate2(term) && constants::immediate2_tag(term) == constants::FLAG_ATOM
     }
 
     /// Returns true if this term is a small integer (i.e. fits in a usize)

@@ -25,12 +25,9 @@ pub struct Closure {
 }
 
 impl Closure {
-    // The size of the non-header fields in bytes
-    const ARITYVAL: usize = mem::size_of::<Self>() - mem::size_of::<Term>();
-
     pub fn new(module_function_arity: Arc<ModuleFunctionArity>, code: Code, creator: Term) -> Self {
         Self {
-            header: Term::make_header(Self::ARITYVAL, Term::FLAG_CLOSURE),
+            header: Term::make_header(arity, Term::FLAG_CLOSURE),
             creator,
             module_function_arity,
             code,
@@ -46,6 +43,14 @@ impl Closure {
 
     pub fn frame(&self) -> Frame {
         Frame::new(Arc::clone(&self.module_function_arity), self.code)
+    }
+
+    /// The size of the non-header fields in bytes
+    const ARITY_IN_BYTES: usize = mem::size_of::<Self>() - mem::size_of::<Term>();
+
+    /// The size of the non-header fields in words
+    fn arity() -> usize {
+        to_word_size(Self::ARITY_IN_BYTES)
     }
 }
 

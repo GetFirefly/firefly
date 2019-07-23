@@ -7,7 +7,7 @@ fn with_float_divisor_without_underflow_or_overflow_returns_float() {
 
         assert_eq!(
             erlang::divide_2(dividend, divisor, &process),
-            Ok(process.float(5.0).unwrap())
+            Ok(process.float(0.5).unwrap())
         );
     })
 }

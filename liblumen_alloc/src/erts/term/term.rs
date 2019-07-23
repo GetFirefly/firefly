@@ -1363,12 +1363,12 @@ impl fmt::Debug for Term {
             }
         } else if self.is_non_empty_list() {
             let ptr = self.list_val();
-            let cons = unsafe { *ptr };
+            let cons = unsafe { &*ptr };
             if cons.is_move_marker() {
-                let to = cons.tail.list_val();
+                let to = unsafe { &*cons.tail.list_val() };
                 write!(f, "Term(Moved({:?} => {:?}))", ptr, to)
             } else {
-                write!(f, "Term(List({:?}))", ptr)
+                write!(f, "Term({:?})", cons)
             }
         } else if self.is_immediate() {
             if self.is_atom() {

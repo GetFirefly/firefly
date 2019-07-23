@@ -1,6 +1,7 @@
 use core::alloc::{AllocErr, Layout};
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
+use core::fmt::{self, Debug};
 use core::iter::FusedIterator;
 use core::mem;
 use core::ptr;
@@ -54,7 +55,7 @@ impl<P, I> MaybeImproper<P, I> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct Cons {
     pub head: Term,
@@ -141,6 +142,11 @@ unsafe impl AsTerm for Cons {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::make_list(self as *const Self)
+    }
+}
+impl Debug for Cons {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[{:?} | {:?}]", self.head, self.tail)
     }
 }
 impl PartialEq<Cons> for Cons {

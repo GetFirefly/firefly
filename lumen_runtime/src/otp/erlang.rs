@@ -726,7 +726,7 @@ pub fn concatenate_2(
             .collect::<std::result::Result<Vec<Term>, _>>()
         {
             Ok(vec) => process_control_block
-                .list_from_slice(&vec)
+                .improper_list_from_slice(&vec, term)
                 .map_err(|error| error.into()),
             Err(ImproperList { .. }) => Err(badarg!().into()),
         },

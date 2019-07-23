@@ -1,4 +1,5 @@
 use core::alloc::{AllocErr, Layout};
+use core::fmt::{self, Debug};
 use core::mem;
 use core::ptr::{self, NonNull};
 
@@ -10,7 +11,6 @@ use crate::std_alloc;
 // This adapter is used to track a queue of messages, attach to a process's mailbox.
 intrusive_adapter!(pub Adapter = UnsafeRef<Message>: Message { link: LinkedListLink });
 
-#[derive(Debug)]
 pub struct Message {
     header: usize,
     link: LinkedListLink,
@@ -62,6 +62,21 @@ impl Message {
     #[inline]
     pub fn data(&self) -> Term {
         self.data
+    }
+}
+
+impl Debug for Message {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let formatted_header = if self.is_off_heap() {
+            "Self::FLAG_STORAGE_OFF_HEAP"
+        } else {
+            "Self::FLAG_STORAGE_ON_HEAP"
+        };
+
+        f.debug_struct("Message")
+            .field("header", &format_args!("{}", formatted_header))
+            .field("data", &self.data)
+            .finish()
     }
 }
 

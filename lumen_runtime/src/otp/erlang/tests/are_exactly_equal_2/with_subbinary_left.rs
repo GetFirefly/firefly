@@ -4,22 +4,22 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_binary_right_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::binary::sub(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be a binary", |v| !v.is_binary()),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                )
+            }),
+            |(left, right)| {
+                prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]

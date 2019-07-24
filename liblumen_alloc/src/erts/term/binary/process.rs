@@ -1,6 +1,7 @@
 use core::alloc::{AllocErr, Layout};
 use core::cmp;
 use core::convert::TryInto;
+use core::fmt::{self, Debug};
 use core::mem;
 use core::ptr::{self, NonNull};
 use core::slice;
@@ -65,6 +66,16 @@ impl ProcBinInner {
     #[inline]
     fn is_utf8(&self) -> bool {
         self.flags & FLAG_MASK == FLAG_IS_UTF8_BIN
+    }
+}
+
+impl Debug for ProcBinInner {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ProcBinInner")
+            .field("refc", &self.refc)
+            .field("flags", &format_args!("{:#b}", self.flags))
+            .field("bytes", &self.bytes)
+            .finish()
     }
 }
 

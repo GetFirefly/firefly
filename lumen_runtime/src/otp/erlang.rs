@@ -414,13 +414,13 @@ pub fn binary_to_integer_1<'process>(
     binary: Term,
     process_control_block: &'process ProcessControlBlock,
 ) -> Result {
-    let mut heap: MutexGuard<'process, _> = process_control_block.acquire_heap();
+    let mut heap = process_control_block.acquire_heap();
     let s: &str = heap.str_from_binary(binary)?;
     let bytes = s.as_bytes();
 
     match BigInt::parse_bytes(bytes, 10) {
         Some(big_int) => {
-            let term = process_control_block.integer(big_int)?;
+            let term = heap.integer(big_int)?;
 
             Ok(term)
         }

@@ -442,7 +442,7 @@ pub fn binary_to_integer_2<'process>(
 
         match BigInt::parse_bytes(bytes, radix as u32) {
             Some(big_int) => {
-                let term = process_control_block.integer(big_int)?;
+                let term = heap.integer(big_int)?;
 
                 Ok(term)
             }

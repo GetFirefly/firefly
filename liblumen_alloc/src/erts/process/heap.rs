@@ -3,7 +3,7 @@ use core::ptr::NonNull;
 
 use crate::erts::term::{ProcBin, Term};
 
-use super::alloc::{self, HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
+use super::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use super::gc::*;
 use super::ProcessControlBlock;
 
@@ -62,20 +62,6 @@ impl ProcessHeap {
         let mut gc = GarbageCollector::new(self, process, rootset);
         // Run the collector
         gc.collect(need)
-    }
-}
-impl Drop for ProcessHeap {
-    fn drop(&mut self) {
-        // Free young heap
-        let young_heap_start = self.young.heap_start();
-        let young_heap_size = self.young.size();
-        unsafe { alloc::free(young_heap_start, young_heap_size) };
-        // Free old heap, if active
-        if self.old.active() {
-            let old_heap_start = self.old.heap_start();
-            let old_heap_size = self.old.size();
-            unsafe { alloc::free(old_heap_start, old_heap_size) };
-        }
     }
 }
 impl HeapAlloc for ProcessHeap {

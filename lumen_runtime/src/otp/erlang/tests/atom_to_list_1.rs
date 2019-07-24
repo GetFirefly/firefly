@@ -25,10 +25,10 @@ fn with_atom_returns_chars_in_list() {
             .run(
                 &any::<String>().prop_map(|string| (atom_unchecked(&string), string)),
                 |(atom, string)| {
-                    let mut heap = arc_process.acquire_heap();
-
-                    let codepoint_terms: Vec<Term> =
-                        string.chars().map(|c| heap.integer(c).unwrap()).collect();
+                    let codepoint_terms: Vec<Term> = string
+                        .chars()
+                        .map(|c| arc_process.integer(c).unwrap())
+                        .collect();
 
                     prop_assert_eq!(
                         erlang::atom_to_list_1(atom, &arc_process),

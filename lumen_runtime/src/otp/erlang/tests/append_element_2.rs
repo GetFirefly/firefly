@@ -2,24 +2,25 @@ use super::*;
 
 #[test]
 fn without_tuple_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
+                    Just(arc_process.clone()),
                     strategy::term::is_not_tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                ),
-                |(tuple, element)| {
-                    prop_assert_eq!(
-                        erlang::append_element_2(tuple, element, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    strategy::term(arc_process),
+                )
+            }),
+            |(arc_process, tuple, element)| {
+                prop_assert_eq!(
+                    erlang::append_element_2(tuple, element, &arc_process),
+                    Err(badarg!().into())
+                );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]

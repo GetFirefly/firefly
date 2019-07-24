@@ -42,7 +42,7 @@ pub fn register_in(
     }
 }
 
-pub fn init() -> Result<ProcessControlBlock, AllocErr> {
+pub fn init(minimum_heap_size: usize) -> Result<ProcessControlBlock, AllocErr> {
     let init = Atom::try_from_str("init").unwrap();
     let module_function_arity = Arc::new(ModuleFunctionArity {
         module: init,
@@ -50,7 +50,8 @@ pub fn init() -> Result<ProcessControlBlock, AllocErr> {
         arity: 0,
     });
 
-    let (heap, heap_size) = process::default_heap()?;
+    let heap_size = process::next_heap_size(minimum_heap_size);
+    let heap = process::heap(heap_size)?;
 
     let process = ProcessControlBlock::new(
         Default::default(),
@@ -137,7 +138,15 @@ pub fn spawn(
 pub fn test_init() -> Arc<ProcessControlBlock> {
     // During test allow multiple unregistered init processes because in tests, the `Scheduler`s
     // keep getting `Drop`ed as threads end.
-    Scheduler::current().spawn_init().unwrap()
+
+    Scheduler::current()
+        .spawn_init(
+            // init process being the parent process needs space for the arguments when spawning
+            // child processes.  These will not be GC'd, so it can be a lot of space if proptest
+            // needs to generate a lot of processes.
+            16_000,
+        )
+        .unwrap()
 }
 
 #[cfg(test)]

@@ -196,8 +196,11 @@ impl Scheduler {
         Ok(arc_process)
     }
 
-    pub fn spawn_init(self: Arc<Scheduler>) -> Result<Arc<ProcessControlBlock>, AllocErr> {
-        let process = process::init()?;
+    pub fn spawn_init(
+        self: Arc<Scheduler>,
+        minimum_heap_size: usize,
+    ) -> Result<Arc<ProcessControlBlock>, AllocErr> {
+        let process = process::init(minimum_heap_size)?;
         let arc_process = Arc::new(process);
         let scheduler_arc_process = Arc::clone(&arc_process);
 

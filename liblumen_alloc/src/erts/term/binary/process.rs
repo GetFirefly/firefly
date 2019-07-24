@@ -159,44 +159,13 @@ impl ProcBin {
 
     /// Creates a new procbin from a str slice, by copying it to the heap
     pub fn from_str(s: &str) -> Result<Self, AllocErr> {
-        use liblumen_core::sys::alloc as sys_alloc;
+        let binary_type = BinaryType::from_str(s);
 
-        let full_byte_len = s.len();
-        let (layout, _) = Layout::new::<ProcBinInner>()
-            .extend(unsafe {
-                Layout::from_size_align_unchecked(full_byte_len, mem::align_of::<u8>())
-            })
-            .unwrap();
-        let ptr = unsafe { sys_alloc::alloc(layout)?.as_ptr() };
-        let header_ptr = ptr as *mut ProcBinInner;
-        unsafe {
-            // For efficient checks on binary type later, store flags in the pointer
-            let bytes = ptr.offset(1) as *mut u8;
-            let flags = if s.is_ascii() {
-                FLAG_IS_LATIN1_BIN
-            } else {
-                FLAG_IS_UTF8_BIN
-            };
-            ptr::write(
-                ptr as *mut ProcBinInner,
-                ProcBinInner {
-                    refc: AtomicUsize::new(1),
-                    flags: full_byte_len | flags,
-                    bytes,
-                },
-            );
-            ptr::copy_nonoverlapping(s.as_ptr(), bytes, full_byte_len);
-
-            Ok(Self {
-                header: Term::make_header(arity_of::<Self>(), Term::FLAG_PROCBIN),
-                inner: NonNull::new_unchecked(header_ptr),
-                link: LinkedListLink::new(),
-            })
-        }
+        Self::from_slice(s.as_bytes(), binary_type)
     }
 
     /// Creates a new procbin from a raw byte slice, by copying it to the heap
-    pub fn from_slice(s: &[u8]) -> Result<Self, AllocErr> {
+    pub fn from_slice(s: &[u8], binary_type: BinaryType) -> Result<Self, AllocErr> {
         use liblumen_core::sys::alloc as sys_alloc;
 
         let size = s.len();
@@ -212,7 +181,7 @@ impl ProcBin {
                 ptr as *mut ProcBinInner,
                 ProcBinInner {
                     refc: AtomicUsize::new(1),
-                    flags: size | FLAG_IS_RAW_BIN,
+                    flags: size | binary_type.to_flags(),
                     bytes,
                 },
             );

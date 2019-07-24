@@ -14,8 +14,8 @@ use crate::erts::process::code::Code;
 use crate::erts::term::binary::{AlignedBinary, IterableBitstring, MaybeAlignedMaybeBinary};
 use crate::erts::term::reference::{self, Reference};
 use crate::erts::term::{
-    make_pid, pid, AsTerm, BytesFromBinaryError, Closure, Cons, ExternalPid, Float, HeapBin,
-    Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
+    make_pid, pid, AsTerm, BinaryType, BytesFromBinaryError, Closure, Cons, ExternalPid, Float,
+    HeapBin, Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
 };
 use crate::{erts, ModuleFunctionArity};
 use crate::{scheduler, VirtualAlloc};
@@ -357,7 +357,7 @@ pub trait HeapAlloc {
     /// given process
     fn procbin_from_bytes(&mut self, s: &[u8]) -> Result<Term, AllocErr> {
         // Allocates on global heap
-        let bin = ProcBin::from_slice(s)?;
+        let bin = ProcBin::from_slice(s, BinaryType::Raw)?;
         // Allocates space on the process heap for the header
         let header_ptr = unsafe { self.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
         // Write the header to the process heap

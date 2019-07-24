@@ -339,6 +339,14 @@ impl BinaryType {
             ),
         }
     }
+
+    pub fn from_str(s: &str) -> Self {
+        if s.is_ascii() {
+            Self::Latin1
+        } else {
+            Self::Utf8
+        }
+    }
 }
 
 /// This function is intended for internal use only, specifically for use

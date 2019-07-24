@@ -1616,9 +1616,9 @@ pub fn split_binary_2(
                             TypedTerm::ProcBin(process_binary) => process_binary.full_byte_len(),
                             _ => unreachable!(),
                         };
-                        let mut heap = process_control_block.acquire_heap();
 
                         if index < full_byte_length {
+                            let mut heap = process_control_block.acquire_heap();
                             let prefix = heap.subbinary_from_original(binary, 0, 0, index, 0)?;
                             let suffix = heap.subbinary_from_original(
                                 binary,
@@ -1632,7 +1632,6 @@ pub fn split_binary_2(
                                 .map_err(|error| error.into())
                         } else if index == full_byte_length {
                             let mut heap = process_control_block.acquire_heap();
-
                             let empty_suffix =
                                 heap.subbinary_from_original(binary, index, 0, 0, 0)?;
 

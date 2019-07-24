@@ -11,6 +11,7 @@ use core::cell::RefCell;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::mem;
+use core::ops::DerefMut;
 use core::ptr::{self, NonNull};
 use core::str::Chars;
 use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
@@ -43,6 +44,7 @@ pub use self::mailbox::*;
 pub use self::priority::Priority;
 use crate::erts::process::alloc::heap_alloc::MakePidError;
 use crate::erts::process::code::Code;
+use crate::erts::term::BytesFromBinaryError;
 
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
 pub const MAX_REDUCTIONS_PER_RUN: Reductions = 4_000;
@@ -352,6 +354,18 @@ impl ProcessControlBlock {
 
     pub fn binary_from_str(&self, s: &str) -> Result<Term, AllocErr> {
         self.acquire_heap().binary_from_str(s)
+    }
+
+    pub fn bytes_from_binary<'process>(
+        &'process self,
+        binary: Term,
+    ) -> Result<&'process [u8], BytesFromBinaryError> {
+        let mut heap_guard = self.acquire_heap();
+        let heap: &'process mut ProcessHeap = unsafe {
+            mem::transmute::<&'_ mut ProcessHeap, &'process mut ProcessHeap>(heap_guard.deref_mut())
+        };
+
+        heap.bytes_from_binary(binary)
     }
 
     pub fn charlist_from_str(&self, s: &str) -> Result<Term, AllocErr> {

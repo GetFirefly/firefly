@@ -455,8 +455,7 @@ pub fn binary_to_integer_2<'process>(
 }
 
 pub fn binary_to_list_1(binary: Term, process_control_block: &ProcessControlBlock) -> Result {
-    let mut heap = process_control_block.acquire_heap();
-    let bytes = heap.bytes_from_binary(binary)?;
+    let bytes = process_control_block.bytes_from_binary(binary)?;
     let byte_terms = bytes.iter().map(|byte| (*byte).into());
 
     process_control_block

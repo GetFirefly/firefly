@@ -179,28 +179,31 @@ impl ProcBin {
     pub fn from_slice(s: &[u8], binary_type: BinaryType) -> Result<Self, AllocErr> {
         use liblumen_core::sys::alloc as sys_alloc;
 
-        let size = s.len();
-        let (layout, _) = Layout::new::<ProcBinInner>()
-            .extend(unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<u8>()) })
+        let full_byte_len = s.len();
+        let (layout, offset) = Layout::new::<ProcBinInner>()
+            .extend(unsafe {
+                Layout::from_size_align_unchecked(full_byte_len, mem::align_of::<u8>())
+            })
             .unwrap();
-        let ptr = unsafe { sys_alloc::alloc(layout)?.as_ptr() };
-        let header_ptr = ptr as *mut ProcBinInner;
+
         unsafe {
-            // For efficient checks on binary type later, store flags in the pointer
-            let bytes = ptr.offset(1) as *mut u8;
+            let ptr = sys_alloc::alloc(layout)?.as_ptr();
+            let inner_ptr = ptr as *mut ProcBinInner;
+            let bytes = ptr.add(offset);
+
             ptr::write(
-                ptr as *mut ProcBinInner,
+                inner_ptr,
                 ProcBinInner {
                     refc: AtomicUsize::new(1),
-                    flags: size | binary_type.to_flags(),
+                    flags: full_byte_len | binary_type.to_flags(),
                     bytes,
                 },
             );
-            ptr::copy_nonoverlapping(s.as_ptr(), bytes, size);
+            ptr::copy_nonoverlapping(s.as_ptr(), bytes, full_byte_len);
 
             Ok(Self {
                 header: Term::make_header(arity_of::<Self>(), Term::FLAG_PROCBIN),
-                inner: NonNull::new_unchecked(header_ptr),
+                inner: NonNull::new_unchecked(inner_ptr),
                 link: LinkedListLink::new(),
             })
         }

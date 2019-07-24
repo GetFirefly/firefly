@@ -236,6 +236,7 @@ impl TryFrom<TypedTerm> for Boxed<HeapBin> {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
+            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             TypedTerm::HeapBinary(heap_binary) => Ok(heap_binary),
             _ => Err(TypeError),
         }

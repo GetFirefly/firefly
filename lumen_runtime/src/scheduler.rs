@@ -11,7 +11,7 @@ use liblumen_alloc::erts::process::code::Code;
 #[cfg(test)]
 use liblumen_alloc::erts::process::Priority;
 use liblumen_alloc::erts::process::ProcessControlBlock;
-pub use liblumen_alloc::erts::scheduler::ID;
+pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::{reference, Atom, Reference, Term};
 
 use crate::process;
@@ -19,8 +19,6 @@ use crate::registry::put_pid_to_process;
 use crate::run;
 use crate::run::Run;
 use crate::timer::Hierarchy;
-
-mod id;
 
 pub trait Scheduled {
     fn scheduler(&self) -> Option<Arc<Scheduler>>;
@@ -54,9 +52,8 @@ impl Scheduler {
 
     pub fn from_id(id: &ID) -> Option<Arc<Scheduler>> {
         Self::current_from_id(id).or_else(|| {
-            SCHEDULERS
+            SCHEDULER_BY_ID
                 .lock()
-                .scheduler_by_id
                 .get(id)
                 .and_then(|arc_scheduler| arc_scheduler.upgrade())
         })
@@ -222,9 +219,9 @@ impl Scheduler {
 
     // Private
 
-    fn new(raw_id: id::Raw) -> Scheduler {
+    fn new() -> Scheduler {
         Scheduler {
-            id: ID::new(raw_id),
+            id: id::next(),
             hierarchy: Default::default(),
             reference_count: AtomicU64::new(0),
             run_queues: Default::default(),
@@ -232,13 +229,11 @@ impl Scheduler {
     }
 
     fn registered() -> Arc<Scheduler> {
-        let mut locked_schedulers = SCHEDULERS.lock();
-        let raw_id = locked_schedulers.id_manager.alloc();
-        let arc_scheduler = Arc::new(Scheduler::new(raw_id));
+        let mut locked_scheduler_by_id = SCHEDULER_BY_ID.lock();
+        let arc_scheduler = Arc::new(Scheduler::new());
 
-        if let Some(_) = locked_schedulers
-            .scheduler_by_id
-            .insert(arc_scheduler.id.clone(), Arc::downgrade(&arc_scheduler))
+        if let Some(_) =
+            locked_scheduler_by_id.insert(arc_scheduler.id.clone(), Arc::downgrade(&arc_scheduler))
         {
             #[cfg(debug_assertions)]
             panic!(
@@ -255,15 +250,11 @@ impl Scheduler {
 
 impl Drop for Scheduler {
     fn drop(&mut self) {
-        let mut locked_schedulers = SCHEDULERS.lock();
+        let mut locked_scheduler_by_id = SCHEDULER_BY_ID.lock();
 
-        locked_schedulers
-            .scheduler_by_id
+        locked_scheduler_by_id
             .remove(&self.id)
             .expect("Scheduler not registered");
-        // Free the ID only after it is not registered to prevent manager re-allocating the ID to a
-        // Scheduler for a new thread.
-        locked_schedulers.id_manager.free(self.id.0)
     }
 }
 
@@ -277,28 +268,9 @@ thread_local! {
   static SCHEDULER: Arc<Scheduler> = Scheduler::registered();
 }
 
-// A single struct, so that one `Mutex` can protect both the `id_manager` and `scheduler_by_id`, so
-// that schedulers are deregistered from `scheduler_by_id` before giving the `ID` back to the
-// `manager`, which is the opposite order from creation.  The opposite order means it doesn't work
-// to implement separate `Mutex`es with Drop for both `ID` and `Scheduler`.
-struct Schedulers {
-    id_manager: id::Manager,
-    // Schedulers are `Weak` so that when the spawning thread ends, `SCHEDULER` can be dropped,
-    // which will remove the entry here.
-    scheduler_by_id: HashMap<ID, Weak<Scheduler>>,
-}
-
-impl Schedulers {
-    fn new() -> Schedulers {
-        Schedulers {
-            id_manager: id::Manager::new(),
-            scheduler_by_id: Default::default(),
-        }
-    }
-}
-
 lazy_static! {
-    static ref SCHEDULERS: Mutex<Schedulers> = Mutex::new(Schedulers::new());
+    static ref SCHEDULER_BY_ID: Mutex<HashMap<ID, Weak<Scheduler>>> =
+        Mutex::new(Default::default());
 }
 
 #[cfg(test)]

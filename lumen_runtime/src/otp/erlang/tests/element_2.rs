@@ -2,21 +2,21 @@ use super::*;
 
 #[test]
 fn without_tuple_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::is_not_tuple(arc_process.clone()),
-                    strategy::term::is_integer(arc_process.clone()),
-                ),
-                |(tuple, index)| {
-                    prop_assert_eq!(erlang::element_2(index, tuple), Err(badarg!().into()));
+                    strategy::term::is_integer(arc_process),
+                )
+            }),
+            |(tuple, index)| {
+                prop_assert_eq!(erlang::element_2(index, tuple), Err(badarg!().into()));
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]

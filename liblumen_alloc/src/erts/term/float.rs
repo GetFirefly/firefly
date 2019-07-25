@@ -253,7 +253,6 @@ impl Display for Float {
 impl Hash for Float {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.header.hash(state);
         self.value.to_bits().hash(state);
     }
 }

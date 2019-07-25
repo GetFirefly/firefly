@@ -4,25 +4,25 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_tuple_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::is_not_tuple(arc_process.clone()),
                     strategy::term::atom(),
-                    strategy::term::is_integer(arc_process.clone()),
-                ),
-                |(tuple, record_tag, size)| {
-                    prop_assert_eq!(
-                        erlang::is_record_3(tuple, record_tag, size),
-                        Ok(false.into())
-                    );
+                    strategy::term::is_integer(arc_process),
+                )
+            }),
+            |(tuple, record_tag, size)| {
+                prop_assert_eq!(
+                    erlang::is_record_3(tuple, record_tag, size),
+                    Ok(false.into())
+                );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]

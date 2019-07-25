@@ -4,21 +4,21 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_tuple_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::is_not_tuple(arc_process.clone()),
                     strategy::term::atom(),
-                ),
-                |(tuple, record_tag)| {
-                    prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Ok(false.into()));
+                )
+            }),
+            |(tuple, record_tag)| {
+                prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Ok(false.into()));
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]

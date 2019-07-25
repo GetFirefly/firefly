@@ -39,8 +39,8 @@ impl Map {
         unimplemented!()
     }
 
-    pub fn is_key(&self, _key: Term) -> bool {
-        unimplemented!()
+    pub fn is_key(&self, key: Term) -> bool {
+        self.value.contains_key(&key)
     }
 
     pub fn len(&self) -> usize {

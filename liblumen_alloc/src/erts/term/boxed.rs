@@ -1,5 +1,6 @@
 use core::alloc::AllocErr;
 use core::cmp;
+use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
@@ -95,6 +96,11 @@ impl<T: AsTerm> DerefMut for Boxed<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
         self.as_mut()
+    }
+}
+impl<T: Hash + AsTerm> Hash for Boxed<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state)
     }
 }
 impl<T: PartialEq> PartialEq for Boxed<T> {

@@ -1,6 +1,5 @@
 use core::convert::{TryFrom, TryInto};
 use core::fmt;
-use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::str;
 
@@ -355,28 +354,6 @@ impl fmt::Debug for SubBinary {
 }
 
 impl Eq for SubBinary {}
-
-impl Hash for SubBinary {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        if self.is_binary() {
-            if self.is_aligned() {
-                unsafe { self.as_bytes() }.hash(state);
-            } else {
-                for byte in self.full_byte_iter() {
-                    byte.hash(state);
-                }
-            }
-        } else {
-            for byte in self.full_byte_iter() {
-                byte.hash(state);
-            }
-
-            for bit in self.partial_byte_bit_iter() {
-                bit.hash(state);
-            }
-        }
-    }
-}
 
 impl IterableBitstring<'_, FullByteIter> for SubBinary {
     /// Iterator for the [byte_len] bytes.  For the [partial_byte_bit_len] bits in the partial byte

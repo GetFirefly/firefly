@@ -3,6 +3,7 @@ mod match_context;
 mod process;
 mod sub;
 
+use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 use core::slice;
@@ -68,6 +69,20 @@ pub trait Bitstring {
 pub trait AlignedBinary {
     fn as_bytes(&self) -> &[u8];
 }
+
+// Has to have explicit types to prevent E0119: conflicting implementations of trait
+macro_rules! hash_aligned_binary {
+    ($t:ty) => {
+        impl Hash for $t {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.as_bytes().hash(state)
+            }
+        }
+    };
+}
+
+hash_aligned_binary!(HeapBin);
+hash_aligned_binary!(ProcBin);
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait
 macro_rules! partial_eq_aligned_binary_aligned_binary {
@@ -150,6 +165,26 @@ pub trait MaybeAlignedMaybeBinary {
 
     fn partial_byte_bit_iter(&self) -> Self::Iter;
 }
+
+// Has to have explicit types to prevent E0119: conflicting implementations of trait
+macro_rules! hash_maybe_aligned_maybe_binary {
+    ($t:ty) => {
+        impl Hash for $t {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                for byte in self.full_byte_iter() {
+                    byte.hash(state);
+                }
+
+                for bit in self.partial_byte_bit_iter() {
+                    bit.hash(state);
+                }
+            }
+        }
+    };
+}
+
+hash_maybe_aligned_maybe_binary!(MatchContext);
+hash_maybe_aligned_maybe_binary!(SubBinary);
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait
 macro_rules! partial_eq_aligned_binary_maybe_aligned_maybe_binary {

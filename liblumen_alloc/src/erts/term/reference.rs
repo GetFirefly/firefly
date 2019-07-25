@@ -1,6 +1,7 @@
 use core::alloc::{AllocErr, Layout};
 use core::cmp;
 use core::fmt::{self, Debug};
+use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 
@@ -77,6 +78,12 @@ impl Debug for Reference {
             .finish()
     }
 }
+impl Hash for Reference {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.scheduler_id.hash(state);
+        self.number.hash(state);
+    }
+}
 impl Ord for Reference {
     fn cmp(&self, other: &Reference) -> cmp::Ordering {
         self.scheduler_id
@@ -125,6 +132,12 @@ impl CloneToProcess for ExternalReference {
     #[inline]
     fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, AllocErr> {
         unimplemented!()
+    }
+}
+impl Hash for ExternalReference {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.node.hash(state);
+        self.reference.hash(state);
     }
 }
 impl PartialEq<ExternalReference> for ExternalReference {

@@ -4,6 +4,7 @@ use core::alloc::AllocErr;
 use core::cmp;
 use core::convert::TryInto;
 use core::fmt;
+use core::hash::{Hash, Hasher};
 use core::ptr;
 
 use alloc::string::String;
@@ -636,7 +637,7 @@ mod typecheck {
 ///
 /// Since `Term` values are often pointers, it should be given the same considerations
 /// that you would give a raw pointer/reference anywhere else
-#[derive(Clone, Copy, Eq, Hash)]
+#[derive(Clone, Copy, Eq)]
 #[repr(transparent)]
 pub struct Term(usize);
 impl Term {
@@ -1463,6 +1464,13 @@ impl From<u8> for Term {
         unsafe { small_integer.as_term() }
     }
 }
+
+impl Hash for Term {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.to_typed_term().unwrap().hash(state)
+    }
+}
+
 impl PartialEq<Term> for Term {
     fn eq(&self, other: &Term) -> bool {
         match (self.to_typed_term(), other.to_typed_term()) {

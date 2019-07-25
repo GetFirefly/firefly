@@ -1,6 +1,7 @@
 use core::alloc::AllocErr;
 use core::cmp;
 use core::convert::TryInto;
+use core::hash::{Hash, Hasher};
 
 use alloc::string::String;
 
@@ -137,6 +138,36 @@ impl TypedTerm {
         } else {
             false
         }
+    }
+}
+
+impl Hash for TypedTerm {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::List(cons) => cons.hash(state),
+            Self::Tuple(tuple) => tuple.hash(state),
+            Self::Map(map) => map.hash(state),
+            Self::Boxed(boxed) => boxed.to_typed_term().unwrap().hash(state),
+            Self::Literal(literal) => literal.hash(state),
+            Self::Pid(pid) => pid.hash(state),
+            Self::Port(port) => port.hash(state),
+            Self::Reference(reference) => reference.hash(state),
+            Self::ExternalPid(external_pid) => external_pid.hash(state),
+            Self::ExternalPort(external_port) => external_port.hash(state),
+            Self::ExternalReference(external_reference) => external_reference.hash(state),
+            Self::SmallInteger(small_integer) => small_integer.hash(state),
+            Self::BigInteger(big_integer) => big_integer.hash(state),
+            Self::Float(float) => float.hash(state),
+            Self::Atom(atom) => atom.hash(state),
+            Self::ProcBin(process_binary) => process_binary.hash(state),
+            Self::HeapBinary(heap_binary) => heap_binary.hash(state),
+            Self::SubBinary(subbinary) => subbinary.hash(state),
+            Self::MatchContext(match_context) => match_context.hash(state),
+            Self::Closure(closure) => closure.hash(state),
+            Self::Catch => Term::CATCH.as_usize().hash(state),
+            Self::Nil => Term::NIL.as_usize().hash(state),
+            Self::None => Term::NONE.as_usize().hash(state),
+        };
     }
 }
 

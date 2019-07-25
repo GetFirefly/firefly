@@ -2,6 +2,7 @@ use core::alloc::AllocErr;
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug};
+use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 
@@ -103,6 +104,17 @@ impl Debug for Map {
 }
 
 impl Eq for Map {}
+
+impl Hash for Map {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for key in self.sorted_keys() {
+            let value = self.value[&key];
+
+            key.hash(state);
+            value.hash(state);
+        }
+    }
+}
 
 impl PartialEq for Map {
     fn eq(&self, other: &Map) -> bool {

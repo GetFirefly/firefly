@@ -55,7 +55,7 @@ impl<P, I> MaybeImproper<P, I> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Hash)]
 #[repr(C)]
 pub struct Cons {
     pub head: Term,

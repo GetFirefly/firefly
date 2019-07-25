@@ -1958,9 +1958,9 @@ fn list_to_string(list: Term) -> std::result::Result<String, Exception> {
             .into_iter()
             .map(|result| match result {
                 Ok(term) => {
-                    let string: String = term.try_into()?;
+                    let c: char = term.try_into()?;
 
-                    Ok(string)
+                    Ok(c)
                 }
                 Err(ImproperList { .. }) => Err(badarg!().into()),
             })

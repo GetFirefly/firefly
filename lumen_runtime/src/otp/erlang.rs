@@ -565,13 +565,15 @@ pub fn bitstring_to_list_1<'process>(
                 let last = if subbinary.is_binary() {
                     Term::NIL
                 } else {
-                    process_control_block.subbinary_from_original(
+                    let partial_byte_subbinary = process_control_block.subbinary_from_original(
                         subbinary.original(),
                         subbinary.byte_offset() + subbinary.full_byte_len(),
                         subbinary.bit_offset(),
                         0,
                         subbinary.partial_byte_bit_len(),
-                    )?
+                    )?;
+
+                    process_control_block.cons(partial_byte_subbinary, Term::NIL)?
                 };
 
                 let byte_term_iter = subbinary.full_byte_iter().map(|byte| byte.into());

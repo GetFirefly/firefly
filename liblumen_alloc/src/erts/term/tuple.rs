@@ -515,7 +515,7 @@ mod tests {
             heap_size,
         );
 
-        process.schedule_with(scheduler::ID::new(0));
+        process.schedule_with(scheduler::id::next());
 
         process
     }

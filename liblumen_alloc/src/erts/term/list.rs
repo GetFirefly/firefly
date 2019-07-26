@@ -615,50 +615,129 @@ mod tests {
     use super::*;
     use crate::erts::term::SmallInteger;
 
-    #[test]
-    fn proper_list_iter_test() {
-        let a = unsafe { SmallInteger::new(42).unwrap().as_term() };
-        let b = unsafe { SmallInteger::new(24).unwrap().as_term() };
-        let c = unsafe { SmallInteger::new(11).unwrap().as_term() };
-        let last = Cons::new(c, Term::NIL);
-        let last_term = Term::make_list(&last);
-        let second = Cons::new(b, last_term);
-        let second_term = Term::make_list(&second);
-        let first = Cons::new(a, second_term);
+    mod clone_to_heap {
+        use super::*;
 
-        let mut list_iter = first.into_iter();
-        let l0 = list_iter.next().unwrap();
-        assert_eq!(l0, Ok(a));
-        let l1 = list_iter.next().unwrap();
-        assert_eq!(l1, Ok(b));
-        let l2 = list_iter.next().unwrap();
-        assert_eq!(l2, Ok(c));
-        assert_eq!(list_iter.next(), None);
-        assert_eq!(list_iter.next(), None);
+        use ::alloc::sync::Arc;
+
+        use crate::erts::process::{alloc, Priority, ProcessControlBlock};
+        use crate::erts::scheduler;
+        use crate::erts::term::{atom_unchecked, Atom};
+        use crate::erts::ModuleFunctionArity;
+
+        #[test]
+        fn single_element() {
+            let process = process();
+            let head = atom_unchecked("head");
+            let tail = Term::NIL;
+            let cons_term = process.cons(head, tail).unwrap();
+            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+
+            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+
+            assert_eq!(heap_fragment_cons_term, cons_term);
+        }
+
+        #[test]
+        fn two_element_proper() {
+            let process = process();
+            let element0 = process.integer(0).unwrap();
+            let element1 = process.integer(1).unwrap();
+            let tail = Term::NIL;
+            let cons_term = process
+                .cons(element0, process.cons(element1, tail).unwrap())
+                .unwrap();
+            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+
+            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+
+            assert_eq!(heap_fragment_cons_term, cons_term);
+        }
+
+        #[test]
+        fn two_element_improper() {
+            let process = process();
+            let head = atom_unchecked("head");
+            let tail = atom_unchecked("tail");
+            let cons_term = process.cons(head, tail).unwrap();
+            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+
+            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+
+            assert_eq!(heap_fragment_cons_term, cons_term);
+        }
+
+        fn process() -> ProcessControlBlock {
+            let init = Atom::try_from_str("init").unwrap();
+            let initial_module_function_arity = Arc::new(ModuleFunctionArity {
+                module: init,
+                function: init,
+                arity: 0,
+            });
+            let (heap, heap_size) = alloc::default_heap().unwrap();
+
+            let process = ProcessControlBlock::new(
+                Priority::Normal,
+                None,
+                initial_module_function_arity,
+                heap,
+                heap_size,
+            );
+
+            process.schedule_with(scheduler::id::next());
+
+            process
+        }
     }
 
-    #[test]
-    fn improper_list_iter_test() {
-        let a = unsafe { SmallInteger::new(42).unwrap().as_term() };
-        let b = unsafe { SmallInteger::new(24).unwrap().as_term() };
-        let c = unsafe { SmallInteger::new(11).unwrap().as_term() };
-        let d = unsafe { SmallInteger::new(99).unwrap().as_term() };
-        let last = Cons::new(c, d);
-        let last_term = Term::make_list(&last);
-        let second = Cons::new(b, last_term);
-        let second_term = Term::make_list(&second);
-        let first = Cons::new(a, second_term);
+    mod into_iter {
+        use super::*;
 
-        let mut list_iter = first.into_iter();
-        let l0 = list_iter.next().unwrap();
-        assert_eq!(l0, Ok(a));
-        let l1 = list_iter.next().unwrap();
-        assert_eq!(l1, Ok(b));
-        let l2 = list_iter.next().unwrap();
-        assert_eq!(l2, Ok(c));
-        let l3 = list_iter.next().unwrap();
-        assert_eq!(l3, Err(ImproperList { tail: d }));
-        assert_eq!(list_iter.next(), None);
-        assert_eq!(list_iter.next(), None);
+        #[test]
+        fn proper_list_iter() {
+            let a = unsafe { SmallInteger::new(42).unwrap().as_term() };
+            let b = unsafe { SmallInteger::new(24).unwrap().as_term() };
+            let c = unsafe { SmallInteger::new(11).unwrap().as_term() };
+            let last = Cons::new(c, Term::NIL);
+            let last_term = Term::make_list(&last);
+            let second = Cons::new(b, last_term);
+            let second_term = Term::make_list(&second);
+            let first = Cons::new(a, second_term);
+
+            let mut list_iter = first.into_iter();
+            let l0 = list_iter.next().unwrap();
+            assert_eq!(l0, Ok(a));
+            let l1 = list_iter.next().unwrap();
+            assert_eq!(l1, Ok(b));
+            let l2 = list_iter.next().unwrap();
+            assert_eq!(l2, Ok(c));
+            assert_eq!(list_iter.next(), None);
+            assert_eq!(list_iter.next(), None);
+        }
+
+        #[test]
+        fn improper_list_iter() {
+            let a = unsafe { SmallInteger::new(42).unwrap().as_term() };
+            let b = unsafe { SmallInteger::new(24).unwrap().as_term() };
+            let c = unsafe { SmallInteger::new(11).unwrap().as_term() };
+            let d = unsafe { SmallInteger::new(99).unwrap().as_term() };
+            let last = Cons::new(c, d);
+            let last_term = Term::make_list(&last);
+            let second = Cons::new(b, last_term);
+            let second_term = Term::make_list(&second);
+            let first = Cons::new(a, second_term);
+
+            let mut list_iter = first.into_iter();
+            let l0 = list_iter.next().unwrap();
+            assert_eq!(l0, Ok(a));
+            let l1 = list_iter.next().unwrap();
+            assert_eq!(l1, Ok(b));
+            let l2 = list_iter.next().unwrap();
+            assert_eq!(l2, Ok(c));
+            let l3 = list_iter.next().unwrap();
+            assert_eq!(l3, Err(ImproperList { tail: d }));
+            assert_eq!(list_iter.next(), None);
+            assert_eq!(list_iter.next(), None);
+        }
     }
 }

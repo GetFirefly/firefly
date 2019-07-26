@@ -171,13 +171,13 @@ impl CloneToProcess for Cons {
             builder = builder.push(current.head);
 
             // Determine whether we're done, or have more cells to traverse
-            if current.tail.is_nil() {
-                // End of proper list
-                return builder.finish();
-            } else if current.tail.is_non_empty_list() {
+            if current.tail.is_non_empty_list() {
                 // Traverse to the next cell
                 current = unsafe { &*current.tail.list_val() };
                 continue;
+            } else if current.tail.is_nil() {
+                // End of proper list
+                return builder.finish();
             } else {
                 // End of improper list
                 return builder.finish_with(current.tail);

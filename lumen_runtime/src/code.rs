@@ -11,7 +11,7 @@ use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::Atom;
 #[cfg(test)]
-use liblumen_alloc::erts::term::{Boxed, Cons, Term};
+use liblumen_alloc::erts::term::{Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::undef;
 
@@ -100,12 +100,17 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    let argument_cons: Boxed<Cons> = argument_list.try_into().unwrap();
 
-    for result in argument_cons.into_iter() {
-        let element = result.unwrap();
+    match argument_list.to_typed_term().unwrap() {
+        TypedTerm::Nil => (),
+        TypedTerm::List(argument_cons) => {
+            for result in argument_cons.into_iter() {
+                let element = result.unwrap();
 
-        argument_vec.push(element);
+                argument_vec.push(element);
+            }
+        }
+        _ => panic!("{:?} is not an argument list", argument_list),
     }
 
     let arity = argument_vec.len();

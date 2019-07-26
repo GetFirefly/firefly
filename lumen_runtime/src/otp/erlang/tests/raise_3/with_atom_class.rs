@@ -100,7 +100,7 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
                                 // {M, F, arity | args}
                                 module.is_atom() ||
                                     // {function, args, location}
-                                    module.is_function()
+                                    module.is_closure()
                             )
                         },
                     ),
@@ -168,7 +168,7 @@ fn with_class_with_stacktrace_with_atom_module_with_atom_function_without_arity_
                     strategy::term(arc_process.clone()),
                     strategy::term::function::module(),
                     strategy::term::function::function(),
-                    is_not_arity_or_arguments(arc_process.clone()),
+                    strategy::term::function::is_not_arity_or_arguments(arc_process.clone()),
                 ),
                 |(class, reason, module, function, arity_or_arguments)| {
                     let stacktrace = arc_process
@@ -552,12 +552,4 @@ fn class_variant_and_term() -> BoxedStrategy<(Class, Term)> {
     ]
     .prop_map(|(class_variant, string)| (class_variant, atom_unchecked(&string)))
     .boxed()
-}
-
-fn is_not_arity_or_arguments(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    strategy::term::is_not_non_negative_integer(arc_process.clone())
-        .prop_filter("Is not arguments", |arity_or_arguments| {
-            !arity_or_arguments.is_list()
-        })
-        .boxed()
 }

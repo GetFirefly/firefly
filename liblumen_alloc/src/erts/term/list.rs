@@ -166,7 +166,7 @@ impl CloneToProcess for Cons {
         // cloning each element as we go via the builder
         let mut builder = ListBuilder::new(heap);
         // Start with the current cell
-        let mut current = *self;
+        let mut current = self;
         loop {
             // Determine whether we're done, or have more cells to traverse
             if current.tail.is_nil() {
@@ -175,7 +175,7 @@ impl CloneToProcess for Cons {
                 return builder.finish();
             } else if current.tail.is_non_empty_list() {
                 // Add current element and traverse to the next cell
-                current = unsafe { *current.tail.list_val() };
+                current = unsafe { &*current.tail.list_val() };
                 builder = builder.push(current.head);
                 continue;
             } else if current.tail.is_immediate() {

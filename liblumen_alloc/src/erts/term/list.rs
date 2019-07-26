@@ -168,15 +168,15 @@ impl CloneToProcess for Cons {
         // Start with the current cell
         let mut current = self;
         loop {
+            builder = builder.push(current.head);
+
             // Determine whether we're done, or have more cells to traverse
             if current.tail.is_nil() {
                 // End of proper list
-                builder = builder.push(current.head);
                 return builder.finish();
             } else if current.tail.is_non_empty_list() {
-                // Add current element and traverse to the next cell
+                // Traverse to the next cell
                 current = unsafe { &*current.tail.list_val() };
-                builder = builder.push(current.head);
                 continue;
             } else {
                 // End of improper list

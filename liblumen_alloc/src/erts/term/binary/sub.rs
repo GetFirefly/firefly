@@ -337,6 +337,11 @@ impl CloneToProcess for SubBinary {
             }
         }
     }
+
+    fn size_in_words(&self) -> usize {
+        // Worst-case size if original also needs to be cloned
+        to_word_size(mem::size_of_val(self)) + self.original.size_in_words()
+    }
 }
 
 impl fmt::Debug for SubBinary {

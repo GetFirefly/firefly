@@ -4,21 +4,24 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_tuple_or_bitstring_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term(arc_process.clone())
-                    .prop_filter("Term must not be a tuple or bitstring", |term| {
-                        !(term.is_tuple() || term.is_bitstring())
-                    }),
-                |term| {
-                    prop_assert_eq!(erlang::size_1(term, &arc_process), Err(badarg!().into()));
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
+                    Just(arc_process.clone()),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Term must not be a tuple or bitstring", |term| {
+                            !(term.is_tuple() || term.is_bitstring())
+                        }),
+                )
+            }),
+            |(arc_process, term)| {
+                prop_assert_eq!(erlang::size_1(term, &arc_process), Err(badarg!().into()));
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]

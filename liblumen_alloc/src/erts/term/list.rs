@@ -178,13 +178,8 @@ impl CloneToProcess for Cons {
                 current = unsafe { &*current.tail.list_val() };
                 builder = builder.push(current.head);
                 continue;
-            } else if current.tail.is_immediate() {
-                // End of improper list
-                builder = builder.push(current.head);
-                return builder.finish_with(current.tail);
             } else {
                 // End of improper list
-                builder = builder.push(current.head);
                 return builder.finish_with(current.tail);
             }
         }

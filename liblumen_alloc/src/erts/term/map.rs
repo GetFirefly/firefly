@@ -44,7 +44,7 @@ impl Map {
     }
 
     pub fn len(&self) -> usize {
-        unimplemented!()
+        self.value.len()
     }
 
     // Private

@@ -35,8 +35,8 @@ impl Map {
         Self { header, value }
     }
 
-    pub fn get(&self, _key: Term) -> Option<Term> {
-        unimplemented!()
+    pub fn get(&self, key: Term) -> Option<Term> {
+        self.value.get(&key).copied()
     }
 
     pub fn is_key(&self, key: Term) -> bool {

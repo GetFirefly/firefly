@@ -1062,8 +1062,8 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
     match iolist.to_typed_term().unwrap() {
         TypedTerm::Nil | TypedTerm::List(_) => {
             let mut byte_vec: Vec<u8> = Vec::new();
-            let mut bit_offset = 0;
-            let mut tail_byte = 0;
+            let mut partial_byte_bit_count = 0;
+            let mut partial_byte = 0;
             let mut stack: Vec<Term> = vec![iolist];
 
             while let Some(top) = stack.pop() {
@@ -1071,13 +1071,13 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
                     TypedTerm::SmallInteger(small_integer) => {
                         let top_byte = small_integer.try_into()?;
 
-                        if bit_offset == 0 {
+                        if partial_byte_bit_count == 0 {
                             byte_vec.push(top_byte);
                         } else {
-                            tail_byte |= top_byte >> bit_offset;
-                            byte_vec.push(tail_byte);
+                            partial_byte |= top_byte >> partial_byte_bit_count;
+                            byte_vec.push(partial_byte);
 
-                            tail_byte = top_byte << (8 - bit_offset);
+                            partial_byte = top_byte << (8 - partial_byte_bit_count);
                         }
                     }
                     TypedTerm::Nil => (),
@@ -1099,19 +1099,19 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
                     }
                     TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                         TypedTerm::HeapBinary(heap_binary) => {
-                            if bit_offset == 0 {
+                            if partial_byte_bit_count == 0 {
                                 byte_vec.extend_from_slice(heap_binary.as_bytes());
                             } else {
                                 for byte in heap_binary.as_bytes() {
-                                    tail_byte |= byte >> bit_offset;
-                                    byte_vec.push(tail_byte);
+                                    partial_byte |= byte >> partial_byte_bit_count;
+                                    byte_vec.push(partial_byte);
 
-                                    tail_byte = byte << (8 - bit_offset);
+                                    partial_byte = byte << (8 - partial_byte_bit_count);
                                 }
                             }
                         }
                         TypedTerm::SubBinary(subbinary) => {
-                            if bit_offset == 0 {
+                            if partial_byte_bit_count == 0 {
                                 if subbinary.is_aligned() {
                                     byte_vec.extend(unsafe { subbinary.as_bytes() });
                                 } else {
@@ -1119,23 +1119,23 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
                                 }
                             } else {
                                 for byte in subbinary.full_byte_iter() {
-                                    tail_byte |= byte >> bit_offset;
-                                    byte_vec.push(tail_byte);
+                                    partial_byte |= byte >> partial_byte_bit_count;
+                                    byte_vec.push(partial_byte);
 
-                                    tail_byte = byte << (8 - bit_offset);
+                                    partial_byte = byte << (8 - partial_byte_bit_count);
                                 }
                             }
 
                             if !subbinary.is_binary() {
                                 for bit in subbinary.partial_byte_bit_iter() {
-                                    tail_byte |= bit << (7 - bit_offset);
+                                    partial_byte |= bit << (7 - partial_byte_bit_count);
 
-                                    if bit_offset == 7 {
-                                        byte_vec.push(tail_byte);
-                                        bit_offset = 0;
-                                        tail_byte = 0;
+                                    if partial_byte_bit_count == 7 {
+                                        byte_vec.push(partial_byte);
+                                        partial_byte_bit_count = 0;
+                                        partial_byte = 0;
                                     } else {
-                                        bit_offset += 1;
+                                        partial_byte_bit_count += 1;
                                     }
                                 }
                             }
@@ -1146,19 +1146,19 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
                 }
             }
 
-            if bit_offset == 0 {
+            if partial_byte_bit_count == 0 {
                 Ok(process_control_block
                     .binary_from_bytes(byte_vec.as_slice())
                     .unwrap())
             } else {
-                let byte_count = byte_vec.len();
-                byte_vec.push(tail_byte);
+                let full_byte_len = byte_vec.len();
+                byte_vec.push(partial_byte);
                 let original = process_control_block
                     .binary_from_bytes(byte_vec.as_slice())
                     .unwrap();
 
                 Ok(process_control_block
-                    .subbinary_from_original(original, byte_count, 0, bit_offset as usize, 0)
+                    .subbinary_from_original(original, 0, 0, full_byte_len, partial_byte_bit_count)
                     .unwrap())
             }
         }

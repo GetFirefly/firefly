@@ -14,7 +14,7 @@ fn without_non_negative_integer_time_error_badarg() {
             .run(
                 &(
                     strategy::term::is_not_non_negative_integer(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     options(arc_process.clone()),
                 ),
                 |(time, message, options)| {

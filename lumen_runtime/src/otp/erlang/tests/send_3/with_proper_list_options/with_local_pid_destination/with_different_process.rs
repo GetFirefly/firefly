@@ -6,7 +6,7 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_ok() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     valid_options(arc_process.clone()),
                 ),
                 |(message, options)| {
@@ -33,7 +33,7 @@ fn with_locked_adds_process_message_to_mailbox_and_returns_ok() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     valid_options(arc_process.clone()),
                 ),
                 |(message, options)| {

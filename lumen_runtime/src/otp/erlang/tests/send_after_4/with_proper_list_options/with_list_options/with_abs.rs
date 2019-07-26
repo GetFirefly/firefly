@@ -13,7 +13,7 @@ fn without_atom_errors_badarg() {
             .run(
                 &(
                     strategy::term::is_not_non_negative_integer(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_map(move |abs| options(abs, &options_arc_process))
                         .boxed(),

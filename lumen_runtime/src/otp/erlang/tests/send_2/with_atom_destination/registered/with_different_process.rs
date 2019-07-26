@@ -7,10 +7,7 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_message() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
             &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process),
-                )
+                (Just(arc_process.clone()), strategy::term(arc_process))
             }),
             |(arc_process, message)| {
                 let destination = registered_name();
@@ -43,10 +40,7 @@ fn with_locked_adds_heap_message_to_mailbox_and_returns_message() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
             &strategy::process().prop_flat_map(|arc_process| {
-                (
-                    Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process),
-                )
+                (Just(arc_process.clone()), strategy::term(arc_process))
             }),
             |(arc_process, message)| {
                 let destination = registered_name();

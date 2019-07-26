@@ -11,10 +11,9 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::term::{atom_unchecked, Float, SmallInteger, Term, TypedTerm};
 use liblumen_alloc::erts::{ModuleFunctionArity, ProcessControlBlock};
 
-use super::{module_function_arity, size_range, DEPTH, MAX_LEN, RANGE_INCLUSIVE};
+use super::{module_function_arity, size_range};
 
 pub mod binary;
-pub mod container;
 pub mod function;
 pub mod integer;
 pub mod is_binary;
@@ -43,27 +42,6 @@ pub fn big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
             None => None,
         }
     })
-}
-
-// XXX work-around for bug related to sending maps across processes in `send_2` proptests
-// XXX work-around for bug related to sending maps in timer messages in `send_after_3` proptests
-pub fn heap_fragment_safe(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
-    let container_arc_process = arc_process.clone();
-
-    leaf(RANGE_INCLUSIVE, arc_process)
-        .prop_recursive(
-            DEPTH,
-            (MAX_LEN * (DEPTH as usize + 1)) as u32,
-            MAX_LEN as u32,
-            move |element| {
-                container::heap_fragment_safe(
-                    element,
-                    RANGE_INCLUSIVE.clone().into(),
-                    container_arc_process.clone(),
-                )
-            },
-        )
-        .boxed()
 }
 
 pub fn charlist(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {

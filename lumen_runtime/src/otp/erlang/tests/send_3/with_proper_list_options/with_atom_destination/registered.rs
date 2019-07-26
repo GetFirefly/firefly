@@ -11,7 +11,7 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_ok() {
             &strategy::process().prop_flat_map(|arc_process| {
                 (
                     Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     valid_options(arc_process),
                 )
             }),

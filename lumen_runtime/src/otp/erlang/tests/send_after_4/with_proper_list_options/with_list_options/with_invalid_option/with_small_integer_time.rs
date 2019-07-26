@@ -14,7 +14,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                 &(
                     milliseconds(),
                     strategy::term::is_not_send_after_destination(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                 ),
                 |(milliseconds, destination, message)| {
                     let time = arc_process.integer(milliseconds).unwrap();

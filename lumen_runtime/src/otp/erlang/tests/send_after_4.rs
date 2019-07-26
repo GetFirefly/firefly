@@ -12,7 +12,7 @@ fn without_proper_list_options_errors_badarg() {
             .run(
                 &(
                     strategy::term::integer::non_negative(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     strategy::term::is_not_proper_list(arc_process.clone()),
                 ),
                 |(time, message, options)| {

@@ -9,7 +9,7 @@ fn with_different_process_errors_badarg() {
             .run(
                 &(
                     milliseconds(),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     options(arc_process.clone()),
                 ),
                 |(milliseconds, message, options)| {
@@ -53,7 +53,7 @@ fn with_same_process_errors_badarg() {
                 (
                     Just(milliseconds),
                     Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     options(arc_process),
                 )
             }),

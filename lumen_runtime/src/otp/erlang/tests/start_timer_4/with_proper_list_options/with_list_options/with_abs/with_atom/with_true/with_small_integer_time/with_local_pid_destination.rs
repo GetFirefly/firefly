@@ -8,7 +8,7 @@ fn with_different_process_sends_message_when_timer_expires() {
                 (
                     Just(milliseconds),
                     Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process),
+                    strategy::term(arc_process),
                 )
             }),
             |(milliseconds, arc_process, message)| {
@@ -59,7 +59,7 @@ fn with_same_process_sends_message_when_timer_expires() {
                 (
                     Just(milliseconds),
                     Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process),
+                    strategy::term(arc_process),
                 )
             }),
             |(milliseconds, arc_process, message)| {
@@ -107,7 +107,7 @@ fn without_process_sends_nothing_when_timer_expires() {
                 (
                     Just(milliseconds),
                     Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process),
+                    strategy::term(arc_process),
                 )
             }),
             |(milliseconds, arc_process, message)| {

@@ -10,7 +10,7 @@ fn errors_badarg() {
                 (
                     Just(milliseconds),
                     Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process),
+                    strategy::term(arc_process),
                 )
             }),
             |(milliseconds, arc_process, message)| {

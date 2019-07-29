@@ -5,11 +5,11 @@ mod internal {
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(js_namespace = LumenStatsAlloc)]
-        pub fn on_alloc(tag: &'static str, size: usize, align: usize, ptr: *mut u8);
+        pub fn on_alloc(tag: String, size: usize, align: usize, ptr: *mut u8);
 
         #[wasm_bindgen(js_namespace = LumenStatsAlloc)]
         pub fn on_realloc(
-            tag: &'static str,
+            tag: String,
             old_size: usize,
             new_size: usize,
             align: usize,
@@ -18,7 +18,7 @@ mod internal {
         );
 
         #[wasm_bindgen(js_namespace = LumenStatsAlloc)]
-        pub fn on_dealloc(tag: &'static str, size: usize, align: usize, ptr: *mut u8);
+        pub fn on_dealloc(tag: String, size: usize, align: usize, ptr: *mut u8);
     }
 }
 
@@ -26,10 +26,10 @@ mod internal {
 mod internal {
     #![allow(unused)]
 
-    pub fn on_alloc(_tag: &'static str, _size: usize, _align: usize, _ptr: *mut u8) {}
+    pub fn on_alloc(_tag: String, _size: usize, _align: usize, _ptr: *mut u8) {}
 
     pub fn on_realloc(
-        _tag: &'static str,
+        _tag: String,
         _old_size: usize,
         _new_size: usize,
         _align: usize,
@@ -38,7 +38,7 @@ mod internal {
     ) {
     }
 
-    pub fn on_dealloc(_tag: &'static str, _size: usize, _align: usize, _ptr: *mut u8) {}
+    pub fn on_dealloc(_tag: String, _size: usize, _align: usize, _ptr: *mut u8) {}
 }
 
 pub use internal::*;

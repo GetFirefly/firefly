@@ -121,7 +121,7 @@ unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H>
         let align = layout.align();
         match self.allocator.alloc(layout) {
             err @ Err(_) => {
-                hooks::on_alloc(self.tag, size, align, ptr::null_mut());
+                hooks::on_alloc(self.tag.to_owned(), size, align, ptr::null_mut());
                 err
             }
             Ok(result) => {
@@ -130,7 +130,7 @@ unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H>
                 let mut h = self.histogram.write();
                 h.add(size as u64).ok();
                 drop(h);
-                hooks::on_alloc(self.tag, size, align, result.as_ptr());
+                hooks::on_alloc(self.tag.to_owned(), size, align, result.as_ptr());
                 Ok(result)
             }
         }
@@ -149,7 +149,7 @@ unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H>
         match self.allocator.realloc(ptr, layout, new_size) {
             err @ Err(_) => {
                 hooks::on_realloc(
-                    self.tag,
+                    self.tag.to_owned(),
                     old_size,
                     new_size,
                     align,
@@ -171,7 +171,7 @@ unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H>
                 h.add(new_size as u64).ok();
                 drop(h);
                 hooks::on_realloc(
-                    self.tag,
+                    self.tag.to_owned(),
                     old_size,
                     new_size,
                     align,
@@ -191,7 +191,7 @@ unsafe impl<T: Alloc, H: Histogram + Clone + Default> Alloc for StatsAlloc<T, H>
         self.allocator.dealloc(ptr, layout);
         self.dealloc_calls.fetch_add(1, Ordering::SeqCst);
         self.total_bytes_freed.fetch_add(size, Ordering::SeqCst);
-        hooks::on_dealloc(self.tag, size, align, freed);
+        hooks::on_dealloc(self.tag.to_owned(), size, align, freed);
     }
 }
 
@@ -202,7 +202,7 @@ unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for Stat
         let align = layout.align();
         let result = self.allocator.alloc(layout);
         if result.is_null() {
-            hooks::on_alloc(self.tag, size, align, result);
+            hooks::on_alloc(self.tag.to_owned(), size, align, result);
             return result;
         }
 
@@ -211,7 +211,7 @@ unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for Stat
         let mut h = self.histogram.write();
         h.add(size as u64).ok();
         drop(h);
-        hooks::on_alloc(self.tag, size, align, result);
+        hooks::on_alloc(self.tag.to_owned(), size, align, result);
 
         result
     }
@@ -223,7 +223,7 @@ unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for Stat
 
         let result = self.allocator.realloc(ptr, layout, new_size);
         if result.is_null() {
-            hooks::on_realloc(self.tag, old_size, new_size, align, ptr, result);
+            hooks::on_realloc(self.tag.to_owned(), old_size, new_size, align, ptr, result);
             return result;
         }
 
@@ -238,7 +238,7 @@ unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for Stat
         let mut h = self.histogram.write();
         h.add(new_size as u64).ok();
         drop(h);
-        hooks::on_realloc(self.tag, old_size, new_size, align, ptr, result);
+        hooks::on_realloc(self.tag.to_owned(), old_size, new_size, align, ptr, result);
 
         result
     }
@@ -250,6 +250,6 @@ unsafe impl<T: GlobalAlloc, H: Histogram + Clone + Default> GlobalAlloc for Stat
         self.allocator.dealloc(ptr, layout);
         self.dealloc_calls.fetch_add(1, Ordering::SeqCst);
         self.total_bytes_freed.fetch_add(size, Ordering::SeqCst);
-        hooks::on_dealloc(self.tag, size, align, ptr);
+        hooks::on_dealloc(self.tag.to_owned(), size, align, ptr);
     }
 }

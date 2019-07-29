@@ -399,7 +399,7 @@ mod constants {
 
     #[inline]
     pub const fn list_value(term: usize) -> *mut Cons {
-        (term & !(MASK_PRIMARY | MASK_LITERAL)) as *mut Cons
+        (term & !MASK_PRIMARY) as *mut Cons
     }
 }
 

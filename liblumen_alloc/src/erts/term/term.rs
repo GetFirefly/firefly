@@ -215,7 +215,7 @@ mod constants {
 mod constants {
     #![allow(unused)]
     use super::Term;
-    use crate::erts::Cons;
+    use crate::erts::term::list::Cons;
     ///! This module contains constants for 64-bit architectures used by the term
     /// implementation. !
     ///! On 32-bit platforms we generally can use the high bits like we

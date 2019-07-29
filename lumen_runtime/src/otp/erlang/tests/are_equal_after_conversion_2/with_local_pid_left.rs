@@ -4,25 +4,25 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_local_pid_right_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::pid::local(),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right cannot be a local pid", |right| right.is_local_pid()),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_equal_after_conversion_2(left, right),
-                        false.into()
-                    );
+                )
+            }),
+            |(left, right)| {
+                prop_assert_eq!(
+                    erlang::are_equal_after_conversion_2(left, right),
+                    false.into()
+                );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]

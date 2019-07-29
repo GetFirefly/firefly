@@ -2,8 +2,7 @@ use core::fmt::{self, Display};
 
 use crate::erts::term::Atom;
 
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModuleFunctionArity {
     pub module: Atom,
     pub function: Atom,

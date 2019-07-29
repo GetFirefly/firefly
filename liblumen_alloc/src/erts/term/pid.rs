@@ -63,7 +63,7 @@ impl Pid {
     }
 
     const NUMBER_BIT_COUNT: u8 = 15;
-    const NUMBER_MASK: usize = 0x111_1111_1111_1111;
+    const NUMBER_MASK: usize = 0b111_1111_1111_1111;
     pub const NUMBER_MAX: usize = (1 << (Self::NUMBER_BIT_COUNT as usize)) - 1;
 
     const SERIAL_BIT_COUNT: u8 =

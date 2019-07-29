@@ -9,8 +9,7 @@ use crate::erts::term::tuple::IndexError;
 use crate::erts::term::list::ImproperList;
 use crate::erts::process::ProcessControlBlock;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Class {
     Error { arguments: Option<Term> },
     Exit,
@@ -35,7 +34,7 @@ impl TryFrom<Term> for Class {
     }
 }
 
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Debug)]
 #[cfg_attr(test, derive(Clone))]
 pub struct Exception {
     pub class: Class,
@@ -50,46 +49,38 @@ pub struct Exception {
 }
 
 impl Exception {
-    pub fn badarg(
-        #[cfg(debug_assertions)]
-        file: &'static str,
-        #[cfg(debug_assertions)]
-        line: u32,
-        #[cfg(debug_assertions)]
-        column: u32
-    ) -> Self {
+    #[cfg(debug_assertions)]
+    pub fn badarg(file: &'static str, line: u32, column: u32) -> Self {
         Self::error(
             Self::badarg_reason(),
             None,
             None,
-            #[cfg(debug_assertions)]
             file,
-            #[cfg(debug_assertions)]
             line,
-            #[cfg(debug_assertions)]
             column
         )
     }
 
-    pub fn badarith(
-        #[cfg(debug_assertions)]
-        file: &'static str,
-        #[cfg(debug_assertions)]
-        line: u32,
-        #[cfg(debug_assertions)]
-        column: u32
-    ) -> Self {
+    #[cfg(not(debug_assertions))]
+    pub fn badarg() -> Self {
+        Self::error(Self::badarg_reason(), None, None)
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn badarith(file: &'static str, line: u32, column: u32) -> Self {
         Self::error(
             Self::badarith_reason(),
             None,
             None,
-            #[cfg(debug_assertions)]
             file,
-            #[cfg(debug_assertions)]
             line,
-            #[cfg(debug_assertions)]
             column
         )
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub fn badarith() -> Self {
+        Self::error(Self::badarith_reason(), None, None)
     }
 
     pub fn badarity(

@@ -1,17 +1,17 @@
+#[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! badarg {
-    () => {{
-        use $crate::erts::exception::runtime;
+    () => {
+        $crate::erts::exception::runtime::Exception::badarg(file!(), line!(), column!())
+    };
+}
 
-        runtime::Exception::badarg(
-            #[cfg(debug_assertions)]
-            file!(),
-            #[cfg(debug_assertions)]
-            line!(),
-            #[cfg(debug_assertions)]
-            column!(),
-        )
-    }};
+#[cfg(not(debug_assertions))]
+#[macro_export]
+macro_rules! badarg {
+    () => {
+        $crate::erts::exception::runtime::Exception::badarg()
+    };
 }
 
 #[macro_export]

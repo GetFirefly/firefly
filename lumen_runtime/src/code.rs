@@ -81,7 +81,7 @@ fn apply(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let arguments = arc_process.stack_pop().unwrap();
     arc_process.reduce();
 
-    match undef!(&mut arc_process.acquire_heap(), module, function, arguments) {
+    match undef!(arc_process, module, function, arguments) {
         Exception::Runtime(runtime_exception) => {
             arc_process.exception(runtime_exception);
 

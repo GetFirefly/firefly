@@ -1,103 +1,98 @@
 use std::sync::Arc;
 
-use lumen_runtime::code::Code;
+use liblumen_alloc::erts::process::code::stack::frame::Frame;
+use liblumen_alloc::erts::process::code::{result_from_exception, Code, Result};
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::ModuleFunctionArity;
+
 use lumen_runtime::otp::erlang;
 
-pub fn reduce_frame_with_arguments(enumerable: Term, initial: Term, reducer: Term) -> Frame {
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: Term::str_to_atom("Elixir.Enum", DoNotCare).unwrap(),
-        function: Term::str_to_atom("reduce", DoNotCare).unwrap(),
-        arity: 3,
-    });
-    let mut frame = Frame::new(module_function_arity, reduce_0_code);
-    frame.push(reducer);
-    frame.push(initial);
-    frame.push(enumerable);
+pub fn reduce_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+    let enumerable = arc_process.stack_pop().unwrap();
+    let initial = arc_process.stack_pop().unwrap();
+    let reducer = arc_process.stack_pop().unwrap();
 
-    frame
-}
+    match enumerable.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::Map(map) => {
+                match map.get(atom_unchecked("__struct__")) {
+                    Some(struct_name) => {
+                        if struct_name == atom_unchecked("Elixir.Range") {
+                            // This assumes no one was cheeky and messed with the map
+                            // representation of the struct
+                            let first_key = atom_unchecked("first");
+                            let first = map.get(first_key).unwrap();
 
-fn reduce_0_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(3);
-    let enumerable = frame_argument_vec[0];
-    let initial = frame_argument_vec[1];
-    let reducer = frame_argument_vec[2];
+                            let last_key = atom_unchecked("last");
+                            let last = map.get(last_key).unwrap();
 
-    match enumerable.tag() {
-        Boxed => {
-            let unboxed_enumerable: &Term = enumerable.unbox_reference();
-
-            match unboxed_enumerable.tag() {
-                Map => {
-                    let map: &Map = enumerable.unbox_reference();
-
-                    match map.get(Term::str_to_atom("__struct__", DoNotCare).unwrap()) {
-                        Some(struct_name) => {
-                            if struct_name == Term::str_to_atom("Elixir.Range", DoNotCare).unwrap()
-                            {
-                                // This assumes no one was cheeky and messed with the map
-                                // representation of the struct
-                                let first_key = Term::str_to_atom("first", DoNotCare).unwrap();
-                                let first = map.get(first_key).unwrap();
-
-                                let last_key = Term::str_to_atom("last", DoNotCare).unwrap();
-                                let last = map.get(last_key).unwrap();
-
-                                arc_process.reduce();
-
-                                let reduce_range_frame = reduce_range_frame_with_arguments(
-                                    first, last, initial, reducer,
-                                );
-                                arc_process.replace_frame(reduce_range_frame);
-
-                                Process::call_code(arc_process);
-                            } else {
-                                arc_process.reduce();
-                                arc_process.exception(lumen_runtime::badarg!())
-                            }
-                        }
-                        None => {
                             arc_process.reduce();
-                            arc_process.exception(lumen_runtime::badarg!())
+
+                            replace_frame_with_reduce_range_frame_with_arguments(
+                                arc_process,
+                                first,
+                                last,
+                                initial,
+                                reducer,
+                            )?;
+
+                            ProcessControlBlock::call_code(arc_process)
+                        } else {
+                            arc_process.reduce();
+                            arc_process.exception(liblumen_alloc::badarg!());
+
+                            Ok(())
                         }
                     }
+                    None => {
+                        arc_process.reduce();
+                        arc_process.exception(liblumen_alloc::badarg!());
+
+                        Ok(())
+                    }
                 }
-                _ => unimplemented!(),
             }
-        }
+            _ => unimplemented!(),
+        },
         _ => {
             arc_process.reduce();
-            arc_process.exception(lumen_runtime::badarg!())
+            arc_process.exception(liblumen_alloc::badarg!());
+
+            Ok(())
         }
     }
 }
 
-fn reduce_range_frame_with_arguments(
+fn replace_frame_with_reduce_range_frame_with_arguments(
+    arc_process: &Arc<ProcessControlBlock>,
     first: Term,
     last: Term,
     initial: Term,
     reducer: Term,
-) -> Frame {
+) -> Result {
     let (function_name, code): (&str, Code) = if first <= last {
         ("reduce_range_inc", reduce_range_inc_0_code)
     } else {
         ("reduce_range_dec", reduce_range_dec_0_code)
     };
 
-    let function = Term::str_to_atom(function_name, DoNotCare).unwrap();
+    let function = Atom::try_from_str(function_name).unwrap();
     let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: Term::str_to_atom("Elixir.Enum", DoNotCare).unwrap(),
+        module: Atom::try_from_str("Elixir.Enum").unwrap(),
         function,
         arity: 4,
     });
 
-    let mut frame = Frame::new(module_function_arity, code);
-    frame.push(reducer);
-    frame.push(initial);
-    frame.push(last);
-    frame.push(first);
+    let frame = Frame::new(module_function_arity, code);
+    arc_process.stack_push(reducer)?;
+    arc_process.stack_push(initial)?;
+    arc_process.stack_push(last)?;
+    arc_process.stack_push(first)?;
 
-    frame
+    arc_process.replace_frame(frame);
+
+    Ok(())
 }
 
 /// ```elixir
@@ -109,12 +104,11 @@ fn reduce_range_frame_with_arguments(
 ///   reduce_range_inc(first + 1, last, fun.(first, acc), fun)
 /// end
 /// ```
-fn reduce_range_inc_0_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(4);
-    let first = frame_argument_vec[0];
-    let last = frame_argument_vec[1];
-    let acc = frame_argument_vec[2];
-    let reducer = frame_argument_vec[3];
+fn reduce_range_inc_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+    let first = arc_process.stack_pop().unwrap();
+    let last = arc_process.stack_pop().unwrap();
+    let acc = arc_process.stack_pop().unwrap();
+    let reducer = arc_process.stack_pop().unwrap();
 
     arc_process.reduce();
 
@@ -122,128 +116,124 @@ fn reduce_range_inc_0_code(arc_process: &Arc<Process>) {
     //   fun.(first, acc)
     // end
     if first == last {
-        match reducer.tag() {
-            Boxed => {
-                let unboxed_reducer: &Term = reducer.unbox_reference();
+        match reducer.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+                TypedTerm::Closure(closure) => {
+                    if closure.module_function_arity().arity == 2 {
+                        arc_process.stack_push(first)?;
+                        arc_process.stack_push(last)?;
 
-                match unboxed_reducer.tag() {
-                    Function => {
-                        let function: &Function = reducer.unbox_reference();
+                        arc_process.replace_frame(closure.frame());
 
-                        match function.frame_with_arguments(vec![first, acc]) {
-                            Some(function_frame) => {
-                                arc_process.replace_frame(function_frame);
+                        ProcessControlBlock::call_code(arc_process)
+                    } else {
+                        let argument_list = arc_process.list_from_slice(&[first, acc])?;
 
-                                Process::call_code(arc_process);
-                            }
-                            None => arc_process.exception(lumen_runtime::badarity!(
-                                reducer,
-                                Term::slice_to_list(&[first, acc], arc_process),
-                                arc_process
-                            )),
-                        }
+                        result_from_exception(
+                            arc_process,
+                            liblumen_alloc::badarity!(arc_process, reducer, argument_list),
+                        )
                     }
-                    _ => arc_process.exception(lumen_runtime::badfun!(reducer, arc_process)),
                 }
-            }
-            _ => arc_process.exception(lumen_runtime::badfun!(reducer, arc_process)),
+                _ => result_from_exception(
+                    arc_process,
+                    liblumen_alloc::badfun!(arc_process, reducer),
+                ),
+            },
+            _ => result_from_exception(arc_process, liblumen_alloc::badfun!(arc_process, reducer)),
         }
     }
     // defp reduce_range_inc(first, last, acc, fun) do
     //   reduce_range_inc(first + 1, last, fun.(first, acc), fun)
     // end
     else {
-        let mut reduce_range_inc_1_frame = Frame::new(
+        let reduce_range_inc_1_frame = Frame::new(
             arc_process.current_module_function_arity().unwrap(),
             reduce_range_inc_1_code,
         );
-        reduce_range_inc_1_frame.push(reducer);
-        reduce_range_inc_1_frame.push(acc);
-        reduce_range_inc_1_frame.push(last);
-        reduce_range_inc_1_frame.push(first);
+        arc_process.stack_push(reducer)?;
+        arc_process.stack_push(acc)?;
+        arc_process.stack_push(last)?;
+        arc_process.stack_push(first)?;
         arc_process.replace_frame(reduce_range_inc_1_frame);
 
-        Process::call_code(arc_process);
+        ProcessControlBlock::call_code(arc_process)
     }
 }
 
 /// defp reduce_range_inc(first, last, acc, fun) do
 ///   reduce_range_inc(first + 1, last, fun.(first, acc), fun)
 /// end
-fn reduce_range_inc_1_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(4);
-    let first = frame_argument_vec[0];
-    let last = frame_argument_vec[1];
-    let acc = frame_argument_vec[2];
-    let reducer = frame_argument_vec[3];
+fn reduce_range_inc_1_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+    let first = arc_process.stack_pop().unwrap();
+    let last = arc_process.stack_pop().unwrap();
+    let acc = arc_process.stack_pop().unwrap();
+    let reducer = arc_process.stack_pop().unwrap();
 
     arc_process.reduce();
 
-    match erlang::add_2(first, 1.into_process(arc_process), arc_process) {
-        Ok(sum) => match reducer.tag() {
-            Boxed => {
-                let unboxed_reducer: &Term = reducer.unbox_reference();
+    match erlang::add_2(first, arc_process.integer(1)?, arc_process) {
+        Ok(sum) => match reducer.to_typed_term().unwrap() {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+                TypedTerm::Closure(closure) => {
+                    let reduce_range_inc_2_frame = Frame::new(
+                        arc_process.current_module_function_arity().unwrap(),
+                        reduce_range_inc_2_code,
+                    );
+                    arc_process.stack_push(reducer)?;
+                    arc_process.stack_push(last)?;
+                    arc_process.stack_push(sum)?;
+                    arc_process.replace_frame(reduce_range_inc_2_frame);
 
-                match unboxed_reducer.tag() {
-                    Function => {
-                        let mut reduce_range_inc_2_frame = Frame::new(
-                            arc_process.current_module_function_arity().unwrap(),
-                            reduce_range_inc_2_code,
-                        );
-                        reduce_range_inc_2_frame.push(reducer);
-                        reduce_range_inc_2_frame.push(last);
-                        reduce_range_inc_2_frame.push(sum);
-                        arc_process.replace_frame(reduce_range_inc_2_frame);
+                    if closure.module_function_arity().arity == 2 {
+                        let function_frame = closure.frame();
+                        arc_process.stack_push(first)?;
+                        arc_process.stack_push(acc)?;
+                        arc_process.push_frame(function_frame);
 
-                        let function: &Function = reducer.unbox_reference();
+                        ProcessControlBlock::call_code(arc_process)
+                    } else {
+                        let argument_list = arc_process.list_from_slice(&[first, acc])?;
 
-                        match function.frame_with_arguments(vec![first, acc]) {
-                            Some(function_frame) => {
-                                arc_process.push_frame(function_frame);
-
-                                Process::call_code(arc_process);
-                            }
-                            None => arc_process.exception(lumen_runtime::badarity!(
-                                reducer,
-                                Term::slice_to_list(&[first, acc], arc_process),
-                                arc_process
-                            )),
-                        }
+                        result_from_exception(
+                            arc_process,
+                            liblumen_alloc::badarity!(arc_process, reducer, argument_list,),
+                        )
                     }
-                    _ => arc_process.exception(lumen_runtime::badfun!(reducer, arc_process)),
                 }
-            }
-            _ => arc_process.exception(lumen_runtime::badfun!(reducer, arc_process)),
+                _ => result_from_exception(
+                    arc_process,
+                    liblumen_alloc::badfun!(arc_process, reducer),
+                ),
+            },
+            _ => result_from_exception(arc_process, liblumen_alloc::badfun!(arc_process, reducer)),
         },
-        Err(exception) => {
-            arc_process.exception(exception);
-        }
+        Err(exception) => result_from_exception(arc_process, exception),
     }
 }
 
-fn reduce_range_inc_2_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(4);
+fn reduce_range_inc_2_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     // acc is on top of stack because it is the return from `reducer` call
-    let acc = frame_argument_vec[0];
-    let first = frame_argument_vec[1];
-    let last = frame_argument_vec[2];
-    let reducer = frame_argument_vec[3];
+    let acc = arc_process.stack_pop().unwrap();
+    let first = arc_process.stack_pop().unwrap();
+    let last = arc_process.stack_pop().unwrap();
+    let reducer = arc_process.stack_pop().unwrap();
 
     arc_process.reduce();
 
-    let mut reduce_range_inc_0_frame = Frame::new(
+    let reduce_range_inc_0_frame = Frame::new(
         arc_process.current_module_function_arity().unwrap(),
         reduce_range_inc_0_code,
     );
-    reduce_range_inc_0_frame.push(reducer);
-    reduce_range_inc_0_frame.push(acc);
-    reduce_range_inc_0_frame.push(last);
-    reduce_range_inc_0_frame.push(first);
+    arc_process.stack_push(reducer)?;
+    arc_process.stack_push(acc)?;
+    arc_process.stack_push(last)?;
+    arc_process.stack_push(first)?;
     arc_process.replace_frame(reduce_range_inc_0_frame);
 
-    Process::call_code(arc_process);
+    ProcessControlBlock::call_code(arc_process)
 }
 
-fn reduce_range_dec_0_code(_arc_process: &Arc<Process>) {
+fn reduce_range_dec_0_code(_arc_process: &Arc<ProcessControlBlock>) -> Result {
     unimplemented!()
 }

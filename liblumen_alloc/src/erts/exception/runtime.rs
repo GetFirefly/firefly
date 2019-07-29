@@ -7,7 +7,7 @@ use crate::erts::term::{atom_unchecked, Term, TypedTerm, TypeError, BoolError, T
 use crate::erts::term::atom::{AtomError, EncodingError};
 use crate::erts::term::tuple::IndexError;
 use crate::erts::term::list::ImproperList;
-use crate::erts::HeapAlloc;
+use crate::erts::process::ProcessControlBlock;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(debug_assertions, derive(Debug))]
@@ -58,44 +58,96 @@ impl Exception {
         #[cfg(debug_assertions)]
         column: u32
     ) -> Self {
-        Self::error(Self::badarg_reason(), None, None, file, line, column)
+        Self::error(
+            Self::badarg_reason(),
+            None,
+            None,
+            #[cfg(debug_assertions)]
+            file,
+            #[cfg(debug_assertions)]
+            line,
+            #[cfg(debug_assertions)]
+            column
+        )
     }
 
-    #[cfg(debug_assertions)]
-    pub fn badarith(file: &'static str, line: u32, column: u32) -> Self {
-        Self::error(Self::badarith_reason(), None, None, file, line, column)
+    pub fn badarith(
+        #[cfg(debug_assertions)]
+        file: &'static str,
+        #[cfg(debug_assertions)]
+        line: u32,
+        #[cfg(debug_assertions)]
+        column: u32
+    ) -> Self {
+        Self::error(
+            Self::badarith_reason(),
+            None,
+            None,
+            #[cfg(debug_assertions)]
+            file,
+            #[cfg(debug_assertions)]
+            line,
+            #[cfg(debug_assertions)]
+            column
+        )
     }
 
-    #[cfg(not(debug_assertions))]
-    pub fn badarith() -> Self {
-        Self::error(Self::badarith_reason(), None, None)
-    }
-
-    #[cfg(debug_assertions)]
-    pub fn badarity<A: HeapAlloc>(
-        heap: &mut A,
+    pub fn badarity(
+        process: &ProcessControlBlock,
         function: Term,
         arguments: Term,
+        #[cfg(debug_assertions)]
         file: &'static str,
+        #[cfg(debug_assertions)]
         line: u32,
+        #[cfg(debug_assertions)]
         column: u32,
     ) -> Result<Self, AllocErr> {
-        let reason = Self::badarity_reason(heap, function, arguments)?;
-        let error = Self::error(reason, None, None, file, line, column);
+        let reason = Self::badarity_reason(process, function, arguments)?;
+        let error = Self::error(
+            reason,
+            None,
+            None,
+            #[cfg(debug_assertions)]
+            file,
+            #[cfg(debug_assertions)]
+            line,
+            #[cfg(debug_assertions)]
+            column
+        );
 
         Ok(error)
     }
 
-    #[cfg(not(debug_assertions))]
-    pub fn badarity<A: HeapAlloc>(heap: &mut A, function: Term, arguments: Term) -> Self {
-        let reason = Self::badarity_reason(process_control_block, function, arguments)?;
-        let error = Self::error(reason, None, None);
+    pub fn badfun(
+        process: &ProcessControlBlock,
+        function: Term,
+        #[cfg(debug_assertions)]
+        file: &'static str,
+        #[cfg(debug_assertions)]
+        line: u32,
+        #[cfg(debug_assertions)]
+        column: u32) -> Result<Self, AllocErr> {
+        let tag = atom_unchecked("badfun");
+        let reason = process.tuple_from_slice(&[tag, function])?;
+
+        let error = Self::error(
+            reason,
+            None,
+            None,
+            #[cfg(debug_assertions)]
+             file,
+             #[cfg(debug_assertions)]
+             line,
+             #[cfg(debug_assertions)]
+             column,
+        );
 
         Ok(error)
     }
 
-    pub fn badkey<A: HeapAlloc>(
-        heap: &mut A,
+    pub fn badkey(
+        process: &ProcessControlBlock,
         key: Term,
         #[cfg(debug_assertions)]
         file: &'static str,
@@ -105,7 +157,7 @@ impl Exception {
         column: u32,
     ) -> Result<Self, AllocErr>{
         let tag = atom_unchecked("badkey");
-        let reason = heap.tuple_from_slice(&[tag, key])?;
+        let reason = process.tuple_from_slice(&[tag, key])?;
         let error = Self::error(reason,
                                 None,
                                 None,
@@ -120,8 +172,8 @@ impl Exception {
         Ok(error)
     }
 
-    pub fn badmap<A: HeapAlloc>(
-        heap: &mut A,
+    pub fn badmap(
+        process: &ProcessControlBlock,
         map: Term,
         #[cfg(debug_assertions)]
         file: &'static str,
@@ -131,7 +183,7 @@ impl Exception {
         column: u32,
     ) -> Result<Self, AllocErr>{
         let tag = atom_unchecked("badmap");
-        let reason = heap.tuple_from_slice(&[tag, map])?;
+        let reason = process.tuple_from_slice(&[tag, map])?;
         let error = Self::error(reason,
                                 None,
                                 None,
@@ -146,8 +198,8 @@ impl Exception {
         Ok(error)
     }
 
-    pub fn undef<A: HeapAlloc>(
-        heap: &mut A,
+    pub fn undef(
+        process: &ProcessControlBlock,
         module: Term,
         function: Term,
         arguments: Term,
@@ -161,7 +213,7 @@ impl Exception {
     ) -> Result<Self, AllocErr> {
         let reason = Self::undef_reason();
         let stacktrace =
-            Self::undef_stacktrace(heap, module, function, arguments, stacktrace_tail)?;
+            Self::undef_stacktrace(process, module, function, arguments, stacktrace_tail)?;
         let exit = Self::exit(
             reason,
             Some(stacktrace),
@@ -186,14 +238,14 @@ impl Exception {
         atom_unchecked("badarith")
     }
 
-    fn badarity_reason<A: HeapAlloc>(
-        heap: &mut A,
+    fn badarity_reason(
+        process: &ProcessControlBlock,
         function: Term,
         arguments: Term,
     ) -> Result<Term, AllocErr> {
-        let function_arguments = heap.tuple_from_slice(&[function, arguments])?;
+        let function_arguments = process.tuple_from_slice(&[function, arguments])?;
 
-        heap.tuple_from_slice(&[Self::badarity_tag(), function_arguments])
+        process.tuple_from_slice(&[Self::badarity_tag(), function_arguments])
     }
 
     fn badarity_tag() -> Term {
@@ -224,49 +276,51 @@ impl Exception {
         )
     }
 
-    #[cfg(debug_assertions)]
     fn exit(
         reason: Term,
         stacktrace: Option<Term>,
+        #[cfg(debug_assertions)]
         file: &'static str,
+        #[cfg(debug_assertions)]
         line: u32,
+        #[cfg(debug_assertions)]
         column: u32,
     ) -> Self {
         let class = Class::Exit;
-        Self::new(class, reason, stacktrace, file, line, column)
+        Self::new(
+            class,
+            reason,
+            stacktrace,
+            #[cfg(debug_assertions)]
+            file,
+            #[cfg(debug_assertions)]
+            line,
+            #[cfg(debug_assertions)]
+            column
+        )
     }
 
-    #[cfg(not(debug_assertions))]
-    fn exit(reason: Term, stacktrace: Option<Term>) -> Self {
-        let class = Class::Exit;
-        Self::new(class, reason, stacktrace)
-    }
-
-    #[cfg(debug_assertions)]
     fn new(
         class: Class,
         reason: Term,
         stacktrace: Option<Term>,
+        #[cfg(debug_assertions)]
         file: &'static str,
+        #[cfg(debug_assertions)]
         line: u32,
+        #[cfg(debug_assertions)]
         column: u32,
     ) -> Self {
         Exception {
             class,
             reason,
             stacktrace,
+            #[cfg(debug_assertions)]
             file,
+            #[cfg(debug_assertions)]
             line,
+            #[cfg(debug_assertions)]
             column,
-        }
-    }
-
-    #[cfg(not(debug_assertions))]
-    fn new(class: Class, reason: Term, stacktrace: Option<Term>) -> Self {
-        Exception {
-            class,
-            reason,
-            stacktrace,
         }
     }
 
@@ -274,14 +328,14 @@ impl Exception {
         atom_unchecked("undef")
     }
 
-    fn undef_stacktrace<A: HeapAlloc>(
-        heap: &mut A,
+    fn undef_stacktrace(
+        process: &ProcessControlBlock,
         module: Term,
         function: Term,
         arguments: Term,
         tail: Term,
     ) -> Result<Term, AllocErr> {
-        let top = heap.tuple_from_slice(
+        let top = process.tuple_from_slice(
             &[
                 module,
                 function,
@@ -291,7 +345,7 @@ impl Exception {
             ],
         )?;
 
-        heap.cons(top, tail)
+        process.cons(top, tail)
     }
 }
 

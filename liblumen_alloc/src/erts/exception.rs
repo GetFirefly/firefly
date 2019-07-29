@@ -6,7 +6,8 @@ use core::alloc::AllocErr;
 use core::convert::Into;
 
 use crate::erts::term::{BytesFromBinaryError, StrFromBinaryError, Term};
-use crate::erts::process::alloc::heap_alloc::{HeapAlloc, MakePidError};
+use crate::erts::process::alloc::heap_alloc::{MakePidError};
+use crate::erts::process::ProcessControlBlock;
 
 #[derive(Debug, PartialEq)]
 pub enum Exception {
@@ -15,8 +16,58 @@ pub enum Exception {
 }
 
 impl Exception {
-    pub fn badkey<A: HeapAlloc>(
-        heap: &mut A,
+    pub fn badarity(
+        process: &ProcessControlBlock,
+        function: Term,
+        arguments: Term,
+        #[cfg(debug_assertions)]
+        file: &'static str,
+        #[cfg(debug_assertions)]
+        line: u32,
+        #[cfg(debug_assertions)]
+        column: u32) -> Self {
+        match runtime::Exception::badarity(
+            process,
+            function,
+            arguments,
+         #[cfg(debug_assertions)]
+            file,
+        #[cfg(debug_assertions)]
+            line,
+         #[cfg(debug_assertions)]
+            column
+        ) {
+            Ok(runtime_exception) => runtime_exception.into(),
+            Err(alloc_err) => alloc_err.into()
+        }
+    }
+
+    pub fn badfun(
+        process: &ProcessControlBlock,
+        function: Term,
+        #[cfg(debug_assertions)]
+        file: &'static str,
+        #[cfg(debug_assertions)]
+        line: u32,
+        #[cfg(debug_assertions)]
+        column: u32) -> Self {
+        match runtime::Exception::badfun(
+            process,
+            function,
+            #[cfg(debug_assertions)]
+            file,
+            #[cfg(debug_assertions)]
+            line,
+            #[cfg(debug_assertions)]
+            column
+        ) {
+            Ok(runtime_exception) => runtime_exception.into(),
+            Err(alloc_err) => alloc_err.into()
+        }
+    }
+
+    pub fn badkey(
+        process: &ProcessControlBlock,
         key: Term,
         #[cfg(debug_assertions)]
         file: &'static str,
@@ -26,7 +77,7 @@ impl Exception {
         column: u32,
     ) -> Self {
         match runtime::Exception::badkey(
-            heap,
+            process,
             key,
             #[cfg(debug_assertions)]
             file,
@@ -40,8 +91,8 @@ impl Exception {
         }
     }
 
-    pub fn badmap<A: HeapAlloc>(
-        heap: &mut A,
+    pub fn badmap(
+        process: &ProcessControlBlock,
         map: Term,
         #[cfg(debug_assertions)]
         file: &'static str,
@@ -51,7 +102,7 @@ impl Exception {
         column: u32,
     ) -> Self {
         match runtime::Exception::badmap(
-            heap,
+            process,
             map,
             #[cfg(debug_assertions)]
             file,
@@ -65,8 +116,8 @@ impl Exception {
         }
     }
 
-    pub fn undef<A: HeapAlloc>(
-        heap: &mut A,
+    pub fn undef(
+        process: &ProcessControlBlock,
         module: Term,
         function: Term,
         arguments: Term,
@@ -79,7 +130,7 @@ impl Exception {
         column: u32,
     ) -> Self {
         match runtime::Exception::undef(
-            heap,
+            process,
             module,
             function,
             arguments,

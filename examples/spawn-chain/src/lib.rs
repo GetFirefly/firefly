@@ -1,15 +1,21 @@
 #![deny(warnings)]
+// `AllocErr`
+#![feature(allocator_api)]
 #![feature(type_ascription)]
 
 use std::sync::Arc;
 
+use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::{default_heap, Status};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom};
+
+use lumen_runtime::code::apply_fn;
 use lumen_runtime::registry;
 use lumen_runtime::scheduler::Scheduler;
 
 use wasm_bindgen::prelude::*;
 
 use crate::start::*;
-use lumen_runtime::code::apply_fn;
 
 mod code;
 mod elixir;
@@ -29,42 +35,57 @@ pub fn start() {
 
     let arc_scheduler = Scheduler::current();
     let init_arc_scheduler = Arc::clone(&arc_scheduler);
-    let init_arc_process = init_arc_scheduler.spawn_init();
-    let init_name = Term::str_to_atom("init", DoNotCare).unwrap();
+    let init_arc_process = init_arc_scheduler.spawn_init(0).unwrap();
+    let init_atom = Atom::try_from_str("init").unwrap();
 
-    match Process::register(&init_arc_process, init_name) {
-        Ok(_) => (),
-        Err(_) => panic!("Could not register init process"),
+    if !registry::put_atom_to_process(init_atom, init_arc_process) {
+        panic!("Could not register init process");
     };
 }
 
 #[wasm_bindgen]
 pub fn run(count: usize) {
-    let init_arc_process = registry::name_to_process("init").unwrap();
+    let init_atom = Atom::try_from_str("init").unwrap();
+    let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
 
     // elixir --erl "+P 1000000" -r chain.ex -e "Chain.run(1_000_000)".
-    let module = Term::str_to_atom("Elixir.Chain", DoNotCare).unwrap();
-    let function = Term::str_to_atom("run", DoNotCare).unwrap();
-    let arguments =
-        Term::slice_to_list(&[count.into_process(&init_arc_process)], &init_arc_process);
-    let run_arc_process =
-        Scheduler::spawn(&init_arc_process, module, function, arguments, apply_fn());
+    let module = Atom::try_from_str("Elixir.Chain").unwrap();
+    let function = Atom::try_from_str("run").unwrap();
+    let arguments = init_arc_process
+        .list_from_slice(&[init_arc_process.integer(count).unwrap()])
+        // if not enough memory here, resize `spawn_init` heap
+        .unwrap();
+
+    let (heap, heap_size) = default_heap()
+        // if this fails the entire tab is out-of-memory
+        .unwrap();
+    let run_arc_process = Scheduler::spawn(
+        &init_arc_process,
+        module,
+        function,
+        arguments,
+        apply_fn(),
+        heap,
+        heap_size,
+        )
+        // if this fails, don't use `default_heap` and instead use a bigger sized heap
+        .unwrap();
 
     loop {
         Scheduler::current().run_through(&run_arc_process);
 
-        match *run_arc_process.status.read().unwrap() {
+        match *run_arc_process.status.read() {
             Status::Exiting(ref exception) => match exception {
-                Exception {
-                    class: exception::Class::Exit,
+                exception::runtime::Exception {
+                    class: exception::runtime::Class::Exit,
                     reason,
                     ..
                 } => {
-                    if *reason != Term::str_to_atom("normal", DoNotCare).unwrap() {
+                    if *reason != atom_unchecked("normal") {
                         #[cfg(debug_assertions)]
-                        panic!("Process exited: {:?}", reason);
+                        panic!("ProcessControlBlock exited: {:?}", reason);
                         #[cfg(not(debug_assertions))]
-                        panic!("Process exited");
+                        panic!("ProcessControlBlock exited");
                     } else {
                         break;
                     }
@@ -73,9 +94,9 @@ pub fn run(count: usize) {
                     #[cfg(debug_assertions)]
                     crate::code::print_stacktrace(&run_arc_process);
                     #[cfg(debug_assertions)]
-                    panic!("Process exception: {:?}", exception);
+                    panic!("ProcessControlBlock exception: {:?}", exception);
                     #[cfg(not(debug_assertions))]
-                    panic!("Process exception");
+                    panic!("ProcessControlBlock exception");
                 }
             },
             Status::Waiting => {

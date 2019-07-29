@@ -52,13 +52,22 @@ impl Mailbox {
     pub fn receive<A: HeapAlloc>(&mut self, heap: &mut A) -> Option<Result<Term, AllocErr>> {
         self.messages.pop_front().map(|message| {
             if message.is_on_heap() {
+                self.len -= 1;
+
                 Ok(message.data())
             } else {
-                message.data().clone_to_heap(heap).map_err(|error| {
-                    self.messages.push_front(message);
+                match message.data().clone_to_heap(heap) {
+                    Ok(heap_data) => {
+                        self.len -= 1;
 
-                    error
-                })
+                        Ok(heap_data)
+                    }
+                    err @ Err(_) => {
+                        self.messages.push_front(message);
+
+                        err
+                    }
+                }
             }
         })
     }

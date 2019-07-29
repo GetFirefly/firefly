@@ -943,7 +943,7 @@ pub fn is_map_key_2(key: Term, map: Term, process_control_block: &ProcessControl
 
     match result {
         Ok(map_header) => Ok(map_header.is_key(key).into()),
-        Err(_) => Err(badmap!(&mut process_control_block.acquire_heap(), map)),
+        Err(_) => Err(badmap!(process_control_block, map)),
     }
 }
 
@@ -1226,9 +1226,9 @@ pub fn map_get_2(key: Term, map: Term, process_control_block: &ProcessControlBlo
     match result {
         Ok(map_header) => match map_header.get(key) {
             Some(value) => Ok(value),
-            None => Err(badkey!(&mut process_control_block.acquire_heap(), key)),
+            None => Err(badkey!(process_control_block, key)),
         },
-        Err(_) => Err(badmap!(&mut process_control_block.acquire_heap(), map)),
+        Err(_) => Err(badmap!(process_control_block, map)),
     }
 }
 
@@ -1242,7 +1242,7 @@ pub fn map_size_1(map: Term, process_control_block: &ProcessControlBlock) -> Res
 
             Ok(len_term)
         }
-        Err(_) => Err(badmap!(&mut process_control_block.acquire_heap(), map)),
+        Err(_) => Err(badmap!(process_control_block, map)),
     }
 }
 

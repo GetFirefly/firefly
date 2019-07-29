@@ -32,7 +32,7 @@ macro_rules! badarith {
 
 #[macro_export]
 macro_rules! badarity {
-    ($process:expr, $function:expr, $arguments:expr) => {{
+    ($process:expr, $function:expr, $arguments:expr) => {
         $crate::erts::exception::Exception::badarity(
             $process,
             $function,
@@ -44,22 +44,26 @@ macro_rules! badarity {
             #[cfg(debug_assertions)]
             column!(),
         )
-    }};
-    ($process:expr, $function:expr, $arguments:expr,) => {{
-        $crate::badarity!($function, $arguments, $process)
-    }};
+    };
+    ($process:expr, $function:expr, $arguments:expr,) => {
+        $crate::badarity!($process, $function, $arguments)
+    };
 }
 
 #[macro_export]
 macro_rules! badfun {
-    ($process:expr, $fun:expr) => {{
-        use liblumen_alloc::{atom_unchecked, Term};
-
-        let badfun = atom_unchecked("badfun");
-        let reason = Term::slice_to_tuple(&[badfun, $fun], $process);
-
-        $crate::error!(reason)
-    }};
+    ($process:expr, $fun:expr) => {
+        $crate::erts::exception::Exception::badfun(
+            $process,
+            $fun,
+            #[cfg(debug_assertions)]
+            file!(),
+            #[cfg(debug_assertions)]
+            line!(),
+            #[cfg(debug_assertions)]
+            column!(),
+        )
+    };
 }
 
 #[macro_export]

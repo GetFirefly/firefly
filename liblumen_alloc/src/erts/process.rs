@@ -839,8 +839,7 @@ unsafe impl Sync for ProcessControlBlock {}
 type Reductions = u16;
 
 // [BEAM statuses](https://github.com/erlang/otp/blob/551d03fe8232a66daf1c9a106194aa38ef660ef6/erts/emulator/beam/erl_process.c#L8944-L8972)
-#[derive(PartialEq)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Debug, PartialEq)]
 pub enum Status {
     Runnable,
     Running,

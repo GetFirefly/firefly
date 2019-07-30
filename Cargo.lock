@@ -602,6 +602,7 @@ dependencies = [
  "static_assertions 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "thread_local 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen 0.2.46 (registry+https://github.com/rust-lang/crates.io-index)",
+ "web-sys 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

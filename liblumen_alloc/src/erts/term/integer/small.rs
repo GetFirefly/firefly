@@ -15,10 +15,8 @@ use super::*;
 #[repr(transparent)]
 pub struct SmallInteger(pub(in crate::erts::term) isize);
 impl SmallInteger {
-    const FLAG_SIGN: usize = Term::FLAG_SMALL_INTEGER_SIGN;
-
-    pub const MAX_VALUE: isize = Term::MAX_SMALLINT_VALUE as isize;
-    pub const MIN_VALUE: isize = -(Self::MAX_VALUE as isize);
+    pub const MIN_VALUE: isize = Term::MIN_SMALLINT_VALUE;
+    pub const MAX_VALUE: isize = Term::MAX_SMALLINT_VALUE;
 
     /// Create new `SmallInteger` from an `isize` value, returning `Err`
     /// if the value is out of range
@@ -46,19 +44,6 @@ impl SmallInteger {
             Self::MIN_VALUE
         );
         Self(i)
-    }
-
-    /// Given an unwrapped immediate term that is tagged as small integer,
-    /// this function takes the untagged value and extracts the `SmallInteger` value
-    #[inline]
-    pub unsafe fn from_untagged_term(u: usize) -> Self {
-        let is_negative = u & Self::FLAG_SIGN == Self::FLAG_SIGN;
-        let unsigned = u & !Self::FLAG_SIGN;
-        if is_negative {
-            Self(-(unsigned as isize))
-        } else {
-            Self(unsigned as isize)
-        }
     }
 }
 unsafe impl AsTerm for SmallInteger {

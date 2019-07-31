@@ -61,14 +61,17 @@ use crate::elixir;
 pub fn counter_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     arc_process.reduce();
 
-    // because there is a guardless match in the receive block, the first message will always be
-    // removed and no loop is necessary
-    match arc_process
+    // Because there is a guardless match in the receive block, the first message will always be
+    // removed and no loop is necessary.
+    //
+    // CANNOT be in `match` as it will hold temporaries in `match` arms causing a `park`.
+    let received = arc_process
         .mailbox
         .lock()
         .borrow_mut()
-        .receive(&mut arc_process.acquire_heap())
-    {
+        .receive(&mut arc_process.acquire_heap());
+
+    match received {
         Some(Ok(n)) => {
             let counter_module_function_arity =
                 arc_process.current_module_function_arity().unwrap();

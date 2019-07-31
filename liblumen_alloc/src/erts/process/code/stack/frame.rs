@@ -1,7 +1,6 @@
-use alloc::sync::Arc;
-
-#[cfg(debug_assertions)]
 use core::fmt::{self, Debug};
+
+use alloc::sync::Arc;
 
 use crate::erts::process::code::Code;
 use crate::erts::ModuleFunctionArity;
@@ -28,17 +27,11 @@ impl Frame {
     }
 }
 
-#[cfg(debug_assertions)]
 impl Debug for Frame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "{{")?;
-        writeln!(
-            f,
-            "  let frame = Frame::new({:?}, ...);",
-            self.module_function_arity
-        )?;
-
-        writeln!(f, "  frame")?;
-        write!(f, "}}")
+        f.debug_struct("Frame")
+            .field("module_function_arity", &self.module_function_arity)
+            .field("code", &(self.code as *const ()))
+            .finish()
     }
 }

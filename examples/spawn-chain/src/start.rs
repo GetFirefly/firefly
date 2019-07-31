@@ -1,8 +1,3 @@
-#[cfg(target_arch = "wasm32")]
-use lumen_runtime::time;
-#[cfg(target_arch = "wasm32")]
-use lumen_runtime::time::monotonic::Milliseconds;
-
 use crate::code;
 
 pub fn set_apply_fn() {
@@ -21,13 +16,13 @@ pub fn set_panic_hook() {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn set_time_monotonic_source() {
-    time::monotonic::set_source(time_monotonic_source);
+pub fn set_parking_lot_time_now_fn() {
+    parking_lot_core::time::set_now_fn(now);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn set_time_monotonic_source() {
-    // use the default source that works when not on wasm32
+pub fn set_parking_lot_time_now_fn() {
+    // use the default that works when not on wasm32
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -41,11 +36,11 @@ pub fn log_1(string: String) {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn time_monotonic_source() -> Milliseconds {
+fn now() -> parking_lot_core::time::Instant {
     let window = web_sys::window().expect("should have a window in this context");
     let performance = window
         .performance()
         .expect("performance should be available");
 
-    performance.now() as Milliseconds
+    parking_lot_core::time::Instant::from_millis(performance.now() as u64)
 }

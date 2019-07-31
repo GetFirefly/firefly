@@ -29,6 +29,11 @@ wasm-bindgen = "0.2"
 # Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
 wee_alloc = { version = "0.4.2", optional = true }
 
+[dependencies.parking_lot_core]
+git = "https://github.com/KronicDeth/parking_lot.git"
+branch = "no_instant_now"
+features = ["nightly", "no_instant_now"]
+
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
 version = "0.3.20"
 features = ['console', 'Performance', 'Window']

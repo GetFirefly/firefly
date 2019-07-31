@@ -11,11 +11,14 @@ cfg-if = "0.1"
 lazy_static = "1.2"
 
 [dependencies.parking_lot]
-version = "0.7"
-features = ["nightly"]
+git = "https://github.com/KronicDeth/parking_lot.git"
+branch = "no_instant_now"
+features = ["nightly", "no_instant_now"]
 
 [dependencies.lock_api]
-version = "0.1"
+git = "https://github.com/KronicDeth/parking_lot.git"
+branch = "no_instant_now"
+features = ["nightly"]
 
 # We use libc for all platforms except wasm32-unknown-unknown
 # NOTE: On win32 we use libc for malloc/free

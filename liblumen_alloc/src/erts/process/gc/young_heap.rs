@@ -866,6 +866,19 @@ impl fmt::Debug for YoungHeap {
             }
         }
         f.write_str("  ==== END HEAP ====\n")?;
+        f.write_str("  ==== START UNUSED ====\n")?;
+        while pos < self.stack_start {
+            unsafe {
+                f.write_fmt(format_args!(
+                    "  {:?}: {:0bit_len$b}\n",
+                    pos,
+                    *(pos as *const usize),
+                    bit_len = (core::mem::size_of::<usize>() * 8)
+                ))?;
+                pos = pos.add(1);
+            }
+        }
+        f.write_str("  ==== END UNUSED ====\n")?;
         f.write_str("  ==== START STACK ==== \n")?;
         pos = self.stack_start;
         while pos < self.stack_end {

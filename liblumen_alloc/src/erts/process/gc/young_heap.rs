@@ -855,7 +855,13 @@ impl fmt::Debug for YoungHeap {
                     term.arityval()
                 };
 
-                f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                f.write_fmt(format_args!(
+                    "  {:?}: {:0bit_len$b} {:?}\n",
+                    pos,
+                    *(pos as *const usize),
+                    term,
+                    bit_len = (core::mem::size_of::<usize>() * 8)
+                ))?;
                 pos = pos.offset((1 + arityval) as isize);
             }
         }
@@ -873,7 +879,13 @@ impl fmt::Debug for YoungHeap {
                     term.arityval()
                 };
 
-                f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                f.write_fmt(format_args!(
+                    "  {:?}: {:0bit_len$b} {:?}\n",
+                    pos,
+                    *(pos as *const usize),
+                    term,
+                    bit_len = (core::mem::size_of::<usize>() * 8)
+                ))?;
                 pos = pos.offset((1 + arityval) as isize);
             }
         }

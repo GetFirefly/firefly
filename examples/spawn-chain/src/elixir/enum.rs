@@ -120,8 +120,8 @@ fn reduce_range_inc_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Closure(closure) => {
                     if closure.module_function_arity().arity == 2 {
+                        arc_process.stack_push(acc)?;
                         arc_process.stack_push(first)?;
-                        arc_process.stack_push(last)?;
 
                         arc_process.replace_frame(closure.frame());
 
@@ -187,8 +187,8 @@ fn reduce_range_inc_1_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
                     if closure.module_function_arity().arity == 2 {
                         let function_frame = closure.frame();
-                        arc_process.stack_push(first)?;
                         arc_process.stack_push(acc)?;
+                        arc_process.stack_push(first)?;
                         arc_process.push_frame(function_frame);
 
                         ProcessControlBlock::call_code(arc_process)

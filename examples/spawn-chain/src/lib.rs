@@ -72,7 +72,7 @@ pub fn run(count: usize) {
         .unwrap();
 
     loop {
-        Scheduler::current().run_through(&run_arc_process);
+        let ran = Scheduler::current().run_through(&run_arc_process);
 
         match *run_arc_process.status.read() {
             Status::Exiting(ref exception) => match exception {
@@ -100,10 +100,14 @@ pub fn run(count: usize) {
                 }
             },
             Status::Waiting => {
-                log_1(format!(
-                    "WAITING Run queues len = {:?}",
-                    Scheduler::current().run_queues_len()
-                ));
+                if ran {
+                    log_1(format!(
+                        "WAITING Run queues len = {:?}",
+                        Scheduler::current().run_queues_len()
+                    ));
+                } else {
+                    panic!("{:?} did not run.  Deadlock likely.", run_arc_process);
+                }
             }
             Status::Runnable => {
                 log_1(format!(

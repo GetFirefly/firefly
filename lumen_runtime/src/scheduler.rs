@@ -84,7 +84,8 @@ impl Scheduler {
     /// > -- [The Scheduler Loop](https://blog.stenmans.org/theBeamBook/#_the_scheduler_loop)
     pub fn run(&self) {
         loop {
-            self.run_once();
+            // TODO sleep or steal if nothing run
+            let _ = self.run_once();
         }
     }
 
@@ -97,7 +98,11 @@ impl Scheduler {
     /// > 7. While needed pick a port task to execute
     /// > 8. Pick a process to execute
     /// > -- [The Scheduler Loop](https://blog.stenmans.org/theBeamBook/#_the_scheduler_loop)
-    fn run_once(&self) {
+    ///
+    /// Returns `true` if a process was run.  Returns `false` if no process could be run and the
+    /// scheduler should sleep or work steal.
+    #[must_use]
+    fn run_once(&self) -> bool {
         match self.hierarchy.write().timeout() {
             Ok(()) => (),
             Err(_) => unimplemented!(
@@ -123,11 +128,11 @@ impl Scheduler {
                         None => (),
                     };
 
-                    break;
+                    break true;
                 }
                 Run::Delayed => continue,
                 // TODO steal processes or sleep if nothing to steal
-                Run::None => break,
+                Run::None => break false,
             }
         }
     }
@@ -141,13 +146,23 @@ impl Scheduler {
         self.run_queues.read().run_queue_len(priority)
     }
 
-    pub fn run_through(&self, arc_process: &Arc<ProcessControlBlock>) {
+    /// Returns `true` if `arc_process` was run; otherwise, `false`.
+    #[must_use]
+    pub fn run_through(&self, arc_process: &Arc<ProcessControlBlock>) -> bool {
         let ordering = Ordering::SeqCst;
         let reductions_before = arc_process.total_reductions.load(ordering);
 
         // The same as `run`, but stops when the process is run once
-        while arc_process.total_reductions.load(Ordering::SeqCst) <= reductions_before {
-            self.run_once();
+        loop {
+            if self.run_once() {
+                if arc_process.total_reductions.load(Ordering::SeqCst) <= reductions_before {
+                    break true;
+                } else {
+                    continue;
+                }
+            } else {
+                break false;
+            }
         }
     }
 

@@ -1,9 +1,12 @@
 pub mod frame;
 
-#[cfg(debug_assertions)]
 use core::fmt::{self, Debug};
 
 use alloc::collections::vec_deque::{Iter, VecDeque};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+
+use crate::erts::ModuleFunctionArity;
 
 use self::frame::Frame;
 
@@ -30,6 +33,16 @@ impl Stack {
     pub fn push(&mut self, frame: Frame) {
         self.0.push_front(frame);
     }
+
+    pub fn trace(&self) -> Trace {
+        let mut stacktrace = Vec::with_capacity(self.len());
+
+        for frame in self.iter() {
+            stacktrace.push(frame.module_function_arity())
+        }
+
+        Trace(stacktrace)
+    }
 }
 
 #[cfg(debug_assertions)]
@@ -44,5 +57,17 @@ impl Debug for Stack {
 
         writeln!(f, "  stack")?;
         write!(f, "}}")
+    }
+}
+
+pub struct Trace(Vec<Arc<ModuleFunctionArity>>);
+
+impl Debug for Trace {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for module_function_arity in self.0.iter() {
+            writeln!(f, "  {}", module_function_arity)?;
+        }
+
+        Ok(())
     }
 }

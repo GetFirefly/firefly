@@ -138,7 +138,14 @@ impl Scheduler {
                                     }
                                 }
                                 runtime::Class::Error { .. } => {
-                                    system::io::puts(&format!("** (EXIT from {:?}) exited with reason: an exception was raised: {:?}", exiting_arc_process, exception.reason))
+                                    system::io::puts(
+                                        &format!(
+                                            "** (EXIT from {:?}) exited with reason: an exception was raised: {:?}\n{:?}",
+                                            exiting_arc_process,
+                                            exception.reason,
+                                            exiting_arc_process.stacktrace()
+                                        )
+                                    )
                                 }
                                 _ => unimplemented!("{:?}", exception),
                             },

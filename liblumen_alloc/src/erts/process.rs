@@ -17,7 +17,6 @@ use core::str::Chars;
 use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
 
 use ::alloc::sync::Arc;
-use ::alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use intrusive_collections::{LinkedList, UnsafeRef};
@@ -35,6 +34,7 @@ pub use self::alloc::heap_alloc::{self, HeapAlloc};
 pub use self::alloc::{
     default_heap, heap, next_heap_size, StackAlloc, StackPrimitives, VirtualAlloc,
 };
+use self::code::stack;
 use self::code::stack::frame::Frame;
 pub use self::flags::*;
 pub use self::flags::*;
@@ -760,15 +760,8 @@ impl ProcessControlBlock {
         }
     }
 
-    pub fn stacktrace(&self) -> Vec<Arc<ModuleFunctionArity>> {
-        let locked_code_stack = self.code_stack.lock();
-        let mut stacktrace = Vec::with_capacity(locked_code_stack.len());
-
-        for frame in locked_code_stack.iter() {
-            stacktrace.push(frame.module_function_arity())
-        }
-
-        stacktrace
+    pub fn stacktrace(&self) -> stack::Trace {
+        self.code_stack.lock().trace()
     }
 }
 

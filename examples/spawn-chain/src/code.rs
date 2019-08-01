@@ -27,7 +27,14 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
                 argument_vec.push(element);
             }
         }
-        _ => panic!("{:?} is not an argument list", argument_list),
+        _ => panic!(
+            "In {:?}, {:?} ({:#b}) is not an argument list.  Cannot call {:?}:{:?}",
+            arc_process.pid_term(),
+            argument_list,
+            argument_list.as_usize(),
+            module_term,
+            function_term
+        ),
     }
 
     let module: Atom = module_term.try_into().unwrap();

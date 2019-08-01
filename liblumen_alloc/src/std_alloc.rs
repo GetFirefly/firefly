@@ -286,7 +286,7 @@ impl StandardAlloc {
             },
         );
         // Get pointer to data region in allocated carrier+block
-        let data = (carrier as *mut u8).offset(data_offset as isize);
+        let data = (carrier as *mut u8).add(data_offset);
         // Cast carrier pointer to UnsafeRef and add to linked list
         // This implicitly mutates the link in the carrier
         let carrier = UnsafeRef::from_raw(carrier);

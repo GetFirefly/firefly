@@ -79,7 +79,7 @@ impl Tuple {
     /// NOTE: This is unsafe to use unless you know the tuple has been allocated
     #[inline]
     pub fn head(&self) -> *mut Term {
-        unsafe { (self as *const Tuple).offset(1) as *mut Term }
+        unsafe { (self as *const Tuple).add(1) as *mut Term }
     }
 
     /// This function produces a `Layout` which represents the memory layout
@@ -132,7 +132,7 @@ impl Tuple {
         assert!(index > 0 && index <= self.len());
         assert!(element.is_runtime());
         unsafe {
-            let ptr = self.head().offset((index - 1) as isize);
+            let ptr = self.head().add(index - 1);
             ptr::write(ptr, element);
         }
     }
@@ -171,7 +171,7 @@ impl Tuple {
     fn do_get_element(&self, index: usize) -> Term {
         assert!(index > 0 && index <= self.len());
         unsafe {
-            let ptr = self.head().offset((index - 1) as isize);
+            let ptr = self.head().add(index - 1);
             follow_moved(*ptr)
         }
     }
@@ -195,7 +195,7 @@ impl CloneToProcess for Tuple {
             // Get pointer to the old head element location
             let old_head = self.head();
             // Get pointer to the new head element location
-            let head = ptr.offset(1) as *mut Term;
+            let head = ptr.add(1) as *mut Term;
             // Write the header
             ptr::write(
                 ptr,
@@ -205,13 +205,13 @@ impl CloneToProcess for Tuple {
             );
             // Write each element
             for offset in 0..num_elements {
-                let old = *old_head.offset(offset as isize);
+                let old = *old_head.add(offset);
                 if old.is_immediate() {
-                    ptr::write(head.offset(offset as isize), old);
+                    ptr::write(head.add(offset), old);
                 } else {
                     // Recursively call clone_to_process, and then write the box header here
                     let boxed = old.clone_to_heap(heap)?;
-                    ptr::write(head.offset(offset as isize), boxed);
+                    ptr::write(head.add(offset), boxed);
                 }
             }
             Ok(Term::make_boxed(ptr))
@@ -301,7 +301,7 @@ pub struct Iter {
 impl Iter {
     pub fn new(tuple: &Tuple) -> Self {
         let pointer = tuple.head();
-        let limit = unsafe { pointer.offset(tuple.len() as isize) };
+        let limit = unsafe { pointer.add(tuple.len()) };
 
         Self { pointer, limit }
     }
@@ -332,7 +332,7 @@ impl Iterator for Iter {
             let old_pointer = self.pointer;
 
             unsafe {
-                self.pointer = self.pointer.offset(1);
+                self.pointer = self.pointer.add(1);
                 old_pointer.as_ref().map(|r| *r)
             }
         }

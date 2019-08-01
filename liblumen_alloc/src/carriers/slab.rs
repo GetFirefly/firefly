@@ -44,7 +44,7 @@ where
     pub unsafe fn init(ptr: *mut u8, size: usize, size_class: SizeClass) -> *mut Self {
         let size_class_bytes = size_class.to_bytes();
         // Shift pointer past end of Self
-        let data_ptr = (ptr as *mut Self).offset(1) as *mut u8;
+        let data_ptr = (ptr as *mut Self).add(1) as *mut u8;
         // Pointer to the block set is given by offset backwards to the beginning of the field
         let abs_ptr = data_ptr.offset(-1 * mem::size_of::<B>() as isize) as *mut B;
         // We write the carrier header to memory, as well as the block set
@@ -81,7 +81,7 @@ where
                 // Calculate selected block address
                 let block_size = self.header;
                 // NOTE: If `index` is 0, the first block was selected
-                let block = first_block.offset((block_size * index) as isize);
+                let block = first_block.add(block_size * index);
                 // Return pointer to block
                 return Ok(NonNull::new_unchecked(block));
             }
@@ -118,6 +118,6 @@ where
         let carrier = self as *const _ as *mut u8;
         // Shift pointer past header
         let offset = mem::size_of::<Self>() + self.blocks.extent_size();
-        unsafe { carrier.offset(offset as isize) }
+        unsafe { carrier.add(offset) }
     }
 }

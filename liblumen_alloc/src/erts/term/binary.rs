@@ -486,7 +486,7 @@ pub unsafe fn copy_binary_to_buffer(
     bits: usize,
 ) {
     if bit_offset(dst_offs) == 0 && src_offs == 0 && bit_offset(bits) == 0 && bits != 0 {
-        let dst = dst.offset(byte_offset(dst_offs) as isize);
+        let dst = dst.add(byte_offset(dst_offs));
         ptr::copy_nonoverlapping(src, dst, num_bytes(bits));
     } else {
         copy_bits(

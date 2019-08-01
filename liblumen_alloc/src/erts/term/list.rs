@@ -541,18 +541,18 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                 // Allocate on stack
                 let ptr = unsafe { self.stack.alloca_layout(layout)?.as_ptr() };
                 // Get pointer to first cell
-                let first_ptr = unsafe { ptr.offset(1) as *mut Cons };
+                let first_ptr = unsafe { ptr.add(1) as *mut Cons };
                 // Write header with pointer to first cell
                 unsafe { ptr::write(ptr, Term::make_list(first_ptr)) };
                 // For each element in the list, write a cell with a pointer to the next one
                 for (i, element) in self.elements.iter().copied().enumerate() {
                     // Offsets are relative to the first cell, first element has `i` of 0
-                    let cell_ptr = unsafe { first_ptr.offset(i as isize) };
+                    let cell_ptr = unsafe { first_ptr.add(i) };
                     // Get mutable reference to cell memory
                     let mut cell = unsafe { &mut *cell_ptr };
                     if i < size - 1 {
                         // If we have future cells to write, generate a valid tail
-                        let tail_ptr = unsafe { cell_ptr.offset(1) };
+                        let tail_ptr = unsafe { cell_ptr.add(1) };
                         cell.head = element;
                         cell.tail = Term::make_list(tail_ptr);
                     } else {
@@ -584,18 +584,18 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                 // Allocate on stack
                 let ptr = unsafe { self.stack.alloca_layout(layout)?.as_ptr() };
                 // Get pointer to first cell
-                let first_ptr = unsafe { ptr.offset(1) as *mut Cons };
+                let first_ptr = unsafe { ptr.add(1) as *mut Cons };
                 // Write header with pointer to first cell
                 unsafe { ptr::write(ptr, Term::make_list(first_ptr)) };
                 // For each element in the list, write a cell with a pointer to the next one
                 for (i, element) in self.elements.iter().copied().enumerate() {
                     // Offsets are relative to the first cell, first element has `i` of 0
-                    let cell_ptr = unsafe { first_ptr.offset(i as isize) };
+                    let cell_ptr = unsafe { first_ptr.add(i) };
                     // Get mutable reference to cell memory
                     let mut cell = unsafe { &mut *cell_ptr };
                     if i < size - 2 {
                         // If we have future cells to write, generate a valid tail
-                        let tail_ptr = unsafe { cell_ptr.offset(1) };
+                        let tail_ptr = unsafe { cell_ptr.add(1) };
                         cell.head = element;
                         cell.tail = Term::make_list(tail_ptr);
                     } else {

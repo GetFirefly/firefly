@@ -44,7 +44,7 @@ impl RawFragment {
     pub fn contains<T>(&self, ptr: *const T) -> bool {
         let ptr = ptr as usize;
         let start = self.data as usize;
-        let end = unsafe { self.data.offset(self.size as isize) } as usize;
+        let end = unsafe { self.data.add(self.size) } as usize;
         start <= ptr && ptr <= end
     }
 }
@@ -84,7 +84,7 @@ impl HeapFragment {
         let size = layout.size();
         let align = layout.align();
         let ptr = std_alloc::alloc(full_layout)?.as_ptr() as *mut Self;
-        let data = (ptr as *mut u8).offset(offset as isize);
+        let data = (ptr as *mut u8).add(offset);
         let top = data;
         ptr::write(
             ptr,

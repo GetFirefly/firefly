@@ -122,10 +122,10 @@ mod tuple_from_slice {
             Term::make_header(slice.len(), Term::FLAG_TUPLE).as_usize()
         );
 
-        let element_pointer = unsafe { arity_pointer.offset(1) };
+        let element_pointer = unsafe { arity_pointer.add(1) };
 
         for (i, element) in slice.iter().enumerate() {
-            assert_eq!(unsafe { *element_pointer.offset(i as isize) }, *element);
+            assert_eq!(unsafe { *element_pointer.add(i) }, *element);
         }
     }
 
@@ -202,7 +202,7 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
         assert!(tuple_unwrapped.is_tuple_header());
         let tuple = &*(tuple_ptr as *mut Tuple);
         let head_ptr = tuple.head();
-        let second_element_ptr = head_ptr.offset(1);
+        let second_element_ptr = head_ptr.add(1);
         ptr::write(second_element_ptr, new_greeting_term);
     }
 

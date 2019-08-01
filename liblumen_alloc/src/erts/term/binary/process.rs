@@ -379,7 +379,7 @@ impl Original for ProcBin {
             full_byte_len
         );
 
-        unsafe { *inner.bytes().offset(index as isize) }
+        unsafe { *inner.bytes().add(index) }
     }
 }
 

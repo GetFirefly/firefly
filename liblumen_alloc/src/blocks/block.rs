@@ -100,7 +100,7 @@ impl Block {
     #[inline]
     pub unsafe fn data(&self) -> *const u8 {
         let raw = self as *const Block;
-        raw.offset(1) as *const u8
+        raw.add(1) as *const u8
     }
 
     /// Checks if the given pointer belongs to this block
@@ -194,8 +194,8 @@ impl Block {
         }
 
         let ptr = self as *const Block;
-        let data_ptr = unsafe { ptr.offset(1) as *mut u8 };
-        let next_ptr = unsafe { data_ptr.offset(self.usable_size() as isize) };
+        let data_ptr = unsafe { ptr.add(1) as *mut u8 };
+        let next_ptr = unsafe { data_ptr.add(self.usable_size()) };
 
         Some(unsafe { BlockRef::from_raw(next_ptr as *mut Block) })
     }
@@ -237,7 +237,7 @@ impl Block {
         let offset = size - mem::size_of::<BlockFooter>();
         unsafe {
             let ptr = self.data();
-            let footer_ptr = ptr.offset(offset as isize) as *mut BlockFooter;
+            let footer_ptr = ptr.add(offset) as *mut BlockFooter;
             Some(NonNull::new_unchecked(footer_ptr))
         }
     }
@@ -299,7 +299,7 @@ impl Block {
         let offset = size - mem::size_of::<BlockFooter>();
         unsafe {
             let ptr = self.data();
-            let footer_ptr = ptr.offset(offset as isize) as *mut BlockFooter;
+            let footer_ptr = ptr.add(offset) as *mut BlockFooter;
             ptr::write(footer_ptr, BlockFooter::new(size));
         }
         // Ensure links are initialized
@@ -318,14 +318,14 @@ impl Block {
         let mut ptr = self as *const _ as *mut u8;
         let mut len = self.usable_size();
         if self.is_free() {
-            ptr = unsafe { ptr.offset(mem::size_of::<FreeBlock>() as isize) };
+            ptr = unsafe { ptr.add(mem::size_of::<FreeBlock>()) };
             // Usable size is total size - sizeof(Block), but a free block
             // is total size - sizeof(FreeBlock) - sizeof(BlockFooter)
             len = (len + mem::size_of::<Block>())
                 - mem::size_of::<FreeBlock>()
                 - mem::size_of::<BlockFooter>();
         } else {
-            ptr = unsafe { ptr.offset(mem::size_of::<Block>() as isize) };
+            ptr = unsafe { ptr.add(mem::size_of::<Block>()) };
         }
         assert_word_aligned!(ptr);
 

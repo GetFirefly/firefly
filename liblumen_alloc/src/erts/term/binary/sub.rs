@@ -266,12 +266,12 @@ impl SubBinary {
         let real_bin = *real_bin_ptr;
         if real_bin.is_procbin() {
             let bin = &*(real_bin_ptr as *mut ProcBin);
-            let bytes = bin.bytes().offset(self.byte_offset as isize);
+            let bytes = bin.bytes().add(self.byte_offset);
             (bin.header, FLAG_IS_RAW_BIN, bytes, self.full_byte_len)
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);
-            let bytes = bin.bytes().offset(self.byte_offset as isize);
+            let bytes = bin.bytes().add(self.byte_offset);
             (bin.header, FLAG_IS_RAW_BIN, bytes, self.full_byte_len)
         }
     }

@@ -218,7 +218,7 @@ pub trait HeapAlloc {
             // Allocates space on the process heap for the header + data
             let header_ptr = self.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
             // Pointer to start of binary data
-            let bin_ptr = header_ptr.offset(1) as *mut u8;
+            let bin_ptr = header_ptr.add(1) as *mut u8;
             // Construct the right header based on whether input string is only ASCII or includes
             // UTF8
             let header = HeapBin::new(len);
@@ -242,7 +242,7 @@ pub trait HeapAlloc {
             // Allocates space on the process heap for the header + data
             let header_ptr = self.alloc_layout(HeapBin::layout(s))?.as_ptr() as *mut HeapBin;
             // Pointer to start of binary data
-            let bin_ptr = header_ptr.offset(1) as *mut u8;
+            let bin_ptr = header_ptr.add(1) as *mut u8;
             // Construct the right header based on whether input string is only ASCII or includes
             // UTF8
             let header = if s.is_ascii() {
@@ -460,14 +460,14 @@ pub trait HeapAlloc {
     {
         let layout = Tuple::layout(len);
         let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
-        let head_ptr = unsafe { tuple_ptr.offset(1) as *mut Term };
+        let head_ptr = unsafe { tuple_ptr.add(1) as *mut Term };
         let tuple = Tuple::new(len);
         unsafe {
             // Write header
             ptr::write(tuple_ptr, tuple);
             // Write each element
             for (index, element) in iterator.enumerate() {
-                ptr::write(head_ptr.offset(index as isize), element);
+                ptr::write(head_ptr.add(index), element);
             }
         }
         // Return box to tuple
@@ -498,7 +498,7 @@ pub trait HeapAlloc {
         let len = slices.iter().map(|slice| slice.len()).sum();
         let layout = Tuple::layout(len);
         let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
-        let head_ptr = unsafe { tuple_ptr.offset(1) as *mut Term };
+        let head_ptr = unsafe { tuple_ptr.add(1) as *mut Term };
         let tuple = Tuple::new(len);
 
         unsafe {
@@ -509,7 +509,7 @@ pub trait HeapAlloc {
             // Write each element
             for slice in slices {
                 for element in *slice {
-                    ptr::write(head_ptr.offset(count), *element);
+                    ptr::write(head_ptr.add(count), *element);
                     count += 1;
                 }
             }

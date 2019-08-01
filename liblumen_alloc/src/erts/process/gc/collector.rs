@@ -359,7 +359,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
         new_size: usize,
     ) -> Result<(), GcError> {
         let old_top = self.heap.old.heap_pointer();
-        let mature_end = mature.offset(mature_size as isize);
+        let mature_end = mature.add(mature_size);
 
         // Allocate new tospace (young generation)
         let new_young_start = alloc::heap(new_size).map_err(|_| GcError::AllocErr)?;

@@ -160,17 +160,13 @@ impl MatchContext {
         let real_bin = *real_bin_ptr;
         if real_bin.is_procbin() {
             let bin = &*(real_bin_ptr as *mut ProcBin);
-            let bytes = bin
-                .bytes()
-                .offset(byte_offset(self.buffer.bit_offset) as isize);
+            let bytes = bin.bytes().add(byte_offset(self.buffer.bit_offset));
             let flags = bin.binary_type().to_flags();
             (bin.header, flags, bytes, num_bytes(self.buffer.bit_len))
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);
-            let bytes = bin
-                .bytes()
-                .offset(byte_offset(self.buffer.bit_offset) as isize);
+            let bytes = bin.bytes().add(byte_offset(self.buffer.bit_offset));
             let flags = bin.binary_type().to_flags();
             (bin.header, flags, bytes, num_bytes(self.buffer.bit_len))
         }
@@ -219,7 +215,7 @@ impl CloneToProcess for MatchContext {
                 // Write header, with modifications
                 let mut buffer = self.buffer;
                 buffer.original = new_bin_ref.as_term();
-                let new_bin_base = new_bin_ref.bytes().offset(base_offset as isize);
+                let new_bin_base = new_bin_ref.bytes().add(base_offset);
                 buffer.base = new_bin_base;
                 ptr::write(
                     ptr,

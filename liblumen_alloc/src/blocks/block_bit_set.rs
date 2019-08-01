@@ -81,7 +81,7 @@ pub struct ThreadSafeBlockBitSet {
 impl ThreadSafeBlockBitSet {
     #[inline(always)]
     fn get_element<'a>(&self, index: usize) -> &'a mut AtomicUsize {
-        unsafe { &mut *(self.vector.offset(index as isize)) }
+        unsafe { &mut *(self.vector.add(index)) }
     }
 
     #[inline(always)]
@@ -98,11 +98,11 @@ impl BlockBitSet for ThreadSafeBlockBitSet {
         let num_blocks = calculate_block_fit::<Self>(size, block_size);
         let extent_layout = Self::extended_layout(num_blocks);
         // Calculate pointer to beginning of bit vector
-        let vector = ptr.offset(1) as *mut AtomicUsize;
+        let vector = ptr.add(1) as *mut AtomicUsize;
         // Write initial state to bit vector, using calculated pointer
         let num_elems = units_required_for::<Self>(num_blocks);
         for i in 0..num_elems {
-            let elem = vector.offset(i as isize);
+            let elem = vector.add(i);
             ptr::write(elem, AtomicUsize::new(0))
         }
         Self {
@@ -209,7 +209,7 @@ pub struct ThreadLocalBlockBitSet {
 impl ThreadLocalBlockBitSet {
     #[inline(always)]
     fn get_element<'a>(&self, index: usize) -> &'a mut usize {
-        unsafe { &mut *(self.vector.offset(index as isize)) }
+        unsafe { &mut *(self.vector.add(index)) }
     }
 
     #[inline(always)]
@@ -226,11 +226,11 @@ impl BlockBitSet for ThreadLocalBlockBitSet {
         let num_blocks = calculate_block_fit::<Self>(size, block_size);
         let extent_layout = Self::extended_layout(num_blocks);
         // Calculate pointer to beginning of bit vector
-        let vector = ptr.offset(mem::size_of::<Self>() as isize) as *mut usize;
+        let vector = ptr.add(mem::size_of::<Self>()) as *mut usize;
         // Write initial state to bit vector, using calculated pointer
         let num_elems = units_required_for::<Self>(num_blocks);
         for i in 0..num_elems {
-            let elem = vector.offset(i as isize);
+            let elem = vector.add(i);
             ptr::write(elem, 0)
         }
         Self {

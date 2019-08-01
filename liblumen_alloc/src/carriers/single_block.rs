@@ -50,7 +50,7 @@ where
         let (_layout, data_offset) = Layout::new::<Self>().extend(self.layout.clone()).unwrap();
 
         let ptr = self as *const _ as *const u8;
-        ptr.offset(data_offset as isize) as *const T
+        ptr.add(data_offset) as *const T
     }
 
     /// Calculate the usable size of this carrier, specifically the size

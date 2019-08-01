@@ -78,7 +78,7 @@ impl CloneToProcess for Closure {
     fn size_in_words(&self) -> usize {
         let mut size = to_word_size(mem::size_of::<Self>());
         for offset in 0..self.env_len {
-            let ptr = unsafe { self.env.offset(offset as isize) };
+            let ptr = unsafe { self.env.add(offset) };
             let term = unsafe { &*ptr };
             size += term.size_in_words()
         }

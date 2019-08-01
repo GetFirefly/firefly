@@ -107,7 +107,7 @@ impl HeapBin {
     /// pointer returned here is not
     #[inline]
     pub(crate) fn bytes(&self) -> *mut u8 {
-        unsafe { (self as *const Self).offset(1) as *mut u8 }
+        unsafe { (self as *const Self).add(1) as *mut u8 }
     }
 
     /// Get a `Layout` describing the necessary layout to allocate a `HeapBin` for the given string
@@ -178,7 +178,7 @@ impl Original for HeapBin {
             full_byte_len
         );
 
-        unsafe { *self.bytes().offset(index as isize) }
+        unsafe { *self.bytes().add(index) }
     }
 }
 
@@ -199,7 +199,7 @@ impl CloneToProcess for HeapBin {
             // Copy header
             ptr::copy_nonoverlapping(self as *const Self, ptr, mem::size_of::<Self>());
             // Copy binary
-            let bin_ptr = ptr.offset(1) as *mut u8;
+            let bin_ptr = ptr.add(1) as *mut u8;
             ptr::copy_nonoverlapping(self.bytes(), bin_ptr, bin_size);
             // Return term
             Ok(Term::make_boxed(ptr))

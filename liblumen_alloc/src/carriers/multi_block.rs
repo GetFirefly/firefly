@@ -55,7 +55,7 @@ where
         // Get a mutable reference for later
         let this = &mut *carrier;
         // Write initial free block header
-        let block = carrier.offset(1) as *mut FreeBlock;
+        let block = carrier.add(1) as *mut FreeBlock;
         let usable = size - mem::size_of::<Block>() - mem::size_of::<MultiBlockCarrier<L>>();
         let mut free_block = FreeBlock::new(usable);
         free_block.set_last();
@@ -86,7 +86,7 @@ where
     #[inline]
     fn head(&self) -> BlockRef {
         unsafe {
-            let ptr = (self as *const Self).offset(1) as *mut Block;
+            let ptr = (self as *const Self).add(1) as *mut Block;
             BlockRef::from_raw(ptr)
         }
     }
@@ -315,7 +315,7 @@ mod tests {
         // Write initial free block
         let usable =
             size - mem::size_of::<Block>() - mem::size_of::<MultiBlockCarrier<RBTreeLink>>();
-        let block = unsafe { carrier.offset(1) as *const _ as *mut FreeBlock };
+        let block = unsafe { carrier.add(1) as *const _ as *mut FreeBlock };
         unsafe {
             let mut header = Block::new(usable);
             header.set_free();

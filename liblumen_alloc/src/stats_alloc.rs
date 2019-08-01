@@ -42,7 +42,7 @@ impl<T, H: Histogram + Clone + Default> StatsAlloc<T, H> {
             total_bytes_alloced: AtomicUsize::new(0),
             total_bytes_freed: AtomicUsize::new(0),
             histogram: RwLock::default(),
-            tag: unsafe { type_name::<T>() },
+            tag: type_name::<T>(),
             allocator: t,
         }
     }

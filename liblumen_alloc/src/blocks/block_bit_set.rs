@@ -98,7 +98,7 @@ impl BlockBitSet for ThreadSafeBlockBitSet {
         let num_blocks = calculate_block_fit::<Self>(size, block_size);
         let extent_layout = Self::extended_layout(num_blocks);
         // Calculate pointer to beginning of bit vector
-        let vector = ptr.offset(mem::size_of::<Self>() as isize) as *mut AtomicUsize;
+        let vector = ptr.offset(1) as *mut AtomicUsize;
         // Write initial state to bit vector, using calculated pointer
         let num_elems = units_required_for::<Self>(num_blocks);
         for i in 0..num_elems {
@@ -463,7 +463,7 @@ mod tests {
             let wastage = ThreadSafeBlockBitSet::wastage(usable_size, block_size);
             assert!(
                 wastage <= acceptable_wastage,
-                "wastage of {} bytes exceeds acceptable level of {} bytes for size class {} bytes ({} words)", 
+                "wastage of {} bytes exceeds acceptable level of {} bytes for size class {} bytes ({} words)",
                 wastage,
                 acceptable_wastage,
                 block_size,

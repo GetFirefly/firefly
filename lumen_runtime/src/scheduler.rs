@@ -1,4 +1,5 @@
 use core::alloc::AllocErr;
+use core::fmt::{self, Debug};
 use core::sync::atomic::{AtomicU64, Ordering};
 
 use alloc::sync::{Arc, Weak};
@@ -286,6 +287,17 @@ impl Scheduler {
         }
 
         arc_scheduler
+    }
+}
+
+impl Debug for Scheduler {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Scheduler")
+            .field("id", &self.id)
+            // The hiearchy slots take a lot of space, so don't print them by default
+            .field("reference_count", &self.reference_count)
+            .field("run_queues", &self.run_queues)
+            .finish()
     }
 }
 

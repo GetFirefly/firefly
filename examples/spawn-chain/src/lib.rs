@@ -106,7 +106,11 @@ pub fn run(count: usize) {
                         Scheduler::current().run_queues_len()
                     ));
                 } else {
-                    panic!("{:?} did not run.  Deadlock likely.", run_arc_process);
+                    panic!(
+                        "{:?} did not run.  Deadlock likely in {:#?}",
+                        run_arc_process,
+                        Scheduler::current()
+                    );
                 }
             }
             Status::Runnable => {

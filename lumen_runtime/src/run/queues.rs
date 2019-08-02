@@ -11,8 +11,7 @@ use crate::run::Run;
 mod delayed;
 mod immediate;
 
-#[derive(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Debug, Default)]
 pub struct Queues {
     waiting: Waiting,
     normal_low: Delayed,

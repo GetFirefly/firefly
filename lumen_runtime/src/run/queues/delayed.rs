@@ -9,8 +9,7 @@ use crate::run::Run;
 /// A run queue where the `Arc<Process` is run only when its delay is `0`.  This allows
 /// the `Priority::Normal` and `Priority::Low` to be in same `Delayed` run queue, but for the
 /// `Priority::Normal` to be run more often.
-#[derive(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Debug, Default)]
 pub struct Delayed(VecDeque<DelayedProcess>);
 
 impl Delayed {
@@ -42,7 +41,7 @@ impl Delayed {
 
 type Delay = u8;
 
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Debug)]
 struct DelayedProcess {
     delay: Delay,
     arc_process: Arc<ProcessControlBlock>,

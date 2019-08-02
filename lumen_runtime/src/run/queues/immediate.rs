@@ -6,8 +6,7 @@ use liblumen_alloc::erts::process::ProcessControlBlock;
 use crate::run::Run;
 
 /// A run queue where the `Arc<Process>` is run immediately when it is encountered
-#[derive(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Debug, Default)]
 pub struct Immediate(VecDeque<Arc<ProcessControlBlock>>);
 
 impl Immediate {

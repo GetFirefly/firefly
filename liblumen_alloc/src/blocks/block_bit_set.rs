@@ -90,6 +90,12 @@ impl ThreadSafeBlockBitSet {
     }
 }
 
+const BITS_PER_BYTE: usize = 8;
+
+const fn bit_size_of<T>() -> usize {
+    mem::size_of::<T>() * BITS_PER_BYTE
+}
+
 impl BlockBitSet for ThreadSafeBlockBitSet {
     type Repr = AtomicUsize;
 
@@ -132,7 +138,7 @@ impl BlockBitSet for ThreadSafeBlockBitSet {
 
     #[inline]
     fn is_allocated(&self, bit: usize) -> bool {
-        let shift = bit % mem::size_of::<usize>();
+        let shift = bit % bit_size_of::<Self::Repr>();
         let flag = 1usize << shift;
         let elem = self.get_element_for_bit(bit);
         elem.load(Ordering::Acquire) & flag == flag
@@ -140,7 +146,7 @@ impl BlockBitSet for ThreadSafeBlockBitSet {
 
     #[inline]
     fn try_alloc(&self, bit: usize) -> bool {
-        let shift = bit % mem::size_of::<usize>();
+        let shift = bit % bit_size_of::<Self::Repr>();
         let flag = 1usize << shift;
         let elem = self.get_element_for_bit(bit);
         let current = elem.load(Ordering::Acquire);
@@ -154,7 +160,7 @@ impl BlockBitSet for ThreadSafeBlockBitSet {
 
     #[inline]
     fn free(&self, bit: usize) {
-        let shift = bit % mem::size_of::<usize>();
+        let shift = bit % bit_size_of::<Self::Repr>();
         let flag = 1usize << shift;
         let elem = self.get_element_for_bit(bit);
         elem.fetch_and(!flag, Ordering::AcqRel);
@@ -260,7 +266,7 @@ impl BlockBitSet for ThreadLocalBlockBitSet {
 
     #[inline]
     fn is_allocated(&self, bit: usize) -> bool {
-        let shift = bit % mem::size_of::<usize>();
+        let shift = bit % bit_size_of::<Self::Repr>();
         let flag = 1usize << shift;
         let elem = self.get_element_for_bit(bit);
         *elem & flag == flag
@@ -268,7 +274,7 @@ impl BlockBitSet for ThreadLocalBlockBitSet {
 
     #[inline]
     fn try_alloc(&self, bit: usize) -> bool {
-        let shift = bit % mem::size_of::<usize>();
+        let shift = bit % bit_size_of::<Self::Repr>();
         let flag = 1usize << shift;
         let elem = self.get_element_for_bit(bit);
         if *elem & flag == flag {
@@ -281,7 +287,7 @@ impl BlockBitSet for ThreadLocalBlockBitSet {
 
     #[inline]
     fn free(&self, bit: usize) {
-        let shift = bit % mem::size_of::<usize>();
+        let shift = bit % bit_size_of::<Self::Repr>();
         let flag = 1usize << shift;
         let elem = self.get_element_for_bit(bit);
         *elem &= !flag;

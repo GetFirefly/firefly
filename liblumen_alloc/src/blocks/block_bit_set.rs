@@ -86,7 +86,7 @@ impl ThreadSafeBlockBitSet {
 
     #[inline(always)]
     fn get_element_for_bit<'a>(&self, bit: usize) -> &'a mut AtomicUsize {
-        self.get_element(bit / mem::size_of::<usize>())
+        self.get_element(bit / bit_size_of::<AtomicUsize>())
     }
 }
 
@@ -220,7 +220,7 @@ impl ThreadLocalBlockBitSet {
 
     #[inline(always)]
     fn get_element_for_bit<'a>(&self, bit: usize) -> &'a mut usize {
-        self.get_element(bit / mem::size_of::<usize>())
+        self.get_element(bit / bit_size_of::<usize>())
     }
 }
 

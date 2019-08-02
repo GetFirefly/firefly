@@ -78,8 +78,8 @@ pub struct ProcessControlBlock {
     /// off-heap allocations
     off_heap: SpinLock<LinkedList<HeapFragmentAdapter>>,
     off_heap_size: AtomicUsize,
-    /// {rocess dictionary
-    dictionary: HashMap<Term, Term>,
+    /// Process dictionary
+    dictionary: Mutex<HashMap<Term, Term>>,
     /// The `pid` of the process that `spawn`ed this process.
     parent_pid: Option<Pid>,
     pid: Pid,
@@ -108,7 +108,6 @@ impl ProcessControlBlock {
     ) -> Self {
         let heap = ProcessHeap::new(heap, heap_size);
         let off_heap = SpinLock::new(LinkedList::new(HeapFragmentAdapter::new()));
-        let dictionary = HashMap::new();
         let pid = pid::next();
 
         Self {
@@ -120,7 +119,7 @@ impl ProcessControlBlock {
             max_gen_gcs: 65535,
             off_heap,
             off_heap_size: AtomicUsize::new(0),
-            dictionary,
+            dictionary: Default::default(),
             pid,
             status: Default::default(),
             mailbox: Default::default(),
@@ -492,37 +491,38 @@ impl ProcessControlBlock {
     // Process Dictionary
 
     /// Puts a new value under the given key in the process dictionary
-    #[inline]
-    pub fn put(&mut self, key: Term, value: Term) -> Term {
+    pub fn put(&self, key: Term, value: Term) -> Result<Term, AllocErr> {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
         assert!(
             value.is_runtime(),
             "invalid value term for process dictionary"
         );
 
-        let key = if key.is_immediate() {
+        // hold heap lock before dictionary lock
+        let mut heap = self.acquire_heap();
+
+        let heap_key = if key.is_immediate() {
             key
         } else {
-            key.clone_to_process(self)
+            key.clone_to_heap(&mut heap)?
         };
-        let value = if value.is_immediate() {
+        let heap_value = if value.is_immediate() {
             value
         } else {
-            value.clone_to_process(self)
+            value.clone_to_heap(&mut heap)?
         };
 
-        match self.dictionary.insert(key, value) {
-            None => Term::NIL,
-            Some(old_value) => old_value,
+        match self.dictionary.lock().insert(heap_key, heap_value) {
+            None => Ok(Term::NIL),
+            Some(old_value) => Ok(old_value),
         }
     }
 
     /// Gets a value from the process dictionary using the given key
-    #[inline]
     pub fn get(&self, key: Term) -> Term {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
 
-        match self.dictionary.get(&key) {
+        match self.dictionary.lock().get(&key) {
             None => Term::NIL,
             // We can simply copy the term value here, since we know it
             // is either an immediate, or already located on the process
@@ -532,11 +532,10 @@ impl ProcessControlBlock {
     }
 
     /// Deletes a key/value pair from the process dictionary
-    #[inline]
-    pub fn delete(&mut self, key: Term) -> Term {
+    pub fn delete(&self, key: Term) -> Term {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
 
-        match self.dictionary.remove(&key) {
+        match self.dictionary.lock().remove(&key) {
             None => Term::NIL,
             Some(old_value) => old_value,
         }
@@ -597,13 +596,13 @@ impl ProcessControlBlock {
     /// the decision is left up to the caller to make. Other errors are described in the
     /// `GcError` documentation.
     #[inline]
-    pub fn garbage_collect(&mut self, need: usize, roots: &[Term]) -> Result<usize, GcError> {
+    pub fn garbage_collect(&self, need: usize, roots: &[Term]) -> Result<usize, GcError> {
         let mut heap = self.heap.lock();
         // The roots passed in here are pointers to the native stack/registers, all other roots
         // we are able to pick up from the current process context
         let mut rootset = RootSet::new(roots);
         // The process dictionary is also used for roots
-        for (k, v) in &self.dictionary {
+        for (k, v) in self.dictionary.lock().iter() {
             rootset.push(k as *const _ as *mut _);
             rootset.push(v as *const _ as *mut _);
         }

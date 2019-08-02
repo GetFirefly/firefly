@@ -45,7 +45,8 @@ mod run;
 pub mod scheduler;
 mod send;
 mod stacktrace;
-mod system;
+// `pub` for `examples/spawn-chain`
+pub mod system;
 // `pub` for `examples/spawn-chain`
 mod term;
 // `pub` to allow `time::monotonic::set_source(callback)`

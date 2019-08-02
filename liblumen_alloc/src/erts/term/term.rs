@@ -1461,7 +1461,6 @@ impl fmt::Debug for Term {
 }
 impl From<bool> for Term {
     fn from(b: bool) -> Term {
-        use crate::alloc::string::ToString;
         atom_unchecked(&b.to_string())
     }
 }

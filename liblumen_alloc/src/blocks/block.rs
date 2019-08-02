@@ -5,7 +5,6 @@ use alloc::fmt::{self, Debug, Formatter};
 use alloc::string::String;
 
 use liblumen_core::alloc::alloc_utils;
-use liblumen_core::{assert_aligned_to, assert_word_aligned};
 
 use super::{BlockFooter, BlockRef, FreeBlock, FreeBlockRef};
 
@@ -80,14 +79,6 @@ impl Block {
     // Indicates the previous neighboring block is free
     // This is used to drive coalescing of blocks
     const PREV_FREE_FLAG: usize = 1 << (Self::FLAG_SHIFT + 2);
-    // The byte pattern used when a block is freed or initialized
-    //
-    // NOTE: This constant is not special, but is intended to be
-    // distinctive when seen in-memory. The value should ideally
-    // be something that is not a common value, so that if this
-    // value is encountered, we know that we have unintentionally
-    // used free memory without initialization.
-    const FREE_PATTERN: u8 = 0x57;
 
     /// Creates a new Block with the given size
     #[inline(always)]

@@ -3,6 +3,8 @@ use core::mem;
 use core::ptr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::mem::bit_size_of;
+
 /// This trait abstracts out the concept of a bit set which tracks
 /// free/allocated blocks within some contiguous region of memory.
 ///
@@ -88,12 +90,6 @@ impl ThreadSafeBlockBitSet {
     fn get_element_for_bit<'a>(&self, bit: usize) -> &'a mut AtomicUsize {
         self.get_element(bit / bit_size_of::<AtomicUsize>())
     }
-}
-
-const BITS_PER_BYTE: usize = 8;
-
-const fn bit_size_of<T>() -> usize {
-    mem::size_of::<T>() * BITS_PER_BYTE
 }
 
 impl BlockBitSet for ThreadSafeBlockBitSet {

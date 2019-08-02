@@ -8,6 +8,8 @@ use liblumen_core::alloc::alloc_utils;
 #[cfg(debug_assertions)]
 use liblumen_core::assert_word_aligned;
 
+use crate::mem::bit_size_of;
+
 use super::{BlockFooter, BlockRef, FreeBlock, FreeBlockRef};
 
 /// This struct is used to represent the header of a block,
@@ -73,7 +75,7 @@ impl Block {
     #[cfg(target_pointer_width = "64")]
     const HIGH_BIT_MASK: usize = 0xF000_0000_0000_0000;
     // Used to shift flags into the high bits
-    const FLAG_SHIFT: usize = (mem::size_of::<usize>() * 8) - 4;
+    const FLAG_SHIFT: usize = bit_size_of::<usize>() - 4;
     // Marks a block as free
     const FREE_FLAG: usize = 1 << Self::FLAG_SHIFT;
     // Marks a block as the last block in the carrier

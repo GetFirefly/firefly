@@ -9,6 +9,7 @@ use core::ptr;
 use core::slice;
 
 use crate::borrow::CloneToProcess;
+use crate::mem::bit_size_of;
 
 use super::*;
 
@@ -340,7 +341,7 @@ partial_ord_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(SubBinary for
 partial_ord_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(MatchContext for SubBinary);
 partial_ord_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(MatchContext for MatchContext);
 
-const FLAG_SHIFT: usize = mem::size_of::<usize>() * 8 - 2;
+const FLAG_SHIFT: usize = bit_size_of::<usize>() - 2;
 const FLAG_IS_RAW_BIN: usize = 1 << FLAG_SHIFT;
 const FLAG_IS_LATIN1_BIN: usize = 2 << FLAG_SHIFT;
 const FLAG_IS_UTF8_BIN: usize = 3 << FLAG_SHIFT;

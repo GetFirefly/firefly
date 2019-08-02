@@ -4,7 +4,6 @@ use core::convert::{TryFrom, TryInto};
 use core::default::Default;
 use core::fmt;
 use core::hash::{Hash, Hasher};
-use core::mem;
 use core::ptr;
 
 use liblumen_core::locks::RwLock;
@@ -12,9 +11,9 @@ use liblumen_core::locks::RwLock;
 use lazy_static::lazy_static;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{HeapAlloc, Node};
-
 use crate::erts::term::{arity_of, AsTerm, Term, TypeError, TypedTerm};
+use crate::erts::{HeapAlloc, Node};
+use crate::mem::bit_size_of;
 
 /// Generates the next `Pid`.  `Pid`s are not reused for the lifetime of the VM.
 pub fn next() -> Pid {
@@ -67,7 +66,7 @@ impl Pid {
     pub const NUMBER_MAX: usize = (1 << (Self::NUMBER_BIT_COUNT as usize)) - 1;
 
     const SERIAL_BIT_COUNT: u8 =
-        (mem::size_of::<usize>() * 8 - (Self::NUMBER_BIT_COUNT as usize) - 7) as u8;
+        (bit_size_of::<usize>() - (Self::NUMBER_BIT_COUNT as usize) - 7) as u8;
     const SERIAL_MASK: usize = !Self::NUMBER_MASK;
     pub const SERIAL_MAX: usize = (1 << (Self::SERIAL_BIT_COUNT as usize)) - 1;
 }

@@ -5,12 +5,14 @@ use core::ptr::{self, NonNull};
 
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
-use super::*;
 use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use crate::erts::term::{
     binary_bytes, is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
 };
 use crate::erts::*;
+use crate::mem::bit_size_of;
+
+use super::*;
 
 /// This struct represents the current heap and stack of a process,
 /// which corresponds to the young generation in the overall garbage
@@ -860,7 +862,7 @@ impl fmt::Debug for YoungHeap {
                     pos,
                     *(pos as *const usize),
                     term,
-                    bit_len = (core::mem::size_of::<usize>() * 8)
+                    bit_len = (bit_size_of::<usize>())
                 ))?;
                 pos = pos.add(1 + arityval);
             }
@@ -873,7 +875,7 @@ impl fmt::Debug for YoungHeap {
                     "  {:?}: {:0bit_len$b}\n",
                     pos,
                     *(pos as *const usize),
-                    bit_len = (core::mem::size_of::<usize>() * 8)
+                    bit_len = (bit_size_of::<usize>())
                 ))?;
                 pos = pos.add(1);
             }
@@ -897,7 +899,7 @@ impl fmt::Debug for YoungHeap {
                     pos,
                     *(pos as *const usize),
                     term,
-                    bit_len = (core::mem::size_of::<usize>() * 8)
+                    bit_len = (bit_size_of::<usize>())
                 ))?;
                 pos = pos.add(1 + arityval);
             }

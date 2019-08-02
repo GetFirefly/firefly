@@ -1,11 +1,11 @@
 use core::alloc::{AllocErr, Layout};
 use core::fmt::{self, Debug};
-use core::mem;
 use core::ptr::{self, NonNull};
 
 use intrusive_collections::{intrusive_adapter, LinkedListLink, UnsafeRef};
 
 use crate::erts::term::Term;
+use crate::mem::bit_size_of;
 use crate::std_alloc;
 
 // This adapter is used to track a queue of messages, attach to a process's mailbox.
@@ -17,7 +17,7 @@ pub struct Message {
     data: Term,
 }
 impl Message {
-    const STORAGE_TYPE_SHIFT: usize = (mem::size_of::<usize>() * 8) - 1;
+    const STORAGE_TYPE_SHIFT: usize = (bit_size_of::<usize>()) - 1;
     #[allow(dead_code)]
     const MASK_STORAGE_TYPE: usize = 1 << Self::STORAGE_TYPE_SHIFT;
     const FLAG_STORAGE_ON_HEAP: usize = 0;

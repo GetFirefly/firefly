@@ -21,7 +21,10 @@ use super::*;
 #[cfg(target_pointer_width = "64")]
 mod constants {
     use super::Term;
+
     use crate::erts::term::list::Cons;
+    use crate::mem::bit_size_of;
+
     ///! This module contains constants for 64-bit architectures used by the term
     /// implementation. !
     ///! On 64-bit platforms, the highest 16 bits of pointers are unused and
@@ -31,9 +34,10 @@ mod constants {
     ///! in the lowest bit of the address. This means that for pointer-typed terms,
     ///! the raw value just needs to be masked to access either the pointer or the flags,
     ///! no shifts are required.
+    #[cfg(test)]
     use core::mem;
 
-    const NUM_BITS: usize = mem::size_of::<usize>() * 8;
+    const NUM_BITS: usize = bit_size_of::<usize>();
     #[cfg(test)]
     const MIN_ALIGNMENT: usize = mem::align_of::<usize>();
 
@@ -208,7 +212,9 @@ mod constants {
 #[cfg(target_pointer_width = "32")]
 mod constants {
     use super::Term;
+
     use crate::erts::term::list::Cons;
+    use crate::mem::bit_size_of;
     ///! This module contains constants for 64-bit architectures used by the term
     /// implementation. !
     ///! On 32-bit platforms we generally can use the high bits like we
@@ -220,9 +226,10 @@ mod constants {
     ///! the lowest 3 bits are always zeroes, and thus available for tags. For
     ///! non-pointer terms, the flags all go in the high bits, to make accessing
     ///! the value and tags as easy as applying a mask, no shifts needed.
+    #[cfg(test)]
     use core::mem;
 
-    const NUM_BITS: usize = mem::size_of::<usize>() * 8;
+    const NUM_BITS: usize = bit_size_of::<usize>();
     #[cfg(test)]
     const MIN_ALIGNMENT: usize = mem::align_of::<usize>();
 

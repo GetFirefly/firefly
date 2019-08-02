@@ -98,6 +98,12 @@ pub fn counter_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 /// ```
 fn counter_1_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     let n = arc_process.stack_pop().unwrap();
+    assert!(
+        n.is_integer(),
+        "{:?}: {:?} is not an integer",
+        arc_process,
+        n
+    );
 
     tail_call_bif(
         arc_process,
@@ -243,8 +249,7 @@ fn create_processes_reducer_0_code(arc_process: &Arc<ProcessControlBlock>) -> Re
 fn create_processes_1_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     // placed on top of stack by return from `elixir::r#enum::reduce_0_code`
     let last = arc_process.stack_pop().unwrap();
-    #[cfg(debug_assertions)]
-    debug_assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
+    assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
 
     match erlang::send_2(last, arc_process.integer(0)?, arc_process) {
         Ok(_) => {
@@ -316,6 +321,13 @@ fn create_processes_2_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
                     found_position = Some(position);
 
                     break;
+                } else {
+                    // NOT in original Elixir source and would not be in compiled code, but helps
+                    // debug runtime bugs leading to deadlocks.
+                    panic!(
+                        "Non-integer message ({:?}) received in {:?}",
+                        message_data, arc_process
+                    );
                 }
             }
         }

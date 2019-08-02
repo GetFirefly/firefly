@@ -1,3 +1,7 @@
+use core::borrow::Borrow;
+use core::fmt::{self, Debug};
+use core::hash::Hash;
+
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -109,4 +113,45 @@ impl Next {
     }
 }
 
-type Waiting = HashSet<Arc<ProcessControlBlock>>;
+#[derive(Default)]
+pub struct Waiting(HashSet<Arc<ProcessControlBlock>>);
+
+impl Waiting {
+    fn get<Q: ?Sized>(&self, value: &Q) -> Option<&Arc<ProcessControlBlock>>
+    where
+        Arc<ProcessControlBlock>: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.0.get(value)
+    }
+
+    fn insert(&mut self, waiter: Arc<ProcessControlBlock>) -> bool {
+        self.0.insert(waiter)
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn remove(&mut self, waiter: &Arc<ProcessControlBlock>) -> bool {
+        self.0.remove(waiter)
+    }
+}
+
+impl Debug for Waiting {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut vec: Vec<_> = self.0.iter().collect();
+        vec.sort_by_key(|arc_process_control_block| arc_process_control_block.pid());
+
+        for arc_process_control_block in vec {
+            write!(
+                f,
+                "{:?}:\n{:?}",
+                arc_process_control_block,
+                arc_process_control_block.stacktrace()
+            )?;
+        }
+
+        Ok(())
+    }
+}

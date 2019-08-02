@@ -122,7 +122,11 @@ impl Scheduler {
                 Run::Now(arc_process) => {
                     match ProcessControlBlock::run(&arc_process) {
                         Ok(()) => (),
-                        Err(_) => unimplemented!("{:?} needs GC", arc_process.pid_term()),
+                        Err(_) => unimplemented!(
+                            "{:?} needs GC.\n{:?}",
+                            arc_process.pid_term(),
+                            *arc_process.acquire_heap()
+                        ),
                     }
 
                     match self.run_queues.write().requeue(arc_process) {

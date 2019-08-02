@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{default_heap, Status};
+use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 
 use lumen_runtime::code::apply_fn;
@@ -56,9 +56,10 @@ pub fn run(count: usize) {
         // if not enough memory here, resize `spawn_init` heap
         .unwrap();
 
-    let (heap, heap_size) = default_heap()
-        // if this fails the entire tab is out-of-memory
-        .unwrap();
+    let heap_size = next_heap_size(4 + count * 2);
+    // if this fails the entire tab is out-of-memory
+    let heap = heap(heap_size).unwrap();
+
     let run_arc_process = Scheduler::spawn(
         &init_arc_process,
         module,

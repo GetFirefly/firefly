@@ -1,18 +1,84 @@
-use core::alloc::Layout;
+use core::alloc::AllocErr;
+use core::marker::PhantomData;
 use core::mem;
-use core::ptr;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::mem::bit_size_of;
+
+pub trait BlockBitSubset: Default {
+    /// Try to allocate block in subset.
+    ///
+    /// NOTE: This operation can fail, primarily in multi-threaded scenarios
+    /// with atomics in play. If false is returned, it means that either the block was
+    /// already allocated in the span of time between when you looked up the block
+    /// and when you tried to allocate it, or a neighboring bit in the subset was flipped. You may
+    /// retry, or try searching for another block, or simply fail the allocation request. It is up
+    /// to the allocator.
+    fn alloc_block(&self) -> Result<usize, AllocErr>;
+
+    /// Return a count of the allocated blocks managed by this subset
+    fn count_allocated(&self) -> usize;
+
+    /// Free the block represented by the given bit index
+    fn free(&self, bit: usize);
+}
+
+#[derive(Default)]
+#[repr(transparent)]
+pub struct ThreadSafeBlockBitSubset(AtomicUsize);
+
+impl BlockBitSubset for ThreadSafeBlockBitSubset {
+    fn alloc_block(&self) -> Result<usize, AllocErr> {
+        // On x86 this could use `bsf*` (Bit Scan Forward) instructions
+        for i in 0..bit_size_of::<Self>() {
+            let flag = 1usize << i;
+            let current = self.0.load(Ordering::Acquire);
+
+            if current & flag == flag {
+                // Already allocated
+                continue;
+            }
+
+            if self
+                .0
+                .compare_exchange(current, current | flag, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                return Ok(i);
+            }
+        }
+
+        Err(AllocErr)
+    }
+
+    fn count_allocated(&self) -> usize {
+        self.0.load(Ordering::Acquire).count_ones() as usize
+    }
+
+    fn free(&self, bit: usize) {
+        let flag = 1usize << bit;
+        self.0.fetch_and(!flag, Ordering::AcqRel);
+    }
+}
+
+unsafe impl Sync for ThreadSafeBlockBitSubset {}
+unsafe impl Send for ThreadSafeBlockBitSubset {}
 
 /// This trait abstracts out the concept of a bit set which tracks
 /// free/allocated blocks within some contiguous region of memory.
 ///
 /// The actual implementation may differ based on whether it uses atomics
-/// or not, and what granularity is used for the byte representation, i.e.
+/// or not, and what granularity is used for the bit representation, i.e.
 /// u8, u16, usize, etc.
-pub trait BlockBitSet: Sized {
-    type Repr;
+pub struct BlockBitSet<S: BlockBitSubset> {
+    block_len: usize,
+    block_bit_subset_type: PhantomData<S>,
+}
+
+impl<S: BlockBitSubset> BlockBitSet<S> {
+    pub fn len(&self) -> usize {
+        self.block_len
+    }
 
     /// Initializes the `BlockBitSet` using the provided pointer and size.
     ///
@@ -29,338 +95,158 @@ pub trait BlockBitSet: Sized {
     /// - If you haven't allocated `size` bytes of memory at `ptr`, you will segfault
     /// - If `ptr` does not point to where `Self` will be written, undefined behavior
     /// - If `ptr` points to something else in use, undefined behavior
-    unsafe fn new(ptr: *mut Self, size: usize, block_size: usize) -> Self;
-    /// Gets the number of elements in this bit vector
-    fn size(&self) -> usize;
-    /// Gets the number of bytes occupied by this struct in memory,
-    /// not counting `mem::size_of::<Self>()`
-    fn extent_size(&self) -> usize;
-    /// Determine if the block at the given bit index is allocated
-    fn is_allocated(&self, bit: usize) -> bool;
-    /// Try and allocate the block represented by the given bit index.
+    pub unsafe fn write(ptr: *mut Self, size: usize, block_size: usize) {
+        let block_len = block_len_from_slab_byte_len_and_block_byte_len::<S>(size, block_size);
+        ptr.write(Self {
+            block_len,
+            block_bit_subset_type: PhantomData,
+        });
+
+        Self::write_subsets(ptr, block_len);
+    }
+
+    unsafe fn write_subsets(ptr: *mut Self, block_len: usize) {
+        // Calculate pointer to beginning of bit vector
+        let subsets_ptr = ptr.add(1) as *mut S;
+        let subset_len = subset_len_from_block_len::<S>(block_len);
+
+        // Write initial state to bit vector, using calculated pointer
+        for i in 0..subset_len {
+            let subset_ptr = subsets_ptr.add(i);
+            subset_ptr.write(Default::default());
+        }
+    }
+
+    unsafe fn subset(&self, index: usize) -> &S {
+        let self_ptr = self as *const Self;
+        let subsets_ptr = self_ptr.add(1) as *const S;
+
+        &*subsets_ptr.add(index)
+    }
+
+    fn subset_len(&self) -> usize {
+        subset_len_from_block_len::<S>(self.block_len)
+    }
+
+    fn as_subset_slice(&self) -> &[S] {
+        let self_ptr = self as *const Self;
+
+        unsafe {
+            let subsets_ptr = self_ptr.add(1) as *const S;
+
+            core::slice::from_raw_parts(subsets_ptr, self.subset_len())
+        }
+    }
+
+    fn subset_index_and_bit_from_set_bit(set_bit: usize) -> (usize, usize) {
+        let subset_bit_size = bit_size_of::<S>();
+        let index = set_bit / subset_bit_size;
+        let subset_bit = set_bit % subset_bit_size;
+
+        (index, subset_bit)
+    }
+
+    fn set_bit_from_subset_index_and_bit(subset_index: usize, subset_bit: usize) -> usize {
+        let subset_bit_size = bit_size_of::<S>();
+
+        subset_index * subset_bit_size + subset_bit
+    }
+
+    /// Try to allocate block.
     ///
     /// NOTE: This operation can fail, primarily in multi-threaded scenarios
-    /// with atomics in play. If false is returned, it means that either the block was
-    /// already allocated in the span of time between when you looked up the block
-    /// and when you tried to allocate it, or a neighboring bit that was in the same unit
-    /// represented by `Self::Repr` was flipped. You may retry, or try searching for another
-    /// block, or simply fail the allocation request. It is up to the allocator.
-    fn try_alloc(&self, bit: usize) -> bool;
+    /// with atomics in play. If `Err(AllocErr)` is returned, it means that either all blocks were
+    /// already allocated or a neighboring bit that was in the same subset
+    /// represented by `S` was flipped. You may retry or simply fail the allocation request. It is
+    /// up to the allocator.
+    pub fn alloc_block(&self) -> Result<usize, AllocErr> {
+        for subset_index in 0..self.subset_len() {
+            let subset = unsafe { self.subset(subset_index) };
+
+            match subset.alloc_block() {
+                Ok(subset_bit) => {
+                    let set_bit = Self::set_bit_from_subset_index_and_bit(subset_index, subset_bit);
+
+                    return Ok(set_bit);
+                }
+                Err(AllocErr) => continue,
+            }
+        }
+
+        Err(AllocErr)
+    }
+
     /// Free the block represented by the given bit index
-    fn free(&self, bit: usize);
-    /// Return a count of the free blocks managed by this bit set
-    fn count_free(&self) -> usize;
+    pub fn free(&self, bit: usize) {
+        let (subset_index, subset_bit) = Self::subset_index_and_bit_from_set_bit(bit);
+        let subset = unsafe { self.subset(subset_index) };
+
+        subset.free(subset_bit);
+    }
+
     /// Return a count of the allocated blocks managed by this bit set
-    fn count_allocated(&self) -> usize;
-    /// Create an iterator from this bit set for iterating over the bits
-    /// for every block represented in the bit set
-    fn iter(&self) -> BlockBitSetIter<Self>;
+    fn count_allocated(&self) -> usize {
+        self.as_subset_slice()
+            .iter()
+            .map(|subset| subset.count_allocated())
+            .sum()
+    }
+
+    /// Return a count of the free blocks managed by this bit set
+    pub fn count_free(&self) -> usize {
+        self.block_len - self.count_allocated()
+    }
+
+    /// Like `mem::size_of`, but includes the variable size of the subsets
+    pub fn size(&self) -> usize {
+        Self::size_from_subset_len(self.subset_len())
+    }
+
+    fn size_from_subset_len(subset_len: usize) -> usize {
+        mem::size_of::<Self>() + subset_len * mem::size_of::<S>()
+    }
+
+    #[cfg(test)]
+    fn size_from_block_len(block_len: usize) -> usize {
+        let subset_len = subset_len_from_block_len::<S>(block_len);
+
+        Self::size_from_subset_len(subset_len)
+    }
 
     /// Returns the number of bytes which would be wasted in a slab
-    /// of `size` bytes, containing `Self`, the bit vector, and blocks
-    /// of `block_size` bytes. This wastage is due to usable space in
-    /// the slab not being evenly divisible by the block size, where
+    /// of `slab_byte_len` bytes, containing `Self`, the bit vector, and blocks
+    /// of `block_byte_len` bytes. This wastage is due to usable space in
+    /// the slab not being evenly divisible by the `block_byte_len`, where
     /// usable space is the space left in the slab after accounting for
     /// the header/bit vector metadata.
-    fn wastage(size: usize, block_size: usize) -> usize;
+    #[cfg(test)]
+    fn wastage(slab_byte_len: usize, block_byte_len: usize) -> usize {
+        let block_len =
+            block_len_from_slab_byte_len_and_block_byte_len::<S>(slab_byte_len, block_byte_len);
+        let byte_len = Self::size_from_block_len(block_len);
+        let blocks_byte_len = block_len * block_byte_len;
 
-    /// Calculates the memory layout which extends the layout of `Self` and
-    /// is used to hold the bits needed for the underlying bit vector it manages
-    #[inline]
-    fn extended_layout(num_blocks: usize) -> Layout {
-        let align = mem::align_of::<Self::Repr>();
-        let required = units_required_for::<Self>(num_blocks) * mem::size_of::<Self::Repr>();
-        unsafe { Layout::from_size_align_unchecked(required, align) }
+        slab_byte_len - byte_len - blocks_byte_len
     }
 }
 
-/// An implementation of `BlockBitSet` which uses atomics to ensure thread safety
-pub struct ThreadSafeBlockBitSet {
-    size: usize,
-    extent_size: usize,
-    vector: *mut AtomicUsize,
-}
-impl ThreadSafeBlockBitSet {
-    #[inline(always)]
-    fn get_element<'a>(&self, index: usize) -> &'a mut AtomicUsize {
-        unsafe { &mut *(self.vector.add(index)) }
-    }
-
-    #[inline(always)]
-    fn get_element_for_bit<'a>(&self, bit: usize) -> &'a mut AtomicUsize {
-        self.get_element(bit / bit_size_of::<AtomicUsize>())
-    }
-}
-
-impl BlockBitSet for ThreadSafeBlockBitSet {
-    type Repr = AtomicUsize;
-
-    #[inline]
-    unsafe fn new(ptr: *mut Self, size: usize, block_size: usize) -> Self {
-        let num_blocks = calculate_block_fit::<Self>(size, block_size);
-        let extent_layout = Self::extended_layout(num_blocks);
-        // Calculate pointer to beginning of bit vector
-        let vector = ptr.add(1) as *mut AtomicUsize;
-        // Write initial state to bit vector, using calculated pointer
-        let num_elems = units_required_for::<Self>(num_blocks);
-        for i in 0..num_elems {
-            let elem = vector.add(i);
-            ptr::write(elem, AtomicUsize::new(0))
-        }
-        Self {
-            size: num_blocks,
-            extent_size: extent_layout.size(),
-            vector,
-        }
-    }
-
-    #[inline]
-    fn size(&self) -> usize {
-        self.size
-    }
-
-    #[inline]
-    fn extent_size(&self) -> usize {
-        self.extent_size
-    }
-
-    #[inline]
-    fn wastage(size: usize, block_size: usize) -> usize {
-        let num_blocks = calculate_block_fit::<Self>(size, block_size);
-        let meta_layout = Self::extended_layout(num_blocks);
-        let block_bytes = num_blocks * block_size;
-        size - meta_layout.size() - block_bytes
-    }
-
-    #[inline]
-    fn is_allocated(&self, bit: usize) -> bool {
-        let shift = bit % bit_size_of::<Self::Repr>();
-        let flag = 1usize << shift;
-        let elem = self.get_element_for_bit(bit);
-        elem.load(Ordering::Acquire) & flag == flag
-    }
-
-    #[inline]
-    fn try_alloc(&self, bit: usize) -> bool {
-        let shift = bit % bit_size_of::<Self::Repr>();
-        let flag = 1usize << shift;
-        let elem = self.get_element_for_bit(bit);
-        let current = elem.load(Ordering::Acquire);
-        if current & flag == flag {
-            // Already allocated
-            return false;
-        }
-        elem.compare_exchange(current, current | flag, Ordering::AcqRel, Ordering::Acquire)
-            .is_ok()
-    }
-
-    #[inline]
-    fn free(&self, bit: usize) {
-        let shift = bit % bit_size_of::<Self::Repr>();
-        let flag = 1usize << shift;
-        let elem = self.get_element_for_bit(bit);
-        elem.fetch_and(!flag, Ordering::AcqRel);
-    }
-
-    #[inline]
-    fn count_free(&self) -> usize {
-        let mut num_blocks = self.size;
-        let num_elems = units_required_for::<Self>(num_blocks);
-        for i in 0..num_elems {
-            let elem = self.get_element(i);
-            let val = elem.load(Ordering::Acquire);
-            let allocated = val.count_ones();
-            num_blocks -= allocated as usize;
-        }
-        num_blocks
-    }
-
-    #[inline]
-    fn count_allocated(&self) -> usize {
-        let mut num_blocks = 0;
-        let num_elems = units_required_for::<Self>(self.size);
-        for i in 0..num_elems {
-            let elem = self.get_element(i);
-            let val = elem.load(Ordering::Acquire);
-            num_blocks += val.count_ones();
-        }
-        num_blocks as usize
-    }
-
-    #[inline]
-    fn iter(&self) -> BlockBitSetIter<Self> {
-        BlockBitSetIter {
-            vector: Self {
-                size: self.size,
-                extent_size: self.extent_size,
-                vector: self.vector,
-            },
-            bit: 0,
-        }
-    }
-}
-unsafe impl Sync for ThreadSafeBlockBitSet {}
-unsafe impl Send for ThreadSafeBlockBitSet {}
-
-/// An implementation of `BlockBitSet` which is designed for single-threaded use
-pub struct ThreadLocalBlockBitSet {
-    size: usize,
-    extent_size: usize,
-    vector: *mut usize,
-}
-impl ThreadLocalBlockBitSet {
-    #[inline(always)]
-    fn get_element<'a>(&self, index: usize) -> &'a mut usize {
-        unsafe { &mut *(self.vector.add(index)) }
-    }
-
-    #[inline(always)]
-    fn get_element_for_bit<'a>(&self, bit: usize) -> &'a mut usize {
-        self.get_element(bit / bit_size_of::<usize>())
-    }
-}
-
-impl BlockBitSet for ThreadLocalBlockBitSet {
-    type Repr = usize;
-
-    #[inline]
-    unsafe fn new(ptr: *mut Self, size: usize, block_size: usize) -> Self {
-        let num_blocks = calculate_block_fit::<Self>(size, block_size);
-        let extent_layout = Self::extended_layout(num_blocks);
-        // Calculate pointer to beginning of bit vector
-        let vector = ptr.add(mem::size_of::<Self>()) as *mut usize;
-        // Write initial state to bit vector, using calculated pointer
-        let num_elems = units_required_for::<Self>(num_blocks);
-        for i in 0..num_elems {
-            let elem = vector.add(i);
-            ptr::write(elem, 0)
-        }
-        Self {
-            size: num_blocks,
-            extent_size: extent_layout.size(),
-            vector,
-        }
-    }
-
-    #[inline]
-    fn size(&self) -> usize {
-        self.size
-    }
-
-    #[inline]
-    fn extent_size(&self) -> usize {
-        self.extent_size
-    }
-
-    #[inline]
-    fn wastage(size: usize, block_size: usize) -> usize {
-        let num_blocks = calculate_block_fit::<Self>(size, block_size);
-        let meta_layout = Self::extended_layout(num_blocks);
-        let block_bytes = num_blocks * block_size;
-        size - meta_layout.size() - block_bytes
-    }
-
-    #[inline]
-    fn is_allocated(&self, bit: usize) -> bool {
-        let shift = bit % bit_size_of::<Self::Repr>();
-        let flag = 1usize << shift;
-        let elem = self.get_element_for_bit(bit);
-        *elem & flag == flag
-    }
-
-    #[inline]
-    fn try_alloc(&self, bit: usize) -> bool {
-        let shift = bit % bit_size_of::<Self::Repr>();
-        let flag = 1usize << shift;
-        let elem = self.get_element_for_bit(bit);
-        if *elem & flag == flag {
-            // Already allocated
-            return false;
-        }
-        *elem |= flag;
-        true
-    }
-
-    #[inline]
-    fn free(&self, bit: usize) {
-        let shift = bit % bit_size_of::<Self::Repr>();
-        let flag = 1usize << shift;
-        let elem = self.get_element_for_bit(bit);
-        *elem &= !flag;
-    }
-
-    #[inline]
-    fn count_free(&self) -> usize {
-        let mut num_blocks = self.size;
-        let num_elems = units_required_for::<Self>(num_blocks);
-        for i in 0..num_elems {
-            let elem = self.get_element(i);
-            let allocated = elem.count_ones();
-            num_blocks -= allocated as usize;
-        }
-        num_blocks
-    }
-
-    #[inline]
-    fn count_allocated(&self) -> usize {
-        let mut num_blocks = 0;
-        let num_elems = units_required_for::<Self>(self.size);
-        for i in 0..num_elems {
-            let elem = self.get_element(i);
-            num_blocks += elem.count_ones();
-        }
-        num_blocks as usize
-    }
-
-    #[inline]
-    fn iter(&self) -> BlockBitSetIter<Self> {
-        BlockBitSetIter {
-            vector: Self {
-                size: self.size,
-                extent_size: self.extent_size,
-                vector: self.vector,
-            },
-            bit: 0,
-        }
-    }
-}
-
-/// An iterator specifically for `BlockBitSet` implementations,
-pub struct BlockBitSetIter<T: BlockBitSet> {
-    vector: T,
-    bit: usize,
-}
-impl<B: BlockBitSet> Iterator for BlockBitSetIter<B> {
-    type Item = bool;
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.vector.size(), Some(self.vector.size()))
-    }
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.bit == self.vector.size() {
-            return None;
-        }
-        let bit = self.bit;
-        self.bit += 1;
-        Some(self.vector.is_allocated(bit))
-    }
-}
+unsafe impl<S: BlockBitSubset + Sync> Sync for BlockBitSet<S> {}
+unsafe impl<S: BlockBitSubset + Send> Send for BlockBitSet<S> {}
 
 /// Calculates the maximum number of blocks which can fit in a region
-/// of `size` bytes, where each block is `block_size` bytes.
+/// of `slab_byte_len` bytes, where each block is `block_byte_len` bytes.
 ///
-/// NOTE: The size of the bit vector is subtracted from the region,
+/// NOTE: The slab_byte_len of the bit vector is subtracted from the region,
 /// so if you already account for that elsewhere, be sure to increase
-/// `size` by that amount.
-#[inline]
-fn calculate_block_fit<T: BlockBitSet>(size: usize, block_size: usize) -> usize {
-    let this = mem::size_of::<T>();
-    let max_usable = size - this;
-    let blocks_per_unit = mem::size_of::<T::Repr>() * 8;
-    let bytes_represented_per_unit = mem::size_of::<T::Repr>() + (block_size * blocks_per_unit);
+/// `slab_byte_len` by that amount.
+fn block_len_from_slab_byte_len_and_block_byte_len<S: BlockBitSubset>(
+    slab_byte_len: usize,
+    block_byte_len: usize,
+) -> usize {
+    let this = mem::size_of::<BlockBitSet<S>>();
+    let max_usable = slab_byte_len - this;
+    let subset_block_len = bit_size_of::<S>();
+    let bytes_represented_per_unit = mem::size_of::<S>() + (block_byte_len * subset_block_len);
 
     // The number of usable bytes accounted for so far
     let mut used = 0;
@@ -377,31 +263,31 @@ fn calculate_block_fit<T: BlockBitSet>(size: usize, block_size: usize) -> usize 
             // We don't have enough room for a full usize worth of blocks
             let available = max_usable - used;
             // Ensure we have at least enough space for the bits themselves
-            if available > mem::size_of::<T::Repr>() {
+            if available > mem::size_of::<S>() {
                 // Account for the number of blocks which can fit in the remaining space
-                let available_for_blocks = available - mem::size_of::<T::Repr>();
-                block_count += num_blocks_fit(available_for_blocks, block_size);
+                let available_for_blocks = available - mem::size_of::<S>();
+                block_count += num_blocks_fit(available_for_blocks, block_byte_len);
                 return block_count;
             }
 
             break;
         }
         used = new_used;
-        block_count += blocks_per_unit;
+        block_count += subset_block_len;
     }
 
     block_count
 }
 
-#[inline]
-fn units_required_for<T: BlockBitSet>(num_blocks: usize) -> usize {
-    let bits_per_unit = mem::size_of::<T::Repr>() * 8;
-    let count = num_blocks / bits_per_unit;
-    let needs_extra = count % bits_per_unit == 0;
+fn subset_len_from_block_len<S: BlockBitSubset>(block_len: usize) -> usize {
+    let bits_per_subset = bit_size_of::<S>();
+    let subset_len = block_len / bits_per_subset;
+    let needs_extra = subset_len % bits_per_subset == 0;
+
     if needs_extra {
-        count + 1
+        subset_len + 1
     } else {
-        count
+        subset_len
     }
 }
 
@@ -414,7 +300,6 @@ const fn num_blocks_fit(num_bytes: usize, block_size: usize) -> usize {
 mod tests {
     use core::alloc::Layout;
     use core::mem;
-    use core::ptr;
 
     use intrusive_collections::LinkedListLink;
     use liblumen_alloc_macros::*;
@@ -429,47 +314,49 @@ mod tests {
     struct SizeClassAlloc;
 
     #[test]
-    fn thread_safe_block_set_test() {
+    fn thread_safe_block_bit_set_test() {
         let size = 65536;
         let block_size = mem::size_of::<u64>(); // 8
         let layout = Layout::from_size_align(size, mem::align_of::<AtomicUsize>()).unwrap();
 
-        let num_blocks = calculate_block_fit::<ThreadSafeBlockBitSet>(size, block_size);
+        let block_len = block_len_from_slab_byte_len_and_block_byte_len::<ThreadSafeBlockBitSubset>(
+            size, block_size,
+        );
 
         let ptr = unsafe { mmap::map(layout).unwrap() };
         let raw = ptr.as_ptr();
-        let header_ptr = raw as *mut ThreadSafeBlockBitSet;
+        let block_bit_set_ptr = raw as *mut BlockBitSet<ThreadSafeBlockBitSubset>;
+
         unsafe {
-            ptr::write(
-                header_ptr,
-                ThreadSafeBlockBitSet::new(header_ptr, size, block_size),
-            );
+            BlockBitSet::write(block_bit_set_ptr, size, block_size);
         }
 
-        let blocks = unsafe { &*header_ptr };
+        let block_bit_set = unsafe { &*block_bit_set_ptr };
 
-        assert_eq!(blocks.size(), num_blocks);
-        assert_eq!(blocks.count_free(), num_blocks);
+        assert_eq!(block_bit_set.len(), block_len);
+        assert_eq!(block_bit_set.count_free(), block_len);
     }
 
     #[test]
     fn wastage_for_size_classes_is_acceptable() {
         let size = carriers::SUPERALIGNED_CARRIER_SIZE;
         let acceptable_wastage = 88; // based on the super-aligned size
-        let usable_size = (size
-            - mem::size_of::<SlabCarrier<LinkedListLink, ThreadSafeBlockBitSet>>())
-            + mem::size_of::<ThreadSafeBlockBitSet>();
+        let slab_byte_len =
+            size - mem::size_of::<SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>>();
+
         for class in SizeClassAlloc::SIZE_CLASSES.iter() {
-            let block_size = class.to_bytes();
-            let word_size = class.as_words();
-            let wastage = ThreadSafeBlockBitSet::wastage(usable_size, block_size);
+            let block_byte_len = class.to_bytes();
+            let block_word_len = class.as_words();
+            let wastage =
+                BlockBitSet::<ThreadSafeBlockBitSubset>::wastage(slab_byte_len, block_byte_len);
+
             assert!(
                 wastage <= acceptable_wastage,
                 "wastage of {} bytes exceeds acceptable level of {} bytes for size class {} bytes ({} words)",
                 wastage,
                 acceptable_wastage,
-                block_size,
-                word_size,
+                block_byte_len,
+                block_word_len,
             );
         }
     }

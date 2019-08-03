@@ -52,7 +52,7 @@ use intrusive_collections::{intrusive_adapter, UnsafeRef};
 use intrusive_collections::{LinkedList, LinkedListLink};
 use intrusive_collections::{RBTree, RBTreeLink};
 
-use crate::blocks::ThreadSafeBlockBitSet;
+use crate::blocks::ThreadSafeBlockBitSubset;
 use crate::sorted::SortedKeyAdapter;
 
 // Type alias for the list of currently allocated single-block carriers
@@ -60,10 +60,10 @@ pub(crate) type SingleBlockCarrierList = LinkedList<SingleBlockCarrierListAdapte
 // Type alias for the ordered tree of currently allocated multi-block carriers
 pub(crate) type MultiBlockCarrierTree = RBTree<SortedKeyAdapter<MultiBlockCarrier<RBTreeLink>>>;
 // Type alias for the list of currently allocated slab carriers
-pub(crate) type SlabCarrierList = LinkedList<SlabCarrierListAdapter<ThreadSafeBlockBitSet>>;
+pub(crate) type SlabCarrierList = LinkedList<SlabCarrierListAdapter<ThreadSafeBlockBitSubset>>;
 
 // Implementation of adapter for intrusive collection used for slab carriers
-intrusive_adapter!(pub SlabCarrierListAdapter<B> = UnsafeRef<SlabCarrier<LinkedListLink, B>>: SlabCarrier<LinkedListLink, B> { link: LinkedListLink });
+intrusive_adapter!(pub SlabCarrierListAdapter<S> = UnsafeRef<SlabCarrier<LinkedListLink, S>>: SlabCarrier<LinkedListLink, S> { link: LinkedListLink });
 
 // Implementation of adapter for intrusive collection used for single-block carriers
 intrusive_adapter!(pub SingleBlockCarrierListAdapter = UnsafeRef<SingleBlockCarrier<LinkedListLink>>: SingleBlockCarrier<LinkedListLink> { link: LinkedListLink });

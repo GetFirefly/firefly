@@ -129,19 +129,30 @@ fn counter_2_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
         Atom::try_from_str("erlang").unwrap(),
         Atom::try_from_str("send").unwrap(),
         2,
-        || match erlang::send_2(next_pid, sum, arc_process) {
-            Ok(term) => Ok(term),
-            Err(error) => {
+        || {
+            // printing is slow, so print to show progress, but not too often that is slows down a
+            // lot.
+            if arc_process.pid().number() % 1_000 == 0 {
                 system::io::puts(&format!(
-                    "[{}:{}] {:?} send({:?}, {:?})\n{:?}",
-                    file!(),
-                    line!(),
-                    arc_process,
-                    next_pid,
-                    sum,
-                    *arc_process.acquire_heap()
+                    "{:?} Sending {:?} to {:?}",
+                    arc_process, sum, next_pid
                 ));
-                Err(error)
+            }
+
+            match erlang::send_2(next_pid, sum, arc_process) {
+                Ok(term) => Ok(term),
+                Err(error) => {
+                    system::io::puts(&format!(
+                        "[{}:{}] {:?} send({:?}, {:?})\n{:?}",
+                        file!(),
+                        line!(),
+                        arc_process,
+                        next_pid,
+                        sum,
+                        *arc_process.acquire_heap()
+                    ));
+                    Err(error)
+                }
             }
         },
     )

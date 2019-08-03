@@ -47,6 +47,7 @@ use liblumen_alloc::CloneToProcess;
 
 use lumen_runtime::code::tail_call_bif;
 use lumen_runtime::otp::erlang;
+use lumen_runtime::system;
 
 use crate::elixir;
 
@@ -128,7 +129,21 @@ fn counter_2_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
         Atom::try_from_str("erlang").unwrap(),
         Atom::try_from_str("send").unwrap(),
         2,
-        || erlang::send_2(next_pid, sum, arc_process),
+        || match erlang::send_2(next_pid, sum, arc_process) {
+            Ok(term) => Ok(term),
+            Err(error) => {
+                system::io::puts(&format!(
+                    "[{}:{}] {:?} send({:?}, {:?})\n{:?}",
+                    file!(),
+                    line!(),
+                    arc_process,
+                    next_pid,
+                    sum,
+                    *arc_process.acquire_heap()
+                ));
+                Err(error)
+            }
+        },
     )
 }
 

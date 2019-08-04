@@ -1,10 +1,10 @@
-use core::alloc::AllocErr;
 use core::convert::{TryFrom, TryInto};
 
 use num_bigint::BigInt;
 use num_traits::Zero;
 
 use liblumen_alloc::erts::exception::runtime::Exception;
+use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::term::{atom_unchecked, Term, TypedTerm};
 use liblumen_alloc::{badarg, ProcessControlBlock};
 
@@ -61,7 +61,7 @@ impl Unit {
         }
     }
 
-    pub fn to_term(&self, process_control_block: &ProcessControlBlock) -> Result<Term, AllocErr> {
+    pub fn to_term(&self, process_control_block: &ProcessControlBlock) -> Result<Term, Alloc> {
         match self {
             Unit::Hertz(hertz) => process_control_block.integer(*hertz),
             Unit::Second => Ok(atom_unchecked("second")),

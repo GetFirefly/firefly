@@ -6,7 +6,7 @@ mod heap;
 mod mailbox;
 mod priority;
 
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::cell::RefCell;
 use core::fmt;
 use core::hash::{Hash, Hasher};
@@ -25,6 +25,7 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::layout_to_words;
 use crate::erts::term::{atom_unchecked, pid, reference, Atom, Integer, Pid, ProcBin};
 
@@ -185,21 +186,21 @@ impl ProcessControlBlock {
     /// Perform a heap allocation, but do not fall back to allocating a heap fragment
     /// if the process heap is not able to fulfill the allocation request
     #[inline]
-    pub unsafe fn alloc_nofrag(&self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloc_nofrag(&self, need: usize) -> Result<NonNull<Term>, Alloc> {
         let mut heap = self.heap.lock();
         heap.alloc(need)
     }
 
     /// Same as `alloc_nofrag`, but takes a `Layout` rather than the size in words
     #[inline]
-    pub unsafe fn alloc_nofrag_layout(&self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloc_nofrag_layout(&self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
         let words = layout_to_words(layout);
         self.alloc_nofrag(words)
     }
 
     /// Skip allocating on the process heap and directly allocate a heap fragment
     #[inline]
-    pub unsafe fn alloc_fragment(&self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloc_fragment(&self, need: usize) -> Result<NonNull<Term>, Alloc> {
         let layout = Layout::from_size_align_unchecked(
             need * mem::size_of::<Term>(),
             mem::align_of::<Term>(),
@@ -209,7 +210,7 @@ impl ProcessControlBlock {
 
     /// Same as `alloc_fragment`, but takes a `Layout` rather than the size in words
     #[inline]
-    pub unsafe fn alloc_fragment_layout(&self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+    pub unsafe fn alloc_fragment_layout(&self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
         let mut frag = HeapFragment::new(layout)?;
         let frag_ref = frag.as_mut();
         let data = frag_ref.data().cast::<Term>();
@@ -250,7 +251,7 @@ impl ProcessControlBlock {
         }
     }
 
-    unsafe fn alloca(&self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloca(&self, need: usize) -> Result<NonNull<Term>, Alloc> {
         let mut heap = self.heap.lock();
         heap.alloca(need)
     }
@@ -260,9 +261,9 @@ impl ProcessControlBlock {
     /// For boxed terms, the unboxed term needs to be allocated on the process and for non-empty
     /// lists both the head and tail needs to be allocated on the process.
     ///
-    /// Returns `Err(AllocErr)` if the process is out of stack space
+    /// Returns `Err(Alloc)` if the process is out of stack space
     #[inline]
-    pub fn stack_push(&self, term: Term) -> Result<(), AllocErr> {
+    pub fn stack_push(&self, term: Term) -> Result<(), Alloc> {
         assert!(term.is_runtime());
         unsafe {
             let stack0 = self.alloca(1)?.as_ptr();
@@ -292,7 +293,7 @@ impl ProcessControlBlock {
         &self,
         heap_fragment: NonNull<HeapFragment>,
         data: Term,
-    ) -> Result<(), AllocErr> {
+    ) -> Result<(), Alloc> {
         let heap_fragment_ptr = heap_fragment.as_ptr();
         let unsafe_ref_heap_fragment = unsafe { UnsafeRef::from_raw(heap_fragment_ptr) };
         self.off_heap.lock().push_back(unsafe_ref_heap_fragment);
@@ -300,12 +301,12 @@ impl ProcessControlBlock {
         self.send_message(Message::off_heap(data))
     }
 
-    pub fn send_from_self(&self, data: Term) -> Result<(), AllocErr> {
+    pub fn send_from_self(&self, data: Term) -> Result<(), Alloc> {
         self.send_message(Message::on_heap(data))
     }
 
     /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
-    pub fn send_from_other(&self, data: Term) -> Result<bool, AllocErr> {
+    pub fn send_from_other(&self, data: Term) -> Result<bool, Alloc> {
         match self.heap.try_lock() {
             Some(ref mut destination_heap) => {
                 let destination_message = data.clone_to_heap(destination_heap)?;
@@ -333,7 +334,7 @@ impl ProcessControlBlock {
         }
     }
 
-    fn send_message(&self, message: Message) -> Result<(), AllocErr> {
+    fn send_message(&self, message: Message) -> Result<(), Alloc> {
         let unsafe_ref_message = unsafe {
             let non_null_message = message.alloc()?;
 
@@ -347,11 +348,11 @@ impl ProcessControlBlock {
 
     // Terms
 
-    pub fn binary_from_bytes(&self, bytes: &[u8]) -> Result<Term, AllocErr> {
+    pub fn binary_from_bytes(&self, bytes: &[u8]) -> Result<Term, Alloc> {
         self.acquire_heap().binary_from_bytes(bytes)
     }
 
-    pub fn binary_from_str(&self, s: &str) -> Result<Term, AllocErr> {
+    pub fn binary_from_str(&self, s: &str) -> Result<Term, Alloc> {
         self.acquire_heap().binary_from_str(s)
     }
 
@@ -367,7 +368,7 @@ impl ProcessControlBlock {
         heap.bytes_from_binary(binary)
     }
 
-    pub fn charlist_from_str(&self, s: &str) -> Result<Term, AllocErr> {
+    pub fn charlist_from_str(&self, s: &str) -> Result<Term, Alloc> {
         self.acquire_heap().charlist_from_str(s)
     }
 
@@ -376,13 +377,13 @@ impl ProcessControlBlock {
         creator: Term,
         module_function_arity: Arc<ModuleFunctionArity>,
         code: Code,
-    ) -> Result<Term, AllocErr> {
+    ) -> Result<Term, Alloc> {
         self.acquire_heap()
             .closure(creator, module_function_arity, code)
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
-    pub fn cons(&self, head: Term, tail: Term) -> Result<Term, AllocErr> {
+    pub fn cons(&self, head: Term, tail: Term) -> Result<Term, Alloc> {
         self.acquire_heap().cons(head, tail)
     }
 
@@ -396,41 +397,41 @@ impl ProcessControlBlock {
             .external_pid_with_node_id(node_id, number, serial)
     }
 
-    pub fn float(&self, f: f64) -> Result<Term, AllocErr> {
+    pub fn float(&self, f: f64) -> Result<Term, Alloc> {
         self.acquire_heap().float(f)
     }
 
-    pub fn integer<I: Into<Integer>>(&self, i: I) -> Result<Term, AllocErr> {
+    pub fn integer<I: Into<Integer>>(&self, i: I) -> Result<Term, Alloc> {
         self.acquire_heap().integer(i)
     }
 
-    pub fn list_from_chars(&self, chars: Chars) -> Result<Term, AllocErr> {
+    pub fn list_from_chars(&self, chars: Chars) -> Result<Term, Alloc> {
         self.acquire_heap().list_from_chars(chars)
     }
 
-    pub fn list_from_iter<I>(&self, iter: I) -> Result<Term, AllocErr>
+    pub fn list_from_iter<I>(&self, iter: I) -> Result<Term, Alloc>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
         self.acquire_heap().list_from_iter(iter)
     }
 
-    pub fn list_from_slice(&self, slice: &[Term]) -> Result<Term, AllocErr> {
+    pub fn list_from_slice(&self, slice: &[Term]) -> Result<Term, Alloc> {
         self.acquire_heap().list_from_slice(slice)
     }
 
-    pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> Result<Term, AllocErr>
+    pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> Result<Term, Alloc>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
         self.acquire_heap().improper_list_from_iter(iter, last)
     }
 
-    pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> Result<Term, AllocErr> {
+    pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> Result<Term, Alloc> {
         self.acquire_heap().improper_list_from_slice(slice, tail)
     }
 
-    pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> Result<Term, AllocErr> {
+    pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> Result<Term, Alloc> {
         self.acquire_heap().map_from_slice(slice)
     }
 
@@ -444,7 +445,7 @@ impl ProcessControlBlock {
             .pid_with_node_id(node_id, number, serial)
     }
 
-    pub fn reference(&self, number: reference::Number) -> Result<Term, AllocErr> {
+    pub fn reference(&self, number: reference::Number) -> Result<Term, Alloc> {
         self.reference_from_scheduler(self.scheduler_id.lock().unwrap(), number)
     }
 
@@ -452,7 +453,7 @@ impl ProcessControlBlock {
         &self,
         scheduler_id: scheduler::ID,
         number: reference::Number,
-    ) -> Result<Term, AllocErr> {
+    ) -> Result<Term, Alloc> {
         self.acquire_heap().reference(scheduler_id, number)
     }
 
@@ -463,7 +464,7 @@ impl ProcessControlBlock {
         bit_offset: u8,
         full_byte_len: usize,
         partial_byte_bit_len: u8,
-    ) -> Result<Term, AllocErr> {
+    ) -> Result<Term, Alloc> {
         self.acquire_heap().subbinary_from_original(
             original,
             byte_offset,
@@ -473,25 +474,25 @@ impl ProcessControlBlock {
         )
     }
 
-    pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> Result<Term, AllocErr>
+    pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> Result<Term, Alloc>
     where
         I: Iterator<Item = Term>,
     {
         self.acquire_heap().tuple_from_iter(iterator, len)
     }
 
-    pub fn tuple_from_slice(&self, slice: &[Term]) -> Result<Term, AllocErr> {
+    pub fn tuple_from_slice(&self, slice: &[Term]) -> Result<Term, Alloc> {
         self.acquire_heap().tuple_from_slice(slice)
     }
 
-    pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> Result<Term, AllocErr> {
+    pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> Result<Term, Alloc> {
         self.acquire_heap().tuple_from_slices(slices)
     }
 
     // Process Dictionary
 
     /// Puts a new value under the given key in the process dictionary
-    pub fn put(&self, key: Term, value: Term) -> Result<Term, AllocErr> {
+    pub fn put(&self, key: Term, value: Term) -> Result<Term, Alloc> {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
         assert!(
             value.is_runtime(),
@@ -738,7 +739,7 @@ impl ProcessControlBlock {
         locked_code_stack.push(frame);
     }
 
-    pub fn return_from_call(&self, term: Term) -> Result<(), AllocErr> {
+    pub fn return_from_call(&self, term: Term) -> Result<(), Alloc> {
         let has_caller = {
             let mut locked_stack = self.code_stack.lock();
 

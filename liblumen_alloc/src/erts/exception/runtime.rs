@@ -1,13 +1,15 @@
-use core::alloc::AllocErr;
 use core::convert::TryFrom;
-use core::result::Result;
 use core::num::TryFromIntError;
+use core::result::Result;
 
-use crate::erts::term::{atom_unchecked, Term, TypedTerm, TypeError, BoolError, TryIntoIntegerError};
-use crate::erts::term::atom::{AtomError, EncodingError};
-use crate::erts::term::tuple::IndexError;
-use crate::erts::term::list::ImproperList;
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::ProcessControlBlock;
+use crate::erts::term::atom::{AtomError, EncodingError};
+use crate::erts::term::list::ImproperList;
+use crate::erts::term::tuple::IndexError;
+use crate::erts::term::{
+    atom_unchecked, BoolError, Term, TryIntoIntegerError, TypeError, TypedTerm,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Class {
@@ -40,72 +42,30 @@ pub struct Exception {
     pub class: Class,
     pub reason: Term,
     pub stacktrace: Option<Term>,
-    #[cfg(debug_assertions)]
     pub file: &'static str,
-    #[cfg(debug_assertions)]
     pub line: u32,
-    #[cfg(debug_assertions)]
     pub column: u32,
 }
 
 impl Exception {
-    #[cfg(debug_assertions)]
     pub fn badarg(file: &'static str, line: u32, column: u32) -> Self {
-        Self::error(
-            Self::badarg_reason(),
-            None,
-            None,
-            file,
-            line,
-            column
-        )
+        Self::error(Self::badarg_reason(), None, None, file, line, column)
     }
 
-    #[cfg(not(debug_assertions))]
-    pub fn badarg() -> Self {
-        Self::error(Self::badarg_reason(), None, None)
-    }
-
-    #[cfg(debug_assertions)]
     pub fn badarith(file: &'static str, line: u32, column: u32) -> Self {
-        Self::error(
-            Self::badarith_reason(),
-            None,
-            None,
-            file,
-            line,
-            column
-        )
-    }
-
-    #[cfg(not(debug_assertions))]
-    pub fn badarith() -> Self {
-        Self::error(Self::badarith_reason(), None, None)
+        Self::error(Self::badarith_reason(), None, None, file, line, column)
     }
 
     pub fn badarity(
         process: &ProcessControlBlock,
         function: Term,
         arguments: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
-    ) -> Result<Self, AllocErr> {
+    ) -> Result<Self, Alloc> {
         let reason = Self::badarity_reason(process, function, arguments)?;
-        let error = Self::error(
-            reason,
-            None,
-            None,
-            #[cfg(debug_assertions)]
-            file,
-            #[cfg(debug_assertions)]
-            line,
-            #[cfg(debug_assertions)]
-            column
-        );
+        let error = Self::error(reason, None, None, file, line, column);
 
         Ok(error)
     }
@@ -113,26 +73,14 @@ impl Exception {
     pub fn badfun(
         process: &ProcessControlBlock,
         function: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
-        column: u32) -> Result<Self, AllocErr> {
+        column: u32,
+    ) -> Result<Self, Alloc> {
         let tag = atom_unchecked("badfun");
         let reason = process.tuple_from_slice(&[tag, function])?;
 
-        let error = Self::error(
-            reason,
-            None,
-            None,
-            #[cfg(debug_assertions)]
-             file,
-             #[cfg(debug_assertions)]
-             line,
-             #[cfg(debug_assertions)]
-             column,
-        );
+        let error = Self::error(reason, None, None, file, line, column);
 
         Ok(error)
     }
@@ -140,25 +88,13 @@ impl Exception {
     pub fn badkey(
         process: &ProcessControlBlock,
         key: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
-    ) -> Result<Self, AllocErr>{
+    ) -> Result<Self, Alloc> {
         let tag = atom_unchecked("badkey");
         let reason = process.tuple_from_slice(&[tag, key])?;
-        let error = Self::error(reason,
-                                None,
-                                None,
-                                #[cfg(debug_assertions)]
-                                file,
-                                #[cfg(debug_assertions)]
-                                line,
-                                #[cfg(debug_assertions)]
-                                column,
-        );
+        let error = Self::error(reason, None, None, file, line, column);
 
         Ok(error)
     }
@@ -166,25 +102,13 @@ impl Exception {
     pub fn badmap(
         process: &ProcessControlBlock,
         map: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
-    ) -> Result<Self, AllocErr>{
+    ) -> Result<Self, Alloc> {
         let tag = atom_unchecked("badmap");
         let reason = process.tuple_from_slice(&[tag, map])?;
-        let error = Self::error(reason,
-                                None,
-                                None,
-                                #[cfg(debug_assertions)]
-                                file,
-                                #[cfg(debug_assertions)]
-                                line,
-                                #[cfg(debug_assertions)]
-                                column,
-        );
+        let error = Self::error(reason, None, None, file, line, column);
 
         Ok(error)
     }
@@ -195,26 +119,14 @@ impl Exception {
         function: Term,
         arguments: Term,
         stacktrace_tail: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
-    ) -> Result<Self, AllocErr> {
+    ) -> Result<Self, Alloc> {
         let reason = Self::undef_reason();
         let stacktrace =
             Self::undef_stacktrace(process, module, function, arguments, stacktrace_tail)?;
-        let exit = Self::exit(
-            reason,
-            Some(stacktrace),
-            #[cfg(debug_assertions)]
-            file,
-            #[cfg(debug_assertions)]
-            line,
-            #[cfg(debug_assertions)]
-            column
-        );
+        let exit = Self::exit(reason, Some(stacktrace), file, line, column);
 
         Ok(exit)
     }
@@ -233,7 +145,7 @@ impl Exception {
         process: &ProcessControlBlock,
         function: Term,
         arguments: Term,
-    ) -> Result<Term, AllocErr> {
+    ) -> Result<Term, Alloc> {
         let function_arguments = process.tuple_from_slice(&[function, arguments])?;
 
         process.tuple_from_slice(&[Self::badarity_tag(), function_arguments])
@@ -247,70 +159,39 @@ impl Exception {
         reason: Term,
         arguments: Option<Term>,
         stacktrace: Option<Term>,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
     ) -> Self {
         let class = Class::Error { arguments };
-        Self::new(class,
-                  reason,
-                  stacktrace,
-                  #[cfg(debug_assertions)]
-                  file,
-                  #[cfg(debug_assertions)]
-                  line,
-                  #[cfg(debug_assertions)]
-                  column,
-        )
+        Self::new(class, reason, stacktrace, file, line, column)
     }
 
     fn exit(
         reason: Term,
         stacktrace: Option<Term>,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
     ) -> Self {
         let class = Class::Exit;
-        Self::new(
-            class,
-            reason,
-            stacktrace,
-            #[cfg(debug_assertions)]
-            file,
-            #[cfg(debug_assertions)]
-            line,
-            #[cfg(debug_assertions)]
-            column
-        )
+        Self::new(class, reason, stacktrace, file, line, column)
     }
 
     fn new(
         class: Class,
         reason: Term,
         stacktrace: Option<Term>,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
     ) -> Self {
         Exception {
             class,
             reason,
             stacktrace,
-            #[cfg(debug_assertions)]
             file,
-            #[cfg(debug_assertions)]
             line,
-            #[cfg(debug_assertions)]
             column,
         }
     }
@@ -325,16 +206,14 @@ impl Exception {
         function: Term,
         arguments: Term,
         tail: Term,
-    ) -> Result<Term, AllocErr> {
-        let top = process.tuple_from_slice(
-            &[
-                module,
-                function,
-                arguments,
-                // I'm not sure what this final empty list holds
-                Term::NIL,
-            ],
-        )?;
+    ) -> Result<Term, Alloc> {
+        let top = process.tuple_from_slice(&[
+            module,
+            function,
+            arguments,
+            // I'm not sure what this final empty list holds
+            Term::NIL,
+        ])?;
 
         process.cons(top, tail)
     }
@@ -356,7 +235,7 @@ impl From<BoolError> for Exception {
 
 impl From<EncodingError> for Exception {
     fn from(_: EncodingError) -> Self {
-      badarg!()
+        badarg!()
     }
 }
 
@@ -406,7 +285,7 @@ impl TryFrom<super::Exception> for Exception {
     fn try_from(exception: super::Exception) -> Result<Self, Self::Error> {
         match exception {
             super::Exception::Runtime(runtime_exception) => Ok(runtime_exception),
-            _ => Err(TypeError)
+            _ => Err(TypeError),
         }
     }
 }

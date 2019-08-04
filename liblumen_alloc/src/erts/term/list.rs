@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug};
@@ -7,6 +7,7 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
 use crate::erts::term::{AsTerm, Boxed, Term, TypeError, TypedTerm};
 use crate::erts::{to_word_size, HeapAlloc, StackAlloc};
 
@@ -160,7 +161,7 @@ impl PartialOrd<Cons> for Cons {
     }
 }
 impl CloneToProcess for Cons {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         // To make sure we don't blow the stack, we do not recursively walk
         // the list. Instead we use a list builder and traverse the list iteratively,
         // cloning each element as we go via the builder
@@ -325,7 +326,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     }
 
     #[inline]
-    fn push_internal(&mut self, term: Term) -> Result<(), AllocErr> {
+    fn push_internal(&mut self, term: Term) -> Result<(), Alloc> {
         if self.element.is_none() {
             // This is the very first push
             assert!(self.first.is_null());
@@ -364,10 +365,10 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
 
     /// Consumes the builder and produces a `Term` which points to the allocated list
     #[inline]
-    pub fn finish(mut self) -> Result<Term, AllocErr> {
+    pub fn finish(mut self) -> Result<Term, Alloc> {
         if self.failed {
             // We can't clean up the heap until GC
-            Err(AllocErr)
+            Err(alloc!())
         } else {
             match self.element {
                 // Empty list
@@ -402,10 +403,10 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
 
     /// Like `finish`, but produces an improper list if there is already at least one element
     #[inline]
-    pub fn finish_with(mut self, term: Term) -> Result<Term, AllocErr> {
+    pub fn finish_with(mut self, term: Term) -> Result<Term, Alloc> {
         if self.failed {
             // We can't clean up the heap until GC
-            Err(AllocErr)
+            Err(alloc!())
         } else {
             match self.element {
                 // Empty list
@@ -438,7 +439,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     }
 
     #[inline]
-    fn clone_term_to_heap(&mut self, term: Term) -> Result<Term, AllocErr> {
+    fn clone_term_to_heap(&mut self, term: Term) -> Result<Term, Alloc> {
         if term.is_immediate() {
             Ok(term)
         } else if term.is_boxed() {
@@ -463,7 +464,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     }
 
     #[inline]
-    fn alloc_cell(&mut self, head: Term, tail: Term) -> Result<*mut Cons, AllocErr> {
+    fn alloc_cell(&mut self, head: Term, tail: Term) -> Result<*mut Cons, Alloc> {
         let ptr = unsafe { self.heap.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons };
         let mut cell = unsafe { &mut *ptr };
         cell.head = head;
@@ -523,9 +524,9 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 
     /// Consumes the builder and produces a `Term` which points to the allocated list
     #[inline]
-    pub fn finish(self) -> Result<Term, AllocErr> {
+    pub fn finish(self) -> Result<Term, Alloc> {
         if self.failed {
-            Err(AllocErr)
+            Err(alloc!())
         } else {
             let size = self.elements.len();
             if size == 0 {
@@ -568,9 +569,9 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 
     /// Like `finish`, but produces an improper list if there is already at least one element
     #[inline]
-    pub fn finish_with(mut self, term: Term) -> Result<Term, AllocErr> {
+    pub fn finish_with(mut self, term: Term) -> Result<Term, Alloc> {
         if self.failed {
-            Err(AllocErr)
+            Err(alloc!())
         } else {
             let size = self.elements.len() + 1;
             if size == 1 {

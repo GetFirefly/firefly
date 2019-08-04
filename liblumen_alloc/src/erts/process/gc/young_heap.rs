@@ -1,10 +1,10 @@
-use core::alloc::AllocErr;
 use core::fmt;
 use core::mem;
 use core::ptr::{self, NonNull};
 
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use crate::erts::term::{
     binary_bytes, is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
@@ -65,13 +65,13 @@ impl YoungHeap {
 }
 impl HeapAlloc for YoungHeap {
     #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
         if self.heap_available() >= need {
             let ptr = self.top;
             self.top = self.top.add(need);
             Ok(NonNull::new_unchecked(ptr))
         } else {
-            Err(AllocErr)
+            Err(alloc!())
         }
     }
 
@@ -88,11 +88,11 @@ impl VirtualAlloc for YoungHeap {
 }
 impl StackAlloc for YoungHeap {
     #[inline]
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
         if self.stack_available() >= need {
             Ok(self.alloca_unchecked(need))
         } else {
-            Err(AllocErr)
+            Err(alloc!())
         }
     }
 

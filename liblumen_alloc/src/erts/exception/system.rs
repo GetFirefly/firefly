@@ -1,13 +1,25 @@
-use core::alloc::AllocErr;
+use core::fmt::{self, Debug};
 
 #[derive(Debug, PartialEq)]
 pub enum Exception {
-    // TODO include the needed size
-    AllocErr,
+    Alloc(Alloc),
 }
 
-impl From<AllocErr> for Exception {
-    fn from(_: AllocErr) -> Exception {
-        Exception::AllocErr
+impl From<Alloc> for Exception {
+    fn from(alloc: Alloc) -> Exception {
+        Exception::Alloc(alloc)
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub struct Alloc {
+    pub file: &'static str,
+    pub line: u32,
+    pub column: u32,
+}
+
+impl Debug for Alloc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Alloc at {}:{}:{}", self.file, self.line, self.column)
     }
 }

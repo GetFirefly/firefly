@@ -1,5 +1,4 @@
 ///! The memory specific to a process in the VM.
-use core::alloc::AllocErr;
 use core::convert::TryInto;
 
 use alloc::sync::Arc;
@@ -8,6 +7,7 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLockWriteGuard;
 
+use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::{self, ProcessControlBlock};
@@ -42,7 +42,7 @@ pub fn register_in(
     }
 }
 
-pub fn init(minimum_heap_size: usize) -> Result<ProcessControlBlock, AllocErr> {
+pub fn init(minimum_heap_size: usize) -> Result<ProcessControlBlock, Alloc> {
     let init = Atom::try_from_str("init").unwrap();
     let module_function_arity = Arc::new(ModuleFunctionArity {
         module: init,
@@ -67,12 +67,12 @@ pub fn init(minimum_heap_size: usize) -> Result<ProcessControlBlock, AllocErr> {
     Ok(process)
 }
 
-pub trait Alloc {
-    fn next_reference(&self) -> Result<Term, AllocErr>;
+pub trait SchedulerDependentAlloc {
+    fn next_reference(&self) -> Result<Term, Alloc>;
 }
 
-impl Alloc for ProcessControlBlock {
-    fn next_reference(&self) -> Result<Term, AllocErr> {
+impl SchedulerDependentAlloc for ProcessControlBlock {
+    fn next_reference(&self) -> Result<Term, Alloc> {
         let scheduler_id = self.scheduler_id().unwrap();
         let arc_scheduler = Scheduler::from_id(&scheduler_id).unwrap();
         let number = arc_scheduler.next_reference_number();
@@ -89,7 +89,7 @@ pub fn spawn(
     code: Code,
     heap: *mut Term,
     heap_size: usize,
-) -> Result<ProcessControlBlock, AllocErr> {
+) -> Result<ProcessControlBlock, Alloc> {
     let arity: u8 = match arguments.to_typed_term().unwrap() {
         TypedTerm::Nil => 0,
         TypedTerm::List(cons) => cons.count().unwrap().try_into().unwrap(),

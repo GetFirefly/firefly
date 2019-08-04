@@ -1,4 +1,3 @@
-use core::alloc::AllocErr;
 use core::fmt::{self, Debug};
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -9,6 +8,7 @@ use hashbrown::HashMap;
 use liblumen_core::locks::{Mutex, RwLock};
 
 use liblumen_alloc::erts::exception::runtime;
+use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::Code;
 #[cfg(test)]
 use liblumen_alloc::erts::process::Priority;
@@ -122,9 +122,10 @@ impl Scheduler {
                 Run::Now(arc_process) => {
                     match ProcessControlBlock::run(&arc_process) {
                         Ok(()) => (),
-                        Err(_) => unimplemented!(
-                            "{:?} needs GC.\n{:?}",
-                            arc_process.pid_term(),
+                        Err(exception) => unimplemented!(
+                            "{:?} {:?}\n{:?}",
+                            arc_process,
+                            exception,
                             *arc_process.acquire_heap()
                         ),
                     }
@@ -221,7 +222,7 @@ impl Scheduler {
         code: Code,
         heap: *mut Term,
         heap_size: usize,
-    ) -> Result<Arc<ProcessControlBlock>, AllocErr> {
+    ) -> Result<Arc<ProcessControlBlock>, Alloc> {
         let process = process::spawn(
             parent_process,
             module,
@@ -242,7 +243,7 @@ impl Scheduler {
     pub fn spawn_init(
         self: Arc<Scheduler>,
         minimum_heap_size: usize,
-    ) -> Result<Arc<ProcessControlBlock>, AllocErr> {
+    ) -> Result<Arc<ProcessControlBlock>, Alloc> {
         let process = process::init(minimum_heap_size)?;
         let arc_process = Arc::new(process);
         let scheduler_arc_process = Arc::clone(&arc_process);

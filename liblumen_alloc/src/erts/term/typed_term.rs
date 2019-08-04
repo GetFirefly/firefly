@@ -1,4 +1,3 @@
-use core::alloc::AllocErr;
 use core::cmp;
 use core::convert::TryInto;
 use core::hash::{Hash, Hasher};
@@ -9,6 +8,7 @@ use num_bigint::{BigInt, Sign};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
+use crate::erts::exception::system::Alloc;
 use crate::erts::ProcessControlBlock;
 
 use super::*;
@@ -429,7 +429,7 @@ impl CloneToProcess for TypedTerm {
         }
     }
 
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         // Immediates are just copied and returned, all other terms
         // are expected to require allocation, so we delegate to those types
         match self {

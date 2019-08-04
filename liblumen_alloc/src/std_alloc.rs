@@ -55,6 +55,7 @@ use liblumen_core::util::cache_padded::CachePadded;
 use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::carriers::{MultiBlockCarrierTree, SingleBlockCarrierList};
+use crate::erts::exception;
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
 use crate::AllocatorInfo;
 
@@ -75,7 +76,7 @@ cfg_if! {
 }
 
 /// Allocates a new block of memory using the given layout
-pub unsafe fn alloc(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn alloc(layout: Layout) -> Result<NonNull<u8>, exception::system::Alloc> {
     STD_ALLOC.allocate(layout)
 }
 
@@ -84,7 +85,7 @@ pub unsafe fn realloc(
     ptr: NonNull<u8>,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, AllocErr> {
+) -> Result<NonNull<u8>, exception::system::Alloc> {
     STD_ALLOC.reallocate(ptr, layout, new_size)
 }
 
@@ -147,7 +148,7 @@ impl StandardAlloc {
         sbc.iter().count()
     }
 
-    unsafe fn allocate(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn allocate(&self, layout: Layout) -> Result<NonNull<u8>, exception::system::Alloc> {
         let size = layout.size();
         if size >= self.sbc_threshold {
             return self.alloc_large(layout);
@@ -196,7 +197,7 @@ impl StandardAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, AllocErr> {
+    ) -> Result<NonNull<u8>, exception::system::Alloc> {
         let raw = ptr.as_ptr();
         let size = layout.size();
 
@@ -265,7 +266,7 @@ impl StandardAlloc {
     }
 
     /// This function handles allocations which exceed the single-block carrier threshold
-    unsafe fn alloc_large(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    unsafe fn alloc_large(&self, layout: Layout) -> Result<NonNull<u8>, exception::system::Alloc> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let data_layout = layout.clone();
         let carrier_layout = Layout::new::<SingleBlockCarrier<LinkedListLink>>();
@@ -273,27 +274,31 @@ impl StandardAlloc {
         // Track total size for carrier metadata
         let size = carrier_layout.size();
         // Allocate region
-        let ptr = mmap::map(carrier_layout)?;
-        // Get pointer to carrier header location
-        let carrier = ptr.as_ptr() as *mut SingleBlockCarrier<LinkedListLink>;
-        // Write initial carrier header
-        ptr::write(
-            carrier,
-            SingleBlockCarrier {
-                size,
-                layout,
-                link: LinkedListLink::new(),
-            },
-        );
-        // Get pointer to data region in allocated carrier+block
-        let data = (carrier as *mut u8).add(data_offset);
-        // Cast carrier pointer to UnsafeRef and add to linked list
-        // This implicitly mutates the link in the carrier
-        let carrier = UnsafeRef::from_raw(carrier);
-        let mut sbc = self.sbc.lock();
-        sbc.push_front(carrier);
-        // Return data pointer
-        Ok(NonNull::new_unchecked(data))
+        match mmap::map(carrier_layout) {
+            Ok(ptr) => {
+                // Get pointer to carrier header location
+                let carrier = ptr.as_ptr() as *mut SingleBlockCarrier<LinkedListLink>;
+                // Write initial carrier header
+                ptr::write(
+                    carrier,
+                    SingleBlockCarrier {
+                        size,
+                        layout,
+                        link: LinkedListLink::new(),
+                    },
+                );
+                // Get pointer to data region in allocated carrier+block
+                let data = (carrier as *mut u8).add(data_offset);
+                // Cast carrier pointer to UnsafeRef and add to linked list
+                // This implicitly mutates the link in the carrier
+                let carrier = UnsafeRef::from_raw(carrier);
+                let mut sbc = self.sbc.lock();
+                sbc.push_front(carrier);
+                // Return data pointer
+                Ok(NonNull::new_unchecked(data))
+            }
+            Err(AllocErr) => Err(alloc!()),
+        }
     }
 
     unsafe fn realloc_large(
@@ -301,7 +306,7 @@ impl StandardAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, AllocErr> {
+    ) -> Result<NonNull<u8>, exception::system::Alloc> {
         // Allocate new carrier
         let new_ptr =
             self.alloc_large(Layout::from_size_align_unchecked(new_size, layout.align()))?;
@@ -352,7 +357,7 @@ impl StandardAlloc {
 unsafe impl Alloc for StandardAlloc {
     #[inline]
     unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-        self.allocate(layout)
+        self.allocate(layout).map_err(|_| AllocErr)
     }
 
     #[inline]
@@ -362,7 +367,7 @@ unsafe impl Alloc for StandardAlloc {
         layout: Layout,
         new_size: usize,
     ) -> Result<NonNull<u8>, AllocErr> {
-        self.reallocate(ptr, layout, new_size)
+        self.reallocate(ptr, layout, new_size).map_err(|_| AllocErr)
     }
 
     #[inline]
@@ -434,16 +439,21 @@ unsafe impl Send for StandardAlloc {}
 ///
 /// NOTE: You must make sure to add the carrier to the free list of the
 /// allocator, or it will not be used, and will not be freed
-unsafe fn create_multi_block_carrier() -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, AllocErr>
-{
+unsafe fn create_multi_block_carrier(
+) -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, exception::system::Alloc> {
     let size = SUPERALIGNED_CARRIER_SIZE;
     let carrier_layout = Layout::from_size_align_unchecked(size, size);
     // Allocate raw memory for carrier
-    let ptr = mmap::map(carrier_layout)?;
-    // Initialize carrier in memory
-    let carrier = MultiBlockCarrier::init(ptr, size);
-    // Return an unsafe ref to this carrier back to the caller
-    Ok(UnsafeRef::from_raw(carrier))
+    match mmap::map(carrier_layout) {
+        Ok(ptr) => {
+            // Initialize carrier in memory
+            let carrier = MultiBlockCarrier::init(ptr, size);
+
+            // Return an unsafe ref to this carrier back to the caller
+            Ok(UnsafeRef::from_raw(carrier))
+        }
+        Err(AllocErr) => Err(alloc!()),
+    }
 }
 
 #[cfg(test)]

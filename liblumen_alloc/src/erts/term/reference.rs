@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::cmp;
 use core::fmt::{self, Debug};
 use core::hash::{Hash, Hasher};
@@ -6,6 +6,7 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
 use crate::erts::term::{arity_of, AsTerm, Term};
 use crate::erts::{scheduler, HeapAlloc, Node};
 
@@ -58,7 +59,7 @@ unsafe impl AsTerm for Reference {
     }
 }
 impl CloneToProcess for Reference {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         unsafe {
             let word_size = self.size_in_words();
             let ptr = heap.alloc(word_size)?.as_ptr() as *mut Self;
@@ -130,7 +131,7 @@ unsafe impl AsTerm for ExternalReference {
 }
 impl CloneToProcess for ExternalReference {
     #[inline]
-    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, Alloc> {
         unimplemented!()
     }
 }

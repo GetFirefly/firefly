@@ -1,4 +1,3 @@
-use core::alloc::AllocErr;
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug};
@@ -10,6 +9,7 @@ use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::HeapAlloc;
 use crate::erts::term::{AsTerm, Boxed, Term, TypeError, TypedTerm};
 use crate::erts::to_word_size;
@@ -64,7 +64,7 @@ unsafe impl AsTerm for Map {
     }
 }
 impl crate::borrow::CloneToProcess for Map {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         let size = mem::size_of_val(self);
         let size_in_words = to_word_size(size);
         let ptr = unsafe { heap.alloc(size_in_words)?.as_ptr() };

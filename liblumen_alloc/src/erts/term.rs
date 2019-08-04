@@ -28,10 +28,10 @@ pub use term::*;
 pub use tuple::*;
 pub use typed_term::*;
 
-use core::alloc::AllocErr;
 use core::fmt;
 use core::str::Utf8Error;
 
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::HeapAlloc;
 
 #[derive(Clone, Copy)]
@@ -100,7 +100,7 @@ pub fn atom_unchecked(s: &str) -> Term {
 }
 
 pub enum BytesFromBinaryError {
-    Alloc(AllocErr),
+    Alloc(Alloc),
     NotABinary,
     Type,
 }
@@ -111,7 +111,7 @@ pub fn make_pid(number: usize, serial: usize) -> Result<Term, pid::OutOfRange> {
 }
 
 pub enum StrFromBinaryError {
-    Alloc(AllocErr),
+    Alloc(Alloc),
     NotABinary,
     Type,
     Utf8Error(Utf8Error),

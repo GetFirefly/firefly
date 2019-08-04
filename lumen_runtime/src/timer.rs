@@ -3,7 +3,6 @@ mod message;
 pub mod read;
 pub mod start;
 
-use core::alloc::AllocErr;
 use core::cmp::Ordering::{self, *};
 use core::ops::{Index, IndexMut, RangeBounds};
 use core::result::Result;
@@ -15,6 +14,7 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::Mutex;
 
+use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::term::{atom_unchecked, reference, Atom, Reference, Term};
 use liblumen_alloc::CloneToProcess;
 use liblumen_alloc::ProcessControlBlock;
@@ -41,7 +41,7 @@ pub fn start(
     timeout: Timeout,
     process_message: Term,
     process_control_block: &ProcessControlBlock,
-) -> Result<Term, AllocErr> {
+) -> Result<Term, Alloc> {
     let scheduler = Scheduler::current();
 
     let result = scheduler.hierarchy.write().start(
@@ -59,7 +59,7 @@ pub fn start(
 /// Times out the timers for the thread that have timed out since the last time `timeout` was
 /// called.
 #[cfg(test)]
-pub fn timeout() -> Result<(), AllocErr> {
+pub fn timeout() -> Result<(), Alloc> {
     let scheduler = Scheduler::current();
 
     let result = scheduler.hierarchy.write().timeout();
@@ -145,7 +145,7 @@ impl Hierarchy {
         process_message: Term,
         process_control_block: &ProcessControlBlock,
         scheduler: &Scheduler,
-    ) -> Result<Term, AllocErr> {
+    ) -> Result<Term, Alloc> {
         let reference_number = scheduler.next_reference_number();
         let process_reference =
             process_control_block.reference_from_scheduler(scheduler.id, reference_number)?;
@@ -192,7 +192,7 @@ impl Hierarchy {
         Ok(process_reference)
     }
 
-    pub fn timeout(&mut self) -> Result<(), AllocErr> {
+    pub fn timeout(&mut self) -> Result<(), Alloc> {
         self.timeout_at_once()?;
 
         let monotonic_time_milliseconds = monotonic::time_in_milliseconds();
@@ -229,7 +229,7 @@ impl Hierarchy {
         Ok(())
     }
 
-    fn timeout_at_once(&mut self) -> Result<(), AllocErr> {
+    fn timeout_at_once(&mut self) -> Result<(), Alloc> {
         for arc_timer in self.at_once.drain(..) {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
@@ -240,7 +240,7 @@ impl Hierarchy {
         Ok(())
     }
 
-    fn timeout_soon_slot(&mut self) -> Result<(), AllocErr> {
+    fn timeout_soon_slot(&mut self) -> Result<(), Alloc> {
         for arc_timer in self.soon.drain(..) {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
@@ -251,7 +251,7 @@ impl Hierarchy {
         Ok(())
     }
 
-    fn timeout_arc_timer(arc_timer: Arc<Timer>) -> Result<(), AllocErr> {
+    fn timeout_arc_timer(arc_timer: Arc<Timer>) -> Result<(), Alloc> {
         match Arc::try_unwrap(arc_timer) {
             Ok(timer) => timer.timeout(),
             Err(_) => panic!("Timer Dropped"),
@@ -379,7 +379,7 @@ struct Timer {
 }
 
 impl Timer {
-    fn timeout(self) -> Result<(), AllocErr> {
+    fn timeout(self) -> Result<(), Alloc> {
         let option_destination_arc_process = match &self.destination {
             Destination::Name(ref name) => registry::atom_to_process(name),
             Destination::Process(destination_process_weak) => destination_process_weak.upgrade(),

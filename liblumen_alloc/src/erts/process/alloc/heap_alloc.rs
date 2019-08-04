@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::ops::DerefMut;
 use core::ptr::{self, NonNull};
 use core::str::Chars;
@@ -10,6 +10,7 @@ use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::Code;
 use crate::erts::term::binary::{AlignedBinary, IterableBitstring, MaybeAlignedMaybeBinary};
 use crate::erts::term::reference::{self, Reference};
@@ -27,10 +28,10 @@ pub trait HeapAlloc {
     /// If space on the process heap is not immediately available, then the allocation
     /// will be pushed into a heap fragment which will then be later moved on to the
     /// process heap during garbage collection
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr>;
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, Alloc>;
 
     /// Same as `alloc`, but takes a `Layout` rather than the size in words
-    unsafe fn alloc_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloc_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
         let need = erts::to_word_size(layout.size());
         self.alloc(need)
     }
@@ -49,10 +50,10 @@ pub trait HeapAlloc {
     /// For inputs less than or equal to 64 bytes, both the header and data are allocated
     /// on the process heap, and a boxed term is returned as described above.
     ///
-    /// NOTE: If allocation fails for some reason, `Err(AllocErr)` is returned, this usually
+    /// NOTE: If allocation fails for some reason, `Err(Alloc)` is returned, this usually
     /// indicates that a process needs to be garbage collected, but in some cases may indicate
     /// that the global heap is out of space.
-    fn binary_from_bytes(&mut self, bytes: &[u8]) -> Result<Term, AllocErr>
+    fn binary_from_bytes(&mut self, bytes: &[u8]) -> Result<Term, Alloc>
     where
         Self: VirtualAlloc,
     {
@@ -61,7 +62,7 @@ pub trait HeapAlloc {
         // Allocate ProcBins for sizes greater than 64 bytes
         if len > 64 {
             match self.procbin_from_bytes(bytes) {
-                Err(_) => Err(AllocErr),
+                Err(error) => Err(error),
                 Ok(term) => {
                     // Add the binary to the process's virtual binary heap
                     let bin_ptr = term.boxed_val() as *mut ProcBin;
@@ -127,10 +128,10 @@ pub trait HeapAlloc {
     /// For inputs less than or equal to 64 bytes, both the header and data are allocated
     /// on the process heap, and a boxed term is returned as described above.
     ///
-    /// NOTE: If allocation fails for some reason, `Err(AllocErr)` is returned, this usually
+    /// NOTE: If allocation fails for some reason, `Err(Alloc)` is returned, this usually
     /// indicates that a process needs to be garbage collected, but in some cases may indicate
     /// that the global heap is out of space.
-    fn binary_from_str(&mut self, s: &str) -> Result<Term, AllocErr>
+    fn binary_from_str(&mut self, s: &str) -> Result<Term, Alloc>
     where
         Self: VirtualAlloc,
     {
@@ -138,7 +139,7 @@ pub trait HeapAlloc {
         // Allocate ProcBins for sizes greater than 64 bytes
         if len > HeapBin::MAX_SIZE {
             match self.procbin_from_str(s) {
-                Err(_) => Err(AllocErr),
+                Err(error) => Err(error),
                 Ok(term) => {
                     // Add the binary to the process's virtual binary heap
                     let bin_ptr = term.boxed_val() as *mut ProcBin;
@@ -157,7 +158,7 @@ pub trait HeapAlloc {
         creator: Term,
         module_function_arity: Arc<ModuleFunctionArity>,
         code: Code,
-    ) -> Result<Term, AllocErr> {
+    ) -> Result<Term, Alloc> {
         let closure = Closure::new(module_function_arity, code, creator);
 
         unsafe {
@@ -170,7 +171,7 @@ pub trait HeapAlloc {
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
-    fn cons(&mut self, head: Term, tail: Term) -> Result<Term, AllocErr> {
+    fn cons(&mut self, head: Term, tail: Term) -> Result<Term, Alloc> {
         let cons = Cons::new(head, tail);
 
         unsafe {
@@ -197,7 +198,7 @@ pub trait HeapAlloc {
         Ok(heap_external_pid)
     }
 
-    fn float(&mut self, f: f64) -> Result<Term, AllocErr> {
+    fn float(&mut self, f: f64) -> Result<Term, Alloc> {
         let float = Float::new(f);
 
         unsafe {
@@ -211,7 +212,7 @@ pub trait HeapAlloc {
 
     /// Constructs a heap-allocated binary from the given byte slice, and associated with the given
     /// process
-    fn heapbin_from_bytes(&mut self, s: &[u8]) -> Result<Term, AllocErr> {
+    fn heapbin_from_bytes(&mut self, s: &[u8]) -> Result<Term, Alloc> {
         let len = s.len();
 
         unsafe {
@@ -235,7 +236,7 @@ pub trait HeapAlloc {
 
     /// Constructs a heap-allocated binary from the given string, and associated with the given
     /// process
-    fn heapbin_from_str(&mut self, s: &str) -> Result<Term, AllocErr> {
+    fn heapbin_from_str(&mut self, s: &str) -> Result<Term, Alloc> {
         let len = s.len();
 
         unsafe {
@@ -261,7 +262,7 @@ pub trait HeapAlloc {
         }
     }
 
-    fn improper_list_from_iter<I>(&mut self, iter: I, last: Term) -> Result<Term, AllocErr>
+    fn improper_list_from_iter<I>(&mut self, iter: I, last: Term) -> Result<Term, Alloc>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
@@ -274,7 +275,7 @@ pub trait HeapAlloc {
         Ok(acc)
     }
 
-    fn improper_list_from_slice(&mut self, slice: &[Term], tail: Term) -> Result<Term, AllocErr> {
+    fn improper_list_from_slice(&mut self, slice: &[Term], tail: Term) -> Result<Term, Alloc> {
         self.improper_list_from_iter(slice.iter().map(|t| *t), tail)
     }
 
@@ -284,7 +285,7 @@ pub trait HeapAlloc {
     /// This operation will transparently handle constructing the correct type of term
     /// based on the input value, i.e. an immediate small integer for values that fit,
     /// else a heap-allocated big integer for larger values.
-    fn integer<I: Into<Integer>>(&mut self, i: I) -> Result<Term, AllocErr>
+    fn integer<I: Into<Integer>>(&mut self, i: I) -> Result<Term, Alloc>
     where
         Self: core::marker::Sized,
     {
@@ -294,7 +295,7 @@ pub trait HeapAlloc {
         }
     }
 
-    fn charlist_from_str(&mut self, s: &str) -> Result<Term, AllocErr>
+    fn charlist_from_str(&mut self, s: &str) -> Result<Term, Alloc>
     where
         Self: core::marker::Sized,
     {
@@ -302,7 +303,7 @@ pub trait HeapAlloc {
     }
 
     /// Constructs a list from the chars and associated with the given process.
-    fn list_from_chars(&mut self, chars: Chars) -> Result<Term, AllocErr>
+    fn list_from_chars(&mut self, chars: Chars) -> Result<Term, Alloc>
     where
         Self: core::marker::Sized,
     {
@@ -317,19 +318,19 @@ pub trait HeapAlloc {
         Ok(acc)
     }
 
-    fn list_from_iter<I>(&mut self, iter: I) -> Result<Term, AllocErr>
+    fn list_from_iter<I>(&mut self, iter: I) -> Result<Term, Alloc>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
         self.improper_list_from_iter(iter, Term::NIL)
     }
 
-    fn list_from_slice(&mut self, slice: &[Term]) -> Result<Term, AllocErr> {
+    fn list_from_slice(&mut self, slice: &[Term]) -> Result<Term, Alloc> {
         self.improper_list_from_slice(slice, Term::NIL)
     }
 
     /// Constructs a map and associated with the given process.
-    fn map_from_slice(&mut self, slice: &[(Term, Term)]) -> Result<Term, AllocErr>
+    fn map_from_slice(&mut self, slice: &[(Term, Term)]) -> Result<Term, Alloc>
     where
         Self: core::marker::Sized,
     {
@@ -355,7 +356,7 @@ pub trait HeapAlloc {
 
     /// Constructs a reference-counted binary from the given byte slice, and associated with the
     /// given process
-    fn procbin_from_bytes(&mut self, s: &[u8]) -> Result<Term, AllocErr> {
+    fn procbin_from_bytes(&mut self, s: &[u8]) -> Result<Term, Alloc> {
         // Allocates on global heap
         let bin = ProcBin::from_slice(s, BinaryType::Raw)?;
         // Allocates space on the process heap for the header
@@ -369,7 +370,7 @@ pub trait HeapAlloc {
 
     /// Constructs a reference-counted binary from the given string, and associated with the given
     /// process
-    fn procbin_from_str(&mut self, s: &str) -> Result<Term, AllocErr> {
+    fn procbin_from_str(&mut self, s: &str) -> Result<Term, Alloc> {
         // Allocates on global heap
         let bin = ProcBin::from_str(s)?;
         // Allocates space on the process heap for the header
@@ -387,7 +388,7 @@ pub trait HeapAlloc {
         &mut self,
         scheduler_id: scheduler::ID,
         number: reference::Number,
-    ) -> Result<Term, AllocErr> {
+    ) -> Result<Term, Alloc> {
         let layout = Reference::layout();
         let reference_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Reference };
         let reference = Reference::new(scheduler_id, number);
@@ -421,7 +422,7 @@ pub trait HeapAlloc {
     /// Original must be a heap binary or a process binary.  To take the subbinary of a subbinary,
     /// use the first subbinary's original instead and combine the offsets.
     ///
-    /// NOTE: If allocation fails for some reason, `Err(AllocErr)` is returned, this usually
+    /// NOTE: If allocation fails for some reason, `Err(Alloc)` is returned, this usually
     /// indicates that a process needs to be garbage collected, but in some cases may indicate
     /// that the global heap is out of space.
     fn subbinary_from_original(
@@ -431,7 +432,7 @@ pub trait HeapAlloc {
         bit_offset: u8,
         full_byte_len: usize,
         partial_byte_bit_len: u8,
-    ) -> Result<Term, AllocErr> {
+    ) -> Result<Term, Alloc> {
         let subbinary = SubBinary::from_original(
             original,
             byte_offset,
@@ -454,7 +455,7 @@ pub trait HeapAlloc {
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the `iterator` provided is constructed from either immediate terms, or
     /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
-    fn tuple_from_iter<I>(&mut self, iterator: I, len: usize) -> Result<Term, AllocErr>
+    fn tuple_from_iter<I>(&mut self, iterator: I, len: usize) -> Result<Term, Alloc>
     where
         I: Iterator<Item = Term>,
     {
@@ -482,7 +483,7 @@ pub trait HeapAlloc {
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
     /// a slice passed to `make_tuple_from_slice` to produce nested tuples.
-    fn tuple_from_slice(&mut self, elements: &[Term]) -> Result<Term, AllocErr> {
+    fn tuple_from_slice(&mut self, elements: &[Term]) -> Result<Term, Alloc> {
         self.tuple_from_slices(&[elements])
     }
 
@@ -494,7 +495,7 @@ pub trait HeapAlloc {
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
     /// a slice passed to `make_tuple_from_slice` to produce nested tuples.
-    fn tuple_from_slices(&mut self, slices: &[&[Term]]) -> Result<Term, AllocErr> {
+    fn tuple_from_slices(&mut self, slices: &[&[Term]]) -> Result<Term, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
         let layout = Tuple::layout(len);
         let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
@@ -525,12 +526,12 @@ where
     H: DerefMut<Target = A>,
 {
     #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
         self.deref_mut().alloc(need)
     }
 
     #[inline]
-    unsafe fn alloc_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloc_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
         self.deref_mut().alloc_layout(layout)
     }
 
@@ -550,11 +551,11 @@ fn str_from_binary_bytes<'heap>(bytes: &'heap [u8]) -> Result<&'heap str, StrFro
 pub enum MakePidError {
     Number,
     Serial,
-    Alloc(AllocErr),
+    Alloc(Alloc),
 }
 
-impl From<AllocErr> for MakePidError {
-    fn from(alloc_err: AllocErr) -> Self {
+impl From<Alloc> for MakePidError {
+    fn from(alloc_err: Alloc) -> Self {
         MakePidError::Alloc(alloc_err)
     }
 }

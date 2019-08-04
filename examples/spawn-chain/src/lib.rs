@@ -1,5 +1,5 @@
 #![deny(warnings)]
-// `AllocErr`
+// `Alloc`
 #![feature(allocator_api)]
 #![feature(type_ascription)]
 

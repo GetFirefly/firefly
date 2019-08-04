@@ -9,6 +9,7 @@ use core::ops::Deref;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
 
 use super::*;
 
@@ -183,7 +184,7 @@ unsafe impl AsTerm for Tuple {
     }
 }
 impl CloneToProcess for Tuple {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         // The result of calling this will be a Tuple with everything located
         // contigously in memory
         unsafe {

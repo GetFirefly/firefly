@@ -1,9 +1,10 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::fmt::{self, Debug};
 use core::ptr::{self, NonNull};
 
 use intrusive_collections::{intrusive_adapter, LinkedListLink, UnsafeRef};
 
+use crate::erts::exception::system::Alloc;
 use crate::erts::term::Term;
 use crate::mem::bit_size_of;
 use crate::std_alloc;
@@ -41,7 +42,7 @@ impl Message {
         }
     }
 
-    pub unsafe fn alloc(self) -> Result<NonNull<Self>, AllocErr> {
+    pub unsafe fn alloc(self) -> Result<NonNull<Self>, Alloc> {
         let layout = Layout::new::<Self>();
         let ptr = std_alloc::alloc(layout)?.as_ptr() as *mut Self;
         ptr::write(ptr, self);

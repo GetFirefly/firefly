@@ -1,4 +1,3 @@
-use core::alloc::AllocErr;
 use core::cmp::Ordering;
 use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display};
@@ -9,10 +8,11 @@ use core::ptr;
 use num_bigint::{BigInt, Sign};
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
+use crate::erts::term::{TypeError, TypedTerm};
 
 use super::{AsTerm, HeapAlloc, Term};
 use super::{BigInteger, SmallInteger};
-use crate::erts::term::{TypeError, TypedTerm};
 
 /// A machine-width float, but stored alongside a header value used to identify it in memory
 #[derive(Clone, Copy)]
@@ -66,7 +66,7 @@ unsafe impl AsTerm for Float {
 }
 impl CloneToProcess for Float {
     #[inline]
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         unsafe {
             let ptr = heap.alloc(self.size_in_words())?.as_ptr() as *mut Self;
             ptr::copy_nonoverlapping(self as *const Self, ptr, 1);

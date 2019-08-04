@@ -8,6 +8,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::erts::exception::runtime;
+use crate::erts::exception::system::Alloc;
 
 use super::*;
 
@@ -296,7 +297,7 @@ impl Bitstring for SubBinary {
 }
 
 impl CloneToProcess for SubBinary {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         let real_bin_ptr = follow_moved(self.original).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         // For ref-counted binaries and those that are already on the process heap,

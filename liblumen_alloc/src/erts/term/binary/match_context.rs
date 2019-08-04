@@ -1,4 +1,3 @@
-use core::alloc::AllocErr;
 use core::convert::TryInto;
 use core::fmt;
 use core::mem;
@@ -13,6 +12,7 @@ use liblumen_core::util::pointer::distance_absolute;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
+use crate::erts::exception::system::Alloc;
 use crate::erts::term::term::Term;
 use crate::erts::term::{
     arity_of, follow_moved, to_word_size, AsTerm, HeapBin, IterableBitstring, ProcBin, SubBinary,
@@ -185,7 +185,7 @@ impl Bitstring for MatchContext {
 }
 
 impl CloneToProcess for MatchContext {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         let real_bin_ptr = follow_moved(self.buffer.original).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         // For ref-counted binaries and those that are already on the process heap,

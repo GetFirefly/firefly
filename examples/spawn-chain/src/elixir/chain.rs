@@ -31,12 +31,12 @@
 //! end
 //! ```
 
-use std::alloc::AllocErr;
 use std::convert::TryInto;
 use std::sync::Arc;
 
 use num_bigint::BigInt;
 
+use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::{result_from_exception, Result};
@@ -218,7 +218,7 @@ fn create_processes_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
 fn create_processes_reducer_function(
     process: &ProcessControlBlock,
-) -> std::result::Result<Term, AllocErr> {
+) -> std::result::Result<Term, Alloc> {
     let module_function_arity = Arc::new(ModuleFunctionArity {
         module: Atom::try_from_str("Elixir.Chain").unwrap(),
         function: Atom::try_from_str("create_processes_reducer").unwrap(),

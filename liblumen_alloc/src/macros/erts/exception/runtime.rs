@@ -1,16 +1,7 @@
-#[cfg(debug_assertions)]
 #[macro_export]
 macro_rules! badarg {
     () => {
         $crate::erts::exception::runtime::Exception::badarg(file!(), line!(), column!())
-    };
-}
-
-#[cfg(not(debug_assertions))]
-#[macro_export]
-macro_rules! badarg {
-    () => {
-        $crate::erts::exception::runtime::Exception::badarg()
     };
 }
 
@@ -19,14 +10,7 @@ macro_rules! badarith {
     () => {{
         use $crate::erts::exception::runtime;
 
-        runtime::Exception::badarith(
-            #[cfg(debug_assertions)]
-            file!(),
-            #[cfg(debug_assertions)]
-            line!(),
-            #[cfg(debug_assertions)]
-            column!(),
-        )
+        runtime::Exception::badarith(file!(), line!(), column!())
     }};
 }
 
@@ -37,11 +21,8 @@ macro_rules! badarity {
             $process,
             $function,
             $arguments,
-            #[cfg(debug_assertions)]
             file!(),
-            #[cfg(debug_assertions)]
             line!(),
-            #[cfg(debug_assertions)]
             column!(),
         )
     };
@@ -53,16 +34,7 @@ macro_rules! badarity {
 #[macro_export]
 macro_rules! badfun {
     ($process:expr, $fun:expr) => {
-        $crate::erts::exception::Exception::badfun(
-            $process,
-            $fun,
-            #[cfg(debug_assertions)]
-            file!(),
-            #[cfg(debug_assertions)]
-            line!(),
-            #[cfg(debug_assertions)]
-            column!(),
-        )
+        $crate::erts::exception::Exception::badfun($process, $fun, file!(), line!(), column!())
     };
 }
 
@@ -101,11 +73,8 @@ macro_rules! exception {
             class: $class,
             reason: $reason,
             stacktrace: $stacktrace,
-            #[cfg(debug_assertions)]
             file: file!(),
-            #[cfg(debug_assertions)]
             line: line!(),
-            #[cfg(debug_assertions)]
             column: column!(),
         }
     }};

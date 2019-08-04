@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::cmp;
 use core::convert::TryInto;
 use core::fmt::{self, Debug};
@@ -15,6 +15,7 @@ use intrusive_collections::LinkedListLink;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::ProcessControlBlock;
 use crate::erts::term::binary::heap::HeapBin;
 use crate::erts::term::binary::sub::{Original, SubBinary};
@@ -169,14 +170,14 @@ impl ProcBin {
     }
 
     /// Creates a new procbin from a str slice, by copying it to the heap
-    pub fn from_str(s: &str) -> Result<Self, AllocErr> {
+    pub fn from_str(s: &str) -> Result<Self, Alloc> {
         let binary_type = BinaryType::from_str(s);
 
         Self::from_slice(s.as_bytes(), binary_type)
     }
 
     /// Creates a new procbin from a raw byte slice, by copying it to the heap
-    pub fn from_slice(s: &[u8], binary_type: BinaryType) -> Result<Self, AllocErr> {
+    pub fn from_slice(s: &[u8], binary_type: BinaryType) -> Result<Self, Alloc> {
         use liblumen_core::sys::alloc as sys_alloc;
 
         let full_byte_len = s.len();
@@ -187,25 +188,27 @@ impl ProcBin {
             .unwrap();
 
         unsafe {
-            let ptr = sys_alloc::alloc(layout)?.as_ptr();
-            let inner_ptr = ptr as *mut ProcBinInner;
-            let bytes = ptr.add(offset);
+            match sys_alloc::alloc(layout) {
+                Ok(non_null) => {
+                    let ptr = non_null.as_ptr();
+                    let inner_ptr = ptr as *mut ProcBinInner;
+                    let bytes = ptr.add(offset);
 
-            ptr::write(
-                inner_ptr,
-                ProcBinInner {
-                    refc: AtomicUsize::new(1),
-                    flags: full_byte_len | binary_type.to_flags(),
-                    bytes,
-                },
-            );
-            ptr::copy_nonoverlapping(s.as_ptr(), bytes, full_byte_len);
+                    inner_ptr.write(ProcBinInner {
+                        refc: AtomicUsize::new(1),
+                        flags: full_byte_len | binary_type.to_flags(),
+                        bytes,
+                    });
+                    ptr::copy_nonoverlapping(s.as_ptr(), bytes, full_byte_len);
 
-            Ok(Self {
-                header: Term::make_header(arity_of::<Self>(), Term::FLAG_PROCBIN),
-                inner: NonNull::new_unchecked(inner_ptr),
-                link: LinkedListLink::new(),
-            })
+                    Ok(Self {
+                        header: Term::make_header(arity_of::<Self>(), Term::FLAG_PROCBIN),
+                        inner: NonNull::new_unchecked(inner_ptr),
+                        link: LinkedListLink::new(),
+                    })
+                }
+                Err(_) => Err(alloc!()),
+            }
         }
     }
 
@@ -301,7 +304,7 @@ impl CloneToProcess for ProcBin {
         boxed
     }
 
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         unsafe {
             // Allocate space for the header
             let layout = Layout::new::<Self>();

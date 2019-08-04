@@ -1,4 +1,3 @@
-use core::alloc::AllocErr;
 use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{Hash, Hasher};
@@ -10,6 +9,7 @@ use alloc::sync::Arc;
 use super::{AsTerm, Term};
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::stack::frame::Frame;
 use crate::erts::process::code::Code;
 use crate::erts::term::{arity_of, to_word_size};
@@ -62,7 +62,7 @@ unsafe impl AsTerm for Closure {
 }
 
 impl CloneToProcess for Closure {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         // Allocate space on process heap
         let words = self.size_in_words();
         let bytes = words * mem::size_of::<usize>();

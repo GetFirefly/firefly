@@ -27,7 +27,7 @@ use crate::binary::{start_length_to_part_range, PartRange, ToTermOptions};
 use crate::code;
 use crate::node;
 use crate::otp;
-use crate::process::Alloc;
+use crate::process::SchedulerDependentAlloc;
 use crate::registry::{self, pid_to_self_or_process};
 use crate::scheduler::Scheduler;
 use crate::send::{self, send, Sent};

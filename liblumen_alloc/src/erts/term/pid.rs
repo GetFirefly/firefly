@@ -1,4 +1,3 @@
-use core::alloc::AllocErr;
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
 use core::default::Default;
@@ -11,6 +10,7 @@ use liblumen_core::locks::RwLock;
 use lazy_static::lazy_static;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
 use crate::erts::term::{arity_of, AsTerm, Term, TypeError, TypedTerm};
 use crate::erts::{HeapAlloc, Node};
 use crate::mem::bit_size_of;
@@ -128,7 +128,7 @@ unsafe impl AsTerm for ExternalPid {
 }
 
 impl CloneToProcess for ExternalPid {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         unsafe {
             let ptr = heap.alloc(self.size_in_words())?.as_ptr() as *mut Self;
             ptr::copy_nonoverlapping(self as *const Self, ptr, 1);

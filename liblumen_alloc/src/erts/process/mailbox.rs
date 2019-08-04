@@ -1,10 +1,10 @@
-use core::alloc::AllocErr;
 use core::default::Default;
 
 use intrusive_collections::linked_list::Iter;
 use intrusive_collections::{LinkedList, UnsafeRef};
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
 use crate::erts::message::{self, Message};
 use crate::erts::process::alloc::HeapAlloc;
 use crate::erts::term::Term;
@@ -49,7 +49,7 @@ impl Mailbox {
 
     /// Pops the `message` out of the mailbox from the front of the queue AND clones it into
     /// `heap_guard` heap.
-    pub fn receive<A: HeapAlloc>(&mut self, heap: &mut A) -> Option<Result<Term, AllocErr>> {
+    pub fn receive<A: HeapAlloc>(&mut self, heap: &mut A) -> Option<Result<Term, Alloc>> {
         self.messages.pop_front().map(|message| {
             if message.is_on_heap() {
                 self.len -= 1;

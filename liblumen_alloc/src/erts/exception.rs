@@ -2,12 +2,18 @@
 pub mod runtime;
 pub mod system;
 
-use core::alloc::AllocErr;
 use core::convert::Into;
+use core::num::TryFromIntError;
 
-use crate::erts::term::{BytesFromBinaryError, StrFromBinaryError, Term};
-use crate::erts::process::alloc::heap_alloc::{MakePidError};
+use crate::erts::process::alloc::heap_alloc::MakePidError;
 use crate::erts::process::ProcessControlBlock;
+use crate::erts::term::atom::AtomError;
+use crate::erts::term::atom::EncodingError;
+use crate::erts::term::list::ImproperList;
+use crate::erts::term::tuple::IndexError;
+use crate::erts::term::{
+    BoolError, BytesFromBinaryError, StrFromBinaryError, Term, TryIntoIntegerError, TypeError,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum Exception {
@@ -20,99 +26,52 @@ impl Exception {
         process: &ProcessControlBlock,
         function: Term,
         arguments: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
-        column: u32) -> Self {
-        match runtime::Exception::badarity(
-            process,
-            function,
-            arguments,
-         #[cfg(debug_assertions)]
-            file,
-        #[cfg(debug_assertions)]
-            line,
-         #[cfg(debug_assertions)]
-            column
-        ) {
-            Ok(runtime_exception) => runtime_exception.into(),
-            Err(alloc_err) => alloc_err.into()
+        column: u32,
+    ) -> Self {
+        match runtime::Exception::badarity(process, function, arguments, file, line, column) {
+            Ok(runtime_exception) => Self::Runtime(runtime_exception.into()),
+            Err(alloc) => Self::System(alloc.into()),
         }
     }
 
     pub fn badfun(
         process: &ProcessControlBlock,
         function: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
-        column: u32) -> Self {
-        match runtime::Exception::badfun(
-            process,
-            function,
-            #[cfg(debug_assertions)]
-            file,
-            #[cfg(debug_assertions)]
-            line,
-            #[cfg(debug_assertions)]
-            column
-        ) {
-            Ok(runtime_exception) => runtime_exception.into(),
-            Err(alloc_err) => alloc_err.into()
+        column: u32,
+    ) -> Self {
+        match runtime::Exception::badfun(process, function, file, line, column) {
+            Ok(runtime_exception) => Self::Runtime(runtime_exception.into()),
+            Err(alloc) => Self::System(alloc.into()),
         }
     }
 
     pub fn badkey(
         process: &ProcessControlBlock,
         key: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
     ) -> Self {
-        match runtime::Exception::badkey(
-            process,
-            key,
-            #[cfg(debug_assertions)]
-            file,
-            #[cfg(debug_assertions)]
-            line,
-            #[cfg(debug_assertions)]
-            column
-        ) {
-            Ok(runtime_error) => runtime_error.into(),
-            Err(alloc_err) => alloc_err.into()
+        match runtime::Exception::badkey(process, key, file, line, column) {
+            Ok(runtime_error) => Self::Runtime(runtime_error.into()),
+            Err(alloc) => Self::System(alloc.into()),
         }
     }
 
     pub fn badmap(
         process: &ProcessControlBlock,
         map: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
     ) -> Self {
-        match runtime::Exception::badmap(
-            process,
-            map,
-            #[cfg(debug_assertions)]
-            file,
-            #[cfg(debug_assertions)]
-            line,
-            #[cfg(debug_assertions)]
-            column
-        ) {
-            Ok(runtime_error) => runtime_error.into(),
-            Err(alloc_err) => alloc_err.into()
+        match runtime::Exception::badmap(process, map, file, line, column) {
+            Ok(runtime_error) => Self::Runtime(runtime_error.into()),
+            Err(alloc) => Self::System(alloc.into()),
         }
     }
 
@@ -122,11 +81,8 @@ impl Exception {
         function: Term,
         arguments: Term,
         stacktrace_tail: Term,
-        #[cfg(debug_assertions)]
         file: &'static str,
-        #[cfg(debug_assertions)]
         line: u32,
-        #[cfg(debug_assertions)]
         column: u32,
     ) -> Self {
         match runtime::Exception::undef(
@@ -135,28 +91,30 @@ impl Exception {
             function,
             arguments,
             stacktrace_tail,
-         #[cfg(debug_assertions)]
             file,
-        #[cfg(debug_assertions)]
             line,
-         #[cfg(debug_assertions)]
             column,
         ) {
-            Ok(runtime_error) => runtime_error.into(),
-            Err(alloc_err) => alloc_err.into()
+            Ok(runtime_error) => Self::Runtime(runtime_error.into()),
+            Err(alloc) => Self::System(alloc.into()),
         }
     }
 }
-
-impl<R: Into<runtime::Exception>> From<R> for Exception {
-    fn from(r: R) -> Self {
-        Exception::Runtime(r.into())
+impl From<system::Alloc> for Exception {
+    fn from(alloc: system::Alloc) -> Self {
+        Self::System(alloc.into())
     }
 }
 
-impl From<AllocErr> for Exception {
-    fn from(alloc_err: AllocErr) -> Self {
-        Exception::System(alloc_err.into())
+impl From<AtomError> for Exception {
+    fn from(atom_error: AtomError) -> Self {
+        Self::Runtime(atom_error.into())
+    }
+}
+
+impl From<BoolError> for Exception {
+    fn from(bool_error: BoolError) -> Self {
+        Self::Runtime(bool_error.into())
     }
 }
 
@@ -165,9 +123,33 @@ impl From<BytesFromBinaryError> for Exception {
         use BytesFromBinaryError::*;
 
         match bytes_from_binary_error {
-            Alloc(error) => error.into(),
-            NotABinary | Type => badarg!().into(),
+            NotABinary | Type => Self::Runtime(badarg!().into()),
+            Alloc(error) => Self::System(error.into()),
         }
+    }
+}
+
+impl From<EncodingError> for Exception {
+    fn from(encoding_error: EncodingError) -> Self {
+        Self::Runtime(encoding_error.into())
+    }
+}
+
+impl From<runtime::Exception> for Exception {
+    fn from(runtime: runtime::Exception) -> Self {
+        Self::Runtime(runtime)
+    }
+}
+
+impl From<ImproperList> for Exception {
+    fn from(improper_list: ImproperList) -> Self {
+        Self::Runtime(improper_list.into())
+    }
+}
+
+impl From<IndexError> for Exception {
+    fn from(index_error: IndexError) -> Self {
+        Self::Runtime(index_error.into())
     }
 }
 
@@ -176,8 +158,8 @@ impl From<MakePidError> for Exception {
         use MakePidError::*;
 
         match make_pid_errror {
-            Alloc(error) => error.into(),
-            Number | Serial => badarg!().into(),
+            Number | Serial => Self::Runtime(badarg!().into()),
+            Alloc(error) => Self::System(error.into()),
         }
     }
 }
@@ -187,9 +169,27 @@ impl From<StrFromBinaryError> for Exception {
         use StrFromBinaryError::*;
 
         match str_from_binary_error {
-            Alloc(error) => error.into(),
-            NotABinary | Type | Utf8Error(_) => badarg!().into(),
+            NotABinary | Type | Utf8Error(_) => Self::Runtime(badarg!().into()),
+            Alloc(error) => Self::System(error.into()),
         }
+    }
+}
+
+impl From<TryFromIntError> for Exception {
+    fn from(try_from_int_error: TryFromIntError) -> Self {
+        Self::Runtime(try_from_int_error.into())
+    }
+}
+
+impl From<TryIntoIntegerError> for Exception {
+    fn from(try_into_integer_error: TryIntoIntegerError) -> Self {
+        Self::Runtime(try_into_integer_error.into())
+    }
+}
+
+impl From<TypeError> for Exception {
+    fn from(type_error: TypeError) -> Self {
+        Self::Runtime(type_error.into())
     }
 }
 

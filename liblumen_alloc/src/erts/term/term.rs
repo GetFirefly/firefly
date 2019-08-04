@@ -1,6 +1,5 @@
 #![allow(unused_parens)]
 
-use core::alloc::AllocErr;
 use core::cmp;
 use core::convert::TryInto;
 use core::fmt;
@@ -11,6 +10,7 @@ use alloc::string::String;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
+use crate::erts::exception::system::Alloc;
 use crate::erts::term::InvalidTermError;
 use crate::erts::ProcessControlBlock;
 
@@ -1525,7 +1525,7 @@ impl CloneToProcess for Term {
         }
     }
 
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         debug_assert!(self.is_runtime());
         if self.is_immediate() {
             Ok(*self)

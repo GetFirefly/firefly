@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
 use core::mem;
@@ -11,6 +11,7 @@ use alloc::string::String;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
+use crate::erts::exception::system::Alloc;
 use crate::erts::term::term::Term;
 use crate::erts::term::{to_word_size, AsTerm, Boxed, ProcBin, TypeError, TypedTerm};
 use crate::erts::HeapAlloc;
@@ -190,7 +191,7 @@ unsafe impl AsTerm for HeapBin {
 }
 
 impl CloneToProcess for HeapBin {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         let bin_size = self.full_byte_len();
         let words = self.size_in_words();
         unsafe {

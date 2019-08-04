@@ -38,6 +38,7 @@ use num_bigint::BigInt;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::{result_from_exception, Result};
 use liblumen_alloc::erts::process::ProcessControlBlock;
@@ -66,11 +67,7 @@ pub fn counter_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     // removed and no loop is necessary.
     //
     // CANNOT be in `match` as it will hold temporaries in `match` arms causing a `park`.
-    let received = arc_process
-        .mailbox
-        .lock()
-        .borrow_mut()
-        .receive(&mut arc_process.acquire_heap());
+    let received = arc_process.mailbox.lock().borrow_mut().receive(arc_process);
 
     match received {
         Some(Ok(n)) => {
@@ -319,21 +316,22 @@ fn create_processes_2_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
         for (position, message) in mailbox.iter().enumerate() {
             if seen < (position as isize) {
-                let message_data = message.data();
+                let message_data = match message {
+                    Message::Process(message::Process { data }) => data,
+                    Message::HeapFragment(message::HeapFragment { data, .. }) => data,
+                };
 
                 if message_data.is_integer() {
-                    let process_term = if message.is_on_heap() {
-                        message.data()
-                    } else {
-                        match message
-                            .data()
-                            .clone_to_heap(&mut arc_process.acquire_heap())
-                        {
-                            Ok(heap_data) => heap_data,
-                            Err(alloc_err) => {
-                                arc_process.reduce();
+                    let process_term = match message {
+                        Message::Process(message::Process { data }) => data.clone(),
+                        Message::HeapFragment(message::HeapFragment { data, .. }) => {
+                            match data.clone_to_heap(&mut arc_process.acquire_heap()) {
+                                Ok(heap_data) => heap_data,
+                                Err(alloc) => {
+                                    arc_process.reduce();
 
-                                return Err(alloc_err.into());
+                                    return Err(alloc.into());
+                                }
                             }
                         }
                     };
@@ -361,7 +359,7 @@ fn create_processes_2_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
         // separate because can't remove during iteration
         match found_position {
             Some(position) => {
-                mailbox.remove(position);
+                mailbox.remove(position, arc_process);
                 mailbox.unmark_seen();
 
                 true

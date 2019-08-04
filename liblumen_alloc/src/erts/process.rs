@@ -295,23 +295,33 @@ impl ProcessControlBlock {
         data: Term,
     ) -> Result<(), Alloc> {
         let heap_fragment_ptr = heap_fragment.as_ptr();
-        let unsafe_ref_heap_fragment = unsafe { UnsafeRef::from_raw(heap_fragment_ptr) };
-        self.off_heap.lock().push_back(unsafe_ref_heap_fragment);
 
-        self.send_message(Message::off_heap(data))
+        let off_heap_unsafe_ref_heap_fragment = unsafe { UnsafeRef::from_raw(heap_fragment_ptr) };
+        self.off_heap
+            .lock()
+            .push_back(off_heap_unsafe_ref_heap_fragment);
+
+        let message_unsafe_ref_heap_fragment = unsafe { UnsafeRef::from_raw(heap_fragment_ptr) };
+
+        self.send_message(Message::HeapFragment(message::HeapFragment {
+            unsafe_ref_heap_fragment: message_unsafe_ref_heap_fragment,
+            data,
+        }))
     }
 
     pub fn send_from_self(&self, data: Term) -> Result<(), Alloc> {
-        self.send_message(Message::on_heap(data))
+        self.send_message(Message::Process(message::Process { data }))
     }
 
     /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
     pub fn send_from_other(&self, data: Term) -> Result<bool, Alloc> {
         match self.heap.try_lock() {
             Some(ref mut destination_heap) => {
-                let destination_message = data.clone_to_heap(destination_heap)?;
+                let destination_data = data.clone_to_heap(destination_heap)?;
 
-                self.send_message(Message::on_heap(destination_message))?;
+                self.send_message(Message::Process(message::Process {
+                    data: destination_data,
+                }))?;
             }
             None => {
                 let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
@@ -335,13 +345,7 @@ impl ProcessControlBlock {
     }
 
     fn send_message(&self, message: Message) -> Result<(), Alloc> {
-        let unsafe_ref_message = unsafe {
-            let non_null_message = message.alloc()?;
-
-            UnsafeRef::from_raw(non_null_message.as_ptr())
-        };
-
-        self.mailbox.lock().borrow_mut().push(unsafe_ref_message);
+        self.mailbox.lock().borrow_mut().push(message);
 
         Ok(())
     }

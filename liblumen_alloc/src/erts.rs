@@ -1,6 +1,6 @@
 pub mod exception;
 mod fragment;
-mod message;
+pub mod message;
 mod module_function_arity;
 mod node;
 pub mod process;

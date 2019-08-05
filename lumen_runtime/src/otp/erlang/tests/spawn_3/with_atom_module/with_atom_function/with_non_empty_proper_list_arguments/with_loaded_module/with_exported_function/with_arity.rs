@@ -34,7 +34,7 @@ fn with_valid_arguments_when_run_returns() {
 
         let arc_process = pid_to_process(child_pid_pid).unwrap();
 
-        arc_scheduler.run_through(&arc_process);
+        assert!(arc_scheduler.run_through(&arc_process));
 
         assert_eq!(arc_process.code_stack_len(), 1);
         assert_eq!(
@@ -90,7 +90,7 @@ fn without_valid_arguments_when_run_exits() {
 
         let arc_process = pid_to_process(child_pid_pid).unwrap();
 
-        arc_scheduler.run_through(&arc_process);
+        assert!(arc_scheduler.run_through(&arc_process));
 
         assert_eq!(arc_process.code_stack_len(), 1);
         assert_eq!(

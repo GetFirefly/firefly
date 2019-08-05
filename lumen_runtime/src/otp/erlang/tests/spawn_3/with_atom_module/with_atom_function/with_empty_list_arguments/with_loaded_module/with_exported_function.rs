@@ -33,7 +33,7 @@ fn with_arity_when_run_returns() {
 
         let arc_process = pid_to_process(child_pid_pid).unwrap();
 
-        arc_scheduler.run_through(&arc_process);
+        assert!(arc_scheduler.run_through(&arc_process));
 
         assert_eq!(arc_process.code_stack_len(), 1);
         assert_eq!(
@@ -88,7 +88,7 @@ fn without_arity_when_run_exits_undef() {
 
         let arc_process = pid_to_process(child_pid_pid).unwrap();
 
-        arc_scheduler.run_through(&arc_process);
+        assert!(arc_scheduler.run_through(&arc_process));
 
         assert_eq!(arc_process.code_stack_len(), 1);
         assert_eq!(

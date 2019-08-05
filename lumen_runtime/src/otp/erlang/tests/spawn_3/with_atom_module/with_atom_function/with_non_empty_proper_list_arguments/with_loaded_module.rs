@@ -38,7 +38,7 @@ fn without_exported_function_when_run_exits_undef() {
 
         let arc_process = pid_to_process(child_pid_pid).unwrap();
 
-        arc_scheduler.run_through(&arc_process);
+        assert!(arc_scheduler.run_through(&arc_process));
 
         assert_eq!(arc_process.code_stack_len(), 1);
         assert_eq!(
@@ -53,7 +53,7 @@ fn without_exported_function_when_run_exits_undef() {
         match *arc_process.status.read() {
             Status::Exiting(ref runtime_exception) => {
                 let runtime_undef: runtime::Exception =
-                    undef!(&mut arc_process.acquire_heap(), module, function, arguments)
+                    undef!(&arc_process, module, function, arguments)
                         .try_into()
                         .unwrap();
 

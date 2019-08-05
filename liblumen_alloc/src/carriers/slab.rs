@@ -39,20 +39,21 @@ where
     const FREE_PATTERN: u8 = 0x57;
 
     /// Initializes a `SlabCarrier` using the memory indicated by
-    /// the given pointer and size as the slab it will manage. The
-    /// size class is assigned to all blocks in this carrier
+    /// the given `ptr` and `byte_len` as the slab it will manage. The
+    /// `size_class` is assigned to all blocks in this carrier
     #[inline]
-    pub unsafe fn init(ptr: *mut u8, size: usize, size_class: SizeClass) -> *mut Self {
-        let size_class_bytes = size_class.to_bytes();
+    pub unsafe fn init(ptr: *mut u8, byte_len: usize, size_class: SizeClass) -> *mut Self {
+        let size_class_byte_len = size_class.to_bytes();
+        assert!(size_class_byte_len < byte_len);
         let self_ptr = ptr as *mut Self;
         self_ptr.write(Self {
-            block_byte_len: size_class_bytes,
+            block_byte_len: size_class_byte_len,
             link: L::default(),
             block_bit_subset_type: PhantomData,
         });
         // Shift pointer past end of Self
         let block_bit_set_ptr = self_ptr.add(1) as *mut BlockBitSet<S>;
-        BlockBitSet::write(block_bit_set_ptr, size, size_class_bytes);
+        BlockBitSet::write(block_bit_set_ptr, byte_len, size_class_byte_len);
 
         self_ptr
     }

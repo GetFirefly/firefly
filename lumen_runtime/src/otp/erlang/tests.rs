@@ -8,6 +8,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::exception::runtime;
+use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::{
     make_pid, next_pid, BigInteger, HeapBin, Pid, SmallInteger, SubBinary,
@@ -185,12 +186,13 @@ where
 }
 
 fn has_message(process: &ProcessControlBlock, data: Term) -> bool {
-    process
-        .mailbox
-        .lock()
-        .borrow()
-        .iter()
-        .any(|message| data == message.data())
+    process.mailbox.lock().borrow().iter().any(|message| {
+        &data
+            == match message {
+                Message::Process(message::Process { data }) => data,
+                Message::HeapFragment(message::HeapFragment { data, .. }) => data,
+            }
+    })
 }
 
 fn has_heap_message(process: &ProcessControlBlock, data: Term) -> bool {
@@ -199,7 +201,12 @@ fn has_heap_message(process: &ProcessControlBlock, data: Term) -> bool {
         .lock()
         .borrow()
         .iter()
-        .any(|message| message.is_off_heap() && (data == message.data()))
+        .any(|message| match message {
+            Message::HeapFragment(message::HeapFragment {
+                data: message_data, ..
+            }) => message_data == &data,
+            _ => false,
+        })
 }
 
 fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
@@ -208,7 +215,12 @@ fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
         .lock()
         .borrow()
         .iter()
-        .any(|message| message.is_on_heap() && (data == message.data()))
+        .any(|message| match message {
+            Message::Process(message::Process {
+                data: message_data, ..
+            }) => message_data == &data,
+            _ => false,
+        })
 }
 
 fn list_term(process: &ProcessControlBlock) -> Term {
@@ -222,14 +234,11 @@ fn read_timer_message(timer_reference: Term, result: Term, process: &ProcessCont
 }
 
 fn receive_message(process: &ProcessControlBlock) -> Option<Term> {
-    // always lock `heap` before `mailbox`
-    let mut locked_heap = process.acquire_heap();
-
     process
         .mailbox
         .lock()
         .borrow_mut()
-        .receive(&mut locked_heap)
+        .receive(process)
         .map(|result| result.unwrap())
 }
 

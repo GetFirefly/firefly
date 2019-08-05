@@ -75,6 +75,7 @@ impl SegmentedAlloc {
         size_class: SizeClass,
     ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
         let size = SUPERALIGNED_CARRIER_SIZE;
+        assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
         // Allocate raw memory for carrier
         let ptr = mmap::map(carrier_layout)?;
@@ -223,6 +224,7 @@ impl SegmentedAlloc {
         size_class: SizeClass,
     ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
         let size = SUPERALIGNED_CARRIER_SIZE;
+        assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
         // Allocate raw memory for carrier
         let ptr = mmap::map(carrier_layout)?;

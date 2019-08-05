@@ -48,7 +48,13 @@ use crate::erts::process::code::Code;
 use crate::erts::term::BytesFromBinaryError;
 
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
-pub const MAX_REDUCTIONS_PER_RUN: Reductions = 4_000;
+cfg_if::cfg_if! {
+  if #[cfg(target_arch = "wasm32")] {
+     pub const MAX_REDUCTIONS_PER_RUN: Reductions = 4_000;
+  } else {
+     pub const MAX_REDUCTIONS_PER_RUN: Reductions = 1_000;
+  }
+}
 
 /// Represents the primary control structure for processes
 ///

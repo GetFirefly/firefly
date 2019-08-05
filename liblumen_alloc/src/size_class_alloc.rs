@@ -34,6 +34,12 @@ impl SizeClassAlloc {
         let max_size_class = size_classes[num_classes - 1].clone();
         for size_class in size_classes.iter() {
             let mut list = SlabCarrierList::default();
+            assert!(
+                size_class.to_bytes() < SUPERALIGNED_CARRIER_SIZE,
+                "SizeClass ({:?}) does not fit in SUPERALIGNED_CARRIER_SIZE ({:?} bytes)",
+                size_class,
+                SUPERALIGNED_CARRIER_SIZE
+            );
             let slab = unsafe { Self::create_carrier(*size_class).unwrap() };
             list.push_front(unsafe { UnsafeRef::from_raw(slab) });
             carriers.push(RwLock::new(list));

@@ -104,7 +104,12 @@ where
         // dividing by the block size, we get the index of the block
         let index = ((ptr as usize) - (first_block as usize)) / block_size;
         // The index should always be less than the size
-        debug_assert!(index < self.block_bit_set().len());
+        debug_assert!(
+            index < self.block_bit_set().len(),
+            "index ({:?}) exceeds block bit set length ({:?})",
+            index,
+            self.block_bit_set().len()
+        );
 
         if cfg!(debug_assertions) {
             // Write free pattern over block

@@ -122,38 +122,15 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         "erlang" => match function_atom.name() {
             "+" => match arity {
                 1 => erlang::number_or_badarith_1(argument_vec[0]),
-                _ => Err(undef!(
-                    &mut arc_process.acquire_heap(),
-                    module,
-                    function,
-                    argument_list
-                )),
+                _ => Err(undef!(arc_process, module, function, argument_list)),
             },
             "self" => match arity {
                 0 => Ok(erlang::self_0(arc_process)),
-                _ => Err(undef!(
-                    &mut arc_process.acquire_heap(),
-                    module,
-                    function,
-                    argument_list
-                )
-                .into()),
+                _ => Err(undef!(arc_process, module, function, argument_list).into()),
             },
-            _ => Err(undef!(
-                &mut arc_process.acquire_heap(),
-                module,
-                function,
-                argument_list
-            )
-            .into()),
+            _ => Err(undef!(arc_process, module, function, argument_list).into()),
         },
-        _ => Err(undef!(
-            &mut arc_process.acquire_heap(),
-            module,
-            function,
-            argument_list
-        )
-        .into()),
+        _ => Err(undef!(arc_process, module, function, argument_list).into()),
     };
 
     arc_process.reduce();

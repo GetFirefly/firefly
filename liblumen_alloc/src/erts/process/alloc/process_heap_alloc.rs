@@ -179,7 +179,8 @@ impl ProcessHeapAlloc {
     /// Deallocate a process heap, releasing the memory back to the operating system
     pub unsafe fn dealloc(&self, heap: *mut Term, size: usize) {
         let layout = self.heap_layout(size);
-        if size > self.oversized_threshold {
+
+        if layout.size() > self.oversized_threshold {
             // Deallocate oversized heap
             Self::dealloc_oversized_heap(heap, layout);
         } else {

@@ -51,7 +51,7 @@ fn without_exported_function_when_run_exits_undef() {
         match *arc_process.status.read() {
             Status::Exiting(ref runtime_exception) => {
                 let runtime_undef: runtime::Exception =
-                    undef!(&mut arc_process.acquire_heap(), module, function, arguments)
+                    undef!(&arc_process, module, function, arguments)
                         .try_into()
                         .unwrap();
 

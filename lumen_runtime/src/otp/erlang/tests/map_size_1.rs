@@ -9,7 +9,7 @@ fn without_map_errors_badmap() {
             .run(&strategy::term::is_not_map(arc_process.clone()), |map| {
                 prop_assert_eq!(
                     erlang::map_size_1(map, &arc_process),
-                    Err(badmap!(&mut arc_process.acquire_heap(), map))
+                    Err(badmap!(&arc_process, map))
                 );
 
                 Ok(())

@@ -14,7 +14,7 @@ fn without_map_errors_badmap() {
                 |(key, map)| {
                     prop_assert_eq!(
                         erlang::is_map_key_2(key, map, &arc_process),
-                        Err(badmap!(&mut arc_process.acquire_heap(), map))
+                        Err(badmap!(&arc_process, map))
                     );
 
                     Ok(())

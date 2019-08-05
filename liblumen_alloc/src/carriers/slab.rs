@@ -103,7 +103,27 @@ where
         let block_size = self.block_byte_len;
         // By subtracting the pointer we got from the base pointer, and
         // dividing by the block size, we get the index of the block
-        let index = ((ptr as usize) - (first_block as usize)) / block_size;
+        let offset = ptr.offset_from(first_block);
+        assert!(
+            0 <= offset,
+            "ptr ({:p}) is before first_block ({:p})",
+            ptr,
+            first_block
+        );
+        let add: usize = offset as usize;
+
+        let misalignment = add % block_size;
+        assert_eq!(
+            misalignment,
+            0,
+            "ptr ({:p}) is not a multiple of block_size ({:?}) after first_block {:p}.  Misaligned by {:?}.",
+            ptr,
+            block_size,
+            first_block,
+            misalignment
+        );
+
+        let index = add / block_size;
         // The index should always be less than the size
         debug_assert!(
             index < self.block_bit_set().len(),

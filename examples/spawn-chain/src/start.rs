@@ -26,16 +26,6 @@ pub fn set_parking_lot_time_now_fn() {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn log_1(string: String) {
-    web_sys::console::log_1(&string.into());
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn log_1(string: String) {
-    println!("{}", string);
-}
-
-#[cfg(target_arch = "wasm32")]
 fn now() -> parking_lot_core::time::Instant {
     let window = web_sys::window().expect("should have a window in this context");
     let performance = window

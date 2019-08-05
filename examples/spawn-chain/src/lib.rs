@@ -12,6 +12,7 @@ use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 use lumen_runtime::code::apply_fn;
 use lumen_runtime::registry;
 use lumen_runtime::scheduler::Scheduler;
+use lumen_runtime::system;
 
 use wasm_bindgen::prelude::*;
 
@@ -102,7 +103,7 @@ pub fn run(count: usize) {
             },
             Status::Waiting => {
                 if ran {
-                    log_1(format!(
+                    system::io::puts(&format!(
                         "WAITING Run queues len = {:?}",
                         Scheduler::current().run_queues_len()
                     ));
@@ -115,13 +116,13 @@ pub fn run(count: usize) {
                 }
             }
             Status::Runnable => {
-                log_1(format!(
+                system::io::puts(&format!(
                     "RUNNABLE Run queues len = {:?}",
                     Scheduler::current().run_queues_len()
                 ));
             }
             Status::Running => {
-                log_1(format!(
+                system::io::puts(&format!(
                     "RUNNING Run queues len = {:?}",
                     Scheduler::current().run_queues_len()
                 ));

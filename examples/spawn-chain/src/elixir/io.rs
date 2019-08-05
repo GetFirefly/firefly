@@ -8,6 +8,8 @@ use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
+use lumen_runtime::system;
+
 pub fn puts_frame() -> Frame {
     let module_function_arity = Arc::new(ModuleFunctionArity {
         module: Atom::try_from_str("Elixir.IO").unwrap(),
@@ -24,7 +26,7 @@ fn puts_code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     match elixir_string.try_into(): Result<String, runtime::Exception> {
         Ok(string) => {
             // NOT A DEBUGGING LOG
-            crate::start::log_1(string);
+            system::io::puts(&string);
             arc_process.reduce();
 
             let ok = atom_unchecked("ok");

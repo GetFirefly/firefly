@@ -26,7 +26,7 @@ use std::marker::PhantomData;
 // - 8 bits for size class index (maximum value is 67)
 // - 16 bits for offset
 pub struct SlabCarrier<L, S> {
-    header: usize,
+    block_byte_len: usize,
     pub(crate) link: L,
     block_bit_subset_type: PhantomData<S>,
 }
@@ -46,7 +46,7 @@ where
         let size_class_bytes = size_class.to_bytes();
         let self_ptr = ptr as *mut Self;
         self_ptr.write(Self {
-            header: size_class_bytes,
+            block_byte_len: size_class_bytes,
             link: L::default(),
             block_bit_subset_type: PhantomData,
         });
@@ -82,7 +82,7 @@ where
                 // Get pointer to start of carrier
                 let first_block = self.head();
                 // Calculate selected block address
-                let block_size = self.header;
+                let block_size = self.block_byte_len;
                 // NOTE: If `index` is 0, the first block was selected
                 let block = first_block.add(block_size * index);
 
@@ -99,7 +99,7 @@ where
         // Get pointer to start of carrier
         let first_block = self.head() as *mut u8;
         // Get block size in order to properly calculate index of block
-        let block_size = self.header;
+        let block_size = self.block_byte_len;
         // By subtracting the pointer we got from the base pointer, and
         // dividing by the block size, we get the index of the block
         let index = ((ptr as usize) - (first_block as usize)) / block_size;

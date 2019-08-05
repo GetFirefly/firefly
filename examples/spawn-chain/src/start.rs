@@ -14,23 +14,3 @@ pub fn set_panic_hook() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 }
-
-#[cfg(target_arch = "wasm32")]
-pub fn set_parking_lot_time_now_fn() {
-    parking_lot_core::time::set_now_fn(now);
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn set_parking_lot_time_now_fn() {
-    // use the default that works when not on wasm32
-}
-
-#[cfg(target_arch = "wasm32")]
-fn now() -> parking_lot_core::time::Instant {
-    let window = web_sys::window().expect("should have a window in this context");
-    let performance = window
-        .performance()
-        .expect("performance should be available");
-
-    parking_lot_core::time::Instant::from_millis(performance.now() as u64)
-}

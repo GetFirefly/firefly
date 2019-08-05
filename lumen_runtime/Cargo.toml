@@ -34,8 +34,8 @@ features = ["nightly"]
 
 [dependencies.parking_lot_core]
 git = "https://github.com/KronicDeth/parking_lot.git"
-branch = "no_instant_now"
-features = ["nightly", "no_instant_now"]
+branch = "wasm32-time_web_sys"
+features = ["nightly"]
 
 [dev-dependencies]
 radix_fmt = "1.0.0"
@@ -67,3 +67,6 @@ features = ['console']
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen = "0.2.38"
 wasm-bindgen-test = "0.2.38"
+
+[features]
+time_web_sys = ["parking_lot_core/time_web_sys"]

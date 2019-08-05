@@ -31,7 +31,6 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[wasm_bindgen(start)]
 pub fn start() {
     set_panic_hook();
-    set_parking_lot_time_now_fn();
     set_apply_fn();
 
     let arc_scheduler = Scheduler::current();

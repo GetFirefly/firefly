@@ -671,8 +671,8 @@ dependencies = [
  "dlmalloc 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.60 (registry+https://github.com/rust-lang/crates.io-index)",
- "lock_api 0.3.1 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)",
- "parking_lot 0.9.0 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)",
+ "lock_api 0.3.1 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
+ "parking_lot 0.9.0 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "winapi 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -720,7 +720,7 @@ dependencies = [
 [[package]]
 name = "lock_api"
 version = "0.3.1"
-source = "git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now#02d22d9fb5ee0981b86bfdfb25dff097de68bc41"
+source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
 dependencies = [
  "scopeguard 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -765,7 +765,7 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)",
+ "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "proptest 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "radix_fmt 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -957,10 +957,10 @@ dependencies = [
 [[package]]
 name = "parking_lot"
 version = "0.9.0"
-source = "git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now#02d22d9fb5ee0981b86bfdfb25dff097de68bc41"
+source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
 dependencies = [
- "lock_api 0.3.1 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)",
- "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)",
+ "lock_api 0.3.1 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
+ "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -979,7 +979,7 @@ dependencies = [
 [[package]]
 name = "parking_lot_core"
 version = "0.6.2"
-source = "git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now#02d22d9fb5ee0981b86bfdfb25dff097de68bc41"
+source = "git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys#9866be37213976053a1272e809410a62ad68a803"
 dependencies = [
  "cfg-if 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "cloudabi 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -987,6 +987,7 @@ dependencies = [
  "redox_syscall 0.1.54 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 0.6.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "web-sys 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1438,7 +1439,7 @@ dependencies = [
  "liblumen_alloc 0.1.0",
  "lumen_runtime 0.1.0",
  "num-bigint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)",
+ "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "time-test 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen 0.2.46 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen-test 0.2.46 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1996,7 +1997,7 @@ dependencies = [
 "checksum libc 0.2.60 (registry+https://github.com/rust-lang/crates.io-index)" = "d44e80633f007889c7eff624b709ab43c92d708caad982295768a7b13ca3b5eb"
 "checksum libflate 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)" = "c52384aeb22d0ce82a10d8ddf35f7fb4717d1b23eac5b94cd38d2050fb53766a"
 "checksum llvm-sys 70.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "60a9ee82fe0fa72ae6ef6d018b407296085863836451c7a97384f84ed7e26b9f"
-"checksum lock_api 0.3.1 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)" = "<none>"
+"checksum lock_api 0.3.1 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)" = "<none>"
 "checksum log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c84ec4b527950aa83a329754b01dbe3f58361d1c5efacd1f6d68c494d08a17c6"
 "checksum matrixmultiply 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)" = "dcad67dcec2d58ff56f6292582377e6921afdf3bfbd533e26fb8900ae575e002"
 "checksum memchr 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2efc7bc57c883d4a4d6e3246905283d8dae951bb3bd32f49d6ef297f546e1c39"
@@ -2021,9 +2022,9 @@ dependencies = [
 "checksum ordermap 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "a86ed3f5f244b372d6b1a00b72ef7f8876d0bc6a78a4c9985c53614041512063"
 "checksum os_type 2.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7edc011af0ae98b7f88cf7e4a83b70a54a75d2b8cb013d6efd02e5956207e9eb"
 "checksum output_vt100 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "53cdc5b785b7a58c5aad8216b3dfa114df64b0b06ae6e1501cef91df2fbdf8f9"
-"checksum parking_lot 0.9.0 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)" = "<none>"
+"checksum parking_lot 0.9.0 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)" = "<none>"
 "checksum parking_lot_core 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "94c8c7923936b28d546dfd14d4472eaf34c99b14e1c973a32b3e6d4eb04298c9"
-"checksum parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=no_instant_now)" = "<none>"
+"checksum parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)" = "<none>"
 "checksum petgraph 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)" = "9c3659d1ee90221741f65dd128d9998311b0e40c5d3c23a62445938214abce4f"
 "checksum phf_generator 0.7.24 (registry+https://github.com/rust-lang/crates.io-index)" = "09364cc93c159b8b06b1f4dd8a4398984503483891b0c26b867cf431fb132662"
 "checksum phf_shared 0.7.24 (registry+https://github.com/rust-lang/crates.io-index)" = "234f71a15de2288bcb7e3b6515828d22af7ec8598ee6d24c3b526fa0a80b67a0"

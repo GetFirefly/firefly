@@ -130,131 +130,141 @@ pub fn run(count: usize) {
 mod tests {
     use super::*;
 
+    use std::sync::Once;
+
     use time_test::time_test;
 
     #[test]
     fn run1() {
         time_test!();
-        start();
+        start_once();
         run(1)
     }
 
     #[test]
     fn run2() {
         time_test!();
-        start();
+        start_once();
         run(2)
     }
 
     #[test]
     fn run4() {
         time_test!();
-        start();
+        start_once();
         run(4)
     }
 
     #[test]
     fn run8() {
         time_test!();
-        start();
+        start_once();
         run(8)
     }
 
     #[test]
     fn run16() {
         time_test!();
-        start();
+        start_once();
         run(16)
     }
 
     #[test]
     fn run32() {
         time_test!();
-        start();
+        start_once();
         run(32)
     }
 
     #[test]
     fn run64() {
         time_test!();
-        start();
+        start_once();
         run(64)
     }
 
     #[test]
     fn run128() {
         time_test!();
-        start();
+        start_once();
         run(128)
     }
 
     #[test]
     fn run256() {
         time_test!();
-        start();
+        start_once();
         run(256)
     }
 
     #[test]
     fn run512() {
         time_test!();
-        start();
+        start_once();
         run(512)
     }
 
     #[test]
     fn run1024() {
         time_test!();
-        start();
+        start_once();
         run(1024)
     }
 
     #[test]
     fn run2048() {
         time_test!();
-        start();
+        start_once();
         run(2048)
     }
 
     #[test]
     fn run4096() {
         time_test!();
-        start();
+        start_once();
         run(4096)
     }
 
     #[test]
     fn run8192() {
         time_test!();
-        start();
+        start_once();
         run(8192)
     }
 
     #[test]
     fn run16384() {
         time_test!();
-        start();
+        start_once();
         run(16384)
     }
 
     #[test]
     fn run32768() {
         time_test!();
-        start();
+        start_once();
         run(32768)
     }
 
     #[test]
     fn run65536() {
         time_test!();
-        start();
+        start_once();
         run(65536)
     }
 
     #[test]
     fn run131072() {
         time_test!();
-        start();
+        start_once();
         run(131072)
+    }
+
+    static START: Once = Once::new();
+
+    fn start_once() {
+        START.call_once(|| {
+            start();
+        })
     }
 }

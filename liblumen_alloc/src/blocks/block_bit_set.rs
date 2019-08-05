@@ -97,6 +97,13 @@ impl<S: BlockBitSubset> BlockBitSet<S> {
     /// - If `ptr` points to something else in use, undefined behavior
     pub unsafe fn write(ptr: *mut Self, size: usize, block_size: usize) {
         let block_len = block_len_from_slab_byte_len_and_block_byte_len::<S>(size, block_size);
+        assert!(
+            0 < block_len,
+            "Slab ({:?} bytes) cannot hold any blocks ({:?} bytes)",
+            size,
+            block_size
+        );
+
         ptr.write(Self {
             block_len,
             block_bit_subset_type: PhantomData,

@@ -90,19 +90,6 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
     }
 }
 
-#[cfg(debug_assertions)]
-pub fn print_stacktrace(process: &ProcessControlBlock) {
-    let mut formatted_stacktrace_parts: Vec<String> = Vec::new();
-
-    for module_function_arity in process.stacktrace() {
-        formatted_stacktrace_parts.push(format!("{}", module_function_arity));
-    }
-
-    let formatted_stacktrace = formatted_stacktrace_parts.join("\n");
-
-    crate::start::log_1(formatted_stacktrace);
-}
-
 fn undef(
     arc_process: &Arc<ProcessControlBlock>,
     module: Term,

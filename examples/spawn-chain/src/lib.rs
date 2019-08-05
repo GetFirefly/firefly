@@ -84,21 +84,17 @@ pub fn run(count: usize) {
                     ..
                 } => {
                     if *reason != atom_unchecked("normal") {
-                        #[cfg(debug_assertions)]
                         panic!("ProcessControlBlock exited: {:?}", reason);
-                        #[cfg(not(debug_assertions))]
-                        panic!("ProcessControlBlock exited");
                     } else {
                         break;
                     }
                 }
                 _ => {
-                    #[cfg(debug_assertions)]
-                    crate::code::print_stacktrace(&run_arc_process);
-                    #[cfg(debug_assertions)]
-                    panic!("ProcessControlBlock exception: {:?}", exception);
-                    #[cfg(not(debug_assertions))]
-                    panic!("ProcessControlBlock exception");
+                    panic!(
+                        "ProcessControlBlock exception: {:?}\n{:?}",
+                        exception,
+                        run_arc_process.stacktrace()
+                    );
                 }
             },
             Status::Waiting => {

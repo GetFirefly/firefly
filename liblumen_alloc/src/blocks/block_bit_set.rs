@@ -6,7 +6,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::mem::bit_size_of;
 
 pub trait BlockBitSubset: Default {
-    /// Try to allocate block in subset.
+    /// Try to allocate block in first `bit_len` bits of subset.
     ///
     /// NOTE: This operation can fail, primarily in multi-threaded scenarios
     /// with atomics in play. If false is returned, it means that either the block was
@@ -14,7 +14,7 @@ pub trait BlockBitSubset: Default {
     /// and when you tried to allocate it, or a neighboring bit in the subset was flipped. You may
     /// retry, or try searching for another block, or simply fail the allocation request. It is up
     /// to the allocator.
-    fn alloc_block(&self) -> Result<usize, AllocErr>;
+    fn alloc_block(&self, bit_len: usize) -> Result<usize, AllocErr>;
 
     /// Return a count of the allocated blocks managed by this subset
     fn count_allocated(&self) -> usize;
@@ -28,9 +28,11 @@ pub trait BlockBitSubset: Default {
 pub struct ThreadSafeBlockBitSubset(AtomicUsize);
 
 impl BlockBitSubset for ThreadSafeBlockBitSubset {
-    fn alloc_block(&self) -> Result<usize, AllocErr> {
+    fn alloc_block(&self, bit_len: usize) -> Result<usize, AllocErr> {
+        assert!(bit_len <= bit_size_of::<Self>());
+
         // On x86 this could use `bsf*` (Bit Scan Forward) instructions
-        for i in 0..bit_size_of::<Self>() {
+        for i in 0..bit_len {
             let flag = 1usize << i;
             let current = self.0.load(Ordering::Acquire);
 
@@ -131,6 +133,18 @@ impl<S: BlockBitSubset> BlockBitSet<S> {
         &*subsets_ptr.add(index)
     }
 
+    fn subset_bit_len(&self, index: usize) -> usize {
+        let subset_bit_size = bit_size_of::<S>();
+        let len_before = subset_bit_size * index;
+        let remaining_len = self.block_len - len_before;
+
+        if subset_bit_size < remaining_len {
+            subset_bit_size
+        } else {
+            remaining_len
+        }
+    }
+
     fn subset_len(&self) -> usize {
         subset_len_from_block_len::<S>(self.block_len)
     }
@@ -169,8 +183,9 @@ impl<S: BlockBitSubset> BlockBitSet<S> {
     pub fn alloc_block(&self) -> Result<usize, AllocErr> {
         for subset_index in 0..self.subset_len() {
             let subset = unsafe { self.subset(subset_index) };
+            let subset_bit_len = self.subset_bit_len(subset_index);
 
-            match subset.alloc_block() {
+            match subset.alloc_block(subset_bit_len) {
                 Ok(subset_bit) => {
                     let set_bit = Self::set_bit_from_subset_index_and_bit(subset_index, subset_bit);
 

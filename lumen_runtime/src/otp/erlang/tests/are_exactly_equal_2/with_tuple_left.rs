@@ -64,20 +64,20 @@ fn with_same_value_tuple_right_returns_true() {
 
 #[test]
 fn with_different_tuple_right_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term::tuple(arc_process.clone()),
+                    strategy::term::tuple(arc_process),
                 )
-                    .prop_filter("Tuples must be different", |(left, right)| left != right),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    .prop_filter("Tuples must be different", |(left, right)| left != right)
+            }),
+            |(left, right)| {
+                prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }

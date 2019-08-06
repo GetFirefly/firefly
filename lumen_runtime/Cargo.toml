@@ -55,7 +55,7 @@ signal-hook = "0.1"
 xorshift = "0.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2.38"
+wasm-bindgen = "0.2.48"
 rand = { version = "0.6", features = ["wasm-bindgen"] }
 xorshift = "0.1"
 
@@ -65,8 +65,8 @@ version = "0.3.20"
 features = ['console']
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-wasm-bindgen = "0.2.38"
-wasm-bindgen-test = "0.2.38"
+wasm-bindgen = "0.2.48"
+wasm-bindgen-test = "0.2.48"
 
 [features]
 time_web_sys = ["parking_lot_core/time_web_sys"]

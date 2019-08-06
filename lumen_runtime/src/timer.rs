@@ -58,7 +58,7 @@ pub fn start(
 
 /// Times out the timers for the thread that have timed out since the last time `timeout` was
 /// called.
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn timeout() -> Result<(), Alloc> {
     let scheduler = Scheduler::current();
 
@@ -603,12 +603,12 @@ enum WheelName {
     Later,
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn at_once_milliseconds() -> Milliseconds {
     0
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn soon_milliseconds() -> Milliseconds {
     let milliseconds: Milliseconds = 1;
 
@@ -617,7 +617,7 @@ pub fn soon_milliseconds() -> Milliseconds {
     milliseconds
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn later_milliseconds() -> Milliseconds {
     let milliseconds = Hierarchy::SOON_TOTAL_MILLISECONDS + 1;
 
@@ -627,7 +627,7 @@ pub fn later_milliseconds() -> Milliseconds {
     milliseconds
 }
 
-#[cfg(test)]
+#[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn long_term_milliseconds() -> Milliseconds {
     let milliseconds = Hierarchy::SOON_TOTAL_MILLISECONDS + Hierarchy::LATER_TOTAL_MILLISECONDS + 1;
 

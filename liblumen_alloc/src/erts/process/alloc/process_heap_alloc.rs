@@ -15,7 +15,6 @@ use liblumen_alloc_macros::generate_heap_sizes;
 use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::SizeClass;
 
-use crate::carriers;
 use crate::erts::exception::system::Alloc;
 use crate::erts::Term;
 use crate::SizeClassAlloc;
@@ -99,7 +98,7 @@ impl ProcessHeapAlloc {
         let size_classes = &Self::HEAP_SIZES[..19]
             .iter()
             .map(|size| SizeClass::new(*size))
-            .filter(|size_class| size_class.to_bytes() < carriers::SUPERALIGNED_CARRIER_SIZE)
+            .filter(|size_class| SizeClassAlloc::can_fit_multiple_blocks(size_class))
             .collect::<Vec<_, UHEAP_SIZES_LEN>>();
         let alloc = SizeClassAlloc::new(&size_classes);
         let oversized_threshold = alloc.max_size_class();

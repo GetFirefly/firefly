@@ -38,6 +38,10 @@ where
     // The pattern for bytes written to blocks that are freed
     const FREE_PATTERN: u8 = 0x57;
 
+    pub fn can_fit_multiple_blocks(byte_len: usize, size_class: &SizeClass) -> bool {
+        BlockBitSet::<S>::can_fit_multiple_blocks(byte_len, size_class.to_bytes())
+    }
+
     /// Initializes a `SlabCarrier` using the memory indicated by
     /// the given `ptr` and `byte_len` as the slab it will manage. The
     /// `size_class` is assigned to all blocks in this carrier

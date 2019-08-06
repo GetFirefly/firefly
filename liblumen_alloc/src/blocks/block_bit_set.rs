@@ -78,6 +78,10 @@ pub struct BlockBitSet<S: BlockBitSubset> {
 }
 
 impl<S: BlockBitSubset> BlockBitSet<S> {
+    pub fn can_fit_multiple_blocks(slab_byte_len: usize, block_byte_len: usize) -> bool {
+        1 < block_len_from_slab_byte_len_and_block_byte_len::<S>(slab_byte_len, block_byte_len)
+    }
+
     pub fn len(&self) -> usize {
         self.block_len
     }
@@ -102,6 +106,12 @@ impl<S: BlockBitSubset> BlockBitSet<S> {
         assert!(
             0 < block_len,
             "Slab ({:?} bytes) cannot hold any blocks ({:?} bytes)",
+            size,
+            block_size
+        );
+        assert!(
+            1 < block_len,
+            "Slab ({:?} bytes) can hold only 1 block ({:?} bytes), so it should not use a BlockBitSet and instead use a single-block carrier",
             size,
             block_size
         );

@@ -24,6 +24,13 @@ pub struct SizeClassAlloc {
     carriers: Box<[RwLock<SlabCarrierList>]>,
 }
 impl SizeClassAlloc {
+    pub fn can_fit_multiple_blocks(size_class: &SizeClass) -> bool {
+        SlabCarrier::<LinkedListLink, ThreadSafeBlockBitSubset>::can_fit_multiple_blocks(
+            SUPERALIGNED_CARRIER_SIZE,
+            size_class,
+        )
+    }
+
     pub fn new(size_classes: &[SizeClass]) -> Self {
         // Initialize to default set of empty slab lists
         let mut carriers = Vec::with_capacity(size_classes.len());
@@ -35,8 +42,8 @@ impl SizeClassAlloc {
         for size_class in size_classes.iter() {
             let mut list = SlabCarrierList::default();
             assert!(
-                size_class.to_bytes() < SUPERALIGNED_CARRIER_SIZE,
-                "SizeClass ({:?}) does not fit in SUPERALIGNED_CARRIER_SIZE ({:?} bytes)",
+                Self::can_fit_multiple_blocks(size_class),
+                "SizeClass ({:?}) does not fit multiple times in SUPERALIGNED_CARRIER_SIZE ({:?} bytes)",
                 size_class,
                 SUPERALIGNED_CARRIER_SIZE
             );

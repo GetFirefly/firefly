@@ -152,7 +152,7 @@ mod tuple_from_slice {
     }
 }
 
-fn simple_gc_test(mut process: ProcessControlBlock) {
+fn simple_gc_test(process: ProcessControlBlock) {
     // Allocate an `{:ok, "hello world"}` tuple
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
@@ -264,7 +264,7 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
     assert_eq!("test", test_string.as_str());
 }
 
-fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) {
+fn tenuring_gc_test(process: ProcessControlBlock, _perform_fullsweep: bool) {
     // Allocate an `{:ok, "hello world"}` tuple
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };

@@ -3,23 +3,23 @@ use super::*;
 use proptest::strategy::Strategy;
 
 #[test]
-fn without_list_right_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+fn without_tuple_right_returns_true() {
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::tuple(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be tuple", |v| !v.is_tuple()),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_not_equal_2(left, right), true.into());
+                )
+            }),
+            |(left, right)| {
+                prop_assert_eq!(erlang::are_exactly_not_equal_2(left, right), true.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]
@@ -67,20 +67,20 @@ fn with_same_value_tuple_right_returns_false() {
 
 #[test]
 fn with_different_tuple_right_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::tuple(arc_process.clone()),
                     strategy::term::tuple(arc_process.clone()),
                 )
-                    .prop_filter("Tuples must be different", |(left, right)| left != right),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_not_equal_2(left, right), true.into());
+                    .prop_filter("Tuples must be different", |(left, right)| left != right)
+            }),
+            |(left, right)| {
+                prop_assert_eq!(erlang::are_exactly_not_equal_2(left, right), true.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }

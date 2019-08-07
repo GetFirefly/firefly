@@ -28,29 +28,31 @@ fn without_tuple_errors_badarg() {
 
 #[test]
 fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
+    TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &(
-                    strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                )
-                    .prop_filter("Index either needs to not be an integer or not be an integer in the index range 1..=(len + 1)", |(tuple, index, _element)| {
-            let index_big_int_result: std::result::Result<BigInt, _> = (*index).try_into();
+                &strategy::process().prop_flat_map(|arc_process| {
+                    (
+                        Just(arc_process.clone()),
+                        strategy::term::tuple(arc_process.clone()),
+                        strategy::term(arc_process.clone()),
+                        strategy::term(arc_process)
+                    )
+                        .prop_filter("Index either needs to not be an integer or not be an integer in the index range 1..=(len + 1)", |(_, tuple, index, _element)| {
+                            let index_big_int_result: std::result::Result<BigInt, _> = (*index).try_into();
 
-            match index_big_int_result {
-                Ok(index_big_int) => {
-                    let tuple_tuple: Boxed<Tuple> = (*tuple).try_into().unwrap();
-                    let min_index: BigInt = 1.into();
-                    let max_index: BigInt = (tuple_tuple.len() + 1).into();
+                            match index_big_int_result {
+                                Ok(index_big_int) => {
+                                    let tuple_tuple: Boxed<Tuple> = (*tuple).try_into().unwrap();
+                                    let min_index: BigInt = 1.into();
+                                    let max_index: BigInt = (tuple_tuple.len() + 1).into();
 
-                    !((min_index <= index_big_int) && (index_big_int <= max_index))
-                }
-                _ => true,
-            }
-        }),
-                |(tuple, index, element)| {
+                                    !((min_index <= index_big_int) && (index_big_int <= max_index))
+                                }
+                                _ => true,
+                            }
+                        })
+                }),
+                |(arc_process, tuple, index, element)| {
                     prop_assert_eq!(
                         erlang::insert_element_3(index, tuple, element, &arc_process),
                         Err(badarg!().into())
@@ -60,7 +62,6 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
                 },
             )
             .unwrap();
-    });
 }
 
 #[test]

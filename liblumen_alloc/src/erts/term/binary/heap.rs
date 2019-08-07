@@ -212,6 +212,8 @@ impl CloneToProcess for HeapBin {
     }
 }
 
+impl Eq for HeapBin {}
+
 impl PartialEq<ProcBin> for Boxed<HeapBin> {
     fn eq(&self, other: &ProcBin) -> bool {
         other.eq(self)
@@ -220,7 +222,7 @@ impl PartialEq<ProcBin> for Boxed<HeapBin> {
 
 impl PartialOrd<ProcBin> for Boxed<HeapBin> {
     fn partial_cmp(&self, other: &ProcBin) -> Option<cmp::Ordering> {
-        other.partial_cmp(self)
+        other.partial_cmp(self).map(|ordering| ordering.reverse())
     }
 }
 

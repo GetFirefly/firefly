@@ -150,6 +150,12 @@ impl Debug for Cons {
         write!(f, "[{:?} | {:?}]", self.head, self.tail)
     }
 }
+impl Eq for Cons {}
+impl Ord for Cons {
+    fn cmp(&self, other: &Cons) -> cmp::Ordering {
+        self.into_iter().cmp(other.into_iter())
+    }
+}
 impl PartialEq<Cons> for Cons {
     fn eq(&self, other: &Cons) -> bool {
         self.head.eq(&other.head) && self.tail.eq(&other.tail)
@@ -157,7 +163,7 @@ impl PartialEq<Cons> for Cons {
 }
 impl PartialOrd<Cons> for Cons {
     fn partial_cmp(&self, other: &Cons) -> Option<cmp::Ordering> {
-        self.into_iter().partial_cmp(other.into_iter())
+        Some(self.cmp(other))
     }
 }
 impl CloneToProcess for Cons {
@@ -217,7 +223,7 @@ impl IntoIterator for &Cons {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ImproperList {
     pub tail: Term,
 }

@@ -99,6 +99,11 @@ impl Into<f64> for Float {
     }
 }
 impl Eq for Float {}
+impl Ord for Float {
+    fn cmp(&self, other: &Float) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
 impl PartialEq for Float {
     #[inline]
     fn eq(&self, other: &Float) -> bool {

@@ -432,6 +432,33 @@ impl MaybePartialByte for SubBinary {
     }
 }
 
+impl PartialOrd<MatchContext> for SubBinary {
+    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+    fn partial_cmp(&self, other: &MatchContext) -> Option<core::cmp::Ordering> {
+        if self.is_binary() && other.is_binary() {
+            if self.is_aligned() && other.is_aligned() {
+                unsafe { self.as_bytes().partial_cmp(other.as_bytes()) }
+            } else {
+                self.full_byte_iter().partial_cmp(other.full_byte_iter())
+            }
+        } else {
+            let bytes_partial_ordering = if self.is_aligned() && other.is_aligned() {
+                unsafe { self.as_bytes().partial_cmp(other.as_bytes()) }
+            } else {
+                self.full_byte_iter().partial_cmp(other.full_byte_iter())
+            };
+
+            match bytes_partial_ordering {
+                Some(core::cmp::Ordering::Equal) => self
+                    .partial_byte_bit_iter()
+                    .partial_cmp(other.partial_byte_bit_iter()),
+                _ => bytes_partial_ordering,
+            }
+        }
+    }
+}
+
 impl TryFrom<Term> for SubBinary {
     type Error = TypeError;
 

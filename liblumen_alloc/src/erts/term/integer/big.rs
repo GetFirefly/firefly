@@ -10,7 +10,7 @@ use num_traits::cast::ToPrimitive;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::{AsTerm, Boxed, Term, TryIntoIntegerError};
+use crate::erts::term::{AsTerm, Boxed, Float, Term, TryIntoIntegerError};
 use crate::erts::{to_word_size, HeapAlloc};
 
 use super::*;
@@ -106,7 +106,7 @@ impl<'a> Into<&'a BigInt> for &'a BigInteger {
         &self.value
     }
 }
-impl Into<f64> for Boxed<BigInteger> {
+impl Into<f64> for &BigInteger {
     fn into(self) -> f64 {
         let (sign, bytes) = self.value.to_bytes_be();
         let unsigned_f64 = bytes
@@ -119,6 +119,11 @@ impl Into<f64> for Boxed<BigInteger> {
         }
     }
 }
+impl Into<f64> for Boxed<BigInteger> {
+    fn into(self) -> f64 {
+        self.as_ref().into()
+    }
+}
 impl Eq for BigInteger {}
 impl PartialEq for BigInteger {
     #[inline]
@@ -126,10 +131,30 @@ impl PartialEq for BigInteger {
         self.value.eq(&other.value)
     }
 }
+impl PartialEq<Boxed<BigInteger>> for BigInteger {
+    fn eq(&self, other: &Boxed<BigInteger>) -> bool {
+        self.eq(other.as_ref())
+    }
+}
 impl PartialEq<SmallInteger> for BigInteger {
     #[inline]
     fn eq(&self, other: &SmallInteger) -> bool {
         self.value == BigInt::from(other.0 as i64)
+    }
+}
+impl PartialEq<SmallInteger> for Boxed<BigInteger> {
+    fn eq(&self, other: &SmallInteger) -> bool {
+        self.as_ref().eq(other)
+    }
+}
+impl PartialEq<Float> for BigInteger {
+    fn eq(&self, _other: &Float) -> bool {
+        unimplemented!()
+    }
+}
+impl PartialEq<Float> for Boxed<BigInteger> {
+    fn eq(&self, other: &Float) -> bool {
+        self.as_ref().eq(other)
     }
 }
 impl PartialEq<usize> for BigInteger {
@@ -162,10 +187,115 @@ impl PartialOrd for BigInteger {
         Some(self.cmp(other))
     }
 }
+impl PartialOrd<Boxed<BigInteger>> for BigInteger {
+    fn partial_cmp(&self, other: &Boxed<BigInteger>) -> Option<Ordering> {
+        self.partial_cmp(other.as_ref())
+    }
+}
 impl PartialOrd<SmallInteger> for BigInteger {
     #[inline]
     fn partial_cmp(&self, other: &SmallInteger) -> Option<Ordering> {
         self.partial_cmp(&other.0)
+    }
+}
+impl PartialOrd<SmallInteger> for Boxed<BigInteger> {
+    fn partial_cmp(&self, other: &SmallInteger) -> Option<Ordering> {
+        self.as_ref().partial_cmp(other)
+    }
+}
+impl PartialOrd<Float> for BigInteger {
+    fn partial_cmp(&self, other: &Float) -> Option<Ordering> {
+        use Ordering::*;
+        use Sign::*;
+
+        let self_big_int = &self.value;
+        let other_f64 = other.value;
+
+        let ordering = match self_big_int.sign() {
+            Minus => {
+                if other_f64 < 0.0 {
+                    // fits in small integer so the big other_f64 must be lesser
+                    if (SmallInteger::MIN_VALUE as f64) <= other_f64 {
+                        Less
+                    // big_int can't fit in float, so it must be less than any float
+                    } else if (std::f64::MAX_EXP as usize) < self_big_int.bits() {
+                        Less
+                    // > A float is more precise than an integer until all
+                    // > significant figures of the float are to the left of the
+                    // > decimal point.
+                    } else if Float::INTEGRAL_MIN <= other_f64 {
+                        let self_f64: f64 = self.into();
+
+                        f64_cmp_f64(self_f64, other_f64)
+                    } else {
+                        let other_integral_f64 = other_f64.trunc();
+                        let other_big_int = unsafe { integral_f64_to_big_int(other_integral_f64) };
+
+                        match self_big_int.cmp(&other_big_int) {
+                            Equal => {
+                                let float_fract = other_f64 - other_integral_f64;
+
+                                if float_fract == 0.0 {
+                                    Equal
+                                } else {
+                                    // BigInt Is -N while float is -N.M
+                                    Greater
+                                }
+                            }
+                            ordering => ordering,
+                        }
+                    }
+                } else {
+                    Less
+                }
+            }
+            // BigInt does not have a zero because zero is a SmallInteger
+            NoSign => unreachable!(),
+            Plus => {
+                if 0.0 < other_f64 {
+                    // fits in small integer, so the big integer must be greater
+                    if other_f64 <= (SmallInteger::MAX_VALUE as f64) {
+                        Greater
+                    // big_int can't fit in float, so it must be greater than any float
+                    } else if (std::f64::MAX_EXP as usize) < self_big_int.bits() {
+                        Greater
+                    // > A float is more precise than an integer until all
+                    // > significant figures of the float are to the left of the
+                    // > decimal point.
+                    } else if other_f64 <= Float::INTEGRAL_MAX {
+                        let self_f64: f64 = self.into();
+
+                        f64_cmp_f64(self_f64, other_f64)
+                    } else {
+                        let other_integral_f64 = other_f64.trunc();
+                        let other_big_int = unsafe { integral_f64_to_big_int(other_integral_f64) };
+
+                        match self_big_int.cmp(&other_big_int) {
+                            Equal => {
+                                let other_fract = other_f64 - other_integral_f64;
+
+                                if other_fract == 0.0 {
+                                    Equal
+                                } else {
+                                    // BigInt is N while float is N.M
+                                    Less
+                                }
+                            }
+                            ordering => ordering,
+                        }
+                    }
+                } else {
+                    Greater
+                }
+            }
+        };
+
+        Some(ordering)
+    }
+}
+impl PartialOrd<Float> for Boxed<BigInteger> {
+    fn partial_cmp(&self, other: &Float) -> Option<Ordering> {
+        self.as_ref().partial_cmp(other)
     }
 }
 impl PartialOrd<usize> for BigInteger {
@@ -278,4 +408,31 @@ impl TryInto<usize> for Boxed<BigInteger> {
 
         u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
     }
+}
+
+fn f64_cmp_f64(left: f64, right: f64) -> Ordering {
+    match left.partial_cmp(&right) {
+        Some(ordering) => ordering,
+        // Erlang doesn't support the floats that can't be compared
+        None => unreachable!(),
+    }
+}
+
+unsafe fn integral_f64_to_big_int(integral: f64) -> BigInt {
+    let (mantissa, exponent, sign) = num_traits::Float::integer_decode(integral);
+    let mantissa_big_int: BigInt = mantissa.into();
+
+    let scaled = if exponent < 0 {
+        let right_shift = (-exponent) as usize;
+
+        mantissa_big_int >> right_shift
+    } else if exponent == 0 {
+        mantissa_big_int
+    } else {
+        let left_shift = exponent as usize;
+
+        mantissa_big_int << left_shift
+    };
+
+    sign * scaled
 }

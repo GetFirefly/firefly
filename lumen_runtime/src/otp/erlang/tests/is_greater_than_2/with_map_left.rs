@@ -1,5 +1,6 @@
 use super::*;
 
+use proptest::prop_oneof;
 use proptest::strategy::Strategy;
 
 #[test]
@@ -9,18 +10,7 @@ fn with_number_atom_reference_function_port_pid_or_tuple_returns_true() {
             .run(
                 &(
                     strategy::term::map(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right must be number, atom, reference, function, port, or local pid",
-                        |right| {
-                            right.is_number()
-                                || right.is_atom()
-                                || right.is_reference()
-                                || right.is_closure()
-                                || right.is_port()
-                                || right.is_pid()
-                                || right.is_tuple()
-                        },
-                    ),
+                    number_atom_reference_function_port_pid_or_tuple(arc_process),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::is_greater_than_2(left, right), true.into());
@@ -147,10 +137,7 @@ fn with_list_or_bitstring_returns_false() {
             .run(
                 &(
                     strategy::term::map(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right must be number, atom, reference, function, port, or local pid",
-                        |right| right.is_list() || right.is_bitstring(),
-                    ),
+                    list_or_bitstring(arc_process.clone()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::is_greater_than_2(left, right), false.into());
@@ -178,4 +165,26 @@ where
         right,
         expected,
     );
+}
+
+fn number_atom_reference_function_port_pid_or_tuple(
+    arc_process: Arc<ProcessControlBlock>,
+) -> BoxedStrategy<Term> {
+    prop_oneof![
+        strategy::term::is_number(arc_process.clone()),
+        strategy::term::atom(),
+        strategy::term::is_reference(arc_process.clone()),
+        // TODO ports
+        strategy::term::is_pid(arc_process.clone()),
+        strategy::term::tuple(arc_process)
+    ]
+    .boxed()
+}
+
+fn list_or_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        strategy::term::is_list(arc_process.clone()),
+        strategy::term::is_bitstring(arc_process)
+    ]
+    .boxed()
 }

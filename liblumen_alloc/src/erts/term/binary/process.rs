@@ -404,6 +404,14 @@ impl PartialEq<SubBinary> for ProcBin {
     }
 }
 
+impl PartialOrd<HeapBin> for ProcBin {
+    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+    fn partial_cmp(&self, other: &HeapBin) -> Option<core::cmp::Ordering> {
+        self.as_bytes().partial_cmp(other.as_bytes())
+    }
+}
+
 impl PartialOrd<Boxed<HeapBin>> for ProcBin {
     fn partial_cmp(&self, other: &Boxed<HeapBin>) -> Option<cmp::Ordering> {
         self.partial_cmp(other.as_ref())

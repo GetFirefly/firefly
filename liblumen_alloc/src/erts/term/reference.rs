@@ -7,7 +7,7 @@ use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::{arity_of, AsTerm, Term};
+use crate::erts::term::{arity_of, AsTerm, Boxed, Term};
 use crate::erts::{scheduler, HeapAlloc, Node};
 
 pub type Number = u64;
@@ -108,12 +108,6 @@ impl PartialOrd<Reference> for Reference {
         Some(self.cmp(other))
     }
 }
-impl PartialOrd<ExternalReference> for Reference {
-    #[inline]
-    fn partial_cmp(&self, other: &ExternalReference) -> Option<cmp::Ordering> {
-        self.partial_cmp(&other.reference)
-    }
-}
 
 #[derive(Clone)]
 #[repr(C)]
@@ -141,9 +135,40 @@ impl Hash for ExternalReference {
         self.reference.hash(state);
     }
 }
+impl PartialEq<Reference> for ExternalReference {
+    fn eq(&self, _other: &Reference) -> bool {
+        false
+    }
+}
+impl PartialEq<Reference> for Boxed<ExternalReference> {
+    fn eq(&self, other: &Reference) -> bool {
+        self.as_ref().eq(other)
+    }
+}
+impl PartialEq<Boxed<Reference>> for Boxed<ExternalReference> {
+    fn eq(&self, other: &Boxed<Reference>) -> bool {
+        self.as_ref().eq(other.as_ref())
+    }
+}
 impl PartialEq<ExternalReference> for ExternalReference {
     fn eq(&self, other: &ExternalReference) -> bool {
         self.node == other.node && self.reference == other.reference
+    }
+}
+impl PartialOrd<Reference> for ExternalReference {
+    #[inline]
+    fn partial_cmp(&self, _other: &Reference) -> Option<cmp::Ordering> {
+        Some(cmp::Ordering::Greater)
+    }
+}
+impl PartialOrd<Reference> for Boxed<ExternalReference> {
+    fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
+        self.as_ref().partial_cmp(other)
+    }
+}
+impl PartialOrd<Boxed<Reference>> for Boxed<ExternalReference> {
+    fn partial_cmp(&self, other: &Boxed<Reference>) -> Option<cmp::Ordering> {
+        self.as_ref().partial_cmp(other.as_ref())
     }
 }
 impl PartialOrd<ExternalReference> for ExternalReference {

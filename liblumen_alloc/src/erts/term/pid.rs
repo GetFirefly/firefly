@@ -138,10 +138,20 @@ impl CloneToProcess for ExternalPid {
     }
 }
 
+impl Eq for ExternalPid {}
+
 impl Hash for ExternalPid {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.node.hash(state);
         self.pid.hash(state);
+    }
+}
+
+impl Ord for ExternalPid {
+    fn cmp(&self, other: &ExternalPid) -> cmp::Ordering {
+        self.node
+            .cmp(&other.node)
+            .then_with(|| self.pid.cmp(&other.pid))
     }
 }
 
@@ -153,11 +163,7 @@ impl PartialEq<ExternalPid> for ExternalPid {
 
 impl PartialOrd<ExternalPid> for ExternalPid {
     fn partial_cmp(&self, other: &ExternalPid) -> Option<cmp::Ordering> {
-        use cmp::Ordering;
-        match self.node.partial_cmp(&other.node) {
-            Some(Ordering::Equal) => self.pid.partial_cmp(&other.pid),
-            result => result,
-        }
+        Some(self.cmp(other))
     }
 }
 impl fmt::Debug for ExternalPid {

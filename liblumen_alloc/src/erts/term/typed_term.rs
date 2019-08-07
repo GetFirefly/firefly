@@ -261,110 +261,376 @@ impl PartialEq<TypedTerm> for TypedTerm {
 }
 impl Eq for TypedTerm {}
 
-macro_rules! partial_cmp_impl {
-    (@try_with_equiv $input:expr => $variant:path as [$($equiv:path),*] , $($rest:tt)*) => {
-        match $input {
-            (&$variant(ref lhs), &$variant(ref rhs)) => { return lhs.partial_cmp(rhs); }
-            $(
-                (&$variant(ref lhs), &$equiv(ref rhs)) => { return lhs.partial_cmp(rhs); }
-                (&$equiv(ref lhs), &$variant(ref rhs)) => { return lhs.partial_cmp(rhs); }
-                (&$equiv(ref lhs), &$equiv(ref rhs)) => { return lhs.partial_cmp(rhs); }
-            )*
-            (&$variant(_), _) => { return Some(Ordering::Greater); }
-            $(
-                (&$equiv(_), _) => { return Some(Ordering::Greater); }
-            )*
-            _ => ()
-        }
+/// All terms in Erlang and Elixir are completely ordered.
+///
+/// number < atom < reference < function < port < pid < tuple < map < list < bitstring
+///
+/// > When comparing two numbers of different types (a number being either an integer or a float), a
+/// > conversion to the type with greater precision will always occur, unless the comparison
+/// > operator used is either === or !==. A float will be considered more precise than an integer,
+/// > unless the float is greater/less than +/-9007199254740992.0 respectively, at which point all
+/// > the significant figures of the float are to the left of the decimal point. This behavior
+/// > exists so that the comparison of large numbers remains transitive.
+/// >
+/// > The collection types are compared using the following rules:
+/// >
+/// > * Tuples are compared by size, then element by element.
+/// > * Maps are compared by size, then by keys in ascending term order, then by values in key
+/// >   order.   In the specific case of maps' key ordering, integers are always considered to be
+/// >   less than floats.
+/// > * Lists are compared element by element.
+/// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+/// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
+impl Ord for TypedTerm {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        use cmp::Ordering::*;
 
-        partial_cmp_impl!(@try_is_constant $input => $($rest)*);
-    };
-    (@try_with_equiv $input:expr => $($rest:tt)*) => {
-        partial_cmp_impl!(@try_without_equiv $input => $($rest)*);
-    };
-    (@try_with_equiv $input:expr => ) => {
-        (());
-    };
-    (@try_without_equiv $input:expr => $variant:path , $($rest:tt)*) => {
-        match $input {
-            (&$variant(ref lhs), &$variant(ref rhs)) => { return lhs.partial_cmp(rhs); }
-            (&$variant(_), _) => { return Some(Ordering::Greater); }
-            _ => ()
-        }
+        match self {
+            // Numbers
+            // Order is SmallInteger, Float, BigInt because of the order of their ranges
+            TypedTerm::SmallInteger(self_small_integer) => match other {
+                TypedTerm::SmallInteger(other_small_integer) => {
+                    self_small_integer.cmp(other_small_integer)
+                }
+                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                    // Flip order so that only type that will be conversion target needs to
+                    // implement `PartialOrd` between types.
+                    TypedTerm::Float(other_float) => other_float
+                        .partial_cmp(self_small_integer)
+                        .unwrap()
+                        .reverse(),
+                    TypedTerm::BigInteger(other_big_integer) => other_big_integer
+                        .partial_cmp(self_small_integer)
+                        .unwrap()
+                        .reverse(),
+                    _ => Less,
+                },
+                _ => Less,
+            },
+            // In place of first boxed: Float.
+            TypedTerm::Boxed(self_boxed) => {
+                let self_unboxed = self_boxed.to_typed_term().unwrap();
 
-        partial_cmp_impl!(@try_is_constant $input => $($rest)*);
-    };
-    (@try_without_equiv $input:expr => ) => {
-        (());
-    };
-    (@try_is_constant $input:expr => $variant:path where constant , $($rest:tt)*) => {
-        match $input {
-            (&$variant, &$variant) => return Some(Ordering::Equal),
-            (&$variant, _) => return Some(Ordering::Greater),
-            _ => ()
+                match self_unboxed {
+                    TypedTerm::Float(self_float) => match other {
+                        TypedTerm::SmallInteger(other_small_integer) => {
+                            self_float.partial_cmp(other_small_integer).unwrap()
+                        }
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(other_float) => self_float.cmp(&other_float),
+                            TypedTerm::BigInteger(other_big_integer) => other_big_integer
+                                .partial_cmp(&self_float)
+                                .unwrap()
+                                .reverse(),
+                            _ => Less,
+                        },
+                        _ => Less,
+                    },
+                    TypedTerm::BigInteger(self_big_integer) => match other {
+                        TypedTerm::SmallInteger(other_small_integer) => {
+                            self_big_integer.partial_cmp(other_small_integer).unwrap()
+                        }
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(other_float) => {
+                                self_big_integer.partial_cmp(&other_float).unwrap()
+                            }
+                            TypedTerm::BigInteger(other_big_integer) => {
+                                self_big_integer.cmp(&other_big_integer)
+                            }
+                            _ => Less,
+                        },
+                        _ => Less,
+                    },
+                    TypedTerm::Reference(self_reference) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
+                            TypedTerm::Reference(other_reference) => {
+                                self_reference.cmp(&other_reference)
+                            }
+                            TypedTerm::ExternalReference(other_external_reference) => {
+                                other_external_reference
+                                    .partial_cmp(&self_reference)
+                                    .unwrap()
+                                    .reverse()
+                            }
+                            _ => Less,
+                        },
+                        TypedTerm::Atom(_) => Greater,
+                        _ => Less,
+                    },
+                    TypedTerm::Closure(self_closure) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_)
+                            | TypedTerm::BigInteger(_)
+                            | TypedTerm::Reference(_)
+                            | TypedTerm::ExternalReference(_) => Greater,
+                            TypedTerm::Closure(other_closure) => {
+                                self_closure.cmp(other_closure.as_ref())
+                            }
+                            _ => Less,
+                        },
+                        TypedTerm::Atom(_) => Greater,
+                        _ => Less,
+                    },
+                    TypedTerm::ExternalPid(self_external_pid) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_)
+                            | TypedTerm::BigInteger(_)
+                            | TypedTerm::Reference(_)
+                            | TypedTerm::ExternalReference(_)
+                            | TypedTerm::Closure(_)
+                            | TypedTerm::ExternalPort(_) => Greater,
+                            TypedTerm::ExternalPid(other_external_pid) => {
+                                self_external_pid.cmp(&other_external_pid)
+                            }
+                            _ => Less,
+                        },
+                        TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
+                        _ => Less,
+                    },
+                    TypedTerm::Tuple(self_tuple) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_)
+                            | TypedTerm::BigInteger(_)
+                            | TypedTerm::Reference(_)
+                            | TypedTerm::ExternalReference(_)
+                            | TypedTerm::Closure(_)
+                            | TypedTerm::ExternalPort(_)
+                            | TypedTerm::ExternalPid(_) => Greater,
+                            TypedTerm::Tuple(other_tuple) => self_tuple.cmp(other_tuple.as_ref()),
+                            _ => Less,
+                        },
+                        TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
+                        _ => Less,
+                    },
+                    TypedTerm::Map(self_map) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_)
+                            | TypedTerm::BigInteger(_)
+                            | TypedTerm::Reference(_)
+                            | TypedTerm::Closure(_)
+                            | TypedTerm::ExternalPort(_)
+                            | TypedTerm::ExternalPid(_)
+                            | TypedTerm::Tuple(_) => Greater,
+                            TypedTerm::Map(other_map) => self_map.cmp(other_map.as_ref()),
+                            _ => Less,
+                        },
+                        TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
+                        _ => Less,
+                    },
+                    // Bitstrings in likely order
+                    TypedTerm::HeapBinary(self_heap_binary) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_)
+                            | TypedTerm::BigInteger(_)
+                            | TypedTerm::Reference(_)
+                            | TypedTerm::ExternalReference(_)
+                            | TypedTerm::Closure(_)
+                            | TypedTerm::ExternalPort(_)
+                            | TypedTerm::ExternalPid(_)
+                            | TypedTerm::Tuple(_)
+                            | TypedTerm::Map(_)
+                            | TypedTerm::List(_) => Greater,
+                            TypedTerm::HeapBinary(other_heap_binary) => {
+                                self_heap_binary.as_ref().cmp(other_heap_binary.as_ref())
+                            }
+                            TypedTerm::ProcBin(other_process_binary) => other_process_binary
+                                .partial_cmp(&self_heap_binary)
+                                .unwrap()
+                                .reverse(),
+                            TypedTerm::SubBinary(other_subbinary) => other_subbinary
+                                .partial_cmp(self_heap_binary.as_ref())
+                                .unwrap()
+                                .reverse(),
+                            TypedTerm::MatchContext(other_match_context) => other_match_context
+                                .partial_cmp(self_heap_binary.as_ref())
+                                .unwrap()
+                                .reverse(),
+                            _ => unreachable!(),
+                        },
+                        TypedTerm::Atom(_) | TypedTerm::Pid(_) | TypedTerm::Nil => Greater,
+                        _ => unreachable!(),
+                    },
+                    TypedTerm::ProcBin(self_process_binary) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_)
+                            | TypedTerm::BigInteger(_)
+                            | TypedTerm::Reference(_)
+                            | TypedTerm::ExternalReference(_)
+                            | TypedTerm::Closure(_)
+                            | TypedTerm::ExternalPort(_)
+                            | TypedTerm::ExternalPid(_)
+                            | TypedTerm::Tuple(_)
+                            | TypedTerm::Map(_)
+                            | TypedTerm::List(_) => Greater,
+                            TypedTerm::HeapBinary(other_heap_binary) => {
+                                self_process_binary.partial_cmp(&other_heap_binary).unwrap()
+                            }
+                            TypedTerm::ProcBin(other_process_binary) => self_process_binary
+                                .partial_cmp(&other_process_binary)
+                                .unwrap(),
+                            TypedTerm::SubBinary(other_subbinary) => other_subbinary
+                                .partial_cmp(&self_process_binary)
+                                .unwrap()
+                                .reverse(),
+                            TypedTerm::MatchContext(other_match_context) => other_match_context
+                                .partial_cmp(&self_process_binary)
+                                .unwrap()
+                                .reverse(),
+                            _ => unreachable!(),
+                        },
+                        TypedTerm::Atom(_) | TypedTerm::Pid(_) | TypedTerm::Nil => Greater,
+                        _ => unreachable!(),
+                    },
+                    TypedTerm::SubBinary(self_subbinary) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_)
+                            | TypedTerm::BigInteger(_)
+                            | TypedTerm::Reference(_)
+                            | TypedTerm::ExternalReference(_)
+                            | TypedTerm::Closure(_)
+                            | TypedTerm::ExternalPort(_)
+                            | TypedTerm::ExternalPid(_)
+                            | TypedTerm::Tuple(_)
+                            | TypedTerm::Map(_)
+                            | TypedTerm::List(_) => Greater,
+                            TypedTerm::HeapBinary(other_heap_binary) => self_subbinary
+                                .partial_cmp(other_heap_binary.as_ref())
+                                .unwrap(),
+                            TypedTerm::ProcBin(other_process_binary) => {
+                                self_subbinary.partial_cmp(&other_process_binary).unwrap()
+                            }
+                            TypedTerm::SubBinary(other_subbinary) => {
+                                self_subbinary.cmp(&other_subbinary)
+                            }
+                            TypedTerm::MatchContext(other_match_context) => self_subbinary
+                                .partial_cmp(&other_match_context)
+                                .unwrap()
+                                .reverse(),
+                            _ => unreachable!(),
+                        },
+                        TypedTerm::Atom(_) | TypedTerm::Pid(_) | TypedTerm::Nil => Greater,
+                        _ => unreachable!(),
+                    },
+                    TypedTerm::MatchContext(self_match_context) => match other {
+                        _ => unimplemented!(
+                            "unboxed match_context ({:?}) cmp {:?}",
+                            self_match_context,
+                            other
+                        ),
+                    },
+                    _ => unimplemented!("unboxed {:?} cmp {:?}", self_unboxed, other),
+                }
+            }
+            TypedTerm::Atom(self_atom) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                    TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
+                    _ => Less,
+                },
+                TypedTerm::Atom(other_atom) => self_atom.cmp(other_atom),
+                _ => Less,
+            },
+            TypedTerm::Port(self_port) => match other {
+                _ => unimplemented!("Port {:?} cmp {:?}", self_port, other),
+            },
+            TypedTerm::Pid(self_pid) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                    TypedTerm::Float(_)
+                    | TypedTerm::BigInteger(_)
+                    | TypedTerm::Reference(_)
+                    | TypedTerm::Closure(_)
+                    | TypedTerm::ExternalPort(_) => Greater,
+                    _ => Less,
+                },
+                TypedTerm::Atom(_) | TypedTerm::Port(_) => Greater,
+                TypedTerm::Pid(other_pid) => self_pid.cmp(other_pid),
+                _ => Less,
+            },
+            TypedTerm::Nil => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                    TypedTerm::Float(_)
+                    | TypedTerm::BigInteger(_)
+                    | TypedTerm::Reference(_)
+                    | TypedTerm::Closure(_)
+                    | TypedTerm::ExternalPort(_)
+                    | TypedTerm::ExternalPid(_)
+                    | TypedTerm::Tuple(_)
+                    | TypedTerm::Map(_) => Greater,
+                    _ => Less,
+                },
+                TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
+                TypedTerm::Nil => Equal,
+                _ => Less,
+            },
+            TypedTerm::List(self_cons) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                    TypedTerm::Float(_)
+                    | TypedTerm::BigInteger(_)
+                    | TypedTerm::Reference(_)
+                    | TypedTerm::Closure(_)
+                    | TypedTerm::ExternalPort(_)
+                    | TypedTerm::ExternalPid(_)
+                    | TypedTerm::Tuple(_)
+                    | TypedTerm::Map(_) => Greater,
+                    _ => Less,
+                },
+                TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) | TypedTerm::Nil => {
+                    Greater
+                }
+                TypedTerm::List(other_cons) => self_cons.cmp(other_cons),
+                _ => Less,
+            },
+            // rest are boxed or GC-only
+            _ => unreachable!(),
         }
-
-        partial_cmp_impl!(@try_is_constant $input => $($rest)*);
-    };
-    (@try_is_constant $input:expr => $($rest:tt)*) => {
-        partial_cmp_impl!(@try_is_invalid $input => $($rest)*);
-    };
-    (@try_is_invalid $input:expr => $variant:path where invalid , $($rest:tt)*) => {
-        if let (&$variant, _) = $input {
-            return None;
-        }
-        if let (_, &$variant) = $input {
-            return None;
-        }
-
-        partial_cmp_impl!(@try_is_constant $input => $($rest)*);
-    };
-    (@try_is_invalid $input:expr => $($rest:tt)*) => {
-        partial_cmp_impl!(@try_with_equiv $input => $($rest)*);
-    };
-    (($lhs:expr, $rhs:expr) => $($rest:tt)*) => {
-        let input = ($lhs, $rhs);
-        partial_cmp_impl!(@try_is_constant input => $($rest)*);
-
-        // Fallback
-        // Flip the arguments, then invert the result to avoid duplicating the above
-        $rhs.partial_cmp($lhs).map(|option| option.reverse())
-    };
+    }
 }
 
+/// All terms in Erlang and Elixir are completely ordered.
+///
+/// number < atom < reference < function < port < pid < tuple < map < list < bitstring
+///
+/// > When comparing two numbers of different types (a number being either an integer or a float), a
+/// > conversion to the type with greater precision will always occur, unless the comparison
+/// > operator used is either === or !==. A float will be considered more precise than an integer,
+/// > unless the float is greater/less than +/-9007199254740992.0 respectively, at which point all
+/// > the significant figures of the float are to the left of the decimal point. This behavior
+/// > exists so that the comparison of large numbers remains transitive.
+/// >
+/// > The collection types are compared using the following rules:
+/// >
+/// > * Tuples are compared by size, then element by element.
+/// > * Maps are compared by size, then by keys in ascending term order, then by values in key
+/// >   order.   In the specific case of maps' key ordering, integers are always considered to be
+/// >   less than floats.
+/// > * Lists are compared element by element.
+/// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
+/// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
 impl PartialOrd<TypedTerm> for TypedTerm {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        use core::cmp::Ordering;
-        if let Self::Boxed(boxed) = self {
-            return boxed.to_typed_term().unwrap().partial_cmp(other);
-        };
-        if let Self::Boxed(boxed) = other {
-            return boxed
-                .to_typed_term()
-                .unwrap()
-                .partial_cmp(self)
-                .map(|option| option.reverse());
-        };
-        // number < atom < reference < fun < port < pid < tuple < map < nil < list < bit string
-        partial_cmp_impl! { (self, other) =>
-            Self::Catch where invalid,
-            Self::None where invalid,
-            Self::ProcBin as [Self::HeapBinary, Self::SubBinary, Self::MatchContext],
-            Self::List,
-            Self::Nil where constant,
-            Self::Map,
-            Self::Tuple,
-            Self::ExternalPid,
-            Self::Pid,
-            Self::ExternalPort,
-            Self::Port,
-            Self::Closure,
-            Self::ExternalReference,
-            Self::Reference,
-            Self::Atom,
-            Self::BigInteger,
-            Self::Float as [Self::SmallInteger],
-        }
+        Some(self.cmp(other))
     }
 }
 

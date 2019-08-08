@@ -133,7 +133,16 @@ impl Hierarchy {
             .get(&timer_reference_number)
             .and_then(|weak_timer| weak_timer.upgrade())
             .map(|rc_timer| {
-                rc_timer.monotonic_time_milliseconds - monotonic::time_in_milliseconds()
+                // The timer may be read when it is past its timeout, but it has not been timed-out
+                // by the scheduler.  Without this, an underflow would occur.
+                // `0` is returned on underflow because that is what Erlang returns.
+                match rc_timer
+                    .monotonic_time_milliseconds
+                    .checked_sub(monotonic::time_in_milliseconds())
+                {
+                    Some(difference) => difference,
+                    None => 0,
+                }
             })
     }
 

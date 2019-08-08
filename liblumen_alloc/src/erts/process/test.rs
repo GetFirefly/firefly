@@ -83,8 +83,8 @@ mod tuple_from_slice {
         let arity_pointer = tuple_pointer as *const Term;
 
         assert_eq!(
-            unsafe { *arity_pointer },
-            Term::make_header(0, Term::FLAG_TUPLE)
+            unsafe { *arity_pointer }.as_usize(),
+            Term::make_header(0, Term::FLAG_TUPLE).as_usize()
         );
     }
 

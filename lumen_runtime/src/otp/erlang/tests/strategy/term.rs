@@ -105,6 +105,20 @@ pub fn function(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
+pub fn function_port_pid_tuple_map_list_or_bitstring(
+    arc_process: Arc<ProcessControlBlock>,
+) -> BoxedStrategy<Term> {
+    prop_oneof![
+        function(arc_process.clone()),
+        // TODO `Port` and `ExternalPort`
+        is_pid(arc_process.clone()),
+        tuple(arc_process.clone()),
+        map(arc_process.clone()),
+        is_bitstring(arc_process.clone()),
+    ]
+    .boxed()
+}
+
 pub fn is_binary(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     prop_oneof![
         binary::heap(arc_process.clone()),
@@ -404,6 +418,10 @@ pub fn leaf(
     .boxed()
 }
 
+pub fn list_or_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    prop_oneof![is_list(arc_process.clone()), is_bitstring(arc_process)].boxed()
+}
+
 pub fn local_reference(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     proptest::prelude::any::<u64>()
         .prop_map(move |number| arc_process.reference(number).unwrap())
@@ -412,6 +430,15 @@ pub fn local_reference(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<T
 
 pub fn map(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     map::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
+}
+
+pub fn map_list_or_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        map(arc_process.clone()),
+        is_list(arc_process.clone()),
+        is_bitstring(arc_process.clone())
+    ]
+    .boxed()
 }
 
 fn negative_big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
@@ -430,6 +457,66 @@ fn negative_big_integer_float_integral_i64() -> Option<BoxedStrategy<i64>> {
 
 pub fn non_existent_atom(suffix: &str) -> String {
     format!("{}_{}", NON_EXISTENT_ATOM_PREFIX, suffix)
+}
+
+pub fn number_or_atom(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    prop_oneof![is_number(arc_process), atom()].boxed()
+}
+
+pub fn number_atom_reference_function_or_port(
+    arc_process: Arc<ProcessControlBlock>,
+) -> BoxedStrategy<Term> {
+    prop_oneof![
+        is_number(arc_process.clone()),
+        atom(),
+        local_reference(arc_process.clone()),
+        // TODO `ExternalReference`
+        function(arc_process),
+        // TODO Port
+    ]
+    .boxed()
+}
+
+pub fn number_atom_reference_function_port_or_local_pid(
+    arc_process: Arc<ProcessControlBlock>,
+) -> BoxedStrategy<Term> {
+    prop_oneof![
+        is_number(arc_process.clone()),
+        atom(),
+        is_reference(arc_process.clone()),
+        function(arc_process),
+        // TODO ports
+        pid::local()
+    ]
+    .boxed()
+}
+
+pub fn number_atom_reference_function_port_or_pid(
+    arc_process: Arc<ProcessControlBlock>,
+) -> BoxedStrategy<Term> {
+    prop_oneof![
+        is_number(arc_process.clone()),
+        atom(),
+        is_reference(arc_process.clone()),
+        function(arc_process.clone()),
+        // TODO ports
+        is_pid(arc_process)
+    ]
+    .boxed()
+}
+
+pub fn number_atom_reference_function_port_pid_or_tuple(
+    arc_process: Arc<ProcessControlBlock>,
+) -> BoxedStrategy<Term> {
+    prop_oneof![
+        is_number(arc_process.clone()),
+        atom(),
+        is_reference(arc_process.clone()),
+        // TODO ports
+        is_pid(arc_process.clone()),
+        tuple(arc_process)
+    ]
+    .boxed()
 }
 
 pub fn pid_or_port(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
@@ -466,4 +553,14 @@ pub fn small_integer_float_integral_i64() -> BoxedStrategy<i64> {
 
 pub fn tuple(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     tuple::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
+}
+
+pub fn tuple_map_list_or_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        tuple(arc_process.clone()),
+        is_map(arc_process.clone()),
+        is_list(arc_process.clone()),
+        is_bitstring(arc_process.clone())
+    ]
+    .boxed()
 }

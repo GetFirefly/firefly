@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_or_atom_returns_false() {
     with_process_arc(|arc_process| {
@@ -9,10 +7,7 @@ fn with_number_or_atom_returns_false() {
             .run(
                 &(
                     strategy::term::local_reference(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Right must be number or atom", |right| {
-                            right.is_number() || right.is_atom()
-                        }),
+                    strategy::term::number_or_atom(arc_process.clone()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::is_less_than_2(left, right), false.into());
@@ -51,17 +46,8 @@ fn with_function_port_pid_tuple_map_list_or_bitstring_returns_true() {
             .run(
                 &(
                     strategy::term::local_reference(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right must be function, port, pid, tuple, map, list, or bitstring",
-                        |right| {
-                            right.is_closure()
-                                || right.is_port()
-                                || right.is_pid()
-                                || right.is_tuple()
-                                || right.is_map()
-                                || right.is_list()
-                                || right.is_bitstring()
-                        },
+                    strategy::term::function_port_pid_tuple_map_list_or_bitstring(
+                        arc_process.clone(),
                     ),
                 ),
                 |(left, right)| {

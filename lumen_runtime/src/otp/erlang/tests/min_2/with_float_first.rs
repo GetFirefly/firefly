@@ -7,7 +7,7 @@ fn with_lesser_small_integer_second_returns_second() {
 
 #[test]
 fn with_greater_small_integer_second_returns_first() {
-    min(|_, process| process.integer(1).unwrap(), First)
+    min(|_, process| process.integer(2).unwrap(), First)
 }
 
 #[test]

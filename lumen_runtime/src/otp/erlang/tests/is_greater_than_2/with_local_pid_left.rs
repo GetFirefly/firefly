@@ -1,6 +1,5 @@
 use super::*;
 
-use proptest::prop_oneof;
 use proptest::strategy::Strategy;
 
 #[test]
@@ -10,7 +9,7 @@ fn with_number_atom_reference_function_or_port_returns_true() {
             &strategy::process().prop_flat_map(|arc_process| {
                 (
                     strategy::term::pid::local(),
-                    number_atom_reference_function_or_port(arc_process),
+                    strategy::term::number_atom_reference_function_or_port(arc_process),
                 )
             }),
             |(left, right)| {
@@ -57,7 +56,7 @@ fn with_tuple_map_list_or_bitstring_returns_false() {
             &strategy::process().prop_flat_map(|arc_process| {
                 (
                     strategy::term::pid::local(),
-                    tuple_map_list_or_bitstring(arc_process),
+                    strategy::term::tuple_map_list_or_bitstring(arc_process),
                 )
             }),
             |(left, right)| {
@@ -74,28 +73,4 @@ where
     R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_greater_than(|_| make_pid(0, 1).unwrap(), right, expected);
-}
-
-fn number_atom_reference_function_or_port(
-    arc_process: Arc<ProcessControlBlock>,
-) -> BoxedStrategy<Term> {
-    prop_oneof![
-        strategy::term::is_number(arc_process.clone()),
-        strategy::term::atom(),
-        strategy::term::local_reference(arc_process.clone()),
-        // TODO `ExternalReference`
-        strategy::term::function(arc_process),
-        // TODO Port
-    ]
-    .boxed()
-}
-
-fn tuple_map_list_or_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
-    prop_oneof![
-        strategy::term::tuple(arc_process.clone()),
-        strategy::term::is_map(arc_process.clone()),
-        strategy::term::is_list(arc_process.clone()),
-        strategy::term::is_bitstring(arc_process.clone())
-    ]
-    .boxed()
 }

@@ -1,8 +1,5 @@
 use super::*;
 
-use proptest::prop_oneof;
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_or_atom_returns_true() {
     with_process_arc(|arc_process| {
@@ -10,7 +7,7 @@ fn with_number_or_atom_returns_true() {
             .run(
                 &(
                     strategy::term::local_reference(arc_process.clone()),
-                    number_or_atom(arc_process.clone()),
+                    strategy::term::number_or_atom(arc_process.clone()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::is_greater_than_2(left, right), true.into());
@@ -49,7 +46,9 @@ fn with_function_port_pid_tuple_map_list_or_bitstring_returns_false() {
             .run(
                 &(
                     strategy::term::local_reference(arc_process.clone()),
-                    function_port_pid_tuple_map_list_or_bitstring(arc_process.clone()),
+                    strategy::term::function_port_pid_tuple_map_list_or_bitstring(
+                        arc_process.clone(),
+                    ),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::is_greater_than_2(left, right), false.into());
@@ -66,26 +65,4 @@ where
     R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_greater_than(|process| process.reference(1).unwrap(), right, expected);
-}
-
-fn number_or_atom(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
-    prop_oneof![
-        strategy::term::is_number(arc_process),
-        strategy::term::atom()
-    ]
-    .boxed()
-}
-
-fn function_port_pid_tuple_map_list_or_bitstring(
-    arc_process: Arc<ProcessControlBlock>,
-) -> BoxedStrategy<Term> {
-    prop_oneof![
-        strategy::term::function(arc_process.clone()),
-        // TODO `Port` and `ExternalPort`
-        strategy::term::is_pid(arc_process.clone()),
-        strategy::term::tuple(arc_process.clone()),
-        strategy::term::map(arc_process.clone()),
-        strategy::term::is_bitstring(arc_process.clone()),
-    ]
-    .boxed()
 }

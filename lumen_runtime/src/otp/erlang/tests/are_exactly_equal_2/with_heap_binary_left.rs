@@ -3,14 +3,14 @@ use super::*;
 use proptest::strategy::Strategy;
 
 #[test]
-fn without_binary_right_returns_false() {
+fn without_bitstring_right_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
                     strategy::term::binary::heap(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a binary", |v| !v.is_binary()),
+                        .prop_filter("Right must not be a bitstring", |v| !v.is_bitstring()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());

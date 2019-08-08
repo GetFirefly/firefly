@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_port_or_local_pid_returns_second() {
     with_process_arc(|arc_process| {
@@ -9,16 +7,8 @@ fn with_number_atom_reference_function_port_or_local_pid_returns_second() {
             .run(
                 &(
                     strategy::term::pid::external(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Second must be number, atom, reference, function, port, or local pid",
-                        |second| {
-                            second.is_number()
-                                || second.is_atom()
-                                || second.is_reference()
-                                || second.is_closure()
-                                || second.is_port()
-                                || second.is_local_pid()
-                        },
+                    strategy::term::number_atom_reference_function_port_or_local_pid(
+                        arc_process.clone(),
                     ),
                 ),
                 |(first, second)| {
@@ -67,15 +57,7 @@ fn with_tuple_map_list_or_bitstring_returns_first() {
             .run(
                 &(
                     strategy::term::pid::external(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Second must be tuple, map, list, or bitstring",
-                        |second| {
-                            second.is_tuple()
-                                || second.is_map()
-                                || second.is_list()
-                                || second.is_bitstring()
-                        },
-                    ),
+                    strategy::term::tuple_map_list_or_bitstring(arc_process.clone()),
                 ),
                 |(first, second)| {
                     prop_assert_eq!(erlang::min_2(first, second), first);

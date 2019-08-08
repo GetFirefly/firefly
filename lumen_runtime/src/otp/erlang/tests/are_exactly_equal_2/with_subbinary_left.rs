@@ -3,14 +3,14 @@ use super::*;
 use proptest::strategy::Strategy;
 
 #[test]
-fn without_binary_right_returns_false() {
+fn without_bitstring_right_returns_false() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
             &strategy::process().prop_flat_map(|arc_process| {
                 (
                     strategy::term::binary::sub(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a binary", |v| !v.is_binary()),
+                        .prop_filter("Right must not be a binary", |v| !v.is_bitstring()),
                 )
             }),
             |(left, right)| {

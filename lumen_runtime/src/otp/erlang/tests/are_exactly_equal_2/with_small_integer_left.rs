@@ -10,7 +10,7 @@ fn without_small_integer_returns_false() {
                 (
                     strategy::term::integer::small(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a small integer", |v| v.is_smallint()),
+                        .prop_filter("Right must not be a small integer", |v| !v.is_smallint()),
                 )
             }),
             |(left, right)| {

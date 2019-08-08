@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_port_or_pid_returns_false() {
     with_process_arc(|arc_process| {
@@ -9,17 +7,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_false() {
             .run(
                 &(
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right must be number, atom, reference, function, port, or pid",
-                        |right| {
-                            right.is_number()
-                                || right.is_atom()
-                                || right.is_reference()
-                                || right.is_closure()
-                                || right.is_port()
-                                || right.is_pid()
-                        },
-                    ),
+                    strategy::term::number_atom_reference_function_port_or_pid(arc_process.clone()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::is_less_than_2(left, right), false.into());
@@ -102,36 +90,21 @@ fn with_greater_size_tuple_returns_true() {
 
 #[test]
 fn with_map_list_or_bitstring_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right must be map, list, or bitstring",
-                        |right| match right.to_typed_term().unwrap() {
-                            TypedTerm::List(_) => true,
-                            TypedTerm::Boxed(ref inner) => match inner.to_typed_term().unwrap() {
-                                TypedTerm::Map(_) => true,
-                                TypedTerm::ProcBin(_) => true,
-                                TypedTerm::HeapBinary(_) => true,
-                                TypedTerm::SubBinary(_) => true,
-                                TypedTerm::MatchContext(_) => true,
-                                _ => false,
-                            },
-                            TypedTerm::Nil => true,
-                            _ => false,
-                        },
-                    ),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::is_less_than_2(left, right), true.into());
+                    strategy::term::map_list_or_bitstring(arc_process.clone()),
+                )
+            }),
+            |(left, right)| {
+                prop_assert_eq!(erlang::is_less_than_2(left, right), true.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn is_less_than<R>(right: R, expected: bool)

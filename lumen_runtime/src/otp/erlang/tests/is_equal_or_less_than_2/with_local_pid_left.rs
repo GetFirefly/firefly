@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_or_port_returns_false() {
     with_process_arc(|arc_process| {
@@ -9,16 +7,7 @@ fn with_number_atom_reference_function_or_port_returns_false() {
             .run(
                 &(
                     strategy::term::pid::local(),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right must be number, atom, reference, function, or port",
-                        |right| {
-                            right.is_number()
-                                || right.is_atom()
-                                || right.is_reference()
-                                || right.is_closure()
-                                || right.is_port()
-                        },
-                    ),
+                    strategy::term::number_atom_reference_function_or_port(arc_process),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::is_equal_or_less_than_2(left, right), false.into());
@@ -55,24 +44,21 @@ fn with_external_pid_right_returns_true() {
 
 #[test]
 fn with_list_or_bitstring_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::pid::local(),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Right must be tuple, map, list, or bitstring", |right| {
-                            right.is_list() || right.is_bitstring()
-                        }),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::is_equal_or_less_than_2(left, right), true.into());
+                    strategy::term::list_or_bitstring(arc_process),
+                )
+            }),
+            |(left, right)| {
+                prop_assert_eq!(erlang::is_equal_or_less_than_2(left, right), true.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)

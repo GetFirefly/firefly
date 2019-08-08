@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_or_port_second_returns_first() {
     with_process_arc(|arc_process| {
@@ -9,16 +7,7 @@ fn with_number_atom_reference_function_or_port_second_returns_first() {
             .run(
                 &(
                     strategy::term::pid::local(),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Second must be number, atom, reference, function, or port",
-                        |second| {
-                            second.is_number()
-                                || second.is_atom()
-                                || second.is_reference()
-                                || second.is_closure()
-                                || second.is_port()
-                        },
-                    ),
+                    strategy::term::number_atom_reference_function_or_port(arc_process),
                 ),
                 |(first, second)| {
                     prop_assert_eq!(erlang::max_2(first, second), first);
@@ -65,10 +54,7 @@ fn with_list_or_bitstring_second_returns_second() {
             .run(
                 &(
                     strategy::term::pid::local(),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("second must be tuple, map, list, or bitstring", |second| {
-                            second.is_list() || second.is_bitstring()
-                        }),
+                    strategy::term::tuple_map_list_or_bitstring(arc_process),
                 ),
                 |(first, second)| {
                     prop_assert_eq!(erlang::max_2(first, second), second);

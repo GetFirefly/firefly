@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_port_or_pid_returns_second() {
     with_process_arc(|arc_process| {
@@ -9,17 +7,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_second() {
             .run(
                 &(
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Second must be number, atom, reference, function, port, or pid",
-                        |second| {
-                            second.is_number()
-                                || second.is_atom()
-                                || second.is_reference()
-                                || second.is_closure()
-                                || second.is_port()
-                                || second.is_pid()
-                        },
-                    ),
+                    strategy::term::number_atom_reference_function_port_or_pid(arc_process.clone()),
                 ),
                 |(first, second)| {
                     prop_assert_eq!(erlang::min_2(first, second), second);
@@ -102,24 +90,21 @@ fn with_greater_size_tuple_returns_first() {
 
 #[test]
 fn with_map_list_or_bitstring_second_returns_first() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Second must be map, list, or bitstring", |second| {
-                            second.is_map() || second.is_list() || second.is_bitstring()
-                        }),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(erlang::min_2(first, second), first);
+                    strategy::term::map_list_or_bitstring(arc_process.clone()),
+                )
+            }),
+            |(first, second)| {
+                prop_assert_eq!(erlang::min_2(first, second), first);
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn min<R>(second: R, which: FirstSecond)

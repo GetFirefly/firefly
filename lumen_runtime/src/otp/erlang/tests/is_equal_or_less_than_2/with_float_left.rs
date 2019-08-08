@@ -6,8 +6,13 @@ fn with_lesser_small_integer_right_returns_false() {
 }
 
 #[test]
-fn with_greater_small_integer_right_returns_true() {
+fn with_equal_small_integer_right_returns_true() {
     is_equal_or_less_than(|_, process| process.integer(1).unwrap(), true)
+}
+
+#[test]
+fn with_greater_small_integer_right_returns_true() {
+    is_equal_or_less_than(|_, process| process.integer(2).unwrap(), true)
 }
 
 #[test]
@@ -32,8 +37,13 @@ fn with_lesser_float_right_returns_false() {
 }
 
 #[test]
-fn with_greater_float_right_returns_true() {
+fn with_equal_float_right_returns_true() {
     is_equal_or_less_than(|_, process| process.float(1.0).unwrap(), true)
+}
+
+#[test]
+fn with_greater_float_right_returns_true() {
+    is_equal_or_less_than(|_, process| process.float(2.0).unwrap(), true)
 }
 
 #[test]

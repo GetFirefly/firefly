@@ -43,7 +43,7 @@ fn with_lesser_float_second_returns_first() {
 
 #[test]
 fn with_same_value_float_second_returns_first() {
-    max(|_, process| process.float(1.0).unwrap(), First)
+    max(|_, process| process.float(0.0).unwrap(), First)
 }
 
 #[test]

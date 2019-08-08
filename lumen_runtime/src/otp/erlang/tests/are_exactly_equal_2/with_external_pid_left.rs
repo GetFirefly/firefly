@@ -9,7 +9,10 @@ fn without_external_pid_left_returns_false() {
             .run(
                 &(
                     strategy::term::pid::external(arc_process.clone()),
-                    strategy::term::is_not_atom(arc_process.clone()),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Left cannot be an external pid", |left| {
+                            !left.is_external_pid()
+                        }),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());

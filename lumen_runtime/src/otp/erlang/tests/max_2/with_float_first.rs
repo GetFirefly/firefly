@@ -7,7 +7,7 @@ fn with_lesser_small_integer_second_returns_first() {
 
 #[test]
 fn with_greater_small_integer_second_returns_second() {
-    max(|_, process| process.integer(1).unwrap(), Second)
+    max(|_, process| process.integer(2).unwrap(), Second)
 }
 
 #[test]

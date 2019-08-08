@@ -43,7 +43,7 @@ fn with_lesser_float_right_returns_false() {
 
 #[test]
 fn with_same_value_float_right_returns_false() {
-    is_less_than(|_, process| process.float(1.0).unwrap(), false)
+    is_less_than(|_, process| process.float(0.0).unwrap(), false)
 }
 
 #[test]

@@ -13,7 +13,6 @@ use lazy_static::lazy_static;
 use liblumen_arena::DroplessArena;
 
 use liblumen_core::locks::RwLock;
-use liblumen_core::util::reference::str::as_static;
 
 use super::{AsTerm, Term, TypeError, TypedTerm};
 
@@ -76,7 +75,7 @@ impl Atom {
         if let Some(id) = ATOMS.read().get_id(name) {
             return Ok(Atom(id));
         }
-        let id = ATOMS.write().insert(name)?;
+        let id = ATOMS.write().get_id_or_insert(name)?;
         Ok(Atom(id))
     }
 
@@ -234,33 +233,39 @@ impl AtomTable {
         self.names.get(id).cloned()
     }
 
-    fn insert(&mut self, name: &str) -> Result<usize, AtomError> {
-        let name = unsafe { as_static(name) };
+    fn get_id_or_insert(&mut self, name: &str) -> Result<usize, AtomError> {
+        match self.get_id(name) {
+            Some(existing_id) => Ok(existing_id),
+            None => unsafe { self.insert(name) },
+        }
+    }
+
+    // Unsafe because `name` should already have been checked as not existing while holding a
+    // `mut reference`.
+    unsafe fn insert(&mut self, name: &str) -> Result<usize, AtomError> {
         let id = self.names.len();
         if id > MAX_ATOMS {
             return Err(AtomError(AtomErrorKind::TooManyAtoms));
         }
-        let names = &mut self.names;
-        let arena = &mut self.arena;
-        Ok(*self.ids.entry(name).or_insert_with(|| {
-            let size = name.len();
 
-            let s = if size > 0 {
-                // Copy string into arena
-                unsafe {
-                    let ptr = arena.alloc_raw(size, mem::align_of::<u8>());
-                    ptr::copy_nonoverlapping(name as *const _ as *const u8, ptr, size);
-                    let bytes = slice::from_raw_parts(ptr, size);
-                    str::from_utf8_unchecked(bytes)
-                }
-            } else {
-                ""
-            };
+        let size = name.len();
 
-            // Push into id map
-            names.push(s);
-            id
-        }))
+        let s = if size > 0 {
+            // Copy string into arena
+            let ptr = self.arena.alloc_raw(size, mem::align_of::<u8>());
+            ptr::copy_nonoverlapping(name as *const _ as *const u8, ptr, size);
+            let bytes = slice::from_raw_parts(ptr, size);
+
+            str::from_utf8_unchecked(bytes)
+        } else {
+            ""
+        };
+
+        // Push into id map
+        self.ids.insert(s, id);
+        self.names.push(s);
+
+        Ok(id)
     }
 }
 impl Default for AtomTable {

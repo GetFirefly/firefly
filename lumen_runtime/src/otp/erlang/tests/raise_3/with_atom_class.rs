@@ -487,55 +487,57 @@ fn with_mfa_with_positive_line_raises() {
 
 #[test]
 fn with_mfa_with_file_and_line_raises() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
+                    Just(arc_process.clone()),
                     class_variant_and_term(),
                     strategy::term(arc_process.clone()),
                     strategy::term::atom(),
                     strategy::term::atom(),
                     strategy::term::function::arity_or_arguments(arc_process.clone()),
                     strategy::term::charlist(arc_process.clone()),
-                    strategy::term::integer::positive(arc_process.clone()),
-                ),
-                |(
-                    (class_variant, class),
-                    reason,
-                    module,
-                    function,
-                    arity_or_arguments,
-                    file_value,
-                    line_value,
-                )| {
-                    let file_key = atom_unchecked("file");
-                    let line_key = atom_unchecked("line");
-                    let location = arc_process
-                        .list_from_slice(&[
-                            arc_process
-                                .tuple_from_slice(&[file_key, file_value])
-                                .unwrap(),
-                            arc_process
-                                .tuple_from_slice(&[line_key, line_value])
-                                .unwrap(),
-                        ])
-                        .unwrap();
-                    let stacktrace = arc_process
-                        .list_from_slice(&[arc_process
-                            .tuple_from_slice(&[module, function, arity_or_arguments, location])
-                            .unwrap()])
-                        .unwrap();
+                    strategy::term::integer::positive(arc_process),
+                )
+            }),
+            |(
+                arc_process,
+                (class_variant, class),
+                reason,
+                module,
+                function,
+                arity_or_arguments,
+                file_value,
+                line_value,
+            )| {
+                let file_key = atom_unchecked("file");
+                let line_key = atom_unchecked("line");
+                let location = arc_process
+                    .list_from_slice(&[
+                        arc_process
+                            .tuple_from_slice(&[file_key, file_value])
+                            .unwrap(),
+                        arc_process
+                            .tuple_from_slice(&[line_key, line_value])
+                            .unwrap(),
+                    ])
+                    .unwrap();
+                let stacktrace = arc_process
+                    .list_from_slice(&[arc_process
+                        .tuple_from_slice(&[module, function, arity_or_arguments, location])
+                        .unwrap()])
+                    .unwrap();
 
-                    prop_assert_eq!(
-                        erlang::raise_3(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, Some(stacktrace)).into())
-                    );
+                prop_assert_eq!(
+                    erlang::raise_3(class, reason, stacktrace),
+                    Err(raise!(class_variant, reason, Some(stacktrace)).into())
+                );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn class() -> BoxedStrategy<Term> {

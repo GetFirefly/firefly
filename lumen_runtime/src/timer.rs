@@ -106,7 +106,7 @@ impl Hierarchy {
                     LongTerm => self.long_term.cancel(timer_reference_number),
                 };
 
-                arc_timer.monotonic_time_milliseconds - monotonic::time_in_milliseconds()
+                arc_timer.milliseconds_remaining()
             })
     }
 
@@ -132,18 +132,7 @@ impl Hierarchy {
         self.timer_by_reference_number
             .get(&timer_reference_number)
             .and_then(|weak_timer| weak_timer.upgrade())
-            .map(|rc_timer| {
-                // The timer may be read when it is past its timeout, but it has not been timed-out
-                // by the scheduler.  Without this, an underflow would occur.
-                // `0` is returned on underflow because that is what Erlang returns.
-                match rc_timer
-                    .monotonic_time_milliseconds
-                    .checked_sub(monotonic::time_in_milliseconds())
-                {
-                    Some(difference) => difference,
-                    None => 0,
-                }
-            })
+            .map(|rc_timer| rc_timer.milliseconds_remaining())
     }
 
     fn start(
@@ -388,6 +377,19 @@ struct Timer {
 }
 
 impl Timer {
+    fn milliseconds_remaining(&self) -> Milliseconds {
+        // The timer may be read when it is past its timeout, but it has not been timed-out
+        // by the scheduler.  Without this, an underflow would occur.
+        // `0` is returned on underflow because that is what Erlang returns.
+        match self
+            .monotonic_time_milliseconds
+            .checked_sub(monotonic::time_in_milliseconds())
+        {
+            Some(difference) => difference,
+            None => 0,
+        }
+    }
+
     fn timeout(self) -> Result<(), Alloc> {
         let option_destination_arc_process = match &self.destination {
             Destination::Name(ref name) => registry::atom_to_process(name),

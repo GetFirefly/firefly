@@ -38,7 +38,7 @@ fn with_greater_float_right_returns_true() {
 
 #[test]
 fn with_same_value_float_right_returns_true() {
-    is_greater_than_or_equal(|_, process| process.float(1.0).unwrap(), true)
+    is_greater_than_or_equal(|_, process| process.float(0.0).unwrap(), true)
 }
 
 #[test]

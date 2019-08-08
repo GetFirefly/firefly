@@ -7,7 +7,7 @@ fn with_greater_small_integer_right_returns_true() {
 
 #[test]
 fn with_equal_small_integer_right_returns_false() {
-    is_greater_than_or_equal(|_, process| process.integer(1).unwrap(), false)
+    is_greater_than_or_equal(|_, process| process.integer(1).unwrap(), true)
 }
 
 #[test]

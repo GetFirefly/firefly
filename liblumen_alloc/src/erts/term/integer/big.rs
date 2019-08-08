@@ -148,8 +148,8 @@ impl PartialEq<SmallInteger> for Boxed<BigInteger> {
     }
 }
 impl PartialEq<Float> for BigInteger {
-    fn eq(&self, _other: &Float) -> bool {
-        unimplemented!()
+    fn eq(&self, other: &Float) -> bool {
+        self.partial_cmp(other) == Some(Ordering::Equal)
     }
 }
 impl PartialEq<Float> for Boxed<BigInteger> {

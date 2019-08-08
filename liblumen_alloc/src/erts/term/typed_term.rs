@@ -171,91 +171,173 @@ impl Hash for TypedTerm {
     }
 }
 
-macro_rules! partial_eq_impl_boxed {
-    ($input:expr => $($variant:path),*) => {
-        $(
-            if let (&$variant(ref lhs), &$variant(ref rhs)) = $input {
-                return lhs.eq(rhs);
-            }
-        )*
-
-        return false;
-    }
-}
-
+/// `PartialEq`'s `eq` MUST agree with `PartialOrd`'s `partial_cmp` and `Ord`'s `cmp`, so because
+/// `partial_cmp` and `cmp` MUST convert between numeric types to allow for ordering of all types,
+/// `PartialEq`'s `eq` must also do conversion.  To get a non-converting `eq`-like function use
+/// `exactly_eq`.
 impl PartialEq<TypedTerm> for TypedTerm {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (&Self::Catch, &Self::Catch) => true,
-            (&Self::Nil, &Self::Nil) => true,
-            (&Self::None, &Self::None) => true,
-            (Self::Boxed(self_boxed), Self::Boxed(other_boxed)) => self_boxed
-                .to_typed_term()
-                .unwrap()
-                .eq(&other_boxed.to_typed_term().unwrap()),
-            // For BitString types do `eq` in order of complexity, so that we don't have to
-            // implement it twice
-            (Self::ProcBin(proc_bin), Self::HeapBinary(boxed_heap_binary)) => {
-                proc_bin.eq(boxed_heap_binary.as_ref())
-            }
-            (Self::ProcBin(proc_bin), Self::SubBinary(subbinary)) => subbinary.eq(proc_bin),
-            (Self::ProcBin(proc_bin), Self::MatchContext(match_context)) => {
-                match_context.eq(proc_bin)
-            }
-            (
-                Self::HeapBinary(self_boxed_heap_binary),
-                Self::HeapBinary(other_boxed_heap_binary),
-            ) => self_boxed_heap_binary
-                .as_ref()
-                .eq(other_boxed_heap_binary.as_ref()),
-            (Self::HeapBinary(boxed_heap_binary), Self::ProcBin(proc_bin)) => {
-                proc_bin.eq(boxed_heap_binary.as_ref())
-            }
-            (Self::HeapBinary(boxed_heap_binary), Self::SubBinary(subbinary)) => {
-                subbinary.eq(boxed_heap_binary.as_ref())
-            }
-            (Self::HeapBinary(boxed_heap_binary), Self::MatchContext(match_context)) => {
-                match_context.eq(boxed_heap_binary.as_ref())
-            }
-            (Self::SubBinary(subbinary), Self::ProcBin(proc_bin)) => subbinary.eq(proc_bin),
-            (Self::SubBinary(subbinary), Self::HeapBinary(boxed_heap_binary)) => {
-                subbinary.eq(boxed_heap_binary.as_ref())
-            }
-            (Self::SubBinary(subbinary), Self::MatchContext(match_context)) => {
-                subbinary.eq(match_context)
-            }
-            (Self::MatchContext(match_context), Self::ProcBin(proc_bin)) => {
-                match_context.eq(proc_bin)
-            }
-            (Self::MatchContext(match_context), Self::HeapBinary(boxed_heap_binary)) => {
-                match_context.eq(boxed_heap_binary.as_ref())
-            }
-            (Self::MatchContext(match_context), Self::SubBinary(subbinary)) => {
-                subbinary.eq(match_context)
-            }
-            boxed => {
-                partial_eq_impl_boxed! { boxed =>
-                    Self::List,
-                    Self::Tuple,
-                    Self::Map,
-                    Self::Pid,
-                    Self::Port,
-                    Self::Reference,
-                    Self::ExternalPid,
-                    Self::ExternalPort,
-                    Self::ExternalReference,
-                    Self::BigInteger,
-                    Self::ProcBin,
-                    Self::SubBinary,
-                    Self::MatchContext,
-                    Self::Closure,
-                    Self::Boxed,
-                    Self::Literal,
-                    Self::SmallInteger,
-                    Self::Float,
-                    Self::Atom
+        match self {
+            TypedTerm::SmallInteger(self_small_integer) => match other {
+                TypedTerm::SmallInteger(other_small_integer) => {
+                    self_small_integer.eq(other_small_integer)
                 }
-            }
+                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                    // Flip order so that only type that will be conversion target needs to
+                    // implement `PartialEq` between types.
+                    TypedTerm::Float(other_float) => other_float.eq(self_small_integer),
+                    TypedTerm::BigInteger(other_big_integer) => {
+                        other_big_integer.eq(self_small_integer)
+                    }
+                    _ => false,
+                },
+                _ => false,
+            },
+            //             In place of first boxed: Float.
+            TypedTerm::Boxed(self_boxed) => match self_boxed.to_typed_term().unwrap() {
+                TypedTerm::Float(self_float) => match other {
+                    TypedTerm::SmallInteger(other_small_integer) => {
+                        self_float.eq(other_small_integer)
+                    }
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::Float(other_float) => self_float.eq(&other_float),
+                        TypedTerm::BigInteger(other_big_integer) => {
+                            other_big_integer.eq(&self_float)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::BigInteger(self_big_integer) => match other {
+                    TypedTerm::SmallInteger(other_small_integer) => {
+                        self_big_integer.eq(other_small_integer)
+                    }
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::Float(other_float) => self_big_integer.eq(&other_float),
+                        TypedTerm::BigInteger(other_big_integer) => {
+                            self_big_integer.eq(&other_big_integer)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::Reference(self_reference) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::Reference(other_reference) => {
+                            self_reference.eq(&other_reference)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::Closure(self_closure) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::Closure(other_closure) => self_closure.eq(&other_closure),
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::ExternalPid(self_external_pid) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::ExternalPid(other_external_pid) => {
+                            self_external_pid.eq(&other_external_pid)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::Tuple(self_tuple) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::Tuple(other_tuple) => self_tuple.eq(&other_tuple),
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::Map(self_map) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::Map(other_map) => self_map.eq(&other_map),
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                // Bitstrings in likely order
+                TypedTerm::HeapBinary(self_heap_binary) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::HeapBinary(other_heap_binary) => {
+                            self_heap_binary.as_ref().eq(other_heap_binary.as_ref())
+                        }
+                        TypedTerm::ProcBin(other_process_binary) => {
+                            other_process_binary.eq(&self_heap_binary)
+                        }
+                        TypedTerm::SubBinary(other_subbinary) => {
+                            other_subbinary.eq(self_heap_binary.as_ref())
+                        }
+                        TypedTerm::MatchContext(other_match_context) => {
+                            other_match_context.eq(self_heap_binary.as_ref())
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::ProcBin(self_process_binary) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::HeapBinary(other_heap_binary) => {
+                            self_process_binary.eq(&other_heap_binary)
+                        }
+                        TypedTerm::ProcBin(other_process_binary) => {
+                            self_process_binary.eq(&other_process_binary)
+                        }
+                        TypedTerm::SubBinary(other_subbinary) => {
+                            other_subbinary.eq(&self_process_binary)
+                        }
+                        TypedTerm::MatchContext(other_match_context) => {
+                            other_match_context.eq(&self_process_binary)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::SubBinary(self_subbinary) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::HeapBinary(other_heap_binary) => {
+                            self_subbinary.eq(other_heap_binary.as_ref())
+                        }
+                        TypedTerm::ProcBin(other_process_binary) => {
+                            self_subbinary.eq(&other_process_binary)
+                        }
+                        TypedTerm::SubBinary(other_subbinary) => {
+                            self_subbinary.eq(&other_subbinary)
+                        }
+                        TypedTerm::MatchContext(other_match_context) => {
+                            self_subbinary.eq(&other_match_context)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                _ => unreachable!(),
+            },
+            TypedTerm::Atom(self_atom) => match other {
+                TypedTerm::Atom(other_atom) => self_atom.eq(other_atom),
+                _ => false,
+            },
+            TypedTerm::Port(self_port) => match other {
+                TypedTerm::Port(other_port) => self_port.eq(other_port),
+                _ => false,
+            },
+            TypedTerm::Pid(self_pid) => match other {
+                TypedTerm::Pid(other_pid) => self_pid.eq(other_pid),
+                _ => false,
+            },
+            TypedTerm::Nil => match other {
+                TypedTerm::Nil => true,
+                _ => false,
+            },
+            TypedTerm::List(self_cons) => match other {
+                TypedTerm::List(other_cons) => self_cons.eq(other_cons),
+                _ => false,
+            },
+            _ => unreachable!(),
         }
     }
 }

@@ -3,7 +3,7 @@ use super::*;
 use proptest::strategy::Strategy;
 
 #[test]
-fn without_list_right_returns_true() {
+fn without_tuple_right_returns_true() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
             &strategy::process().prop_flat_map(|arc_process| {

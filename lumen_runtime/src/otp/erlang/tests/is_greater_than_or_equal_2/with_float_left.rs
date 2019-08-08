@@ -6,12 +6,17 @@ fn with_greater_small_integer_right_returns_true() {
 }
 
 #[test]
-fn with_greater_small_integer_right_returns_false() {
+fn with_equal_small_integer_right_returns_false() {
     is_greater_than_or_equal(|_, process| process.integer(1).unwrap(), false)
 }
 
 #[test]
-fn with_greater_big_integer_right_returns_true() {
+fn with_greater_small_integer_right_returns_false() {
+    is_greater_than_or_equal(|_, process| process.integer(2).unwrap(), false)
+}
+
+#[test]
+fn with_lesser_big_integer_right_returns_true() {
     is_greater_than_or_equal(
         |_, process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
         true,
@@ -33,7 +38,7 @@ fn with_greater_float_right_returns_true() {
 
 #[test]
 fn with_greater_float_right_returns_false() {
-    is_greater_than_or_equal(|_, process| process.float(1.0).unwrap(), false)
+    is_greater_than_or_equal(|_, process| process.float(2.0).unwrap(), false)
 }
 
 #[test]

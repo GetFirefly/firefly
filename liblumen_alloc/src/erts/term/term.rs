@@ -850,7 +850,7 @@ impl Term {
 
     /// Returns `true` if `self` and `other` are equal without converting integers and floats.
     pub fn exactly_eq(self, other: &Term) -> bool {
-        match (
+        let can_be_exactly_equal = match (
             self.to_typed_term().unwrap(),
             other.to_typed_term().unwrap(),
         ) {
@@ -863,13 +863,17 @@ impl Term {
                 ) {
                     (TypedTerm::BigInteger(_), TypedTerm::Float(_)) => false,
                     (TypedTerm::Float(_), TypedTerm::BigInteger(_)) => false,
-                    (self_unboxed_typed_term, other_unboxed_typed_term) => {
-                        self_unboxed_typed_term.eq(&other_unboxed_typed_term)
-                    }
+                    _ => true,
                 }
             }
-            (self_typed_term, other_typed_term) => self_typed_term.eq(&other_typed_term),
-        }
+            _ => true,
+        };
+
+        can_be_exactly_equal
+            && (self
+                .to_typed_term()
+                .unwrap()
+                .eq(&other.to_typed_term().unwrap()))
     }
 
     /// Returns `false` if `self` and `other` are equal without converting integers and floats.

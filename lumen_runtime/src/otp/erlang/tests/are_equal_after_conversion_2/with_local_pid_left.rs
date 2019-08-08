@@ -10,7 +10,7 @@ fn without_local_pid_right_returns_false() {
                 (
                     strategy::term::pid::local(),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right cannot be a local pid", |right| right.is_local_pid()),
+                        .prop_filter("Right cannot be a local pid", |right| !right.is_local_pid()),
                 )
             }),
             |(left, right)| {

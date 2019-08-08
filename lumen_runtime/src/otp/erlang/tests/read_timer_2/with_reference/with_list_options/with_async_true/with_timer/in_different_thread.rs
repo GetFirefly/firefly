@@ -5,6 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 #[test]
+#[ignore]
 fn without_timeout_returns_milliseconds_remaining() {
     with_timer(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
@@ -12,6 +13,7 @@ fn without_timeout_returns_milliseconds_remaining() {
         let message = atom_unchecked("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
+        // flaky
         assert!(!has_message(process, timeout_message));
 
         assert_eq!(

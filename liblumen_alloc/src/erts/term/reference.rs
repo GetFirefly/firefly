@@ -1,26 +1,54 @@
-use core::alloc::AllocErr;
+use core::alloc::Layout;
 use core::cmp;
-use core::fmt;
+use core::fmt::{self, Debug};
+use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{to_word_size, HeapAlloc, Node};
+use crate::erts::exception::system::Alloc;
+use crate::erts::term::{arity_of, AsTerm, Boxed, Term};
+use crate::erts::{scheduler, HeapAlloc, Node};
 
-use super::{AsTerm, Term};
+pub type Number = u64;
 
-#[cfg(target_pointer_width = "32")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Reference([u32; 3]);
-
-#[cfg(target_pointer_width = "64")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Reference([u64; 2]);
+#[derive(Clone, Copy, Eq)]
+pub struct Reference {
+    #[allow(dead_code)]
+    header: Term,
+    scheduler_id: scheduler::ID,
+    number: Number,
+}
 
 impl Reference {
+    /// Create a new `Reference` struct
+    pub fn new(scheduler_id: scheduler::ID, number: Number) -> Self {
+        Self {
+            header: Term::make_header(arity_of::<Self>(), Term::FLAG_REFERENCE),
+            scheduler_id,
+            number,
+        }
+    }
+
     /// Reifies a `Reference` from a raw pointer
     pub unsafe fn from_raw(ptr: *mut Reference) -> Self {
         *ptr
+    }
+
+    /// This function produces a `Layout` which represents the memory layout
+    /// needed for the reference header, scheduler ID and number.
+    #[inline]
+    pub const fn layout() -> Layout {
+        let size = mem::size_of::<Self>();
+        unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
+    }
+
+    pub fn scheduler_id(&self) -> scheduler::ID {
+        self.scheduler_id
+    }
+
+    pub fn number(&self) -> Number {
+        self.number
     }
 }
 
@@ -31,17 +59,42 @@ unsafe impl AsTerm for Reference {
     }
 }
 impl CloneToProcess for Reference {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         unsafe {
-            let size = self.size_in_words();
-            let ptr = heap.alloc(size)?.as_ptr() as *mut Self;
-            ptr::copy_nonoverlapping(self as *const Self, ptr, size);
+            let word_size = self.size_in_words();
+            let ptr = heap.alloc(word_size)?.as_ptr() as *mut Self;
+            let byte_size = mem::size_of_val(self);
+            ptr::copy_nonoverlapping(self as *const Self, ptr, byte_size);
+
             Ok(Term::make_boxed(ptr))
         }
     }
-
-    fn size_in_words(&self) -> usize {
-        to_word_size(mem::size_of_val(self))
+}
+impl Debug for Reference {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Reference")
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
+            .field("scheduler_id", &self.scheduler_id)
+            .field("number", &self.number)
+            .finish()
+    }
+}
+impl Hash for Reference {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.scheduler_id.hash(state);
+        self.number.hash(state);
+    }
+}
+impl Ord for Reference {
+    fn cmp(&self, other: &Reference) -> cmp::Ordering {
+        self.scheduler_id
+            .cmp(&other.scheduler_id)
+            .then_with(|| self.number.cmp(&other.number))
+    }
+}
+impl PartialEq<Reference> for Reference {
+    fn eq(&self, other: &Reference) -> bool {
+        (self.scheduler_id == other.scheduler_id) && (self.number == other.number)
     }
 }
 impl PartialEq<ExternalReference> for Reference {
@@ -50,10 +103,9 @@ impl PartialEq<ExternalReference> for Reference {
         false
     }
 }
-impl PartialOrd<ExternalReference> for Reference {
-    #[inline]
-    fn partial_cmp(&self, other: &ExternalReference) -> Option<cmp::Ordering> {
-        self.partial_cmp(&other.reference)
+impl PartialOrd<Reference> for Reference {
+    fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -73,13 +125,50 @@ unsafe impl AsTerm for ExternalReference {
 }
 impl CloneToProcess for ExternalReference {
     #[inline]
-    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, Alloc> {
         unimplemented!()
+    }
+}
+impl Hash for ExternalReference {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.node.hash(state);
+        self.reference.hash(state);
+    }
+}
+impl PartialEq<Reference> for ExternalReference {
+    fn eq(&self, _other: &Reference) -> bool {
+        false
+    }
+}
+impl PartialEq<Reference> for Boxed<ExternalReference> {
+    fn eq(&self, other: &Reference) -> bool {
+        self.as_ref().eq(other)
+    }
+}
+impl PartialEq<Boxed<Reference>> for Boxed<ExternalReference> {
+    fn eq(&self, other: &Boxed<Reference>) -> bool {
+        self.as_ref().eq(other.as_ref())
     }
 }
 impl PartialEq<ExternalReference> for ExternalReference {
     fn eq(&self, other: &ExternalReference) -> bool {
         self.node == other.node && self.reference == other.reference
+    }
+}
+impl PartialOrd<Reference> for ExternalReference {
+    #[inline]
+    fn partial_cmp(&self, _other: &Reference) -> Option<cmp::Ordering> {
+        Some(cmp::Ordering::Greater)
+    }
+}
+impl PartialOrd<Reference> for Boxed<ExternalReference> {
+    fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
+        self.as_ref().partial_cmp(other)
+    }
+}
+impl PartialOrd<Boxed<Reference>> for Boxed<ExternalReference> {
+    fn partial_cmp(&self, other: &Boxed<Reference>) -> Option<cmp::Ordering> {
+        self.as_ref().partial_cmp(other.as_ref())
     }
 }
 impl PartialOrd<ExternalReference> for ExternalReference {
@@ -94,7 +183,7 @@ impl PartialOrd<ExternalReference> for ExternalReference {
 impl fmt::Debug for ExternalReference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ExternalReference")
-            .field("header", &self.header.as_usize())
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("node", &self.node)
             .field("next", &self.next)
             .field("reference", &self.reference)

@@ -4,6 +4,8 @@ mod rootset;
 mod virtual_heap;
 mod young_heap;
 
+use crate::erts::exception::system::Alloc;
+
 /// Represents the types of errors that can occur during garbage collection.
 ///
 /// See the documentation for each variant to get general advice for how to
@@ -12,7 +14,7 @@ mod young_heap;
 pub enum GcError {
     /// The system is out of memory, and there is not much you can do
     /// but panic, however this choice is left up to the caller
-    AllocErr,
+    Alloc(Alloc),
     /// Occurs when a process is configured with a maximum heap size,
     /// and a projected heap growth is found to exceed the limit. In
     /// this situation the only meaningful thing to do is to kill the

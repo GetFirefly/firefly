@@ -9,17 +9,8 @@ fn without_small_integer_or_big_integer_or_float_returns_true() {
             .run(
                 &(
                     strategy::term::float(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right must not be a integer or float",
-                        |v| {
-                            v.tag() == SmallInteger
-                                || (v.tag() != Boxed || {
-                                    let unboxed_tag = v.unbox_reference::<Term>().tag();
-
-                                    unboxed_tag != Float && unboxed_tag != BigInteger
-                                })
-                        },
-                    ),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Right must not be a number", |v| !v.is_number()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -55,8 +46,11 @@ fn with_same_value_float_right_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &any::<f64>()
-                    .prop_map(|f| (f.into_process(&arc_process), f.into_process(&arc_process))),
+                &any::<f64>().prop_map(|f| {
+                    let mut heap = arc_process.acquire_heap();
+
+                    (heap.float(f).unwrap(), heap.float(f).unwrap())
+                }),
                 |(left, right)| {
                     prop_assert_eq!(
                         erlang::are_not_equal_after_conversion_2(left, right),
@@ -101,10 +95,9 @@ fn with_same_value_small_integer_right_returns_false() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term::small_integer_float_integral_i64().prop_map(|i| {
-                    (
-                        (i as f64).into_process(&arc_process),
-                        i.into_process(&arc_process),
-                    )
+                    let mut heap = arc_process.acquire_heap();
+
+                    (heap.float(i as f64).unwrap(), heap.integer(i).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -125,10 +118,9 @@ fn with_different_value_small_integer_right_returns_true() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term::small_integer_float_integral_i64().prop_map(|i| {
-                    (
-                        (i as f64).into_process(&arc_process),
-                        (i + 1).into_process(&arc_process),
-                    )
+                    let mut heap = arc_process.acquire_heap();
+
+                    (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -151,10 +143,9 @@ fn with_same_value_big_integer_right_returns_false() {
                 TestRunner::new(Config::with_source_file(file!()))
                     .run(
                         &strategy.prop_map(|i| {
-                            (
-                                (i as f64).into_process(&arc_process),
-                                i.into_process(&arc_process),
-                            )
+                            let mut heap = arc_process.acquire_heap();
+
+                            (heap.float(i as f64).unwrap(), heap.integer(i).unwrap())
                         }),
                         |(left, right)| {
                             prop_assert_eq!(
@@ -180,10 +171,9 @@ fn with_different_value_big_integer_right_returns_true() {
                 TestRunner::new(Config::with_source_file(file!()))
                     .run(
                         &strategy.prop_map(|i| {
-                            (
-                                (i as f64).into_process(&arc_process),
-                                (i + 1).into_process(&arc_process),
-                            )
+                            let mut heap = arc_process.acquire_heap();
+
+                            (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
                         }),
                         |(left, right)| {
                             prop_assert_eq!(

@@ -1,6 +1,5 @@
 #![no_std]
 #![feature(test)]
-#![feature(alloc)]
 #![feature(dropck_eyepatch)]
 #![feature(core_intrinsics)]
 #![feature(raw_vec_internals)]

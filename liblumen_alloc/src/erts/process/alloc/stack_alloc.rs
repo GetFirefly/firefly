@@ -1,13 +1,14 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::ops::DerefMut;
 use core::ptr::NonNull;
 
+use crate::erts::exception::system::Alloc;
 use crate::erts::{self, Term};
 
 pub trait StackAlloc {
     /// Perform a stack allocation of `size` words to hold a single term.
     ///
-    /// Returns `Err(AllocErr)` if there is not enough space available
+    /// Returns `Err(Alloc)` if there is not enough space available
     ///
     /// NOTE: Do not use this to allocate space for multiple terms (lists
     /// and boxes count as a single term), as the size of the stack in terms
@@ -15,7 +16,7 @@ pub trait StackAlloc {
     /// size is incremented by 1, and this enables efficient implementations
     /// of the other stack manipulation functions as the stack size in terms
     /// does not have to be recalculated constantly.
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr>;
+    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, Alloc>;
 
     /// Same as `alloca`, but does not validate that there is enough available space,
     /// as it is assumed that the caller has already validated those invariants
@@ -24,7 +25,7 @@ pub trait StackAlloc {
     }
 
     /// Perform a stack allocation, but with a `Layout`
-    unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
         let need = erts::to_word_size(layout.size());
         self.alloca(need)
     }
@@ -42,7 +43,7 @@ where
     S: DerefMut<Target = A>,
 {
     #[inline]
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
         self.deref_mut().alloca(need)
     }
 
@@ -52,7 +53,7 @@ where
     }
 
     #[inline]
-    unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
         self.deref_mut().alloca_layout(layout)
     }
 

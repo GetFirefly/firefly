@@ -14,7 +14,7 @@ use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::{SizeClass, SizeClassIndex};
 use liblumen_core::locks::RwLock;
 
-use crate::blocks::ThreadSafeBlockBitSet;
+use crate::blocks::ThreadSafeBlockBitSubset;
 use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{SlabCarrier, SlabCarrierList};
 
@@ -24,6 +24,13 @@ pub struct SizeClassAlloc {
     carriers: Box<[RwLock<SlabCarrierList>]>,
 }
 impl SizeClassAlloc {
+    pub fn can_fit_multiple_blocks(size_class: &SizeClass) -> bool {
+        SlabCarrier::<LinkedListLink, ThreadSafeBlockBitSubset>::can_fit_multiple_blocks(
+            SUPERALIGNED_CARRIER_SIZE,
+            size_class,
+        )
+    }
+
     pub fn new(size_classes: &[SizeClass]) -> Self {
         // Initialize to default set of empty slab lists
         let mut carriers = Vec::with_capacity(size_classes.len());
@@ -34,6 +41,12 @@ impl SizeClassAlloc {
         let max_size_class = size_classes[num_classes - 1].clone();
         for size_class in size_classes.iter() {
             let mut list = SlabCarrierList::default();
+            assert!(
+                Self::can_fit_multiple_blocks(size_class),
+                "SizeClass ({:?}) does not fit multiple times in SUPERALIGNED_CARRIER_SIZE ({:?} bytes)",
+                size_class,
+                SUPERALIGNED_CARRIER_SIZE
+            );
             let slab = unsafe { Self::create_carrier(*size_class).unwrap() };
             list.push_front(unsafe { UnsafeRef::from_raw(slab) });
             carriers.push(RwLock::new(list));
@@ -136,7 +149,7 @@ impl SizeClassAlloc {
         // Since the slabs are super-aligned, we can mask off the low
         // bits of the given pointer to find our carrier
         let carrier_ptr = superalign_down(raw as usize)
-            as *mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSet>;
+            as *mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>;
         let carrier = &mut *carrier_ptr;
         carrier.free_block(raw);
     }
@@ -150,8 +163,9 @@ impl SizeClassAlloc {
     /// allocator, or it will not be used, and will not be freed
     unsafe fn create_carrier(
         size_class: SizeClass,
-    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSet>, AllocErr> {
+    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
         let size = SUPERALIGNED_CARRIER_SIZE;
+        assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
         // Allocate raw memory for carrier
         let ptr = mmap::map(carrier_layout)?;

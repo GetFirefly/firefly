@@ -13,13 +13,13 @@ fn without_atom_errors_badarg() {
             .run(
                 &(
                     strategy::term::is_not_non_negative_integer(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_map(move |abs| options(abs, &options_arc_process))
                         .boxed(),
                 ),
                 |(time, message, options)| {
-                    let destination = arc_process.pid;
+                    let destination = arc_process.pid_term();
 
                     prop_assert_eq!(
                         erlang::start_timer_4(
@@ -29,7 +29,7 @@ fn without_atom_errors_badarg() {
                             options,
                             arc_process.clone()
                         ),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -39,13 +39,13 @@ fn without_atom_errors_badarg() {
     });
 }
 
-fn options(abs: Term, process: &Process) -> Term {
-    Term::cons(
-        Term::slice_to_tuple(
-            &[Term::str_to_atom("abs", DoNotCare).unwrap(), abs],
-            process,
-        ),
-        Term::EMPTY_LIST,
-        process,
-    )
+fn options(abs: Term, process: &ProcessControlBlock) -> Term {
+    process
+        .cons(
+            process
+                .tuple_from_slice(&[atom_unchecked("abs"), abs])
+                .unwrap(),
+            Term::NIL,
+        )
+        .unwrap()
 }

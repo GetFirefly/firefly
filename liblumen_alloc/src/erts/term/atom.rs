@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use core::cmp;
+use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display, Write};
 use core::mem;
 use core::ptr;
@@ -10,9 +11,10 @@ use hashbrown::HashMap;
 use lazy_static::lazy_static;
 
 use liblumen_arena::DroplessArena;
+
 use liblumen_core::locks::RwLock;
 
-use super::{AsTerm, Term};
+use super::{AsTerm, Term, TypeError, TypedTerm};
 
 /// The maximum number of atoms allowed
 ///
@@ -31,7 +33,7 @@ lazy_static! {
 /// An interned string, represented in memory as a tagged integer id.
 ///
 /// This struct contains the untagged id
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Atom(usize);
 impl Atom {
@@ -73,7 +75,7 @@ impl Atom {
         if let Some(id) = ATOMS.read().get_id(name) {
             return Ok(Atom(id));
         }
-        let id = ATOMS.write().insert(name)?;
+        let id = ATOMS.write().get_id_or_insert(name)?;
         Ok(Atom(id))
     }
 
@@ -149,6 +151,25 @@ impl Ord for Atom {
     }
 }
 
+impl TryFrom<Term> for Atom {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryFrom<TypedTerm> for Atom {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Atom(atom) => Ok(atom),
+            _ => Err(TypeError),
+        }
+    }
+}
+
 /// Produced by operations which create atoms
 #[derive(Debug)]
 pub struct AtomError(AtomErrorKind);
@@ -212,27 +233,39 @@ impl AtomTable {
         self.names.get(id).cloned()
     }
 
-    fn insert(&mut self, name: &str) -> Result<usize, AtomError> {
-        let name = unsafe { as_static(name) };
+    fn get_id_or_insert(&mut self, name: &str) -> Result<usize, AtomError> {
+        match self.get_id(name) {
+            Some(existing_id) => Ok(existing_id),
+            None => unsafe { self.insert(name) },
+        }
+    }
+
+    // Unsafe because `name` should already have been checked as not existing while holding a
+    // `mut reference`.
+    unsafe fn insert(&mut self, name: &str) -> Result<usize, AtomError> {
         let id = self.names.len();
         if id > MAX_ATOMS {
             return Err(AtomError(AtomErrorKind::TooManyAtoms));
         }
-        let names = &mut self.names;
-        let arena = &mut self.arena;
-        Ok(*self.ids.entry(name).or_insert_with(|| {
-            let size = name.len();
+
+        let size = name.len();
+
+        let s = if size > 0 {
             // Copy string into arena
-            let s = unsafe {
-                let ptr = arena.alloc_raw(size, mem::align_of::<u8>());
-                ptr::copy_nonoverlapping(name as *const _ as *const u8, ptr, size);
-                let bytes = slice::from_raw_parts(ptr, size);
-                str::from_utf8_unchecked(bytes)
-            };
-            // Push into id map
-            names.push(s);
-            id
-        }))
+            let ptr = self.arena.alloc_raw(size, mem::align_of::<u8>());
+            ptr::copy_nonoverlapping(name as *const _ as *const u8, ptr, size);
+            let bytes = slice::from_raw_parts(ptr, size);
+
+            str::from_utf8_unchecked(bytes)
+        } else {
+            ""
+        };
+
+        // Push into id map
+        self.ids.insert(s, id);
+        self.names.push(s);
+
+        Ok(id)
     }
 }
 impl Default for AtomTable {
@@ -246,7 +279,57 @@ impl Default for AtomTable {
 /// `RwLock`, but it is _not_ `Sync` in general, so don't try and use it as such in other situations
 unsafe impl Sync for AtomTable {}
 
-#[inline]
-unsafe fn as_static<'a>(s: &'a str) -> &'static str {
-    mem::transmute::<&'a str, &'static str>(s)
+pub enum Encoding {
+    Latin1,
+    Unicode,
+    Utf8,
+}
+
+impl TryFrom<Term> for Encoding {
+    type Error = EncodingError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        match term.to_typed_term().unwrap() {
+            TypedTerm::Atom(atom) => {
+                let unicode_atom = Atom::try_from_str("unicode").unwrap();
+
+                if atom == unicode_atom {
+                    Ok(Encoding::Unicode)
+                } else {
+                    let utf8_atom = Atom::try_from_str("utf8").unwrap();
+
+                    if atom == utf8_atom {
+                        Ok(Encoding::Utf8)
+                    } else {
+                        let latin1_atom = Atom::try_from_str("latin1").unwrap();
+
+                        if atom == latin1_atom {
+                            Ok(Encoding::Latin1)
+                        } else {
+                            Err(EncodingError::NotAnEncodingName(term))
+                        }
+                    }
+                }
+            }
+            _ => Err(EncodingError::NotAnAtom(term)),
+        }
+    }
+}
+
+pub enum EncodingError {
+    NotAnAtom(Term),
+    NotAnEncodingName(Term),
+}
+
+impl Display for EncodingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            EncodingError::NotAnAtom(term) => write!(f, "Encoding ({:#?}) is not an atom", term),
+            EncodingError::NotAnEncodingName(term) => write!(
+                f,
+                "Encoding atom ({:#?}) is not one of the supported values (latin1, unicode, or utf8)",
+                term
+            ),
+        }
+    }
 }

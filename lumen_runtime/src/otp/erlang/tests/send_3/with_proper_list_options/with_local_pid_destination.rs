@@ -12,11 +12,11 @@ fn without_process_errors_badarg() {
                     valid_options(arc_process.clone()),
                 ),
                 |(message, options)| {
-                    let destination = process::identifier::local::next();
+                    let destination = next_pid();
 
                     prop_assert_eq!(
                         erlang::send_3(destination, message, options, &arc_process),
-                        Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+                        Ok(atom_unchecked("ok"))
                     );
 
                     Ok(())
@@ -36,11 +36,11 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_ok() {
                     valid_options(arc_process.clone()),
                 ),
                 |(message, options)| {
-                    let destination = arc_process.pid;
+                    let destination = arc_process.pid_term();
 
                     prop_assert_eq!(
                         erlang::send_3(destination, message, options, &arc_process),
-                        Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+                        Ok(atom_unchecked("ok"))
                     );
 
                     prop_assert!(has_process_message(&arc_process, message));

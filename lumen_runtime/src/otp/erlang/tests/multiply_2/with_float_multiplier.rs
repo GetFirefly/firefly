@@ -12,7 +12,7 @@ fn without_number_multiplicand_errors_badarith() {
                 |(multiplier, multiplicand)| {
                     prop_assert_eq!(
                         erlang::multiply_2(multiplier, multiplicand, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -38,11 +38,7 @@ fn with_number_multiplicand_returns_float() {
 
                     let product = result.unwrap();
 
-                    prop_assert_eq!(product.tag(), Boxed);
-
-                    let unboxed_product: &Term = product.unbox_reference();
-
-                    prop_assert_eq!(unboxed_product.tag(), Float);
+                    prop_assert!(product.is_float());
 
                     Ok(())
                 },
@@ -54,11 +50,11 @@ fn with_number_multiplicand_returns_float() {
 #[test]
 fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
     with(|multiplier, process| {
-        let multiplicand = 3.0.into_process(&process);
+        let multiplicand = process.float(3.0).unwrap();
 
         assert_eq!(
             erlang::multiply_2(multiplier, multiplicand, &process),
-            Ok(6.0.into_process(&process))
+            Ok(process.float(6.0).unwrap())
         );
     })
 }
@@ -66,11 +62,11 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 #[test]
 fn with_float_multiplicand_with_underflow_returns_min_float() {
     with(|multiplier, process| {
-        let multiplicand = std::f64::MIN.into_process(&process);
+        let multiplicand = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
             erlang::multiply_2(multiplier, multiplicand, &process),
-            Ok(std::f64::MIN.into_process(&process))
+            Ok(process.float(std::f64::MIN).unwrap())
         );
     })
 }
@@ -78,21 +74,21 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
 #[test]
 fn with_float_multiplicand_with_overflow_returns_max_float() {
     with(|multiplier, process| {
-        let multiplicand = std::f64::MAX.into_process(&process);
+        let multiplicand = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
             erlang::multiply_2(multiplier, multiplicand, &process),
-            Ok(std::f64::MAX.into_process(&process))
+            Ok(process.float(std::f64::MAX).unwrap())
         );
     })
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let multiplier = 2.0.into_process(&process);
+        let multiplier = process.float(2.0).unwrap();
 
         f(multiplier, &process)
     })

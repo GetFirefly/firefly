@@ -10,17 +10,17 @@ fn errors_badarg() {
                 (
                     Just(milliseconds),
                     Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process),
+                    strategy::term(arc_process),
                 )
             }),
             |(milliseconds, arc_process, message)| {
-                let time = milliseconds.into_process(&arc_process);
+                let time = arc_process.integer(milliseconds).unwrap();
                 let destination = registered_name();
                 let options = options(&arc_process);
 
                 prop_assert_eq!(
                     erlang::send_after_4(time, destination, message, options, arc_process.clone()),
-                    Err(badarg!())
+                    Err(badarg!().into())
                 );
 
                 Ok(())

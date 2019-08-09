@@ -1,135 +1,118 @@
+use core::convert::TryInto;
+use core::result::Result;
+
 use num_bigint::BigInt;
 
-use crate::integer::big;
-use crate::list::Cons;
-use crate::term::{Tag::*, Term};
-use crate::tuple::Tuple;
+use liblumen_alloc::erts::term::{list, Atom, Boxed, Cons, Term, Tuple, TypedTerm};
 
 pub fn is(term: Term) -> bool {
-    match term.tag() {
-        EmptyList => true,
-        List => {
-            let cons: &Cons = unsafe { term.as_ref_cons_unchecked() };
-
-            cons.into_iter().all(|result| match result {
-                Ok(term) => term_is_item(term),
-                Err(_) => false,
-            })
-        }
+    match term.to_typed_term().unwrap() {
+        TypedTerm::Nil => true,
+        TypedTerm::List(cons) => cons.into_iter().all(|result| match result {
+            Ok(term) => term_is_item(term),
+            Err(_) => false,
+        }),
         _ => false,
     }
 }
 
 fn term_is_location(term: Term) -> bool {
-    match term.tag() {
-        EmptyList => true,
-        List => {
-            let cons: &Cons = unsafe { term.as_ref_cons_unchecked() };
-
-            cons.into_iter().all(|result| match result {
-                Ok(term) => term_is_location_keyword_pair(term),
-                Err(_) => false,
-            })
-        }
+    match term.to_typed_term().unwrap() {
+        TypedTerm::Nil => true,
+        TypedTerm::List(cons) => cons.into_iter().all(|result| match result {
+            Ok(term) => term_is_location_keyword_pair(term),
+            Err(_) => false,
+        }),
         _ => false,
     }
 }
 
 fn term_is_location_keyword_pair(term: Term) -> bool {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
+    let result: Result<Boxed<Tuple>, _> = term.try_into();
 
-            match unboxed.tag() {
-                Arity => {
-                    let tuple: &Tuple = term.unbox_reference();
-
-                    tuple_is_location_keyword_pair(tuple)
-                }
-                _ => false,
-            }
-        }
-        _ => false,
+    match result {
+        Ok(tuple) => tuple_is_location_keyword_pair(tuple),
+        Err(_) => false,
     }
 }
 
-fn tuple_is_location_keyword_pair(tuple: &Tuple) -> bool {
+fn tuple_is_location_keyword_pair(tuple: Boxed<Tuple>) -> bool {
     (tuple.len() == 2) && {
-        let first_element = tuple[0];
+        let atom_result: Result<Atom, _> = tuple[0].try_into();
 
-        match first_element.tag() {
-            Atom => match unsafe { first_element.atom_to_string() }.as_ref().as_ref() {
+        match atom_result {
+            Ok(atom) => match atom.name() {
                 "file" => is_file(tuple[1]),
                 "line" => is_line(tuple[1]),
                 _ => false,
             },
-            _ => false,
+            Err(_) => false,
         }
     }
 }
 
 fn is_file(term: Term) -> bool {
-    term.is_char_list()
+    is_charlist(term)
+}
+
+fn is_charlist(term: Term) -> bool {
+    match term.try_into() {
+        Ok(list) => match list {
+            list::List::Empty => true,
+            list::List::NonEmpty(cons) => cons_is_charlist(cons),
+        },
+        Err(_) => false,
+    }
+}
+
+fn cons_is_charlist(cons: Boxed<Cons>) -> bool {
+    cons.into_iter().all(|result| match result {
+        Ok(term) => {
+            let result: Result<char, _> = term.try_into();
+            result.is_ok()
+        }
+        Err(_) => false,
+    })
 }
 
 fn is_line(term: Term) -> bool {
-    match term.tag() {
-        SmallInteger => 0 < unsafe { term.small_integer_to_isize() },
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
+    match term.to_typed_term().unwrap() {
+        TypedTerm::SmallInteger(small_integer) => 0_isize < small_integer.into(),
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::BigInteger(big_integer) => {
+                let big_int: &BigInt = big_integer.as_ref().into();
+                let zero_big_int: &BigInt = &0.into();
 
-            match unboxed.tag() {
-                BigInteger => {
-                    let big_integer: &big::Integer = term.unbox_reference();
-                    let big_int = &big_integer.inner;
-                    let zero_big_int: &BigInt = &0.into();
-
-                    zero_big_int < big_int
-                }
-                _ => false,
+                zero_big_int < big_int
             }
-        }
+            _ => false,
+        },
 
         _ => false,
     }
 }
 
 fn term_is_item(term: Term) -> bool {
-    match term.tag() {
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
-
-            match unboxed.tag() {
-                Arity => {
-                    let tuple: &Tuple = term.unbox_reference();
-
-                    tuple_is_item(tuple)
-                }
-                _ => false,
-            }
-        }
-        _ => false,
+    match term.try_into() {
+        Ok(tuple) => tuple_is_item(tuple),
+        Err(_) => false,
     }
 }
 
-fn tuple_is_item(tuple: &Tuple) -> bool {
+fn tuple_is_item(tuple: Boxed<Tuple>) -> bool {
     match tuple.len() {
         // {function, args}
         // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1107-L1114
-        2 => tuple[0].is_function(),
+        2 => tuple[0].is_closure(),
         // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1115-L1128
         3 => {
             let first_element = tuple[0];
 
-            match first_element.tag() {
+            match first_element.to_typed_term().unwrap() {
                 // {M, F, arity | args}
-                Atom => tuple[1].is_atom() && is_arity_or_arguments(tuple[2]),
+                TypedTerm::Atom(_) => tuple[1].is_atom() && is_arity_or_arguments(tuple[2]),
                 // {function, args, location}
-                Boxed => {
-                    let unboxed: &Term = first_element.unbox_reference();
-
-                    (unboxed.tag() == Function) && term_is_location(tuple[2])
-                }
+                TypedTerm::Boxed(boxed) => boxed.is_closure() && term_is_location(tuple[2]),
                 _ => false,
             }
         }
@@ -137,39 +120,34 @@ fn tuple_is_item(tuple: &Tuple) -> bool {
         4 => {
             // {M, F, arity | args, location}
             tuple[0].is_atom()
-                && tuple[1].is_atom()
-                && is_arity_or_arguments(tuple[2])
-                && term_is_location(tuple[3])
+                & tuple[1].is_atom()
+                & is_arity_or_arguments(tuple[2])
+                & term_is_location(tuple[3])
         }
         _ => false,
     }
 }
 
 fn is_arity_or_arguments(term: Term) -> bool {
-    match term.tag() {
+    match term.to_typed_term().unwrap() {
         // args
-        EmptyList | List => true,
+        TypedTerm::Nil | TypedTerm::List(_) => true,
         // arity
-        SmallInteger => {
-            let arity = unsafe { term.small_integer_to_isize() };
+        TypedTerm::SmallInteger(small_integer) => {
+            let arity: isize = small_integer.into();
 
             0 <= arity
         }
         // arity
-        Boxed => {
-            let unboxed: &Term = term.unbox_reference();
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::BigInteger(big_integer) => {
+                let big_int = big_integer.as_ref().into();
+                let zero_big_int: &BigInt = &0.into();
 
-            match unboxed.tag() {
-                BigInteger => {
-                    let big_integer: &big::Integer = term.unbox_reference();
-                    let big_int = &big_integer.inner;
-                    let zero_big_int: &BigInt = &0.into();
-
-                    zero_big_int <= big_int
-                }
-                _ => false,
+                zero_big_int <= big_int
             }
-        }
+            _ => false,
+        },
         _ => false,
     }
 }

@@ -4,6 +4,8 @@ mod small;
 pub use big::*;
 pub use small::*;
 
+use num_bigint::{BigInt, Sign};
+
 use core::cmp::Ordering;
 use core::convert::TryInto;
 use core::fmt::{self, Debug, Display};
@@ -81,6 +83,29 @@ impl Integer {
         }
     }
 }
+impl From<BigInt> for Integer {
+    #[inline]
+    fn from(big_int: BigInt) -> Self {
+        let small_min_big_int: BigInt = SmallInteger::MIN_VALUE.into();
+        let small_max_big_int: BigInt = SmallInteger::MAX_VALUE.into();
+
+        if (small_min_big_int <= big_int) && (big_int <= small_max_big_int) {
+            let (sign, bytes) = big_int.to_bytes_be();
+            let small_usize = bytes
+                .iter()
+                .fold(0_usize, |acc, byte| (acc << 8) | (*byte as usize));
+
+            let small_isize = match sign {
+                Sign::Minus => -1 * (small_usize as isize),
+                _ => small_usize as isize,
+            };
+
+            Integer::Small(SmallInteger(small_isize))
+        } else {
+            Integer::Big(BigInteger::new(big_int))
+        }
+    }
+}
 impl From<BigInteger> for Integer {
     #[inline]
     fn from(i: BigInteger) -> Self {
@@ -91,6 +116,27 @@ impl From<SmallInteger> for Integer {
     #[inline]
     fn from(i: SmallInteger) -> Self {
         Self::Small(i)
+    }
+}
+impl From<char> for Integer {
+    #[inline]
+    fn from(c: char) -> Integer {
+        (c as usize).into()
+    }
+}
+impl From<u8> for Integer {
+    fn from(n: u8) -> Integer {
+        Integer::Small(unsafe { SmallInteger::new_unchecked(n as isize) })
+    }
+}
+impl From<u64> for Integer {
+    fn from(n: u64) -> Integer {
+        let ni: Result<isize, _> = n.try_into();
+        match ni {
+            Err(_) => Integer::Big(n.into()),
+            Ok(n) if n > SmallInteger::MAX_VALUE => Integer::Big(n.into()),
+            Ok(n) => Integer::Small(unsafe { SmallInteger::new_unchecked(n) }),
+        }
     }
 }
 impl From<usize> for Integer {
@@ -104,14 +150,24 @@ impl From<usize> for Integer {
         }
     }
 }
+impl From<i32> for Integer {
+    fn from(n: i32) -> Integer {
+        (n as i64).into()
+    }
+}
+impl From<i64> for Integer {
+    fn from(n: i64) -> Integer {
+        if (SmallInteger::MIN_VALUE as i64) <= n && n <= (SmallInteger::MAX_VALUE as i64) {
+            Integer::Small(unsafe { SmallInteger::new_unchecked(n as isize) })
+        } else {
+            Integer::Big(n.into())
+        }
+    }
+}
 impl From<isize> for Integer {
     #[inline]
     fn from(n: isize) -> Integer {
-        if n > SmallInteger::MAX_VALUE || n < SmallInteger::MIN_VALUE {
-            Integer::Big(n.into())
-        } else {
-            Integer::Small(unsafe { SmallInteger::new_unchecked(n) })
-        }
+        (n as i64).into()
     }
 }
 

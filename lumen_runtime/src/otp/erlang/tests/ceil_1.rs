@@ -8,7 +8,7 @@ fn without_number_errors_badarg() {
             .run(
                 &strategy::term::is_not_number(arc_process.clone()),
                 |number| {
-                    prop_assert_eq!(erlang::ceil_1(number, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(erlang::ceil_1(number, &arc_process), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -43,7 +43,8 @@ fn with_float_round_up_to_next_integer() {
 
                 prop_assert!(result_term.is_integer());
 
-                let number_f64: f64 = number.unbox_reference::<Float>().inner;
+                let number_float: Float = number.try_into().unwrap();
+                let number_f64: f64 = number_float.into();
 
                 if number_f64.fract() == 0.0 {
                     // f64::to_string() has no decimal point when there is no `fract`.

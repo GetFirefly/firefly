@@ -15,7 +15,10 @@ fn without_atom_or_integer_errors_badarg() {
                         !(unit.is_integer() || unit.is_atom())
                     }),
                 |unit| {
-                    prop_assert_eq!(erlang::monotonic_time_1(unit, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::monotonic_time_1(unit, &arc_process),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -26,7 +29,7 @@ fn without_atom_or_integer_errors_badarg() {
 
 fn errors_badarg<U>(unit: U)
 where
-    U: FnOnce(&Process) -> Term,
+    U: FnOnce(&ProcessControlBlock) -> Term,
 {
     super::errors_badarg(|process| erlang::monotonic_time_1(unit(&process), process));
 }

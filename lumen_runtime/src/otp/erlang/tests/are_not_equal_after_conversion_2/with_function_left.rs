@@ -2,8 +2,6 @@ use super::*;
 
 use proptest::strategy::Strategy;
 
-use crate::process::ModuleFunctionArity;
-
 #[test]
 fn without_function_right_returns_true() {
     with_process_arc(|arc_process| {
@@ -12,7 +10,7 @@ fn without_function_right_returns_true() {
                 &(
                     strategy::term::function(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be function", |v| !v.is_function()),
+                        .prop_filter("Right must not be function", |v| !v.is_closure()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(
@@ -49,28 +47,35 @@ fn with_same_value_function_right_returns_false() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::function::module(),
-                    strategy::term::function::function(),
-                    strategy::term::function::arity_usize(),
+                    strategy::module_function_arity::module(),
+                    strategy::module_function_arity::function(),
+                    strategy::module_function_arity::arity(),
                 )
-                    .prop_map(move |(module, function, arity_usize)| {
-                        let code = |arc_process: &Arc<Process>| arc_process.wait();
+                    .prop_map(move |(module, function, arity)| {
+                        let code = |arc_process: &Arc<ProcessControlBlock>| {
+                            arc_process.wait();
+
+                            Ok(())
+                        };
+                        let creator = unsafe { arc_process.pid().as_term() };
 
                         let left_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
                             function,
-                            arity: arity_usize,
+                            arity,
                         });
-                        let left_term =
-                            Term::function(left_module_function_arity, code, &arc_process);
+                        let left_term = arc_process
+                            .closure(creator, left_module_function_arity, code)
+                            .unwrap();
 
                         let right_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
                             function,
-                            arity: arity_usize,
+                            arity,
                         });
-                        let right_term =
-                            Term::function(right_module_function_arity, code, &arc_process);
+                        let right_term = arc_process
+                            .closure(creator, right_module_function_arity, code)
+                            .unwrap();
 
                         (left_term, right_term)
                     }),
@@ -93,28 +98,40 @@ fn with_different_function_right_returns_true() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::function::module(),
-                    strategy::term::function::function(),
-                    strategy::term::function::arity_usize(),
+                    strategy::module_function_arity::module(),
+                    strategy::module_function_arity::function(),
+                    strategy::module_function_arity::arity(),
                 )
-                    .prop_map(move |(module, function, arity_usize)| {
+                    .prop_map(move |(module, function, arity)| {
+                        let creator = unsafe { arc_process.pid().as_term() };
+
                         let left_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
                             function,
-                            arity: arity_usize,
+                            arity,
                         });
-                        let left_code = |arc_process: &Arc<Process>| arc_process.wait();
-                        let left_term =
-                            Term::function(left_module_function_arity, left_code, &arc_process);
+                        let left_code = |arc_process: &Arc<ProcessControlBlock>| {
+                            arc_process.wait();
+
+                            Ok(())
+                        };
+                        let left_term = arc_process
+                            .closure(creator, left_module_function_arity, left_code)
+                            .unwrap();
 
                         let right_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
                             function,
-                            arity: arity_usize,
+                            arity,
                         });
-                        let right_code = |arc_process: &Arc<Process>| arc_process.wait();
-                        let right_term =
-                            Term::function(right_module_function_arity, right_code, &arc_process);
+                        let right_code = |arc_process: &Arc<ProcessControlBlock>| {
+                            arc_process.wait();
+
+                            Ok(())
+                        };
+                        let right_term = arc_process
+                            .closure(creator, right_module_function_arity, right_code)
+                            .unwrap();
 
                         (left_term, right_term)
                     }),

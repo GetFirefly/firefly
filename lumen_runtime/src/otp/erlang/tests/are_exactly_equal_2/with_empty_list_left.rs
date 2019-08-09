@@ -8,9 +8,9 @@ fn without_empty_list_returns_false() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    Just(Term::EMPTY_LIST),
+                    Just(Term::NIL),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be empty list", |v| !v.is_empty_list()),
+                        .prop_filter("Right must not be empty list", |v| !v.is_nil()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
@@ -25,7 +25,7 @@ fn without_empty_list_returns_false() {
 #[test]
 fn with_empty_list_right_returns_true() {
     assert_eq!(
-        erlang::are_exactly_equal_2(Term::EMPTY_LIST, Term::EMPTY_LIST),
+        erlang::are_exactly_equal_2(Term::NIL, Term::NIL),
         true.into()
     );
 }

@@ -2,8 +2,6 @@ use super::*;
 
 use proptest::strategy::Strategy;
 
-use crate::process::IntoProcess;
-
 #[test]
 fn without_bitstring_errors_badarg() {
     with_process_arc(|arc_process| {
@@ -11,7 +9,10 @@ fn without_bitstring_errors_badarg() {
             .run(
                 &strategy::term::is_not_bitstring(arc_process.clone()),
                 |bitstring| {
-                    prop_assert_eq!(erlang::byte_size_1(bitstring, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::byte_size_1(bitstring, &arc_process),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -28,13 +29,13 @@ fn with_heap_binary_is_byte_count() {
                 &strategy::byte_vec().prop_map(|byte_vec| {
                     (
                         byte_vec.len(),
-                        Term::slice_to_binary(&byte_vec, &arc_process),
+                        arc_process.binary_from_bytes(&byte_vec).unwrap(),
                     )
                 }),
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
                         erlang::byte_size_1(bitstring, &arc_process),
-                        Ok(byte_count.into_process(&arc_process))
+                        Ok(arc_process.integer(byte_count).unwrap())
                     );
 
                     Ok(())
@@ -61,7 +62,7 @@ fn with_subbinary_without_bit_count_is_byte_count() {
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
                         erlang::byte_size_1(bitstring, &arc_process),
-                        Ok(byte_count.into_process(&arc_process))
+                        Ok(arc_process.integer(byte_count).unwrap())
                     );
 
                     Ok(())
@@ -91,7 +92,7 @@ fn with_subbinary_with_bit_count_is_byte_count_plus_one() {
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
                         erlang::byte_size_1(bitstring, &arc_process),
-                        Ok((byte_count + 1).into_process(&arc_process))
+                        Ok(arc_process.integer(byte_count + 1).unwrap())
                     );
 
                     Ok(())

@@ -17,7 +17,7 @@ fn without_integer_integer_errors_badarith() {
                 |(integer, shift)| {
                     prop_assert_eq!(
                         erlang::bsl_2(integer, shift, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -39,7 +39,7 @@ fn with_integer_integer_without_integer_shift_errors_badarith() {
                 |(integer, shift)| {
                     prop_assert_eq!(
                         erlang::bsl_2(integer, shift, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -56,7 +56,7 @@ fn with_integer_integer_with_zero_shift_returns_same_integer() {
             .run(
                 &strategy::term::is_integer(arc_process.clone()),
                 |integer| {
-                    let shift = 0.into_process(&arc_process);
+                    let shift = arc_process.integer(0).unwrap();
 
                     prop_assert_eq!(erlang::bsl_2(integer, shift, &arc_process), Ok(integer));
 
@@ -79,12 +79,12 @@ fn with_integer_integer_with_integer_shift_is_the_same_as_bsr_with_negated_shift
                     prop_assert_eq!(
                         erlang::bsl_2(
                             integer,
-                            (shift as isize).into_process(&arc_process),
+                            arc_process.integer(shift as isize).unwrap(),
                             &arc_process
                         ),
                         erlang::bsr_2(
                             integer,
-                            (negated_shift as isize).into_process(&arc_process),
+                            arc_process.integer(negated_shift as isize).unwrap(),
                             &arc_process
                         )
                     );

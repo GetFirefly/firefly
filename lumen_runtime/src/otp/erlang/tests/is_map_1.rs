@@ -15,13 +15,15 @@ fn without_map_returns_false() {
 
 #[test]
 fn with_map_returns_true() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::is_map(arc_process.clone()), |term| {
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process()
+                .prop_flat_map(|arc_process| strategy::term::is_map(arc_process.clone())),
+            |term| {
                 prop_assert_eq!(erlang::is_map_1(term), true.into());
 
                 Ok(())
-            })
-            .unwrap();
-    });
+            },
+        )
+        .unwrap();
 }

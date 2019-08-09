@@ -12,11 +12,11 @@ fn with_small_integer_divisor_returns_small_integer() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::rem_2(
-                            dividend.into_process(&arc_process),
-                            divisor.into_process(&arc_process),
+                            arc_process.integer(dividend).unwrap(),
+                            arc_process.integer(divisor).unwrap(),
                             &arc_process
                         ),
-                        Ok((dividend % divisor).into_process(&arc_process))
+                        Ok(arc_process.integer(dividend % divisor).unwrap())
                     );
 
                     Ok(())
@@ -47,8 +47,8 @@ fn with_big_integer_divisor_returns_dividend() {
 
 fn divisor() -> BoxedStrategy<isize> {
     prop_oneof![
-        (crate::integer::small::MIN..=-1),
-        (1..=crate::integer::small::MAX)
+        (SmallInteger::MIN_VALUE..=-1),
+        (1..=SmallInteger::MAX_VALUE)
     ]
     .boxed()
 }

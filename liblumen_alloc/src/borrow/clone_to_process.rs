@@ -1,7 +1,8 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::mem;
 use core::ptr::NonNull;
 
+use crate::erts::exception::system::Alloc;
 use crate::erts::{self, HeapAlloc, HeapFragment, ProcessControlBlock, Term};
 
 /// This trait represents cloning, like `Clone`, but specifically
@@ -36,14 +37,14 @@ pub trait CloneToProcess {
 
     /// Returns boxed copy of this value, performing any heap allocations
     /// using the given heap. If cloning requires allocation that exceeds
-    /// the amount of memory available, this returns `Err(AllocErr)`, otherwise
+    /// the amount of memory available, this returns `Err(Alloc)`, otherwise
     /// it returns `Ok(Term)`
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr>;
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc>;
 
     /// Returns boxed copy of this value and the heap fragment it was allocated into
     ///
-    /// If unable to allocate a heap fragment that fits this value, `Err(AllocErr)` is returned
-    fn clone_to_fragment(&self) -> Result<(Term, NonNull<HeapFragment>), AllocErr> {
+    /// If unable to allocate a heap fragment that fits this value, `Err(Alloc)` is returned
+    fn clone_to_fragment(&self) -> Result<(Term, NonNull<HeapFragment>), Alloc> {
         let need = self.size_in_words();
         let layout = unsafe {
             let size = need * mem::size_of::<usize>();

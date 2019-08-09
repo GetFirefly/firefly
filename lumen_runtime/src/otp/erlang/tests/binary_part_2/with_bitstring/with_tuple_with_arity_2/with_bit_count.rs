@@ -16,40 +16,38 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                     arc_process.clone(),
                 )
                 .prop_flat_map(|binary| {
-                    let byte_count = binary.unbox_reference::<sub::Binary>().byte_count;
+                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let byte_count = subbinary.full_byte_len();
 
                     // `start` must be 2 less than `byte_count` so that `length` can be at least 1
                     // and still get a full byte
                     (Just(binary), (1..=(byte_count - 2)))
                 })
                 .prop_flat_map(|(binary, start)| {
-                    (
-                        Just(binary),
-                        Just(start),
-                        1..=(binary.unbox_reference::<sub::Binary>().byte_count - start),
-                    )
+                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let byte_count = subbinary.full_byte_len();
+
+                    (Just(binary), Just(start), 1..=(byte_count - start))
                 })
                 .prop_map(|(binary, start, length)| {
+                    let mut heap = arc_process.acquire_heap();
+
                     (
                         binary,
-                        start.into_process(&arc_process),
-                        length.into_process(&arc_process),
+                        heap.integer(start).unwrap(),
+                        heap.integer(length).unwrap(),
                     )
                 }),
                 |(binary, start, length)| {
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     let result = erlang::binary_part_2(binary, start_length, &arc_process);
 
                     prop_assert!(result.is_ok());
 
-                    let returned_boxed = result.unwrap();
+                    let returned = result.unwrap();
 
-                    prop_assert_eq!(returned_boxed.tag(), Boxed);
-
-                    let returned_unboxed: &Term = returned_boxed.unbox_reference();
-
-                    prop_assert_eq!(returned_unboxed.tag(), Subbinary);
+                    prop_assert!(returned.is_subbinary());
 
                     Ok(())
                 },
@@ -71,44 +69,44 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                     arc_process.clone(),
                 )
                 .prop_map(|binary| {
-                    let byte_count = binary.unbox_reference::<sub::Binary>().byte_count;
+                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let byte_count = subbinary.full_byte_len();
+
+                    let mut heap = arc_process.acquire_heap();
 
                     (
                         binary,
-                        byte_count.into_process(&arc_process),
-                        (-(byte_count as isize)).into_process(&arc_process),
+                        heap.integer(byte_count).unwrap(),
+                        heap.integer(-(byte_count as isize)).unwrap(),
                     )
                 }),
                 |(binary, start, length)| {
-                    let expected_returned_binary_bytes: Vec<u8> = binary
-                        .unbox_reference::<sub::Binary>()
-                        .byte_iter()
-                        .collect();
-                    let expected_returned_binary =
-                        Term::slice_to_binary(&expected_returned_binary_bytes, &arc_process);
+                    let subbinary: SubBinary = binary.try_into().unwrap();
 
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let expected_returned_binary_bytes: Vec<u8> =
+                        subbinary.full_byte_iter().collect();
+                    let expected_returned_binary = arc_process
+                        .binary_from_bytes(&expected_returned_binary_bytes)
+                        .unwrap();
+
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
                         Ok(expected_returned_binary)
                     );
 
-                    let returned_boxed =
+                    let returned =
                         erlang::binary_part_2(binary, start_length, &arc_process).unwrap();
 
-                    prop_assert_eq!(returned_boxed.tag(), Boxed);
+                    let returned_subbinary_result: core::result::Result<SubBinary, _> =
+                        returned.try_into();
 
-                    let returned_unboxed: &Term = returned_boxed.unbox_reference();
+                    prop_assert!(returned_subbinary_result.is_ok());
 
-                    prop_assert_eq!(returned_unboxed.tag(), Subbinary);
+                    let returned_subbinary = returned_subbinary_result.unwrap();
 
-                    let returned_subbinary: &sub::Binary = returned_boxed.unbox_reference();
-
-                    prop_assert_eq!(
-                        returned_subbinary.original,
-                        binary.unbox_reference::<sub::Binary>().original
-                    );
+                    prop_assert_eq!(returned_subbinary.original(), subbinary.original());
 
                     Ok(())
                 },
@@ -130,45 +128,43 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
                     arc_process.clone(),
                 )
                 .prop_map(|binary| {
+                    let subbinary: SubBinary = binary.try_into().unwrap();
+
+                    let mut heap = arc_process.acquire_heap();
+
                     (
                         binary,
-                        0.into_process(&arc_process),
-                        binary
-                            .unbox_reference::<sub::Binary>()
-                            .byte_count
-                            .into_process(&arc_process),
+                        heap.integer(0).unwrap(),
+                        heap.integer(subbinary.full_byte_len()).unwrap(),
                     )
                 }),
                 |(binary, start, length)| {
-                    let expected_returned_binary_bytes: Vec<u8> = binary
-                        .unbox_reference::<sub::Binary>()
-                        .byte_iter()
-                        .collect();
-                    let expected_returned_binary =
-                        Term::slice_to_binary(&expected_returned_binary_bytes, &arc_process);
+                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let expected_returned_binary_bytes: Vec<u8> =
+                        subbinary.full_byte_iter().collect();
+                    let expected_returned_binary = arc_process
+                        .binary_from_bytes(&expected_returned_binary_bytes)
+                        .unwrap();
 
-                    let start_length = Term::slice_to_tuple(&[start, length], &arc_process);
+                    let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_part_2(binary, start_length, &arc_process),
                         Ok(expected_returned_binary)
                     );
 
-                    let returned_boxed =
+                    let returned =
                         erlang::binary_part_2(binary, start_length, &arc_process).unwrap();
 
-                    prop_assert_eq!(returned_boxed.tag(), Boxed);
+                    let returned_subbinary_result: core::result::Result<SubBinary, _> =
+                        returned.try_into();
 
-                    let returned_unboxed: &Term = returned_boxed.unbox_reference();
+                    prop_assert!(returned_subbinary_result.is_ok());
 
-                    prop_assert_eq!(returned_unboxed.tag(), Subbinary);
+                    let returned_subbinary = returned_subbinary_result.unwrap();
+                    let subbinary: SubBinary = binary.try_into().unwrap();
 
-                    let returned_subbinary: &sub::Binary = returned_boxed.unbox_reference();
-
-                    prop_assert_eq!(
-                        returned_subbinary.original,
-                        binary.unbox_reference::<sub::Binary>().original
-                    );
+                    prop_assert_eq!(returned_subbinary.original(), subbinary.original());
 
                     Ok(())
                 },

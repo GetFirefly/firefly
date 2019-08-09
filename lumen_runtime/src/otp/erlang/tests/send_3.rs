@@ -13,8 +13,8 @@ fn without_list_options_errors_badarg() {
                 ),
                 |(message, options)| {
                     prop_assert_eq!(
-                        erlang::send_3(arc_process.pid, message, options, &arc_process),
-                        Err(badarg!())
+                        erlang::send_3(arc_process.pid_term(), message, options, &arc_process),
+                        Err(badarg!().into())
                     );
 
                     Ok(())

@@ -1,4 +1,3 @@
-use core::alloc::AllocErr;
 use core::ptr;
 
 use intrusive_collections::UnsafeRef;
@@ -7,8 +6,10 @@ use log::trace;
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
 use super::*;
+use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc;
 use crate::erts::process::ProcessHeap;
+use crate::erts::term::{is_move_marker, ProcBin};
 use crate::erts::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -130,7 +131,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
             .flags
             .clear(ProcessFlag::GrowHeap | ProcessFlag::NeedFullSweep);
         // Allocate new heap
-        let new_heap_start = alloc::heap(new_size).map_err(|_| GcError::AllocErr)?;
+        let new_heap_start = alloc::heap(new_size).map_err(|alloc| GcError::Alloc(alloc))?;
         let mut new_heap = YoungHeap::new(new_heap_start, new_size);
         // Follow roots and copy values to appropriate heaps
         unsafe {
@@ -166,7 +167,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                             new_heap.move_into(root, ptr, boxed);
                         }
                     }
-                } else if term.is_list() {
+                } else if term.is_non_empty_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
@@ -284,7 +285,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
 
         // Allocate an old heap if we don't have one and one is needed
         self.ensure_old_heap(size_before, mature_size)
-            .map_err(|_| GcError::AllocErr)?;
+            .map_err(|alloc| GcError::Alloc(alloc))?;
 
         // Do a minor collection if there is an old heap and it is large enough
         if self.heap.old.active() && mature_size > self.heap.old.heap_available() {
@@ -358,10 +359,10 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
         new_size: usize,
     ) -> Result<(), GcError> {
         let old_top = self.heap.old.heap_pointer();
-        let mature_end = mature.offset(mature_size as isize);
+        let mature_end = mature.add(mature_size);
 
         // Allocate new tospace (young generation)
-        let new_young_start = alloc::heap(new_size).map_err(|_| GcError::AllocErr)?;
+        let new_young_start = alloc::heap(new_size).map_err(|alloc| GcError::Alloc(alloc))?;
         let mut new_young = YoungHeap::new(new_young_start, new_size);
 
         // Follow roots and copy values to appropriate heaps
@@ -412,7 +413,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                         new_young.move_into(root, ptr, boxed);
                     }
                 }
-            } else if term.is_list() {
+            } else if term.is_non_empty_list() {
                 let ptr = term.list_val();
                 let cons = *ptr;
                 if cons.is_move_marker() {
@@ -496,7 +497,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
 
     /// Ensures the old heap is initialized, if required
     #[inline]
-    fn ensure_old_heap(&mut self, size_before: usize, mature_size: usize) -> Result<(), AllocErr> {
+    fn ensure_old_heap(&mut self, size_before: usize, mature_size: usize) -> Result<(), Alloc> {
         if !self.heap.old.active() && mature_size > 0 {
             let size = alloc::next_heap_size(size_before);
             let start = alloc::heap(size)?;

@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_port_or_pid_returns_second() {
     with_process_arc(|arc_process| {
@@ -9,17 +7,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_second() {
             .run(
                 &(
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Second must be number, atom, reference, function, port, or pid",
-                        |second| {
-                            second.is_number()
-                                || second.is_atom()
-                                || second.is_reference()
-                                || second.is_function()
-                                || second.is_port()
-                                || second.is_pid()
-                        },
-                    ),
+                    strategy::term::number_atom_reference_function_port_or_pid(arc_process.clone()),
                 ),
                 |(first, second)| {
                     prop_assert_eq!(erlang::min_2(first, second), second);
@@ -34,7 +22,11 @@ fn with_number_atom_reference_function_port_or_pid_returns_second() {
 #[test]
 fn with_smaller_tuple_second_returns_second() {
     min(
-        |_, process| Term::slice_to_tuple(&[1.into_process(&process)], &process),
+        |_, process| {
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap()])
+                .unwrap()
+        },
         Second,
     );
 }
@@ -43,10 +35,9 @@ fn with_smaller_tuple_second_returns_second() {
 fn with_same_size_tuple_with_lesser_elements_returns_second() {
     min(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 1.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(1).unwrap()])
+                .unwrap()
         },
         Second,
     );
@@ -61,10 +52,9 @@ fn with_same_tuple_returns_first() {
 fn with_same_value_tuple_returns_first() {
     min(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 2.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap()])
+                .unwrap()
         },
         First,
     );
@@ -74,10 +64,9 @@ fn with_same_value_tuple_returns_first() {
 fn with_same_size_tuple_with_greater_elements_returns_first() {
     min(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 3.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(3).unwrap()])
+                .unwrap()
         },
         First,
     );
@@ -87,14 +76,13 @@ fn with_same_size_tuple_with_greater_elements_returns_first() {
 fn with_greater_size_tuple_returns_first() {
     min(
         |_, process| {
-            Term::slice_to_tuple(
-                &[
-                    1.into_process(&process),
-                    2.into_process(&process),
-                    3.into_process(&process),
-                ],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[
+                    process.integer(1).unwrap(),
+                    process.integer(2).unwrap(),
+                    process.integer(3).unwrap(),
+                ])
+                .unwrap()
         },
         First,
     );
@@ -102,36 +90,32 @@ fn with_greater_size_tuple_returns_first() {
 
 #[test]
 fn with_map_list_or_bitstring_second_returns_first() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Second must be map, list, or bitstring", |second| {
-                            second.is_map() || second.is_list() || second.is_bitstring()
-                        }),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(erlang::min_2(first, second), first);
+                    strategy::term::map_list_or_bitstring(arc_process.clone()),
+                )
+            }),
+            |(first, second)| {
+                prop_assert_eq!(erlang::min_2(first, second), first);
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::min(
         |process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 2.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap()])
+                .unwrap()
         },
         second,
         which,

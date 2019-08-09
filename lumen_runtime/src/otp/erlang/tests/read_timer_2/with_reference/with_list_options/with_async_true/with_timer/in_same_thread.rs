@@ -9,7 +9,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         let half_milliseconds = milliseconds / 2;
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
-        timer::timeout();
+        timer::timeout().unwrap();
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -17,51 +17,43 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         assert_eq!(
             erlang::read_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
 
         let first_received_message = receive_message(process).unwrap();
 
-        assert_eq!(first_received_message.tag(), Boxed);
+        let first_received_tuple_result: core::result::Result<Boxed<Tuple>, _> =
+            first_received_message.try_into();
 
-        let unboxed_first_received_message: &Term = first_received_message.unbox_reference();
+        assert!(first_received_tuple_result.is_ok());
 
-        assert_eq!(unboxed_first_received_message.tag(), Arity);
+        let first_received_tuple = first_received_tuple_result.unwrap();
 
-        let first_received_tuple: &Tuple = first_received_message.unbox_reference();
-
-        assert_eq!(
-            first_received_tuple[0],
-            Term::str_to_atom("read_timer", DoNotCare).unwrap()
-        );
+        assert_eq!(first_received_tuple[0], atom_unchecked("read_timer"));
         assert_eq!(first_received_tuple[1], timer_reference);
 
         let first_milliseconds_remaining = first_received_tuple[2];
 
         assert!(first_milliseconds_remaining.is_integer());
-        assert!(0.into_process(process) < first_milliseconds_remaining);
-        assert!(first_milliseconds_remaining <= (milliseconds / 2).into_process(process));
+        assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
+        assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         // again before timeout
         assert_eq!(
             erlang::read_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
 
         let second_received_message = receive_message(process).unwrap();
 
-        assert_eq!(second_received_message.tag(), Boxed);
+        let second_received_tuple_result: core::result::Result<Boxed<Tuple>, _> =
+            second_received_message.try_into();
 
-        let unboxed_second_received_message: &Term = second_received_message.unbox_reference();
+        assert!(second_received_tuple_result.is_ok());
 
-        assert_eq!(unboxed_second_received_message.tag(), Arity);
+        let second_received_tuple = second_received_tuple_result.unwrap();
 
-        let second_received_tuple: &Tuple = second_received_message.unbox_reference();
-
-        assert_eq!(
-            second_received_tuple[0],
-            Term::str_to_atom("read_timer", DoNotCare).unwrap()
-        );
+        assert_eq!(second_received_tuple[0], atom_unchecked("read_timer"));
         assert_eq!(second_received_tuple[1], timer_reference);
 
         let second_milliseconds_remaining = second_received_tuple[2];
@@ -70,7 +62,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(second_milliseconds_remaining <= first_milliseconds_remaining);
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
-        timer::timeout();
+        timer::timeout().unwrap();
 
         assert_eq!(receive_message(process), Some(timeout_message));
 
@@ -79,7 +71,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         // again after timeout
         assert_eq!(
             erlang::read_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
         assert_eq!(receive_message(process), Some(false_read_timer_message));
     })
@@ -89,7 +81,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 fn with_timeout_returns_false_after_timeout_message_was_sent() {
     with_timer(|milliseconds, message, timer_reference, process| {
         thread::sleep(Duration::from_millis(milliseconds + 1));
-        timer::timeout();
+        timer::timeout().unwrap();
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -99,14 +91,14 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
 
         assert_eq!(
             erlang::read_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
         assert_eq!(receive_message(process), Some(read_timer_message));
 
         // again
         assert_eq!(
             erlang::read_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
         assert_eq!(receive_message(process), Some(read_timer_message));
     })
@@ -114,15 +106,15 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
 
 fn with_timer<F>(f: F)
 where
-    F: FnOnce(u64, Term, Term, &Process) -> (),
+    F: FnOnce(u64, Term, Term, &ProcessControlBlock) -> (),
 {
-    let same_thread_process_arc = process::local::test(&process::local::test_init());
+    let same_thread_process_arc = process::test(&process::test_init());
     let milliseconds: u64 = 100;
 
-    let message = Term::str_to_atom("message", DoNotCare).unwrap();
+    let message = atom_unchecked("message");
     let timer_reference = erlang::start_timer_3(
-        milliseconds.into_process(&same_thread_process_arc),
-        same_thread_process_arc.pid,
+        same_thread_process_arc.integer(milliseconds).unwrap(),
+        unsafe { same_thread_process_arc.pid().as_term() },
         message,
         same_thread_process_arc.clone(),
     )

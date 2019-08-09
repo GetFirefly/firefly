@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn with_atom_right_returns_true() {
-    with_right_returns_true(|mut _process| Term::str_to_atom("right", DoNotCare).unwrap());
+    with_right_returns_true(|mut _process| atom_unchecked("right"));
 }
 
 #[test]
@@ -17,59 +17,62 @@ fn with_true_right_returns_true() {
 
 #[test]
 fn with_local_reference_right_returns_true() {
-    with_right_returns_true(|process| Term::next_local_reference(process));
+    with_right_returns_true(|process| process.next_reference().unwrap());
 }
 
 #[test]
 fn with_empty_list_right_returns_true() {
-    with_right_returns_true(|_| Term::EMPTY_LIST);
+    with_right_returns_true(|_| Term::NIL);
 }
 
 #[test]
 fn with_list_right_returns_true() {
     with_right_returns_true(|process| {
-        Term::cons(0.into_process(&process), 1.into_process(&process), &process)
+        let mut heap = process.acquire_heap();
+        heap.cons(heap.integer(0).unwrap(), heap.integer(1).unwrap())
+            .unwrap()
+            .unwrap();
     });
 }
 
 #[test]
 fn with_small_integer_right_returns_true() {
-    with_right_returns_true(|process| 1.into_process(&process))
+    with_right_returns_true(|process| process.integer(1).unwrap())
 }
 
 #[test]
 fn with_big_integer_right_returns_true() {
-    with_right_returns_true(|process| (crate::integer::small::MAX + 1).into_process(&process))
+    with_right_returns_true(|process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap())
 }
 
 #[test]
 fn with_float_right_returns_true() {
-    with_right_returns_true(|process| 1.0.into_process(&process));
+    with_right_returns_true(|process| process.float(1.0).unwrap());
 }
 
 #[test]
 fn with_local_pid_right_returns_true() {
-    with_right_returns_true(|_| Term::local_pid(0, 1).unwrap());
+    with_right_returns_true(|_| make_pid(0, 1).unwrap());
 }
 
 #[test]
 fn with_external_pid_right_returns_true() {
-    with_right_returns_true(|process| Term::external_pid(1, 2, 3, &process).unwrap());
+    with_right_returns_true(|process| process.external_pid_with_node_id(1, 2, 3).unwrap());
 }
 
 #[test]
 fn with_tuple_right_returns_true() {
-    with_right_returns_true(|process| Term::slice_to_tuple(&[], &process));
+    with_right_returns_true(|process| process.tuple_from_slice(&[]).unwrap());
 }
 
 #[test]
 fn with_map_is_right_returns_true() {
-    with_right_returns_true(|process| Term::slice_to_map(&[], &process));
+    with_right_returns_true(|process| process.map_from_slice(&[]).unwrap());
 }
 
 #[test]
 fn with_heap_binary_right_returns_true() {
-    with_right_returns_true(|process| Term::slice_to_binary(&[], &process));
+    with_right_returns_true(|process| process.binary_from_bytes(&[]).unwrap());
 }
 
 #[test]
@@ -79,7 +82,7 @@ fn with_subbinary_right_returns_true() {
 
 fn with_right_returns_true<R>(right: R)
 where
-    R: FnOnce(&Process) -> Term,
+    R: FnOnce(&ProcessControlBlock) -> Term,
 {
     with_process(|process| {
         let left = true.into();

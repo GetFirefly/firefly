@@ -12,14 +12,14 @@ fn without_non_negative_integer_time_error_badarg() {
             .run(
                 &(
                     strategy::term::is_not_non_negative_integer(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                 ),
                 |(time, message)| {
-                    let destination = arc_process.pid;
+                    let destination = arc_process.pid_term();
 
                     prop_assert_eq!(
                         erlang::start_timer_3(time, destination, message, arc_process.clone()),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

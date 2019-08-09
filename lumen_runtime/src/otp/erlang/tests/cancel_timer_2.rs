@@ -9,11 +9,11 @@ fn without_reference_timer_reference_errors_badarg() {
             .run(
                 &strategy::term::is_not_reference(arc_process.clone()),
                 |timer_reference| {
-                    let options = Term::EMPTY_LIST;
+                    let options = Term::NIL;
 
                     prop_assert_eq!(
                         erlang::cancel_timer_2(timer_reference, options, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -35,7 +35,7 @@ fn with_reference_timer_reference_without_list_options_errors_badarg() {
                 |(timer_reference, options)| {
                     prop_assert_eq!(
                         erlang::cancel_timer_2(timer_reference, options, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

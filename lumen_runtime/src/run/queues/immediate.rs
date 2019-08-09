@@ -1,13 +1,13 @@
-use std::collections::vec_deque::VecDeque;
-use std::sync::Arc;
+use alloc::collections::vec_deque::VecDeque;
+use alloc::sync::Arc;
 
-use crate::process::Process;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+
 use crate::run::Run;
 
 /// A run queue where the `Arc<Process>` is run immediately when it is encountered
-#[derive(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
-pub struct Immediate(VecDeque<Arc<Process>>);
+#[derive(Debug, Default)]
+pub struct Immediate(VecDeque<Arc<ProcessControlBlock>>);
 
 impl Immediate {
     pub fn len(&self) -> usize {
@@ -21,7 +21,7 @@ impl Immediate {
         }
     }
 
-    pub fn enqueue(&mut self, process: Arc<Process>) {
+    pub fn enqueue(&mut self, process: Arc<ProcessControlBlock>) {
         self.0.push_back(process);
     }
 }

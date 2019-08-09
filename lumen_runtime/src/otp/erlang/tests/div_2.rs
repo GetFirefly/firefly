@@ -15,7 +15,7 @@ fn without_integer_dividend_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::div_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -37,7 +37,7 @@ fn with_integer_dividend_without_integer_divisor_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::div_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -54,12 +54,12 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
             .run(
                 &(
                     strategy::term::is_integer(arc_process.clone()),
-                    Just(0.into_process(&arc_process)),
+                    Just(arc_process.integer(0).unwrap()),
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         erlang::div_2(dividend, divisor, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())

@@ -12,7 +12,7 @@ fn without_number_addend_errors_badarith() {
                 |(augend, addend)| {
                     prop_assert_eq!(
                         erlang::add_2(augend, addend, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -29,7 +29,7 @@ fn with_zero_small_integer_returns_same_big_integer() {
             .run(
                 &strategy::term::integer::big(arc_process.clone()),
                 |augend| {
-                    let addend = 0.into_process(&arc_process);
+                    let addend = 0.into();
 
                     prop_assert_eq!(erlang::add_2(augend, addend, &arc_process), Ok(augend));
 
@@ -58,11 +58,7 @@ fn that_is_positive_with_positive_small_integer_addend_returns_greater_big_integ
 
                     prop_assert!(augend < sum);
                     prop_assert!(addend < sum);
-                    prop_assert_eq!(sum.tag(), Boxed);
-
-                    let unboxed_sum: &Term = sum.unbox_reference();
-
-                    prop_assert_eq!(unboxed_sum.tag(), BigInteger);
+                    prop_assert!(sum.is_bigint());
 
                     Ok(())
                 },
@@ -89,11 +85,7 @@ fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer
 
                     prop_assert!(augend < sum);
                     prop_assert!(addend < sum);
-                    prop_assert_eq!(sum.tag(), Boxed);
-
-                    let unboxed_sum: &Term = sum.unbox_reference();
-
-                    prop_assert_eq!(unboxed_sum.tag(), BigInteger);
+                    prop_assert!(sum.is_bigint());
 
                     Ok(())
                 },
@@ -105,7 +97,7 @@ fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer
 #[test]
 fn with_float_addend_without_underflow_or_overflow_returns_float() {
     with(|augend, process| {
-        let addend = 3.0.into_process(&process);
+        let addend = process.float(3.0).unwrap();
 
         let result = erlang::add_2(augend, addend, &process);
 
@@ -113,11 +105,7 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
 
         let sum = result.unwrap();
 
-        assert_eq!(sum.tag(), Boxed);
-
-        let unboxed_sum: &Term = sum.unbox_reference();
-
-        assert_eq!(unboxed_sum.tag(), Float);
+        assert!(sum.is_float());
     })
 }
 
@@ -128,11 +116,11 @@ fn with_float_addend_with_underflow_returns_min_float() {
             .run(
                 &strategy::term::integer::big::negative(arc_process.clone()),
                 |augend| {
-                    let addend = std::f64::MIN.into_process(&arc_process);
+                    let addend = arc_process.float(std::f64::MIN).unwrap();
 
                     prop_assert_eq!(
                         erlang::add_2(augend, addend, &arc_process),
-                        Ok(std::f64::MIN.into_process(&arc_process))
+                        Ok(arc_process.float(std::f64::MIN).unwrap())
                     );
 
                     Ok(())
@@ -149,11 +137,11 @@ fn with_float_addend_with_overflow_returns_max_float() {
             .run(
                 &strategy::term::integer::big::positive(arc_process.clone()),
                 |augend| {
-                    let addend = std::f64::MAX.into_process(&arc_process);
+                    let addend = arc_process.float(std::f64::MAX).unwrap();
 
                     prop_assert_eq!(
                         erlang::add_2(augend, addend, &arc_process),
-                        Ok(std::f64::MAX.into_process(&arc_process))
+                        Ok(arc_process.float(std::f64::MAX).unwrap())
                     );
 
                     Ok(())
@@ -165,16 +153,12 @@ fn with_float_addend_with_overflow_returns_max_float() {
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let augend: Term = (crate::integer::small::MAX + 1).into_process(&process);
+        let augend = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
-        assert_eq!(augend.tag(), Boxed);
-
-        let unboxed_augend: &Term = augend.unbox_reference();
-
-        assert_eq!(unboxed_augend.tag(), BigInteger);
+        assert!(augend.is_bigint());
 
         f(augend, &process)
     })

@@ -55,26 +55,30 @@ fn with_same_value_list_right_returns_true() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &proptest::collection::vec(strategy::term(arc_process.clone()), size_range)
-                    .prop_map(move |vec| match vec.len() {
-                        1 => (
-                            Term::slice_to_list(&vec, &arc_process),
-                            Term::slice_to_list(&vec, &arc_process),
-                        ),
-                        len => {
-                            let last_index = len - 1;
+                    .prop_map(move |vec| {
+                        let mut heap = arc_process.acquire_heap();
 
-                            (
-                                Term::slice_to_improper_list(
-                                    &vec[0..last_index],
-                                    vec[last_index],
-                                    &arc_process,
-                                ),
-                                Term::slice_to_improper_list(
-                                    &vec[0..last_index],
-                                    vec[last_index],
-                                    &arc_process,
-                                ),
-                            )
+                        match vec.len() {
+                            1 => (
+                                heap.list_from_slice(&vec).unwrap(),
+                                heap.list_from_slice(&vec).unwrap(),
+                            ),
+                            len => {
+                                let last_index = len - 1;
+
+                                (
+                                    heap.improper_list_from_slice(
+                                        &vec[0..last_index],
+                                        vec[last_index],
+                                    )
+                                    .unwrap(),
+                                    heap.improper_list_from_slice(
+                                        &vec[0..last_index],
+                                        vec[last_index],
+                                    )
+                                    .unwrap(),
+                                )
+                            }
                         }
                     }),
                 |(left, right)| {
@@ -92,23 +96,23 @@ fn with_same_value_list_right_returns_true() {
 
 #[test]
 fn with_different_list_right_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
                     strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
                 )
-                    .prop_filter("Lists must be different", |(left, right)| left != right),
-                |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_equal_after_conversion_2(left, right),
-                        false.into()
-                    );
+                    .prop_filter("Lists must be different", |(left, right)| left != right)
+            }),
+            |(left, right)| {
+                prop_assert_eq!(
+                    erlang::are_equal_after_conversion_2(left, right),
+                    false.into()
+                );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }

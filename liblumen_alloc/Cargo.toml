@@ -1,7 +1,7 @@
 [package]
 name = "liblumen_alloc"
 version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
 publish = false
 edition = "2018"
 
@@ -23,8 +23,6 @@ liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
 
 [dependencies.hashbrown]
 version = "0.5"
-git = "https://github.com/KronicDeth/hashbrown.git"
-branch = "E0658"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]
@@ -37,6 +35,11 @@ features = ["nightly"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
+
+# for debugging
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3.20"
+features = ['console']
 
 [dev-dependencies]
 pretty_assertions = "0.6"

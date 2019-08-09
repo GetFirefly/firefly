@@ -7,7 +7,7 @@ fn without_boolean_errors_badarg() {
             .run(
                 &strategy::term::is_not_boolean(arc_process.clone()),
                 |boolean| {
-                    prop_assert_eq!(erlang::not_1(boolean), Err(badarg!()));
+                    prop_assert_eq!(erlang::not_1(boolean), Err(badarg!().into()));
 
                     Ok(())
                 },

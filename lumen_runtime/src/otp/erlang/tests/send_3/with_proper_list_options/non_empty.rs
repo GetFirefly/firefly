@@ -15,8 +15,8 @@ fn with_invalid_option_errors_badarg() {
                     strategy::term(arc_process.clone()),
                     strategy::term(arc_process.clone()).prop_filter(
                         "Option must be invalid",
-                        |option| match option.tag() {
-                            Atom => match unsafe { option.atom_to_string() }.as_ref().as_ref() {
+                        |option| match option.to_typed_term().unwrap() {
+                            TypedTerm::Atom(atom) => match atom.name() {
                                 "noconnect" | "nosuspend" => false,
                                 _ => true,
                             },
@@ -25,12 +25,12 @@ fn with_invalid_option_errors_badarg() {
                     ),
                 ),
                 |(message, option)| {
-                    let destination = arc_process.pid;
-                    let options = Term::slice_to_list(&[option], &arc_process);
+                    let destination = arc_process.pid_term();
+                    let options = arc_process.list_from_slice(&[option]).unwrap();
 
                     prop_assert_eq!(
                         erlang::send_3(destination, message, options, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

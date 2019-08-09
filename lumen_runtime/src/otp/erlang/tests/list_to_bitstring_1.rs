@@ -12,7 +12,7 @@ fn without_list_errors_badarg() {
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
                 prop_assert_eq!(
                     erlang::list_to_bitstring_1(list, &arc_process),
-                    Err(badarg!())
+                    Err(badarg!().into())
                 );
 
                 Ok(())
@@ -25,8 +25,8 @@ fn without_list_errors_badarg() {
 fn with_empty_list_returns_empty_binary() {
     with_process(|process| {
         assert_eq!(
-            erlang::list_to_bitstring_1(Term::EMPTY_LIST, &process),
-            Ok(Term::slice_to_binary(&[], &process))
+            erlang::list_to_bitstring_1(Term::NIL, &process),
+            Ok(process.binary_from_bytes(&[]).unwrap())
         );
     });
 }
@@ -42,30 +42,33 @@ fn with_empty_list_returns_empty_binary() {
 #[test]
 fn otp_doctest_returns_binary() {
     with_process(|process| {
-        let bin1 = Term::slice_to_binary(&[1, 2, 3], &process);
-        let bin2 = Term::slice_to_binary(&[4, 5], &process);
-        let bin3 = Term::slice_to_binary(&[6], &process);
+        let bin1 = process.binary_from_bytes(&[1, 2, 3]).unwrap();
+        let bin2 = process.binary_from_bytes(&[4, 5]).unwrap();
+        let bin3 = process.binary_from_bytes(&[6]).unwrap();
 
-        let iolist = Term::slice_to_improper_list(
-            &[
-                bin1,
-                1.into_process(&process),
-                Term::slice_to_list(
-                    &[2.into_process(&process), 3.into_process(&process), bin2],
-                    &process,
-                ),
-                4.into_process(&process),
-            ],
-            bin3,
-            &process,
-        );
+        let iolist = process
+            .improper_list_from_slice(
+                &[
+                    bin1,
+                    process.integer(1).unwrap(),
+                    process
+                        .list_from_slice(&[
+                            process.integer(2).unwrap(),
+                            process.integer(3).unwrap(),
+                            bin2,
+                        ])
+                        .unwrap(),
+                    process.integer(4).unwrap(),
+                ],
+                bin3,
+            )
+            .unwrap();
 
         assert_eq!(
             erlang::list_to_bitstring_1(iolist, &process),
-            Ok(Term::slice_to_binary(
-                &[1, 2, 3, 1, 2, 3, 4, 5, 4, 6],
-                &process
-            ))
+            Ok(process
+                .binary_from_bytes(&[1, 2, 3, 1, 2, 3, 4, 5, 4, 6],)
+                .unwrap())
         )
     });
 }
@@ -86,24 +89,29 @@ fn with_recursive_lists_of_bitstrings_and_bytes_ending_in_bitstring_or_empty_lis
     });
 }
 
-fn byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn byte(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     any::<u8>()
-        .prop_map(move |byte| byte.into_process(&arc_process))
+        .prop_map(move |byte| arc_process.integer(byte).unwrap())
         .boxed()
 }
 
-fn container(element: BoxedStrategy<Term>, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn container(
+    element: BoxedStrategy<Term>,
+    arc_process: Arc<ProcessControlBlock>,
+) -> BoxedStrategy<Term> {
     (
         proptest::collection::vec(element, 0..=3),
         tail(arc_process.clone()),
     )
         .prop_map(move |(element_vec, tail)| {
-            Term::slice_to_improper_list(&element_vec, tail, &arc_process)
+            arc_process
+                .improper_list_from_slice(&element_vec, tail)
+                .unwrap()
         })
         .boxed()
 }
 
-fn leaf(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn leaf(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     prop_oneof![
         strategy::term::is_bitstring(arc_process.clone()),
         byte(arc_process),
@@ -111,7 +119,7 @@ fn leaf(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     .boxed()
 }
 
-fn recursive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn recursive(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     leaf(arc_process.clone())
         .prop_recursive(3, 3 * 4, 3, move |element| {
             container(element, arc_process.clone())
@@ -119,21 +127,19 @@ fn recursive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
-fn tail(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    prop_oneof![
-        strategy::term::is_bitstring(arc_process),
-        Just(Term::EMPTY_LIST)
-    ]
-    .boxed()
+fn tail(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    prop_oneof![strategy::term::is_bitstring(arc_process), Just(Term::NIL)].boxed()
 }
 
-fn top(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn top(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     (
         proptest::collection::vec(recursive(arc_process.clone()), 1..=4),
         tail(arc_process.clone()),
     )
         .prop_map(move |(element_vec, tail)| {
-            Term::slice_to_improper_list(&element_vec, tail, &arc_process)
+            arc_process
+                .improper_list_from_slice(&element_vec, tail)
+                .unwrap()
         })
         .boxed()
 }

@@ -1,11 +1,11 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! bitstring {
     (@acc $bits:tt :: $bit_count:tt, $process:expr, $($byte:expr),*) => {{
-       use crate::term::Term;
-
        let byte_count = <[()]>::len(&[$(replace_expr!($byte, ())),*]);
-       let original = Term::slice_to_binary(&[$( $byte, )* $bits << (8 - $bit_count)], $process);
-       Term::subbinary(original, 0, 0, byte_count, $bit_count, $process)
+       let mut heap = $process.acquire_heap();
+       let original = heap.binary_from_bytes(&[$( $byte, )* $bits << (8 - $bit_count)]).unwrap();
+
+       heap.subbinary_from_original(original, 0, 0, byte_count, $bit_count).unwrap()
     }};
     (@acc $byte:expr, $($tail:tt)*) => {
        bitstring!(@acc $($tail)*, $byte)

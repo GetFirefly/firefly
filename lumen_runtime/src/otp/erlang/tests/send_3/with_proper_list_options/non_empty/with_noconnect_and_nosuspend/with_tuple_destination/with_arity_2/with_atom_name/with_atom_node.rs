@@ -11,22 +11,18 @@ fn with_different_node_returns_nosuspend() {
                 let name = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2(name, arc_process.pid, arc_process.clone()),
+                    erlang::register_2(name, arc_process.pid_term(), arc_process.clone()),
                     Ok(true.into())
                 );
 
-                let destination = Term::slice_to_tuple(
-                    &[
-                        name,
-                        Term::str_to_atom("node@example.com", DoNotCare).unwrap(),
-                    ],
-                    &arc_process,
-                );
+                let destination = arc_process
+                    .tuple_from_slice(&[name, atom_unchecked("node@example.com")])
+                    .unwrap();
                 let options = options(&arc_process);
 
                 prop_assert_eq!(
                     erlang::send_3(destination, message, options, &arc_process),
-                    Ok(Term::str_to_atom("noconnect", DoNotCare).unwrap())
+                    Ok(atom_unchecked("noconnect"))
                 );
 
                 Ok(())

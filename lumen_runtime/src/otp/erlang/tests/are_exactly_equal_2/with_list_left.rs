@@ -51,23 +51,19 @@ fn with_same_value_list_right_returns_true() {
                 &proptest::collection::vec(strategy::term(arc_process.clone()), size_range)
                     .prop_map(move |vec| match vec.len() {
                         1 => (
-                            Term::slice_to_list(&vec, &arc_process),
-                            Term::slice_to_list(&vec, &arc_process),
+                            arc_process.list_from_slice(&vec).unwrap(),
+                            arc_process.list_from_slice(&vec).unwrap(),
                         ),
                         len => {
                             let last_index = len - 1;
 
                             (
-                                Term::slice_to_improper_list(
-                                    &vec[0..last_index],
-                                    vec[last_index],
-                                    &arc_process,
-                                ),
-                                Term::slice_to_improper_list(
-                                    &vec[0..last_index],
-                                    vec[last_index],
-                                    &arc_process,
-                                ),
+                                arc_process
+                                    .improper_list_from_slice(&vec[0..last_index], vec[last_index])
+                                    .unwrap(),
+                                arc_process
+                                    .improper_list_from_slice(&vec[0..last_index], vec[last_index])
+                                    .unwrap(),
                             )
                         }
                     }),
@@ -83,20 +79,21 @@ fn with_same_value_list_right_returns_true() {
 
 #[test]
 fn with_different_list_right_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
-                    strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
-                )
-                    .prop_filter("Lists must be different", |(left, right)| left != right),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process()
+                .prop_flat_map(|arc_process| {
+                    (
+                        strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+                        strategy::term::list::non_empty_maybe_improper(arc_process),
+                    )
+                })
+                .prop_filter("Lists must be different", |(left, right)| left != right),
+            |(left, right)| {
+                prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }

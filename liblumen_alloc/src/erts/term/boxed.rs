@@ -1,10 +1,12 @@
-use core::alloc::AllocErr;
 use core::cmp;
+use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
+use crate::erts::term::binary::Bitstring;
 use crate::erts::ProcessControlBlock;
 use crate::erts::{HeapAlloc, HeapFragment};
 
@@ -77,6 +79,11 @@ impl<T: AsTerm> AsMut<T> for Boxed<T> {
         unsafe { &mut *(self.term) }
     }
 }
+impl<T: Bitstring + AsTerm> Bitstring for Boxed<T> {
+    fn full_byte_len(&self) -> usize {
+        self.as_ref().full_byte_len()
+    }
+}
 impl<T: AsTerm> Deref for Boxed<T> {
     type Target = T;
 
@@ -89,6 +96,11 @@ impl<T: AsTerm> DerefMut for Boxed<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
         self.as_mut()
+    }
+}
+impl<T: Hash + AsTerm> Hash for Boxed<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state)
     }
 }
 impl<T: PartialEq> PartialEq for Boxed<T> {
@@ -124,12 +136,12 @@ impl<T: CloneToProcess> CloneToProcess for Boxed<T> {
         term.clone_to_process(process)
     }
 
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         let term = unsafe { &*self.term };
         term.clone_to_heap(heap)
     }
 
-    fn clone_to_fragment(&self) -> Result<(Term, NonNull<HeapFragment>), AllocErr> {
+    fn clone_to_fragment(&self) -> Result<(Term, NonNull<HeapFragment>), Alloc> {
         let term = unsafe { &*self.term };
         term.clone_to_fragment()
     }

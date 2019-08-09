@@ -17,11 +17,8 @@ fn with_integer_right_returns_bitwise_and() {
                     let band = result.unwrap();
 
                     prop_assert!(band.is_integer());
-
-                    unsafe {
-                        prop_assert!(band.count_ones() <= left.count_ones());
-                        prop_assert!(band.count_ones() <= right.count_ones());
-                    }
+                    prop_assert!(count_ones(band) <= count_ones(left));
+                    prop_assert!(count_ones(band) <= count_ones(right));
 
                     Ok(())
                 },

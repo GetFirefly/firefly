@@ -1,13 +1,18 @@
-use core::alloc::AllocErr;
 use core::fmt;
 use core::mem;
 use core::ptr::{self, NonNull};
 
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
-use super::*;
-use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives};
+use crate::erts::exception::system::Alloc;
+use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
+use crate::erts::term::{
+    binary_bytes, is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
+};
 use crate::erts::*;
+use crate::mem::bit_size_of;
+
+use super::*;
 
 /// This struct represents the current heap and stack of a process,
 /// which corresponds to the young generation in the overall garbage
@@ -41,7 +46,7 @@ impl YoungHeap {
     /// represented by the pointer `start` and the size in words of the region.
     #[inline]
     pub fn new(start: *mut Term, size: usize) -> Self {
-        let end = unsafe { start.offset(size as isize) };
+        let end = unsafe { start.add(size) };
         let top = start;
         let stack_end = end;
         let stack_start = stack_end;
@@ -60,13 +65,13 @@ impl YoungHeap {
 }
 impl HeapAlloc for YoungHeap {
     #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
         if self.heap_available() >= need {
             let ptr = self.top;
-            self.top = self.top.offset(need as isize);
+            self.top = self.top.add(need);
             Ok(NonNull::new_unchecked(ptr))
         } else {
-            Err(AllocErr)
+            Err(alloc!())
         }
     }
 
@@ -75,13 +80,19 @@ impl HeapAlloc for YoungHeap {
         self.contains(ptr) || self.vheap.contains(ptr)
     }
 }
+impl VirtualAlloc for YoungHeap {
+    #[inline]
+    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
+        self.vheap.push(bin)
+    }
+}
 impl StackAlloc for YoungHeap {
     #[inline]
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
         if self.stack_available() >= need {
             Ok(self.alloca_unchecked(need))
         } else {
-            Err(AllocErr)
+            Err(alloc!())
         }
     }
 
@@ -157,11 +168,6 @@ impl StackPrimitives for YoungHeap {
     }
 }
 impl YoungHeap {
-    #[inline]
-    pub fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.vheap.push(bin)
-    }
-
     /// This function is used to reallocate the memory region this heap was originally allocated
     /// with to a smaller size, given by `new_size`. This function will panic if the given size
     /// is not large enough to hold the stack, if a size greater than the previous size is
@@ -183,7 +189,7 @@ impl YoungHeap {
         // Calculate the new start (or "top") of the stack, this will be our destination pointer
         let old_start = self.start;
         let old_stack_start = self.stack_start;
-        let new_stack_start = unsafe { old_start.offset((new_size - stack_size) as isize) };
+        let new_stack_start = unsafe { old_start.add(new_size - stack_size) };
 
         // Copy the stack into its new position
         unsafe { ptr::copy(old_stack_start, new_stack_start, stack_size) };
@@ -199,7 +205,7 @@ impl YoungHeap {
             "expected reallocation of heap during shrink to occur in-place!"
         );
 
-        self.end = unsafe { new_heap.offset(new_size as isize) };
+        self.end = unsafe { new_heap.add(new_size) };
         self.stack_end = self.end;
         self.stack_start = unsafe { self.stack_end.offset(-(stack_size as isize)) };
     }
@@ -288,7 +294,7 @@ impl YoungHeap {
             if term.is_immediate() {
                 // Immediates are the typical case, and only occupy one word
                 last = pos;
-                pos = unsafe { pos.offset(1) };
+                pos = unsafe { pos.add(1) };
             } else if term.is_boxed() {
                 // Boxed terms will consist of the box itself, and if stored on the stack, the
                 // boxed value will follow immediately afterward. The header of that value will
@@ -297,23 +303,23 @@ impl YoungHeap {
                 // an immediate
                 let ptr = term.boxed_val();
                 last = pos;
-                pos = unsafe { pos.offset(1) };
+                pos = unsafe { pos.add(1) };
                 if ptr == pos {
                     // The boxed value is on the stack immediately following the box
                     let val = unsafe { *ptr };
                     assert!(val.is_header());
-                    let skip = val.arityval() as isize;
-                    pos = unsafe { pos.offset(skip) };
+                    let skip = val.arityval();
+                    pos = unsafe { pos.add(skip) };
                 } else {
                     assert!(
                         !in_area(ptr, pos, self.stack_end),
                         "boxed term stored on stack but not contiguously!"
                     );
                 }
-            } else if term.is_list() {
+            } else if term.is_non_empty_list() {
                 // The list begins here
                 last = pos;
-                pos = unsafe { pos.offset(1) };
+                pos = unsafe { pos.add(1) };
                 // Lists are essentially boxes which point to cons cells, but are a bit more
                 // complicated than boxed terms. Proper lists will have a cons cell
                 // where the head is nil, and improper lists will have a tail that
@@ -329,7 +335,7 @@ impl YoungHeap {
                     // This is used to hold the current cons cell
                     let mut cons = unsafe { *ptr };
                     // This is a pointer to the next location in memory following this cell
-                    next_ptr = unsafe { next_ptr.offset(1) };
+                    next_ptr = unsafe { next_ptr.add(1) };
                     loop {
                         if cons.head.is_nil() {
                             // We've hit the end of a proper list, update `pos` and break out
@@ -340,13 +346,13 @@ impl YoungHeap {
                             cons.head.is_immediate() || cons.head.is_boxed(),
                             "invalid stack-allocated list, elements must be an immediate or box"
                         );
-                        if cons.tail.is_list() {
+                        if cons.tail.is_non_empty_list() {
                             // The list continues, we need to check where it continues on the stack
                             let next_cons = cons.tail.list_val();
                             if next_cons == next_ptr {
                                 // Yep, it is on the stack, contiguous with this cell
                                 cons = unsafe { *next_ptr };
-                                next_ptr = unsafe { next_ptr.offset(1) };
+                                next_ptr = unsafe { next_ptr.add(1) };
                                 continue;
                             } else {
                                 // It must be on the heap, otherwise we've violated an invariant
@@ -450,7 +456,7 @@ impl YoungHeap {
                 } else {
                     break;
                 }
-            } else if term.is_list() {
+            } else if term.is_non_empty_list() {
                 if let Some(new_pos) = fun(self, term, pos) {
                     pos = new_pos;
                 } else {
@@ -463,7 +469,7 @@ impl YoungHeap {
                     break;
                 }
             } else {
-                pos = unsafe { pos.offset(1) };
+                pos = unsafe { pos.add(1) };
             }
 
             debug_assert!(
@@ -501,17 +507,17 @@ impl YoungHeap {
         // is too large to build a heap binary, then the original must be a ProcBin,
         // so we don't need to worry about it being collected out from under us
         // TODO: Handle other subtype cases, see erl_gc.h:60
-        if header.is_subbinary() {
+        if header.is_subbinary_header() {
             let bin = &*(ptr as *mut SubBinary);
             // Convert to HeapBin if applicable
             if let Ok((bin_header, bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
                 // Save space for box
-                let dst = heap_top.offset(1);
+                let dst = heap_top.add(1);
                 // Create box pointing to new destination
                 let val = Term::make_boxed(dst);
                 ptr::write(heap_top, val);
                 let dst = dst as *mut HeapBin;
-                let new_bin_ptr = dst.offset(1) as *mut u8;
+                let new_bin_ptr = dst.add(1) as *mut u8;
                 // Copy referenced part of binary to heap
                 ptr::copy_nonoverlapping(bin_ptr, new_bin_ptr, bin_size);
                 // Write heapbin header
@@ -522,7 +528,7 @@ impl YoungHeap {
                 // Update `ptr` as well
                 ptr::write(ptr, marker);
                 // Update top pointer
-                self.top = new_bin_ptr.offset(bin_size as isize) as *mut Term;
+                self.top = new_bin_ptr.add(bin_size) as *mut Term;
                 // We're done
                 return 1 + to_word_size(mem::size_of::<HeapBin>() + bin_size);
             }
@@ -541,10 +547,10 @@ impl YoungHeap {
         // Move `ptr` to the first arityval
         // Move heap_top to the first data location
         // Then copy arityval data to new location
-        heap_top = heap_top.offset(1);
-        ptr::copy_nonoverlapping(ptr.offset(1), heap_top, num_elements);
+        heap_top = heap_top.add(1);
+        ptr::copy_nonoverlapping(ptr.add(1), heap_top, num_elements);
         // Update the top pointer
-        self.top = heap_top.offset(num_elements as isize);
+        self.top = heap_top.add(num_elements);
         // Return the number of words moved into this heap
         moved
     }
@@ -565,7 +571,7 @@ impl YoungHeap {
         let marker = Cons::new(Term::NONE, list);
         ptr::write(ptr as *mut Cons, marker);
         // Update the top pointer
-        self.top = location.offset(1) as *mut Term;
+        self.top = location.add(1) as *mut Term;
     }
 
     /// This function is used during garbage collection to sweep this heap for references
@@ -635,8 +641,8 @@ impl YoungHeap {
                             heap.move_into(pos, ptr, boxed);
                         }
                     }
-                    Some(pos.offset(1))
-                } else if term.is_list() {
+                    Some(pos.add(1))
+                } else if term.is_non_empty_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
@@ -649,11 +655,11 @@ impl YoungHeap {
                         // Move to top of this heap
                         heap.move_cons_into(pos, ptr, cons);
                     }
-                    Some(pos.offset(1))
+                    Some(pos.add(1))
                 } else if term.is_header() {
-                    if term.is_tuple() {
+                    if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
-                        Some(pos.offset(1))
+                        Some(pos.add(1))
                     } else if term.is_match_context() {
                         let ctx = &mut *(pos as *mut MatchContext);
                         let base = ctx.base();
@@ -672,12 +678,12 @@ impl YoungHeap {
                             heap.move_into(orig, ptr, bin);
                             ptr::write(base, binary_bytes(bin));
                         }
-                        Some(pos.offset(1 + (term.arityval() as isize)))
+                        Some(pos.add(1 + (term.arityval())))
                     } else {
-                        Some(pos.offset(1 + (term.arityval() as isize)))
+                        Some(pos.add(1 + (term.arityval())))
                     }
                 } else {
-                    Some(pos.offset(1))
+                    Some(pos.add(1))
                 }
             }
         });
@@ -719,12 +725,12 @@ impl YoungHeap {
                         }
                     }
                     // Move past box pointer to next term
-                    Some(pos.offset(1))
-                } else if term.is_list() {
+                    Some(pos.add(1))
+                } else if term.is_non_empty_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
-                        assert!(cons.tail.is_list());
+                        assert!(cons.tail.is_non_empty_list());
                         // Rewrite marker with list pointer
                         ptr::write(pos, cons.tail);
                     } else if !term.is_literal() {
@@ -732,11 +738,11 @@ impl YoungHeap {
                         heap.move_cons_into(pos, ptr, cons);
                     }
                     // Move past list pointer to next term
-                    Some(pos.offset(1))
+                    Some(pos.add(1))
                 } else if term.is_header() {
-                    if term.is_tuple() {
+                    if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
-                        Some(pos.offset(1))
+                        Some(pos.add(1))
                     } else if term.is_match_context() {
                         let ctx = &mut *(pos as *mut MatchContext);
                         let base = ctx.base();
@@ -751,12 +757,12 @@ impl YoungHeap {
                             heap.move_into(orig, ptr, bin);
                             ptr::write(base, binary_bytes(bin));
                         }
-                        Some(pos.offset(1 + (term.arityval() as isize)))
+                        Some(pos.add(1 + (term.arityval())))
                     } else {
-                        Some(pos.offset(1 + (term.arityval() as isize)))
+                        Some(pos.add(1 + (term.arityval())))
                     }
                 } else {
-                    Some(pos.offset(1))
+                    Some(pos.add(1))
                 }
             }
         });
@@ -842,33 +848,60 @@ impl fmt::Debug for YoungHeap {
         let mut pos = self.start;
         while pos < self.top {
             unsafe {
-                let term = *pos;
-                if term.is_immediate() || term.is_boxed() || term.is_list() {
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset(1);
+                let term = &*pos;
+
+                let arityval = if term.has_no_arity() {
+                    0
                 } else {
                     assert!(term.is_header());
-                    let arityval = term.arityval();
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset((1 + arityval) as isize);
-                }
+                    term.arityval()
+                };
+
+                f.write_fmt(format_args!(
+                    "  {:?}: {:0bit_len$b} {:?}\n",
+                    pos,
+                    *(pos as *const usize),
+                    term,
+                    bit_len = (bit_size_of::<usize>())
+                ))?;
+                pos = pos.add(1 + arityval);
             }
         }
         f.write_str("  ==== END HEAP ====\n")?;
+        f.write_str("  ==== START UNUSED ====\n")?;
+        while pos < self.stack_start {
+            unsafe {
+                f.write_fmt(format_args!(
+                    "  {:?}: {:0bit_len$b}\n",
+                    pos,
+                    *(pos as *const usize),
+                    bit_len = (bit_size_of::<usize>())
+                ))?;
+                pos = pos.add(1);
+            }
+        }
+        f.write_str("  ==== END UNUSED ====\n")?;
         f.write_str("  ==== START STACK ==== \n")?;
         pos = self.stack_start;
         while pos < self.stack_end {
             unsafe {
-                let term = *pos;
-                if term.is_immediate() || term.is_boxed() || term.is_list() {
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset(1);
+                let term = &*pos;
+
+                let arityval = if term.has_no_arity() {
+                    0
                 } else {
                     assert!(term.is_header());
-                    let arityval = term.arityval();
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset((1 + arityval) as isize);
-                }
+                    term.arityval()
+                };
+
+                f.write_fmt(format_args!(
+                    "  {:?}: {:0bit_len$b} {:?}\n",
+                    pos,
+                    *(pos as *const usize),
+                    term,
+                    bit_len = (bit_size_of::<usize>())
+                ))?;
+                pos = pos.add(1 + arityval);
             }
         }
         f.write_str("]\n")
@@ -881,6 +914,8 @@ mod tests {
     use core::ptr;
 
     use crate::erts::process::alloc;
+    use crate::erts::term::list::{HeaplessListBuilder, ListBuilder};
+    use crate::erts::term::Atom;
 
     #[test]
     fn young_heap_alloc() {
@@ -911,7 +946,7 @@ mod tests {
         // Allocate the list `[101, "test"]`
         let num = Term::make_smallint(101);
         let string = "test";
-        let string_term = make_heapbin_from_str(&mut yh, string).unwrap();
+        let string_term = yh.heapbin_from_str(string).unwrap();
         let list_term = ListBuilder::new(&mut yh)
             .push(num)
             .push(string_term)
@@ -957,7 +992,7 @@ mod tests {
 
         // Allocate a binary and put the pointer on the stack
         let string = "bar";
-        let string_term = make_heapbin_from_str(&mut yh, string).unwrap();
+        let string_term = yh.heapbin_from_str(string).unwrap();
         unsafe {
             let ptr = yh.alloca(1).unwrap().as_ptr();
             ptr::write(ptr, string_term);
@@ -975,12 +1010,12 @@ mod tests {
 
         // Fetch top - 1 of stack, expect list
         let slot_term_addr = yh.stack_slot_address(1);
-        assert_eq!(slot_term_addr, unsafe { yh.stack_start.offset(1) });
+        assert_eq!(slot_term_addr, unsafe { yh.stack_start.add(1) });
         let slot_term = unsafe { *slot_term_addr };
-        assert!(slot_term.is_list());
+        assert!(slot_term.is_non_empty_list());
         let list = unsafe { *slot_term.list_val() };
         assert!(list.head.is_smallint());
-        assert!(list.tail.is_list());
+        assert!(list.tail.is_non_empty_list());
         let tail = unsafe { *list.tail.list_val() };
         assert!(tail.head.is_atom());
         assert!(tail.tail.is_nil());

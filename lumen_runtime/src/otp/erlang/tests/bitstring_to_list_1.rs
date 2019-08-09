@@ -11,7 +11,7 @@ fn without_bitstring_errors_badarg() {
                 |bitstring| {
                     prop_assert_eq!(
                         erlang::bitstring_to_list_1(bitstring, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -26,41 +26,43 @@ fn with_heap_binary_returns_list_of_integer() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::byte_vec(), |byte_vec| {
-                // not using an iterator because that would too closely match the code under
-                // test
-                let list = match byte_vec.len() {
-                    0 => Term::EMPTY_LIST,
-                    1 => Term::cons(
-                        byte_vec[0].into_process(&arc_process),
-                        Term::EMPTY_LIST,
-                        &arc_process,
-                    ),
-                    2 => Term::cons(
-                        byte_vec[0].into_process(&arc_process),
-                        Term::cons(
-                            byte_vec[1].into_process(&arc_process),
-                            Term::EMPTY_LIST,
-                            &arc_process,
-                        ),
-                        &arc_process,
-                    ),
-                    3 => Term::cons(
-                        byte_vec[0].into_process(&arc_process),
-                        Term::cons(
-                            byte_vec[1].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[2].into_process(&arc_process),
-                                Term::EMPTY_LIST,
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
-                        &arc_process,
-                    ),
-                    len => unimplemented!("len = {:?}", len),
+                let list = {
+                    // not using an iterator because that would too closely match the code under
+                    // test
+                    match byte_vec.len() {
+                        0 => Term::NIL,
+                        1 => arc_process
+                            .cons(arc_process.integer(byte_vec[0]).unwrap(), Term::NIL)
+                            .unwrap(),
+                        2 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]).unwrap(),
+                                arc_process
+                                    .cons(arc_process.integer(byte_vec[1]).unwrap(), Term::NIL)
+                                    .unwrap(),
+                            )
+                            .unwrap(),
+                        3 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]).unwrap(),
+                                arc_process
+                                    .cons(
+                                        arc_process.integer(byte_vec[1]).unwrap(),
+                                        arc_process
+                                            .cons(
+                                                arc_process.integer(byte_vec[2]).unwrap(),
+                                                Term::NIL,
+                                            )
+                                            .unwrap(),
+                                    )
+                                    .unwrap(),
+                            )
+                            .unwrap(),
+                        len => unimplemented!("len = {:?}", len),
+                    }
                 };
 
-                let bitstring = Term::slice_to_binary(&byte_vec, &arc_process);
+                let bitstring = arc_process.binary_from_bytes(&byte_vec).unwrap();
 
                 prop_assert_eq!(
                     erlang::bitstring_to_list_1(bitstring, &arc_process),
@@ -91,34 +93,34 @@ fn with_subbinary_without_bit_count_returns_list_of_integer() {
                     // not using an iterator because that would too closely match the code under
                     // test
                     let list = match byte_vec.len() {
-                        0 => Term::EMPTY_LIST,
-                        1 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::EMPTY_LIST,
-                            &arc_process,
-                        ),
-                        2 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[1].into_process(&arc_process),
-                                Term::EMPTY_LIST,
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
-                        3 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[1].into_process(&arc_process),
-                                Term::cons(
-                                    byte_vec[2].into_process(&arc_process),
-                                    Term::EMPTY_LIST,
-                                    &arc_process,
-                                ),
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
+                        0 => Term::NIL,
+                        1 => arc_process
+                            .cons(arc_process.integer(byte_vec[0]).unwrap(), Term::NIL)
+                            .unwrap(),
+                        2 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]).unwrap(),
+                                arc_process
+                                    .cons(arc_process.integer(byte_vec[1]).unwrap(), Term::NIL)
+                                    .unwrap(),
+                            )
+                            .unwrap(),
+                        3 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]).unwrap(),
+                                arc_process
+                                    .cons(
+                                        arc_process.integer(byte_vec[1]).unwrap(),
+                                        arc_process
+                                            .cons(
+                                                arc_process.integer(byte_vec[2]).unwrap(),
+                                                Term::NIL,
+                                            )
+                                            .unwrap(),
+                                    )
+                                    .unwrap(),
+                            )
+                            .unwrap(),
                         len => unimplemented!("len = {:?}", len),
                     };
 
@@ -141,53 +143,69 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
             .run(
                 &strategy::term::binary::sub::is_not_binary(arc_process.clone()),
                 |bitstring| {
-                    let subbinary: &sub::Binary = bitstring.unbox_reference();
+                    let subbinary: SubBinary = bitstring.try_into().unwrap();
 
-                    let byte_vec: Vec<u8> = subbinary.byte_iter().collect();
+                    let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
                     let mut bit_count_byte: u8 = 0;
 
-                    for (i, bit) in subbinary.bit_count_iter().enumerate() {
+                    for (i, bit) in subbinary.partial_byte_bit_iter().enumerate() {
                         bit_count_byte = bit_count_byte | (bit << (7 - i));
                     }
 
                     let bits_original_byte_vec = vec![bit_count_byte];
-                    let bits_original =
-                        Term::slice_to_binary(&bits_original_byte_vec, &arc_process);
-                    let bits_subbinary =
-                        Term::subbinary(bits_original, 0, 0, 0, subbinary.bit_count, &arc_process);
+                    let bits_original = arc_process
+                        .binary_from_bytes(&bits_original_byte_vec)
+                        .unwrap();
+                    let bits_subbinary = arc_process
+                        .subbinary_from_original(
+                            bits_original,
+                            0,
+                            0,
+                            0,
+                            subbinary.partial_byte_bit_len(),
+                        )
+                        .unwrap();
 
                     // not using an iterator because that would too closely match the code under
                     // test
                     let list = match byte_vec.len() {
-                        0 => Term::cons(bits_subbinary, Term::EMPTY_LIST, &arc_process),
-                        1 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(bits_subbinary, Term::EMPTY_LIST, &arc_process),
-                            &arc_process,
-                        ),
-                        2 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[1].into_process(&arc_process),
-                                Term::cons(bits_subbinary, Term::EMPTY_LIST, &arc_process),
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
-                        3 => Term::cons(
-                            byte_vec[0].into_process(&arc_process),
-                            Term::cons(
-                                byte_vec[1].into_process(&arc_process),
-                                Term::cons(
-                                    byte_vec[2].into_process(&arc_process),
-                                    Term::cons(bits_subbinary, Term::EMPTY_LIST, &arc_process),
-                                    &arc_process,
-                                ),
-                                &arc_process,
-                            ),
-                            &arc_process,
-                        ),
+                        0 => arc_process.cons(bits_subbinary, Term::NIL).unwrap(),
+                        1 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]).unwrap(),
+                                arc_process.cons(bits_subbinary, Term::NIL).unwrap(),
+                            )
+                            .unwrap(),
+                        2 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]).unwrap(),
+                                arc_process
+                                    .cons(
+                                        arc_process.integer(byte_vec[1]).unwrap(),
+                                        arc_process.cons(bits_subbinary, Term::NIL).unwrap(),
+                                    )
+                                    .unwrap(),
+                            )
+                            .unwrap(),
+                        3 => arc_process
+                            .cons(
+                                arc_process.integer(byte_vec[0]).unwrap(),
+                                arc_process
+                                    .cons(
+                                        arc_process.integer(byte_vec[1]).unwrap(),
+                                        arc_process
+                                            .cons(
+                                                arc_process.integer(byte_vec[2]).unwrap(),
+                                                arc_process
+                                                    .cons(bits_subbinary, Term::NIL)
+                                                    .unwrap(),
+                                            )
+                                            .unwrap(),
+                                    )
+                                    .unwrap(),
+                            )
+                            .unwrap(),
                         len => unimplemented!("len = {:?}", len),
                     };
 

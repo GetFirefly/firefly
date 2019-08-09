@@ -1,48 +1,31 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_port_pid_or_tuple_second_returns_first() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::map(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Second must be number, atom, reference, function, port, or local pid",
-                        |second| {
-                            second.is_number()
-                                || second.is_atom()
-                                || second.is_reference()
-                                || second.is_function()
-                                || second.is_port()
-                                || second.is_pid()
-                                || second.is_tuple()
-                        },
-                    ),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), first);
+                    strategy::term::number_atom_reference_function_port_pid_or_tuple(arc_process),
+                )
+            }),
+            |(first, second)| {
+                prop_assert_eq!(erlang::max_2(first, second), first);
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]
 fn with_smaller_map_second_returns_first() {
     max(
         |_, process| {
-            Term::slice_to_map(
-                &[(
-                    Term::str_to_atom("a", DoNotCare).unwrap(),
-                    1.into_process(&process),
-                )],
-                &process,
-            )
+            process
+                .map_from_slice(&[(atom_unchecked("a"), process.integer(1).unwrap())])
+                .unwrap()
         },
         First,
     );
@@ -52,19 +35,12 @@ fn with_smaller_map_second_returns_first() {
 fn with_same_size_map_with_lesser_keys_returns_first() {
     max(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("a", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("a"), process.integer(2).unwrap()),
+                    (atom_unchecked("b"), process.integer(3).unwrap()),
+                ])
+                .unwrap()
         },
         First,
     );
@@ -74,19 +50,12 @@ fn with_same_size_map_with_lesser_keys_returns_first() {
 fn with_same_size_map_with_same_keys_with_lesser_values_returns_first() {
     max(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("b"), process.integer(2).unwrap()),
+                    (atom_unchecked("c"), process.integer(2).unwrap()),
+                ])
+                .unwrap()
         },
         First,
     );
@@ -101,19 +70,12 @@ fn with_same_map_returns_first() {
 fn with_same_value_map_returns_first() {
     max(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("b"), process.integer(2).unwrap()),
+                    (atom_unchecked("c"), process.integer(3).unwrap()),
+                ])
+                .unwrap()
         },
         First,
     );
@@ -123,19 +85,12 @@ fn with_same_value_map_returns_first() {
 fn with_same_size_map_with_same_keys_with_greater_values_returns_second() {
     max(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        4.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("b"), process.integer(3).unwrap()),
+                    (atom_unchecked("c"), process.integer(4).unwrap()),
+                ])
+                .unwrap()
         },
         Second,
     );
@@ -145,19 +100,12 @@ fn with_same_size_map_with_same_keys_with_greater_values_returns_second() {
 fn with_same_size_map_with_greater_keys_returns_second() {
     max(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("d", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("c"), process.integer(2).unwrap()),
+                    (atom_unchecked("d"), process.integer(3).unwrap()),
+                ])
+                .unwrap()
         },
         Second,
     );
@@ -167,23 +115,13 @@ fn with_same_size_map_with_greater_keys_returns_second() {
 fn with_greater_size_map_returns_second() {
     max(
         |_, process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("a", DoNotCare).unwrap(),
-                        1.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("a"), process.integer(1).unwrap()),
+                    (atom_unchecked("b"), process.integer(2).unwrap()),
+                    (atom_unchecked("c"), process.integer(3).unwrap()),
+                ])
+                .unwrap()
         },
         Second,
     );
@@ -191,50 +129,40 @@ fn with_greater_size_map_returns_second() {
 
 #[test]
 fn with_map_second_returns_first() {
-    max(|_, process| Term::slice_to_map(&[], &process), First);
+    max(|_, process| process.map_from_slice(&[]).unwrap(), First);
 }
 
 #[test]
 fn with_list_or_bitstring_second_returns_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::map(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Second must be number, atom, reference, function, port, or local pid",
-                        |second| second.is_list() || second.is_bitstring(),
-                    ),
-                ),
-                |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), second);
+                    strategy::term::list_or_bitstring(arc_process.clone()),
+                )
+            }),
+            |(first, second)| {
+                prop_assert_eq!(erlang::max_2(first, second), second);
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::max(
         |process| {
-            Term::slice_to_map(
-                &[
-                    (
-                        Term::str_to_atom("b", DoNotCare).unwrap(),
-                        2.into_process(&process),
-                    ),
-                    (
-                        Term::str_to_atom("c", DoNotCare).unwrap(),
-                        3.into_process(&process),
-                    ),
-                ],
-                &process,
-            )
+            process
+                .map_from_slice(&[
+                    (atom_unchecked("b"), process.integer(2).unwrap()),
+                    (atom_unchecked("c"), process.integer(3).unwrap()),
+                ])
+                .unwrap()
         },
         second,
         which,

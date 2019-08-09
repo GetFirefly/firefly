@@ -1,9 +1,8 @@
-use std::convert::{TryFrom, TryInto};
+use core::convert::{TryFrom, TryInto};
 
-use crate::exception::Exception;
-use crate::list::Cons;
-use crate::term::{Tag::*, Term};
-use crate::tuple::Tuple;
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::exception::runtime::Exception;
+use liblumen_alloc::erts::term::{Atom, Boxed, Term, Tuple, TypedTerm};
 
 pub struct Options {
     pub reference_frame: ReferenceFrame,
@@ -11,42 +10,27 @@ pub struct Options {
 
 impl Options {
     fn put_option_term(&mut self, option: Term) -> Result<&Options, Exception> {
-        match option.tag() {
-            Boxed => {
-                let unboxed_option: &Term = option.unbox_reference();
+        let tuple: Boxed<Tuple> = option.try_into()?;
 
-                match unboxed_option.tag() {
-                    Arity => {
-                        let tuple: &Tuple = option.unbox_reference();
+        if tuple.len() == 2 {
+            let atom: Atom = tuple[0].try_into()?;
 
-                        if tuple.len() == 2 {
-                            let name = tuple[0];
+            match atom.name() {
+                "abs" => {
+                    let absolute: bool = tuple[1].try_into()?;
 
-                            match name.tag() {
-                                Atom => match unsafe { name.atom_to_string() }.as_ref().as_ref() {
-                                    "abs" => {
-                                        let absolute: bool = tuple[1].try_into()?;
+                    self.reference_frame = if absolute {
+                        ReferenceFrame::Absolute
+                    } else {
+                        ReferenceFrame::Relative
+                    };
 
-                                        self.reference_frame = if absolute {
-                                            ReferenceFrame::Absolute
-                                        } else {
-                                            ReferenceFrame::Relative
-                                        };
-
-                                        Ok(self)
-                                    }
-                                    _ => Err(badarg!()),
-                                },
-                                _ => Err(badarg!()),
-                            }
-                        } else {
-                            Err(badarg!())
-                        }
-                    }
-                    _ => Err(badarg!()),
+                    Ok(self)
                 }
+                _ => Err(badarg!()),
             }
-            _ => Err(badarg!()),
+        } else {
+            Err(badarg!())
         }
     }
 }
@@ -67,13 +51,11 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.tag() {
-                EmptyList => return Ok(options),
-                List => {
-                    let cons: &Cons = unsafe { options_term.as_ref_cons_unchecked() };
-
-                    options.put_option_term(cons.head())?;
-                    options_term = cons.tail();
+            match options_term.to_typed_term().unwrap() {
+                TypedTerm::Nil => return Ok(options),
+                TypedTerm::List(cons) => {
+                    options.put_option_term(cons.head)?;
+                    options_term = cons.tail;
 
                     continue;
                 }

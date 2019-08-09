@@ -257,14 +257,14 @@ impl FreeBlock {
         let block_ptr = self as *const _ as *mut u8;
         // `size` here is the usable size, so we need to add on the size of the Block header
         let split_offset = mem::size_of::<Block>() + size;
-        let split_ptr = unsafe { block_ptr.offset(split_offset as isize) };
+        let split_ptr = unsafe { block_ptr.add(split_offset) };
         unsafe {
             ptr::write(split_ptr as *mut FreeBlock, split_header.into());
         }
         // Write block footer for split
         // The offset here will be from the base of the
         let split_footer_offset = usable_split_size - mem::size_of::<BlockFooter>();
-        let split_footer_ptr = unsafe { split_ptr.offset(split_footer_offset as isize) };
+        let split_footer_ptr = unsafe { split_ptr.add(split_footer_offset) };
         let split_footer = BlockFooter::new(usable_split_size);
         unsafe { ptr::write(split_footer_ptr as *mut BlockFooter, split_footer) };
         // Return split block
@@ -341,7 +341,7 @@ impl FreeBlock {
             let offset = mem::size_of::<Block>() + usable - mem::size_of::<BlockFooter>();
             unsafe {
                 let block_ptr = block.as_ptr() as *const u8;
-                let footer_ptr = block_ptr.offset(offset as isize);
+                let footer_ptr = block_ptr.add(offset);
                 ptr::write(footer_ptr as *mut BlockFooter, BlockFooter::new(usable));
             }
 

@@ -1,7 +1,12 @@
+#[allow(dead_code)]
 use core::mem;
 use core::ops::Deref;
 use core::ptr;
 
+use ::alloc::sync::Arc;
+
+use crate::erts::term::list::ListBuilder;
+use crate::erts::term::{follow_moved, is_move_marker, Atom, Cons, HeapBin, Tuple};
 use crate::erts::*;
 
 use super::alloc;
@@ -10,8 +15,7 @@ use super::alloc;
 #[test]
 fn gc_simple_fullsweep_test() {
     // Create process
-    let (heap, heap_size) = alloc::default_heap().unwrap();
-    let process = ProcessControlBlock::new(heap, heap_size);
+    let process = process();
     process.set_flags(ProcessFlag::NeedFullSweep);
     simple_gc_test(process);
 }
@@ -20,8 +24,7 @@ fn gc_simple_fullsweep_test() {
 #[test]
 fn gc_simple_minor_test() {
     // Create process
-    let (heap, heap_size) = alloc::default_heap().unwrap();
-    let process = ProcessControlBlock::new(heap, heap_size);
+    let process = process();
     simple_gc_test(process);
 }
 
@@ -31,8 +34,7 @@ fn gc_simple_minor_test() {
 #[test]
 #[ignore]
 fn gc_minor_tenuring_test() {
-    let (heap, heap_size) = alloc::default_heap().unwrap();
-    let process = ProcessControlBlock::new(heap, heap_size);
+    let process = process();
     tenuring_gc_test(process, false);
 }
 
@@ -42,12 +44,115 @@ fn gc_minor_tenuring_test() {
 #[test]
 #[ignore]
 fn gc_fullsweep_after_tenuring_test() {
-    let (heap, heap_size) = alloc::default_heap().unwrap();
-    let process = ProcessControlBlock::new(heap, heap_size);
+    let process = process();
     tenuring_gc_test(process, true);
 }
 
-fn simple_gc_test(mut process: ProcessControlBlock) {
+mod integer {
+    use super::*;
+
+    use core::convert::TryInto;
+
+    #[test]
+    fn with_negative_can_convert_back_to_isize() {
+        let process = process();
+        let i: isize = -1;
+        let negative = process.integer(i).unwrap();
+
+        let negative_isize: isize = negative.try_into().unwrap();
+
+        assert_eq!(negative_isize, i);
+    }
+}
+
+mod tuple_from_slice {
+    use super::*;
+
+    use core::convert::TryInto;
+
+    use crate::erts::term::{atom_unchecked, make_pid, Boxed, SmallInteger, Tuple};
+
+    #[test]
+    fn without_elements() {
+        let process = process();
+        let tuple_term = process.tuple_from_slice(&[]).unwrap();
+
+        let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+        let tuple_ref = boxed_tuple.as_ref();
+        let tuple_pointer = tuple_ref as *const Tuple;
+        let arity_pointer = tuple_pointer as *const Term;
+
+        assert_eq!(
+            unsafe { *arity_pointer }.as_usize(),
+            Term::make_header(0, Term::FLAG_TUPLE).as_usize()
+        );
+    }
+
+    #[test]
+    fn with_elements() {
+        let process = process();
+        // one of every type
+        let slice = &[
+            // small integer
+            process.integer(0).unwrap(),
+            // big integer
+            process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
+            process.reference(0).unwrap(),
+            closure(&process),
+            process.float(0.0).unwrap(),
+            process.external_pid_with_node_id(1, 0, 0).unwrap(),
+            Term::NIL,
+            make_pid(0, 0).unwrap(),
+            atom_unchecked("atom"),
+            process.tuple_from_slice(&[]).unwrap(),
+            process.map_from_slice(&[]).unwrap(),
+            process.list_from_slice(&[]).unwrap(),
+        ];
+
+        let tuple_term = process.tuple_from_slice(slice).unwrap();
+
+        let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+        let tuple_ref = boxed_tuple.as_ref();
+        let tuple_pointer = tuple_ref as *const Tuple;
+        let arity_pointer = tuple_pointer as *const Term;
+
+        assert_eq!(
+            // arity is a header, so it is not safe to dereference as it causes a copy.
+            unsafe { &*arity_pointer }.as_usize(),
+            Term::make_header(slice.len(), Term::FLAG_TUPLE).as_usize()
+        );
+
+        let element_pointer = unsafe { arity_pointer.add(1) };
+
+        for (i, element) in slice.iter().enumerate() {
+            assert_eq!(unsafe { *element_pointer.add(i) }, *element);
+        }
+    }
+
+    fn closure(process: &ProcessControlBlock) -> Term {
+        let creator = process.pid_term();
+
+        let module = Atom::try_from_str("module").unwrap();
+        let function = Atom::try_from_str("function").unwrap();
+        let arity = 0;
+        let module_function_arity = Arc::new(ModuleFunctionArity {
+            module,
+            function,
+            arity,
+        });
+        let code = |arc_process: &Arc<ProcessControlBlock>| {
+            arc_process.wait();
+
+            Ok(())
+        };
+
+        process
+            .closure(creator, module_function_arity, code)
+            .unwrap()
+    }
+}
+
+fn simple_gc_test(process: ProcessControlBlock) {
     // Allocate an `{:ok, "hello world"}` tuple
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
@@ -55,21 +160,31 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
     // requires space to be allocated for the header as well as the contents,
     // then have both written to the heap
     let greeting = "hello world";
-    let greeting_term = make_binary_from_str(&mut process, greeting).unwrap();
+    let greeting_term = process.binary_from_str(greeting).unwrap();
     // Finally, allocate room for the tuple itself, which is essentially an
     // array of `Term`, which in the case of immediates actually _is_ an array,
     // but as in our test here, when boxed terms are involved, doesn't fully
     // contain everything.
     let elements = [ok, greeting_term];
-    let tuple_term = make_tuple_from_slice(&mut process, &elements).unwrap();
+    let tuple_term = process.tuple_from_slice(&elements).unwrap();
     assert!(tuple_term.is_boxed());
     let tuple_ptr = tuple_term.boxed_val();
 
     // Allocate the list `[101, "test"]`
-    let num = make_integer(&mut process, 101usize);
+    let num = process.integer(101usize).unwrap();
     let string = "test";
-    let string_term = make_binary_from_str(&mut process, string).unwrap();
-    let list_term = ListBuilder::new(&mut process)
+    let string_term = process.binary_from_str(string).unwrap();
+
+    assert!(string_term.is_boxed());
+    let string_term_ptr = string_term.boxed_val();
+    let string_term_unboxed = unsafe { *string_term_ptr };
+    assert!(string_term_unboxed.is_heapbin());
+    let string_term_heap_bin = unsafe { &*(string_term_ptr as *mut HeapBin) };
+    use crate::erts::term::Bitstring;
+    assert_eq!(string_term_heap_bin.full_byte_len(), 4);
+    assert_eq!("test", string_term_heap_bin.as_str());
+
+    let list_term = ListBuilder::new(&mut process.acquire_heap())
         .push(num)
         .push(string_term)
         .finish()
@@ -79,15 +194,15 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
 
     // Now, we will simulate updating the greeting of the above tuple with a new one,
     // leaving the original greeting dead, and a target for collection
-    let new_greeting_term = make_binary_from_str(&mut process, "goodbye!").unwrap();
+    let new_greeting_term = process.binary_from_str("goodbye!").unwrap();
 
     // Update second element of the tuple above
     unsafe {
-        let tuple_unwrapped = *tuple_ptr;
-        assert!(tuple_unwrapped.is_tuple());
+        let tuple_unwrapped = &*tuple_ptr;
+        assert!(tuple_unwrapped.is_tuple_header());
         let tuple = &*(tuple_ptr as *mut Tuple);
         let head_ptr = tuple.head();
-        let second_element_ptr = head_ptr.offset(1);
+        let second_element_ptr = head_ptr.add(1);
         ptr::write(second_element_ptr, new_greeting_term);
     }
 
@@ -115,7 +230,7 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
     assert_ne!(new_tuple_ptr, tuple_ptr as *mut Term);
     // Assert that we can still access data that should be live
     let new_tuple = unsafe { &*(new_tuple_ptr as *mut Tuple) };
-    assert_eq!(new_tuple.size(), 2);
+    assert_eq!(new_tuple.len(), 2);
     // First, the atom
     assert_eq!(Ok(ok), new_tuple.get_element_internal(1));
     // Then to validate the greeting, we need to follow the boxed term, unwrap it, and validate it
@@ -149,7 +264,7 @@ fn simple_gc_test(mut process: ProcessControlBlock) {
     assert_eq!("test", test_string.as_str());
 }
 
-fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) {
+fn tenuring_gc_test(process: ProcessControlBlock, _perform_fullsweep: bool) {
     // Allocate an `{:ok, "hello world"}` tuple
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
@@ -157,10 +272,10 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
     // requires space to be allocated for the header as well as the contents,
     // then have both written to the heap
     let greeting = "hello world";
-    let greeting_term = make_binary_from_str(&mut process, greeting).unwrap();
+    let greeting_term = process.binary_from_str(greeting).unwrap();
     // Construct tuple containing the atom and string
     let elements = [ok, greeting_term];
-    let tuple_term = make_tuple_from_slice(&mut process, &elements).unwrap();
+    let tuple_term = process.tuple_from_slice(&elements).unwrap();
     // Verify that the resulting tuple is valid
     assert!(tuple_term.is_boxed());
     let tuple_ptr = tuple_term.boxed_val();
@@ -182,8 +297,8 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
     // Allocate a list `[101, "this is a list"]`
     let num = Term::make_smallint(101);
     let string = "this is a list";
-    let string_term = make_binary_from_str(&mut process, string).unwrap();
-    let list_term = ListBuilder::new(&mut process)
+    let string_term = process.binary_from_str(string).unwrap();
+    let list_term = ListBuilder::new(&mut process.acquire_heap())
         .push(num)
         .push(string_term)
         .finish()
@@ -193,11 +308,11 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
     assert!(list_term.is_list());
     let cons_ptr = list_term.list_val();
     let cons = unsafe { &*cons_ptr };
-    let mut cons_iter = cons.iter();
-    let l1 = cons_iter.next().unwrap();
+    let mut cons_iter = cons.into_iter();
+    let l1 = cons_iter.next().unwrap().unwrap();
     dbg!(l1);
     assert!(l1.is_smallint());
-    let l2 = cons_iter.next().unwrap();
+    let l2 = cons_iter.next().unwrap().unwrap();
     dbg!(l2);
     assert!(l2.is_boxed());
     let l2ptr = l2.boxed_val();
@@ -214,7 +329,7 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
     // Now, we will simulate updating the greeting of the above tuple with a new one,
     // leaving the original greeting dead, and a target for collection
     let new_greeting = "goodbye world!";
-    let new_greeting_term = make_binary_from_str(&mut process, new_greeting).unwrap();
+    let new_greeting_term = process.binary_from_str(new_greeting).unwrap();
 
     // Update second element of the tuple above
     tup.set_element_internal(2, new_greeting_term).unwrap();
@@ -249,14 +364,14 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
 
     // Verify roots, starting with the list since it is on top of the stack
     let list_term = process.stack_pop().unwrap();
-    assert!(list_term.is_list());
+    assert!(list_term.is_non_empty_list());
     let list_term_ptr = list_term.list_val();
     let list = unsafe { &*list_term_ptr };
     assert!(!list.is_move_marker());
-    let mut list_iter = list.iter();
-    let l0 = list_iter.next().unwrap();
+    let mut list_iter = list.into_iter();
+    let l0 = list_iter.next().unwrap().unwrap();
     assert_eq!(l0, Term::make_smallint(101));
-    let l1 = list_iter.next().unwrap();
+    let l1 = list_iter.next().unwrap().unwrap();
     assert!(l1.is_boxed());
     let l1ptr = l1.boxed_val();
     let l1bin = unsafe { *l1ptr };
@@ -274,7 +389,7 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
     assert_ne!(moved_tuple_ptr, tuple_ptr);
     assert_ne!(moved_tuple_ptr, tuple_ptr_postgc);
     let moved_tuple = unsafe { *moved_tuple_ptr };
-    assert!(moved_tuple.is_tuple_with_arity(2));
+    assert!(moved_tuple.is_tuple_header_with_arity(2));
     let tup = unsafe { &*(moved_tuple_ptr as *mut Tuple) };
     let mut tup_iter = tup.iter();
     let t1 = tup_iter.next().unwrap();
@@ -293,7 +408,7 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
     // Allocate a fresh list for the young generation which references the older list,
     // e.g. will be equivalent to `[202, 101, "this is a list"]
     let num2 = Term::make_smallint(202);
-    let second_list_term = ListBuilder::new(&mut process)
+    let second_list_term = ListBuilder::new(&mut process.acquire_heap())
         .push(num2)
         .push(list_term)
         .finish()
@@ -301,12 +416,12 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
     let second_list_ptr = second_list_term.list_val();
     assert!(list_term.is_list());
     let second_list = unsafe { &*second_list_ptr };
-    let mut list_iter = second_list.iter();
-    let l0 = list_iter.next().unwrap();
+    let mut list_iter = second_list.into_iter();
+    let l0 = list_iter.next().unwrap().unwrap();
     assert_eq!(l0, Term::make_smallint(202));
-    let l1 = list_iter.next().unwrap();
+    let l1 = list_iter.next().unwrap().unwrap();
     assert_eq!(l1, Term::make_smallint(101));
-    let l2 = list_iter.next().unwrap();
+    let l2 = list_iter.next().unwrap().unwrap();
     assert!(l2.is_boxed());
     let l2ptr = l2.boxed_val();
     let l2bin = unsafe { *l2ptr };
@@ -349,16 +464,16 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
 
     // Verify roots
     let list_term = process.stack_pop().unwrap();
-    assert!(list_term.is_list());
+    assert!(list_term.is_non_empty_list());
     let list_term_ptr = list_term.list_val();
     let list = unsafe { &*list_term_ptr };
     assert!(!list.is_move_marker());
-    let mut list_iter = list.iter();
-    let l0 = list_iter.next().unwrap();
+    let mut list_iter = list.into_iter();
+    let l0 = list_iter.next().unwrap().unwrap();
     assert!(l0.is_smallint());
-    let l1 = list_iter.next().unwrap();
+    let l1 = list_iter.next().unwrap().unwrap();
     assert!(l1.is_smallint());
-    let l2 = list_iter.next().unwrap();
+    let l2 = list_iter.next().unwrap().unwrap();
     assert!(l2.is_boxed());
     let l2_bin = unsafe { *l2.boxed_val() };
     assert!(l2_bin.is_heapbin());
@@ -391,6 +506,28 @@ fn tenuring_gc_test(mut process: ProcessControlBlock, _perform_fullsweep: bool) 
     */
 }
 
+fn process() -> ProcessControlBlock {
+    let init = Atom::try_from_str("init").unwrap();
+    let initial_module_function_arity = Arc::new(ModuleFunctionArity {
+        module: init,
+        function: init,
+        arity: 0,
+    });
+    let (heap, heap_size) = alloc::default_heap().unwrap();
+
+    let process = ProcessControlBlock::new(
+        Priority::Normal,
+        None,
+        initial_module_function_arity,
+        heap,
+        heap_size,
+    );
+
+    process.schedule_with(scheduler::id::next());
+
+    process
+}
+
 fn verify_tuple_root(tuple_root: Term, tuple_ptr: *mut Term) {
     assert!(tuple_root.is_boxed());
     let new_tuple_ptr = tuple_root.boxed_val();
@@ -399,7 +536,7 @@ fn verify_tuple_root(tuple_root: Term, tuple_ptr: *mut Term) {
     assert!(!is_move_marker(new_tuple_term));
     // Assert that we can still access data that should be live
     let new_tuple = unsafe { &*(new_tuple_ptr as *mut Tuple) };
-    assert_eq!(new_tuple.size(), 2);
+    assert_eq!(new_tuple.len(), 2);
     // First, the atom
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
     assert_eq!(Ok(ok), new_tuple.get_element_internal(1));

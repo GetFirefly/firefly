@@ -7,7 +7,10 @@ fn without_number_errors_badarith() {
             .run(
                 &strategy::term::is_not_number(arc_process.clone()),
                 |number| {
-                    prop_assert_eq!(erlang::number_or_badarith_1(number), Err(badarith!()));
+                    prop_assert_eq!(
+                        erlang::number_or_badarith_1(number),
+                        Err(badarith!().into())
+                    );
 
                     Ok(())
                 },

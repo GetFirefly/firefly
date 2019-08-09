@@ -1,9 +1,9 @@
-use core::alloc::AllocErr;
 use core::ptr::NonNull;
 
-use crate::erts::{ProcBin, Term};
+use crate::erts::exception::system::Alloc;
+use crate::erts::term::{ProcBin, Term};
 
-use super::alloc::{self, HeapAlloc, StackAlloc, StackPrimitives};
+use super::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use super::gc::*;
 use super::ProcessControlBlock;
 
@@ -26,11 +26,6 @@ impl ProcessHeap {
             young,
             old,
         }
-    }
-
-    #[inline]
-    pub fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.young.virtual_alloc(bin)
     }
 
     #[inline]
@@ -69,23 +64,9 @@ impl ProcessHeap {
         gc.collect(need)
     }
 }
-impl Drop for ProcessHeap {
-    fn drop(&mut self) {
-        // Free young heap
-        let young_heap_start = self.young.heap_start();
-        let young_heap_size = self.young.size();
-        unsafe { alloc::free(young_heap_start, young_heap_size) };
-        // Free old heap, if active
-        if self.old.active() {
-            let old_heap_start = self.old.heap_start();
-            let old_heap_size = self.old.size();
-            unsafe { alloc::free(old_heap_start, old_heap_size) };
-        }
-    }
-}
 impl HeapAlloc for ProcessHeap {
     #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
         self.young.alloc(need)
     }
 
@@ -100,9 +81,15 @@ impl HeapAlloc for ProcessHeap {
         false
     }
 }
+impl VirtualAlloc for ProcessHeap {
+    #[inline]
+    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
+        self.young.virtual_alloc(bin)
+    }
+}
 impl StackAlloc for ProcessHeap {
     #[inline]
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
+    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
         self.young.alloca(need)
     }
 

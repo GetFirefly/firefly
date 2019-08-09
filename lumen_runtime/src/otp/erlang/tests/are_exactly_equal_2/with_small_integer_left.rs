@@ -4,24 +4,22 @@ use proptest::strategy::Strategy;
 
 #[test]
 fn without_small_integer_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::integer::small(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a small integer or float", |v| {
-                            v.tag() != SmallInteger
-                        }),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                        .prop_filter("Right must not be a small integer", |v| !v.is_smallint()),
+                )
+            }),
+            |(left, right)| {
+                prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]
@@ -45,8 +43,10 @@ fn with_same_value_small_integer_right_returns_true() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &(crate::integer::small::MIN..crate::integer::small::MAX).prop_map(move |i| {
-                    (i.into_process(&arc_process), i.into_process(&arc_process))
+                &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
+                    let mut heap = arc_process.acquire_heap();
+
+                    (heap.integer(i).unwrap(), heap.integer(i).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), true.into());
@@ -63,11 +63,10 @@ fn with_different_small_integer_right_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &(crate::integer::small::MIN..crate::integer::small::MAX).prop_map(move |i| {
-                    (
-                        i.into_process(&arc_process),
-                        (i + 1).into_process(&arc_process),
-                    )
+                &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
+                    let mut heap = arc_process.acquire_heap();
+
+                    (heap.integer(i).unwrap(), heap.integer(i + 1).unwrap())
                 }),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());

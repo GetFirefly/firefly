@@ -10,7 +10,10 @@ fn without_binary_errors_badarg() {
                     strategy::term::is_encoding(),
                 ),
                 |(binary, encoding)| {
-                    prop_assert_eq!(erlang::binary_to_atom_2(binary, encoding), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::binary_to_atom_2(binary, encoding),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -29,7 +32,10 @@ fn with_binary_without_encoding_errors_badarg() {
                     strategy::term::is_not_encoding(arc_process),
                 ),
                 |(binary, encoding)| {
-                    prop_assert_eq!(erlang::binary_to_atom_2(binary, encoding), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::binary_to_atom_2(binary, encoding),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -48,25 +54,25 @@ fn with_utf8_binary_with_encoding_returns_atom_with_binary_name() {
                     strategy::term::is_encoding(),
                 ),
                 |(binary, encoding)| {
-                    let byte_vec: Vec<u8> = match binary.unbox_reference::<Term>().tag() {
-                        HeapBinary => {
-                            let heap_binary: &heap::Binary = binary.unbox_reference();
-
-                            heap_binary.byte_iter().collect()
-                        }
-                        Subbinary => {
-                            let subbinary: &sub::Binary = binary.unbox_reference();
-
-                            subbinary.byte_iter().collect()
-                        }
-                        unboxed_tag => panic!("unboxed_tag = {:?}", unboxed_tag),
+                    let byte_vec: Vec<u8> = match binary.to_typed_term().unwrap() {
+                        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+                            TypedTerm::HeapBinary(heap_binary) => heap_binary.as_bytes().to_vec(),
+                            TypedTerm::SubBinary(subbinary) => subbinary.full_byte_iter().collect(),
+                            TypedTerm::ProcBin(process_binary) => {
+                                process_binary.as_bytes().to_vec()
+                            }
+                            unboxed_typed_term => {
+                                panic!("unboxed_typed_term = {:?}", unboxed_typed_term)
+                            }
+                        },
+                        typed_term => panic!("typed_term = {:?}", typed_term),
                     };
 
                     let s = std::str::from_utf8(&byte_vec).unwrap();
 
                     prop_assert_eq!(
                         erlang::binary_to_atom_2(binary, encoding),
-                        Ok(Term::str_to_atom(s, DoNotCare).unwrap())
+                        Ok(atom_unchecked(s))
                     );
 
                     Ok(())

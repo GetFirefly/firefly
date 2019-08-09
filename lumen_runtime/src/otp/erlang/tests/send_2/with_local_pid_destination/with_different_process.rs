@@ -5,7 +5,7 @@ fn with_locked_adds_heap_message_to_mailbox_and_returns_message() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |message| {
-                let destination = arc_process.pid;
+                let destination = arc_process.pid_term();
 
                 prop_assert_eq!(
                     erlang::send_2(destination, message, &arc_process),
@@ -24,22 +24,19 @@ fn with_locked_adds_heap_message_to_mailbox_and_returns_message() {
 fn without_locked_adds_process_message_to_mailbox_and_returns_message() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::heap_fragment_safe(arc_process.clone()),
-                |message| {
-                    let different_arc_process = process::local::test(&arc_process);
-                    let destination = different_arc_process.pid;
+            .run(&strategy::term(arc_process.clone()), |message| {
+                let different_arc_process = process::test(&arc_process);
+                let destination = different_arc_process.pid_term();
 
-                    prop_assert_eq!(
-                        erlang::send_2(destination, message, &arc_process),
-                        Ok(message)
-                    );
+                prop_assert_eq!(
+                    erlang::send_2(destination, message, &arc_process),
+                    Ok(message)
+                );
 
-                    prop_assert!(has_process_message(&different_arc_process, message));
+                prop_assert!(has_process_message(&different_arc_process, message));
 
-                    Ok(())
-                },
-            )
+                Ok(())
+            })
             .unwrap();
     });
 }

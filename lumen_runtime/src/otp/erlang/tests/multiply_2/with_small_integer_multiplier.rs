@@ -12,7 +12,7 @@ fn without_number_multiplicand_errors_badarith() {
                 |(multiplier, multiplicand)| {
                     prop_assert_eq!(
                         erlang::multiply_2(multiplier, multiplicand, &arc_process),
-                        Err(badarith!())
+                        Err(badarith!().into())
                     );
 
                     Ok(())
@@ -25,11 +25,11 @@ fn without_number_multiplicand_errors_badarith() {
 #[test]
 fn with_small_integer_multiplicand_without_underflow_or_overflow_returns_small_integer() {
     with(|multiplier, process| {
-        let multiplicand = 3.into_process(&process);
+        let multiplicand = process.integer(3).unwrap();
 
         assert_eq!(
             erlang::multiply_2(multiplier, multiplicand, &process),
-            Ok(6.into_process(&process))
+            Ok(process.integer(6).unwrap())
         );
     })
 }
@@ -37,9 +37,9 @@ fn with_small_integer_multiplicand_without_underflow_or_overflow_returns_small_i
 #[test]
 fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
     with(|multiplier, process| {
-        let multiplicand = crate::integer::small::MIN.into_process(&process);
+        let multiplicand = process.integer(SmallInteger::MIN_VALUE).unwrap();
 
-        assert_eq!(multiplicand.tag(), SmallInteger);
+        assert!(multiplicand.is_smallint());
 
         let result = erlang::multiply_2(multiplier, multiplicand, &process);
 
@@ -47,20 +47,16 @@ fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
 
         let product = result.unwrap();
 
-        assert_eq!(product.tag(), Boxed);
-
-        let unboxed_product: &Term = product.unbox_reference();
-
-        assert_eq!(unboxed_product.tag(), BigInteger);
+        assert!(product.is_bigint());
     })
 }
 
 #[test]
 fn with_small_integer_multiplicand_with_overflow_returns_big_integer() {
     with(|multiplier, process| {
-        let multiplicand = crate::integer::small::MAX.into_process(&process);
+        let multiplicand = process.integer(SmallInteger::MAX_VALUE).unwrap();
 
-        assert_eq!(multiplicand.tag(), SmallInteger);
+        assert!(multiplicand.is_smallint());
 
         let result = erlang::multiply_2(multiplier, multiplicand, &process);
 
@@ -68,11 +64,7 @@ fn with_small_integer_multiplicand_with_overflow_returns_big_integer() {
 
         let product = result.unwrap();
 
-        assert_eq!(product.tag(), Boxed);
-
-        let unboxed_product: &Term = product.unbox_reference();
-
-        assert_eq!(unboxed_product.tag(), BigInteger);
+        assert!(product.is_bigint());
     })
 }
 
@@ -92,11 +84,7 @@ fn with_big_integer_multiplicand_returns_big_integer() {
 
                     let product = result.unwrap();
 
-                    prop_assert_eq!(product.tag(), Boxed);
-
-                    let unboxed_product: &Term = product.unbox_reference();
-
-                    prop_assert_eq!(unboxed_product.tag(), BigInteger);
+                    prop_assert!(product.is_bigint());
 
                     Ok(())
                 },
@@ -108,11 +96,11 @@ fn with_big_integer_multiplicand_returns_big_integer() {
 #[test]
 fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
     with(|multiplier, process| {
-        let multiplicand = 3.0.into_process(&process);
+        let multiplicand = process.float(3.0).unwrap();
 
         assert_eq!(
             erlang::multiply_2(multiplier, multiplicand, &process),
-            Ok(6.0.into_process(&process))
+            Ok(process.float(6.0).unwrap())
         );
     })
 }
@@ -120,11 +108,11 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 #[test]
 fn with_float_multiplicand_with_underflow_returns_min_float() {
     with(|multiplier, process| {
-        let multiplicand = std::f64::MIN.into_process(&process);
+        let multiplicand = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
             erlang::multiply_2(multiplier, multiplicand, &process),
-            Ok(std::f64::MIN.into_process(&process))
+            Ok(process.float(std::f64::MIN).unwrap())
         );
     })
 }
@@ -132,21 +120,21 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
 #[test]
 fn with_float_multiplicand_with_overflow_returns_max_float() {
     with(|multiplier, process| {
-        let multiplicand = std::f64::MAX.into_process(&process);
+        let multiplicand = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
             erlang::multiply_2(multiplier, multiplicand, &process),
-            Ok(std::f64::MAX.into_process(&process))
+            Ok(process.float(std::f64::MAX).unwrap())
         );
     })
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let multiplier = 2.into_process(&process);
+        let multiplier = process.integer(2).unwrap();
 
         f(multiplier, &process)
     })

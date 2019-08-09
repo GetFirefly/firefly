@@ -21,10 +21,7 @@ fn with_number_second_returns_second() {
 
 #[test]
 fn with_lesser_atom_returns_second() {
-    min(
-        |_, _| Term::str_to_atom("eirst", DoNotCare).unwrap(),
-        Second,
-    );
+    min(|_, _| atom_unchecked("eirst"), Second);
 }
 
 #[test]
@@ -34,15 +31,12 @@ fn with_same_atom_returns_first() {
 
 #[test]
 fn with_same_atom_value_returns_first() {
-    min(|_, _| Term::str_to_atom("first", DoNotCare).unwrap(), First);
+    min(|_, _| atom_unchecked("first"), First);
 }
 
 #[test]
 fn with_greater_atom_returns_first() {
-    min(
-        |_, _| Term::str_to_atom("second", DoNotCare).unwrap(),
-        First,
-    );
+    min(|_, _| atom_unchecked("second"), First);
 }
 
 #[test]
@@ -69,11 +63,7 @@ fn without_number_or_atom_returns_first() {
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::min(
-        |_| Term::str_to_atom("first", DoNotCare).unwrap(),
-        second,
-        which,
-    );
+    super::min(|_| atom_unchecked("first"), second, which);
 }

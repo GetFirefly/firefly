@@ -15,11 +15,11 @@ fn without_non_negative_integer_time_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(time, message)| {
-                    let destination = arc_process.pid;
+                    let destination = arc_process.pid_term();
 
                     prop_assert_eq!(
                         erlang::send_after_3(time, destination, message, arc_process.clone()),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

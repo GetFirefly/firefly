@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_port_or_pid_returns_true() {
     with_process_arc(|arc_process| {
@@ -9,17 +7,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_true() {
             .run(
                 &(
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Right must be number, atom, reference, function, port, or pid",
-                        |right| {
-                            right.is_number()
-                                || right.is_atom()
-                                || right.is_reference()
-                                || right.is_function()
-                                || right.is_port()
-                                || right.is_pid()
-                        },
-                    ),
+                    strategy::term::number_atom_reference_function_port_or_pid(arc_process.clone()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::is_greater_than_or_equal_2(left, right), true.into());
@@ -34,7 +22,11 @@ fn with_number_atom_reference_function_port_or_pid_returns_true() {
 #[test]
 fn with_smaller_tuple_right_returns_true() {
     is_greater_than_or_equal(
-        |_, process| Term::slice_to_tuple(&[1.into_process(&process)], &process),
+        |_, process| {
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap()])
+                .unwrap()
+        },
         true,
     );
 }
@@ -43,10 +35,9 @@ fn with_smaller_tuple_right_returns_true() {
 fn with_same_size_tuple_with_greater_elements_returns_true() {
     is_greater_than_or_equal(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 1.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(1).unwrap()])
+                .unwrap()
         },
         true,
     );
@@ -56,10 +47,9 @@ fn with_same_size_tuple_with_greater_elements_returns_true() {
 fn with_same_value_tuple_returns_true() {
     is_greater_than_or_equal(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 2.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap()])
+                .unwrap()
         },
         true,
     );
@@ -69,10 +59,9 @@ fn with_same_value_tuple_returns_true() {
 fn with_same_size_tuple_with_greater_elements_returns_false() {
     is_greater_than_or_equal(
         |_, process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 3.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(3).unwrap()])
+                .unwrap()
         },
         false,
     );
@@ -82,14 +71,13 @@ fn with_same_size_tuple_with_greater_elements_returns_false() {
 fn with_greater_size_tuple_returns_false() {
     is_greater_than_or_equal(
         |_, process| {
-            Term::slice_to_tuple(
-                &[
-                    1.into_process(&process),
-                    2.into_process(&process),
-                    3.into_process(&process),
-                ],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[
+                    process.integer(1).unwrap(),
+                    process.integer(2).unwrap(),
+                    process.integer(3).unwrap(),
+                ])
+                .unwrap()
         },
         false,
     );
@@ -97,39 +85,35 @@ fn with_greater_size_tuple_returns_false() {
 
 #[test]
 fn with_map_list_or_bitstring_returns_false() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (
                     strategy::term::tuple(arc_process.clone()),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("Right must be map, list, or bitstring", |right| {
-                            right.is_map() || right.is_list() || right.is_bitstring()
-                        }),
-                ),
-                |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::is_greater_than_or_equal_2(left, right),
-                        false.into()
-                    );
+                    strategy::term::map_list_or_bitstring(arc_process.clone()),
+                )
+            }),
+            |(left, right)| {
+                prop_assert_eq!(
+                    erlang::is_greater_than_or_equal_2(left, right),
+                    false.into()
+                );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::is_greater_than_or_equal(
         |process| {
-            Term::slice_to_tuple(
-                &[1.into_process(&process), 2.into_process(&process)],
-                &process,
-            )
+            process
+                .tuple_from_slice(&[process.integer(1).unwrap(), process.integer(2).unwrap()])
+                .unwrap()
         },
         right,
         expected,

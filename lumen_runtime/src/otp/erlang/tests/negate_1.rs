@@ -10,7 +10,10 @@ fn without_number_errors_badarith() {
             .run(
                 &strategy::term::is_not_number(arc_process.clone()),
                 |number| {
-                    prop_assert_eq!(erlang::negate_1(number, &arc_process), Err(badarith!()));
+                    prop_assert_eq!(
+                        erlang::negate_1(number, &arc_process),
+                        Err(badarith!().into())
+                    );
 
                     Ok(())
                 },
@@ -25,9 +28,9 @@ fn with_integer_returns_integer_of_opposite_sign() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &prop_oneof![std::isize::MIN..=-1, 1..=std::isize::MAX]
-                    .prop_map(|i| (i.into_process(&arc_process), i)),
+                    .prop_map(|i| (arc_process.integer(i).unwrap(), i)),
                 |(number, i)| {
-                    let negated = (-i).into_process(&arc_process);
+                    let negated = arc_process.integer(-i).unwrap();
 
                     prop_assert_eq!(erlang::negate_1(number, &arc_process), Ok(negated));
 
@@ -44,9 +47,9 @@ fn with_float_returns_float_of_opposite_sign() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &prop_oneof![std::f64::MIN..=-1.0, 1.0..=std::f64::MAX]
-                    .prop_map(|f| (f.into_process(&arc_process), f)),
+                    .prop_map(|f| (arc_process.float(f).unwrap(), f)),
                 |(number, f)| {
-                    let negated = (-f).into_process(&arc_process);
+                    let negated = arc_process.float(-f).unwrap();
 
                     prop_assert_eq!(erlang::negate_1(number, &arc_process), Ok(negated));
 

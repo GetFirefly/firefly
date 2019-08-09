@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 #[test]
 fn with_number_atom_reference_function_or_port_second_returns_first() {
     with_process_arc(|arc_process| {
@@ -9,16 +7,7 @@ fn with_number_atom_reference_function_or_port_second_returns_first() {
             .run(
                 &(
                     strategy::term::pid::local(),
-                    strategy::term(arc_process.clone()).prop_filter(
-                        "Second must be number, atom, reference, function, or port",
-                        |second| {
-                            second.is_number()
-                                || second.is_atom()
-                                || second.is_reference()
-                                || second.is_function()
-                                || second.is_port()
-                        },
-                    ),
+                    strategy::term::number_atom_reference_function_or_port(arc_process),
                 ),
                 |(first, second)| {
                     prop_assert_eq!(erlang::max_2(first, second), first);
@@ -32,7 +21,7 @@ fn with_number_atom_reference_function_or_port_second_returns_first() {
 
 #[test]
 fn with_lesser_local_pid_second_returns_first() {
-    max(|_, _| Term::local_pid(0, 0).unwrap(), First);
+    max(|_, _| make_pid(0, 0).unwrap(), First);
 }
 
 #[test]
@@ -42,18 +31,18 @@ fn with_same_local_pid_second_returns_first() {
 
 #[test]
 fn with_same_value_local_pid_second_returns_first() {
-    max(|_, _| Term::local_pid(0, 1).unwrap(), First);
+    max(|_, _| make_pid(0, 1).unwrap(), First);
 }
 
 #[test]
 fn with_greater_local_pid_second_returns_second() {
-    max(|_, _| Term::local_pid(1, 1).unwrap(), Second);
+    max(|_, _| make_pid(1, 1).unwrap(), Second);
 }
 
 #[test]
 fn with_external_pid_second_returns_second() {
     max(
-        |_, process| Term::external_pid(1, 2, 3, &process).unwrap(),
+        |_, process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
         Second,
     );
 }
@@ -65,10 +54,7 @@ fn with_list_or_bitstring_second_returns_second() {
             .run(
                 &(
                     strategy::term::pid::local(),
-                    strategy::term(arc_process.clone())
-                        .prop_filter("second must be tuple, map, list, or bitstring", |second| {
-                            second.is_list() || second.is_bitstring()
-                        }),
+                    strategy::term::tuple_map_list_or_bitstring(arc_process),
                 ),
                 |(first, second)| {
                     prop_assert_eq!(erlang::max_2(first, second), second);
@@ -82,7 +68,7 @@ fn with_list_or_bitstring_second_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::max(|_| Term::local_pid(0, 1).unwrap(), second, which);
+    super::max(|_| make_pid(0, 1).unwrap(), second, which);
 }

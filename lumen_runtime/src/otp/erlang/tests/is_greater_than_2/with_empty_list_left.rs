@@ -4,7 +4,7 @@ use proptest::prop_oneof;
 use proptest::strategy::Strategy;
 
 #[test]
-fn without_non_empty_list_or_bitstring_returns_true() {
+fn without_list_or_bitstring_returns_true() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -13,7 +13,7 @@ fn without_non_empty_list_or_bitstring_returns_true() {
                         !(right.is_list() || right.is_bitstring())
                     }),
                 |right| {
-                    let left = Term::EMPTY_LIST;
+                    let left = Term::NIL;
 
                     prop_assert_eq!(erlang::is_greater_than_2(left, right), true.into());
 
@@ -31,10 +31,10 @@ fn with_non_empty_list_or_bitstring_right_returns_false() {
             .run(
                 &prop_oneof![
                     strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
-                    strategy::term::is_bitstring(arc_process)
+                    non_empty_list_or_bitstring(arc_process)
                 ],
                 |right| {
-                    let left = Term::EMPTY_LIST;
+                    let left = Term::NIL;
 
                     prop_assert_eq!(erlang::is_greater_than_2(left, right), false.into());
 
@@ -43,4 +43,12 @@ fn with_non_empty_list_or_bitstring_right_returns_false() {
             )
             .unwrap();
     });
+}
+
+fn non_empty_list_or_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
+        strategy::term::is_bitstring(arc_process)
+    ]
+    .boxed()
 }

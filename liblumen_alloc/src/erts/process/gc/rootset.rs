@@ -34,18 +34,23 @@ impl RootSet {
 
     #[inline]
     pub fn push_range(&mut self, start: *mut Term, size: usize) {
-        let end = unsafe { start.offset(size as isize) as usize };
+        let end = unsafe { start.add(size) as usize };
         let mut pos = start;
+
         while (pos as usize) < (end as usize) {
             let term = unsafe { *pos };
-            if term.is_immediate() || term.is_boxed() || term.is_list() {
+
+            pos = if term.has_no_arity() {
                 self.0.push(pos);
-                pos = unsafe { pos.offset(1) };
+
+                unsafe { pos.add(1) }
             } else {
                 assert!(term.is_header());
+
                 let skip = 1 + term.arityval();
-                pos = unsafe { pos.offset(skip as isize) };
-            }
+
+                unsafe { pos.add(skip) }
+            };
         }
     }
 

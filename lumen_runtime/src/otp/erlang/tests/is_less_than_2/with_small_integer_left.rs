@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn with_lesser_small_integer_right_returns_false() {
-    is_less_than(|_, process| (-1).into_process(&process), false);
+    is_less_than(|_, process| process.integer(-1).unwrap(), false);
 }
 
 #[test]
@@ -12,18 +12,18 @@ fn with_same_small_integer_right_returns_false() {
 
 #[test]
 fn with_same_value_small_integer_right_returns_false() {
-    is_less_than(|_, process| 0.into_process(&process), false);
+    is_less_than(|_, process| process.integer(0).unwrap(), false);
 }
 
 #[test]
 fn with_greater_small_integer_right_returns_true() {
-    is_less_than(|_, process| 1.into_process(&process), true);
+    is_less_than(|_, process| process.integer(1).unwrap(), true);
 }
 
 #[test]
 fn with_lesser_big_integer_right_returns_false() {
     is_less_than(
-        |_, process| (crate::integer::small::MIN - 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
         false,
     )
 }
@@ -31,24 +31,24 @@ fn with_lesser_big_integer_right_returns_false() {
 #[test]
 fn with_greater_big_integer_right_returns_true() {
     is_less_than(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
         true,
     )
 }
 
 #[test]
 fn with_lesser_float_right_returns_false() {
-    is_less_than(|_, process| (-1.0).into_process(&process), false)
+    is_less_than(|_, process| process.float(-1.0).unwrap(), false)
 }
 
 #[test]
 fn with_same_value_float_right_returns_false() {
-    is_less_than(|_, process| 0.0.into_process(&process), false)
+    is_less_than(|_, process| process.float(0.0).unwrap(), false)
 }
 
 #[test]
 fn with_greater_float_right_returns_true() {
-    is_less_than(|_, process| 1.0.into_process(&process), true)
+    is_less_than(|_, process| process.float(1.0).unwrap(), true)
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn without_number_returns_true() {
 
 fn is_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
-    super::is_less_than(|process| 0.into_process(&process), right, expected);
+    super::is_less_than(|process| process.integer(0).unwrap(), right, expected);
 }

@@ -1,4 +1,4 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::mem;
 use core::ptr::NonNull;
 
@@ -7,12 +7,15 @@ use heapless::consts::U152 as UHEAP_SIZES_LEN;
 #[cfg(target_pointer_width = "32")]
 use heapless::consts::U57 as UHEAP_SIZES_LEN;
 use heapless::Vec;
+
 use lazy_static::lazy_static;
 
 use liblumen_alloc_macros::generate_heap_sizes;
+
 use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::SizeClass;
 
+use crate::erts::exception::system::Alloc;
 use crate::erts::Term;
 use crate::SizeClassAlloc;
 
@@ -23,27 +26,23 @@ lazy_static! {
 
 /// Allocate a new default sized process heap
 #[inline]
-pub fn default_heap() -> Result<(*mut Term, usize), AllocErr> {
+pub fn default_heap() -> Result<(*mut Term, usize), Alloc> {
     let size = ProcessHeapAlloc::HEAP_SIZES[ProcessHeapAlloc::MIN_HEAP_SIZE_INDEX];
     PROC_ALLOC.alloc(size).map(|ptr| (ptr, size))
 }
 
 /// Allocate a new process heap of the given size
 #[inline]
-pub fn heap(size: usize) -> Result<*mut Term, AllocErr> {
+pub fn heap(size: usize) -> Result<*mut Term, Alloc> {
     PROC_ALLOC.alloc(size)
 }
 
 /// Reallocate a process heap, in place
 ///
 /// If reallocating and trying to grow the heap, if the allocation cannot be done
-/// in place, then `Err(AllocErr)` will be returned
+/// in place, then `Err(Alloc)` will be returned
 #[inline]
-pub unsafe fn realloc(
-    heap: *mut Term,
-    size: usize,
-    new_size: usize,
-) -> Result<*mut Term, AllocErr> {
+pub unsafe fn realloc(heap: *mut Term, size: usize, new_size: usize) -> Result<*mut Term, Alloc> {
     PROC_ALLOC.realloc(heap, size, new_size)
 }
 
@@ -99,6 +98,7 @@ impl ProcessHeapAlloc {
         let size_classes = &Self::HEAP_SIZES[..19]
             .iter()
             .map(|size| SizeClass::new(*size))
+            .filter(|size_class| SizeClassAlloc::can_fit_multiple_blocks(size_class))
             .collect::<Vec<_, UHEAP_SIZES_LEN>>();
         let alloc = SizeClassAlloc::new(&size_classes);
         let oversized_threshold = alloc.max_size_class();
@@ -113,25 +113,39 @@ impl ProcessHeapAlloc {
     /// If this fails, either there is an issue with the given size,
     /// the system is out of memory, or there is a bug in the allocator
     /// framework
-    pub fn alloc(&self, size: usize) -> Result<*mut Term, AllocErr> {
+    pub fn alloc(&self, size: usize) -> Result<*mut Term, Alloc> {
         // Determine layout, require word alignment
         let layout = self.heap_layout(size);
         let total_size = layout.size();
+
         // Handle oversized heaps which need to be allocated using
         // the system allocator/mmap
         if total_size > self.oversized_threshold {
             return Self::alloc_oversized_heap(layout);
         }
+
         // Allocate region
-        let ptr = unsafe { self.alloc.allocate(layout)?.as_ptr() as *mut Term };
-        // Return pointer to the heap
-        Ok(ptr)
+        match unsafe { self.alloc.allocate(layout) } {
+            Ok(non_null) => {
+                let ptr = non_null.as_ptr() as *mut Term;
+
+                // Return pointer to the heap
+                Ok(ptr)
+            }
+            Err(_) => Err(alloc!()),
+        }
     }
 
     #[inline]
-    fn alloc_oversized_heap(layout: Layout) -> Result<*mut Term, AllocErr> {
-        let ptr = unsafe { mmap::map(layout)?.as_ptr() as *mut Term };
-        Ok(ptr)
+    fn alloc_oversized_heap(layout: Layout) -> Result<*mut Term, Alloc> {
+        match unsafe { mmap::map(layout) } {
+            Ok(non_null) => {
+                let ptr = non_null.as_ptr() as *mut Term;
+
+                Ok(ptr)
+            }
+            Err(_) => Err(alloc!()),
+        }
     }
 
     #[inline]
@@ -140,29 +154,32 @@ impl ProcessHeapAlloc {
         heap: *mut Term,
         size: usize,
         new_size: usize,
-    ) -> Result<*mut Term, AllocErr> {
+    ) -> Result<*mut Term, Alloc> {
         // Nothing to do if the size didn't change
         if size == new_size {
             return Ok(heap);
         }
+
         // For now we are not going to support realloc_in_place of oversized heaps
         if size > self.oversized_threshold {
-            return Err(AllocErr);
+            return Err(alloc!());
         }
 
         let layout = self.heap_layout(size);
         let ptr = unsafe { NonNull::new_unchecked(heap as *mut u8) };
+
         if let Ok(_) = unsafe { self.alloc.realloc_in_place(ptr, layout, new_size) } {
             return Ok(heap);
         }
 
-        Err(AllocErr)
+        Err(alloc!())
     }
 
     /// Deallocate a process heap, releasing the memory back to the operating system
     pub unsafe fn dealloc(&self, heap: *mut Term, size: usize) {
         let layout = self.heap_layout(size);
-        if size > self.oversized_threshold {
+
+        if layout.size() > self.oversized_threshold {
             // Deallocate oversized heap
             Self::dealloc_oversized_heap(heap, layout);
         } else {

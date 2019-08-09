@@ -36,13 +36,19 @@ use std::sync::Arc;
 
 use num_bigint::BigInt;
 
-use lumen_runtime::atom::Existence::DoNotCare;
-use lumen_runtime::heap::CloneIntoHeap;
-use lumen_runtime::message::{self, Message};
+use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::message::{self, Message};
+use liblumen_alloc::erts::process::code::stack::frame::Frame;
+use liblumen_alloc::erts::process::code::{result_from_exception, Result};
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::CloneToProcess;
+
+use lumen_runtime::code::tail_call_bif;
 use lumen_runtime::otp::erlang;
-use lumen_runtime::process::stack::frame::Frame;
-use lumen_runtime::process::{IntoProcess, ModuleFunctionArity, Process};
-use lumen_runtime::term::Term;
+use lumen_runtime::system;
 
 use crate::elixir;
 
@@ -54,89 +60,99 @@ use crate::elixir;
 ///   end
 /// end
 /// ```
-pub fn counter_0_code(arc_process: &Arc<Process>) {
-    // because there is a guardless match in the receive block, the first message will always be
-    // removed and no loop is necessary
-    let option_message = arc_process.mailbox.lock().unwrap().pop();
-
+pub fn counter_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     arc_process.reduce();
 
-    match option_message {
-        Some(message) => {
-            let n = match message {
-                Message::Process(term) => term.clone(),
-                Message::Heap(message::Heap { term, .. }) => {
-                    let locked_heap = arc_process.heap.lock().unwrap();
-                    term.clone_into_heap(&locked_heap)
-                }
-            };
+    // Because there is a guardless match in the receive block, the first message will always be
+    // removed and no loop is necessary.
+    //
+    // CANNOT be in `match` as it will hold temporaries in `match` arms causing a `park`.
+    let received = arc_process.mailbox.lock().borrow_mut().receive(arc_process);
 
+    match received {
+        Some(Ok(n)) => {
             let counter_module_function_arity =
                 arc_process.current_module_function_arity().unwrap();
-            let frame_argument_vec = arc_process.pop_arguments(1);
-            let next_pid = frame_argument_vec[0];
+            let next_pid = arc_process.stack_pop().unwrap();
 
-            let mut counter_2_frame =
+            let counter_2_frame =
                 Frame::new(Arc::clone(&counter_module_function_arity), counter_2_code);
-            counter_2_frame.push(next_pid);
+            arc_process.stack_push(next_pid)?;
             arc_process.replace_frame(counter_2_frame);
 
-            let mut counter_1_frame = Frame::new(counter_module_function_arity, counter_1_code);
-            counter_1_frame.push(n);
+            let counter_1_frame = Frame::new(counter_module_function_arity, counter_1_code);
+            arc_process.stack_push(n)?;
             arc_process.push_frame(counter_1_frame);
 
-            Process::call_code(arc_process);
+            ProcessControlBlock::call_code(arc_process)
         }
-        None => Arc::clone(arc_process).wait(),
+        None => Ok(Arc::clone(arc_process).wait()),
+        Some(Err(alloc_err)) => Err(alloc_err.into()),
     }
 }
 
 /// ```elixir
 /// n + 1
 /// ```
-fn counter_1_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(1);
-    let n = frame_argument_vec[0];
-
-    Process::tail_call_bif(
+fn counter_1_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+    let n = arc_process.stack_pop().unwrap();
+    assert!(
+        n.is_integer(),
+        "{:?}: {:?} is not an integer",
         arc_process,
-        Term::str_to_atom("erlang", DoNotCare).unwrap(),
-        Term::str_to_atom("+", DoNotCare).unwrap(),
-        2,
-        || erlang::add_2(n, 1.into_process(arc_process), arc_process),
+        n
     );
+
+    tail_call_bif(
+        arc_process,
+        Atom::try_from_str("erlang").unwrap(),
+        Atom::try_from_str("+").unwrap(),
+        2,
+        || erlang::add_2(n, arc_process.integer(1)?, arc_process),
+    )
 }
 
 /// ```elixir
 /// send next_pid, n + 1
 /// ```
-fn counter_2_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(2);
+fn counter_2_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     // n + 1 is on the top of stack even though it is the second argument because it is the return
     // from `counter_1_code`
-    let sum = frame_argument_vec[0];
-    let next_pid = frame_argument_vec[1];
+    let sum = arc_process.stack_pop().unwrap();
+    let next_pid = arc_process.stack_pop().unwrap();
 
-    Process::tail_call_bif(
+    tail_call_bif(
         arc_process,
-        Term::str_to_atom("erlang", DoNotCare).unwrap(),
-        Term::str_to_atom("send", DoNotCare).unwrap(),
+        Atom::try_from_str("erlang").unwrap(),
+        Atom::try_from_str("send").unwrap(),
         2,
-        || erlang::send_2(next_pid, sum, arc_process),
-    );
-}
+        || {
+            // printing is slow, so print to show progress, but not too often that is slows down a
+            // lot.
+            if arc_process.pid().number() % 1_000 == 0 {
+                system::io::puts(&format!(
+                    "{:?} Sending {:?} to {:?}",
+                    arc_process, sum, next_pid
+                ));
+            }
 
-fn create_processes_frame_with_arguments(n: Term) -> Frame {
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: Term::str_to_atom("Elixir.Chain", DoNotCare).unwrap(),
-        function: Term::str_to_atom("create_processes", DoNotCare).unwrap(),
-        arity: 1,
-    });
-
-    let mut frame = Frame::new(module_function_arity, create_processes_0_code);
-    frame.push(n);
-
-    frame
+            match erlang::send_2(next_pid, sum, arc_process) {
+                Ok(term) => Ok(term),
+                Err(error) => {
+                    system::io::puts(&format!(
+                        "[{}:{}] {:?} send({:?}, {:?})\n{:?}",
+                        file!(),
+                        line!(),
+                        arc_process,
+                        next_pid,
+                        sum,
+                        *arc_process.acquire_heap()
+                    ));
+                    Err(error)
+                }
+            }
+        },
+    )
 }
 
 /// ```elixir
@@ -158,12 +174,11 @@ fn create_processes_frame_with_arguments(n: Term) -> Frame {
 ///   end
 /// end
 /// ```
-fn create_processes_0_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(1);
-    let n = frame_argument_vec[0];
+fn create_processes_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+    let n = arc_process.stack_pop().unwrap();
 
     // assumed to be fast enough to act as a BIF
-    let result = elixir::range::new(1.into_process(arc_process), n, arc_process);
+    let result = elixir::range::new(arc_process.integer(1)?, n, arc_process);
 
     arc_process.reduce();
 
@@ -177,40 +192,50 @@ fn create_processes_0_code(arc_process: &Arc<Process>) {
             );
             arc_process.replace_frame(create_processes_1_code_frame);
 
-            let reducer = create_processes_reducer_function(arc_process);
+            let reducer = create_processes_reducer_function(arc_process)?;
 
+            let module_function_arity = Arc::new(ModuleFunctionArity {
+                module: Atom::try_from_str("Elixir.Enum").unwrap(),
+                function: Atom::try_from_str("reduce").unwrap(),
+                arity: 3,
+            });
             let enum_reduce_frame =
-                elixir::r#enum::reduce_frame_with_arguments(range, arc_process.pid, reducer);
+                Frame::new(module_function_arity, elixir::r#enum::reduce_0_code);
+            arc_process.stack_push(reducer)?;
+            arc_process.stack_push(arc_process.pid_term())?;
+            arc_process.stack_push(range)?;
+
             arc_process.push_frame(enum_reduce_frame);
 
-            Process::call_code(arc_process);
+            ProcessControlBlock::call_code(arc_process)
         }
-        Err(exception) => arc_process.exception(exception),
+        Err(exception) => result_from_exception(arc_process, exception),
     }
 }
 
-fn create_processes_reducer_function(process: &Process) -> Term {
+fn create_processes_reducer_function(
+    process: &ProcessControlBlock,
+) -> std::result::Result<Term, Alloc> {
     let module_function_arity = Arc::new(ModuleFunctionArity {
-        module: Term::str_to_atom("Elixir.Chain", DoNotCare).unwrap(),
-        function: Term::str_to_atom("create_processes_reducer", DoNotCare).unwrap(),
+        module: Atom::try_from_str("Elixir.Chain").unwrap(),
+        function: Atom::try_from_str("create_processes_reducer").unwrap(),
         arity: 2,
     });
 
-    Term::function(
+    process.closure(
+        process.pid_term(),
         module_function_arity,
         create_processes_reducer_0_code,
-        process,
     )
 }
 
-fn create_processes_reducer_0_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(2);
-    let _element = frame_argument_vec[0];
-    let send_to = frame_argument_vec[1];
+fn create_processes_reducer_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+    let _element = arc_process.stack_pop().unwrap();
+    let send_to = arc_process.stack_pop().unwrap();
 
-    let module = Term::str_to_atom("Elixir.Chain", DoNotCare).unwrap();
-    let function = Term::str_to_atom("counter", DoNotCare).unwrap();
-    let arguments = Term::slice_to_list(&[send_to], arc_process);
+    let module = atom_unchecked("Elixir.Chain");
+    let function = atom_unchecked("counter");
+    let arguments = arc_process.list_from_slice(&[send_to])?;
 
     // In `lumen` compiled code the compile would optimize this to a direct call of
     // `Scheduler::spawn(arc_process, module, function, arguments, counter_0_code)`, but we want
@@ -218,12 +243,20 @@ fn create_processes_reducer_0_code(arc_process: &Arc<Process>) {
     match erlang::spawn_3(module, function, arguments, arc_process) {
         Ok(child_pid) => {
             arc_process.reduce();
-            arc_process.return_from_call(child_pid);
-            Process::call_code(arc_process);
+            arc_process.return_from_call(child_pid)?;
+            ProcessControlBlock::call_code(arc_process)
         }
         Err(exception) => {
             arc_process.reduce();
-            arc_process.exception(exception);
+
+            match exception {
+                Exception::Runtime(runtime_exception) => {
+                    arc_process.exception(runtime_exception);
+
+                    Ok(())
+                }
+                Exception::System(system_exception) => Err(system_exception),
+            }
         }
     }
 }
@@ -236,15 +269,12 @@ fn create_processes_reducer_0_code(arc_process: &Arc<Process>) {
 ///     "Result is #{inspect(final_answer)}"
 /// end
 /// ```
-fn create_processes_1_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(1);
-
+fn create_processes_1_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     // placed on top of stack by return from `elixir::r#enum::reduce_0_code`
-    let last = frame_argument_vec[0];
-    #[cfg(debug_assertions)]
-    debug_assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
+    let last = arc_process.stack_pop().unwrap();
+    assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
 
-    match erlang::send_2(last, 0.into_process(arc_process), arc_process) {
+    match erlang::send_2(last, arc_process.integer(0)?, arc_process) {
         Ok(_) => {
             arc_process.reduce();
 
@@ -253,11 +283,19 @@ fn create_processes_1_code(arc_process: &Arc<Process>) {
                 Frame::new(module_function_arity, create_processes_2_code);
             arc_process.replace_frame(create_processes_2_frame);
 
-            Process::call_code(arc_process);
+            ProcessControlBlock::call_code(arc_process)
         }
         Err(exception) => {
             arc_process.reduce();
-            arc_process.exception(exception);
+
+            match exception {
+                Exception::Runtime(runtime_exception) => {
+                    arc_process.exception(runtime_exception);
+
+                    Ok(())
+                }
+                Exception::System(system_exception) => Err(system_exception),
+            }
         }
     }
 }
@@ -268,38 +306,52 @@ fn create_processes_1_code(arc_process: &Arc<Process>) {
 ///     "Result is #{inspect(final_answer)}"
 /// end
 /// ```
-fn create_processes_2_code(arc_process: &Arc<Process>) {
+fn create_processes_2_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     // locked mailbox scope
     let received = {
-        let mut locked_mailbox = arc_process.mailbox.lock().unwrap();
-        let seen = locked_mailbox.seen();
+        let mailbox_guard = arc_process.mailbox.lock();
+        let mut mailbox = mailbox_guard.borrow_mut();
+        let seen = mailbox.seen();
         let mut found_position = None;
 
-        for (position, message) in locked_mailbox.iter().enumerate() {
+        for (position, message) in mailbox.iter().enumerate() {
             if seen < (position as isize) {
-                let message_term = match message {
-                    Message::Process(term) => term,
-                    Message::Heap(message::Heap { term, .. }) => term,
+                let message_data = match message {
+                    Message::Process(message::Process { data }) => data,
+                    Message::HeapFragment(message::HeapFragment { data, .. }) => data,
                 };
 
-                if message_term.is_integer() {
+                if message_data.is_integer() {
                     let process_term = match message {
-                        Message::Process(message_term) => message_term.clone(),
-                        Message::Heap { .. } => {
-                            let locked_heap = arc_process.heap.lock().unwrap();
-                            message_term.clone_into_heap(&locked_heap)
+                        Message::Process(message::Process { data }) => data.clone(),
+                        Message::HeapFragment(message::HeapFragment { data, .. }) => {
+                            match data.clone_to_heap(&mut arc_process.acquire_heap()) {
+                                Ok(heap_data) => heap_data,
+                                Err(alloc) => {
+                                    arc_process.reduce();
+
+                                    return Err(alloc.into());
+                                }
+                            }
                         }
                     };
 
                     let module_function_arity =
                         arc_process.current_module_function_arity().unwrap();
-                    let mut frame = Frame::new(module_function_arity, create_processes_3_code);
-                    frame.push(process_term);
+                    let frame = Frame::new(module_function_arity, create_processes_3_code);
+                    arc_process.stack_push(process_term)?;
                     arc_process.replace_frame(frame);
 
                     found_position = Some(position);
 
                     break;
+                } else {
+                    // NOT in original Elixir source and would not be in compiled code, but helps
+                    // debug runtime bugs leading to deadlocks.
+                    panic!(
+                        "Non-integer message ({:?}) received in {:?}",
+                        message_data, arc_process
+                    );
                 }
             }
         }
@@ -307,13 +359,13 @@ fn create_processes_2_code(arc_process: &Arc<Process>) {
         // separate because can't remove during iteration
         match found_position {
             Some(position) => {
-                locked_mailbox.remove(position);
-                locked_mailbox.unmark_seen();
+                mailbox.remove(position, arc_process);
+                mailbox.unmark_seen();
 
                 true
             }
             None => {
-                locked_mailbox.mark_seen();
+                mailbox.mark_seen();
 
                 false
             }
@@ -323,19 +375,20 @@ fn create_processes_2_code(arc_process: &Arc<Process>) {
     arc_process.reduce();
 
     if received {
-        Process::call_code(arc_process);
+        ProcessControlBlock::call_code(arc_process)
     } else {
-        arc_process.wait()
+        arc_process.wait();
+
+        Ok(())
     }
 }
 
 /// ```elixir
 /// "Result is #{inspect(final_answer)}"
 /// ```
-fn create_processes_3_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(1);
+fn create_processes_3_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     // set by the receive in `create_processes_2_code`
-    let final_answer = frame_argument_vec[0];
+    let final_answer = arc_process.stack_pop().unwrap();
 
     // TODO this would be replaced by what interpolation really does in Elixir in
     // `lumen` compiled code.
@@ -353,23 +406,22 @@ fn create_processes_3_code(arc_process: &Arc<Process>) {
 
     arc_process.reduce();
 
-    let elixir_string = Term::slice_to_binary(formatted.as_bytes(), arc_process);
+    let elixir_string = arc_process.binary_from_bytes(formatted.as_bytes())?;
 
-    arc_process.return_from_call(elixir_string);
-    Process::call_code(arc_process);
+    arc_process.return_from_call(elixir_string)?;
+    ProcessControlBlock::call_code(arc_process)
 }
 
 /// ```elixir
 /// def run(n) do
 ///   IO.puts(inspect(:timer.tc(Chain, :create_processes, [n])))
 /// end
-pub fn run_0_code(arc_process: &Arc<Process>) {
+pub fn run_0_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     #[cfg(target_arch = "wasm32")]
     web_sys::console::time_with_label("Chain.run");
     arc_process.reduce();
 
-    let frame_argument_vec = arc_process.pop_arguments(1);
-    let n = frame_argument_vec[0];
+    let n = arc_process.stack_pop().unwrap();
 
     let run_module_function_arity = arc_process.current_module_function_arity().unwrap();
 
@@ -381,20 +433,26 @@ pub fn run_0_code(arc_process: &Arc<Process>) {
     let run_code_1_frame = Frame::new(run_module_function_arity, run_1_code);
     arc_process.push_frame(run_code_1_frame);
 
-    let create_processes_frame = create_processes_frame_with_arguments(n);
+    let module_function_arity = Arc::new(ModuleFunctionArity {
+        module: Atom::try_from_str("Elixir.Chain").unwrap(),
+        function: Atom::try_from_str("create_processes").unwrap(),
+        arity: 1,
+    });
+
+    let create_processes_frame = Frame::new(module_function_arity, create_processes_0_code);
+    arc_process.stack_push(n)?;
     arc_process.push_frame(create_processes_frame);
 
-    Process::call_code(arc_process);
+    ProcessControlBlock::call_code(arc_process)
 }
 
-fn run_1_code(arc_process: &Arc<Process>) {
-    let frame_argument_vec = arc_process.pop_arguments(1);
-    let elixir_string = frame_argument_vec[0];
+fn run_1_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+    let elixir_string = arc_process.stack_pop().unwrap();
 
     #[cfg(target_arch = "wasm32")]
     web_sys::console::time_end_with_label("Chain.run");
     arc_process.reduce();
 
-    arc_process.return_from_call(elixir_string);
-    Process::call_code(arc_process);
+    arc_process.return_from_call(elixir_string)?;
+    ProcessControlBlock::call_code(arc_process)
 }

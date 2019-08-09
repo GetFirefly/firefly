@@ -1,13 +1,16 @@
-use core::alloc::{AllocErr, Layout};
+use core::alloc::Layout;
 use core::ptr::{self, NonNull};
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
+
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
+use crate::erts::exception::system::Alloc;
+use crate::erts::term::Term;
 use crate::std_alloc;
 
-use super::{HeapAlloc, Term};
+use super::HeapAlloc;
 
 // This adapter is used to track a list of heap fragments, attached to a process
 intrusive_adapter!(pub HeapFragmentAdapter = UnsafeRef<HeapFragment>: HeapFragment { link: LinkedListLink });
@@ -42,7 +45,7 @@ impl RawFragment {
     pub fn contains<T>(&self, ptr: *const T) -> bool {
         let ptr = ptr as usize;
         let start = self.data as usize;
-        let end = unsafe { self.data.offset(self.size as isize) } as usize;
+        let end = unsafe { self.data.add(self.size) } as usize;
         start <= ptr && ptr <= end
     }
 }
@@ -77,12 +80,12 @@ impl HeapFragment {
 
     /// Creates a new heap fragment with the given layout, allocated via `std_alloc`
     #[inline]
-    pub unsafe fn new(layout: Layout) -> Result<NonNull<Self>, AllocErr> {
+    pub unsafe fn new(layout: Layout) -> Result<NonNull<Self>, Alloc> {
         let (full_layout, offset) = Layout::new::<Self>().extend(layout.clone()).unwrap();
         let size = layout.size();
         let align = layout.align();
         let ptr = std_alloc::alloc(full_layout)?.as_ptr() as *mut Self;
-        let data = (ptr as *mut u8).offset(offset as isize);
+        let data = (ptr as *mut u8).add(offset);
         let top = data;
         ptr::write(
             ptr,
@@ -116,18 +119,20 @@ impl HeapAlloc for HeapFragment {
     /// If space on the process heap is not immediately available, then the allocation
     /// will be pushed into a heap fragment which will then be later moved on to the
     /// process heap during garbage collection
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, AllocErr> {
-        let base = self.raw.data as *mut Term;
+    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
+        let top_limit = self.raw.data.add(self.raw.size) as *mut Term;
         let top = self.top as *mut Term;
-        let available = distance_absolute(top, base);
+        let available = distance_absolute(top_limit, top);
+
         if need > available {
-            return Err(AllocErr);
+            return Err(alloc!());
         }
 
-        let new_top = base.offset(need as isize);
-        debug_assert!(new_top <= self.raw.data.offset(self.raw.size as isize) as *mut Term);
+        let new_top = top.add(need);
+        debug_assert!(new_top <= top_limit);
         self.top = new_top as *mut u8;
-        Ok(NonNull::new_unchecked(new_top))
+
+        Ok(NonNull::new_unchecked(top))
     }
 
     /// Returns true if the given pointer is owned by this process/heap

@@ -133,8 +133,7 @@ mod tests {
         };
         // Get pointers to both blocks
         let raw = ptr.as_ptr() as *mut FreeBlock;
-        let raw2 =
-            unsafe { (raw as *mut u8).offset(sysconf::pagesize() as isize) as *mut FreeBlock };
+        let raw2 = unsafe { (raw as *mut u8).add(sysconf::pagesize()) as *mut FreeBlock };
         // Write block headers
         unsafe {
             let mut block1 = Block::new(usable);

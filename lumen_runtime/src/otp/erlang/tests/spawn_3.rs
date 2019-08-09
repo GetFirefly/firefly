@@ -1,7 +1,8 @@
 use super::*;
 
-use crate::process::local::pid_to_process;
-use crate::process::{ModuleFunctionArity, Status};
+use liblumen_alloc::undef;
+
+use crate::registry::pid_to_process;
 
 mod with_atom_module;
 
@@ -18,7 +19,7 @@ fn without_atom_module_errors_badarg() {
                 |(module, function, arguments)| {
                     prop_assert_eq!(
                         erlang::spawn_3(module, function, arguments, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

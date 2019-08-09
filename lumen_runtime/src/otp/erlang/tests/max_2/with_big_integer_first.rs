@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn with_lesser_small_integer_second_returns_first() {
-    max(|_, process| 0.into_process(&process), First)
+    max(|_, process| process.integer(0).unwrap(), First)
 }
 
 #[test]
 fn with_greater_small_integer_second_returns_second() {
     super::max(
-        |process| (crate::integer::small::MIN - 1).into_process(&process),
-        |_, process| crate::integer::small::MIN.into_process(&process),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
+        |_, process| process.integer(SmallInteger::MIN_VALUE).unwrap(),
         Second,
     );
 }
@@ -17,7 +17,7 @@ fn with_greater_small_integer_second_returns_second() {
 #[test]
 fn with_lesser_big_integer_second_returns_first() {
     max(
-        |_, process| (crate::integer::small::MIN - 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
         First,
     )
 }
@@ -30,7 +30,7 @@ fn with_same_big_integer_second_returns_first() {
 #[test]
 fn with_same_value_big_integer_second_returns_first() {
     max(
-        |_, process| (crate::integer::small::MAX + 1).into_process(&process),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
         First,
     )
 }
@@ -38,21 +38,21 @@ fn with_same_value_big_integer_second_returns_first() {
 #[test]
 fn with_greater_big_integer_second_returns_second() {
     max(
-        |_, process| (crate::integer::small::MAX + 2).into_process(&process),
+        |_, process| process.integer(SmallInteger::MAX_VALUE + 2).unwrap(),
         Second,
     )
 }
 
 #[test]
 fn with_lesser_float_second_returns_first() {
-    max(|_, process| 0.0.into_process(&process), First)
+    max(|_, process| process.float(1.0).unwrap(), First)
 }
 
 #[test]
 fn with_greater_float_second_returns_second() {
     super::max(
-        |process| (crate::integer::small::MIN - 1).into_process(&process),
-        |_, process| 0.0.into_process(&process),
+        |process| process.integer(SmallInteger::MIN_VALUE - 1).unwrap(),
+        |_, process| process.float(1.0).unwrap(),
         Second,
     );
 }
@@ -78,10 +78,10 @@ fn without_second_number_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::max(
-        |process| (crate::integer::small::MAX + 1).into_process(&process),
+        |process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
         second,
         which,
     );

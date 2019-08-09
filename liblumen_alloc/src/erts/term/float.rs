@@ -1,5 +1,5 @@
-use core::alloc::AllocErr;
 use core::cmp::Ordering;
+use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display};
 use core::hash::{self, Hash};
 use core::ops::*;
@@ -8,6 +8,8 @@ use core::ptr;
 use num_bigint::{BigInt, Sign};
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
+use crate::erts::term::{TypeError, TypedTerm};
 
 use super::{AsTerm, HeapAlloc, Term};
 use super::{BigInteger, SmallInteger};
@@ -20,22 +22,40 @@ pub struct Float {
     pub(crate) value: f64,
 }
 impl Float {
+    pub const INTEGRAL_MIN: f64 = -9007199254740992.0;
+    pub const INTEGRAL_MAX: f64 = 9007199254740992.0;
+
     #[cfg(target_pointer_width = "32")]
     const ARITYVAL: usize = 2;
     #[cfg(target_pointer_width = "64")]
     const ARITYVAL: usize = 1;
 
+    pub fn clamp_inclusive_range(overflowing_range: RangeInclusive<f64>) -> RangeInclusive<f64> {
+        Self::clamp_value(overflowing_range.start().clone())
+            ..=Self::clamp_value(overflowing_range.end().clone())
+    }
+
     #[inline]
     pub fn new(value: f64) -> Self {
         Self {
             header: Term::make_header(Self::ARITYVAL, Term::FLAG_FLOAT),
-            value,
+            value: Self::clamp_value(value),
         }
     }
 
     #[inline]
     pub fn from_raw(term: *mut Float) -> Self {
         unsafe { *term }
+    }
+
+    fn clamp_value(overflowing: f64) -> f64 {
+        if overflowing == core::f64::NEG_INFINITY {
+            core::f64::MIN
+        } else if overflowing == core::f64::INFINITY {
+            core::f64::MAX
+        } else {
+            overflowing
+        }
     }
 }
 unsafe impl AsTerm for Float {
@@ -46,7 +66,7 @@ unsafe impl AsTerm for Float {
 }
 impl CloneToProcess for Float {
     #[inline]
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         unsafe {
             let ptr = heap.alloc(self.size_in_words())?.as_ptr() as *mut Self;
             ptr::copy_nonoverlapping(self as *const Self, ptr, 1);
@@ -79,6 +99,11 @@ impl Into<f64> for Float {
     }
 }
 impl Eq for Float {}
+impl Ord for Float {
+    fn cmp(&self, other: &Float) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
 impl PartialEq for Float {
     #[inline]
     fn eq(&self, other: &Float) -> bool {
@@ -194,23 +219,45 @@ impl PartialOrd<BigInteger> for Float {
         }
     }
 }
+
+impl TryFrom<Term> for Float {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryFrom<TypedTerm> for Float {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
+            TypedTerm::Float(float) => Ok(float),
+            _ => Err(TypeError),
+        }
+    }
+}
+
 impl Debug for Float {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Float")
-            .field("header", &self.header)
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("value", &self.value)
             .finish()
     }
 }
 impl Display for Float {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
+        // Use Debug format so that decimal point is always included so that it is obvious it is a
+        // float and not an integer
+        write!(f, "{:?}", self.value)
     }
 }
 impl Hash for Float {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.header.hash(state);
         self.value.to_bits().hash(state);
     }
 }

@@ -1,12 +1,15 @@
 use core::alloc::Layout;
 use core::cmp;
-use core::convert::TryInto;
+use core::convert::{TryFrom, TryInto};
 use core::fmt;
+use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::mem;
+use core::ops::Deref;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::system::Alloc;
 
 use super::*;
 
@@ -66,9 +69,9 @@ impl Tuple {
         }
     }
 
-    /// Returns the size of this tuple
+    /// Returns the length of this tuple
     #[inline]
-    pub fn size(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.header.arityval()
     }
 
@@ -77,7 +80,7 @@ impl Tuple {
     /// NOTE: This is unsafe to use unless you know the tuple has been allocated
     #[inline]
     pub fn head(&self) -> *mut Term {
-        unsafe { (self as *const Tuple).offset(1) as *mut Term }
+        unsafe { (self as *const Tuple).add(1) as *mut Term }
     }
 
     /// This function produces a `Layout` which represents the memory layout
@@ -94,19 +97,19 @@ impl Tuple {
 
     /// Constructs an iterator over elements of the tuple
     #[inline]
-    pub fn iter(&self) -> TupleIter {
-        TupleIter::new(self)
+    pub fn iter(&self) -> Iter {
+        Iter::new(self)
     }
 
     /// Sets an element in the tuple, returns `Ok(())` if successful,
     /// otherwise returns `Err(IndexErr)` if the given index is invalid
     #[inline]
     pub fn set_element(&mut self, index: Term, element: Term) -> Result<(), IndexError> {
-        let size = self.size();
+        let len = self.len();
         if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
             match small.try_into() {
-                Ok(i) if i > 0 && i <= size => Ok(self.do_set_element(i, element)),
-                Ok(i) => Err(IndexError::new(i, size)),
+                Ok(i) if i > 0 && i <= len => Ok(self.do_set_element(i, element)),
+                Ok(i) => Err(IndexError::new(i, len)),
                 Err(_) => Err(BadArgument::new(index).into()),
             }
         } else {
@@ -117,20 +120,20 @@ impl Tuple {
     /// Like `set_element` but for internal runtime use, as it takes a `usize` directly
     #[inline]
     pub fn set_element_internal(&mut self, index: usize, element: Term) -> Result<(), IndexError> {
-        let size = self.size();
-        if index > 0 && index <= size {
+        let len = self.len();
+        if index > 0 && index <= len {
             Ok(self.do_set_element(index, element))
         } else {
-            Err(IndexError::new(index, size))
+            Err(IndexError::new(index, len))
         }
     }
 
     #[inline]
     fn do_set_element(&mut self, index: usize, element: Term) {
-        assert!(index > 0 && index <= self.size());
-        assert!(element.is_boxed() || element.is_list() || element.is_immediate());
+        assert!(index > 0 && index <= self.len());
+        assert!(element.is_runtime());
         unsafe {
-            let ptr = self.head().offset((index - 1) as isize);
+            let ptr = self.head().add(index - 1);
             ptr::write(ptr, element);
         }
     }
@@ -139,11 +142,12 @@ impl Tuple {
     /// valid, otherwise returns `Err(IndexErr)`
     #[inline]
     pub fn get_element(&self, index: Term) -> Result<Term, IndexError> {
-        let size = self.size();
+        let len = self.len();
+
         if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
             match small.try_into() {
-                Ok(i) if i > 0 && i <= size => Ok(self.do_get_element(i)),
-                Ok(i) => Err(IndexError::new(i, size)),
+                Ok(i) if i > 0 && i <= len => Ok(self.do_get_element(i)),
+                Ok(i) => Err(IndexError::new(i, len)),
                 Err(_) => Err(BadArgument::new(index).into()),
             }
         } else {
@@ -155,19 +159,20 @@ impl Tuple {
     /// directly, rather than a value of type `Term`
     #[inline]
     pub fn get_element_internal(&self, index: usize) -> Result<Term, IndexError> {
-        let size = self.size();
-        if index > 0 && index <= size {
+        let len = self.len();
+
+        if 0 < index && index <= len {
             Ok(self.do_get_element(index))
         } else {
-            Err(IndexError::new(index, size))
+            Err(IndexError::new(index, len))
         }
     }
 
     #[inline]
     fn do_get_element(&self, index: usize) -> Term {
-        assert!(index > 0 && index <= self.size());
+        assert!(index > 0 && index <= self.len());
         unsafe {
-            let ptr = self.head().offset((index - 1) as isize);
+            let ptr = self.head().add(index - 1);
             follow_moved(*ptr)
         }
     }
@@ -179,19 +184,19 @@ unsafe impl AsTerm for Tuple {
     }
 }
 impl CloneToProcess for Tuple {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, AllocErr> {
+    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         // The result of calling this will be a Tuple with everything located
         // contigously in memory
         unsafe {
             // Allocate the space needed for the header and all the elements
-            let num_elements = self.size();
+            let num_elements = self.len();
             let words =
                 to_word_size(mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>()));
             let ptr = heap.alloc(words)?.as_ptr() as *mut Self;
             // Get pointer to the old head element location
             let old_head = self.head();
             // Get pointer to the new head element location
-            let head = ptr.offset(1) as *mut Term;
+            let head = ptr.add(1) as *mut Term;
             // Write the header
             ptr::write(
                 ptr,
@@ -201,13 +206,13 @@ impl CloneToProcess for Tuple {
             );
             // Write each element
             for offset in 0..num_elements {
-                let old = *old_head.offset(offset as isize);
+                let old = *old_head.add(offset);
                 if old.is_immediate() {
-                    ptr::write(head.offset(offset as isize), old);
+                    ptr::write(head.add(offset), old);
                 } else {
                     // Recursively call clone_to_process, and then write the box header here
                     let boxed = old.clone_to_heap(heap)?;
-                    ptr::write(head.offset(offset as isize), boxed);
+                    ptr::write(head.add(offset), boxed);
                 }
             }
             Ok(Term::make_boxed(ptr))
@@ -215,7 +220,7 @@ impl CloneToProcess for Tuple {
     }
 
     fn size_in_words(&self) -> usize {
-        let elements = self.size();
+        let elements = self.len();
         let mut words = to_word_size(mem::size_of::<Self>() + (elements * mem::size_of::<Term>()));
         for element in self.iter() {
             words += element.size_in_words();
@@ -223,6 +228,23 @@ impl CloneToProcess for Tuple {
         words
     }
 }
+
+impl Deref for Tuple {
+    type Target = [Term];
+
+    fn deref(&self) -> &[Term] {
+        unsafe { core::slice::from_raw_parts(self.head(), self.len()) }
+    }
+}
+
+impl Hash for Tuple {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for element in self.iter() {
+            element.hash(state);
+        }
+    }
+}
+
 impl PartialEq for Tuple {
     fn eq(&self, other: &Tuple) -> bool {
         self.iter().eq(other.iter())
@@ -232,7 +254,7 @@ impl PartialOrd for Tuple {
     fn partial_cmp(&self, other: &Tuple) -> Option<cmp::Ordering> {
         use core::cmp::Ordering;
 
-        match self.size().cmp(&other.size()) {
+        match self.len().cmp(&other.len()) {
             Ordering::Less => return Some(Ordering::Less),
             Ordering::Greater => return Some(Ordering::Greater),
             Ordering::Equal => self.iter().partial_cmp(other.iter()),
@@ -241,66 +263,261 @@ impl PartialOrd for Tuple {
 }
 impl fmt::Debug for Tuple {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("Tuple(")?;
+        let mut debug_tuple = f.debug_tuple("Tuple");
+        let mut debug_tuple_ref = &mut debug_tuple;
+
         for element in self.iter() {
-            f.write_fmt(format_args!("{:?}", element.as_usize()))?;
+            debug_tuple_ref = debug_tuple_ref.field(&element);
         }
-        f.write_str(")")
+
+        debug_tuple_ref.finish()
     }
 }
 
-pub struct TupleIter {
-    head: *mut Term,
-    pos: usize,
-    last_pos: usize,
+impl TryFrom<Term> for Boxed<Tuple> {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
 }
-impl TupleIter {
-    pub fn new(tuple: &Tuple) -> Self {
-        match tuple.size() {
-            0 => Self {
-                head: tuple.head(),
-                pos: 0,
-                last_pos: 0,
-            },
-            n => Self {
-                head: tuple.head(),
-                pos: 0,
-                last_pos: n - 1,
-            },
+
+impl TryFrom<TypedTerm> for Boxed<Tuple> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Boxed(boxed_tuple) => boxed_tuple.to_typed_term().unwrap().try_into(),
+            TypedTerm::Tuple(tuple) => Ok(tuple),
+            _ => Err(TypeError),
         }
     }
 }
-impl Iterator for TupleIter {
+
+pub struct Iter {
+    pointer: *const Term,
+    limit: *const Term,
+}
+
+impl Iter {
+    pub fn new(tuple: &Tuple) -> Self {
+        let pointer = tuple.head();
+        let limit = unsafe { pointer.add(tuple.len()) };
+
+        Self { pointer, limit }
+    }
+}
+
+impl DoubleEndedIterator for Iter {
+    fn next_back(&mut self) -> Option<Term> {
+        if self.pointer == self.limit {
+            None
+        } else {
+            unsafe {
+                // limit is +1 past he actual elements, so pre-decrement unlike `next`, which
+                // post-decrements
+                self.limit = self.limit.offset(-1);
+                self.limit.as_ref().map(|r| *r)
+            }
+        }
+    }
+}
+
+impl Iterator for Iter {
     type Item = Term;
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        if self.last_pos == 0 {
-            (0, Some(0))
+    fn next(&mut self) -> Option<Term> {
+        if self.pointer == self.limit {
+            None
         } else {
-            (self.last_pos + 1, Some(self.last_pos + 1))
-        }
-    }
+            let old_pointer = self.pointer;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.pos > self.last_pos {
-            return None;
+            unsafe {
+                self.pointer = self.pointer.add(1);
+                old_pointer.as_ref().map(|r| *r)
+            }
         }
-        if self.last_pos == 0 {
-            // This occurs with empty tuples only
-            return None;
-        }
-        let term = unsafe { self.head.offset(self.pos as isize) };
-        self.pos += 1;
-        unsafe { Some(*term) }
     }
 }
-impl FusedIterator for TupleIter {}
-impl ExactSizeIterator for TupleIter {
-    fn len(&self) -> usize {
-        self.last_pos + 1
+
+impl FusedIterator for Iter {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use core::convert::TryInto;
+
+    use alloc::sync::Arc;
+
+    use crate::erts::process::{default_heap, Priority, ProcessControlBlock};
+    use crate::erts::scheduler;
+    use crate::erts::term::{Boxed, Tuple};
+    use crate::erts::ModuleFunctionArity;
+
+    mod element {
+        use super::*;
+
+        #[test]
+        fn without_valid_index() {
+            let process = process();
+            let tuple_term = process.tuple_from_slice(&[]).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(
+                boxed_tuple.get_element_internal(0),
+                Err(IndexError::new(0, 0))
+            );
+        }
+
+        #[test]
+        fn with_valid_index() {
+            let process = process();
+            let tuple_term = process
+                .tuple_from_slice(&[process.integer(0).unwrap()])
+                .unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(
+                boxed_tuple.get_element_internal(1),
+                Ok(process.integer(0).unwrap())
+            );
+        }
     }
 
-    fn is_empty(&self) -> bool {
-        self.last_pos == 0
+    mod eq {
+        use super::*;
+
+        #[test]
+        fn without_element() {
+            let process = process();
+            let tuple = process.tuple_from_slice(&[]).unwrap();
+            let equal = process.tuple_from_slice(&[]).unwrap();
+
+            assert_eq!(tuple, tuple);
+            assert_eq!(tuple, equal);
+        }
+
+        #[test]
+        fn with_unequal_length() {
+            let process = process();
+            let tuple = process
+                .tuple_from_slice(&[process.integer(0).unwrap()])
+                .unwrap();
+            let unequal = process
+                .tuple_from_slice(&[process.integer(0).unwrap(), process.integer(1).unwrap()])
+                .unwrap();
+
+            assert_ne!(tuple, unequal);
+        }
+    }
+
+    mod iter {
+        use super::*;
+
+        #[test]
+        fn without_elements() {
+            let process = process();
+            let tuple_term = process.tuple_from_slice(&[]).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(boxed_tuple.iter().count(), 0);
+
+            let length = boxed_tuple.len();
+
+            assert_eq!(boxed_tuple.iter().count(), length);
+        }
+
+        #[test]
+        fn with_elements() {
+            let process = process();
+            // one of every type
+            let slice = &[
+                // small integer
+                process.integer(0).unwrap(),
+                // big integer
+                process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
+                process.reference(0).unwrap(),
+                closure(&process),
+                process.float(0.0).unwrap(),
+                process.external_pid_with_node_id(1, 0, 0).unwrap(),
+                Term::NIL,
+                make_pid(0, 0).unwrap(),
+                atom_unchecked("atom"),
+                process.tuple_from_slice(&[]).unwrap(),
+                process.map_from_slice(&[]).unwrap(),
+                process.list_from_slice(&[]).unwrap(),
+            ];
+            let tuple_term = process.tuple_from_slice(slice).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(boxed_tuple.iter().count(), 12);
+
+            let length = boxed_tuple.len();
+
+            assert_eq!(boxed_tuple.iter().count(), length);
+        }
+    }
+
+    mod len {
+        use super::*;
+
+        #[test]
+        fn without_elements() {
+            let tuple = Tuple::new(0);
+
+            assert_eq!(tuple.len(), 0);
+        }
+
+        #[test]
+        fn with_elements() {
+            let tuple = Tuple::new(1);
+
+            assert_eq!(tuple.len(), 1);
+        }
+    }
+
+    fn closure(process: &ProcessControlBlock) -> Term {
+        let creator = process.pid_term();
+
+        let module = Atom::try_from_str("module").unwrap();
+        let function = Atom::try_from_str("function").unwrap();
+        let arity = 0;
+        let module_function_arity = Arc::new(ModuleFunctionArity {
+            module,
+            function,
+            arity,
+        });
+        let code = |arc_process: &Arc<ProcessControlBlock>| {
+            arc_process.wait();
+
+            Ok(())
+        };
+
+        process
+            .closure(creator, module_function_arity, code)
+            .unwrap()
+    }
+
+    fn process() -> ProcessControlBlock {
+        let init = Atom::try_from_str("init").unwrap();
+        let initial_module_function_arity = Arc::new(ModuleFunctionArity {
+            module: init,
+            function: init,
+            arity: 0,
+        });
+        let (heap, heap_size) = default_heap().unwrap();
+
+        let process = ProcessControlBlock::new(
+            Priority::Normal,
+            None,
+            initial_module_function_arity,
+            heap,
+            heap_size,
+        );
+
+        process.schedule_with(scheduler::id::next());
+
+        process
     }
 }

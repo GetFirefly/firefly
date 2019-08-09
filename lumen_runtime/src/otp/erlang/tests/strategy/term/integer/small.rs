@@ -2,33 +2,33 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use crate::process::{IntoProcess, Process};
-use crate::term::Term;
+use liblumen_alloc::erts::term::{SmallInteger, Term};
+use liblumen_alloc::erts::ProcessControlBlock;
 
 pub fn isize() -> BoxedStrategy<isize> {
-    (crate::integer::small::MIN..=crate::integer::small::MAX).boxed()
+    (SmallInteger::MIN_VALUE..=SmallInteger::MAX_VALUE).boxed()
 }
 
-pub fn negative(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    (crate::integer::small::MIN..=-1)
-        .prop_map(move |i| i.into_process(&arc_process))
+pub fn negative(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    (SmallInteger::MIN_VALUE..=-1)
+        .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()
 }
 
-pub fn non_negative(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    (0..=crate::integer::small::MAX)
-        .prop_map(move |i| i.into_process(&arc_process))
+pub fn non_negative(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    (0..=SmallInteger::MAX_VALUE)
+        .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()
 }
 
-pub fn non_positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    (crate::integer::small::MIN..=0)
-        .prop_map(move |i| i.into_process(&arc_process))
+pub fn non_positive(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    (SmallInteger::MIN_VALUE..=0)
+        .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()
 }
 
-pub fn positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    (1..=crate::integer::small::MAX)
-        .prop_map(move |i| i.into_process(&arc_process))
+pub fn positive(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    (1..=SmallInteger::MAX_VALUE)
+        .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()
 }

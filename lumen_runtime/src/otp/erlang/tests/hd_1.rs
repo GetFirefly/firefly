@@ -5,7 +5,7 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(erlang::hd_1(list), Err(badarg!()));
+                prop_assert_eq!(erlang::hd_1(list), Err(badarg!().into()));
 
                 Ok(())
             })
@@ -15,7 +15,7 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_empty_list_errors_badarg() {
-    assert_eq!(erlang::hd_1(Term::EMPTY_LIST), Err(badarg!()));
+    assert_eq!(erlang::hd_1(Term::NIL), Err(badarg!().into()));
 }
 
 #[test]
@@ -28,7 +28,7 @@ fn with_list_returns_head() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(head, tail)| {
-                    let list = Term::cons(head, tail, &arc_process);
+                    let list = arc_process.cons(head, tail).unwrap();
 
                     prop_assert_eq!(erlang::hd_1(list), Ok(head));
 

@@ -16,7 +16,7 @@ use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::{SizeClass, SizeClassIndex};
 use liblumen_core::locks::RwLock;
 
-use crate::blocks::ThreadSafeBlockBitSet;
+use crate::blocks::ThreadSafeBlockBitSubset;
 use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{SingleBlockCarrier, SlabCarrier};
 use crate::carriers::{SingleBlockCarrierList, SlabCarrierList};
@@ -73,8 +73,9 @@ impl SegmentedAlloc {
     /// allocator, or it will not be used, and will not be freed
     unsafe fn create_carrier(
         size_class: SizeClass,
-    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSet>, AllocErr> {
+    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
         let size = SUPERALIGNED_CARRIER_SIZE;
+        assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
         // Allocate raw memory for carrier
         let ptr = mmap::map(carrier_layout)?;
@@ -147,7 +148,7 @@ impl SegmentedAlloc {
             },
         );
         // Get pointer to data region in allocated carrier+block
-        let data = (carrier as *mut u8).offset(data_offset as isize);
+        let data = (carrier as *mut u8).add(data_offset);
         // Cast carrier pointer to UnsafeRef and add to linked list
         // This implicitly mutates the link in the carrier
         let carrier = UnsafeRef::from_raw(carrier);
@@ -221,8 +222,9 @@ impl SegmentedAlloc {
     /// allocator, or it will not be used, and will not be freed
     unsafe fn create_slab_carrier(
         size_class: SizeClass,
-    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSet>, AllocErr> {
+    ) -> Result<*mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>, AllocErr> {
         let size = SUPERALIGNED_CARRIER_SIZE;
+        assert!(size_class.to_bytes() < size);
         let carrier_layout = Layout::from_size_align_unchecked(size, size);
         // Allocate raw memory for carrier
         let ptr = mmap::map(carrier_layout)?;
@@ -298,7 +300,7 @@ impl SegmentedAlloc {
         // Since the slabs are super-aligned, we can mask off the low
         // bits of the given pointer to find our carrier
         let carrier_ptr = superalign_down(raw as usize)
-            as *mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSet>;
+            as *mut SlabCarrier<LinkedListLink, ThreadSafeBlockBitSubset>;
         let carrier = &mut *carrier_ptr;
         carrier.free_block(raw);
     }

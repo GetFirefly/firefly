@@ -15,7 +15,7 @@ fn without_list_left_errors_badarg() {
                 |(left, right)| {
                     prop_assert_eq!(
                         erlang::concatenate_2(left, right, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -37,7 +37,7 @@ fn with_improper_list_left_errors_badarg() {
                 |(left, right)| {
                     prop_assert_eq!(
                         erlang::concatenate_2(left, right, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

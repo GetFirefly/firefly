@@ -59,8 +59,8 @@ fn min_is_second_if_first_is_greater_than_second() {
 
 fn min<F, S>(first: F, second: S, which: FirstSecond)
 where
-    F: FnOnce(&Process) -> Term,
-    S: FnOnce(Term, &Process) -> Term,
+    F: FnOnce(&ProcessControlBlock) -> Term,
+    S: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     with_process(|process| {
         let first = first(&process);
@@ -75,8 +75,5 @@ where
 
         // expected value
         assert_eq!(min, expected);
-        // expected which when equal.  Can only really detect flipping for boxed with different
-        // addresses
-        assert_eq!(min.tagged, expected.tagged);
     });
 }

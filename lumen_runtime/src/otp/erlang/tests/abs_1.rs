@@ -1,7 +1,5 @@
 use super::*;
 
-use crate::process::IntoProcess;
-
 #[test]
 fn without_number_errors_badarg() {
     with_process_arc(|arc_process| {
@@ -9,7 +7,7 @@ fn without_number_errors_badarg() {
             .run(
                 &strategy::term::is_not_number(arc_process.clone()),
                 |number| {
-                    prop_assert_eq!(erlang::abs_1(number, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(erlang::abs_1(number, &arc_process), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -28,8 +26,9 @@ fn with_number_returns_non_negative() {
                 prop_assert!(result.is_ok());
 
                 let abs = result.unwrap();
+                let zero: Term = 0.into();
 
-                prop_assert!(0.into_process(&arc_process) <= abs);
+                prop_assert!(zero <= abs);
 
                 Ok(())
             })

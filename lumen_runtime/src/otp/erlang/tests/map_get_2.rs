@@ -14,7 +14,7 @@ fn without_map_errors_badmap() {
                 |(map, key)| {
                     prop_assert_eq!(
                         erlang::map_get_2(key, map, &arc_process),
-                        Err(badmap!(map, &arc_process))
+                        Err(badmap!(&arc_process, map))
                     );
 
                     Ok(())
@@ -26,38 +26,45 @@ fn without_map_errors_badmap() {
 
 #[test]
 fn with_map_without_key_errors_badkey() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                )
-                    .prop_filter(
-                        "Key being tested must not be a key in map",
-                        |(key, non_key)| key != non_key,
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process()
+                .prop_flat_map(|arc_process| {
+                    (
+                        Just(arc_process.clone()),
+                        strategy::term(arc_process.clone()),
+                        strategy::term(arc_process),
                     )
-                    .prop_flat_map(|(key, non_key)| {
-                        (
-                            Just(key),
-                            Just(non_key),
-                            strategy::term(arc_process.clone()),
-                        )
-                    })
-                    .prop_map(|(key, non_key, value)| {
-                        (Term::slice_to_map(&[(key, value)], &arc_process), non_key)
-                    }),
-                |(map, key)| {
-                    prop_assert_eq!(
-                        erlang::map_get_2(key, map, &arc_process),
-                        Err(badkey!(key, &arc_process))
-                    );
+                })
+                .prop_filter(
+                    "Key being tested must not be a key in map",
+                    |(_, key, non_key)| key != non_key,
+                )
+                .prop_flat_map(|(arc_process, key, non_key)| {
+                    (
+                        Just(arc_process.clone()),
+                        Just(key),
+                        Just(non_key),
+                        strategy::term(arc_process),
+                    )
+                })
+                .prop_map(|(arc_process, key, non_key, value)| {
+                    (
+                        arc_process.clone(),
+                        arc_process.map_from_slice(&[(key, value)]).unwrap(),
+                        non_key,
+                    )
+                }),
+            |(arc_process, map, key)| {
+                prop_assert_eq!(
+                    erlang::map_get_2(key, map, &arc_process),
+                    Err(badkey!(&arc_process, key))
+                );
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 #[test]
@@ -71,7 +78,7 @@ fn with_map_with_key_returns_value() {
                 )
                     .prop_map(|(key, value)| {
                         (
-                            Term::slice_to_map(&[(key, value)], &arc_process),
+                            arc_process.map_from_slice(&[(key, value)]).unwrap(),
                             key,
                             value,
                         )

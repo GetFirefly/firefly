@@ -297,9 +297,6 @@ macro_rules! define_histogram {
                 use core::cmp;
                 use core::fmt::Write;
 
-                #[cfg(not(test))]
-                use alloc::string::String;
-
                 let num_samples: u64 = self.bins().iter().sum();
                 writeln!(f, "# Number of samples = {}", num_samples)?;
                 if num_samples == 0 {

@@ -4,10 +4,12 @@ use std::sync::Arc;
 use proptest::collection::SizeRange;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use crate::process::{self, Process};
-use crate::term::Term;
+use liblumen_alloc::erts::{ProcessControlBlock, Term};
+
+use crate::process;
 
 pub mod byte_vec;
+pub mod module_function_arity;
 pub mod size_range;
 pub mod term;
 
@@ -21,17 +23,17 @@ pub fn byte_vec() -> BoxedStrategy<Vec<u8>> {
     byte_vec::with_size_range(RANGE_INCLUSIVE.into())
 }
 
-pub fn process() -> BoxedStrategy<Arc<Process>> {
-    Just(process::local::test_init())
+pub fn process() -> BoxedStrategy<Arc<ProcessControlBlock>> {
+    Just(process::test_init())
         .prop_flat_map(|init_arc_process| {
             // generated in a prop_flat_map instead of prop_map so that a new process is generated
             // for each test so that a prior run's register doesn't interfere
-            Just(process::local::test(&init_arc_process))
+            Just(process::test(&init_arc_process))
         })
         .boxed()
 }
 
-pub fn term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+pub fn term(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     let container_arc_process = arc_process.clone();
 
     term::leaf(RANGE_INCLUSIVE, arc_process)

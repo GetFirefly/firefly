@@ -9,9 +9,12 @@ fn without_byte_binary_or_list_element_errors_badarg() {
                     strategy::term::binary::heap(arc_process.clone()),
                     is_not_byte_binary_nor_list(arc_process.clone()),
                 )
-                    .prop_map(|(head, tail)| Term::cons(head, tail, &arc_process)),
+                    .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
-                    prop_assert_eq!(erlang::list_to_binary_1(list, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::list_to_binary_1(list, &arc_process),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -25,9 +28,8 @@ fn with_empty_list_returns_binary() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &strategy::term::binary::heap(arc_process.clone()).prop_map(|binary| {
-                    (Term::cons(binary, Term::EMPTY_LIST, &arc_process), binary)
-                }),
+                &strategy::term::binary::heap(arc_process.clone())
+                    .prop_map(|binary| (arc_process.cons(binary, Term::NIL).unwrap(), binary)),
                 |(list, binary)| {
                     prop_assert_eq!(erlang::list_to_binary_1(list, &arc_process), Ok(binary));
 
@@ -47,9 +49,12 @@ fn with_byte_errors_badarg() {
                     strategy::term::binary::heap(arc_process.clone()),
                     byte(arc_process.clone()),
                 )
-                    .prop_map(|(head, tail)| Term::cons(head, tail, &arc_process)),
+                    .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
-                    prop_assert_eq!(erlang::list_to_binary_1(list, &arc_process), Err(badarg!()));
+                    prop_assert_eq!(
+                        erlang::list_to_binary_1(list, &arc_process),
+                        Err(badarg!().into())
+                    );
 
                     Ok(())
                 },
@@ -62,17 +67,14 @@ fn with_byte_errors_badarg() {
 fn with_list_without_byte_tail_returns_binary() {
     with(|head, process| {
         let tail_head_byte = 3;
-        let tail_head = tail_head_byte.into_process(&process);
-
-        let tail_tail = Term::EMPTY_LIST;
-
-        let tail = Term::cons(tail_head, tail_tail, &process);
-
-        let iolist = Term::cons(head, tail, &process);
+        let tail_head = process.integer(tail_head_byte).unwrap();
+        let tail_tail = Term::NIL;
+        let tail = process.cons(tail_head, tail_tail).unwrap();
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_binary_1(iolist, &process),
-            Ok(Term::slice_to_binary(&[0, 1, tail_head_byte], &process))
+            Ok(process.binary_from_bytes(&[0, 1, tail_head_byte]).unwrap())
         );
     })
 }
@@ -80,13 +82,13 @@ fn with_list_without_byte_tail_returns_binary() {
 #[test]
 fn with_heap_binary_returns_binary() {
     with(|head, process| {
-        let tail = Term::slice_to_binary(&[2, 3], &process);
+        let tail = process.binary_from_bytes(&[2, 3]).unwrap();
 
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_binary_1(iolist, &process),
-            Ok(Term::slice_to_binary(&[0, 1, 2, 3], &process))
+            Ok(process.binary_from_bytes(&[0, 1, 2, 3]).unwrap())
         );
     })
 }
@@ -94,24 +96,28 @@ fn with_heap_binary_returns_binary() {
 #[test]
 fn with_subbinary_without_bitcount_returns_binary() {
     with(|head, process| {
-        let original = Term::slice_to_binary(&[0b0111_1111, 0b1000_0000], &process);
-        let tail = Term::subbinary(original, 0, 1, 1, 0, &process);
+        let original = process
+            .binary_from_bytes(&[0b0111_1111, 0b1000_0000])
+            .unwrap();
+        let tail = process
+            .subbinary_from_original(original, 0, 1, 1, 0)
+            .unwrap();
 
-        let iolist = Term::cons(head, tail, &process);
+        let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
             erlang::list_to_binary_1(iolist, &process),
-            Ok(Term::slice_to_binary(&[0, 1, 255], &process))
+            Ok(process.binary_from_bytes(&[0, 1, 255]).unwrap())
         );
     })
 }
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &Process) -> (),
+    F: FnOnce(Term, &ProcessControlBlock) -> (),
 {
     with_process(|process| {
-        let head = Term::slice_to_binary(&[0, 1], &process);
+        let head = process.binary_from_bytes(&[0, 1]).unwrap();
 
         f(head, &process);
     })

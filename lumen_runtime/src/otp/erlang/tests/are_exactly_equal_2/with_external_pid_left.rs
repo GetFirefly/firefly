@@ -9,7 +9,10 @@ fn without_external_pid_left_returns_false() {
             .run(
                 &(
                     strategy::term::pid::external(arc_process.clone()),
-                    strategy::term::is_not_atom(arc_process.clone()),
+                    strategy::term(arc_process.clone())
+                        .prop_filter("Left cannot be an external pid", |left| {
+                            !left.is_external_pid()
+                        }),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
@@ -43,14 +46,18 @@ fn with_same_value_external_pid_right_returns_true() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::pid::external::node(),
+                    strategy::term::pid::external::node_id(),
                     strategy::term::pid::number(),
                     strategy::term::pid::serial(),
                 )
                     .prop_map(|(node, number, serial)| {
+                        let mut heap = arc_process.acquire_heap();
+
                         (
-                            Term::external_pid(node, number, serial, &arc_process).unwrap(),
-                            Term::external_pid(node, number, serial, &arc_process).unwrap(),
+                            heap.external_pid_with_node_id(node, number, serial)
+                                .unwrap(),
+                            heap.external_pid_with_node_id(node, number, serial)
+                                .unwrap(),
                         )
                     }),
                 |(left, right)| {

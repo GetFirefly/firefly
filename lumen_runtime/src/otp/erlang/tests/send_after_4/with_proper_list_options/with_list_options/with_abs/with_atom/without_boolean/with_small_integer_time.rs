@@ -18,7 +18,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                     options(arc_process.clone()),
                 ),
                 |(milliseconds, destination, message, options)| {
-                    let time = milliseconds.into_process(&arc_process);
+                    let time = arc_process.integer(milliseconds).unwrap();
 
                     prop_assert_eq!(
                         erlang::send_after_4(
@@ -28,7 +28,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                             options,
                             arc_process.clone()
                         ),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

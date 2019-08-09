@@ -14,7 +14,7 @@ fn without_proper_list_minuend_errors_badarg() {
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
                         erlang::subtract_list_2(minuend, subtrahend, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

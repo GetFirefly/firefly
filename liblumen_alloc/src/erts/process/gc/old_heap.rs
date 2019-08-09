@@ -2,9 +2,11 @@ use core::fmt;
 use core::mem;
 use core::ptr;
 
-use crate::erts::*;
-
 use liblumen_core::util::pointer::*;
+
+use crate::erts::term::binary_bytes;
+use crate::erts::term::{is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary};
+use crate::erts::*;
 
 use super::{VirtualBinaryHeap, YoungHeap};
 
@@ -28,7 +30,7 @@ impl OldHeap {
         if start.is_null() {
             Self::empty()
         } else {
-            let end = unsafe { start.offset(size as isize) };
+            let end = unsafe { start.add(size) };
             let top = start;
             let vheap = VirtualBinaryHeap::new(size);
             Self {
@@ -143,7 +145,7 @@ impl OldHeap {
     ///     if term.is_tuple() {
     ///         let arity = term.arityval();
     ///         # ...
-    ///         return Some(unsafe { pos.offset(arity + 1) });
+    ///         return Some(unsafe { pos.add(arity + 1) });
     ///     }
     ///     None
     /// });
@@ -163,7 +165,7 @@ impl OldHeap {
                 } else {
                     break;
                 }
-            } else if term.is_list() {
+            } else if term.is_non_empty_list() {
                 if let Some(new_pos) = fun(self, term, pos) {
                     pos = new_pos;
                 } else {
@@ -176,7 +178,7 @@ impl OldHeap {
                     break;
                 }
             } else {
-                pos = unsafe { pos.offset(1) };
+                pos = unsafe { pos.add(1) };
             }
 
             debug_assert!(
@@ -214,17 +216,17 @@ impl OldHeap {
         // is too large to build a heap binary, then the original must be a ProcBin,
         // so we don't need to worry about it being collected out from under us
         // TODO: Handle other subtype cases, see erl_gc.h:60
-        if header.is_subbinary() {
+        if header.is_subbinary_header() {
             let bin = &*(ptr as *mut SubBinary);
             // Convert to HeapBin if applicable
             if let Ok((bin_header, bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
                 // Save space for box
-                let dst = heap_top.offset(1);
+                let dst = heap_top.add(1);
                 // Create box pointing to new destination
                 let val = Term::make_boxed(dst);
                 ptr::write(heap_top, val);
                 let dst = dst as *mut HeapBin;
-                let new_bin_ptr = dst.offset(1) as *mut u8;
+                let new_bin_ptr = dst.add(1) as *mut u8;
                 // Copy referenced part of binary to heap
                 ptr::copy_nonoverlapping(bin_ptr, new_bin_ptr, bin_size);
                 // Write heapbin header
@@ -235,7 +237,7 @@ impl OldHeap {
                 // Update `ptr` as well
                 ptr::write(ptr, marker);
                 // Update top pointer
-                self.top = new_bin_ptr.offset(bin_size as isize) as *mut Term;
+                self.top = new_bin_ptr.add(bin_size) as *mut Term;
                 // We're done
                 return 1 + to_word_size(mem::size_of::<HeapBin>() + bin_size);
             }
@@ -250,7 +252,7 @@ impl OldHeap {
         // Move `ptr` to the first arityval
         // Move heap_top to the first data location
         // Then copy arityval data to new location
-        ptr::copy_nonoverlapping(ptr.offset(1), heap_top.offset(1), num_elements);
+        ptr::copy_nonoverlapping(ptr.add(1), heap_top.add(1), num_elements);
         // In debug, verify that the src and dst are bitwise-equal
         debug_assert!(compare_bytes(heap_top, ptr, num_elements));
         // Write a move marker to the original location
@@ -258,7 +260,7 @@ impl OldHeap {
         // And to `ptr` as well
         ptr::write(ptr, marker);
         // Update the top pointer
-        self.top = heap_top.offset(1 + num_elements as isize);
+        self.top = heap_top.add(1 + num_elements);
         // Return the number of words moved into this heap
         moved
     }
@@ -279,7 +281,7 @@ impl OldHeap {
         let marker = Cons::new(Term::NONE, list);
         ptr::write(ptr as *mut Cons, marker);
         // Update the top pointer
-        self.top = location.offset(1) as *mut Term;
+        self.top = location.add(1) as *mut Term;
     }
 
     /// This function is used during garbage collection to sweep this heap for references
@@ -316,8 +318,8 @@ impl OldHeap {
                             heap.move_into(pos, ptr, boxed);
                         }
                     }
-                    Some(pos.offset(1))
-                } else if term.is_list() {
+                    Some(pos.add(1))
+                } else if term.is_non_empty_list() {
                     let ptr = term.list_val();
                     let cons = *ptr;
                     if cons.is_move_marker() {
@@ -327,11 +329,11 @@ impl OldHeap {
                         // Move to top of this heap
                         heap.move_cons_into(pos, ptr, cons);
                     }
-                    Some(pos.offset(1))
+                    Some(pos.add(1))
                 } else if term.is_header() {
-                    if term.is_tuple() {
+                    if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
-                        Some(pos.offset(1))
+                        Some(pos.add(1))
                     } else if term.is_match_context() {
                         let ctx = &mut *(pos as *mut MatchContext);
                         let base = ctx.base();
@@ -346,12 +348,12 @@ impl OldHeap {
                             heap.move_into(orig, ptr, bin);
                             ptr::write(base, binary_bytes(bin));
                         }
-                        Some(pos.offset(1 + (term.arityval() as isize)))
+                        Some(pos.add(1 + term.arityval()))
                     } else {
-                        Some(pos.offset(1 + (term.arityval() as isize)))
+                        Some(pos.add(1 + term.arityval()))
                     }
                 } else {
-                    Some(pos.offset(1))
+                    Some(pos.add(1))
                 }
             }
         });
@@ -387,15 +389,15 @@ impl fmt::Debug for OldHeap {
         let mut pos = self.start;
         while pos < self.top {
             unsafe {
-                let term = *pos;
-                if term.is_immediate() || term.is_boxed() || term.is_list() {
+                let term = &*pos;
+                if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.offset(1);
+                    pos = pos.add(1);
                 } else {
                     assert!(term.is_header());
                     let arityval = term.arityval();
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term.as_usize()))?;
-                    pos = pos.offset((1 + arityval) as isize);
+                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
+                    pos = pos.add(1 + arityval);
                 }
             }
         }

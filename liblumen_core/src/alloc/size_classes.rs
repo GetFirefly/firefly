@@ -1,10 +1,12 @@
+use core::fmt::{self, Debug};
 use core::mem;
 
 /// A wrapper around `usize` values which define a size class
 /// in terms of its size in words
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct SizeClass(usize);
+
 impl SizeClass {
     #[inline]
     pub const fn new(words: usize) -> Self {
@@ -24,6 +26,15 @@ impl SizeClass {
     #[inline]
     pub fn round_to_nearest_word(&self) -> Self {
         Self(next_factor_of_word(self.0))
+    }
+}
+
+impl Debug for SizeClass {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("SizeClass")
+            .field("byte_len", &self.to_bytes())
+            .field("word_len", &self.as_words())
+            .finish()
     }
 }
 

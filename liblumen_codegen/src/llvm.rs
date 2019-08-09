@@ -5,7 +5,7 @@ mod memory_buffer;
 mod target;
 
 use std::ffi::CString;
-use std::sync::{Once, ONCE_INIT};
+use std::sync::Once;
 
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
@@ -20,7 +20,7 @@ pub use self::enums::*;
 use self::target::{Target, TargetMachine};
 
 // Used to ensure LLVM is only initialized once
-static ONCE: Once = ONCE_INIT;
+static ONCE: Once = Once::new();
 
 /// Initialize LLVM internals
 pub fn initialize() {

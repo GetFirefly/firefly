@@ -10,18 +10,18 @@ fn unregistered_sends_nothing_when_timer_expires() {
                 (
                     Just(milliseconds),
                     Just(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                     options(arc_process),
                 )
             }),
             |(milliseconds, arc_process, message, options)| {
                 let destination = registered_name();
 
-                let time = milliseconds.into_process(&arc_process);
+                let time = arc_process.integer(milliseconds).unwrap();
 
                 prop_assert_eq!(
                     erlang::start_timer_4(time, destination, message, options, arc_process.clone(),),
-                    Err(badarg!())
+                    Err(badarg!().into())
                 );
 
                 Ok(())

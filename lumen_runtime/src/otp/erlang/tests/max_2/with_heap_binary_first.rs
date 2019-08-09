@@ -15,7 +15,7 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_first(
                             second.is_number()
                                 || second.is_atom()
                                 || second.is_reference()
-                                || second.is_function()
+                                || second.is_closure()
                                 || second.is_port()
                                 || second.is_pid()
                                 || second.is_tuple()
@@ -34,18 +34,18 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_first(
 
 #[test]
 fn with_prefix_heap_binary_second_returns_first() {
-    max(|_, process| Term::slice_to_binary(&[1], &process), First);
+    max(|_, process| process.binary_from_bytes(&[1]).unwrap(), First);
 }
 
 #[test]
 fn with_same_length_heap_binary_with_lesser_byte_second_returns_first() {
-    max(|_, process| Term::slice_to_binary(&[0], &process), First);
+    max(|_, process| process.binary_from_bytes(&[0]).unwrap(), First);
 }
 
 #[test]
 fn with_longer_heap_binary_with_lesser_byte_second_returns_first() {
     max(
-        |_, process| Term::slice_to_binary(&[0, 1, 2], &process),
+        |_, process| process.binary_from_bytes(&[0, 1, 2]).unwrap(),
         First,
     );
 }
@@ -57,18 +57,24 @@ fn with_same_heap_binary_second_returns_first() {
 
 #[test]
 fn with_same_value_heap_binary_second_returns_first() {
-    max(|_, process| Term::slice_to_binary(&[1, 1], &process), First)
+    max(
+        |_, process| process.binary_from_bytes(&[1, 1]).unwrap(),
+        First,
+    )
 }
 
 #[test]
 fn with_shorter_heap_binary_with_greater_byte_second_returns_second() {
-    max(|_, process| Term::slice_to_binary(&[2], &process), Second);
+    max(
+        |_, process| process.binary_from_bytes(&[2]).unwrap(),
+        Second,
+    );
 }
 
 #[test]
 fn with_heap_binary_with_greater_byte_second_returns_second() {
     max(
-        |_, process| Term::slice_to_binary(&[2, 1], &process),
+        |_, process| process.binary_from_bytes(&[2, 1]).unwrap(),
         Second,
     );
 }
@@ -76,7 +82,7 @@ fn with_heap_binary_with_greater_byte_second_returns_second() {
 #[test]
 fn with_heap_binary_with_different_greater_byte_second_returns_second() {
     max(
-        |_, process| Term::slice_to_binary(&[1, 2], &process),
+        |_, process| process.binary_from_bytes(&[1, 2]).unwrap(),
         Second,
     );
 }
@@ -85,8 +91,9 @@ fn with_heap_binary_with_different_greater_byte_second_returns_second() {
 fn with_prefix_subbinary_second_returns_first() {
     max(
         |_, process| {
-            let original = Term::slice_to_binary(&[1], &process);
-            Term::subbinary(original, 0, 0, 1, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[1]).unwrap();
+            heap.subbinary_from_original(original, 0, 0, 1, 0).unwrap()
         },
         First,
     );
@@ -96,8 +103,9 @@ fn with_prefix_subbinary_second_returns_first() {
 fn with_same_length_subbinary_with_lesser_byte_second_returns_first() {
     max(
         |_, process| {
-            let original = Term::slice_to_binary(&[0, 1], &process);
-            Term::subbinary(original, 0, 0, 2, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[0, 1]).unwrap();
+            heap.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
         },
         First,
     );
@@ -117,8 +125,9 @@ fn with_same_subbinary_second_returns_first() {
 fn with_same_value_subbinary_second_returns_first() {
     max(
         |_, process| {
-            let original = Term::slice_to_binary(&[1, 1], &process);
-            Term::subbinary(original, 0, 0, 2, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[1, 1]).unwrap();
+            heap.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
         },
         First,
     )
@@ -128,8 +137,9 @@ fn with_same_value_subbinary_second_returns_first() {
 fn with_shorter_subbinary_with_greater_byte_second_returns_second() {
     max(
         |_, process| {
-            let original = Term::slice_to_binary(&[2], &process);
-            Term::subbinary(original, 0, 0, 1, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[2]).unwrap();
+            heap.subbinary_from_original(original, 0, 0, 1, 0).unwrap()
         },
         Second,
     );
@@ -139,8 +149,9 @@ fn with_shorter_subbinary_with_greater_byte_second_returns_second() {
 fn with_subbinary_with_greater_byte_second_returns_second() {
     max(
         |_, process| {
-            let original = Term::slice_to_binary(&[2, 1], &process);
-            Term::subbinary(original, 0, 0, 2, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[2, 1]).unwrap();
+            heap.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
         },
         Second,
     );
@@ -150,8 +161,9 @@ fn with_subbinary_with_greater_byte_second_returns_second() {
 fn with_subbinary_with_different_greater_byte_second_returns_second() {
     max(
         |_, process| {
-            let original = Term::slice_to_binary(&[1, 2], &process);
-            Term::subbinary(original, 0, 0, 2, 0, &process)
+            let mut heap = process.acquire_heap();
+            let original = heap.binary_from_bytes(&[1, 2]).unwrap();
+            heap.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
         },
         Second,
     );
@@ -164,10 +176,10 @@ fn with_subbinary_with_value_with_shorter_length_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::max(
-        |process| Term::slice_to_binary(&[1, 1], &process),
+        |process| process.binary_from_bytes(&[1, 1]).unwrap(),
         second,
         which,
     );

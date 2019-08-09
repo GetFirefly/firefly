@@ -3,16 +3,21 @@ use super::*;
 use std::sync::atomic::AtomicUsize;
 
 use proptest::arbitrary::any;
-use proptest::strategy::{BoxedStrategy, Just};
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use crate::exception::Result;
-use crate::integer;
-use crate::message::{self, Message};
+use liblumen_alloc::erts::exception::runtime;
+use liblumen_alloc::erts::message::{self, Message};
+use liblumen_alloc::erts::process::{Priority, Status};
+use liblumen_alloc::erts::term::{
+    make_pid, next_pid, BigInteger, HeapBin, Pid, SmallInteger, SubBinary,
+};
+use liblumen_alloc::erts::ModuleFunctionArity;
+
 use crate::otp::erlang;
 use crate::process;
-use crate::scheduler::{with_process, with_process_arc, Priority};
+use crate::scheduler::{with_process, with_process_arc};
 
 mod abs_1;
 mod add_2;
@@ -133,106 +138,147 @@ enum FirstSecond {
     Second,
 }
 
-fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
+fn cancel_timer_message(
+    timer_reference: Term,
+    result: Term,
+    process: &ProcessControlBlock,
+) -> Term {
     timer_message("cancel_timer", timer_reference, result, process)
+}
+
+fn count_ones(term: Term) -> u32 {
+    match term.to_typed_term().unwrap() {
+        TypedTerm::SmallInteger(small_integer) => {
+            let i: isize = small_integer.into();
+
+            i.count_ones()
+        }
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::BigInteger(big_integer) => count_ones_in_big_integer(big_integer),
+            _ => panic!("Can't count 1s in non-integer"),
+        },
+        _ => panic!("Can't count 1s in non-integer"),
+    }
+}
+
+fn count_ones_in_big_integer(big_integer: Boxed<BigInteger>) -> u32 {
+    let big_int: &BigInt = big_integer.as_ref().into();
+
+    big_int
+        .to_signed_bytes_be()
+        .iter()
+        .map(|b| b.count_ones())
+        .sum()
 }
 
 fn errors_badarg<F>(actual: F)
 where
-    F: FnOnce(&Process) -> Result,
+    F: FnOnce(&ProcessControlBlock) -> Result,
 {
     with_process(|process| assert_badarg!(actual(&process)))
 }
 
 fn errors_badarith<F>(actual: F)
 where
-    F: FnOnce(&Process) -> Result,
+    F: FnOnce(&ProcessControlBlock) -> Result,
 {
     with_process(|process| assert_badarith!(actual(&process)))
 }
 
-fn has_message(process: &Process, message: Term) -> bool {
-    process
-        .mailbox
-        .lock()
-        .unwrap()
-        .iter()
-        .any(|mailbox_message| {
-            let term = match mailbox_message {
-                Message::Process(term) => term,
-                Message::Heap(message::Heap { term, .. }) => term,
-            };
-
-            term == &message
-        })
+fn has_message(process: &ProcessControlBlock, data: Term) -> bool {
+    process.mailbox.lock().borrow().iter().any(|message| {
+        &data
+            == match message {
+                Message::Process(message::Process { data }) => data,
+                Message::HeapFragment(message::HeapFragment { data, .. }) => data,
+            }
+    })
 }
 
-fn has_heap_message(process: &Process, message: Term) -> bool {
+fn has_heap_message(process: &ProcessControlBlock, data: Term) -> bool {
     process
         .mailbox
         .lock()
-        .unwrap()
+        .borrow()
         .iter()
-        .any(|mailbox_message| match mailbox_message {
-            Message::Heap(message::Heap { term, .. }) => term == &message,
+        .any(|message| match message {
+            Message::HeapFragment(message::HeapFragment {
+                data: message_data, ..
+            }) => message_data == &data,
             _ => false,
         })
 }
 
-fn has_process_message(process: &Process, message: Term) -> bool {
+fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
     process
         .mailbox
         .lock()
-        .unwrap()
+        .borrow()
         .iter()
-        .any(|mailbox_message| match mailbox_message {
-            Message::Process(term) => term == &message,
+        .any(|message| match message {
+            Message::Process(message::Process {
+                data: message_data, ..
+            }) => message_data == &data,
             _ => false,
         })
 }
 
-fn list_term(process: &Process) -> Term {
-    let head_term = Term::str_to_atom("head", DoNotCare).unwrap();
-    Term::cons(head_term, Term::EMPTY_LIST, process)
+fn list_term(process: &ProcessControlBlock) -> Term {
+    let head_term = atom_unchecked("head");
+
+    process.cons(head_term, Term::NIL).unwrap()
 }
 
-fn read_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
+fn read_timer_message(timer_reference: Term, result: Term, process: &ProcessControlBlock) -> Term {
     timer_message("read_timer", timer_reference, result, process)
 }
 
-fn receive_message(process: &Process) -> Option<Term> {
-    // always lock `heap` before `mailbox`
-    let unlocked_heap = process.heap.lock().unwrap();
-    let mut unlocked_mailbox = process.mailbox.lock().unwrap();
-
-    unlocked_mailbox.receive(unlocked_heap)
+fn receive_message(process: &ProcessControlBlock) -> Option<Term> {
+    process
+        .mailbox
+        .lock()
+        .borrow_mut()
+        .receive(process)
+        .map(|result| result.unwrap())
 }
 
 static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 fn registered_name() -> Term {
-    Term::str_to_atom(
+    atom_unchecked(
         format!(
             "registered{}",
             REGISTERED_NAME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
         )
         .as_ref(),
-        DoNotCare,
     )
-    .unwrap()
 }
 
-fn timeout_message(timer_reference: Term, message: Term, process: &Process) -> Term {
+fn timeout_message(timer_reference: Term, message: Term, process: &ProcessControlBlock) -> Term {
     timer_message("timeout", timer_reference, message, process)
 }
 
-fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
-    Term::slice_to_tuple(
-        &[
-            Term::str_to_atom(tag, DoNotCare).unwrap(),
-            timer_reference,
-            message,
-        ],
-        process,
-    )
+fn timer_message(
+    tag: &str,
+    timer_reference: Term,
+    message: Term,
+    process: &ProcessControlBlock,
+) -> Term {
+    process
+        .tuple_from_slice(&[atom_unchecked(tag), timer_reference, message])
+        .unwrap()
+}
+
+fn total_byte_len(term: Term) -> usize {
+    match term.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::HeapBinary(heap_binary) => heap_binary.total_byte_len(),
+            TypedTerm::SubBinary(subbinary) => subbinary.total_byte_len(),
+            unboxed_typed_term => panic!(
+                "unboxed {:?} does not have a total_byte_len",
+                unboxed_typed_term
+            ),
+        },
+        typed_term => panic!("{:?} does not have a total_byte_len", typed_term),
+    }
 }

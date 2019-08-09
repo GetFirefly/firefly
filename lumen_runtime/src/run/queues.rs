@@ -1,18 +1,21 @@
+use core::borrow::Borrow;
+use core::fmt::{self, Debug};
+use core::hash::Hash;
+
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::process::{Process, Status};
+use liblumen_alloc::erts::process::{Priority, ProcessControlBlock, Status};
+
 use crate::run::queues::delayed::Delayed;
 use crate::run::queues::immediate::Immediate;
 use crate::run::queues::Next::*;
 use crate::run::Run;
-use crate::scheduler::Priority;
 
 mod delayed;
 mod immediate;
 
-#[derive(Default)]
-#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Debug, Default)]
 pub struct Queues {
     waiting: Waiting,
     normal_low: Delayed,
@@ -42,7 +45,7 @@ impl Queues {
         }
     }
 
-    pub fn enqueue(&mut self, arc_process: Arc<Process>) {
+    pub fn enqueue(&mut self, arc_process: Arc<ProcessControlBlock>) {
         match arc_process.priority {
             Priority::Low | Priority::Normal => self.normal_low.enqueue(arc_process),
             Priority::High => self.high.enqueue(arc_process),
@@ -56,8 +59,11 @@ impl Queues {
 
     /// Returns the process is not pushed back because it is exiting
     #[must_use]
-    pub fn requeue(&mut self, arc_process: Arc<Process>) -> Option<Arc<Process>> {
-        let next = Next::from_status(&arc_process.status.read().unwrap());
+    pub fn requeue(
+        &mut self,
+        arc_process: Arc<ProcessControlBlock>,
+    ) -> Option<Arc<ProcessControlBlock>> {
+        let next = Next::from_status(&arc_process.status.read());
 
         // has to be separate so that `arc_process` can be moved
         match next {
@@ -73,7 +79,7 @@ impl Queues {
         }
     }
 
-    pub fn stop_waiting(&mut self, process: &Process) {
+    pub fn stop_waiting(&mut self, process: &ProcessControlBlock) {
         match self.waiting.get(process) {
             Some(arc_process) => {
                 let arc_process = Arc::clone(arc_process);
@@ -107,4 +113,45 @@ impl Next {
     }
 }
 
-type Waiting = HashSet<Arc<Process>>;
+#[derive(Default)]
+pub struct Waiting(HashSet<Arc<ProcessControlBlock>>);
+
+impl Waiting {
+    fn get<Q: ?Sized>(&self, value: &Q) -> Option<&Arc<ProcessControlBlock>>
+    where
+        Arc<ProcessControlBlock>: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.0.get(value)
+    }
+
+    fn insert(&mut self, waiter: Arc<ProcessControlBlock>) -> bool {
+        self.0.insert(waiter)
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn remove(&mut self, waiter: &Arc<ProcessControlBlock>) -> bool {
+        self.0.remove(waiter)
+    }
+}
+
+impl Debug for Waiting {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut vec: Vec<_> = self.0.iter().collect();
+        vec.sort_by_key(|arc_process_control_block| arc_process_control_block.pid());
+
+        for arc_process_control_block in vec {
+            write!(
+                f,
+                "{:?}:\n{:?}",
+                arc_process_control_block,
+                arc_process_control_block.stacktrace()
+            )?;
+        }
+
+        Ok(())
+    }
+}

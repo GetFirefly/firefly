@@ -11,7 +11,7 @@ fn without_binary_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_integer_1(binary, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -41,9 +41,15 @@ fn with_binary_with_small_integer_returns_small_integer() {
 
                     let term = result.unwrap();
 
-                    prop_assert_eq!(term.tag(), SmallInteger);
+                    let small_integer_result: core::result::Result<SmallInteger, _> =
+                        term.try_into();
 
-                    prop_assert_eq!(term, integer.into_process(&arc_process));
+                    prop_assert!(small_integer_result.is_ok());
+
+                    let small_integer = small_integer_result.unwrap();
+                    let small_integer_isize: isize = small_integer.into();
+
+                    prop_assert_eq!(small_integer_isize, integer);
 
                     Ok(())
                 },
@@ -72,12 +78,8 @@ fn with_binary_with_big_integer_returns_big_integer() {
 
                     let term = result.unwrap();
 
-                    prop_assert_eq!(term.tag(), Boxed);
-
-                    let unboxed: &Term = term.unbox_reference();
-
-                    prop_assert_eq!(unboxed.tag(), BigInteger);
-                    prop_assert_eq!(term, integer.into_process(&arc_process));
+                    prop_assert!(term.is_bigint());
+                    prop_assert_eq!(term, arc_process.integer(integer).unwrap());
 
                     Ok(())
                 },
@@ -98,7 +100,7 @@ fn with_binary_with_non_decimal_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         erlang::binary_to_integer_1(binary, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

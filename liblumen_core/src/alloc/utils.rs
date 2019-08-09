@@ -9,7 +9,7 @@ use core_alloc::string::String;
 #[macro_export]
 macro_rules! assert_word_aligned {
     ($ptr:expr) => {
-        assert_aligned_to!($ptr, core::mem::size_of::<usize>())
+        $crate::assert_aligned_to!($ptr, core::mem::size_of::<usize>())
     };
 }
 

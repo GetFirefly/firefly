@@ -14,7 +14,7 @@ fn without_map_errors_badmap() {
                 |(key, map)| {
                     prop_assert_eq!(
                         erlang::is_map_key_2(key, map, &arc_process),
-                        Err(badmap!(map, &arc_process))
+                        Err(badmap!(&arc_process, map))
                     );
 
                     Ok(())
@@ -37,9 +37,12 @@ fn with_map_without_key_returns_false() {
                         key != non_key
                     })
                     .prop_map(|(key, non_key)| {
-                        let value = Term::str_to_atom("value", DoNotCare).unwrap();
+                        let value = atom_unchecked("value");
 
-                        (non_key, Term::slice_to_map(&[(key, value)], &arc_process))
+                        (
+                            non_key,
+                            arc_process.map_from_slice(&[(key, value)]).unwrap(),
+                        )
                     }),
                 |(key, map)| {
                     prop_assert_eq!(
@@ -60,9 +63,9 @@ fn with_map_with_key_returns_true() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term(arc_process.clone()).prop_map(|key| {
-                    let value = Term::str_to_atom("value", DoNotCare).unwrap();
+                    let value = atom_unchecked("value");
 
-                    (key, Term::slice_to_map(&[(key, value)], &arc_process))
+                    (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
                 }),
                 |(key, map)| {
                     prop_assert_eq!(

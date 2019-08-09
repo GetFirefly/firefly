@@ -51,8 +51,8 @@ fn with_same_value_heap_binary_right_returns_false() {
             .run(
                 &strategy::byte_vec().prop_map(|byte_vec| {
                     (
-                        Term::slice_to_binary(&byte_vec, &arc_process),
-                        Term::slice_to_binary(&byte_vec, &arc_process),
+                        arc_process.binary_from_bytes(&byte_vec).unwrap(),
+                        arc_process.binary_from_bytes(&byte_vec).unwrap(),
                     )
                 }),
                 |(left, right)| {
@@ -100,11 +100,12 @@ fn with_subbinary_right_with_same_bytes_returns_false() {
             .run(
                 &strategy::term::binary::sub::is_binary(arc_process.clone()).prop_map(
                     |subbinary_term| {
-                        let subbinary: &sub::Binary = subbinary_term.unbox_reference();
-                        let heap_binary_byte_vec: Vec<u8> = subbinary.byte_iter().collect();
+                        let subbinary: SubBinary = subbinary_term.try_into().unwrap();
+                        let heap_binary_byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
-                        let heap_binary =
-                            Term::slice_to_binary(&heap_binary_byte_vec, &arc_process);
+                        let heap_binary = arc_process
+                            .binary_from_bytes(&heap_binary_byte_vec)
+                            .unwrap();
                         (heap_binary, subbinary_term)
                     },
                 ),
@@ -128,13 +129,14 @@ fn with_subbinary_right_with_different_bytes_returns_true() {
             .run(
                 &strategy::term::binary::sub::is_binary::is_not_empty(arc_process.clone())
                     .prop_map(|subbinary_term| {
-                        let subbinary: &sub::Binary = subbinary_term.unbox_reference();
+                        let subbinary: SubBinary = subbinary_term.try_into().unwrap();
                         // same size, but different values by inverting
                         let heap_binary_byte_vec: Vec<u8> =
-                            subbinary.byte_iter().map(|b| !b).collect();
+                            subbinary.full_byte_iter().map(|b| !b).collect();
 
-                        let heap_binary =
-                            Term::slice_to_binary(&heap_binary_byte_vec, &arc_process);
+                        let heap_binary = arc_process
+                            .binary_from_bytes(&heap_binary_byte_vec)
+                            .unwrap();
                         (heap_binary, subbinary_term)
                     }),
                 |(left, right)| {

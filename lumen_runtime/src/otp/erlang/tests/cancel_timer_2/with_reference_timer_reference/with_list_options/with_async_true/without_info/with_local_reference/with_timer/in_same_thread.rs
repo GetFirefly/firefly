@@ -9,7 +9,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         let half_milliseconds = milliseconds / 2;
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
-        timer::timeout();
+        timer::timeout().unwrap();
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -17,30 +17,26 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         assert_eq!(
             erlang::cancel_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
 
         let received_message = receive_message(process).unwrap();
 
-        assert_eq!(received_message.tag(), Boxed);
+        let received_tuple_result: core::result::Result<Boxed<Tuple>, _> =
+            received_message.try_into();
 
-        let unboxed_received_message: &Term = received_message.unbox_reference();
+        assert!(received_tuple_result.is_ok());
 
-        assert_eq!(unboxed_received_message.tag(), Arity);
+        let received_tuple = received_tuple_result.unwrap();
 
-        let received_tuple: &Tuple = received_message.unbox_reference();
-
-        assert_eq!(
-            received_tuple[0],
-            Term::str_to_atom("cancel_timer", DoNotCare).unwrap()
-        );
+        assert_eq!(received_tuple[0], atom_unchecked("cancel_timer"));
         assert_eq!(received_tuple[1], timer_reference);
 
         let milliseconds_remaining = received_tuple[2];
 
         assert!(milliseconds_remaining.is_integer());
-        assert!(0.into_process(process) < milliseconds_remaining);
-        assert!(milliseconds_remaining <= (milliseconds / 2).into_process(process));
+        assert!(process.integer(0).unwrap() < milliseconds_remaining);
+        assert!(milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         let false_cancel_timer_message =
             cancel_timer_message(timer_reference, false.into(), process);
@@ -48,19 +44,19 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         // again before timeout
         assert_eq!(
             erlang::cancel_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
         assert_eq!(receive_message(process), Some(false_cancel_timer_message));
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
-        timer::timeout();
+        timer::timeout().unwrap();
 
         assert!(!has_message(process, timeout_message));
 
         // again after timeout
         assert_eq!(
             erlang::cancel_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
         assert_eq!(receive_message(process), Some(false_cancel_timer_message));
     })
@@ -70,7 +66,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 fn with_timeout_returns_false_after_timeout_message_was_sent() {
     with_timer(|milliseconds, message, timer_reference, process| {
         thread::sleep(Duration::from_millis(milliseconds + 1));
-        timer::timeout();
+        timer::timeout().unwrap();
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -80,14 +76,14 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
 
         assert_eq!(
             erlang::cancel_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
         assert_eq!(receive_message(process), Some(cancel_timer_message));
 
         // again
         assert_eq!(
             erlang::cancel_timer_2(timer_reference, options(process), process),
-            Ok(Term::str_to_atom("ok", DoNotCare).unwrap())
+            Ok(atom_unchecked("ok"))
         );
         assert_eq!(receive_message(process), Some(cancel_timer_message));
     })
@@ -95,15 +91,15 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
 
 fn with_timer<F>(f: F)
 where
-    F: FnOnce(u64, Term, Term, &Process) -> (),
+    F: FnOnce(u64, Term, Term, &ProcessControlBlock) -> (),
 {
-    let same_thread_process_arc = process::local::test(&process::local::test_init());
+    let same_thread_process_arc = process::test(&process::test_init());
     let milliseconds: u64 = 100;
 
-    let message = Term::str_to_atom("message", DoNotCare).unwrap();
+    let message = atom_unchecked("message");
     let timer_reference = erlang::start_timer_3(
-        milliseconds.into_process(&same_thread_process_arc),
-        same_thread_process_arc.pid,
+        same_thread_process_arc.integer(milliseconds).unwrap(),
+        unsafe { same_thread_process_arc.pid().as_term() },
         message,
         same_thread_process_arc.clone(),
     )

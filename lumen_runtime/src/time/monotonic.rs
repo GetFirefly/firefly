@@ -1,9 +1,17 @@
-use std::sync::RwLock;
-
 use num_bigint::BigInt;
 
 use crate::time::convert;
 use crate::time::Unit::{self, *};
+
+cfg_if::cfg_if! {
+  if #[cfg(all(target_arch = "wasm32", feature = "time_web_sys"))] {
+     mod web_sys;
+     pub use self::web_sys::*;
+  } else {
+     mod std;
+     pub use self::std::*;
+  }
+}
 
 // Must be at least a `u64` because `u32` is only ~49 days (`(1 << 32)`)
 pub type Milliseconds = u64;
@@ -25,14 +33,6 @@ pub fn time(unit: Unit) -> BigInt {
     }
 }
 
-pub fn time_in_milliseconds() -> Milliseconds {
-    (*RW_LOCK_SOURCE.read().unwrap())()
-}
-
-pub fn set_source(source: Source) {
-    *RW_LOCK_SOURCE.write().unwrap() = source;
-}
-
 // Private
 
 const MILLISECONDS_PER_SECOND: u64 = 1_000;
@@ -40,25 +40,3 @@ const MICROSECONDS_PER_MILLISECOND: u64 = 1_000;
 const NANOSECONDS_PER_MICROSECOND: u64 = 1_000;
 const NANOSECONDS_PER_MILLISECONDS: u64 =
     NANOSECONDS_PER_MICROSECOND * MICROSECONDS_PER_MILLISECOND;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn default_source() -> Milliseconds {
-    START.elapsed().as_millis() as Milliseconds
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-
-#[cfg(not(target_arch = "wasm32"))]
-lazy_static! {
-    static ref START: Instant = Instant::now();
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn default_source() -> Milliseconds {
-    panic!("No default source for `wasm32`.  Call `lumen_runtime::time::monotonic::set_source(millisecond_source)`")
-}
-
-lazy_static! {
-    static ref RW_LOCK_SOURCE: RwLock<Source> = RwLock::new(default_source);
-}

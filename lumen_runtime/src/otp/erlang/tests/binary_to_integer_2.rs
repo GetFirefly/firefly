@@ -15,7 +15,7 @@ fn without_binary_errors_badarg() {
                 |(binary, base)| {
                     prop_assert_eq!(
                         erlang::binary_to_integer_2(binary, base, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -37,7 +37,7 @@ fn with_binary_without_base_errors_badarg() {
                 |(binary, base)| {
                     prop_assert_eq!(
                         erlang::binary_to_integer_2(binary, base, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -65,13 +65,13 @@ fn with_binary_with_integer_in_base_returns_integers() {
                     (
                         Just(integer),
                         strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                        Just(base.into_process(&arc_process)),
+                        Just(arc_process.integer(base).unwrap()),
                     )
                 }),
                 |(integer, binary, base)| {
                     prop_assert_eq!(
                         erlang::binary_to_integer_2(binary, base, &arc_process),
-                        Ok(integer.into_process(&arc_process))
+                        Ok(arc_process.integer(integer).unwrap())
                     );
 
                     Ok(())
@@ -97,13 +97,13 @@ fn with_binary_without_integer_in_base_errors_badarg() {
 
                     (
                         strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
-                        Just(base.into_process(&arc_process)),
+                        Just(arc_process.integer(base).unwrap()),
                     )
                 }),
                 |(binary, base)| {
                     prop_assert_eq!(
                         erlang::binary_to_integer_2(binary, base, &arc_process),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())
@@ -117,21 +117,23 @@ fn base() -> BoxedStrategy<u8> {
     (2_u8..=36_u8).boxed()
 }
 
-fn term_is_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn term_is_base(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     base()
-        .prop_map(move |base| base.into_process(&arc_process))
+        .prop_map(move |base| arc_process.integer(base).unwrap())
         .boxed()
 }
 
-fn term_is_not_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+fn term_is_not_base(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
-        .prop_filter("Cannot be a base (2-36)", |term| match term.tag() {
-            SmallInteger => {
-                let integer: isize = unsafe { term.small_integer_to_isize() };
+        .prop_filter("Cannot be a base (2-36)", |term| {
+            match term.to_typed_term().unwrap() {
+                TypedTerm::SmallInteger(small_integer) => {
+                    let integer: isize = small_integer.into();
 
-                (2 <= integer) && (integer <= 36)
+                    (2 <= integer) && (integer <= 36)
+                }
+                _ => true,
             }
-            _ => true,
         })
         .boxed()
 }

@@ -26,13 +26,17 @@ fn without_list_or_bitstring_second_returns_first() {
 
 #[test]
 fn with_empty_list_second_returns_first() {
-    max(|_, _| Term::EMPTY_LIST, First);
+    max(|_, _| Term::NIL, First);
 }
 
 #[test]
 fn with_lesser_list_second_returns_first() {
     max(
-        |_, process| Term::cons(0.into_process(&process), 0.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0).unwrap(), process.integer(0).unwrap())
+                .unwrap()
+        },
         First,
     );
 }
@@ -45,7 +49,11 @@ fn with_same_list_second_returns_first() {
 #[test]
 fn with_same_value_list_second_returns_first() {
     max(
-        |_, process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
+                .unwrap()
+        },
         First,
     );
 }
@@ -53,7 +61,11 @@ fn with_same_value_list_second_returns_first() {
 #[test]
 fn with_greater_list_second_returns_second() {
     max(
-        |_, process| Term::cons(0.into_process(&process), 2.into_process(&process), &process),
+        |_, process| {
+            process
+                .cons(process.integer(0).unwrap(), process.integer(2).unwrap())
+                .unwrap()
+        },
         Second,
     );
 }
@@ -79,10 +91,14 @@ fn with_bitstring_second_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &Process) -> Term,
+    R: FnOnce(Term, &ProcessControlBlock) -> Term,
 {
     super::max(
-        |process| Term::cons(0.into_process(&process), 1.into_process(&process), &process),
+        |process| {
+            process
+                .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
+                .unwrap()
+        },
         second,
         which,
     );

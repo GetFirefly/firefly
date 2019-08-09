@@ -14,10 +14,10 @@ fn without_atom_or_pid_destination_errors_badarg() {
                 &(
                     milliseconds(),
                     strategy::term::is_not_send_after_destination(arc_process.clone()),
-                    strategy::term::heap_fragment_safe(arc_process.clone()),
+                    strategy::term(arc_process.clone()),
                 ),
                 |(milliseconds, destination, message)| {
-                    let time = milliseconds.into_process(&arc_process);
+                    let time = arc_process.integer(milliseconds).unwrap();
                     let options = options(&arc_process);
 
                     prop_assert_eq!(
@@ -28,7 +28,7 @@ fn without_atom_or_pid_destination_errors_badarg() {
                             options,
                             arc_process.clone()
                         ),
-                        Err(badarg!())
+                        Err(badarg!().into())
                     );
 
                     Ok(())

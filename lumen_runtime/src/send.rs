@@ -1,75 +1,79 @@
-use std::convert::TryFrom;
-use std::result::Result;
+use core::convert::{TryFrom, TryInto};
+use core::result::Result;
 
-use crate::exception::Exception;
-use crate::list::Cons;
+use liblumen_alloc::erts::exception::{runtime, Exception};
+use liblumen_alloc::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::{badarg, ProcessControlBlock};
+
 use crate::node;
-use crate::process::local::pid_to_process;
-use crate::process::Process;
-use crate::registry::{self, Registered};
-use crate::term::{Tag::*, Term};
-use crate::tuple::Tuple;
+use crate::registry::{self, pid_to_process};
+use crate::scheduler::Scheduler;
 
 pub fn send(
     destination: Term,
     message: Term,
     options: Options,
-    process: &Process,
+    process_control_block: &ProcessControlBlock,
 ) -> Result<Sent, Exception> {
-    match destination.tag() {
-        Atom => send_to_name(destination, message, options, process),
-        Boxed => {
-            let unboxed_destination: &Term = destination.unbox_reference();
-
-            match unboxed_destination.tag() {
-                Arity => {
-                    let tuple: &Tuple = destination.unbox_reference();
-
+    match destination.to_typed_term().unwrap() {
+        TypedTerm::Atom(destination_atom) => {
+            send_to_name(destination_atom, message, options, process_control_block)
+        }
+        TypedTerm::Boxed(unboxed_destination) => {
+            match unboxed_destination.to_typed_term().unwrap() {
+                TypedTerm::Tuple(tuple) => {
                     if tuple.len() == 2 {
                         let name = tuple[0];
 
-                        match name.tag() {
-                            Atom => {
+                        match name.to_typed_term().unwrap() {
+                            TypedTerm::Atom(name_atom) => {
                                 let node = tuple[1];
 
-                                match node.tag() {
-                                    Atom => {
-                                        match unsafe { node.atom_to_string() }.as_ref().as_ref() {
-                                            node::DEAD => {
-                                                send_to_name(name, message, options, process)
-                                            }
-                                            _ => {
-                                                if !options.connect {
-                                                    Ok(Sent::ConnectRequired)
-                                                } else if !options.suspend {
-                                                    Ok(Sent::SuspendRequired)
-                                                } else {
-                                                    unimplemented!("distribution")
-                                                }
+                                match node.to_typed_term().unwrap() {
+                                    TypedTerm::Atom(node_atom) => match node_atom.name() {
+                                        node::DEAD => send_to_name(
+                                            name_atom,
+                                            message,
+                                            options,
+                                            process_control_block,
+                                        ),
+                                        _ => {
+                                            if !options.connect {
+                                                Ok(Sent::ConnectRequired)
+                                            } else if !options.suspend {
+                                                Ok(Sent::SuspendRequired)
+                                            } else {
+                                                unimplemented!("distribution")
                                             }
                                         }
-                                    }
-                                    _ => Err(badarg!()),
+                                    },
+                                    _ => Err(badarg!().into()),
                                 }
                             }
-                            _ => Err(badarg!()),
+                            _ => Err(badarg!().into()),
                         }
                     } else {
-                        Err(badarg!())
+                        Err(badarg!().into())
                     }
                 }
-                _ => Err(badarg!()),
+                _ => Err(badarg!().into()),
             }
         }
-        LocalPid => {
-            if destination.tagged == process.pid.tagged {
-                process.send_from_self(message);
+        TypedTerm::Pid(destination_pid) => {
+            if destination_pid == process_control_block.pid() {
+                process_control_block.send_from_self(message)?;
 
                 Ok(Sent::Sent)
             } else {
-                match pid_to_process(destination) {
-                    Some(destination_process_arc) => {
-                        destination_process_arc.send_from_other(message);
+                match pid_to_process(destination_pid) {
+                    Some(destination_arc_process_control_block) => {
+                        if destination_arc_process_control_block.send_from_other(message)? {
+                            let scheduler_id = destination_arc_process_control_block
+                                .scheduler_id()
+                                .unwrap();
+                            let arc_scheduler = Scheduler::from_id(&scheduler_id).unwrap();
+                            arc_scheduler.stop_waiting(&destination_arc_process_control_block);
+                        }
 
                         Ok(Sent::Sent)
                     }
@@ -77,7 +81,7 @@ pub fn send(
                 }
             }
         }
-        _ => Err(badarg!()),
+        _ => Err(badarg!().into()),
     }
 }
 
@@ -90,9 +94,14 @@ pub struct Options {
 }
 
 impl Options {
-    fn put_option_term(&mut self, option: Term) -> std::result::Result<&Options, Exception> {
-        match option.tag() {
-            Atom => match unsafe { option.atom_to_string() }.as_ref().as_ref() {
+    fn put_option_term(
+        &mut self,
+        option: Term,
+    ) -> core::result::Result<&Options, runtime::Exception> {
+        let result: core::result::Result<Atom, _> = option.try_into();
+
+        match result {
+            Ok(atom) => match atom.name() {
                 "noconnect" => {
                     self.connect = false;
 
@@ -105,7 +114,7 @@ impl Options {
                 }
                 _ => Err(badarg!()),
             },
-            _ => Err(badarg!()),
+            Err(_) => Err(badarg!()),
         }
     }
 }
@@ -120,20 +129,18 @@ impl Default for Options {
 }
 
 impl TryFrom<Term> for Options {
-    type Error = Exception;
+    type Error = runtime::Exception;
 
-    fn try_from(term: Term) -> std::result::Result<Options, Exception> {
+    fn try_from(term: Term) -> std::result::Result<Options, Self::Error> {
         let mut options: Options = Default::default();
         let mut options_term = term;
 
         loop {
-            match options_term.tag() {
-                EmptyList => return Ok(options),
-                List => {
-                    let cons: &Cons = unsafe { options_term.as_ref_cons_unchecked() };
-
-                    options.put_option_term(cons.head())?;
-                    options_term = cons.tail();
+            match options_term.to_typed_term().unwrap() {
+                TypedTerm::Nil => return Ok(options),
+                TypedTerm::List(cons) => {
+                    options.put_option_term(cons.head)?;
+                    options_term = cons.tail;
 
                     continue;
                 }
@@ -153,30 +160,29 @@ pub enum Sent {
 
 // `options` will only be used once ports are supported
 fn send_to_name(
-    destination: Term,
+    destination: Atom,
     message: Term,
     _options: Options,
-    process: &Process,
+    process_control_block: &ProcessControlBlock,
 ) -> Result<Sent, Exception> {
-    if *process.registered_name.read().unwrap() == Some(destination) {
-        process.send_from_self(message);
+    if *process_control_block.registered_name.read() == Some(destination) {
+        process_control_block.send_from_self(message)?;
 
         Ok(Sent::Sent)
     } else {
-        let readable_registry = registry::RW_LOCK_REGISTERED_BY_NAME.read().unwrap();
-
-        match readable_registry.get(&destination) {
-            Some(Registered::Process(destination_weak_process)) => {
-                match destination_weak_process.upgrade() {
-                    Some(destination_arc_process) => {
-                        destination_arc_process.send_from_other(message);
-
-                        Ok(Sent::Sent)
-                    }
-                    None => Err(badarg!()),
+        match registry::atom_to_process(&destination) {
+            Some(destination_arc_process_control_block) => {
+                if destination_arc_process_control_block.send_from_other(message)? {
+                    let scheduler_id = destination_arc_process_control_block
+                        .scheduler_id()
+                        .unwrap();
+                    let arc_scheduler = Scheduler::from_id(&scheduler_id).unwrap();
+                    arc_scheduler.stop_waiting(&destination_arc_process_control_block);
                 }
+
+                Ok(Sent::Sent)
             }
-            None => Err(badarg!()),
+            None => Err(badarg!().into()),
         }
     }
 }

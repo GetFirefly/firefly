@@ -10,7 +10,7 @@ fn without_boolean_left_errors_badarg() {
                     strategy::term::is_boolean(),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::orelse_2(left, right), Err(badarg!()));
+                    prop_assert_eq!(erlang::orelse_2(left, right), Err(badarg!().into()));
 
                     Ok(())
                 },

@@ -1,0 +1,25 @@
+[package]
+name = "liblumen_eir_interpreter"
+version = "0.1.0"
+authors = ["Hans Elias B. Josephsen <me@hansihe.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "run_file"
+path = "src/bin.rs"
+
+[dependencies]
+libeir_ir = { path = "../../core_erlang_3/libeir_ir" }
+libeir_syntax_erl = { path = "../../core_erlang_3/libeir_syntax_erl" }
+libeir_intern = { path = "../../core_erlang_3/libeir_intern" }
+libeir_diagnostics = { path = "../../core_erlang_3/libeir_diagnostics" }
+libeir_passes = { path = "../../core_erlang_3/libeir_passes" }
+cranelift-entity = "0.30.0"
+
+liblumen_alloc = { path = "../liblumen_alloc" }
+lumen_runtime = { path = "../lumen_runtime" }
+
+lazy_static = "1.3.0"
+clap = "2.33.0"

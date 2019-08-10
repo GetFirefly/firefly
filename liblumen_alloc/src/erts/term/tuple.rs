@@ -495,7 +495,7 @@ mod tests {
         };
 
         process
-            .closure(creator, module_function_arity, code)
+            .closure(creator, module_function_arity, code, vec![])
             .unwrap()
     }
 

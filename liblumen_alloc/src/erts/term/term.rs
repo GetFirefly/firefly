@@ -1673,6 +1673,7 @@ pub enum BoolError {
 #[derive(Debug)]
 pub struct TypeError;
 
+#[derive(Debug)]
 pub enum TryIntoIntegerError {
     Type,
     OutOfRange,

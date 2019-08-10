@@ -21,12 +21,13 @@ pub struct Closure {
     module_function_arity: Arc<ModuleFunctionArity>,
     code: Code,     // pointer to function entry
     next: *mut u8,  // off heap header
+    pub env_hack: Vec<Term>,
     env_len: usize, // the number of free variables
     env: *mut Term, // pointer to first element of free variable array
 }
 
 impl Closure {
-    pub fn new(module_function_arity: Arc<ModuleFunctionArity>, code: Code, creator: Term) -> Self {
+    pub fn new(module_function_arity: Arc<ModuleFunctionArity>, code: Code, creator: Term, env_hack: Vec<Term>) -> Self {
         let env_len = 0;
 
         Self {
@@ -35,6 +36,7 @@ impl Closure {
             module_function_arity,
             code,
             next: ptr::null_mut(),
+            env_hack,
             env_len,
             env: ptr::null_mut(),
         }

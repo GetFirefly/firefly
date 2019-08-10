@@ -39,6 +39,7 @@ jobs:
             - liblumen_compiler
             - liblumen_core
             - liblumen_diagnostics
+            - liblumen_eir_interpreter
             - liblumen_syntax
             - lumen
             - lumen_runtime
@@ -87,6 +88,7 @@ jobs:
             - liblumen_compiler
             - liblumen_core
             - liblumen_diagnostics
+            - liblumen_eir_interpreter
             - liblumen_syntax
             - lumen
             - lumen_runtime
@@ -136,6 +138,19 @@ jobs:
       - run:
           name: Run all tests
           command: cargo test --all-targets --frozen --package spawn-chain -- --test-threads=1
+  x86_64_eir_interpreter:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run EIR Interpreter demos
+          working_directory: "liblumen_eir_interpreter"
+          command: cargo run -- --ident fib:run/0 fib.erl
   chrome_test:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
@@ -185,6 +200,9 @@ workflows:
           requires:
             - x86_64_build
       - x86_64_single_threaded_test:
+          requires:
+            - x86_64_build
+      - x86_64_eir_interpreter:
           requires:
             - x86_64_build
       - chrome_test:

@@ -1,19 +1,19 @@
 use std::sync::Arc;
 
-use lumen_runtime::system;
-use lumen_runtime::code::apply_fn;
-use lumen_runtime::scheduler::Scheduler;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::erts::term::{ Term, Atom, atom_unchecked };
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::ModuleFunctionArity;
+use lumen_runtime::code::apply_fn;
+use lumen_runtime::scheduler::Scheduler;
+use lumen_runtime::system;
 
+mod code;
 mod exec;
 mod module;
-mod vm;
-mod code;
 mod native;
+mod vm;
 
 use self::vm::VMState;
 use lazy_static::lazy_static;
@@ -27,20 +27,15 @@ pub fn call_erlang(
     module: Atom,
     function: Atom,
     args: &[Term],
-) -> std::result::Result<(), ()>
-{
+) -> std::result::Result<(), ()> {
     let return_ok = {
         let mfa = ModuleFunctionArity {
             module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
             function: Atom::try_from_str("return_ok").unwrap(),
             arity: 1,
         };
-        proc.closure(
-            proc.pid_term(),
-            mfa.into(),
-            crate::code::return_ok,
-            vec![],
-        ).unwrap()
+        proc.closure(proc.pid_term(), mfa.into(), crate::code::return_ok, vec![])
+            .unwrap()
     };
     let return_throw = {
         let mfa = ModuleFunctionArity {
@@ -53,7 +48,8 @@ pub fn call_erlang(
             mfa.into(),
             crate::code::return_throw,
             vec![],
-        ).unwrap()
+        )
+        .unwrap()
     };
 
     let mut args_vec = vec![return_ok, return_throw];
@@ -91,7 +87,7 @@ pub fn call_erlang(
                 } => {
                     if *reason != atom_unchecked("normal") {
                         return Err(());
-                        //panic!("ProcessControlBlock exited: {:?}", reason);
+                    //panic!("ProcessControlBlock exited: {:?}", reason);
                     } else {
                         return Ok(());
                     }
@@ -140,25 +136,25 @@ mod tests {
 
     use std::path::Path;
 
-    use lumen_runtime::registry;
-    use lumen_runtime::system;
-    use lumen_runtime::scheduler::Scheduler;
-    use lumen_runtime::code::apply_fn;
-    use liblumen_alloc::erts::ModuleFunctionArity;
     use liblumen_alloc::erts::exception;
-    use liblumen_alloc::erts::term::{ Atom, atom_unchecked };
     use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
+    use liblumen_alloc::erts::term::{atom_unchecked, Atom};
+    use liblumen_alloc::erts::ModuleFunctionArity;
+    use lumen_runtime::code::apply_fn;
+    use lumen_runtime::registry;
+    use lumen_runtime::scheduler::Scheduler;
+    use lumen_runtime::system;
 
-    use libeir_ir::{ Module, FunctionIdent };
-    use libeir_syntax_erl::{ Parse, Parser, ParseConfig };
-    use libeir_syntax_erl::ast::{ Module as ErlAstModule };
-    use libeir_syntax_erl::lower_module;
+    use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
     use libeir_intern::Ident;
-    use libeir_diagnostics::{ Emitter, StandardStreamEmitter, ColorChoice };
+    use libeir_ir::{FunctionIdent, Module};
     use libeir_passes::PassManager;
+    use libeir_syntax_erl::ast::Module as ErlAstModule;
+    use libeir_syntax_erl::lower_module;
+    use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
-    use super::VM;
     use super::call_erlang;
+    use super::VM;
 
     fn parse<T>(input: &str, config: ParseConfig) -> (T, Parser)
     where
@@ -197,7 +193,7 @@ mod tests {
 
     fn lower_file<P>(path: P, config: ParseConfig) -> Result<Module, ()>
     where
-        P: AsRef<Path>
+        P: AsRef<Path>,
     {
         let (parsed, parser): (ErlAstModule, _) = parse_file(path, config);
         let (res, messages) = lower_module(&parsed);
@@ -234,7 +230,9 @@ mod tests {
         let module = Atom::try_from_str("foo").unwrap();
         let function = Atom::try_from_str("bar").unwrap();
 
-        call_erlang(init_arc_process, module, function, &[]).err().unwrap();
+        call_erlang(init_arc_process, module, function, &[])
+            .err()
+            .unwrap();
     }
 
     #[test]
@@ -248,11 +246,15 @@ mod tests {
         let function = Atom::try_from_str("run").unwrap();
 
         let config = ParseConfig::default();
-        let mut eir_mod = lower("
+        let mut eir_mod = lower(
+            "
 -module(simple_function_test).
 
 run() -> yay.
-", config).unwrap();
+",
+            config,
+        )
+        .unwrap();
 
         for fun in eir_mod.functions.values() {
             fun.graph_validate_global();
@@ -263,7 +265,9 @@ run() -> yay.
 
         VM.modules.write().unwrap().register_erlang_module(eir_mod);
 
-        call_erlang(init_arc_process, module, function, &[]).ok().unwrap();
+        call_erlang(init_arc_process, module, function, &[])
+            .ok()
+            .unwrap();
     }
 
     #[test]
@@ -277,12 +281,16 @@ run() -> yay.
         let function = Atom::try_from_str("fib").unwrap();
 
         let config = ParseConfig::default();
-        let mut eir_mod = lower("
+        let mut eir_mod = lower(
+            "
 -module(fib).
 
 fib(X) when X < 2 -> 1;
 fib(X) -> fib(X - 1) + fib(X-2).
-", config).unwrap();
+",
+            config,
+        )
+        .unwrap();
 
         for fun in eir_mod.functions.values() {
             fun.graph_validate_global();
@@ -294,7 +302,8 @@ fib(X) -> fib(X - 1) + fib(X-2).
         VM.modules.write().unwrap().register_erlang_module(eir_mod);
 
         let int = init_arc_process.integer(5).unwrap();
-        call_erlang(init_arc_process, module, function, &[int]).ok().unwrap();
+        call_erlang(init_arc_process, module, function, &[int])
+            .ok()
+            .unwrap();
     }
-
 }

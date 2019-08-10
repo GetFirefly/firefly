@@ -1,20 +1,20 @@
-use std::collections::HashMap;
 use std::cell::RefCell;
-use std::rc::{ Rc };
-use std::sync::{ Arc, RwLock };
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
-use libeir_ir::{ Module, FunctionIdent };
 use libeir_intern::Symbol;
+use libeir_ir::{FunctionIdent, Module};
 
-use lumen_runtime::scheduler::Scheduler;
-use lumen_runtime::registry;
-use lumen_runtime::system;
-use lumen_runtime::code::apply_fn;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{ Term, Atom, atom_unchecked };
 use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use lumen_runtime::code::apply_fn;
+use lumen_runtime::registry;
+use lumen_runtime::scheduler::Scheduler;
+use lumen_runtime::system;
 
-use super::module::{ ModuleRegistry, ModuleType, NativeModule, ErlangModule };
+use super::module::{ErlangModule, ModuleRegistry, ModuleType, NativeModule};
 
 pub struct VMState {
     pub modules: RwLock<ModuleRegistry>,
@@ -22,7 +22,6 @@ pub struct VMState {
 }
 
 impl VMState {
-
     pub fn new() -> Self {
         lumen_runtime::code::set_apply_fn(crate::code::apply);
 
@@ -36,8 +35,7 @@ impl VMState {
         };
 
         let mut modules = ModuleRegistry::new();
-        modules.register_native_module(
-            crate::native::make_erlang());
+        modules.register_native_module(crate::native::make_erlang());
 
         VMState {
             modules: RwLock::new(modules),
@@ -45,8 +43,11 @@ impl VMState {
         }
     }
 
-    pub fn call(&mut self, fun: &FunctionIdent, args: &[Term]) -> Result<Rc<Term>, (Rc<Term>, Rc<Term>, Rc<Term>)> {
-
+    pub fn call(
+        &mut self,
+        fun: &FunctionIdent,
+        args: &[Term],
+    ) -> Result<Rc<Term>, (Rc<Term>, Rc<Term>, Rc<Term>)> {
         let init_atom = Atom::try_from_str("init").unwrap();
         let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
 
@@ -124,7 +125,5 @@ impl VMState {
                 }
             }
         }
-
     }
-
 }

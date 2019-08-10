@@ -1,15 +1,15 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use libeir_ir::Block;
 use cranelift_entity::EntityRef;
+use libeir_ir::Block;
 
-use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::process::code::{ result_from_exception, Result };
+use liblumen_alloc::erts::exception::runtime::{Class, Exception};
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
-use liblumen_alloc::erts::term::{ Atom, Term, TypedTerm };
-use liblumen_alloc::erts::exception::runtime::{ Exception, Class };
+use liblumen_alloc::erts::process::code::{result_from_exception, Result};
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::exec::CallExecutor;
 
@@ -160,10 +160,7 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
         arity: arity.try_into().unwrap(),
     });
 
-    let frame = Frame::new(
-        module_function_arity,
-        interpreter_mfa_code,
-    );
+    let frame = Frame::new(module_function_arity, interpreter_mfa_code);
 
     arc_process.stack_push(argument_list)?;
     arc_process.stack_push(function_term)?;

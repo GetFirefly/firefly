@@ -1,15 +1,15 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::{ VMState };
+use crate::VMState;
 
 use libeir_intern::Symbol;
-use libeir_ir::{ Module, Function, FunctionIdent, LiveValues };
+use libeir_ir::{Function, FunctionIdent, LiveValues, Module};
 
-use liblumen_alloc::erts::term::{ Term, Atom };
-use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::process::code::Result;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{Atom, Term};
 
 pub enum ResolvedFunction<'a> {
     Native(fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>),
@@ -21,7 +21,6 @@ pub struct ModuleRegistry {
 }
 
 impl ModuleRegistry {
-
     pub fn new() -> Self {
         ModuleRegistry {
             map: HashMap::new(),
@@ -31,82 +30,85 @@ impl ModuleRegistry {
     pub fn register_erlang_module(&mut self, module: Module) {
         let erl_module = ErlangModule::from_eir(module);
         match self.map.remove(&erl_module.name) {
-            None => self.map.insert(
-                erl_module.name, ModuleType::Erlang(erl_module)),
-            Some(ModuleType::Native(native)) => self.map.insert(
-                erl_module.name, ModuleType::Overlayed(erl_module, native)),
+            None => self
+                .map
+                .insert(erl_module.name, ModuleType::Erlang(erl_module)),
+            Some(ModuleType::Native(native)) => self
+                .map
+                .insert(erl_module.name, ModuleType::Overlayed(erl_module, native)),
             _ => panic!(),
         };
     }
 
     pub fn register_native_module(&mut self, native: NativeModule) {
         match self.map.remove(&native.name) {
-            None => self.map.insert(
-                native.name, ModuleType::Native(native)),
-            Some(ModuleType::Erlang(erl)) => self.map.insert(
-                native.name, ModuleType::Overlayed(erl, native)),
+            None => self.map.insert(native.name, ModuleType::Native(native)),
+            Some(ModuleType::Erlang(erl)) => self
+                .map
+                .insert(native.name, ModuleType::Overlayed(erl, native)),
             _ => panic!(),
         };
     }
 
-    pub fn lookup_function(&self, module: Atom, function: Atom,
-                           arity: usize) -> Option<ResolvedFunction>
-    {
+    pub fn lookup_function(
+        &self,
+        module: Atom,
+        function: Atom,
+        arity: usize,
+    ) -> Option<ResolvedFunction> {
         println!("LOOKUP {:?}:{:?}/{}", module, function, arity);
         match self.map.get(&module) {
             None => None,
-            Some(ModuleType::Erlang(erl)) => {
-                erl.functions.get(&(function, arity))
-                    .map(ResolvedFunction::Erlang)
-            },
-            Some(ModuleType::Native(nat)) => {
-                nat.functions.get(&(function, arity))
-                    .cloned()
-                    .map(ResolvedFunction::Native)
-            },
+            Some(ModuleType::Erlang(erl)) => erl
+                .functions
+                .get(&(function, arity))
+                .map(ResolvedFunction::Erlang),
+            Some(ModuleType::Native(nat)) => nat
+                .functions
+                .get(&(function, arity))
+                .cloned()
+                .map(ResolvedFunction::Native),
             Some(ModuleType::Overlayed(erl, nat)) => {
                 if let Some(nat_fun) = nat.functions.get(&(function, arity)) {
                     Some(ResolvedFunction::Native(*nat_fun))
                 } else {
-                    erl.functions.get(&(function, arity))
+                    erl.functions
+                        .get(&(function, arity))
                         .map(ResolvedFunction::Erlang)
                 }
             }
         }
     }
-
 }
 
-
 pub enum NativeReturn {
-    Return {
-        term: Rc<Term>,
-    },
-    Throw {
-        typ: Rc<Term>,
-        reason: Rc<Term>,
-    },
+    Return { term: Rc<Term> },
+    Throw { typ: Rc<Term>, reason: Rc<Term> },
 }
 
 pub struct NativeModule {
     pub name: Atom,
-    pub functions: HashMap<(Atom, usize),
-                           fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>>,
+    pub functions: HashMap<
+        (Atom, usize),
+        fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>,
+    >,
 }
 impl NativeModule {
-
     pub fn new(name: Atom) -> Self {
         NativeModule {
-            name: name,
+            name,
             functions: HashMap::new(),
         }
     }
 
-    pub fn add_fun(&mut self, name: Atom, arity: usize,
-                   fun: fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>) {
+    pub fn add_fun(
+        &mut self,
+        name: Atom,
+        arity: usize,
+        fun: fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>,
+    ) {
         self.functions.insert((name, arity), fun);
     }
-
 }
 
 pub struct ErlangFunction {
@@ -120,23 +122,25 @@ pub struct ErlangModule {
 }
 
 impl ErlangModule {
-
     pub fn from_eir(module: Module) -> Self {
         let name_atom = Atom::try_from_str(module.name.as_str()).unwrap();
-        let functions = module.functions.values().map(|fun| {
-            let nfun = ErlangFunction {
-                live: fun.live_values(),
-                fun: fun.clone(),
-            };
-            let name = Atom::try_from_str(fun.ident().name.as_str()).unwrap();
-            ((name, fun.ident().arity), nfun)
-        }).collect();
+        let functions = module
+            .functions
+            .values()
+            .map(|fun| {
+                let nfun = ErlangFunction {
+                    live: fun.live_values(),
+                    fun: fun.clone(),
+                };
+                let name = Atom::try_from_str(fun.ident().name.as_str()).unwrap();
+                ((name, fun.ident().arity), nfun)
+            })
+            .collect();
         ErlangModule {
             name: name_atom,
             functions,
         }
     }
-
 }
 
 pub enum ModuleType {

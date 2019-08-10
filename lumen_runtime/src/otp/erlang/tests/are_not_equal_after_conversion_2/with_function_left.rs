@@ -65,7 +65,7 @@ fn with_same_value_function_right_returns_false() {
                             arity,
                         });
                         let left_term = arc_process
-                            .closure(creator, left_module_function_arity, code)
+                            .closure(creator, left_module_function_arity, code, vec![])
                             .unwrap();
 
                         let right_module_function_arity = Arc::new(ModuleFunctionArity {
@@ -74,7 +74,7 @@ fn with_same_value_function_right_returns_false() {
                             arity,
                         });
                         let right_term = arc_process
-                            .closure(creator, right_module_function_arity, code)
+                            .closure(creator, right_module_function_arity, code, vec![])
                             .unwrap();
 
                         (left_term, right_term)
@@ -116,7 +116,7 @@ fn with_different_function_right_returns_true() {
                             Ok(())
                         };
                         let left_term = arc_process
-                            .closure(creator, left_module_function_arity, left_code)
+                            .closure(creator, left_module_function_arity, left_code, vec![])
                             .unwrap();
 
                         let right_module_function_arity = Arc::new(ModuleFunctionArity {
@@ -130,7 +130,7 @@ fn with_different_function_right_returns_true() {
                             Ok(())
                         };
                         let right_term = arc_process
-                            .closure(creator, right_module_function_arity, right_code)
+                            .closure(creator, right_module_function_arity, right_code, vec![])
                             .unwrap();
 
                         (left_term, right_term)

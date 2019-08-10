@@ -226,6 +226,7 @@ fn create_processes_reducer_function(
         process.pid_term(),
         module_function_arity,
         create_processes_reducer_0_code,
+        vec![],
     )
 }
 

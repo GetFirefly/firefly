@@ -68,7 +68,7 @@ fn main() {
 
     let module = Atom::try_from_str(&ident.module.as_str()).unwrap();
     let function = Atom::try_from_str(&ident.name.as_str()).unwrap();
-    assert!(ident.arity == 1);
+    assert!(ident.arity == 0);
 
     for file in matches.values_of("LOAD_ERL_FILES").unwrap() {
         let config = ParseConfig::default();

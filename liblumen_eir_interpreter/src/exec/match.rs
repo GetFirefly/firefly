@@ -1,26 +1,25 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use libeir_ir::{ Block, MatchKind, PrimOpKind, BasicType,
-                 BinaryEntrySpecifier, Endianness };
+use libeir_ir::{BasicType, BinaryEntrySpecifier, Block, Endianness, MatchKind, PrimOpKind};
 
-use lumen_runtime::otp::erlang;
-use liblumen_alloc::erts::term::{ Term, TypedTerm, Tuple, Atom, Integer, Closure,
-                                  AsTerm, atom_unchecked };
-use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::exception::system;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{
+    atom_unchecked, AsTerm, Atom, Closure, Integer, Term, Tuple, TypedTerm,
+};
+use lumen_runtime::otp::erlang;
 
+use super::{CallExecutor, OpResult};
 use crate::module::ErlangFunction;
-use super::{ CallExecutor, OpResult };
 
 pub fn match_op(
     exec: &mut CallExecutor,
     proc: &Arc<ProcessControlBlock>,
     fun: &ErlangFunction,
     branches: &[MatchKind],
-    block: Block
-) -> std::result::Result<OpResult, system::Exception>
-{
+    block: Block,
+) -> std::result::Result<OpResult, system::Exception> {
     let reads = fun.fun.block_reads(block);
 
     let branches_prim = fun.fun.value_primop(reads[0]).unwrap();
@@ -29,9 +28,7 @@ pub fn match_op(
 
     let unpack_term = exec.make_term(proc, fun, reads[1]).unwrap();
 
-    for (idx, (kind, branch)) in branches.iter()
-        .zip(branches_dests.iter()).enumerate()
-    {
+    for (idx, (kind, branch)) in branches.iter().zip(branches_dests.iter()).enumerate() {
         let branch_arg_prim = fun.fun.value_primop(reads[idx + 2]).unwrap();
         assert!(fun.fun.primop_kind(branch_arg_prim) == &PrimOpKind::ValueList);
         let branch_args = fun.fun.primop_reads(branch_arg_prim);

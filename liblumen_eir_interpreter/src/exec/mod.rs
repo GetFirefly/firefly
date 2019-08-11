@@ -3,19 +3,18 @@ use std::convert::TryInto;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use libeir_ir::{ Block, Value, OpKind, ValueKind, PrimOpKind };
-use libeir_ir::constant::{ Const, ConstKind, AtomicTerm };
-use libeir_intern::{ Symbol };
 use cranelift_entity::EntityRef;
+use libeir_intern::Symbol;
+use libeir_ir::constant::{AtomicTerm, Const, ConstKind};
+use libeir_ir::{Block, OpKind, PrimOpKind, Value, ValueKind};
 
-use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::erts::term::{ Term, TypedTerm, Atom,
-                                  AsTerm, atom_unchecked };
-use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::exception::system;
+use liblumen_alloc::erts::process::code::Result;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::module::{ ErlangFunction, ResolvedFunction };
+use crate::module::{ErlangFunction, ResolvedFunction};
 use crate::vm::VMState;
 
 mod r#match;
@@ -232,9 +231,7 @@ impl CallExecutor {
             //ConstKind::Atomic(AtomicTerm::Binary(bin)) => {
             //    Term::Binary(Rc::new(bin.0.clone().into())).into()
             //}
-            ConstKind::Atomic(AtomicTerm::Nil) => {
-                Ok(Term::NIL)
-            }
+            ConstKind::Atomic(AtomicTerm::Nil) => Ok(Term::NIL),
             //ConstKind::ListCell { head, tail } => {
             //    Term::ListCell(
             //        self.make_const_term(fun, *head),
@@ -462,9 +459,7 @@ impl CallExecutor {
             //        args: vec![Term::Nil.into()],
             //    }
             //}
-            OpKind::Match { branches } => {
-                self::r#match::match_op(self, proc, fun, branches, block)
-            }
+            OpKind::Match { branches } => self::r#match::match_op(self, proc, fun, branches, block),
             //OpKind::BinaryPush { specifier } => {
             //    let bin_term = self.make_term(fun, reads[2]);
             //    let mut bin = match &*bin_term {

@@ -21,10 +21,14 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::add_2(args[0], args[1], proc).unwrap())
     });
 
-    native.add_fun(Atom::try_from_str("monotonic_time").unwrap(), 0, |proc, args| {
-        assert!(args.len() == 0);
-        Ok(erlang::monotonic_time_0(proc).unwrap())
-    });
+    native.add_fun(
+        Atom::try_from_str("monotonic_time").unwrap(),
+        0,
+        |proc, args| {
+            assert!(args.len() == 0);
+            Ok(erlang::monotonic_time_0(proc).unwrap())
+        },
+    );
 
     native
 }

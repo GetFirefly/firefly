@@ -1,19 +1,19 @@
 use std::path::Path;
 
-use clap::{ Arg, App, SubCommand, ArgMatches, arg_enum, value_t };
+use clap::{arg_enum, value_t, App, Arg, ArgMatches, SubCommand};
 
-use libeir_ir::{ Module, FunctionIdent };
-use libeir_syntax_erl::{ Parse, Parser, ParseConfig };
-use libeir_syntax_erl::ast::{ Module as ErlAstModule };
-use libeir_syntax_erl::lower_module;
+use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
 use libeir_intern::Ident;
-use libeir_diagnostics::{ Emitter, StandardStreamEmitter, ColorChoice };
+use libeir_ir::{FunctionIdent, Module};
 use libeir_passes::PassManager;
+use libeir_syntax_erl::ast::Module as ErlAstModule;
+use libeir_syntax_erl::lower_module;
+use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
-use liblumen_eir_interpreter::{ VM, call_erlang };
+use liblumen_eir_interpreter::{call_erlang, VM};
 
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use lumen_runtime::registry;
-use liblumen_alloc::erts::term::{ Term, Atom, atom_unchecked };
 
 fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, Parser)
 where
@@ -25,8 +25,8 @@ where
         Ok(ast) => return (ast, parser),
         Err(errs) => errs,
     };
-    let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-        .set_codemap(parser.config.codemap.clone());
+    let emitter =
+        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
     for err in errs.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -35,13 +35,13 @@ where
 
 fn lower_file<P>(path: P, config: ParseConfig) -> Result<Module, ()>
 where
-    P: AsRef<Path>
+    P: AsRef<Path>,
 {
     let (parsed, parser): (ErlAstModule, _) = parse_file(path, config);
     let (res, messages) = lower_module(&parsed);
 
-    let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-        .set_codemap(parser.config.codemap.clone());
+    let emitter =
+        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
     for err in messages.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -52,11 +52,15 @@ where
 fn main() {
     let matches = App::new("Lumen Eir Interpreter CLI")
         .version("alpha")
-        .arg(Arg::from_usage("<LOAD_ERL_FILES> 'load files into the interpreter'")
-             .multiple(true)
-             .required(false))
-        .arg(Arg::from_usage("<FUN_IDENT> -i,--ident <IDENT> 'select single function'")
-             .required(true))
+        .arg(
+            Arg::from_usage("<LOAD_ERL_FILES> 'load files into the interpreter'")
+                .multiple(true)
+                .required(false),
+        )
+        .arg(
+            Arg::from_usage("<FUN_IDENT> -i,--ident <IDENT> 'select single function'")
+                .required(true),
+        )
         .get_matches();
 
     let ident = FunctionIdent::parse(matches.value_of("FUN_IDENT").unwrap()).unwrap();
@@ -68,7 +72,7 @@ fn main() {
 
     let module = Atom::try_from_str(&ident.module.as_str()).unwrap();
     let function = Atom::try_from_str(&ident.name.as_str()).unwrap();
-    assert!(ident.arity == 1);
+    assert!(ident.arity == 0);
 
     for file in matches.values_of("LOAD_ERL_FILES").unwrap() {
         let config = ParseConfig::default();
@@ -85,5 +89,7 @@ fn main() {
     }
 
     //let int = init_arc_process.integer(5).unwrap();
-    call_erlang(init_arc_process, module, function, &[]).ok().unwrap();
+    call_erlang(init_arc_process, module, function, &[])
+        .ok()
+        .unwrap();
 }

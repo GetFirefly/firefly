@@ -99,7 +99,7 @@ pub fn function(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
             };
 
             arc_process
-                .closure(creator, module_function_arity, code)
+                .closure(creator, module_function_arity, code, vec![])
                 .unwrap()
         })
         .boxed()

@@ -19,15 +19,20 @@ pub struct Closure {
     header: Term,
     creator: Term, // pid of creator process, possible to be either Pid or ExternalPid
     module_function_arity: Arc<ModuleFunctionArity>,
-    code: Code,     // pointer to function entry
-    next: *mut u8,  // off heap header
+    code: Code,    // pointer to function entry
+    next: *mut u8, // off heap header
     pub env_hack: Vec<Term>,
     env_len: usize, // the number of free variables
     env: *mut Term, // pointer to first element of free variable array
 }
 
 impl Closure {
-    pub fn new(module_function_arity: Arc<ModuleFunctionArity>, code: Code, creator: Term, env_hack: Vec<Term>) -> Self {
+    pub fn new(
+        module_function_arity: Arc<ModuleFunctionArity>,
+        code: Code,
+        creator: Term,
+        env_hack: Vec<Term>,
+    ) -> Self {
         let env_len = 0;
 
         Self {

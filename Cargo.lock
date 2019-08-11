@@ -519,6 +519,7 @@ dependencies = [
 [[package]]
 name = "hashbrown"
 version = "0.5.0"
+source = "git+https://github.com/hansihe/hashbrown#fc6e265214edf3731944a9ae5e879990c743ccfe"
 dependencies = [
  "autocfg 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -660,6 +661,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "libeir_diagnostics"
 version = "0.1.0"
+source = "git+https://github.com/eirproject/eir.git#a3f6e56438b651344e83284fa8fb26e20832160b"
 dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -670,22 +672,24 @@ dependencies = [
 [[package]]
 name = "libeir_intern"
 version = "0.1.0"
+source = "git+https://github.com/eirproject/eir.git#a3f6e56438b651344e83284fa8fb26e20832160b"
 dependencies = [
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libeir_diagnostics 0.1.0",
+ "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git)",
  "rustc-hash 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "libeir_ir"
 version = "0.1.0"
+source = "git+https://github.com/eirproject/eir.git#a3f6e56438b651344e83284fa8fb26e20832160b"
 dependencies = [
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libeir_diagnostics 0.1.0",
- "libeir_intern 0.1.0",
- "libeir_util 0.1.0",
+ "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_intern 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_util 0.1.0 (git+https://github.com/eirproject/eir.git)",
  "matches 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "petgraph 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -698,17 +702,19 @@ dependencies = [
 [[package]]
 name = "libeir_passes"
 version = "0.1.0"
+source = "git+https://github.com/eirproject/eir.git#a3f6e56438b651344e83284fa8fb26e20832160b"
 dependencies = [
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libeir_intern 0.1.0",
- "libeir_ir 0.1.0",
+ "libeir_intern 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_ir 0.1.0 (git+https://github.com/eirproject/eir.git)",
  "matches 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "pattern-compiler 0.1.0",
+ "pattern-compiler 0.1.0 (git+https://github.com/eirproject/eir.git)",
 ]
 
 [[package]]
 name = "libeir_syntax_erl"
 version = "0.1.0"
+source = "git+https://github.com/eirproject/eir.git#a3f6e56438b651344e83284fa8fb26e20832160b"
 dependencies = [
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "either 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -718,10 +724,10 @@ dependencies = [
  "lalrpop 0.16.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "lalrpop-util 0.16.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libeir_diagnostics 0.1.0",
- "libeir_intern 0.1.0",
- "libeir_ir 0.1.0",
- "libeir_util 0.1.0",
+ "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_intern 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_ir 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_util 0.1.0 (git+https://github.com/eirproject/eir.git)",
  "rug 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hash 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "termcolor 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -730,9 +736,10 @@ dependencies = [
 [[package]]
 name = "libeir_util"
 version = "0.1.0"
+source = "git+https://github.com/eirproject/eir.git#a3f6e56438b651344e83284fa8fb26e20832160b"
 dependencies = [
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "hashbrown 0.5.0",
+ "hashbrown 0.5.0 (git+https://github.com/hansihe/hashbrown)",
  "num-traits 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "rug 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -859,11 +866,11 @@ dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "libeir_diagnostics 0.1.0",
- "libeir_intern 0.1.0",
- "libeir_ir 0.1.0",
- "libeir_passes 0.1.0",
- "libeir_syntax_erl 0.1.0",
+ "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_intern 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_ir 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_passes 0.1.0 (git+https://github.com/eirproject/eir.git)",
+ "libeir_syntax_erl 0.1.0 (git+https://github.com/eirproject/eir.git)",
  "liblumen_alloc 0.1.0",
  "lumen_runtime 0.1.0",
 ]
@@ -1207,6 +1214,7 @@ dependencies = [
 [[package]]
 name = "pattern-compiler"
 version = "0.1.0"
+source = "git+https://github.com/eirproject/eir.git#a3f6e56438b651344e83284fa8fb26e20832160b"
 dependencies = [
  "derivative 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "either 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2259,6 +2267,7 @@ dependencies = [
 "checksum glob 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)" = "8be18de09a56b60ed0edf84bc9df007e30040691af7acd1c41874faac5895bfb"
 "checksum gmp-mpfr-sys 1.1.14 (registry+https://github.com/rust-lang/crates.io-index)" = "72592cd7513feefa5e41414825c42e839120d2f09e10c6094105d066072955fb"
 "checksum hash32 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "12d790435639c06a7b798af9e1e331ae245b7ef915b92f70a39b4cf8c00686af"
+"checksum hashbrown 0.5.0 (git+https://github.com/hansihe/hashbrown)" = "<none>"
 "checksum hashbrown 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e1de41fb8dba9714efd92241565cdff73f78508c95697dd56787d3cba27e2353"
 "checksum heapless 0.5.0 (git+https://github.com/japaric/heapless)" = "<none>"
 "checksum heck 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "20564e78d53d2bb135c343b3f47714a56af2061f1c928fdb541dc7b9fdd94205"
@@ -2274,6 +2283,12 @@ dependencies = [
 "checksum lazy_static 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)" = "76f033c7ad61445c5b347c7382dd1237847eb1bce590fe50365dcb33d546be73"
 "checksum lazy_static 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bc5729f27f159ddd61f4df6228e827e86643d4d3e7c32183cb30a1c08f604a14"
 "checksum libc 0.2.60 (registry+https://github.com/rust-lang/crates.io-index)" = "d44e80633f007889c7eff624b709ab43c92d708caad982295768a7b13ca3b5eb"
+"checksum libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git)" = "<none>"
+"checksum libeir_intern 0.1.0 (git+https://github.com/eirproject/eir.git)" = "<none>"
+"checksum libeir_ir 0.1.0 (git+https://github.com/eirproject/eir.git)" = "<none>"
+"checksum libeir_passes 0.1.0 (git+https://github.com/eirproject/eir.git)" = "<none>"
+"checksum libeir_syntax_erl 0.1.0 (git+https://github.com/eirproject/eir.git)" = "<none>"
+"checksum libeir_util 0.1.0 (git+https://github.com/eirproject/eir.git)" = "<none>"
 "checksum libflate 0.1.26 (registry+https://github.com/rust-lang/crates.io-index)" = "45c97cf62125b79dcac52d506acdc4799f21a198597806947fd5f40dc7b93412"
 "checksum llvm-sys 70.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e8e9fc46a848cf4170694144102ec07f6eada790d8b3d7e92ffa9cc7416fc869"
 "checksum lock_api 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "62ebf1391f6acad60e5c8b43706dde4582df75c06698ab44511d15016bc2442c"
@@ -2307,6 +2322,7 @@ dependencies = [
 "checksum parking_lot_core 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ad7f7e6ebdc79edff6fdcb87a55b620174f7a989e3eb31b65231f4af57f00b8c"
 "checksum parking_lot_core 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cb88cb1cb3790baa6776844f968fea3be44956cf184fa1be5a03341f5491278c"
 "checksum parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)" = "<none>"
+"checksum pattern-compiler 0.1.0 (git+https://github.com/eirproject/eir.git)" = "<none>"
 "checksum petgraph 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)" = "9c3659d1ee90221741f65dd128d9998311b0e40c5d3c23a62445938214abce4f"
 "checksum phf_generator 0.7.24 (registry+https://github.com/rust-lang/crates.io-index)" = "09364cc93c159b8b06b1f4dd8a4398984503483891b0c26b867cf431fb132662"
 "checksum phf_shared 0.7.24 (registry+https://github.com/rust-lang/crates.io-index)" = "234f71a15de2288bcb7e3b6515828d22af7ec8598ee6d24c3b526fa0a80b67a0"

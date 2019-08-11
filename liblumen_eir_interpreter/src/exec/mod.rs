@@ -1,19 +1,36 @@
-use std::rc::Rc;
-use std::sync::Arc;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::rc::Rc;
+use std::sync::Arc;
 
+//<<<<<<< HEAD
 use libeir_ir::{ Block, Value, OpKind, ValueKind, PrimOpKind };
 use libeir_ir::constant::{ Const, ConstKind, AtomicTerm };
 use libeir_intern::{ Symbol };
+//=======
+//>>>>>>> 898bbd135491bb0efd6a0d766161bb727c65836b
 use cranelift_entity::EntityRef;
+use libeir_intern::{Ident, Symbol};
+use libeir_ir::constant::{AtomicTerm, Const, ConstKind};
+use libeir_ir::Function;
+use libeir_ir::{BasicType, MapPutUpdate, MatchKind};
+use libeir_ir::{BinOp, Block, FunctionIdent, OpKind, PrimOpKind, Value, ValueKind};
+use libeir_ir::{BinaryEntrySpecifier, Endianness};
 
+//<<<<<<< HEAD
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::erts::term::{ Term, TypedTerm, Atom,
                                   AsTerm, atom_unchecked };
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::process::code::Result;
+//=======
+//>>>>>>> 898bbd135491bb0efd6a0d766161bb727c65836b
 use liblumen_alloc::erts::exception::system;
+use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::process::code::Result;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Closure, Integer, Term, TypedTerm};
+use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::module::{ ErlangFunction, ResolvedFunction };
 use crate::vm::VMState;
@@ -43,7 +60,6 @@ pub enum OpResult {
 }
 
 impl CallExecutor {
-
     pub fn new() -> Self {
         CallExecutor {
             binds: HashMap::new(),
@@ -59,13 +75,11 @@ impl CallExecutor {
         function: Atom,
         arity: usize,
         args: &[Term],
-    ) -> Result
-    {
+    ) -> Result {
         let modules = vm.modules.read().unwrap();
         match modules.lookup_function(module, function, arity) {
             None => self.fun_not_found(proc, args[1]),
-            Some(ResolvedFunction::Native(ptr)) =>
-                self.run_native(vm, proc, ptr, args),
+            Some(ResolvedFunction::Native(ptr)) => self.run_native(vm, proc, ptr, args),
             Some(ResolvedFunction::Erlang(fun)) => {
                 let entry = fun.fun.block_entry();
                 self.run_erlang(vm, proc, fun, entry, args)
@@ -83,8 +97,7 @@ impl CallExecutor {
         args: &[Term],
         block: Block,
         env: &[Term],
-    ) -> Result
-    {
+    ) -> Result {
         let modules = vm.modules.read().unwrap();
         match modules.lookup_function(module, function, arity) {
             None => self.fun_not_found(proc, args[1]),
@@ -98,7 +111,7 @@ impl CallExecutor {
                 }
 
                 self.run_erlang(vm, proc, fun, block, args)
-            },
+            }
         }
     }
 
@@ -109,24 +122,27 @@ impl CallExecutor {
         self.call_closure(proc, throw_cont, &[exit_atom, undef_atom, trace_atom])
     }
 
-    fn call_closure(&self, proc: &Arc<ProcessControlBlock>, closure: Term, args: &[Term]) -> Result {
+    fn call_closure(
+        &self,
+        proc: &Arc<ProcessControlBlock>,
+        closure: Term,
+        args: &[Term],
+    ) -> Result {
         match closure.to_typed_term().unwrap() {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Closure(closure) => {
-
                     assert!(closure.env_hack.len() != 1);
                     if closure.env_hack.len() > 0 {
-                        let env_list = proc.list_from_iter(
-                            closure.env_hack.iter()
-                                .skip(1).cloned()).unwrap();
+                        let env_list = proc
+                            .list_from_iter(closure.env_hack.iter().skip(1).cloned())
+                            .unwrap();
                         proc.stack_push(env_list)?;
 
                         let block_id = closure.env_hack[0];
                         proc.stack_push(block_id)?;
                     }
 
-                    let arg_list = proc.list_from_iter(
-                        args.iter().cloned()).unwrap();
+                    let arg_list = proc.list_from_iter(args.iter().cloned()).unwrap();
                     proc.stack_push(arg_list)?;
 
                     let mfa = closure.module_function_arity();
@@ -140,7 +156,7 @@ impl CallExecutor {
                     ProcessControlBlock::call_code(proc)
                 }
                 _ => panic!(),
-            }
+            },
             _ => panic!(),
         }
     }
@@ -151,11 +167,9 @@ impl CallExecutor {
         proc: &Arc<ProcessControlBlock>,
         ptr: fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>,
         args: &[Term],
-    ) -> Result
-    {
+    ) -> Result {
         match ptr(proc, &args[2..]) {
-            Ok(ret) =>
-                self.call_closure(proc, args[0], &[ret]),
+            Ok(ret) => self.call_closure(proc, args[0], &[ret]),
             Err(()) => panic!(),
         }
     }
@@ -167,8 +181,7 @@ impl CallExecutor {
         fun: &ErlangFunction,
         mut block: Block,
         args: &[Term],
-    ) -> Result
-    {
+    ) -> Result {
         self.next_args.extend(args.iter().cloned());
 
         loop {
@@ -182,40 +195,37 @@ impl CallExecutor {
 
             match self.run_erlang_op(vm, proc, fun, block).unwrap() {
                 OpResult::Block(b) => block = b,
-                OpResult::Term(t) => {
-                    match t.to_typed_term().unwrap() {
-                        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                            TypedTerm::Closure(closure) => {
+                OpResult::Term(t) => match t.to_typed_term().unwrap() {
+                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+                        TypedTerm::Closure(closure) => {
+                            assert!(closure.env_hack.len() != 1);
+                            if closure.env_hack.len() > 0 {
+                                let env_list = proc
+                                    .list_from_iter(closure.env_hack.iter().skip(1).cloned())
+                                    .unwrap();
+                                proc.stack_push(env_list)?;
 
-                                assert!(closure.env_hack.len() != 1);
-                                if closure.env_hack.len() > 0 {
-                                    let env_list = proc.list_from_iter(
-                                        closure.env_hack.iter()
-                                            .skip(1).cloned()).unwrap();
-                                    proc.stack_push(env_list)?;
-
-                                    let block_id = closure.env_hack[0];
-                                    proc.stack_push(block_id)?;
-                                }
-
-                                let arg_list = proc.list_from_iter(
-                                    self.next_args.iter().cloned()).unwrap();
-                                proc.stack_push(arg_list)?;
-
-                                let mfa = closure.module_function_arity();
-                                if closure.env_hack.len() > 0 {
-                                    proc.stack_push(proc.integer(mfa.arity).unwrap()).unwrap();
-                                }
-                                proc.stack_push(unsafe { mfa.function.as_term() }).unwrap();
-                                proc.stack_push(unsafe { mfa.module.as_term() }).unwrap();
-
-                                proc.replace_frame(closure.frame());
-                                break ProcessControlBlock::call_code(proc);
+                                let block_id = closure.env_hack[0];
+                                proc.stack_push(block_id)?;
                             }
-                            _ => panic!(),
+
+                            let arg_list =
+                                proc.list_from_iter(self.next_args.iter().cloned()).unwrap();
+                            proc.stack_push(arg_list)?;
+
+                            let mfa = closure.module_function_arity();
+                            if closure.env_hack.len() > 0 {
+                                proc.stack_push(proc.integer(mfa.arity).unwrap()).unwrap();
+                            }
+                            proc.stack_push(unsafe { mfa.function.as_term() }).unwrap();
+                            proc.stack_push(unsafe { mfa.module.as_term() }).unwrap();
+
+                            proc.replace_frame(closure.frame());
+                            break ProcessControlBlock::call_code(proc);
                         }
                         _ => panic!(),
-                    }
+                    },
+                    _ => panic!(),
                 },
             }
         }
@@ -225,16 +235,11 @@ impl CallExecutor {
         &self,
         proc: &Arc<ProcessControlBlock>,
         fun: &ErlangFunction,
-        const_val: Const
-    ) -> std::result::Result<Term, system::Exception>
-    {
+        const_val: Const,
+    ) -> std::result::Result<Term, system::Exception> {
         match fun.fun.cons().const_kind(const_val) {
-            ConstKind::Atomic(AtomicTerm::Atom(atom)) => {
-                Ok(atom_unchecked(&atom.0.as_str()))
-            }
-            ConstKind::Atomic(AtomicTerm::Int(int)) => {
-                Ok(proc.integer(int.0)?)
-            }
+            ConstKind::Atomic(AtomicTerm::Atom(atom)) => Ok(atom_unchecked(&atom.0.as_str())),
+            ConstKind::Atomic(AtomicTerm::Int(int)) => Ok(proc.integer(int.0)?),
             //ConstKind::Atomic(AtomicTerm::BigInt(int)) => {
             //    Term::Integer(int.0.clone()).into()
             //}
@@ -283,9 +288,8 @@ impl CallExecutor {
         &self,
         proc: &Arc<ProcessControlBlock>,
         fun: &ErlangFunction,
-        value: Value
-    ) -> std::result::Result<Term, system::Exception>
-    {
+        value: Value,
+    ) -> std::result::Result<Term, system::Exception> {
         match fun.fun.value_kind(value) {
             ValueKind::Block(block) => {
                 let live = &fun.live.live[&block];
@@ -298,31 +302,30 @@ impl CallExecutor {
                 }
 
                 let mfa = ModuleFunctionArity {
-                    module: Atom::try_from_str(
-                        fun.fun.ident().module.as_str()).unwrap(),
-                    function: Atom::try_from_str(
-                        fun.fun.ident().name.as_str()).unwrap(),
+                    module: Atom::try_from_str(fun.fun.ident().module.as_str()).unwrap(),
+                    function: Atom::try_from_str(fun.fun.ident().name.as_str()).unwrap(),
                     arity: fun.fun.ident().arity as u8,
                 };
 
-                let closure = proc.closure(proc.pid_term(), mfa.into(),
-                                           crate::code::interpreter_closure_code,
-                                           env)?;
+                let closure = proc.closure(
+                    proc.pid_term(),
+                    mfa.into(),
+                    crate::code::interpreter_closure_code,
+                    env,
+                )?;
 
                 Ok(closure)
             }
-            ValueKind::Argument(_, _) => {
-                Ok(self.binds[&value])
-            }
-            ValueKind::Const(cons) => {
-                self.make_const_term(proc, fun, cons)
-            }
+            ValueKind::Argument(_, _) => Ok(self.binds[&value]),
+            ValueKind::Const(cons) => self.make_const_term(proc, fun, cons),
             ValueKind::PrimOp(prim) => {
                 let reads = fun.fun.primop_reads(prim);
                 match fun.fun.primop_kind(prim) {
                     PrimOpKind::ValueList => {
-                        let terms: std::result::Result<Vec<_>, _> = reads.iter()
-                            .map(|r| self.make_term(proc, fun, *r)).collect();
+                        let terms: std::result::Result<Vec<_>, _> = reads
+                            .iter()
+                            .map(|r| self.make_term(proc, fun, *r))
+                            .collect();
                         Ok(proc.tuple_from_slice(&terms?)?)
                     }
                     //PrimOpKind::Tuple => {
@@ -354,8 +357,7 @@ impl CallExecutor {
         proc: &Arc<ProcessControlBlock>,
         fun: &ErlangFunction,
         value: Value,
-    ) -> std::result::Result<OpResult, system::Exception>
-    {
+    ) -> std::result::Result<OpResult, system::Exception> {
         if let ValueKind::Block(block) = fun.fun.value_kind(value) {
             Ok(OpResult::Block(block))
         } else {
@@ -369,9 +371,8 @@ impl CallExecutor {
         _vm: &VMState,
         proc: &Arc<ProcessControlBlock>,
         fun: &ErlangFunction,
-        block: Block
-    ) -> std::result::Result<OpResult, system::Exception>
-    {
+        block: Block,
+    ) -> std::result::Result<OpResult, system::Exception> {
         let reads = fun.fun.block_reads(block);
         let kind = fun.fun.block_kind(block).unwrap();
         println!("OP: {:?}", kind);
@@ -399,7 +400,7 @@ impl CallExecutor {
                             self.next_args.push(term);
                             self.val_call(proc, fun, reads[0])
                         }
-                    }
+                    },
                     _ => {
                         self.next_args.push(term);
                         self.val_call(proc, fun, reads[0])
@@ -407,12 +408,9 @@ impl CallExecutor {
                 }
             }
             OpKind::CaptureFunction => {
-                let module: Atom = self.make_term(proc, fun, reads[1])?
-                    .try_into().unwrap();
-                let function: Atom = self.make_term(proc, fun, reads[2])?
-                    .try_into().unwrap();
-                let arity: usize = self.make_term(proc, fun, reads[3])?
-                    .try_into().unwrap();
+                let module: Atom = self.make_term(proc, fun, reads[1])?.try_into().unwrap();
+                let function: Atom = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
+                let arity: usize = self.make_term(proc, fun, reads[3])?.try_into().unwrap();
 
                 let mfa = ModuleFunctionArity {
                     module,
@@ -420,9 +418,12 @@ impl CallExecutor {
                     arity: arity as u8,
                 };
 
-                let closure = proc.closure(proc.pid_term(), mfa.into(),
-                                           crate::code::interpreter_mfa_code,
-                                           vec![])?;
+                let closure = proc.closure(
+                    proc.pid_term(),
+                    mfa.into(),
+                    crate::code::interpreter_mfa_code,
+                    vec![],
+                )?;
 
                 self.next_args.push(closure);
                 self.val_call(proc, fun, reads[0])
@@ -566,5 +567,4 @@ impl CallExecutor {
             kind => unimplemented!("{:?}", kind),
         }
     }
-
 }

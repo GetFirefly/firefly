@@ -1,7 +1,7 @@
 [package]
 name = "liblumen_eir_interpreter"
 version = "0.1.0"
-authors = ["Hans Elias B. Josephsen <me@hansihe.com>"]
+authors = ["Hans Elias B. Josephsen <me@hansihe.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,15 +11,18 @@ name = "run_file"
 path = "src/bin.rs"
 
 [dependencies]
-libeir_ir = { path = "../../core_erlang_3/libeir_ir" }
-libeir_syntax_erl = { path = "../../core_erlang_3/libeir_syntax_erl" }
-libeir_intern = { path = "../../core_erlang_3/libeir_intern" }
-libeir_diagnostics = { path = "../../core_erlang_3/libeir_diagnostics" }
-libeir_passes = { path = "../../core_erlang_3/libeir_passes" }
+clap = "2.33.0"
 cranelift-entity = "0.30.0"
+lazy_static = "1.3.0"
 
+# eirproject/eir crates
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
+libeir_intern = { git = "https://github.com/eirproject/eir.git" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git" }
+libeir_passes = { git = "https://github.com/eirproject/eir.git" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
+
+# workspace crates
 liblumen_alloc = { path = "../liblumen_alloc" }
 lumen_runtime = { path = "../lumen_runtime" }
 
-lazy_static = "1.3.0"
-clap = "2.33.0"

@@ -3,34 +3,17 @@ use std::convert::TryInto;
 use std::rc::Rc;
 use std::sync::Arc;
 
-//<<<<<<< HEAD
 use libeir_ir::{ Block, Value, OpKind, ValueKind, PrimOpKind };
 use libeir_ir::constant::{ Const, ConstKind, AtomicTerm };
 use libeir_intern::{ Symbol };
-//=======
-//>>>>>>> 898bbd135491bb0efd6a0d766161bb727c65836b
 use cranelift_entity::EntityRef;
-use libeir_intern::{Ident, Symbol};
-use libeir_ir::constant::{AtomicTerm, Const, ConstKind};
-use libeir_ir::Function;
-use libeir_ir::{BasicType, MapPutUpdate, MatchKind};
-use libeir_ir::{BinOp, Block, FunctionIdent, OpKind, PrimOpKind, Value, ValueKind};
-use libeir_ir::{BinaryEntrySpecifier, Endianness};
 
-//<<<<<<< HEAD
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::erts::term::{ Term, TypedTerm, Atom,
                                   AsTerm, atom_unchecked };
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::process::code::Result;
-//=======
-//>>>>>>> 898bbd135491bb0efd6a0d766161bb727c65836b
 use liblumen_alloc::erts::exception::system;
-use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::process::code::Result;
-use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Closure, Integer, Term, TypedTerm};
-use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::module::{ ErlangFunction, ResolvedFunction };
 use crate::vm::VMState;

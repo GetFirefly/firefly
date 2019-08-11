@@ -1,8 +1,5 @@
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Closure, Integer, Term, TypedTerm};
+use liblumen_alloc::erts::term::Atom;
 use lumen_runtime::otp::erlang;
-use liblumen_alloc::erts::term::{ Term, TypedTerm, Atom, Integer, Closure,
-                                  AsTerm, atom_unchecked };
-use liblumen_alloc::erts::process::code::stack::frame::Frame;
 
 use crate::module::NativeModule;
 

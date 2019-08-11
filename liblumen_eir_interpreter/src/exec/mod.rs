@@ -3,27 +3,22 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
-use libeir_ir::Function;
-use libeir_ir::{ FunctionIdent, Block, Value, OpKind, BinOp, ValueKind, PrimOpKind };
-use libeir_ir::{ MatchKind, BasicType, MapPutUpdate };
-use libeir_ir::{ BinaryEntrySpecifier, Endianness };
+use libeir_ir::{ Block, Value, OpKind, ValueKind, PrimOpKind };
 use libeir_ir::constant::{ Const, ConstKind, AtomicTerm };
-use libeir_intern::{ Symbol, Ident };
+use libeir_intern::{ Symbol };
 use cranelift_entity::EntityRef;
 
 use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::erts::term::{ Term, TypedTerm, Atom, Integer, Closure,
+use liblumen_alloc::erts::term::{ Term, TypedTerm, Atom,
                                   AsTerm, atom_unchecked };
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::process::code::Result;
-use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::exception::system;
 
-use crate::module::{ ModuleType, ErlangModule, ErlangFunction, NativeModule,
-                     NativeReturn, ResolvedFunction };
+use crate::module::{ ErlangFunction, ResolvedFunction };
 use crate::vm::VMState;
 
-//mod r#match;
+mod r#match;
 
 #[derive(Debug)]
 pub struct TermCall {
@@ -115,20 +110,6 @@ impl CallExecutor {
     }
 
     fn call_closure(&self, proc: &Arc<ProcessControlBlock>, closure: Term, args: &[Term]) -> Result {
-        //match closure.to_typed_term().unwrap() {
-        //    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-        //        TypedTerm::Closure(closure) => {
-        //            for arg in args.iter().rev() {
-        //                proc.stack_push(*arg)?;
-        //            }
-        //            proc.replace_frame(closure.frame());
-        //            ProcessControlBlock::call_code(proc)
-        //        }
-        //        _ => panic!(),
-        //    }
-        //    _ => panic!(),
-        //}
-
         match closure.to_typed_term().unwrap() {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Closure(closure) => {
@@ -166,7 +147,7 @@ impl CallExecutor {
 
     fn run_native(
         &mut self,
-        vm: &VMState,
+        _vm: &VMState,
         proc: &Arc<ProcessControlBlock>,
         ptr: fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>,
         args: &[Term],
@@ -192,7 +173,7 @@ impl CallExecutor {
 
         loop {
             let block_arg_vals = fun.fun.block_args(block);
-            dbg!(block_arg_vals, &self.next_args);
+            //dbg!(block_arg_vals, &self.next_args);
             assert!(block_arg_vals.len() == self.next_args.len());
             for (v, t) in block_arg_vals.iter().zip(self.next_args.iter()) {
                 self.binds.insert(*v, t.clone());
@@ -236,120 +217,9 @@ impl CallExecutor {
                         _ => panic!(),
                     }
                 },
-                _ => panic!(),
             }
         }
     }
-
-    //pub fn run(&mut self, vm: &VMState, proc: &mut ProcessContext, call: TermCall) -> Continuation {
-    //    self.binds.clear();
-    //    match call.fun.to_typed_term().unwrap() {
-    //        TypedTerm::Closure(closure) => {
-    //            unimplemented!()
-    //        },
-    //        TypedTerm::BoundLambda { ident, block, environment } => {
-    //            let module = &vm.modules[&ident.module.name];
-    //            match module {
-    //                ModuleType::Erlang(erl, _overlay) => {
-    //                    Continuation::Term(
-    //                        self.run_erlang(vm, erl, ident, Some((*block, &*environment)), &call.args).unwrap()
-    //                    )
-    //                }
-    //                ModuleType::Native(_native) => {
-    //                    unreachable!()
-    //                }
-    //            }
-    //        }
-    //        TypedTerm::CapturedFunction { ident } => {
-    //            let module = &vm.modules[&ident.module.name];
-    //            match module {
-    //                ModuleType::Erlang(erl, overlay) => {
-    //                    if let Some(native) = overlay {
-    //                        if let Some(res) = self.run_native(vm, proc, native, ident, &call.args) {
-    //                            return Continuation::Term(res);
-    //                        }
-    //                    }
-    //                    println!("{}", ident);
-    //                    Continuation::Term(
-    //                        self.run_erlang(vm, erl, ident, None, &call.args).unwrap()
-    //                    )
-    //                }
-    //                ModuleType::Native(native) => {
-    //                    Continuation::Term(
-    //                        if let Some(res) = self.run_native(vm, proc, native, ident, &call.args) {
-    //                            res
-    //                        } else {
-    //                            panic!("Could not find native function {}", ident);
-    //                        }
-    //                    )
-    //                }
-    //            }
-    //        }
-    //        TypedTerm::ReturnOk => {
-    //            assert!(call.args.len() == 1);
-    //            Continuation::ReturnOk(call.args[0].clone())
-    //        }
-    //        TypedTerm::ReturnThrow => {
-    //            assert!(call.args.len() == 3);
-    //            Continuation::ReturnThrow(call.args[0].clone(), call.args[1].clone(), call.args[2].clone())
-    //        }
-    //        // TODO can't call term type, throw exception
-    //        _ => unimplemented!(),
-    //    }
-    //}
-
-    //pub fn run_native(&mut self, vm: &VMState, proc: &mut ProcessContext, native: &NativeModule, ident: &FunctionIdent,
-    //                  args: &[Rc<Term>]) -> Option<TermCall> {
-    //    if let Some(n_fun) = native.functions.get(&(ident.name.name, ident.arity)) {
-    //        match n_fun(vm, proc, &args[2..]) {
-    //            NativeReturn::Return { term } => {
-    //                Some(TermCall {
-    //                    fun: args[0].clone(),
-    //                    args: vec![term],
-    //                })
-    //            }
-    //            NativeReturn::Throw { typ, reason } => {
-    //                Some(TermCall {
-    //                    fun: args[1].clone(),
-    //                    args: vec![typ, reason, Term::Nil.into()],
-    //                })
-    //            }
-    //        }
-    //    } else {
-    //        None
-    //    }
-    //}
-
-    //pub fn run_erlang(&mut self, vm: &VMState, module: &ErlangModule, ident: &FunctionIdent,
-    //                  state: Option<(Block, &[Rc<Term>])>, args: &[Rc<Term>]) -> Option<TermCall> {
-    //    if let Some(fun) = module.functions.get(&ident) {
-    //        // Environment
-    //        let block = if let Some((block, env)) = state {
-    //            let live = &fun.live.live[&block];
-
-    //            for (v, t) in live.iter(&fun.live.pool).zip(env.iter()) {
-    //                self.binds.insert(v, t.clone());
-    //            }
-    //            assert!(live.size(&fun.live.pool) == env.len());
-
-    //            block
-    //        } else {
-    //            fun.fun.block_entry()
-    //        };
-
-    //        // Insert arguments
-    //        let block_arg_vals = fun.fun.block_args(block);
-    //        assert!(block_arg_vals.len() == args.len());
-    //        for (v, t) in block_arg_vals.iter().zip(args.iter()) {
-    //            self.binds.insert(*v, t.clone());
-    //        }
-
-    //        // Execute operation
-    //        Some(self.run_erlang_op(vm, fun, block))
-    //    } else {
-    //        None
-    //    }
-    //}
 
     fn make_const_term(
         &self,
@@ -374,9 +244,9 @@ impl CallExecutor {
             //ConstKind::Atomic(AtomicTerm::Binary(bin)) => {
             //    Term::Binary(Rc::new(bin.0.clone().into())).into()
             //}
-            //ConstKind::Atomic(AtomicTerm::Nil) => {
-            //    Term::Nil.into()
-            //}
+            ConstKind::Atomic(AtomicTerm::Nil) => {
+                Ok(Term::NIL)
+            }
             //ConstKind::ListCell { head, tail } => {
             //    Term::ListCell(
             //        self.make_const_term(fun, *head),
@@ -460,12 +330,12 @@ impl CallExecutor {
                     //        .map(|r| self.make_term(fun, *r)).collect();
                     //    Term::Tuple(terms).into()
                     //}
-                    //PrimOpKind::ListCell => {
-                    //    assert!(reads.len() == 2);
-                    //    let head = self.make_term(fun, reads[0]);
-                    //    let tail = self.make_term(fun, reads[1]);
-                    //    Term::ListCell(head, tail).into()
-                    //}
+                    PrimOpKind::ListCell => {
+                        assert!(reads.len() == 2);
+                        let head = self.make_term(proc, fun, reads[0])?;
+                        let tail = self.make_term(proc, fun, reads[1])?;
+                        Ok(proc.cons(head, tail)?)
+                    }
                     //PrimOpKind::BinOp(BinOp::Equal) => {
                     //    assert!(reads.len() == 2);
                     //    let lhs = self.make_term(fun, reads[0]);
@@ -608,9 +478,9 @@ impl CallExecutor {
             //        args: vec![Term::Nil.into()],
             //    }
             //}
-            //OpKind::Match { branches } => {
-            //    self::r#match::match_op(self, fun, branches, block)
-            //}
+            OpKind::Match { branches } => {
+                self::r#match::match_op(self, proc, fun, branches, block)
+            }
             //OpKind::BinaryPush { specifier } => {
             //    let bin_term = self.make_term(fun, reads[2]);
             //    let mut bin = match &*bin_term {

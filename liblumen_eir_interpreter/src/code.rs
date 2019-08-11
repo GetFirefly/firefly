@@ -14,30 +14,37 @@ use liblumen_alloc::erts::exception::runtime::{ Exception, Class };
 use crate::exec::CallExecutor;
 
 pub fn return_throw(arc_process: &Arc<ProcessControlBlock>) -> Result {
-    let class_term = arc_process.stack_pop().unwrap();
-    let reason_term = arc_process.stack_pop().unwrap();
-    let trace_term = arc_process.stack_pop().unwrap();
+    let module_term = arc_process.stack_pop().unwrap();
+    let function_term = arc_process.stack_pop().unwrap();
+    let argument_list = arc_process.stack_pop().unwrap();
 
-    let class: Atom = class_term.try_into().unwrap();
-    let class = match class.name() {
-        "EXIT" => Class::Exit,
-        _ => unreachable!(),
-    };
+    panic!("{:?}", argument_list);
 
-    let exc = Exception {
-        class,
-        reason: reason_term,
-        stacktrace: Some(trace_term),
-        file: "",
-        line: 0,
-        column: 0,
-    };
-    result_from_exception(arc_process, exc.into())
+    //let class: Atom = class_term.try_into().unwrap();
+    //let class = match class.name() {
+    //    "EXIT" => Class::Exit,
+    //    k => unreachable!("{:?}", k),
+    //};
+
+    //let exc = Exception {
+    //    class,
+    //    reason: reason_term,
+    //    stacktrace: Some(trace_term),
+    //    file: "",
+    //    line: 0,
+    //    column: 0,
+    //};
+    //result_from_exception(arc_process, exc.into())
 }
 
 pub fn return_ok(arc_process: &Arc<ProcessControlBlock>) -> Result {
-    let result_term = arc_process.stack_pop().unwrap();
-    arc_process.return_from_call(result_term)?;
+    let _module_term = arc_process.stack_pop().unwrap();
+    let _function_term = arc_process.stack_pop().unwrap();
+    let argument_list = arc_process.stack_pop().unwrap();
+
+    println!("PROCESS EXIT NORMAL WITH: {:?}", argument_list);
+
+    arc_process.return_from_call(argument_list)?;
     ProcessControlBlock::call_code(arc_process)
 }
 
@@ -50,6 +57,8 @@ pub fn interpreter_mfa_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     let module_term = arc_process.stack_pop().unwrap();
     let function_term = arc_process.stack_pop().unwrap();
     let argument_list = arc_process.stack_pop().unwrap();
+
+    //let mfa = arc_process.current_module_function_arity().unwrap();
 
     let module: Atom = module_term.try_into().unwrap();
     let function: Atom = function_term.try_into().unwrap();

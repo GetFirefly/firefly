@@ -5,5 +5,6 @@
 run() ->
     N = fib(8).
 
-fib(X) when X < 2 -> 1;
-fib(X) -> fib(X - 1) + fib(X-2).
+fib(0) -> 0;
+fib(1) -> 1;
+fib(X) -> fib(X-1) + fib(X-2).

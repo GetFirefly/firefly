@@ -56,7 +56,7 @@ impl ModuleRegistry {
         function: Atom,
         arity: usize,
     ) -> Option<ResolvedFunction> {
-        println!("LOOKUP {:?}:{:?}/{}", module, function, arity, );
+        println!("LOOKUP {:?}:{:?}/{}", module, function, arity,);
         match self.map.get(&module) {
             None => None,
             Some(ModuleType::Erlang(erl)) => erl

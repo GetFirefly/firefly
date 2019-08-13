@@ -166,109 +166,109 @@ mod tests {
         #[test]
         fn with_1() {
             start_once();
-            log_to_console(1)
+            assert_eq!(log_to_console(1), 1);
         }
 
         #[test]
         fn with_2() {
             start_once();
-            log_to_console(2)
+            assert_eq!(log_to_console(2), 2);
         }
 
         #[test]
         fn with_4() {
             start_once();
-            log_to_console(4)
+            assert_eq!(log_to_console(4), 4);
         }
 
         #[test]
         fn with_8() {
             start_once();
-            log_to_console(8)
+            assert_eq!(log_to_console(8), 8);
         }
 
         #[test]
         fn with_16() {
             start_once();
-            log_to_console(16)
+            assert_eq!(log_to_console(16), 16);
         }
 
         #[test]
         fn with_32() {
             start_once();
-            log_to_console(32)
+            assert_eq!(log_to_console(32), 32);
         }
 
         #[test]
         fn with_64() {
             start_once();
-            log_to_console(64)
+            assert_eq!(log_to_console(64), 64);
         }
 
         #[test]
         fn with_128() {
             start_once();
-            log_to_console(128)
+            assert_eq!(log_to_console(128), 128);
         }
 
         #[test]
         fn with_256() {
             start_once();
-            log_to_console(256)
+            assert_eq!(log_to_console(256), 256);
         }
 
         #[test]
         fn with_512() {
             start_once();
-            log_to_console(512)
+            assert_eq!(log_to_console(512), 512);
         }
 
         #[test]
         fn with_1024() {
             start_once();
-            log_to_console(1024)
+            assert_eq!(log_to_console(1024), 1024);
         }
 
         #[test]
         fn with_2048() {
             start_once();
-            log_to_console(2048)
+            assert_eq!(log_to_console(2048), 2048);
         }
 
         #[test]
         fn with_4096() {
             start_once();
-            log_to_console(4096)
+            assert_eq!(log_to_console(4096), 4096);
         }
 
         #[test]
         fn with_8192() {
             start_once();
-            log_to_console(8192)
+            assert_eq!(log_to_console(8192), 8192);
         }
 
         #[test]
         fn with_16384() {
             start_once();
-            log_to_console(16384)
+            assert_eq!(log_to_console(16384), 16384);
         }
 
         #[test]
         fn with_32768() {
             start_once();
-            log_to_console(32768)
+            assert_eq!(log_to_console(32768), 32768);
         }
 
         #[test]
         fn with_65536() {
             start_once();
-            log_to_console(65536)
+            assert_eq!(log_to_console(65536), 65536);
         }
 
         #[test]
         fn with_131072() {
             start_once();
-            log_to_console(131072)
+            assert_eq!(log_to_console(131072), 131072);
         }
     }
 
@@ -278,109 +278,109 @@ mod tests {
         #[test]
         fn with_1() {
             start_once();
-            log_to_dom(1)
+            assert_eq!(log_to_dom(1), 1);
         }
 
         #[test]
         fn with_2() {
             start_once();
-            log_to_dom(2)
+            assert_eq!(log_to_dom(2), 2);
         }
 
         #[test]
         fn with_4() {
             start_once();
-            log_to_dom(4)
+            assert_eq!(log_to_dom(4), 4);
         }
 
         #[test]
         fn with_8() {
             start_once();
-            log_to_dom(8)
+            assert_eq!(log_to_dom(8), 8);
         }
 
         #[test]
         fn with_16() {
             start_once();
-            log_to_dom(16)
+            assert_eq!(log_to_dom(16), 16);
         }
 
         #[test]
         fn with_32() {
             start_once();
-            log_to_dom(32)
+            assert_eq!(log_to_dom(32), 32);
         }
 
         #[test]
         fn with_64() {
             start_once();
-            log_to_dom(64)
+            assert_eq!(log_to_dom(64), 64);
         }
 
         #[test]
         fn with_128() {
             start_once();
-            log_to_dom(128)
+            assert_eq!(log_to_dom(128), 128);
         }
 
         #[test]
         fn with_256() {
             start_once();
-            log_to_dom(256)
+            assert_eq!(log_to_dom(256), 256);
         }
 
         #[test]
         fn with_512() {
             start_once();
-            log_to_dom(512)
+            assert_eq!(log_to_dom(512), 512);
         }
 
         #[test]
         fn with_1024() {
             start_once();
-            log_to_dom(1024)
+            assert_eq!(log_to_dom(1024), 1024);
         }
 
         #[test]
         fn with_2048() {
             start_once();
-            log_to_dom(2048)
+            assert_eq!(log_to_dom(2048), 2048);
         }
 
         #[test]
         fn with_4096() {
             start_once();
-            log_to_dom(4096)
+            assert_eq!(log_to_dom(4096), 4096);
         }
 
         #[test]
         fn with_8192() {
             start_once();
-            log_to_dom(8192)
+            assert_eq!(log_to_dom(8192), 8192);
         }
 
         #[test]
         fn with_16384() {
             start_once();
-            log_to_dom(16384)
+            assert_eq!(log_to_dom(16384), 16384);
         }
 
         #[test]
         fn with_32768() {
             start_once();
-            log_to_dom(32768)
+            assert_eq!(log_to_dom(32768), 32768);
         }
 
         #[test]
         fn with_65536() {
             start_once();
-            log_to_dom(65536)
+            assert_eq!(log_to_dom(65536), 65536);
         }
 
         #[test]
         fn with_131072() {
             start_once();
-            log_to_dom(131072)
+            assert_eq!(log_to_dom(131072), 131072);
         }
     }
 

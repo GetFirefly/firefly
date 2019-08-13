@@ -7,11 +7,9 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::message::{self, Message};
-use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::{
-    make_pid, next_pid, BigInteger, HeapBin, Pid, SmallInteger, SubBinary,
+    make_pid, next_pid, BigInteger, HeapBin, SmallInteger, SubBinary,
 };
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -114,7 +112,6 @@ mod send_after_3;
 mod send_after_4;
 mod setelement_3;
 mod size_1;
-mod spawn_3;
 mod split_binary_2;
 mod start_timer_3;
 mod start_timer_4;

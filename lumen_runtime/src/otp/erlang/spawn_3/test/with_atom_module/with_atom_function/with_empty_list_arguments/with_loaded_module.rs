@@ -1,9 +1,9 @@
 use super::*;
 
-mod with_arity;
+mod with_exported_function;
 
 #[test]
-fn without_arity_when_run_exits_undef() {
+fn without_exported_function_when_run_exits_undef() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -13,19 +13,13 @@ fn without_arity_when_run_exits_undef() {
     let module_atom = Atom::try_from_str("erlang").unwrap();
     let module = unsafe { module_atom.as_term() };
 
-    let function_atom = Atom::try_from_str("+").unwrap();
+    // Typo
+    let function_atom = Atom::try_from_str("sel").unwrap();
     let function = unsafe { function_atom.as_term() };
 
-    // erlang.+/1 and erlang.+/2 exists so use 3 for invalid arity
-    let arguments = parent_arc_process
-        .list_from_slice(&[
-            parent_arc_process.integer(0).unwrap(),
-            parent_arc_process.integer(1).unwrap(),
-            parent_arc_process.integer(2).unwrap(),
-        ])
-        .unwrap();
+    let arguments = Term::NIL;
 
-    let result = erlang::spawn_3(module, function, arguments, &parent_arc_process);
+    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -48,11 +42,7 @@ fn without_arity_when_run_exits_undef() {
     assert_eq!(arc_process.code_stack_len(), 1);
     assert_eq!(
         arc_process.current_module_function_arity(),
-        Some(Arc::new(ModuleFunctionArity {
-            module: module_atom,
-            function: function_atom,
-            arity: 3
-        }))
+        Some(apply_3::module_function_arity())
     );
 
     match *arc_process.status.read() {

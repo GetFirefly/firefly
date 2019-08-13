@@ -149,7 +149,7 @@ fn function() -> Atom {
     Atom::try_from_str("apply").unwrap()
 }
 
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
+pub(crate) fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),

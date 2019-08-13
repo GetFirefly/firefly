@@ -38,14 +38,13 @@ use liblumen_alloc::erts::term::{
     Term, Tuple, TypedTerm,
 };
 use liblumen_alloc::erts::ProcessControlBlock;
-use liblumen_alloc::{badarg, badarith, badkey, badmap, default_heap, error, exit, raise, throw};
+use liblumen_alloc::{badarg, badarith, badkey, badmap, error, exit, raise, throw};
 
 use crate::binary::{start_length_to_part_range, PartRange, ToTermOptions};
 use crate::node;
 use crate::otp;
 use crate::process::SchedulerDependentAlloc;
 use crate::registry::{self, pid_to_self_or_process};
-use crate::scheduler::Scheduler;
 use crate::send::{self, send, Sent};
 use crate::stacktrace;
 use crate::time::monotonic::{self, Milliseconds};
@@ -1505,55 +1504,6 @@ pub fn size_1(binary_or_tuple: Term, process_control_block: &ProcessControlBlock
 
     match option_size {
         Some(size) => Ok(process_control_block.integer(size)?),
-        None => Err(badarg!().into()),
-    }
-}
-
-pub fn spawn_3(
-    module: Term,
-    function: Term,
-    arguments: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    let module_atom: Atom = module.try_into()?;
-    let function_atom: Atom = function.try_into()?;
-
-    let option_pid = match arguments.to_typed_term().unwrap() {
-        TypedTerm::Nil => {
-            let (heap, heap_size) = default_heap()?;
-            let arc_process = Scheduler::spawn_apply_3(
-                process_control_block,
-                module_atom,
-                function_atom,
-                arguments,
-                heap,
-                heap_size,
-            )?;
-
-            Some(arc_process.pid())
-        }
-        TypedTerm::List(cons) => {
-            if cons.is_proper() {
-                let (heap, heap_size) = default_heap()?;
-                let arc_process = Scheduler::spawn_apply_3(
-                    process_control_block,
-                    module_atom,
-                    function_atom,
-                    arguments,
-                    heap,
-                    heap_size,
-                )?;
-
-                Some(arc_process.pid())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    };
-
-    match option_pid {
-        Some(pid) => Ok(unsafe { pid.as_term() }),
         None => Err(badarg!().into()),
     }
 }

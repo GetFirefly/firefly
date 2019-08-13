@@ -14,12 +14,14 @@ fn without_loaded_module_when_run_exits_undef() {
     let module_atom = Atom::try_from_str("erlan").unwrap();
     let module = unsafe { module_atom.as_term() };
 
-    let function_atom = Atom::try_from_str("self").unwrap();
+    let function_atom = Atom::try_from_str("+").unwrap();
     let function = unsafe { function_atom.as_term() };
 
-    let arguments = Term::NIL;
+    let arguments = parent_arc_process
+        .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
+        .unwrap();
 
-    let result = erlang::spawn_3(module, function, arguments, &parent_arc_process);
+    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -42,11 +44,7 @@ fn without_loaded_module_when_run_exits_undef() {
     assert_eq!(arc_process.code_stack_len(), 1);
     assert_eq!(
         arc_process.current_module_function_arity(),
-        Some(Arc::new(ModuleFunctionArity {
-            module: module_atom,
-            function: function_atom,
-            arity: 0
-        }))
+        Some(apply_3::module_function_arity())
     );
 
     match *arc_process.status.read() {

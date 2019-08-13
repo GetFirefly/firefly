@@ -1,27 +1,28 @@
 use super::*;
 
-mod with_loaded_module;
+mod with_exported_function;
 
 #[test]
-fn without_loaded_module_when_run_exits_undef() {
+fn without_exported_function_when_run_exits_undef() {
     let parent_arc_process = process::test_init();
+
     let arc_scheduler = Scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    // Typo
-    let module_atom = Atom::try_from_str("erlan").unwrap();
+    let module_atom = Atom::try_from_str("erlang").unwrap();
     let module = unsafe { module_atom.as_term() };
 
-    let function_atom = Atom::try_from_str("+").unwrap();
+    // Rust name instead of Erlang name
+    let function_atom = Atom::try_from_str("number_or_badarith_1").unwrap();
     let function = unsafe { function_atom.as_term() };
 
     let arguments = parent_arc_process
         .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
         .unwrap();
 
-    let result = erlang::spawn_3(module, function, arguments, &parent_arc_process);
+    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -44,11 +45,7 @@ fn without_loaded_module_when_run_exits_undef() {
     assert_eq!(arc_process.code_stack_len(), 1);
     assert_eq!(
         arc_process.current_module_function_arity(),
-        Some(Arc::new(ModuleFunctionArity {
-            module: module_atom,
-            function: function_atom,
-            arity: 1
-        }))
+        Some(apply_3::module_function_arity())
     );
 
     match *arc_process.status.read() {
@@ -60,6 +57,6 @@ fn without_loaded_module_when_run_exits_undef() {
 
             assert_eq!(runtime_exception, &runtime_undef);
         }
-        ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
+        ref status => panic!("{:?} status ({:?}) is not exiting.", arc_process, status),
     };
 }

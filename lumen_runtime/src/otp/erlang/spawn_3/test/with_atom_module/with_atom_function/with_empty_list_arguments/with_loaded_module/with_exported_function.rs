@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn with_valid_arguments_when_run_returns() {
+fn with_arity_when_run_exits_normal() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -11,13 +11,12 @@ fn with_valid_arguments_when_run_returns() {
     let module_atom = Atom::try_from_str("erlang").unwrap();
     let module = unsafe { module_atom.as_term() };
 
-    let function_atom = Atom::try_from_str("+").unwrap();
+    let function_atom = Atom::try_from_str("self").unwrap();
     let function = unsafe { function_atom.as_term() };
 
-    let number = parent_arc_process.integer(0).unwrap();
-    let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
+    let arguments = Term::NIL;
 
-    let result = erlang::spawn_3(module, function, arguments, &parent_arc_process);
+    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -37,26 +36,19 @@ fn with_valid_arguments_when_run_returns() {
     assert!(arc_scheduler.run_through(&arc_process));
     assert!(!arc_scheduler.run_through(&arc_process));
 
-    assert_eq!(arc_process.code_stack_len(), 1);
-    assert_eq!(
-        arc_process.current_module_function_arity(),
-        Some(Arc::new(ModuleFunctionArity {
-            module: module_atom,
-            function: function_atom,
-            arity: 1
-        }))
-    );
+    assert_eq!(arc_process.code_stack_len(), 0);
+    assert_eq!(arc_process.current_module_function_arity(), None);
 
     match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(number));
+            assert_eq!(runtime_exception, &exit!(atom_unchecked("normal")));
         }
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
 }
 
 #[test]
-fn without_valid_arguments_when_run_exits() {
+fn without_arity_when_run_exits_undef() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -69,11 +61,10 @@ fn without_valid_arguments_when_run_exits() {
     let function_atom = Atom::try_from_str("+").unwrap();
     let function = unsafe { function_atom.as_term() };
 
-    // not a number
-    let number = atom_unchecked("zero");
-    let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
+    // `+` is arity 1, not 0
+    let arguments = Term::NIL;
 
-    let result = erlang::spawn_3(module, function, arguments, &parent_arc_process);
+    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -96,16 +87,17 @@ fn without_valid_arguments_when_run_exits() {
     assert_eq!(arc_process.code_stack_len(), 1);
     assert_eq!(
         arc_process.current_module_function_arity(),
-        Some(Arc::new(ModuleFunctionArity {
-            module: module_atom,
-            function: function_atom,
-            arity: 1
-        }))
+        Some(apply_3::module_function_arity())
     );
 
     match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &badarith!());
+            let runtime_undef: runtime::Exception =
+                undef!(&arc_process, module, function, arguments)
+                    .try_into()
+                    .unwrap();
+
+            assert_eq!(runtime_exception, &runtime_undef);
         }
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };

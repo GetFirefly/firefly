@@ -15,7 +15,7 @@ fn without_proper_list_arguments_errors_badarg() {
                 ),
                 |(module, function, arguments)| {
                     prop_assert_eq!(
-                        erlang::spawn_3(module, function, arguments, &arc_process),
+                        spawn_3::native(&arc_process, module, function, arguments),
                         Err(badarg!().into())
                     );
 

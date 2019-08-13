@@ -5,6 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 #[test]
+#[ignore]
 fn without_timeout_returns_milliseconds_remaining() {
     with_timer(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
@@ -19,6 +20,7 @@ fn without_timeout_returns_milliseconds_remaining() {
                 .expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
+        // flaky
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
         assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 

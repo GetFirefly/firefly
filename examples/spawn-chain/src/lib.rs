@@ -59,7 +59,7 @@ fn run(count: usize, output: Output) -> usize {
     // if not enough memory here, resize `spawn_init` heap
     let count_term = parent_arc_process.integer(count).unwrap();
 
-    let heap_size = next_heap_size(16 + count * 5);
+    let heap_size = next_heap_size(79 + count * 5);
     // if this fails the entire tab is out-of-memory
     let heap = heap(heap_size).unwrap();
 

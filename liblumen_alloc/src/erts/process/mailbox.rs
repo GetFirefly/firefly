@@ -13,9 +13,40 @@ use crate::erts::term::Term;
 pub struct Mailbox {
     messages: VecDeque<Message>,
     seen: isize,
+
+    cursor: usize,
 }
 
 impl Mailbox {
+    // Start receive implementation for the eir interpreter
+    pub fn recv_start(&self) {
+        debug_assert!(self.cursor == 0);
+    }
+    /// Important to remember that this might return a term in a heap
+    /// fragment, and that it needs to be copied over to the process
+    /// heap before the message is removed from the mailbox.
+    pub fn recv_peek(&self) -> Option<Term> {
+        match self.messages.get(self.cursor) {
+            None => None,
+            Some(Message::Process(message::Process { data })) => Some(*data),
+            Some(Message::HeapFragment(message::HeapFragment { data, .. })) => Some(*data),
+        }
+    }
+    pub fn recv_last_off_heap(&self) -> bool {
+        match &self.messages[self.cursor - 1] {
+            Message::Process(_) => false,
+            Message::HeapFragment(_) => true,
+        }
+    }
+    pub fn recv_increment(&mut self) {
+        self.cursor += 1;
+    }
+    pub fn recv_finish(&mut self, proc: &ProcessControlBlock) {
+        self.remove(self.cursor - 1, proc);
+        self.cursor = 0;
+    }
+    // End receive implementation for the eir interpreter
+
     pub fn iter(&self) -> Iter<Message> {
         self.messages.iter()
     }
@@ -127,6 +158,7 @@ impl Default for Mailbox {
         Mailbox {
             messages: Default::default(),
             seen: -1,
+            cursor: 0,
         }
     }
 }

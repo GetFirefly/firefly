@@ -12,7 +12,7 @@ use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{Atom, Term};
 
 pub enum ResolvedFunction<'a> {
-    Native(fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>),
+    Native(NativeFunctionKind),
     Erlang(&'a ErlangFunction),
 }
 
@@ -56,7 +56,7 @@ impl ModuleRegistry {
         function: Atom,
         arity: usize,
     ) -> Option<ResolvedFunction> {
-        println!("LOOKUP {:?}:{:?}/{}", module, function, arity);
+        println!("LOOKUP {:?}:{:?}/{}", module, function, arity, );
         match self.map.get(&module) {
             None => None,
             Some(ModuleType::Erlang(erl)) => erl
@@ -86,12 +86,15 @@ pub enum NativeReturn {
     Throw { typ: Rc<Term>, reason: Rc<Term> },
 }
 
+#[derive(Copy, Clone)]
+pub enum NativeFunctionKind {
+    Simple(fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>),
+    Yielding(fn(&Arc<ProcessControlBlock>, &[Term]) -> Result),
+}
+
 pub struct NativeModule {
     pub name: Atom,
-    pub functions: HashMap<
-        (Atom, usize),
-        fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>,
-    >,
+    pub functions: HashMap<(Atom, usize), NativeFunctionKind>,
 }
 impl NativeModule {
     pub fn new(name: Atom) -> Self {
@@ -101,13 +104,24 @@ impl NativeModule {
         }
     }
 
-    pub fn add_fun(
+    pub fn add_simple(
         &mut self,
         name: Atom,
         arity: usize,
         fun: fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>,
     ) {
-        self.functions.insert((name, arity), fun);
+        self.functions
+            .insert((name, arity), NativeFunctionKind::Simple(fun));
+    }
+
+    pub fn add_yielding(
+        &mut self,
+        name: Atom,
+        arity: usize,
+        fun: fn(&Arc<ProcessControlBlock>, &[Term]) -> Result,
+    ) {
+        self.functions
+            .insert((name, arity), NativeFunctionKind::Yielding(fun));
     }
 }
 

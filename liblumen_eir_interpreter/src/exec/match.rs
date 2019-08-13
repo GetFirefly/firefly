@@ -42,6 +42,29 @@ pub fn match_op(
                     return exec.val_call(proc, fun, *branch);
                 }
             }
+            MatchKind::Type(BasicType::Map) => {
+                assert!(branch_args.len() == 0);
+                if unpack_term.is_map() {
+                    return exec.val_call(proc, fun, *branch);
+                }
+            }
+            MatchKind::MapItem => {
+                assert!(branch_args.len() == 1);
+                let key = exec.make_term(proc, fun, branch_args[0]).unwrap();
+
+                match unpack_term.to_typed_term().unwrap() {
+                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+                        TypedTerm::Map(map) => {
+                            if let Some(val) = map.get(key) {
+                                exec.next_args.push(val);
+                                return exec.val_call(proc, fun, *branch);
+                            }
+                        }
+                        _ => unreachable!(),
+                    },
+                    _ => unreachable!(),
+                }
+            }
             MatchKind::Wildcard => {
                 assert!(branch_args.len() == 0);
                 return exec.val_call(proc, fun, *branch);

@@ -9,11 +9,9 @@ use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Term, Tuple};
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
-    document: Term,
     tr: Term,
 ) -> Result<(), Alloc> {
     process.stack_push(tr)?;
-    process.stack_push(document)?;
     process.place_frame(frame(process), placement);
 
     Ok(())
@@ -22,7 +20,7 @@ pub fn place_frame_with_arguments(
 // Private
 
 /// ```elixir
-/// # label 10
+/// # label 12
 /// # pushed to stack: (tr)
 /// # returned from call: {:ok, tbody}
 /// # full stack: ({:ok, tbody}, tr)
@@ -46,8 +44,8 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     lumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,
         Placement::Replace,
-        tr,
         tbody,
+        tr,
     )?;
 
     ProcessControlBlock::call_code(arc_process)

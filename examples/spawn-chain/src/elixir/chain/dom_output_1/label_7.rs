@@ -29,7 +29,7 @@ pub fn place_frame_with_arguments(
 /// # pushed to stack: (document, tr, text)
 /// # returned from call: :ok
 /// # full stack: (:ok, document, tr, text)
-/// # returns: {:ok, text_text}
+/// # returns: text_text
 /// {:ok, text_text} = Lumen::Web::Document.create_text_node(document, text)
 /// {:ok, text_td} = Lumen::Web::Document.create_element(document, "td")
 /// Lumen::Web::Node.append_child(text_td, text_text)
@@ -49,14 +49,13 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     assert!(tr.is_resource_reference());
     let text = arc_process.stack_pop().unwrap();
 
+    label_8::place_frame_with_arguments(arc_process, Placement::Replace, document, tr)?;
     lumen_web::document::create_text_node_2::place_frame_with_arguments(
         arc_process,
-        Placement::Replace,
+        Placement::Push,
         document,
         text,
     )?;
-
-    label_8::place_frame_with_arguments(arc_process, Placement::Push, document, tr)?;
 
     ProcessControlBlock::call_code(arc_process)
 }

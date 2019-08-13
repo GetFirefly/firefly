@@ -23,7 +23,7 @@ pub fn place_frame_with_arguments(
 // Private
 
 /// ```elixir
-/// # label 10
+/// # label 11
 /// # pushed to stack: (document, tr)
 /// # returned from call: :ok
 /// # full stack: (:ok, document, tr)
@@ -41,15 +41,15 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let tr = arc_process.stack_pop().unwrap();
     assert!(tr.is_resource_reference());
 
+    label_12::place_frame_with_arguments(arc_process, Placement::Replace, tr)?;
+
     let id = arc_process.binary_from_str("output")?;
     lumen_web::document::get_element_by_id_2::place_frame_with_arguments(
         arc_process,
-        Placement::Replace,
+        Placement::Push,
         document,
         id,
     )?;
-
-    label_12::place_frame_with_arguments(arc_process, Placement::Push, document, tr)?;
 
     ProcessControlBlock::call_code(arc_process)
 }

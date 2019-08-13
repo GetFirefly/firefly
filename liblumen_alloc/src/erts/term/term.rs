@@ -1507,6 +1507,9 @@ impl Debug for Term {
                 } else if self.is_map_header() {
                     let val = &*(ptr as *const Map);
                     write!(f, "Term({:?})", val)
+                } else if self.is_resource_reference_header() {
+                    let val = &*(ptr as *const resource::Reference);
+                    write!(f, "Term({:?})", val)
                 } else {
                     write!(f, "Term(UnknownHeader({:#x}))", self.0)
                 }

@@ -45,7 +45,11 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
     let ok_document = arc_process.stack_pop().unwrap();
-    assert!(ok_document.is_tuple());
+    assert!(
+        ok_document.is_tuple(),
+        "ok_document ({:?}) is not a tuple",
+        ok_document
+    );
     let text = arc_process.stack_pop().unwrap();
 
     let ok_document_tuple: Boxed<Tuple> = ok_document.try_into().unwrap();
@@ -54,15 +58,15 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let document = ok_document_tuple[1];
     assert!(document.is_resource_reference());
 
+    label_3::place_frame_with_arguments(arc_process, Placement::Replace, document, text)?;
+
     let tag = arc_process.binary_from_str("tr")?;
     lumen_web::document::create_element_2::place_frame_with_arguments(
         arc_process,
-        Placement::Replace,
+        Placement::Push,
         document,
         tag,
     )?;
-
-    label_3::place_frame_with_arguments(arc_process, Placement::Push, document, text)?;
 
     ProcessControlBlock::call_code(arc_process)
 }

@@ -63,14 +63,20 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let pid_td = ok_pid_td_tuple[1];
     assert!(pid_td.is_resource_reference());
 
-    lumen_web::node::append_child_2::place_frame_with_arguments(
+    label_6::place_frame_with_arguments(
         arc_process,
         Placement::Replace,
+        document,
+        tr,
+        pid_td,
+        text,
+    )?;
+    lumen_web::node::append_child_2::place_frame_with_arguments(
+        arc_process,
+        Placement::Push,
         pid_td,
         pid_text,
     )?;
-
-    label_6::place_frame_with_arguments(arc_process, Placement::Push, document, tr, pid_td, text)?;
 
     ProcessControlBlock::call_code(arc_process)
 }

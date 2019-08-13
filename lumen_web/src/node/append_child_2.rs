@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
@@ -82,7 +83,10 @@ fn native(parent: Term, child: Term) -> exception::Result {
     let child_node = node_from_term(child)?;
 
     // not sure how this could fail from `web-sys` or MDN docs.
-    parent_node.append_child(child_node).unwrap();
-
-    Ok(ok())
+    match parent_node.append_child(child_node) {
+        Ok(_) => Ok(ok()),
+        // JsValue(HierarchyRequestError: Failed to execute 'appendChild' on 'Node': The new child
+        // element contains the parent.
+        Err(_) => Err(badarg!().into()),
+    }
 }

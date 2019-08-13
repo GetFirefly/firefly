@@ -47,14 +47,13 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let text_td = arc_process.stack_pop().unwrap();
     assert!(text_td.is_resource_reference());
 
+    label_11::place_frame_with_arguments(arc_process, Placement::Replace, document, tr)?;
     lumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,
-        Placement::Replace,
+        Placement::Push,
         tr,
         text_td,
     )?;
-
-    label_11::place_frame_with_arguments(arc_process, Placement::Push, document, tr)?;
 
     ProcessControlBlock::call_code(arc_process)
 }

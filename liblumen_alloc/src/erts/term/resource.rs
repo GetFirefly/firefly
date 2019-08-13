@@ -16,7 +16,6 @@ use crate::erts::term::term::Term;
 use crate::erts::term::{arity_of, AsTerm, TypeError, TypedTerm};
 use crate::CloneToProcess;
 
-#[derive(Debug)]
 pub struct Resource {
     reference_count: AtomicUsize,
     value: Box<dyn Any>,
@@ -49,6 +48,18 @@ impl Resource {
     }
 }
 
+impl Debug for Resource {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Resource")
+            .field("reference_count", &self.reference_count)
+            .field(
+                "value",
+                &format_args!("Any with {:?}", self.value.type_id()),
+            )
+            .finish()
+    }
+}
+
 impl Display for Resource {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -70,11 +81,19 @@ impl Reference {
 
     pub fn new(value: Box<dyn Any>) -> Result<Self, Alloc> {
         let resource = Resource::alloc(value)?;
-
-        Ok(Self {
+        let reference = Self {
             header: Term::make_header(arity_of::<Self>(), Term::FLAG_RESOURCE_REFERENCE),
             resource,
-        })
+        };
+
+        unsafe {
+            resource
+                .as_ref()
+                .reference_count
+                .fetch_add(1, atomic::Ordering::SeqCst);
+        }
+
+        Ok(reference)
     }
 
     pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
@@ -139,7 +158,12 @@ impl Debug for Reference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Reference")
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("resource", &self.resource)
+            .field(
+                "resource",
+                &format_args!("{:p} => {:?}", self.resource, unsafe {
+                    self.resource.as_ref()
+                }),
+            )
             .finish()
     }
 }
@@ -169,6 +193,7 @@ impl TryFrom<TypedTerm> for Reference {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
+            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             TypedTerm::ResourceReference(reference) => Ok(reference),
             _ => Err(TypeError),
         }

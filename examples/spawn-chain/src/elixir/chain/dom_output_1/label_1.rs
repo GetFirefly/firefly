@@ -45,27 +45,27 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
-    let text = arc_process.stack_pop().unwrap();
-    assert!(text.is_binary());
     let ok_window = arc_process.stack_pop().unwrap();
     assert!(
         ok_window.is_tuple(),
         "ok_window ({:?}) is not a tuple",
         ok_window
     );
-
     let ok_window_tuple: Boxed<Tuple> = ok_window.try_into().unwrap();
     assert_eq!(ok_window_tuple.len(), 2);
     assert_eq!(ok_window_tuple[0], atom_unchecked("ok"));
     let window = ok_window_tuple[1];
     assert!(window.is_resource_reference());
 
+    let text = arc_process.stack_pop().unwrap();
+    assert!(text.is_binary());
+
+    label_2::place_frame_with_arguments(arc_process, Placement::Replace, text)?;
     lumen_web::window::document_1::place_frame_with_arguments(
         arc_process,
-        Placement::Replace,
+        Placement::Push,
         window,
     )?;
-    label_2::place_frame_with_arguments(arc_process, Placement::Push, text)?;
 
     ProcessControlBlock::call_code(arc_process)
 }

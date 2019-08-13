@@ -1,5 +1,8 @@
 macro_rules! number_infix_operator {
     ($left:ident, $right:ident, $process:ident, $checked:ident, $infix:tt) => {{
+        use num_bigint::BigInt;
+
+        use liblumen_alloc::badarith;
         use liblumen_alloc::erts::term::TypedTerm;
 
         use $crate::number::Operands::*;

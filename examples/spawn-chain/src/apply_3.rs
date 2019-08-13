@@ -2,15 +2,14 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::process::code::stack::frame::Frame;
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
-use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::elixir;
 
-pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
+pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     let module_term = arc_process.stack_pop().unwrap();
     let function_term = arc_process.stack_pop().unwrap();
 
@@ -43,20 +42,13 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
     match module.name() {
         "Elixir.Chain" => match function.name() {
-            "counter" => match arity {
+            "console" => match arity {
                 1 => {
-                    let module_function_arity = Arc::new(ModuleFunctionArity {
-                        module,
-                        function,
-                        arity,
-                    });
-
-                    // Elixir.Chain.counter is a user function and not a BIF, so it is a `Code` and
-                    // run in a frame instead of directly
-                    let chain_counter_frame =
-                        Frame::new(module_function_arity, elixir::chain::counter_0_code);
-                    arc_process.stack_push(argument_vec[0])?;
-                    arc_process.replace_frame(chain_counter_frame);
+                    elixir::chain::console_1::place_frame_with_arguments(
+                        arc_process,
+                        Placement::Replace,
+                        argument_vec[0],
+                    )?;
 
                     // don't count finding the function as a reduction if it is found, only on
                     // exception in `undef`, so that each path is at least one reduction.
@@ -64,19 +56,43 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
                 }
                 _ => undef(arc_process, module_term, function_term, argument_list),
             },
-            "run" => match arity {
+            "counter" => match arity {
+                2 => {
+                    elixir::chain::counter_2::place_frame_with_arguments(
+                        arc_process,
+                        Placement::Replace,
+                        argument_vec[0],
+                        argument_vec[1],
+                    )?;
+
+                    // don't count finding the function as a reduction if it is found, only on
+                    // exception in `undef`, so that each path is at least one reduction.
+                    ProcessControlBlock::call_code(arc_process)
+                }
+                _ => undef(arc_process, module_term, function_term, argument_list),
+            },
+            "create_processes" => match arity {
+                2 => {
+                    elixir::chain::create_processes_2::place_frame_with_arguments(
+                        arc_process,
+                        Placement::Replace,
+                        argument_vec[0],
+                        argument_vec[1],
+                    )?;
+
+                    // don't count finding the function as a reduction if it is found, only on
+                    // exception in `undef`, so that each path is at least one reduction.
+                    ProcessControlBlock::call_code(arc_process)
+                }
+                _ => undef(arc_process, module_term, function_term, argument_list),
+            },
+            "dom" => match arity {
                 1 => {
-                    let module_function_arity = Arc::new(ModuleFunctionArity {
-                        module,
-                        function,
-                        arity,
-                    });
-                    // Elixir.Chain.run is a user function and not a BIF, so it is a `Code` and
-                    // run in a frame instead of directly
-                    let chain_run_frame =
-                        Frame::new(module_function_arity, elixir::chain::run_0_code);
-                    arc_process.stack_push(argument_vec[0])?;
-                    arc_process.replace_frame(chain_run_frame);
+                    elixir::chain::dom_1::place_frame_with_arguments(
+                        arc_process,
+                        Placement::Replace,
+                        argument_vec[0],
+                    )?;
 
                     // don't count finding the function as a reduction if it is found, only on
                     // exception in `undef`, so that each path is at least one reduction.

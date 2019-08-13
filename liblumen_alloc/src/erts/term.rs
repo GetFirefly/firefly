@@ -9,6 +9,7 @@ mod map;
 pub mod pid;
 mod port;
 pub mod reference;
+pub mod resource;
 mod term;
 pub(in crate::erts) mod tuple;
 mod typed_term;

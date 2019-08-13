@@ -1,5 +1,5 @@
 use core::cmp;
-use core::fmt;
+use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 
 use crate::borrow::CloneToProcess;
@@ -25,6 +25,13 @@ unsafe impl AsTerm for Port {
         Term::make_port(self.0)
     }
 }
+
+impl Display for Port {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        unimplemented!()
+    }
+}
+
 impl PartialEq<ExternalPort> for Port {
     #[inline]
     fn eq(&self, _other: &ExternalPort) -> bool {
@@ -44,29 +51,51 @@ pub struct ExternalPort {
     next: *mut u8,
     port: Port,
 }
+
 unsafe impl AsTerm for ExternalPort {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::make_boxed(self)
     }
 }
+
 impl CloneToProcess for ExternalPort {
     fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, Alloc> {
         unimplemented!()
     }
 }
+
+impl Debug for ExternalPort {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ExternalPort")
+            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
+            .field("node", &self.node)
+            .field("next", &self.next)
+            .field("port", &self.port)
+            .finish()
+    }
+}
+
+impl Display for ExternalPort {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        unimplemented!()
+    }
+}
+
 impl Hash for ExternalPort {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.node.hash(state);
         self.port.hash(state);
     }
 }
+
 impl PartialEq<ExternalPort> for ExternalPort {
     #[inline]
     fn eq(&self, other: &ExternalPort) -> bool {
         self.node == other.node && self.port == other.port
     }
 }
+
 impl PartialOrd<ExternalPort> for ExternalPort {
     #[inline]
     fn partial_cmp(&self, other: &ExternalPort) -> Option<cmp::Ordering> {
@@ -75,15 +104,5 @@ impl PartialOrd<ExternalPort> for ExternalPort {
             Some(Ordering::Equal) => self.port.partial_cmp(&other.port),
             result => result,
         }
-    }
-}
-impl fmt::Debug for ExternalPort {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ExternalPort")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("node", &self.node)
-            .field("next", &self.next)
-            .field("port", &self.port)
-            .finish()
     }
 }

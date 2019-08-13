@@ -1,5 +1,5 @@
 use core::convert::TryInto;
-use core::fmt;
+use core::fmt::{self, Debug};
 use core::mem;
 use core::ptr;
 use core::slice;
@@ -13,16 +13,15 @@ use liblumen_core::util::pointer::distance_absolute;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
+use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
+use crate::erts::term::binary::sub::PartialByteBitIter;
 use crate::erts::term::term::Term;
 use crate::erts::term::{
     arity_of, follow_moved, to_word_size, AsTerm, HeapBin, IterableBitstring, ProcBin, SubBinary,
 };
 use crate::erts::HeapAlloc;
 
-use super::{
-    byte_offset, num_bytes, Bitstring, ByteIterator, MaybeAlignedMaybeBinary, MaybePartialByte,
-};
-use crate::erts::term::binary::sub::PartialByteBitIter;
+use super::{byte_offset, num_bytes, Bitstring, ByteIterator, MaybePartialByte};
 
 pub struct FullByteIter {}
 
@@ -230,7 +229,8 @@ impl CloneToProcess for MatchContext {
         }
     }
 }
-impl fmt::Debug for MatchContext {
+
+impl Debug for MatchContext {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("MatchContext")
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))

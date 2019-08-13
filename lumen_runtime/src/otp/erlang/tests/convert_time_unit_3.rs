@@ -5,7 +5,7 @@ use num_traits::Num;
 use proptest::prop_oneof;
 use proptest::strategy::Strategy;
 
-use crate::time::Unit;
+use crate::time::Unit::{self, *};
 
 #[test]
 fn without_integer_time_returns_badarg() {

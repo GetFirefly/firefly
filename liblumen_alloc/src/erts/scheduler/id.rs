@@ -1,3 +1,4 @@
+use core::fmt::{self, Display};
 use core::sync::atomic::{self, AtomicUsize};
 
 use lazy_static::lazy_static;
@@ -11,6 +12,12 @@ pub fn next() -> ID {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ID(usize);
+
+impl Display for ID {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 lazy_static! {
     static ref ID_COUNTER: AtomicUsize = AtomicUsize::new(0);

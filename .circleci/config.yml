@@ -113,6 +113,45 @@ jobs:
           command: |
             rustfmt --version
             cargo fmt -- --check
+  chrome_examples_spawn_chain_test:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run all tests
+          working_directory: "examples/spawn-chain"
+          command: wasm-pack test --firefox --headless
+  firefox_examples_spawn_chain_test:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run all tests
+          working_directory: "examples/spawn-chain"
+          command: wasm-pack test --firefox --headless
+  safari_examples_spawn_chain_test:
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    environment:
+      CARGO_HOME: cargo
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run all tests
+          working_directory: "examples/spawn-chain"
+          command: wasm-pack test --safari --headless
   x86_64_examples_spawn_chain_test:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization
@@ -283,6 +322,7 @@ jobs:
           name: Run all tests
           working_directory: "lumen_runtime"
           command: cargo test --locked
+
 workflows:
   version: 2
   primary:
@@ -331,4 +371,14 @@ workflows:
       - x86_64_lumen_runtime_test:
           requires:
             - x86_64_build
+      - chrome_examples_spawn_chain_test:
+          requires:
+            - wasm32_build
+      - firefox_examples_spawn_chain_test:
+          requires:
+            - wasm32_build
+      - safari_examples_spawn_chain_test:
+          requires:
+            - wasm32_build
+
 

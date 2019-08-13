@@ -2,9 +2,9 @@ use core::convert::TryInto;
 use core::ops::Range;
 
 use liblumen_alloc::erts::exception::Result;
-use liblumen_alloc::erts::term::binary::{
-    AlignedBinary, IterableBitstring, MaybeAlignedMaybeBinary,
-};
+use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
+use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
+use liblumen_alloc::erts::term::binary::IterableBitstring;
 use liblumen_alloc::erts::term::{Bitstring, Term, TypedTerm};
 use liblumen_alloc::{badarg, ProcessControlBlock};
 

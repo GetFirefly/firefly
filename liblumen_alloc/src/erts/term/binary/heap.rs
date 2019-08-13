@@ -17,8 +17,8 @@ use crate::erts::term::{to_word_size, AsTerm, Boxed, ProcBin, TypeError, TypedTe
 use crate::erts::HeapAlloc;
 
 use super::{
-    AlignedBinary, BinaryType, Bitstring, Original, FLAG_IS_LATIN1_BIN, FLAG_IS_RAW_BIN,
-    FLAG_IS_UTF8_BIN, FLAG_MASK,
+    aligned_binary::AlignedBinary, BinaryType, Bitstring, Original, FLAG_IS_LATIN1_BIN,
+    FLAG_IS_RAW_BIN, FLAG_IS_UTF8_BIN, FLAG_MASK,
 };
 
 /// Process heap allocated binary, smaller than 64 bytes

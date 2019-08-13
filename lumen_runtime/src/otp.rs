@@ -2,3 +2,4 @@
 
 pub mod binary;
 pub mod erlang;
+pub mod timer;

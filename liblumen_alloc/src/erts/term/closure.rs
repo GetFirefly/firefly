@@ -1,29 +1,29 @@
 use core::cmp::Ordering;
-use core::fmt;
+use core::convert::{TryFrom, TryInto};
+use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 
 use super::{AsTerm, Term};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
-use crate::erts::process::code::stack::frame::Frame;
+use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
-use crate::erts::term::{arity_of, to_word_size};
+use crate::erts::process::ProcessControlBlock;
+use crate::erts::term::{arity_of, Boxed, TypeError, TypedTerm};
 use crate::erts::{HeapAlloc, ModuleFunctionArity};
 
 pub struct Closure {
     header: Term,
     creator: Term, // pid of creator process, possible to be either Pid or ExternalPid
     module_function_arity: Arc<ModuleFunctionArity>,
-    code: Code,    // pointer to function entry
-    next: *mut u8, // off heap header
-    pub env_hack: Vec<Term>,
-    env_len: usize, // the number of free variables
-    env: *mut Term, // pointer to first element of free variable array
+    code: Code, // pointer to function entry
+    env: Vec<Term>,
 }
 
 impl Closure {
@@ -31,33 +31,53 @@ impl Closure {
         module_function_arity: Arc<ModuleFunctionArity>,
         code: Code,
         creator: Term,
-        env_hack: Vec<Term>,
+        env: Vec<Term>,
     ) -> Self {
-        let env_len = 0;
-
         Self {
-            header: Term::make_header(Self::arity(env_len), Term::FLAG_CLOSURE),
+            header: Term::make_header(arity_of::<Self>(), Term::FLAG_CLOSURE),
             creator,
             module_function_arity,
             code,
-            next: ptr::null_mut(),
-            env_hack,
-            env_len,
-            env: ptr::null_mut(),
+            env,
         }
     }
 
-    pub fn module_function_arity(&self) -> Arc<ModuleFunctionArity> {
-        Arc::clone(&self.module_function_arity)
+    pub fn arity(&self) -> u8 {
+        self.module_function_arity.arity
     }
 
     pub fn frame(&self) -> Frame {
         Frame::new(Arc::clone(&self.module_function_arity), self.code)
     }
 
-    /// The size of the non-header fields in words
-    fn arity(env_len: usize) -> usize {
-        arity_of::<Self>() + env_len
+    pub fn module_function_arity(&self) -> Arc<ModuleFunctionArity> {
+        Arc::clone(&self.module_function_arity)
+    }
+
+    pub fn place_frame_with_arguments(
+        &self,
+        process: &ProcessControlBlock,
+        placement: Placement,
+        arguments: Vec<Term>,
+    ) -> Result<(), Alloc> {
+        assert_eq!(arguments.len(), self.arity() as usize);
+        for argument in arguments.iter().rev() {
+            process.stack_push(*argument)?;
+        }
+
+        self.push_env_to_stack(process)?;
+
+        process.place_frame(self.frame(), placement);
+
+        Ok(())
+    }
+
+    fn push_env_to_stack(&self, process: &ProcessControlBlock) -> Result<(), Alloc> {
+        for term in self.env.iter().rev() {
+            process.stack_push(*term)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -81,29 +101,34 @@ impl CloneToProcess for Closure {
             Ok(Term::make_boxed(ptr))
         }
     }
-
-    fn size_in_words(&self) -> usize {
-        let mut size = to_word_size(mem::size_of::<Self>());
-        for offset in 0..self.env_len {
-            let ptr = unsafe { self.env.add(offset) };
-            let term = unsafe { &*ptr };
-            size += term.size_in_words()
-        }
-        size
-    }
 }
 
-impl fmt::Debug for Closure {
+impl Debug for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Closure")
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("code", &(self.code as usize))
-            .field("next", &self.next)
             .field("module_function_arity", &self.module_function_arity)
             .field("creator", &self.creator)
-            .field("env_len", &self.env_len)
             .field("env", &self.env)
             .finish()
+    }
+}
+
+impl Display for Closure {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let module_function_arity = &self.module_function_arity;
+
+        write!(f, "&{}.", module_function_arity.module)?;
+        f.write_char('\"')?;
+        module_function_arity
+            .function
+            .name()
+            .chars()
+            .flat_map(char::escape_default)
+            .try_for_each(|c| f.write_char(c))?;
+        f.write_char('\"')?;
+        write!(f, "/{}", module_function_arity.arity)
     }
 }
 
@@ -133,5 +158,25 @@ impl PartialEq for Closure {
 impl PartialOrd for Closure {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl TryFrom<Term> for Boxed<Closure> {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryFrom<TypedTerm> for Boxed<Closure> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Boxed(boxed_closure) => boxed_closure.to_typed_term().unwrap().try_into(),
+            TypedTerm::Closure(closure) => Ok(closure),
+            _ => Err(TypeError),
+        }
     }
 }

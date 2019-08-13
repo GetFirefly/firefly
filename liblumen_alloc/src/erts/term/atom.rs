@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display, Write};
@@ -6,6 +5,8 @@ use core::mem;
 use core::ptr;
 use core::slice;
 use core::str;
+
+use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
@@ -114,19 +115,32 @@ impl Atom {
         Ok(())
     }
 }
+
+impl Display for Atom {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(":'")?;
+        self.name()
+            .chars()
+            .flat_map(char::escape_default)
+            .try_for_each(|c| f.write_char(c))?;
+        f.write_char('\'')
+    }
+}
+
 impl Debug for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(name) = ATOMS.read().get_name(self.0) {
-            f.write_str(":'")?;
+            f.write_str(":\"")?;
             name.chars()
                 .flat_map(char::escape_default)
                 .try_for_each(|c| f.write_char(c))?;
-            f.write_char('\'')
+            f.write_char('\"')
         } else {
             f.debug_tuple("Atom").field(&self.0).finish()
         }
     }
 }
+
 unsafe impl AsTerm for Atom {
     #[inline]
     unsafe fn as_term(&self) -> Term {

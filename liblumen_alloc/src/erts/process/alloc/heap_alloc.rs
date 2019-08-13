@@ -1,4 +1,5 @@
 use core::alloc::Layout;
+use core::any::Any;
 use core::ops::DerefMut;
 use core::ptr::{self, NonNull};
 use core::str::Chars;
@@ -12,8 +13,11 @@ use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetim
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::Code;
-use crate::erts::term::binary::{AlignedBinary, IterableBitstring, MaybeAlignedMaybeBinary};
+use crate::erts::term::binary::aligned_binary::AlignedBinary;
+use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
+use crate::erts::term::binary::IterableBitstring;
 use crate::erts::term::reference::{self, Reference};
+use crate::erts::term::resource;
 use crate::erts::term::{
     make_pid, pid, AsTerm, BinaryType, BytesFromBinaryError, Closure, Cons, ExternalPid, Float,
     HeapBin, Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
@@ -158,9 +162,9 @@ pub trait HeapAlloc {
         creator: Term,
         module_function_arity: Arc<ModuleFunctionArity>,
         code: Code,
-        env_hack: Vec<Term>,
+        env: Vec<Term>,
     ) -> Result<Term, Alloc> {
-        let closure = Closure::new(module_function_arity, code, creator, env_hack);
+        let closure = Closure::new(module_function_arity, code, creator, env);
 
         unsafe {
             let ptr = self.alloc_layout(Layout::new::<Closure>())?.as_ptr() as *mut Closure;
@@ -401,6 +405,13 @@ pub trait HeapAlloc {
         let reference = Term::make_boxed(reference_ptr);
 
         Ok(reference)
+    }
+
+    fn resource(&mut self, value: Box<dyn Any>) -> Result<Term, Alloc>
+    where
+        Self: core::marker::Sized,
+    {
+        resource::Reference::new(value)?.clone_to_heap(self)
     }
 
     /// Either returns a `&str` to the pre-existing bytes in the heap binary, process binary, or

@@ -23,8 +23,8 @@ use crate::erts::term::{arity_of, AsTerm, Boxed, MatchContext, Term};
 use crate::erts::HeapAlloc;
 
 use super::{
-    AlignedBinary, BinaryType, Bitstring, FLAG_IS_LATIN1_BIN, FLAG_IS_RAW_BIN, FLAG_IS_UTF8_BIN,
-    FLAG_MASK,
+    aligned_binary::AlignedBinary, BinaryType, Bitstring, FLAG_IS_LATIN1_BIN, FLAG_IS_RAW_BIN,
+    FLAG_IS_UTF8_BIN, FLAG_MASK,
 };
 
 /// This is the header written alongside all procbin binaries in the heap,

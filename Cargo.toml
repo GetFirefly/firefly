@@ -15,6 +15,7 @@ members = [
   "liblumen_diagnostics",
   "liblumen_syntax",
   "liblumen_eir_interpreter",
+  "lumen_web",
 ]
 
 [profile.release]

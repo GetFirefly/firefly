@@ -1,0 +1,69 @@
+use std::sync::Arc;
+
+use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::term::Term;
+
+use crate::otp::erlang::apply_3;
+use crate::otp::timer::tc_3::label_2;
+
+/// ```elixir
+/// # label 1
+/// # pushed to stack: (module, function arguments, before)
+/// # returned from call: before
+/// # full stack: (before, module, function arguments)
+/// # returns: value
+/// value = apply(module, function, arguments)
+/// after = :erlang.monotonic_time()
+/// duration = after - before
+/// time = :erlang.convert_time_unit(duration, :native, :microsecond)
+/// {time, value}
+/// ```
+pub fn place_frame_with_arguments(
+    process: &ProcessControlBlock,
+    placement: Placement,
+    module: Term,
+    function: Term,
+    arguments: Term,
+) -> Result<(), Alloc> {
+    assert!(module.is_atom());
+    assert!(function.is_atom());
+    assert!(
+        arguments.is_list(),
+        "arguments ({:?}) are not a list",
+        arguments
+    );
+    process.stack_push(arguments)?;
+    process.stack_push(function)?;
+    process.stack_push(module)?;
+    process.place_frame(frame(process), placement);
+
+    Ok(())
+}
+
+// Private
+
+fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+    arc_process.reduce();
+
+    let before = arc_process.stack_pop().unwrap();
+    assert!(before.is_integer());
+    let module = arc_process.stack_pop().unwrap();
+    assert!(module.is_atom(), "module ({:?}) is not an atom", module);
+    let function = arc_process.stack_pop().unwrap();
+    assert!(function.is_atom());
+    let arguments = arc_process.stack_pop().unwrap();
+    assert!(arguments.is_list());
+
+    label_2::place_frame_with_arguments(arc_process, Placement::Replace, before)?;
+    apply_3::place_frame_with_arguments(arc_process, Placement::Push, module, function, arguments)?;
+
+    ProcessControlBlock::call_code(arc_process)
+}
+
+fn frame(process: &ProcessControlBlock) -> Frame {
+    let module_function_arity = process.current_module_function_arity().unwrap();
+
+    Frame::new(module_function_arity, code)
+}

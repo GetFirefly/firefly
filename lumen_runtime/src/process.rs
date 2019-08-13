@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 use liblumen_core::locks::RwLockWriteGuard;
 
 use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::Frame;
+use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::{self, ProcessControlBlock};
 #[cfg(test)]
@@ -18,6 +18,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::CloneToProcess;
 
 use crate::code;
+use crate::otp::erlang::apply_3;
 use crate::registry::*;
 use crate::scheduler::Scheduler;
 
@@ -81,12 +82,52 @@ impl SchedulerDependentAlloc for ProcessControlBlock {
     }
 }
 
+/// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
+/// of passing through `apply/3`.
 pub fn spawn(
     parent_process: &ProcessControlBlock,
     module: Atom,
     function: Atom,
-    arguments: Term,
+    arguments: Vec<Term>,
     code: Code,
+    heap: *mut Term,
+    heap_size: usize,
+) -> Result<ProcessControlBlock, Alloc> {
+    let arity = arguments.len() as u8;
+    let module_function_arity = Arc::new(ModuleFunctionArity {
+        module,
+        function,
+        arity,
+    });
+
+    let process_control_block = ProcessControlBlock::new(
+        parent_process.priority,
+        Some(parent_process.pid()),
+        Arc::clone(&module_function_arity),
+        heap,
+        heap_size,
+    );
+
+    for argument in arguments.iter().rev() {
+        let process_argument = argument.clone_to_process(&process_control_block);
+        process_control_block.stack_push(process_argument)?;
+    }
+
+    let frame = Frame::new(module_function_arity, code);
+    process_control_block.push_frame(frame);
+
+    Ok(process_control_block)
+}
+
+/// Spawns a process with arguments for `apply(module, function, arguments)` on its stack.
+///
+/// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
+/// MFA unique to a given application.
+pub fn spawn_apply_3(
+    parent_process: &ProcessControlBlock,
+    module: Atom,
+    function: Atom,
+    arguments: Term,
     heap: *mut Term,
     heap_size: usize,
 ) -> Result<ProcessControlBlock, Alloc> {
@@ -94,13 +135,10 @@ pub fn spawn(
         TypedTerm::Nil => 0,
         TypedTerm::List(cons) => cons.count().unwrap().try_into().unwrap(),
         _ => {
-            #[cfg(debug_assertions)]
             panic!(
                 "Arguments {:?} are neither an empty nor a proper list",
                 arguments
             );
-            #[cfg(not(debug_assertions))]
-            panic!("Arguments are neither an empty nor a proper list");
         }
     };
 
@@ -118,18 +156,17 @@ pub fn spawn(
         heap_size,
     );
 
-    let heap_arguments = arguments.clone_to_process(&process_control_block);
-    process_control_block.stack_push(heap_arguments)?;
-
-    let function_term = unsafe { function.as_term() };
     let module_term = unsafe { module.as_term() };
+    let function_term = unsafe { function.as_term() };
+    let heap_arguments = arguments.clone_to_process(&process_control_block);
 
-    // Don't need to be cloned into heap because they are atoms
-    process_control_block.stack_push(function_term)?;
-    process_control_block.stack_push(module_term)?;
-
-    let frame = Frame::new(module_function_arity, code);
-    process_control_block.push_frame(frame);
+    apply_3::place_frame_with_arguments(
+        &process_control_block,
+        Placement::Push,
+        module_term,
+        function_term,
+        heap_arguments,
+    )?;
 
     Ok(process_control_block)
 }
@@ -159,14 +196,5 @@ pub fn test(parent_process: &ProcessControlBlock) -> Arc<ProcessControlBlock> {
     let normal = atom_unchecked("normal");
     let arguments = parent_process.list_from_slice(&[normal]).unwrap();
 
-    Scheduler::spawn(
-        parent_process,
-        erlang,
-        exit,
-        arguments,
-        code::apply_fn(),
-        heap,
-        heap_size,
-    )
-    .unwrap()
+    Scheduler::spawn_apply_3(parent_process, erlang, exit, arguments, heap, heap_size).unwrap()
 }

@@ -1,6 +1,6 @@
 pub mod frame;
 
-use core::fmt::{self, Debug};
+use core::fmt::{self, Debug, Display};
 
 use alloc::collections::vec_deque::{Iter, VecDeque};
 use alloc::sync::Arc;
@@ -63,6 +63,16 @@ impl Debug for Stack {
 pub struct Trace(Vec<Arc<ModuleFunctionArity>>);
 
 impl Debug for Trace {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for module_function_arity in self.0.iter() {
+            writeln!(f, "  {}", module_function_arity)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for module_function_arity in self.0.iter() {
             writeln!(f, "  {}", module_function_arity)?;

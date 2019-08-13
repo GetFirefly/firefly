@@ -113,6 +113,17 @@ impl Exception {
         Ok(error)
     }
 
+    pub fn exit(
+        reason: Term,
+        stacktrace: Option<Term>,
+        file: &'static str,
+        line: u32,
+        column: u32,
+    ) -> Self {
+        let class = Class::Exit;
+        Self::new(class, reason, stacktrace, file, line, column)
+    }
+
     pub fn undef(
         process: &ProcessControlBlock,
         module: Term,
@@ -164,17 +175,6 @@ impl Exception {
         column: u32,
     ) -> Self {
         let class = Class::Error { arguments };
-        Self::new(class, reason, stacktrace, file, line, column)
-    }
-
-    fn exit(
-        reason: Term,
-        stacktrace: Option<Term>,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Self {
-        let class = Class::Exit;
         Self::new(class, reason, stacktrace, file, line, column)
     }
 

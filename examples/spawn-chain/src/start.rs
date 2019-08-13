@@ -1,7 +1,7 @@
-use crate::code;
+use crate::apply_3;
 
 pub fn set_apply_fn() {
-    lumen_runtime::code::set_apply_fn(code::apply)
+    lumen_runtime::otp::erlang::apply_3::set_code(apply_3::code);
 }
 
 pub fn set_panic_hook() {

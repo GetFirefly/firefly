@@ -1,5 +1,5 @@
 use core::convert::{TryFrom, TryInto};
-use core::fmt;
+use core::fmt::{self, Debug};
 use core::iter::FusedIterator;
 use core::str;
 
@@ -9,6 +9,7 @@ use alloc::vec::Vec;
 
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
+use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
 
 use super::*;
 
@@ -345,7 +346,7 @@ impl CloneToProcess for SubBinary {
     }
 }
 
-impl fmt::Debug for SubBinary {
+impl Debug for SubBinary {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("SubBinary")
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))

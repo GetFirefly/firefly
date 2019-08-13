@@ -1,8 +1,9 @@
 use proptest::arbitrary::any;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use crate::otp::erlang::tests::strategy::term::NON_EXISTENT_ATOM_PREFIX;
 use liblumen_alloc::erts::term::Atom;
+
+use crate::test::strategy::term::NON_EXISTENT_ATOM_PREFIX;
 
 pub fn module() -> BoxedStrategy<Atom> {
     atom()

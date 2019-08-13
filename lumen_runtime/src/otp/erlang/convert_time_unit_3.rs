@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 use std::convert::TryInto;
 use std::sync::Arc;
 
@@ -63,7 +66,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-pub fn native(
+fn native(
     process: &ProcessControlBlock,
     time: Term,
     from_unit: Term,

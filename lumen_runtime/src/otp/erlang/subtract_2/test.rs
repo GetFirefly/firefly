@@ -1,7 +1,16 @@
-use super::*;
-
 mod with_float_minuend;
 mod with_integer_minuend;
+
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq};
+
+use liblumen_alloc::badarith;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{SmallInteger, Term};
+
+use crate::otp::erlang::subtract_2::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_number_minuend_errors_badarith() {
@@ -14,7 +23,7 @@ fn without_number_minuend_errors_badarith() {
                 ),
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
-                        erlang::subtract_2(minuend, subtrahend, &arc_process),
+                        native(&arc_process, minuend, subtrahend),
                         Err(badarith!().into())
                     );
 
@@ -36,7 +45,7 @@ fn with_number_minuend_without_number_subtrahend_errors_badarith() {
                 ),
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
-                        erlang::subtract_2(minuend, subtrahend, &arc_process),
+                        native(&arc_process, minuend, subtrahend),
                         Err(badarith!().into())
                     );
 
@@ -57,7 +66,7 @@ fn with_integer_minuend_with_integer_subtrahend_returns_integer() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(minuend, subtrahend)| {
-                    let result = erlang::subtract_2(minuend, subtrahend, &arc_process);
+                    let result = native(&arc_process, minuend, subtrahend);
 
                     prop_assert!(result.is_ok());
 
@@ -82,7 +91,7 @@ fn with_integer_minuend_with_float_subtrahend_returns_float() {
                     strategy::term::float(arc_process.clone()),
                 ),
                 |(minuend, subtrahend)| {
-                    let result = erlang::subtract_2(minuend, subtrahend, &arc_process);
+                    let result = native(&arc_process, minuend, subtrahend);
 
                     prop_assert!(result.is_ok());
 

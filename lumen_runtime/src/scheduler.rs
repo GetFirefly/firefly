@@ -410,9 +410,6 @@ mod tests {
             use liblumen_alloc::erts::process::default_heap;
             use liblumen_alloc::erts::term::atom_unchecked;
 
-            use crate::code;
-            use crate::otp::erlang;
-
             #[test]
             fn different_processes_have_different_pids() {
                 let erlang = Atom::try_from_str("erlang").unwrap();
@@ -448,10 +445,7 @@ mod tests {
                 )
                 .unwrap();
 
-                assert_ne!(
-                    erlang::self_0(&first_process),
-                    erlang::self_0(&second_process)
-                );
+                assert_ne!(first_process.pid_term(), second_process.pid_term());
             }
         }
     }

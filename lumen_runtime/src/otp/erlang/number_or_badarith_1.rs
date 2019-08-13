@@ -3,17 +3,25 @@ mod test;
 
 use std::sync::Arc;
 
+use liblumen_alloc::badarith;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::ModuleFunctionArity;
 
-use crate::time::{monotonic, Unit::Native};
-
-pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
+/// `+/1` prefix operator.
+pub fn place_frame_with_arguments(
+    process: &ProcessControlBlock,
+    placement: Placement,
+    term: Term,
+) -> Result<(), Alloc> {
+    process.stack_push(term)?;
     process.place_frame(frame(), placement);
+
+    Ok(())
 }
 
 // Private
@@ -21,9 +29,11 @@ pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
-    match native(arc_process) {
-        Ok(time) => {
-            arc_process.return_from_call(time)?;
+    let term = arc_process.stack_pop().unwrap();
+
+    match native(term) {
+        Ok(sum) => {
+            arc_process.return_from_call(sum)?;
 
             ProcessControlBlock::call_code(arc_process)
         }
@@ -36,19 +46,21 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("monotonic_time").unwrap()
+    Atom::try_from_str("+").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: 0,
+        arity: 1,
     })
 }
 
-fn native(process_control_block: &ProcessControlBlock) -> exception::Result {
-    let big_int = monotonic::time(Native);
-
-    Ok(process_control_block.integer(big_int)?)
+fn native(term: Term) -> exception::Result {
+    if term.is_number() {
+        Ok(term)
+    } else {
+        Err(badarith!().into())
+    }
 }

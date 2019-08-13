@@ -6,7 +6,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::{ProcessControlBlock, Term};
 
-use crate::otp::erlang::tests::strategy::{self, NON_EMPTY_RANGE_INCLUSIVE};
+use crate::test::strategy::{self, NON_EMPTY_RANGE_INCLUSIVE};
 
 pub fn improper(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     let size_range: SizeRange = NON_EMPTY_RANGE_INCLUSIVE.into();

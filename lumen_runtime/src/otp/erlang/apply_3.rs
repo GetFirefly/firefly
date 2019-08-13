@@ -1,8 +1,13 @@
+#[cfg(test)]
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_core::locks::RwLock;
 
+#[cfg(test)]
+use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
+#[cfg(not(test))]
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
@@ -10,7 +15,6 @@ use liblumen_alloc::erts::process::ProcessControlBlock;
 #[cfg(test)]
 use liblumen_alloc::erts::term::TypedTerm;
 use liblumen_alloc::erts::term::{Atom, Term};
-use liblumen_alloc::undef;
 use liblumen_alloc::ModuleFunctionArity;
 
 #[cfg(test)]
@@ -74,7 +78,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let arguments = arc_process.stack_pop().unwrap();
     arc_process.reduce();
 
-    match undef!(arc_process, module, function, arguments) {
+    match liblumen_alloc::undef!(arc_process, module, function, arguments) {
         Exception::Runtime(runtime_exception) => {
             arc_process.exception(runtime_exception);
 
@@ -109,38 +113,31 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let module_atom: Atom = module.try_into().unwrap();
     let function_atom: Atom = function.try_into().unwrap();
 
-    let result = match module_atom.name() {
+    match module_atom.name() {
         "erlang" => match function_atom.name() {
             "+" => match arity {
-                1 => erlang::number_or_badarith_1(argument_vec[0]),
-                _ => Err(undef!(arc_process, module, function, argument_list)),
+                1 => {
+                    erlang::number_or_badarith_1::place_frame_with_arguments(
+                        arc_process,
+                        Placement::Replace,
+                        argument_vec[0],
+                    )?;
+
+                    ProcessControlBlock::call_code(arc_process)
+                }
+                _ => undef(arc_process, module, function, argument_list),
             },
             "self" => match arity {
-                0 => Ok(erlang::self_0::code(arc_process)),
-                _ => Err(undef!(arc_process, module, function, argument_list).into()),
+                0 => {
+                    erlang::self_0::place_frame(arc_process, Placement::Replace);
+
+                    ProcessControlBlock::call_code(arc_process)
+                }
+                _ => undef(arc_process, module, function, argument_list),
             },
-            _ => Err(undef!(arc_process, module, function, argument_list).into()),
+            _ => undef(arc_process, module, function, argument_list),
         },
-        _ => Err(undef!(arc_process, module, function, argument_list).into()),
-    };
-
-    arc_process.reduce();
-
-    match result {
-        Ok(term) => {
-            // Exception outlives the stack frame, so it can be used to pass data back to the test
-            arc_process.exception(liblumen_alloc::exit!(term));
-
-            Ok(())
-        }
-        Err(exception) => match exception {
-            Exception::Runtime(runtime_exception) => {
-                arc_process.exception(runtime_exception);
-
-                Ok(())
-            }
-            Exception::System(system_exception) => Err(system_exception),
-        },
+        _ => undef(arc_process, module, function, argument_list),
     }
 }
 
@@ -158,6 +155,21 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
         function: function(),
         arity: 3,
     })
+}
+
+#[cfg(test)]
+fn undef(
+    arc_process: &Arc<ProcessControlBlock>,
+    module: Term,
+    function: Term,
+    arguments: Term,
+) -> code::Result {
+    arc_process.reduce();
+    let exception = liblumen_alloc::undef!(arc_process, module, function, arguments);
+    let runtime_exception: runtime::Exception = exception.try_into().unwrap();
+    arc_process.exception(runtime_exception);
+
+    Ok(())
 }
 
 lazy_static! {

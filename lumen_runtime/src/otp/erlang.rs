@@ -4,6 +4,7 @@ pub mod add_2;
 pub mod apply_3;
 pub mod convert_time_unit_3;
 pub mod monotonic_time_0;
+pub mod number_or_badarith_1;
 pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;
@@ -1313,15 +1314,6 @@ pub fn not_1(boolean: Term) -> Result {
     let output = !boolean_bool;
 
     Ok(output.into())
-}
-
-/// `+/1` prefix operator.
-pub fn number_or_badarith_1(term: Term) -> Result {
-    if term.is_number() {
-        Ok(term)
-    } else {
-        Err(badarith!().into())
-    }
 }
 
 /// `or/2` infix operator.

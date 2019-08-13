@@ -3,7 +3,7 @@ use super::*;
 use proptest::collection::SizeRange;
 use proptest::strategy::Strategy;
 
-use crate::otp::erlang::tests::strategy::NON_EMPTY_RANGE_INCLUSIVE;
+use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
 #[test]
 fn without_list_right_returns_false() {

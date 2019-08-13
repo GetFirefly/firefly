@@ -11,7 +11,7 @@ fn without_number_addend_errors_badarith() {
                 ),
                 |(augend, addend)| {
                     prop_assert_eq!(
-                        erlang::add_2(augend, addend, &arc_process),
+                        native(&arc_process, augend, addend),
                         Err(badarith!().into())
                     );
 
@@ -31,7 +31,7 @@ fn with_zero_small_integer_returns_same_big_integer() {
                 |augend| {
                     let addend = 0.into();
 
-                    prop_assert_eq!(erlang::add_2(augend, addend, &arc_process), Ok(augend));
+                    prop_assert_eq!(native(&arc_process, augend, addend), Ok(augend));
 
                     Ok(())
                 },
@@ -50,7 +50,7 @@ fn that_is_positive_with_positive_small_integer_addend_returns_greater_big_integ
                     strategy::term::integer::small::positive(arc_process.clone()),
                 ),
                 |(augend, addend)| {
-                    let result = erlang::add_2(augend, addend, &arc_process);
+                    let result = native(&arc_process, augend, addend);
 
                     prop_assert!(result.is_ok());
 
@@ -77,7 +77,7 @@ fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer
                     strategy::term::integer::big::positive(arc_process.clone()),
                 ),
                 |(augend, addend)| {
-                    let result = erlang::add_2(augend, addend, &arc_process);
+                    let result = native(&arc_process, augend, addend);
 
                     prop_assert!(result.is_ok());
 
@@ -99,7 +99,7 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
     with(|augend, process| {
         let addend = process.float(3.0).unwrap();
 
-        let result = erlang::add_2(augend, addend, &process);
+        let result = native(&process, augend, addend);
 
         assert!(result.is_ok());
 
@@ -119,7 +119,7 @@ fn with_float_addend_with_underflow_returns_min_float() {
                     let addend = arc_process.float(std::f64::MIN).unwrap();
 
                     prop_assert_eq!(
-                        erlang::add_2(augend, addend, &arc_process),
+                        native(&arc_process, augend, addend),
                         Ok(arc_process.float(std::f64::MIN).unwrap())
                     );
 
@@ -140,7 +140,7 @@ fn with_float_addend_with_overflow_returns_max_float() {
                     let addend = arc_process.float(std::f64::MAX).unwrap();
 
                     prop_assert_eq!(
-                        erlang::add_2(augend, addend, &arc_process),
+                        native(&arc_process, augend, addend),
                         Ok(arc_process.float(std::f64::MAX).unwrap())
                     );
 

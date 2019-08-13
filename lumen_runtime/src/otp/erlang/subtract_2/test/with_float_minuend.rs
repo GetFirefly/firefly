@@ -10,7 +10,7 @@ fn with_float_minuend_with_integer_subtrahend_returns_float() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(minuend, subtrahend)| {
-                    let result = erlang::subtract_2(minuend, subtrahend, &arc_process);
+                    let result = native(&arc_process, minuend, subtrahend);
 
                     prop_assert!(result.is_ok());
 
@@ -35,7 +35,7 @@ fn with_float_minuend_with_float_subtrahend_returns_float() {
                     strategy::term::float(arc_process.clone()),
                 ),
                 |(minuend, subtrahend)| {
-                    let result = erlang::subtract_2(minuend, subtrahend, &arc_process);
+                    let result = native(&arc_process, minuend, subtrahend);
 
                     prop_assert!(result.is_ok());
 
@@ -56,7 +56,7 @@ fn with_float_subtrahend_with_underflow_returns_min_float() {
         let subtrahend = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
-            erlang::subtract_2(minuend, subtrahend, &process),
+            native(&process, minuend, subtrahend),
             Ok(process.float(std::f64::MIN).unwrap())
         );
     })
@@ -68,7 +68,7 @@ fn with_float_subtrahend_with_overflow_returns_max_float() {
         let subtrahend = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
-            erlang::subtract_2(minuend, subtrahend, &process),
+            native(&process, minuend, subtrahend),
             Ok(process.float(std::f64::MAX).unwrap())
         );
     })

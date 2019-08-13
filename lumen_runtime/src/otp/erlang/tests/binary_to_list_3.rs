@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::otp::erlang::tests::strategy::NON_EMPTY_RANGE_INCLUSIVE;
+use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 use proptest::strategy::Strategy;
 
 #[test]

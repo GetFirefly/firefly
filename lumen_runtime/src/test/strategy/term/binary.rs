@@ -7,10 +7,8 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::term::Term;
 use liblumen_alloc::erts::ProcessControlBlock;
 
-use crate::otp::erlang::tests::strategy::size_range;
-use crate::otp::erlang::tests::strategy::term::binary::sub::{
-    bit_count, bit_offset, byte_count, byte_offset,
-};
+use crate::test::strategy::size_range;
+use crate::test::strategy::term::binary::sub::{bit_count, bit_offset, byte_count, byte_offset};
 
 pub mod heap;
 pub mod sub;

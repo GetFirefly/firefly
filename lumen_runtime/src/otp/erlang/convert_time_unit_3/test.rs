@@ -1,10 +1,20 @@
-use super::*;
+use std::sync::Arc;
+
+use num_bigint::BigInt;
 
 use num_traits::Num;
 
-use proptest::prop_oneof;
-use proptest::strategy::Strategy;
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert_eq, prop_oneof};
 
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::{Term, TypedTerm};
+
+use crate::otp::erlang::convert_time_unit_3::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 use crate::time::Unit::{self, *};
 
 #[test]
@@ -19,7 +29,7 @@ fn without_integer_time_returns_badarg() {
                 ),
                 |(time, from_unit, to_unit)| {
                     prop_assert_eq!(
-                        erlang::convert_time_unit_3(time, from_unit, to_unit, &arc_process),
+                        native(&arc_process, time, from_unit, to_unit),
                         Err(badarg!().into())
                     );
 
@@ -42,7 +52,7 @@ fn with_integer_time_without_unit_from_unit_errors_badarg() {
                 ),
                 |(time, from_unit, to_unit)| {
                     prop_assert_eq!(
-                        erlang::convert_time_unit_3(time, from_unit, to_unit, &arc_process),
+                        native(&arc_process, time, from_unit, to_unit),
                         Err(badarg!().into())
                     );
 
@@ -65,7 +75,7 @@ fn with_integer_time_with_unit_from_unit_without_unit_to_unit_errors_badarg() {
                 ),
                 |(time, from_unit, to_unit)| {
                     prop_assert_eq!(
-                        erlang::convert_time_unit_3(time, from_unit, to_unit, &arc_process),
+                        native(&arc_process, time, from_unit, to_unit),
                         Err(badarg!().into())
                     );
 
@@ -189,11 +199,11 @@ fn with_small_integer_time_valid_units_returns_converted_value() {
                 };
 
                 prop_assert_eq!(
-                    erlang::convert_time_unit_3(
+                    native(
+                        process,
                         time,
                         from_unit.to_term(process).unwrap(),
                         to_unit.to_term(process).unwrap(),
-                        process
                     ),
                     Ok(expected_converted)
                 );
@@ -472,11 +482,11 @@ fn with_big_integer_time_with_unit_from_unit_with_unit_to_unit_returns_converted
                 };
 
                 prop_assert_eq!(
-                    erlang::convert_time_unit_3(
+                    native(
+                        process,
                         time,
                         from_unit.to_term(process).unwrap(),
                         to_unit.to_term(process).unwrap(),
-                        process
                     ),
                     Ok(expected_converted)
                 );

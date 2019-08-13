@@ -1,6 +1,3 @@
-#[cfg(test)]
-use core::convert::TryInto;
-
 use alloc::sync::Arc;
 
 use liblumen_alloc::erts::process::{code, ProcessControlBlock};

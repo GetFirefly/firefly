@@ -5,7 +5,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use liblumen_alloc::erts::term::Term;
 use liblumen_alloc::erts::ProcessControlBlock;
 
-use crate::otp::erlang::tests::strategy::{self, bits_to_bytes, size_range};
+use crate::test::strategy::{self, bits_to_bytes, size_range};
 
 pub mod byte_count;
 pub mod is_binary;

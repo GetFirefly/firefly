@@ -43,6 +43,7 @@ jobs:
             - liblumen_syntax
             - lumen
             - lumen_runtime
+            - lumen_web
             - target/debug/.fingerprint
             - target/debug/build
             - target/debug/deps
@@ -92,6 +93,7 @@ jobs:
             - liblumen_syntax
             - lumen
             - lumen_runtime
+            - lumen_web
             - target/debug/.fingerprint
             - target/debug/build
             - target/debug/deps

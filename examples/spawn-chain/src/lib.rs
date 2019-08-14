@@ -3,24 +3,26 @@
 #![feature(allocator_api)]
 #![feature(type_ascription)]
 
-use std::sync::Arc;
+mod apply_3;
+mod elixir;
+mod start;
+
+use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 
-use lumen_runtime::code::apply_fn;
-use lumen_runtime::registry;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
 
+use lumen_web::wait;
+
 use wasm_bindgen::prelude::*;
 
+use crate::elixir::chain::{console_1, dom_1};
 use crate::start::*;
-
-mod code;
-mod elixir;
-mod start;
+use liblumen_alloc::erts::term::atom_unchecked;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -32,50 +34,62 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 pub fn start() {
     set_panic_hook();
     set_apply_fn();
-
-    let arc_scheduler = Scheduler::current();
-    let init_arc_scheduler = Arc::clone(&arc_scheduler);
-    let init_arc_process = init_arc_scheduler.spawn_init(0).unwrap();
-    let init_atom = Atom::try_from_str("init").unwrap();
-
-    if !registry::put_atom_to_process(init_atom, init_arc_process) {
-        panic!("Could not register init process");
-    };
 }
 
 #[wasm_bindgen]
-pub fn run(count: usize) {
-    let init_atom = Atom::try_from_str("init").unwrap();
-    let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
+pub fn log_to_console(count: usize) -> usize {
+    run(count, Output::Console)
+}
 
-    // elixir --erl "+P 1000000" -r chain.ex -e "Chain.run(1_000_000)".
-    let module = Atom::try_from_str("Elixir.Chain").unwrap();
-    let function = Atom::try_from_str("run").unwrap();
-    let arguments = init_arc_process
-        .list_from_slice(&[init_arc_process.integer(count).unwrap()])
-        // if not enough memory here, resize `spawn_init` heap
-        .unwrap();
+#[wasm_bindgen]
+pub fn log_to_dom(count: usize) -> usize {
+    run(count, Output::Dom)
+}
 
-    let heap_size = next_heap_size(4 + count * 2);
+enum Output {
+    Console,
+    Dom,
+}
+
+fn run(count: usize, output: Output) -> usize {
+    let arc_scheduler = Scheduler::current();
+    // Don't register, so that tests can run concurrently
+    let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    // if not enough memory here, resize `spawn_init` heap
+    let count_term = parent_arc_process.integer(count).unwrap();
+
+    let heap_size = next_heap_size(79 + count * 5);
     // if this fails the entire tab is out-of-memory
     let heap = heap(heap_size).unwrap();
 
-    let run_arc_process = Scheduler::spawn(
-        &init_arc_process,
-        module,
-        function,
-        arguments,
-        apply_fn(),
+    let run_arc_process = wait::with_return_0::spawn(
+        &parent_arc_process,
         heap,
-        heap_size,
-        )
-        // if this fails, don't use `default_heap` and instead use a bigger sized heap
-        .unwrap();
+        heap_size
+    )
+    // if this fails use a bigger sized heap
+    .unwrap();
+
+    match output {
+        Output::Console => {
+            // if this fails use a bigger sized heap
+            console_1::place_frame_with_arguments(&run_arc_process, Placement::Push, count_term)
+                .unwrap()
+        }
+        Output::Dom => {
+            // if this fails use a bigger sized heap
+            dom_1::place_frame_with_arguments(&run_arc_process, Placement::Push, count_term)
+                .unwrap()
+        }
+    };
+
+    let mut option_return_usize: Option<usize> = None;
 
     loop {
         let ran = Scheduler::current().run_through(&run_arc_process);
 
-        match *run_arc_process.status.read() {
+        let waiting = match *run_arc_process.status.read() {
             Status::Exiting(ref exception) => match exception {
                 exception::runtime::Exception {
                     class: exception::runtime::Class::Exit,
@@ -96,34 +110,48 @@ pub fn run(count: usize) {
                     );
                 }
             },
-            Status::Waiting => {
-                if ran {
-                    system::io::puts(&format!(
-                        "WAITING Run queues len = {:?}",
-                        Scheduler::current().run_queues_len()
-                    ));
-                } else {
-                    panic!(
-                        "{:?} did not run.  Deadlock likely in {:#?}",
-                        run_arc_process,
-                        Scheduler::current()
-                    );
-                }
-            }
-            Status::Runnable => {
-                system::io::puts(&format!(
-                    "RUNNABLE Run queues len = {:?}",
-                    Scheduler::current().run_queues_len()
-                ));
-            }
+            Status::Waiting => true,
+            Status::Runnable => false,
             Status::Running => {
                 system::io::puts(&format!(
                     "RUNNING Run queues len = {:?}",
                     Scheduler::current().run_queues_len()
                 ));
+
+                false
+            }
+        };
+
+        // separate so we don't hold read lock on status as it may need to be written
+        if waiting {
+            if ran {
+                system::io::puts(&format!(
+                    "WAITING Run queues len = {:?}",
+                    Scheduler::current().run_queues_len()
+                ));
+            } else {
+                use wait::with_return_0::Error::*;
+
+                match wait::with_return_0::pop_return(&run_arc_process) {
+                    Ok(popped_return) => {
+                        option_return_usize = Some(popped_return.try_into().unwrap());
+                        wait::with_return_0::stop(&run_arc_process);
+                    },
+                    Err(NoModuleFunctionArity) => panic!("{:?} doesn't have a current module function arity", run_arc_process),
+                    Err(WrongModuleFunctionArity(current_module_function_arity)) => panic!(
+                        "{:?} is not waiting with a return and instead did not run while waiting in {}.  Deadlock likely in {:#?}",
+                        run_arc_process,
+                        current_module_function_arity,
+                        Scheduler::current()
+                    ),
+                    Err(NoReturn) => panic!("{:?} is waiting, but nothing was returned to it.  Bug likely in {:#?}", run_arc_process, Scheduler::current()),
+                    Err(TooManyReturns(returns)) => panic!("{:?} got multiple returns: {:?}.  Stack is not being properly managed.", run_arc_process, returns)
+                }
             }
         }
     }
+
+    option_return_usize.unwrap()
 }
 
 #[cfg(test)]
@@ -132,132 +160,44 @@ mod tests {
 
     use std::sync::Once;
 
-    use time_test::time_test;
+    mod log_to_console {
+        use super::*;
 
-    #[test]
-    fn run1() {
-        time_test!();
-        start_once();
-        run(1)
-    }
+        #[test]
+        fn with_1() {
+            start_once();
+            assert_eq!(log_to_console(1), 1);
+        }
 
-    #[test]
-    fn run2() {
-        time_test!();
-        start_once();
-        run(2)
-    }
+        #[test]
+        fn with_2() {
+            start_once();
+            assert_eq!(log_to_console(2), 2);
+        }
 
-    #[test]
-    fn run4() {
-        time_test!();
-        start_once();
-        run(4)
-    }
+        #[test]
+        fn with_4() {
+            start_once();
+            assert_eq!(log_to_console(4), 4);
+        }
 
-    #[test]
-    fn run8() {
-        time_test!();
-        start_once();
-        run(8)
-    }
+        #[test]
+        fn with_8() {
+            start_once();
+            assert_eq!(log_to_console(8), 8);
+        }
 
-    #[test]
-    fn run16() {
-        time_test!();
-        start_once();
-        run(16)
-    }
+        #[test]
+        fn with_16() {
+            start_once();
+            assert_eq!(log_to_console(16), 16);
+        }
 
-    #[test]
-    fn run32() {
-        time_test!();
-        start_once();
-        run(32)
-    }
-
-    #[test]
-    fn run64() {
-        time_test!();
-        start_once();
-        run(64)
-    }
-
-    #[test]
-    fn run128() {
-        time_test!();
-        start_once();
-        run(128)
-    }
-
-    #[test]
-    fn run256() {
-        time_test!();
-        start_once();
-        run(256)
-    }
-
-    #[test]
-    fn run512() {
-        time_test!();
-        start_once();
-        run(512)
-    }
-
-    #[test]
-    fn run1024() {
-        time_test!();
-        start_once();
-        run(1024)
-    }
-
-    #[test]
-    fn run2048() {
-        time_test!();
-        start_once();
-        run(2048)
-    }
-
-    #[test]
-    fn run4096() {
-        time_test!();
-        start_once();
-        run(4096)
-    }
-
-    #[test]
-    fn run8192() {
-        time_test!();
-        start_once();
-        run(8192)
-    }
-
-    #[test]
-    fn run16384() {
-        time_test!();
-        start_once();
-        run(16384)
-    }
-
-    #[test]
-    fn run32768() {
-        time_test!();
-        start_once();
-        run(32768)
-    }
-
-    #[test]
-    fn run65536() {
-        time_test!();
-        start_once();
-        run(65536)
-    }
-
-    #[test]
-    fn run131072() {
-        time_test!();
-        start_once();
-        run(131072)
+        #[test]
+        fn with_32() {
+            start_once();
+            assert_eq!(log_to_console(32), 32);
+        }
     }
 
     static START: Once = Once::new();

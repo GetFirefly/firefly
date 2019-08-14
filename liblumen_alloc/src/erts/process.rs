@@ -7,6 +7,7 @@ mod mailbox;
 mod priority;
 
 use core::alloc::Layout;
+use core::any::Any;
 use core::cell::RefCell;
 use core::fmt;
 use core::hash::{Hash, Hasher};
@@ -36,7 +37,7 @@ pub use self::alloc::{
     default_heap, heap, next_heap_size, StackAlloc, StackPrimitives, VirtualAlloc,
 };
 use self::code::stack;
-use self::code::stack::frame::Frame;
+use self::code::stack::frame::{Frame, Placement};
 pub use self::flags::*;
 pub use self::flags::*;
 use self::gc::{GcError, RootSet};
@@ -280,9 +281,13 @@ impl ProcessControlBlock {
 
     /// Returns the term at the top of the stack
     #[inline]
-    pub fn stack_top(&mut self) -> Option<Term> {
+    pub fn stack_top(&self) -> Option<Term> {
         let mut heap = self.heap.lock();
         heap.stack_slot(1)
+    }
+
+    pub fn stack_used(&self) -> usize {
+        self.heap.lock().stack_used()
     }
 
     pub fn pid(&self) -> Pid {
@@ -387,10 +392,10 @@ impl ProcessControlBlock {
         creator: Term,
         module_function_arity: Arc<ModuleFunctionArity>,
         code: Code,
-        env_hack: Vec<Term>,
+        env: Vec<Term>,
     ) -> Result<Term, Alloc> {
         self.acquire_heap()
-            .closure(creator, module_function_arity, code, env_hack)
+            .closure(creator, module_function_arity, code, env)
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
@@ -466,6 +471,10 @@ impl ProcessControlBlock {
         number: reference::Number,
     ) -> Result<Term, Alloc> {
         self.acquire_heap().reference(scheduler_id, number)
+    }
+
+    pub fn resource(&self, value: Box<dyn Any>) -> Result<Term, Alloc> {
+        self.acquire_heap().resource(value)
     }
 
     pub fn subbinary_from_original(
@@ -697,6 +706,14 @@ impl ProcessControlBlock {
         self.exception(exit!(atom_unchecked("normal")));
     }
 
+    pub fn is_exiting(&self) -> bool {
+        if let Status::Exiting(_) = *self.status.read() {
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn exception(&self, exception: runtime::Exception) {
         *self.status.write() = Status::Exiting(exception);
     }
@@ -735,6 +752,13 @@ impl ProcessControlBlock {
             .lock()
             .get(0)
             .map(|frame| frame.module_function_arity())
+    }
+
+    pub fn place_frame(&self, frame: Frame, placement: Placement) {
+        match placement {
+            Placement::Replace => self.replace_frame(frame),
+            Placement::Push => self.push_frame(frame),
+        }
     }
 
     pub fn push_frame(&self, frame: Frame) {

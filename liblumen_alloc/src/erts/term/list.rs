@@ -1,7 +1,7 @@
 use core::alloc::Layout;
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
-use core::fmt::{self, Debug};
+use core::fmt::{self, Debug, Display, Write};
 use core::iter::FusedIterator;
 use core::mem;
 use core::ptr;
@@ -145,11 +145,49 @@ unsafe impl AsTerm for Cons {
         Term::make_list(self as *const Self)
     }
 }
+
 impl Debug for Cons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{:?} | {:?}]", self.head, self.tail)
+        f.write_char('[')?;
+
+        let mut iter = self.into_iter();
+
+        if let Some(first_result) = iter.next() {
+            write!(f, "{:?}", first_result.unwrap())?;
+
+            for result in iter.next() {
+                match result {
+                    Ok(element) => write!(f, ", {:?}", element)?,
+                    Err(ImproperList { tail }) => write!(f, " | {:?}", tail)?,
+                }
+            }
+        }
+
+        f.write_char(']')
     }
 }
+
+impl Display for Cons {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char('[')?;
+
+        let mut iter = self.into_iter();
+
+        if let Some(first_result) = iter.next() {
+            write!(f, "{}", first_result.unwrap())?;
+
+            for result in iter.next() {
+                match result {
+                    Ok(element) => write!(f, ", {}", element)?,
+                    Err(ImproperList { tail }) => write!(f, " | {}", tail)?,
+                }
+            }
+        }
+
+        f.write_char(']')
+    }
+}
+
 impl Eq for Cons {}
 impl Ord for Cons {
     fn cmp(&self, other: &Cons) -> cmp::Ordering {

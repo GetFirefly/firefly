@@ -39,7 +39,7 @@ pub fn make_erlang() -> NativeModule {
         };
 
         let inner_args = proc.cons(ret, proc.cons(ret, args[2]).unwrap()).unwrap();
-        Ok(erlang::spawn_3(args[0], args[1], inner_args, proc).unwrap())
+        Ok(erlang::spawn_3::native(proc, args[0], args[1], inner_args).unwrap())
     });
 
     native.add_simple(Atom::try_from_str("send").unwrap(), 2, |proc, args| {
@@ -49,12 +49,12 @@ pub fn make_erlang() -> NativeModule {
 
     native.add_simple(Atom::try_from_str("-").unwrap(), 2, |proc, args| {
         assert!(args.len() == 2);
-        Ok(erlang::subtract_2(args[0], args[1], proc).unwrap())
+        Ok(erlang::subtract_2::native(proc, args[0], args[1]).unwrap())
     });
 
     native.add_simple(Atom::try_from_str("+").unwrap(), 2, |proc, args| {
         assert!(args.len() == 2);
-        Ok(erlang::add_2(args[0], args[1], proc).unwrap())
+        Ok(erlang::add_2::native(proc, args[0], args[1]).unwrap())
     });
 
     native.add_simple(Atom::try_from_str("self").unwrap(), 0, |proc, args| {
@@ -76,7 +76,7 @@ pub fn make_erlang() -> NativeModule {
         0,
         |proc, args| {
             assert!(args.len() == 0);
-            Ok(erlang::monotonic_time_0(proc).unwrap())
+            Ok(erlang::monotonic_time_0::native(proc).unwrap())
         },
     );
 

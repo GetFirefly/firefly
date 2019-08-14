@@ -1,7 +1,7 @@
 use core::alloc::Layout;
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
-use core::fmt;
+use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::mem;
@@ -229,11 +229,42 @@ impl CloneToProcess for Tuple {
     }
 }
 
+impl Debug for Tuple {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut debug_tuple = f.debug_tuple("Tuple");
+        let mut debug_tuple_ref = &mut debug_tuple;
+
+        for element in self.iter() {
+            debug_tuple_ref = debug_tuple_ref.field(&element);
+        }
+
+        debug_tuple_ref.finish()
+    }
+}
+
 impl Deref for Tuple {
     type Target = [Term];
 
     fn deref(&self) -> &[Term] {
         unsafe { core::slice::from_raw_parts(self.head(), self.len()) }
+    }
+}
+
+impl Display for Tuple {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_char('{')?;
+
+        let mut iter = self.iter();
+
+        if let Some(first_element) = iter.next() {
+            write!(f, "{}", first_element)?;
+
+            for element in iter {
+                write!(f, ", {}", element)?;
+            }
+        }
+
+        f.write_char('}')
     }
 }
 
@@ -259,18 +290,6 @@ impl PartialOrd for Tuple {
             Ordering::Greater => return Some(Ordering::Greater),
             Ordering::Equal => self.iter().partial_cmp(other.iter()),
         }
-    }
-}
-impl fmt::Debug for Tuple {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut debug_tuple = f.debug_tuple("Tuple");
-        let mut debug_tuple_ref = &mut debug_tuple;
-
-        for element in self.iter() {
-            debug_tuple_ref = debug_tuple_ref.field(&element);
-        }
-
-        debug_tuple_ref.finish()
     }
 }
 

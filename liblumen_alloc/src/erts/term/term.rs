@@ -2,7 +2,7 @@
 
 use core::cmp;
 use core::convert::TryInto;
-use core::fmt;
+use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ptr;
 
@@ -11,6 +11,8 @@ use alloc::string::String;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
+use crate::erts::term::binary::aligned_binary::AlignedBinary;
+use crate::erts::term::resource;
 use crate::erts::term::InvalidTermError;
 use crate::erts::ProcessControlBlock;
 
@@ -99,7 +101,7 @@ mod constants {
     pub const FLAG_CLOSURE: usize = (5 << HEADER_TAG_SHIFT) | FLAG_HEADER;
     pub const FLAG_FLOAT: usize = (6 << HEADER_TAG_SHIFT) | FLAG_HEADER;
     /// EXPORT in BEAM
-    pub const FLAG_UNUSED_3: usize = (7 << HEADER_TAG_SHIFT) | FLAG_HEADER;
+    pub const FLAG_RESOURCE_REFERENCE: usize = (7 << HEADER_TAG_SHIFT) | FLAG_HEADER;
     pub const FLAG_PROCBIN: usize = (8 << HEADER_TAG_SHIFT) | FLAG_HEADER;
     pub const FLAG_HEAPBIN: usize = (9 << HEADER_TAG_SHIFT) | FLAG_HEADER;
     pub const FLAG_SUBBINARY: usize = (10 << HEADER_TAG_SHIFT) | FLAG_HEADER;
@@ -294,7 +296,7 @@ mod constants {
     pub const FLAG_CLOSURE: usize = (5 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0101_00
     pub const FLAG_FLOAT: usize = (6 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0110_00
     /// EXPORT in BEAM
-    pub const FLAG_UNUSED_3: usize = (7 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0111_00
+    pub const FLAG_RESOURCE_REFERENCE: usize = (7 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0111_00
     pub const FLAG_PROCBIN: usize = (8 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1000_00
     pub const FLAG_HEAPBIN: usize = (9 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1001_00
     pub const FLAG_SUBBINARY: usize = (10 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1010_00
@@ -477,6 +479,10 @@ mod typecheck {
         is_integer(term) || is_float(term)
     }
 
+    pub const fn is_function(term: usize) -> bool {
+        constants::header_tag(term) == constants::FLAG_CLOSURE
+    }
+
     /// Returns true if this term is a tuple
     #[inline]
     pub const fn is_tuple(term: usize) -> bool {
@@ -541,6 +547,10 @@ mod typecheck {
     #[inline]
     pub const fn is_remote_reference(term: usize) -> bool {
         constants::header_tag(term) == constants::FLAG_EXTERN_REF
+    }
+
+    pub const fn is_resource_reference(term: usize) -> bool {
+        constants::header_tag(term) == constants::FLAG_RESOURCE_REFERENCE
     }
 
     /// Returns true if this term is a bitstring
@@ -677,7 +687,7 @@ impl Term {
     pub const FLAG_REFERENCE: usize = constants::FLAG_REFERENCE;
     pub const FLAG_CLOSURE: usize = constants::FLAG_CLOSURE;
     pub const FLAG_FLOAT: usize = constants::FLAG_FLOAT;
-    pub const FLAG_UNUSED_3: usize = constants::FLAG_UNUSED_3;
+    pub const FLAG_RESOURCE_REFERENCE: usize = constants::FLAG_RESOURCE_REFERENCE;
     pub const FLAG_PROCBIN: usize = constants::FLAG_PROCBIN;
     pub const FLAG_HEAPBIN: usize = constants::FLAG_HEAPBIN;
     pub const FLAG_SUBBINARY: usize = constants::FLAG_SUBBINARY;
@@ -791,53 +801,56 @@ impl Term {
         if self.is_boxed() {
             let boxed_ptr = self.boxed_val();
             let boxed = unsafe { *boxed_ptr };
+
             // Do not follow moves
             if is_move_marker(boxed) {
-                return;
-            }
+                ()
             // Ensure ref-counted binaries are released properly
-            if boxed.is_procbin() {
+            } else if boxed.is_procbin() {
                 unsafe { ptr::drop_in_place(boxed_ptr as *mut ProcBin) };
-                return;
-            }
+            // Ensure ref-counted resources are released properly
+            } else if boxed.is_resource_reference_header() {
+                unsafe { ptr::drop_in_place(boxed_ptr as *mut resource::Reference) };
             // Ensure we walk tuples and release all their elements
-            if boxed.is_tuple_header() {
+            } else if boxed.is_tuple_header() {
                 let tuple = unsafe { &*(boxed_ptr as *mut Tuple) };
+
                 for element in tuple.iter() {
                     element.release();
                 }
-                return;
             }
-            return;
-        }
         // Ensure we walk lists and release all their elements
-        if self.is_non_empty_list() {
+        } else if self.is_non_empty_list() {
             let cons_ptr = self.list_val();
             let mut cons = unsafe { *cons_ptr };
+
             loop {
                 // Do not follow moves
                 if cons.is_move_marker() {
-                    return;
-                }
+                    break;
                 // If we reached the end of the list, we're done
-                if cons.head.is_nil() {
-                    return;
-                }
+                } else if cons.head.is_nil() {
+                    break;
                 // Otherwise release the head term
-                cons.head.release();
+                } else {
+                    cons.head.release();
+                }
+
                 // This is more of a sanity check, as the head will be nil for EOL
                 if cons.tail.is_nil() {
-                    return;
-                }
+                    break;
                 // If the tail is proper, move into the cell it represents
-                if cons.tail.is_non_empty_list() {
+                } else if cons.tail.is_non_empty_list() {
                     let tail_ptr = cons.tail.list_val();
                     cons = unsafe { *tail_ptr };
+
                     continue;
-                }
                 // Otherwise if the tail is improper, release it, and we're done
-                cons.tail.release();
-                return;
+                } else {
+                    cons.tail.release();
+                }
+
+                break;
             }
         }
     }
@@ -879,6 +892,20 @@ impl Term {
     /// Returns `false` if `self` and `other` are equal without converting integers and floats.
     pub fn exactly_ne(self, other: &Term) -> bool {
         !self.exactly_eq(other)
+    }
+
+    pub fn is_function(&self) -> bool {
+        let tagged = self.0;
+
+        typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
+            let ptr = constants::boxed_value(tagged);
+
+            unsafe { &*ptr }.is_function_header()
+        }
+    }
+
+    pub fn is_function_header(&self) -> bool {
+        typecheck::is_function(self.0)
     }
 
     /// Returns true if this term is the none value
@@ -1092,7 +1119,9 @@ impl Term {
             let ptr = constants::boxed_value(tagged);
             let term = unsafe { &*ptr };
 
-            term.is_local_reference_header() || term.is_remote_reference_header()
+            term.is_local_reference_header()
+                || term.is_remote_reference_header()
+                || term.is_resource_reference_header()
         }
     }
 
@@ -1110,7 +1139,7 @@ impl Term {
         typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
             let ptr = constants::boxed_value(tagged);
 
-            unsafe { *ptr }.is_local_reference_header()
+            unsafe { &*ptr }.is_local_reference_header()
         }
     }
 
@@ -1124,6 +1153,20 @@ impl Term {
     #[inline]
     pub fn is_remote_reference_header(&self) -> bool {
         typecheck::is_remote_reference(self.0)
+    }
+
+    pub fn is_resource_reference(&self) -> bool {
+        let tagged = self.0;
+
+        typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
+            let ptr = constants::boxed_value(tagged);
+
+            unsafe { &*ptr }.is_resource_reference_header()
+        }
+    }
+
+    pub fn is_resource_reference_header(&self) -> bool {
+        typecheck::is_resource_reference(self.0)
     }
 
     /// Returns true if this term is a reference-counted binary
@@ -1337,7 +1380,9 @@ impl Term {
             Self::FLAG_REFERENCE => TypedTerm::Reference(Boxed::from_raw(ptr as *mut Reference)), /* RefThing in erl_term.h */
             Self::FLAG_CLOSURE => TypedTerm::Closure(Boxed::from_raw(ptr as *mut Closure)), /* ErlFunThing in erl_fun.h */
             Self::FLAG_FLOAT => TypedTerm::Float(Float::from_raw(ptr as *mut Float)),
-            Self::FLAG_UNUSED_3 => return Err(InvalidTermError::InvalidTag),
+            Self::FLAG_RESOURCE_REFERENCE => TypedTerm::ResourceReference(
+                resource::Reference::from_raw(ptr as *mut resource::Reference),
+            ),
             Self::FLAG_PROCBIN => TypedTerm::ProcBin(ProcBin::from_raw(ptr as *mut ProcBin)),
             Self::FLAG_HEAPBIN => TypedTerm::HeapBinary(Boxed::from_raw(ptr as *mut HeapBin)),
             Self::FLAG_SUBBINARY => {
@@ -1368,7 +1413,8 @@ unsafe impl AsTerm for Term {
         *self
     }
 }
-impl fmt::Debug for Term {
+
+impl Debug for Term {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.is_boxed() {
             let ptr = self.boxed_val();
@@ -1461,6 +1507,9 @@ impl fmt::Debug for Term {
                 } else if self.is_map_header() {
                     let val = &*(ptr as *const Map);
                     write!(f, "Term({:?})", val)
+                } else if self.is_resource_reference_header() {
+                    let val = &*(ptr as *const resource::Reference);
+                    write!(f, "Term({:?})", val)
                 } else {
                     write!(f, "Term(UnknownHeader({:#x}))", self.0)
                 }
@@ -1470,6 +1519,13 @@ impl fmt::Debug for Term {
         }
     }
 }
+
+impl Display for Term {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.to_typed_term().unwrap())
+    }
+}
+
 impl From<bool> for Term {
     fn from(b: bool) -> Term {
         atom_unchecked(&b.to_string())

@@ -50,6 +50,8 @@ pub mod system;
 // `pub` for `examples/spawn-chain`
 mod term;
 // `pub` to allow `time::monotonic::set_source(callback)`
+#[cfg(test)]
+mod test;
 pub mod time;
 // Public so that external code can all `timer::expire` to expire timers
 mod timer;

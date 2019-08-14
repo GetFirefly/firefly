@@ -1,6 +1,6 @@
 use core::alloc::Layout;
 use core::cmp;
-use core::fmt::{self, Debug};
+use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
@@ -79,6 +79,11 @@ impl Debug for Reference {
             .finish()
     }
 }
+impl Display for Reference {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "#Reference<0.{}.{}>", self.scheduler_id, self.number)
+    }
+}
 impl Hash for Reference {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.scheduler_id.hash(state);
@@ -117,70 +122,22 @@ pub struct ExternalReference {
     next: *mut u8,
     reference: Reference,
 }
+
 unsafe impl AsTerm for ExternalReference {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::make_boxed(self)
     }
 }
+
 impl CloneToProcess for ExternalReference {
     #[inline]
     fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, Alloc> {
         unimplemented!()
     }
 }
-impl Hash for ExternalReference {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.node.hash(state);
-        self.reference.hash(state);
-    }
-}
-impl PartialEq<Reference> for ExternalReference {
-    fn eq(&self, _other: &Reference) -> bool {
-        false
-    }
-}
-impl PartialEq<Reference> for Boxed<ExternalReference> {
-    fn eq(&self, other: &Reference) -> bool {
-        self.as_ref().eq(other)
-    }
-}
-impl PartialEq<Boxed<Reference>> for Boxed<ExternalReference> {
-    fn eq(&self, other: &Boxed<Reference>) -> bool {
-        self.as_ref().eq(other.as_ref())
-    }
-}
-impl PartialEq<ExternalReference> for ExternalReference {
-    fn eq(&self, other: &ExternalReference) -> bool {
-        self.node == other.node && self.reference == other.reference
-    }
-}
-impl PartialOrd<Reference> for ExternalReference {
-    #[inline]
-    fn partial_cmp(&self, _other: &Reference) -> Option<cmp::Ordering> {
-        Some(cmp::Ordering::Greater)
-    }
-}
-impl PartialOrd<Reference> for Boxed<ExternalReference> {
-    fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
-        self.as_ref().partial_cmp(other)
-    }
-}
-impl PartialOrd<Boxed<Reference>> for Boxed<ExternalReference> {
-    fn partial_cmp(&self, other: &Boxed<Reference>) -> Option<cmp::Ordering> {
-        self.as_ref().partial_cmp(other.as_ref())
-    }
-}
-impl PartialOrd<ExternalReference> for ExternalReference {
-    fn partial_cmp(&self, other: &ExternalReference) -> Option<cmp::Ordering> {
-        use cmp::Ordering;
-        match self.node.partial_cmp(&other.node) {
-            Some(Ordering::Equal) => self.reference.partial_cmp(&other.reference),
-            result => result,
-        }
-    }
-}
-impl fmt::Debug for ExternalReference {
+
+impl Debug for ExternalReference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ExternalReference")
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))
@@ -188,5 +145,71 @@ impl fmt::Debug for ExternalReference {
             .field("next", &self.next)
             .field("reference", &self.reference)
             .finish()
+    }
+}
+
+impl Display for ExternalReference {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        unimplemented!()
+    }
+}
+
+impl Hash for ExternalReference {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.node.hash(state);
+        self.reference.hash(state);
+    }
+}
+
+impl PartialEq<Reference> for ExternalReference {
+    fn eq(&self, _other: &Reference) -> bool {
+        false
+    }
+}
+
+impl PartialEq<Reference> for Boxed<ExternalReference> {
+    fn eq(&self, other: &Reference) -> bool {
+        self.as_ref().eq(other)
+    }
+}
+
+impl PartialEq<Boxed<Reference>> for Boxed<ExternalReference> {
+    fn eq(&self, other: &Boxed<Reference>) -> bool {
+        self.as_ref().eq(other.as_ref())
+    }
+}
+
+impl PartialEq<ExternalReference> for ExternalReference {
+    fn eq(&self, other: &ExternalReference) -> bool {
+        self.node == other.node && self.reference == other.reference
+    }
+}
+
+impl PartialOrd<Reference> for ExternalReference {
+    #[inline]
+    fn partial_cmp(&self, _other: &Reference) -> Option<cmp::Ordering> {
+        Some(cmp::Ordering::Greater)
+    }
+}
+
+impl PartialOrd<Reference> for Boxed<ExternalReference> {
+    fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
+        self.as_ref().partial_cmp(other)
+    }
+}
+
+impl PartialOrd<Boxed<Reference>> for Boxed<ExternalReference> {
+    fn partial_cmp(&self, other: &Boxed<Reference>) -> Option<cmp::Ordering> {
+        self.as_ref().partial_cmp(other.as_ref())
+    }
+}
+
+impl PartialOrd<ExternalReference> for ExternalReference {
+    fn partial_cmp(&self, other: &ExternalReference) -> Option<cmp::Ordering> {
+        use cmp::Ordering;
+        match self.node.partial_cmp(&other.node) {
+            Some(Ordering::Equal) => self.reference.partial_cmp(&other.reference),
+            result => result,
+        }
     }
 }

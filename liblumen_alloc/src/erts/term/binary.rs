@@ -1,14 +1,17 @@
+pub mod aligned_binary;
 mod heap;
 mod match_context;
+pub mod maybe_aligned_maybe_binary;
 mod process;
 mod sub;
 
-use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 use core::slice;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::term::binary::aligned_binary::AlignedBinary;
+use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
 use crate::mem::bit_size_of;
 
 use super::*;
@@ -66,67 +69,6 @@ pub trait Bitstring {
     fn full_byte_len(&self) -> usize;
 }
 
-/// A `BitString` that is guaranteed to always be a binary of aligned bytes
-pub trait AlignedBinary {
-    fn as_bytes(&self) -> &[u8];
-}
-
-// Has to have explicit types to prevent E0119: conflicting implementations of trait
-macro_rules! hash_aligned_binary {
-    ($t:ty) => {
-        impl Hash for $t {
-            fn hash<H: Hasher>(&self, state: &mut H) {
-                self.as_bytes().hash(state)
-            }
-        }
-    };
-}
-
-hash_aligned_binary!(HeapBin);
-hash_aligned_binary!(ProcBin);
-
-// Has to have explicit types to prevent E0119: conflicting implementations of trait
-macro_rules! partial_eq_aligned_binary_aligned_binary {
-    ($o:tt for $s:tt) => {
-        impl PartialEq<$o> for $s {
-            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-            fn eq(&self, other: &$o) -> bool {
-                self.as_bytes().eq(other.as_bytes())
-            }
-        }
-    };
-}
-
-partial_eq_aligned_binary_aligned_binary!(HeapBin for HeapBin);
-// No (ProcBin for HeapBin) as we always reverse order to save space
-partial_eq_aligned_binary_aligned_binary!(HeapBin for ProcBin);
-partial_eq_aligned_binary_aligned_binary!(ProcBin for ProcBin);
-
-// Has to have explicit types to prevent E0119: conflicting implementations of trait
-macro_rules! ord_aligned_binary {
-    ( $s:tt) => {
-        impl Ord for $s {
-            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-            fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-                self.as_bytes().cmp(other.as_bytes())
-            }
-        }
-
-        impl PartialOrd for $s {
-            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-            fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-    };
-}
-
-ord_aligned_binary!(HeapBin);
-ord_aligned_binary!(ProcBin);
-
 pub trait ByteIterator<'a>: ExactSizeIterator + DoubleEndedIterator + Iterator<Item = u8>
 where
     Self: Sized,
@@ -160,38 +102,6 @@ impl<'a, A: AlignedBinary> IterableBitstring<'a, core::iter::Copied<core::slice:
         self.as_bytes().iter().copied()
     }
 }
-
-pub trait MaybeAlignedMaybeBinary {
-    type Iter: Iterator<Item = u8>;
-
-    unsafe fn as_bytes(&self) -> &[u8];
-
-    fn is_aligned(&self) -> bool;
-
-    fn is_binary(&self) -> bool;
-
-    fn partial_byte_bit_iter(&self) -> Self::Iter;
-}
-
-// Has to have explicit types to prevent E0119: conflicting implementations of trait
-macro_rules! hash_maybe_aligned_maybe_binary {
-    ($t:ty) => {
-        impl Hash for $t {
-            fn hash<H: Hasher>(&self, state: &mut H) {
-                for byte in self.full_byte_iter() {
-                    byte.hash(state);
-                }
-
-                for bit in self.partial_byte_bit_iter() {
-                    bit.hash(state);
-                }
-            }
-        }
-    };
-}
-
-hash_maybe_aligned_maybe_binary!(MatchContext);
-hash_maybe_aligned_maybe_binary!(SubBinary);
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait
 macro_rules! partial_eq_aligned_binary_maybe_aligned_maybe_binary {
@@ -276,79 +186,6 @@ partial_ord_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for MatchContext)
 partial_ord_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for MatchContext);
 partial_ord_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for SubBinary);
 partial_ord_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for SubBinary);
-
-// Has to have explicit types to prevent E0119: conflicting implementations of trait
-macro_rules! partial_eq_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary {
-    ($o:tt for $s:ty) => {
-        impl PartialEq<$o> for $s {
-            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-            fn eq(&self, other: &$o) -> bool {
-                if self.is_binary() && other.is_binary() {
-                    if self.is_aligned() && other.is_aligned() {
-                        unsafe { self.as_bytes().eq(other.as_bytes()) }
-                    } else {
-                        self.full_byte_iter().eq(other.full_byte_iter())
-                    }
-                } else {
-                    let bytes_equal = if self.is_aligned() && other.is_aligned() {
-                        unsafe { self.as_bytes().eq(other.as_bytes()) }
-                    } else {
-                        self.full_byte_iter().eq(other.full_byte_iter())
-                    };
-
-                    bytes_equal || {
-                        self.partial_byte_bit_iter()
-                            .eq(other.partial_byte_bit_iter())
-                    }
-                }
-            }
-        }
-    };
-}
-
-partial_eq_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(SubBinary for SubBinary);
-partial_eq_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(MatchContext for SubBinary);
-partial_eq_maybe_aligned_maybe_binary_maybe_aligned_maybe_binary!(MatchContext for MatchContext);
-
-// Has to have explicit types to prevent E0119: conflicting implementations of trait
-macro_rules! ord_maybe_aligned_maybe_binary {
-    ($t:ty) => {
-        impl Ord for $t {
-            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-            fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-                if self.is_binary() && other.is_binary() {
-                    if self.is_aligned() && other.is_aligned() {
-                        unsafe { self.as_bytes().cmp(other.as_bytes()) }
-                    } else {
-                        self.full_byte_iter().cmp(other.full_byte_iter())
-                    }
-                } else {
-                    let bytes_ordering = if self.is_aligned() && other.is_aligned() {
-                        unsafe { self.as_bytes().cmp(other.as_bytes()) }
-                    } else {
-                        self.full_byte_iter().cmp(other.full_byte_iter())
-                    };
-
-                    bytes_ordering.then_with(|| {
-                        self.partial_byte_bit_iter()
-                            .cmp(other.partial_byte_bit_iter())
-                    })
-                }
-            }
-        }
-
-        impl PartialOrd for $t {
-            fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-    };
-}
-
-ord_maybe_aligned_maybe_binary!(SubBinary);
-ord_maybe_aligned_maybe_binary!(MatchContext);
 
 const FLAG_SHIFT: usize = bit_size_of::<usize>() - 2;
 const FLAG_IS_RAW_BIN: usize = 1 << FLAG_SHIFT;

@@ -1,11 +1,7 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::VMState;
-
-use libeir_intern::Symbol;
-use libeir_ir::{Function, FunctionIdent, LiveValues, Module};
+use libeir_ir::{Function, LiveValues, Module};
 
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::ProcessControlBlock;
@@ -79,11 +75,6 @@ impl ModuleRegistry {
             }
         }
     }
-}
-
-pub enum NativeReturn {
-    Return { term: Rc<Term> },
-    Throw { typ: Rc<Term>, reason: Rc<Term> },
 }
 
 #[derive(Copy, Clone)]

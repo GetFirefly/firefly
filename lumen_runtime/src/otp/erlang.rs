@@ -1,5 +1,22 @@
 //! Mirrors [erlang](http://erlang::org/doc/man/erlang::html) module
 
+pub mod add_2;
+pub mod apply_3;
+pub mod convert_time_unit_3;
+pub mod monotonic_time_0;
+pub mod number_or_badarith_1;
+pub mod self_0;
+pub mod send_2;
+pub mod spawn_3;
+pub mod subtract_2;
+
+// wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
+// use proptest completely for wasm32
+//
+// See https://github.com/rust-lang/cargo/issues/4866
+#[cfg(all(not(target_arch = "wasm32"), test))]
+mod tests;
+
 use core::cmp::Ordering;
 use core::convert::TryInto;
 use core::num::FpCategory;
@@ -13,41 +30,28 @@ use liblumen_core::locks::MutexGuard;
 
 use liblumen_alloc::erts::exception::runtime::Class;
 use liblumen_alloc::erts::exception::{Exception, Result};
-use liblumen_alloc::erts::term::binary::{
-    AlignedBinary, Bitstring, IterableBitstring, MaybeAlignedMaybeBinary, MaybePartialByte,
-};
+use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
+use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
+use liblumen_alloc::erts::term::binary::{Bitstring, IterableBitstring, MaybePartialByte};
 use liblumen_alloc::erts::term::{
     atom_unchecked, AsTerm, Atom, Boxed, Cons, Encoding, Float, ImproperList, Map, SmallInteger,
     Term, Tuple, TypedTerm,
 };
 use liblumen_alloc::erts::ProcessControlBlock;
-use liblumen_alloc::{badarg, badarith, badkey, badmap, default_heap, error, exit, raise, throw};
+use liblumen_alloc::{badarg, badarith, badkey, badmap, error, exit, raise, throw};
 
 use crate::binary::{start_length_to_part_range, PartRange, ToTermOptions};
-use crate::code;
 use crate::node;
 use crate::otp;
 use crate::process::SchedulerDependentAlloc;
 use crate::registry::{self, pid_to_self_or_process};
-use crate::scheduler::Scheduler;
 use crate::send::{self, send, Sent};
 use crate::stacktrace;
-use crate::time::{
-    self,
-    monotonic::{self, Milliseconds},
-    Unit::*,
-};
+use crate::time::monotonic::{self, Milliseconds};
 use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-// wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
-// use proptest completely for wasm32
-//
-// See https://github.com/rust-lang/cargo/issues/4866
-#[cfg(all(not(target_arch = "wasm32"), test))]
-mod tests;
 
 pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Result {
     let option_abs = match number.to_typed_term().unwrap() {
@@ -101,11 +105,6 @@ pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Resul
         Some(abs) => Ok(abs),
         None => Err(badarg!().into()),
     }
-}
-
-/// `+/2` infix operator
-pub fn add_2(augend: Term, addend: Term, process_control_block: &ProcessControlBlock) -> Result {
-    number_infix_operator!(augend, addend, process_control_block, checked_add, +)
 }
 
 /// `and/2` infix operator.
@@ -735,21 +734,6 @@ pub fn concatenate_2(
     }
 }
 
-pub fn convert_time_unit_3(
-    time: Term,
-    from_unit: Term,
-    to_unit: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    let time_big_int: BigInt = time.try_into()?;
-    let from_unit_unit: crate::time::Unit = from_unit.try_into()?;
-    let to_unit_unit: crate::time::Unit = to_unit.try_into()?;
-    let converted_big_int = time::convert(time_big_int, from_unit_unit, to_unit_unit);
-    let converted_term = process_control_block.integer(converted_big_int)?;
-
-    Ok(converted_term)
-}
-
 pub fn delete_element_2(
     index: Term,
     tuple: Term,
@@ -1262,10 +1246,8 @@ pub fn min_2(term1: Term, term2: Term) -> Term {
     term1.min(term2)
 }
 
-pub fn monotonic_time_0(process_control_block: &ProcessControlBlock) -> Result {
-    let big_int = monotonic::time(Native);
-
-    Ok(process_control_block.integer(big_int)?)
+pub fn module() -> Atom {
+    Atom::try_from_str("erlang").unwrap()
 }
 
 pub fn monotonic_time_1(unit: Term, process_control_block: &ProcessControlBlock) -> Result {
@@ -1331,15 +1313,6 @@ pub fn not_1(boolean: Term) -> Result {
     let output = !boolean_bool;
 
     Ok(output.into())
-}
-
-/// `+/1` prefix operator.
-pub fn number_or_badarith_1(term: Term) -> Result {
-    if term.is_number() {
-        Ok(term)
-    } else {
-        Err(badarith!().into())
-    }
 }
 
 /// `or/2` infix operator.
@@ -1410,10 +1383,6 @@ pub fn registered_0(process_control_block: &ProcessControlBlock) -> Result {
 /// `rem/2` infix operator.  Integer remainder.
 pub fn rem_2(dividend: Term, divisor: Term, process_control_block: &ProcessControlBlock) -> Result {
     integer_infix_operator!(dividend, divisor, process_control_block, %)
-}
-
-pub fn self_0(process_control_block: &ProcessControlBlock) -> Term {
-    unsafe { process_control_block.pid().as_term() }
 }
 
 pub fn send_2(
@@ -1535,57 +1504,6 @@ pub fn size_1(binary_or_tuple: Term, process_control_block: &ProcessControlBlock
 
     match option_size {
         Some(size) => Ok(process_control_block.integer(size)?),
-        None => Err(badarg!().into()),
-    }
-}
-
-pub fn spawn_3(
-    module: Term,
-    function: Term,
-    arguments: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    let module_atom: Atom = module.try_into()?;
-    let function_atom: Atom = function.try_into()?;
-
-    let option_pid = match arguments.to_typed_term().unwrap() {
-        TypedTerm::Nil => {
-            let (heap, heap_size) = default_heap()?;
-            let arc_process = Scheduler::spawn(
-                process_control_block,
-                module_atom,
-                function_atom,
-                arguments,
-                code::apply_fn(),
-                heap,
-                heap_size,
-            )?;
-
-            Some(arc_process.pid())
-        }
-        TypedTerm::List(cons) => {
-            if cons.is_proper() {
-                let (heap, heap_size) = default_heap()?;
-                let arc_process = Scheduler::spawn(
-                    process_control_block,
-                    module_atom,
-                    function_atom,
-                    arguments,
-                    code::apply_fn(),
-                    heap,
-                    heap_size,
-                )?;
-
-                Some(arc_process.pid())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    };
-
-    match option_pid {
-        Some(pid) => Ok(unsafe { pid.as_term() }),
         None => Err(badarg!().into()),
     }
 }
@@ -1747,15 +1665,6 @@ pub fn start_timer_4(
         timer_start_options,
         arc_process_control_block,
     )
-}
-
-/// `-/2` infix operator
-pub fn subtract_2(
-    minuend: Term,
-    subtrahend: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    number_infix_operator!(minuend, subtrahend, process_control_block, checked_sub, -)
 }
 
 pub fn subtract_list_2(

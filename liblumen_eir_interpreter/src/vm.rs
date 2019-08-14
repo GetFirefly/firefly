@@ -1,20 +1,15 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
-use libeir_intern::Symbol;
-use libeir_ir::{FunctionIdent, Module};
+use libeir_ir::FunctionIdent;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
-use lumen_runtime::code::apply_fn;
-use lumen_runtime::registry;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
 
-use super::module::{ErlangModule, ModuleRegistry, ModuleType, NativeModule};
+use super::module::ModuleRegistry;
 
 pub struct VMState {
     pub modules: RwLock<ModuleRegistry>,
@@ -23,16 +18,7 @@ pub struct VMState {
 
 impl VMState {
     pub fn new() -> Self {
-        lumen_runtime::code::set_apply_fn(crate::code::apply);
-
-        let arc_scheduler = Scheduler::current();
-        let init_arc_scheduler = Arc::clone(&arc_scheduler);
-        let init_arc_process = init_arc_scheduler.spawn_init(0).unwrap();
-        let init_atom = Atom::try_from_str("init").unwrap();
-
-        if !registry::put_atom_to_process(init_atom, init_arc_process) {
-            panic!("Could not register init process");
-        };
+        lumen_runtime::otp::erlang::apply_3::set_code(crate::code::apply);
 
         let mut modules = ModuleRegistry::new();
         modules.register_native_module(crate::native::make_erlang());
@@ -48,8 +34,8 @@ impl VMState {
         fun: &FunctionIdent,
         args: &[Term],
     ) -> Result<Rc<Term>, (Rc<Term>, Rc<Term>, Rc<Term>)> {
-        let init_atom = Atom::try_from_str("init").unwrap();
-        let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
+        let arc_scheduler = Scheduler::current();
+        let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
         let module = Atom::try_from_str(&fun.module.as_str()).unwrap();
         let function = Atom::try_from_str(&fun.name.as_str()).unwrap();
@@ -62,15 +48,14 @@ impl VMState {
         // if this fails the entire tab is out-of-memory
         let heap = heap(heap_size).unwrap();
 
-        let run_arc_process = Scheduler::spawn(
+        let run_arc_process = Scheduler::spawn_apply_3(
             &init_arc_process,
             module,
             function,
             arguments,
-            apply_fn(),
             heap,
             heap_size)
-        // if this fails, don't use `default_heap` and instead use a bigger sized heap
+            // if this fails  a bigger sized heap
             .unwrap();
 
         loop {

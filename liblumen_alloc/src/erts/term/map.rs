@@ -1,6 +1,6 @@
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
-use core::fmt::{self, Debug};
+use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
@@ -100,6 +100,12 @@ impl Debug for Map {
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))
             .field("value", &self.value)
             .finish()
+    }
+}
+
+impl Display for Map {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.value)
     }
 }
 

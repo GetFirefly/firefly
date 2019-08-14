@@ -35,3 +35,8 @@ impl Debug for Frame {
             .finish()
     }
 }
+
+pub enum Placement {
+    Replace,
+    Push,
+}

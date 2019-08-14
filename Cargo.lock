@@ -974,6 +974,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lumen_web"
+version = "0.1.0"
+dependencies = [
+ "liblumen_alloc 0.1.0",
+ "lumen_runtime 0.1.0",
+ "web-sys 0.3.25 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "matches"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1724,6 +1733,7 @@ dependencies = [
  "console_error_panic_hook 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_alloc 0.1.0",
  "lumen_runtime 0.1.0",
+ "lumen_web 0.1.0",
  "num-bigint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot_core 0.6.2 (git+https://github.com/KronicDeth/parking_lot.git?branch=wasm32-time_web_sys)",
  "time-test 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",

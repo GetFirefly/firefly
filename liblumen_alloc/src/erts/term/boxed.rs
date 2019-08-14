@@ -1,4 +1,5 @@
 use core::cmp;
+use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
@@ -96,6 +97,11 @@ impl<T: AsTerm> DerefMut for Boxed<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
         self.as_mut()
+    }
+}
+impl<T: Display + AsTerm> Display for Boxed<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.as_ref())
     }
 }
 impl<T: Hash + AsTerm> Hash for Boxed<T> {

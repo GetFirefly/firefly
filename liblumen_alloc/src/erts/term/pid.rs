@@ -1,7 +1,7 @@
 use core::cmp;
 use core::convert::{TryFrom, TryInto};
 use core::default::Default;
-use core::fmt;
+use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
 use core::ptr;
 
@@ -77,6 +77,13 @@ unsafe impl AsTerm for Pid {
         Term::make_pid(self.0)
     }
 }
+
+impl Display for Pid {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "#PID<0.{}.{}>", self.number(), self.serial())
+    }
+}
+
 impl PartialEq<ExternalPid> for Pid {
     #[inline]
     fn eq(&self, _other: &ExternalPid) -> bool {
@@ -135,6 +142,12 @@ impl CloneToProcess for ExternalPid {
 
             Ok(Term::make_boxed(ptr))
         }
+    }
+}
+
+impl Display for ExternalPid {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
+        unimplemented!()
     }
 }
 

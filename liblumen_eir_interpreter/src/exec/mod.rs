@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use cranelift_entity::EntityRef;
@@ -11,25 +10,13 @@ use libeir_ir::{Block, OpKind, PrimOpKind, Value, ValueKind};
 use liblumen_alloc::erts::exception::system;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::module::{ErlangFunction, NativeFunctionKind, ResolvedFunction};
 use crate::vm::VMState;
 
 mod r#match;
-
-#[derive(Debug)]
-pub struct TermCall {
-    pub fun: Rc<Term>,
-    pub args: Vec<Rc<Term>>,
-}
-
-pub enum Continuation {
-    Term(TermCall),
-    ReturnOk(Rc<Term>),
-    ReturnThrow(Rc<Term>, Rc<Term>, Rc<Term>),
-}
 
 pub struct CallExecutor {
     binds: HashMap<Value, Term>,
@@ -116,21 +103,19 @@ impl CallExecutor {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Closure(closure) => {
                     //assert!(closure.env_hack.len() != 1);
-                    if closure.env_hack.len() > 0 {
-                        let env_list = proc
-                            .list_from_iter(closure.env_hack.iter().skip(1).cloned())
-                            .unwrap();
+                    if closure.env.len() > 0 {
+                        let env_list = proc.list_from_slice(&closure.env[1..]).unwrap();
                         proc.stack_push(env_list)?;
 
-                        let block_id = closure.env_hack[0];
+                        let block_id = closure.env[0];
                         proc.stack_push(block_id)?;
                     }
 
                     let arg_list = proc.list_from_iter(args.iter().cloned()).unwrap();
                     proc.stack_push(arg_list)?;
 
-                    let mfa = closure.module_function_arity();
-                    if closure.env_hack.len() > 0 {
+                    if closure.env.len() > 0 {
+                        let mfa = closure.module_function_arity();
                         proc.stack_push(proc.integer(mfa.arity).unwrap()).unwrap();
                     }
 
@@ -308,7 +293,6 @@ impl CallExecutor {
                     kind => unimplemented!("{:?}", kind),
                 }
             }
-            k => unimplemented!("{:?}", k),
         }
     }
 
@@ -499,12 +483,12 @@ impl CallExecutor {
             OpKind::MapPut { action } => {
                 let map_read = reads[2];
                 if let Some(constant) = fun.fun.value_const(map_read) {
-                    if let ConstKind::Map { keys, values } = fun.fun.cons().const_kind(constant) {
+                    if let ConstKind::Map { keys, .. } = fun.fun.cons().const_kind(constant) {
                         if keys.len(&fun.fun.cons().const_pool) == 0 {
                             let mut vec = Vec::new();
 
                             let mut idx = 3;
-                            for action in action.iter() {
+                            for _ in action.iter() {
                                 let key = self.make_term(proc, fun, reads[idx])?;
                                 let val = self.make_term(proc, fun, reads[idx + 1])?;
                                 idx += 2;

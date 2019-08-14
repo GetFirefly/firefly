@@ -31,7 +31,7 @@ extern crate static_assertions;
 mod macros;
 
 mod blocks;
-mod borrow;
+pub mod borrow;
 mod carriers;
 pub mod erts;
 mod mem;

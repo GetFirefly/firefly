@@ -1,0 +1,91 @@
+use std::sync::Arc;
+
+use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::process::code;
+use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::term::Term;
+
+use lumen_runtime::otp::erlang;
+
+use crate::elixir::chain::counter_2::label_2;
+
+pub fn place_frame_with_arguments(
+    process: &ProcessControlBlock,
+    placement: Placement,
+    next_pid: Term,
+    output: Term,
+) -> Result<(), Alloc> {
+    assert!(next_pid.is_pid());
+    assert!(output.is_function());
+    process.stack_push(output)?;
+    process.stack_push(next_pid)?;
+    process.place_frame(frame(process), placement);
+
+    Ok(())
+}
+
+/// ```elixir
+/// # label 1
+/// # pushed to stack: (next_pid, output)
+/// # returned from called: :ok
+/// # full stack: (:ok, next_pid, output)
+/// # returns: :ok
+/// receive do
+///   n ->
+///     output.("received #{n}")
+///     sent = send(next_pid, n + 1)
+///     output.("sent #{sent} to #{next_pid}")
+/// end
+/// ```
+fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+    arc_process.reduce();
+
+    // Because there is a guardless match in the receive block, the first message will always be
+    // removed and no loop is necessary.
+    //
+    // CANNOT be in `match` as it will hold temporaries in `match` arms causing a `park`.
+    let received = arc_process.mailbox.lock().borrow_mut().receive(arc_process);
+
+    match received {
+        Some(Ok(n)) => {
+            let ok = arc_process.stack_pop().unwrap();
+            assert!(ok.is_atom());
+            // popped after receive in case of `Alloc` so stack is preserved
+            let next_pid = arc_process.stack_pop().unwrap();
+            assert!(next_pid.is_pid());
+            let output = arc_process.stack_pop().unwrap();
+            assert!(output.is_function());
+
+            // ```elixir
+            // # label 2
+            // # pushed stack: (next_pid, output)
+            // # returned from call: sum
+            // # full stack: (sum, next_pid, output)
+            // # returns: sent
+            // sent = send(next_pid, sum)
+            // output.("send #{sent} to #{next_pid}")
+            // ```
+            label_2::place_frame_with_arguments(arc_process, Placement::Replace, next_pid, output)?;
+
+            // ```elixir
+            // # pushed to stack: (n)
+            // # return from call: N/A
+            // # full stack: (n)
+            // # returns: sum
+            // n + 1
+            let one = arc_process.integer(1)?;
+            erlang::add_2::place_frame_with_arguments(arc_process, Placement::Push, n, one)?;
+
+            ProcessControlBlock::call_code(arc_process)
+        }
+        None => Ok(Arc::clone(arc_process).wait()),
+        Some(Err(alloc_err)) => Err(alloc_err.into()),
+    }
+}
+
+fn frame(process: &ProcessControlBlock) -> Frame {
+    let module_function_arity = process.current_module_function_arity().unwrap();
+
+    Frame::new(module_function_arity, code)
+}

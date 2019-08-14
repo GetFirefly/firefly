@@ -120,14 +120,20 @@ impl Scheduler {
 
             match run {
                 Run::Now(arc_process) => {
-                    match ProcessControlBlock::run(&arc_process) {
-                        Ok(()) => (),
-                        Err(exception) => unimplemented!(
-                            "{:?} {:?}\n{:?}",
-                            arc_process,
-                            exception,
-                            *arc_process.acquire_heap()
-                        ),
+                    // Don't allow exiting processes to run again.
+                    //
+                    // Without this check, a process.exit() from outside the process during WAITING
+                    // will return to the Frame that called `process.wait()`
+                    if !arc_process.is_exiting() {
+                        match ProcessControlBlock::run(&arc_process) {
+                            Ok(()) => (),
+                            Err(exception) => unimplemented!(
+                                "{:?} {:?}\n{:?}",
+                                arc_process,
+                                exception,
+                                *arc_process.acquire_heap()
+                            ),
+                        }
                     }
 
                     match self.run_queues.write().requeue(arc_process) {
@@ -138,7 +144,7 @@ impl Scheduler {
 
                                     if !is_expected_exit_reason(reason) {
                                         system::io::puts(&format!(
-                                            "** (EXIT from {:?}) exited with reason: {:?}",
+                                            "** (EXIT from {}) exited with reason: {}",
                                             exiting_arc_process, reason
                                         ));
                                     }
@@ -146,7 +152,7 @@ impl Scheduler {
                                 runtime::Class::Error { .. } => {
                                     system::io::puts(
                                         &format!(
-                                            "** (EXIT from {:?}) exited with reason: an exception was raised: {:?}\n{:?}",
+                                            "** (EXIT from {}) exited with reason: an exception was raised: {}\n{}",
                                             exiting_arc_process,
                                             exception.reason,
                                             exiting_arc_process.stacktrace()
@@ -213,12 +219,35 @@ impl Scheduler {
         arc_process_control_block
     }
 
-    /// `arguments` are put in reverse order on the stack where `code` can use them
-    pub fn spawn(
+    /// Spawns a process with arguments for `apply(module, function, arguments)` on its stack.
+    ///
+    /// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
+    /// MFA unique to a given application.
+    pub fn spawn_apply_3(
         parent_process: &ProcessControlBlock,
         module: Atom,
         function: Atom,
         arguments: Term,
+        heap: *mut Term,
+        heap_size: usize,
+    ) -> Result<Arc<ProcessControlBlock>, Alloc> {
+        let process =
+            process::spawn_apply_3(parent_process, module, function, arguments, heap, heap_size)?;
+        let arc_scheduler = parent_process.scheduler().unwrap();
+        let arc_process = arc_scheduler.schedule(process);
+
+        put_pid_to_process(&arc_process);
+
+        Ok(arc_process)
+    }
+
+    /// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
+    /// of passing through `apply/3`.
+    pub fn spawn(
+        parent_process: &ProcessControlBlock,
+        module: Atom,
+        function: Atom,
+        arguments: Vec<Term>,
         code: Code,
         heap: *mut Term,
         heap_size: usize,
@@ -381,9 +410,6 @@ mod tests {
             use liblumen_alloc::erts::process::default_heap;
             use liblumen_alloc::erts::term::atom_unchecked;
 
-            use crate::code;
-            use crate::otp::erlang;
-
             #[test]
             fn different_processes_have_different_pids() {
                 let erlang = Atom::try_from_str("erlang").unwrap();
@@ -395,12 +421,11 @@ mod tests {
                     .list_from_slice(&[normal])
                     .unwrap();
                 let (first_heap, first_heap_size) = default_heap().unwrap();
-                let first_process = Scheduler::spawn(
+                let first_process = Scheduler::spawn_apply_3(
                     &parent_arc_process_control_block,
                     erlang,
                     exit,
                     first_process_arguments,
-                    code::apply_fn(),
                     first_heap,
                     first_heap_size,
                 )
@@ -410,21 +435,17 @@ mod tests {
                     .list_from_slice(&[normal])
                     .unwrap();
                 let (second_heap, second_heap_size) = default_heap().unwrap();
-                let second_process = Scheduler::spawn(
+                let second_process = Scheduler::spawn_apply_3(
                     &first_process,
                     erlang,
                     exit,
                     second_process_arguments,
-                    code::apply_fn(),
                     second_heap,
                     second_heap_size,
                 )
                 .unwrap();
 
-                assert_ne!(
-                    erlang::self_0(&first_process),
-                    erlang::self_0(&second_process)
-                );
+                assert_ne!(first_process.pid_term(), second_process.pid_term());
             }
         }
     }

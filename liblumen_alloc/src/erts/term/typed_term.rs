@@ -1,5 +1,6 @@
 use core::cmp;
 use core::convert::TryInto;
+use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
 
 use alloc::string::String;
@@ -9,6 +10,7 @@ use num_bigint::{BigInt, Sign};
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
+use crate::erts::term::resource;
 use crate::erts::ProcessControlBlock;
 
 use super::*;
@@ -40,6 +42,7 @@ pub enum TypedTerm {
     BigInteger(Boxed<BigInteger>),
     Float(Float),
     Atom(Atom),
+    ResourceReference(resource::Reference),
     ProcBin(ProcBin),
     HeapBinary(Boxed<HeapBin>),
     SubBinary(SubBinary),
@@ -141,6 +144,39 @@ impl TypedTerm {
     }
 }
 
+impl Display for TypedTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use TypedTerm::*;
+
+        match self {
+            Atom(atom) => write!(f, "{}", atom),
+            BigInteger(big_integer) => write!(f, "{}", big_integer),
+            Boxed(boxed) => write!(f, "{}", boxed.to_typed_term().unwrap()),
+            Catch => write!(f, "Term(Catch)"),
+            Closure(closure) => write!(f, "{}", closure),
+            ExternalPid(external_pid) => write!(f, "{}", external_pid),
+            ExternalPort(external_port) => write!(f, "{}", external_port),
+            ExternalReference(external_reference) => write!(f, "{}", external_reference),
+            Float(float) => write!(f, "{}", float),
+            HeapBinary(heap_binary) => write!(f, "{}", heap_binary),
+            List(cons) => write!(f, "{}", cons),
+            Literal(literal) => write!(f, "{}", literal),
+            Map(map) => write!(f, "{}", map),
+            MatchContext(match_context) => write!(f, "{}", match_context),
+            Nil => write!(f, "[]"),
+            None => write!(f, "Term(None)"),
+            Pid(pid) => write!(f, "{}", pid),
+            Port(port) => write!(f, "{}", port),
+            ProcBin(process_binary) => write!(f, "{}", process_binary),
+            Reference(reference) => write!(f, "{}", reference),
+            ResourceReference(resource_reference) => write!(f, "{}", resource_reference),
+            SmallInteger(small_integer) => write!(f, "{}", small_integer),
+            SubBinary(subbinary) => write!(f, "{}", subbinary),
+            Tuple(tuple) => write!(f, "{}", tuple),
+        }
+    }
+}
+
 impl Hash for TypedTerm {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
@@ -159,6 +195,7 @@ impl Hash for TypedTerm {
             Self::BigInteger(big_integer) => big_integer.hash(state),
             Self::Float(float) => float.hash(state),
             Self::Atom(atom) => atom.hash(state),
+            Self::ResourceReference(resource_reference) => resource_reference.hash(state),
             Self::ProcBin(process_binary) => process_binary.hash(state),
             Self::HeapBinary(heap_binary) => heap_binary.hash(state),
             Self::SubBinary(subbinary) => subbinary.hash(state),
@@ -734,6 +771,7 @@ unsafe impl AsTerm for TypedTerm {
             &Self::BigInteger(ref inner) => inner.as_term(),
             &Self::Float(ref inner) => inner.as_term(),
             &Self::Atom(ref inner) => inner.as_term(),
+            &Self::ResourceReference(ref inner) => inner.as_term(),
             &Self::ProcBin(ref inner) => inner.as_term(),
             &Self::HeapBinary(ref inner) => inner.as_term(),
             &Self::SubBinary(ref inner) => inner.as_term(),
@@ -766,6 +804,7 @@ impl CloneToProcess for TypedTerm {
             &Self::BigInteger(ref inner) => inner.clone_to_process(process),
             &Self::Float(inner) => inner.clone_to_process(process),
             &Self::Atom(inner) => unsafe { inner.as_term() },
+            &Self::ResourceReference(ref inner) => inner.clone_to_process(process),
             &Self::ProcBin(ref inner) => inner.clone_to_process(process),
             &Self::HeapBinary(ref inner) => inner.clone_to_process(process),
             &Self::SubBinary(ref inner) => inner.clone_to_process(process),
@@ -796,6 +835,7 @@ impl CloneToProcess for TypedTerm {
             &Self::BigInteger(ref inner) => inner.clone_to_heap(heap),
             &Self::Float(inner) => inner.clone_to_heap(heap),
             &Self::Atom(inner) => Ok(unsafe { inner.as_term() }),
+            &Self::ResourceReference(ref inner) => inner.clone_to_heap(heap),
             &Self::ProcBin(ref inner) => inner.clone_to_heap(heap),
             &Self::HeapBinary(ref inner) => inner.clone_to_heap(heap),
             &Self::SubBinary(ref inner) => inner.clone_to_heap(heap),

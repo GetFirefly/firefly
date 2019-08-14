@@ -1,19 +1,22 @@
 use std::path::Path;
 
-use clap::{arg_enum, value_t, App, Arg, ArgMatches, SubCommand};
+use clap::{App, Arg};
 
 use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
-use libeir_intern::Ident;
+
 use libeir_ir::{FunctionIdent, Module};
+
 use libeir_passes::PassManager;
+
 use libeir_syntax_erl::ast::Module as ErlAstModule;
 use libeir_syntax_erl::lower_module;
 use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
 use liblumen_eir_interpreter::{call_erlang, VM};
 
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
-use lumen_runtime::registry;
+use liblumen_alloc::erts::term::Atom;
+
+use lumen_runtime::scheduler::Scheduler;
 
 fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, Parser)
 where
@@ -67,8 +70,8 @@ fn main() {
 
     &*VM;
 
-    let init_atom = Atom::try_from_str("init").unwrap();
-    let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
+    let arc_scheduler = Scheduler::current();
+    let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     let module = Atom::try_from_str(&ident.module.as_str()).unwrap();
     let function = Atom::try_from_str(&ident.name.as_str()).unwrap();

@@ -1,7 +1,7 @@
 use super::*;
-use crate::otp::erlang::tests::strategy::term::binary;
-use crate::otp::erlang::tests::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
-use crate::otp::erlang::tests::strategy::NON_EMPTY_RANGE_INCLUSIVE;
+use crate::test::strategy::term::binary;
+use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
+use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
 
 #[test]
 fn with_positive_start_and_positive_length_returns_subbinary() {

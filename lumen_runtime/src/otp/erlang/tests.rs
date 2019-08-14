@@ -7,20 +7,18 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::message::{self, Message};
-use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::{
-    make_pid, next_pid, BigInteger, HeapBin, Pid, SmallInteger, SubBinary,
+    make_pid, next_pid, BigInteger, HeapBin, SmallInteger, SubBinary,
 };
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::otp::erlang;
 use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 mod abs_1;
-mod add_2;
 mod and_2;
 mod andalso_2;
 mod append_element_2;
@@ -54,7 +52,6 @@ mod cancel_timer_1;
 mod cancel_timer_2;
 mod ceil_1;
 mod concatenate_2;
-mod convert_time_unit_3;
 mod delete_element_2;
 mod div_2;
 mod divide_2;
@@ -96,13 +93,11 @@ mod map_get_2;
 mod map_size_1;
 mod max_2;
 mod min_2;
-mod monotonic_time_0;
 mod monotonic_time_1;
 mod multiply_2;
 mod negate_1;
 mod node_0;
 mod not_1;
-mod number_or_badarith_1;
 mod or_2;
 mod orelse_2;
 mod raise_3;
@@ -111,19 +106,15 @@ mod read_timer_2;
 mod register_2;
 mod registered_0;
 mod rem_2;
-mod self_0;
 mod send_2;
 mod send_3;
 mod send_after_3;
 mod send_after_4;
 mod setelement_3;
 mod size_1;
-mod spawn_3;
 mod split_binary_2;
 mod start_timer_3;
 mod start_timer_4;
-mod strategy;
-mod subtract_2;
 mod subtract_list_2;
 mod throw_1;
 mod tl_1;

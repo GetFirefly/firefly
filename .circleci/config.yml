@@ -127,7 +127,7 @@ jobs:
       - run:
           name: Run all tests
           working_directory: "examples/spawn-chain"
-          command: wasm-pack test --firefox --headless
+          command: wasm-pack test --chrome --headless
   firefox_examples_spawn_chain_test:
     docker:
       # `kronicdeth` is temporary until we get a DockerHub organization

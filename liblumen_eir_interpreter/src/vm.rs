@@ -1,12 +1,11 @@
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
 use libeir_ir::FunctionIdent;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
-use lumen_runtime::registry;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
 
@@ -20,15 +19,6 @@ pub struct VMState {
 impl VMState {
     pub fn new() -> Self {
         lumen_runtime::otp::erlang::apply_3::set_code(crate::code::apply);
-
-        let arc_scheduler = Scheduler::current();
-        let init_arc_scheduler = Arc::clone(&arc_scheduler);
-        let init_arc_process = init_arc_scheduler.spawn_init(0).unwrap();
-        let init_atom = Atom::try_from_str("init").unwrap();
-
-        if !registry::put_atom_to_process(init_atom, init_arc_process) {
-            panic!("Could not register init process");
-        };
 
         let mut modules = ModuleRegistry::new();
         modules.register_native_module(crate::native::make_erlang());
@@ -44,8 +34,8 @@ impl VMState {
         fun: &FunctionIdent,
         args: &[Term],
     ) -> Result<Rc<Term>, (Rc<Term>, Rc<Term>, Rc<Term>)> {
-        let init_atom = Atom::try_from_str("init").unwrap();
-        let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
+        let arc_scheduler = Scheduler::current();
+        let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
         let module = Atom::try_from_str(&fun.module.as_str()).unwrap();
         let function = Atom::try_from_str(&fun.name.as_str()).unwrap();

@@ -16,7 +16,7 @@ use liblumen_eir_interpreter::{call_erlang, VM};
 
 use liblumen_alloc::erts::term::Atom;
 
-use lumen_runtime::registry;
+use lumen_runtime::scheduler::Scheduler;
 
 fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, Parser)
 where
@@ -70,8 +70,8 @@ fn main() {
 
     &*VM;
 
-    let init_atom = Atom::try_from_str("init").unwrap();
-    let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
+    let arc_scheduler = Scheduler::current();
+    let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
     let module = Atom::try_from_str(&ident.module.as_str()).unwrap();
     let function = Atom::try_from_str(&ident.name.as_str()).unwrap();

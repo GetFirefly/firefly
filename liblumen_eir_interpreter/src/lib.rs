@@ -135,19 +135,22 @@ pub fn call_erlang(
 
 #[cfg(test)]
 mod tests {
-
-    use liblumen_alloc::erts::term::Atom;
-    use lumen_runtime::registry;
+    use super::call_erlang;
+    use super::VM;
 
     use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
+
     use libeir_ir::Module;
+
     use libeir_passes::PassManager;
+
     use libeir_syntax_erl::ast::Module as ErlAstModule;
     use libeir_syntax_erl::lower_module;
     use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
-    use super::call_erlang;
-    use super::VM;
+    use liblumen_alloc::erts::term::Atom;
+
+    use lumen_runtime::scheduler::Scheduler;
 
     fn parse<T>(input: &str, config: ParseConfig) -> (T, Parser)
     where
@@ -183,8 +186,8 @@ mod tests {
     fn nonexistent_function_call() {
         &*VM;
 
-        let init_atom = Atom::try_from_str("init").unwrap();
-        let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
+        let arc_scheduler = Scheduler::current();
+        let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
         let module = Atom::try_from_str("foo").unwrap();
         let function = Atom::try_from_str("bar").unwrap();
@@ -198,8 +201,8 @@ mod tests {
     fn simple_function() {
         &*VM;
 
-        let init_atom = Atom::try_from_str("init").unwrap();
-        let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
+        let arc_scheduler = Scheduler::current();
+        let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
         let module = Atom::try_from_str("simple_function_test").unwrap();
         let function = Atom::try_from_str("run").unwrap();
@@ -233,8 +236,8 @@ run() -> yay.
     fn fib() {
         &*VM;
 
-        let init_atom = Atom::try_from_str("init").unwrap();
-        let init_arc_process = registry::atom_to_process(&init_atom).unwrap();
+        let arc_scheduler = Scheduler::current();
+        let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
         let module = Atom::try_from_str("fib").unwrap();
         let function = Atom::try_from_str("fib").unwrap();

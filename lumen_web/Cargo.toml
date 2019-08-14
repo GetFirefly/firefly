@@ -9,8 +9,11 @@ description = "Lumen bindings for Web APIs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+js-sys = "0.3.25"
 liblumen_alloc = { path = "../liblumen_alloc" }
+liblumen_core = { path = "../liblumen_core" }
 lumen_runtime = { path = "../lumen_runtime" }
+wasm-bindgen = "0.2.48"
 
 [dependencies.web-sys]
 version = "0.3.25"

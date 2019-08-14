@@ -7,10 +7,41 @@ pub mod wait;
 pub mod window;
 
 use std::any::Any;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{atom_unchecked, Term};
+
+use lumen_runtime::scheduler::Scheduler;
+use lumen_runtime::time::monotonic::{time_in_milliseconds, Milliseconds};
+
+/// Starts the scheduler loop.  It yield and reschedule itself using
+/// [requestAnimationFrame](https://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame).
+pub fn start() {
+    // Based on https://github.com/rustwasm/wasm-bindgen/blob/603d5742eeca2a7a978f13614de9282229d1835e/examples/request-animation-frame/src/lib.rs
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+
+    *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
+        run_for_milliseconds(MILLISECONDS_PER_FRAME);
+
+        // Schedule ourselves for another requestAnimationFrame callback.
+        request_animation_frame(f.borrow().as_ref().unwrap());
+    }) as Box<dyn FnMut()>));
+
+    request_animation_frame(g.borrow().as_ref().unwrap());
+}
+
+// Private
+
+const MILLISECONDS_PER_SECOND: u64 = 1000;
+const FRAMES_PER_SECOND: u64 = 60;
+const MILLISECONDS_PER_FRAME: Milliseconds = MILLISECONDS_PER_SECOND / FRAMES_PER_SECOND;
 
 fn error() -> Term {
     atom_unchecked("error")
@@ -35,4 +66,18 @@ fn option_to_ok_tuple_or_error<T: 'static>(
         Some(value) => ok_tuple(process, Box::new(value)),
         None => Ok(error()),
     }
+}
+
+fn request_animation_frame(f: &Closure<dyn FnMut()>) {
+    web_sys::window()
+        .unwrap()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .unwrap();
+}
+
+fn run_for_milliseconds(duration: Milliseconds) {
+    let scheduler = Scheduler::current();
+    let timeout = time_in_milliseconds() + duration;
+
+    while (time_in_milliseconds() < timeout) && scheduler.run_once() {}
 }

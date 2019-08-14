@@ -7,14 +7,10 @@ mod apply_3;
 mod elixir;
 mod start;
 
-use std::convert::TryInto;
-
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
+use liblumen_alloc::erts::process::{heap, next_heap_size};
 
 use lumen_runtime::scheduler::Scheduler;
-use lumen_runtime::system;
 
 use lumen_web::wait;
 
@@ -22,7 +18,6 @@ use wasm_bindgen::prelude::*;
 
 use crate::elixir::chain::{console_1, dom_1};
 use crate::start::*;
-use liblumen_alloc::erts::term::atom_unchecked;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -34,15 +29,16 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 pub fn start() {
     set_panic_hook();
     set_apply_fn();
+    lumen_web::start();
 }
 
 #[wasm_bindgen]
-pub fn log_to_console(count: usize) -> usize {
+pub fn log_to_console(count: usize) -> js_sys::Promise {
     run(count, Output::Console)
 }
 
 #[wasm_bindgen]
-pub fn log_to_dom(count: usize) -> usize {
+pub fn log_to_dom(count: usize) -> js_sys::Promise {
     run(count, Output::Dom)
 }
 
@@ -51,160 +47,34 @@ enum Output {
     Dom,
 }
 
-fn run(count: usize, output: Output) -> usize {
+fn run(count: usize, output: Output) -> js_sys::Promise {
     let arc_scheduler = Scheduler::current();
     // Don't register, so that tests can run concurrently
     let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
-    // if not enough memory here, resize `spawn_init` heap
-    let count_term = parent_arc_process.integer(count).unwrap();
 
     let heap_size = next_heap_size(79 + count * 5);
     // if this fails the entire tab is out-of-memory
     let heap = heap(heap_size).unwrap();
 
-    let run_arc_process = wait::with_return_0::spawn(
+    wait::with_return_0::spawn(
         &parent_arc_process,
         heap,
-        heap_size
-    )
-    // if this fails use a bigger sized heap
-    .unwrap();
+        heap_size,
+    |child_process| {
+            let count_term = child_process.integer(count)?;
 
-    match output {
-        Output::Console => {
-            // if this fails use a bigger sized heap
-            console_1::place_frame_with_arguments(&run_arc_process, Placement::Push, count_term)
-                .unwrap()
-        }
-        Output::Dom => {
-            // if this fails use a bigger sized heap
-            dom_1::place_frame_with_arguments(&run_arc_process, Placement::Push, count_term)
-                .unwrap()
-        }
-    };
+            match output {
+                Output::Console => {
 
-    let mut option_return_usize: Option<usize> = None;
-
-    loop {
-        let ran = Scheduler::current().run_through(&run_arc_process);
-
-        let waiting = match *run_arc_process.status.read() {
-            Status::Exiting(ref exception) => match exception {
-                exception::runtime::Exception {
-                    class: exception::runtime::Class::Exit,
-                    reason,
-                    ..
-                } => {
-                    if *reason != atom_unchecked("normal") {
-                        panic!("ProcessControlBlock exited: {:?}", reason);
-                    } else {
-                        break;
-                    }
+                    // if this fails use a bigger sized heap
+                    console_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
                 }
-                _ => {
-                    panic!(
-                        "ProcessControlBlock exception: {:?}\n{:?}",
-                        exception,
-                        run_arc_process.stacktrace()
-                    );
-                }
-            },
-            Status::Waiting => true,
-            Status::Runnable => false,
-            Status::Running => {
-                system::io::puts(&format!(
-                    "RUNNING Run queues len = {:?}",
-                    Scheduler::current().run_queues_len()
-                ));
-
-                false
-            }
-        };
-
-        // separate so we don't hold read lock on status as it may need to be written
-        if waiting {
-            if ran {
-                system::io::puts(&format!(
-                    "WAITING Run queues len = {:?}",
-                    Scheduler::current().run_queues_len()
-                ));
-            } else {
-                use wait::with_return_0::Error::*;
-
-                match wait::with_return_0::pop_return(&run_arc_process) {
-                    Ok(popped_return) => {
-                        option_return_usize = Some(popped_return.try_into().unwrap());
-                        wait::with_return_0::stop(&run_arc_process);
-                    },
-                    Err(NoModuleFunctionArity) => panic!("{:?} doesn't have a current module function arity", run_arc_process),
-                    Err(WrongModuleFunctionArity(current_module_function_arity)) => panic!(
-                        "{:?} is not waiting with a return and instead did not run while waiting in {}.  Deadlock likely in {:#?}",
-                        run_arc_process,
-                        current_module_function_arity,
-                        Scheduler::current()
-                    ),
-                    Err(NoReturn) => panic!("{:?} is waiting, but nothing was returned to it.  Bug likely in {:#?}", run_arc_process, Scheduler::current()),
-                    Err(TooManyReturns(returns)) => panic!("{:?} got multiple returns: {:?}.  Stack is not being properly managed.", run_arc_process, returns)
+                Output::Dom => {
+                    // if this fails use a bigger sized heap
+                    dom_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
                 }
             }
-        }
-    }
-
-    option_return_usize.unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use std::sync::Once;
-
-    mod log_to_console {
-        use super::*;
-
-        #[test]
-        fn with_1() {
-            start_once();
-            assert_eq!(log_to_console(1), 1);
-        }
-
-        #[test]
-        fn with_2() {
-            start_once();
-            assert_eq!(log_to_console(2), 2);
-        }
-
-        #[test]
-        fn with_4() {
-            start_once();
-            assert_eq!(log_to_console(4), 4);
-        }
-
-        #[test]
-        fn with_8() {
-            start_once();
-            assert_eq!(log_to_console(8), 8);
-        }
-
-        #[test]
-        fn with_16() {
-            start_once();
-            assert_eq!(log_to_console(16), 16);
-        }
-
-        #[test]
-        fn with_32() {
-            start_once();
-            assert_eq!(log_to_console(32), 32);
-        }
-    }
-
-    static START: Once = Once::new();
-
-    fn start_once() {
-        START.call_once(|| {
-            start();
         })
-    }
+    // if this fails use a bigger sized heap
+    .unwrap()
 }

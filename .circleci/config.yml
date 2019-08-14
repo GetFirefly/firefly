@@ -281,6 +281,10 @@ jobs:
       - attach_workspace:
           at: .
       - run:
+          name: Run all tests
+          working_directory: "liblumen_eir_interpreter"
+          command: cargo test --locked
+      - run:
           name: Fibonacci
           working_directory: "liblumen_eir_interpreter"
           command: cargo run -- --ident fib:run/0 fib.erl

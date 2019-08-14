@@ -183,6 +183,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn nonexistent_function_call() {
         &*VM;
 

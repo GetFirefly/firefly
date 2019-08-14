@@ -1,4 +1,4 @@
-FROM circleci/rust
+FROM circleci/rust:latest-browsers
 
 RUN rustup default nightly
 

@@ -35,7 +35,6 @@ fn_single_line = false
 
 comment_width = 100
 wrap_comments = true
-format_doc_comments = true
 normalize_comments = false
 normalize_doc_attributes = false
 
@@ -94,6 +93,5 @@ combine_control_expr = true
 overflow_delimited_expr = false
 struct_field_align_threshold = 0
 enum_discrim_align_threshold = 0
-fn_args_density = "Tall"
 force_explicit_abi = true
 condense_wildcard_suffixes = false

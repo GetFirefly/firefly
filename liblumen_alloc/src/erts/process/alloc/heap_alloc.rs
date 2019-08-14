@@ -158,8 +158,9 @@ pub trait HeapAlloc {
         creator: Term,
         module_function_arity: Arc<ModuleFunctionArity>,
         code: Code,
+        env_hack: Vec<Term>,
     ) -> Result<Term, Alloc> {
-        let closure = Closure::new(module_function_arity, code, creator);
+        let closure = Closure::new(module_function_arity, code, creator, env_hack);
 
         unsafe {
             let ptr = self.alloc_layout(Layout::new::<Closure>())?.as_ptr() as *mut Closure;

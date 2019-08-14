@@ -387,9 +387,10 @@ impl ProcessControlBlock {
         creator: Term,
         module_function_arity: Arc<ModuleFunctionArity>,
         code: Code,
+        env_hack: Vec<Term>,
     ) -> Result<Term, Alloc> {
         self.acquire_heap()
-            .closure(creator, module_function_arity, code)
+            .closure(creator, module_function_arity, code, env_hack)
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.

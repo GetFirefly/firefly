@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
@@ -134,20 +136,11 @@ pub fn call_erlang(
 #[cfg(test)]
 mod tests {
 
-    use std::path::Path;
-
-    use liblumen_alloc::erts::exception;
-    use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
-    use liblumen_alloc::erts::term::{atom_unchecked, Atom};
-    use liblumen_alloc::erts::ModuleFunctionArity;
-    use lumen_runtime::code::apply_fn;
+    use liblumen_alloc::erts::term::Atom;
     use lumen_runtime::registry;
-    use lumen_runtime::scheduler::Scheduler;
-    use lumen_runtime::system;
 
     use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
-    use libeir_intern::Ident;
-    use libeir_ir::{FunctionIdent, Module};
+    use libeir_ir::Module;
     use libeir_passes::PassManager;
     use libeir_syntax_erl::ast::Module as ErlAstModule;
     use libeir_syntax_erl::lower_module;
@@ -171,40 +164,6 @@ mod tests {
             emitter.diagnostic(&err.to_diagnostic()).unwrap();
         }
         panic!("parse failed");
-    }
-
-    fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, Parser)
-    where
-        T: Parse<T>,
-        P: AsRef<Path>,
-    {
-        let parser = Parser::new(config);
-        let errs = match parser.parse_file::<_, T>(path) {
-            Ok(ast) => return (ast, parser),
-            Err(errs) => errs,
-        };
-        let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-            .set_codemap(parser.config.codemap.clone());
-        for err in errs.iter() {
-            emitter.diagnostic(&err.to_diagnostic()).unwrap();
-        }
-        panic!("parse failed");
-    }
-
-    fn lower_file<P>(path: P, config: ParseConfig) -> Result<Module, ()>
-    where
-        P: AsRef<Path>,
-    {
-        let (parsed, parser): (ErlAstModule, _) = parse_file(path, config);
-        let (res, messages) = lower_module(&parsed);
-
-        let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-            .set_codemap(parser.config.codemap.clone());
-        for err in messages.iter() {
-            emitter.diagnostic(&err.to_diagnostic()).unwrap();
-        }
-
-        res
     }
 
     pub fn lower(input: &str, config: ParseConfig) -> Result<Module, ()> {

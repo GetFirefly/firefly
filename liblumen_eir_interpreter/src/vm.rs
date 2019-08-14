@@ -1,10 +1,7 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
-use libeir_intern::Symbol;
-use libeir_ir::{FunctionIdent, Module};
+use libeir_ir::FunctionIdent;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
@@ -13,7 +10,7 @@ use lumen_runtime::registry;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
 
-use super::module::{ErlangModule, ModuleRegistry, ModuleType, NativeModule};
+use super::module::ModuleRegistry;
 
 pub struct VMState {
     pub modules: RwLock<ModuleRegistry>,

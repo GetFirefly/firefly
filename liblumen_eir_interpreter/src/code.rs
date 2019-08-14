@@ -4,9 +4,8 @@ use std::sync::Arc;
 use cranelift_entity::EntityRef;
 use libeir_ir::Block;
 
-use liblumen_alloc::erts::exception::runtime::{Class, Exception};
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
-use liblumen_alloc::erts::process::code::{result_from_exception, Result};
+use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;

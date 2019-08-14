@@ -1,14 +1,10 @@
-use std::convert::TryInto;
 use std::sync::Arc;
 
-use libeir_ir::{BasicType, BinaryEntrySpecifier, Block, Endianness, MatchKind, PrimOpKind};
+use libeir_ir::{BasicType, Block, MatchKind, PrimOpKind};
 
 use liblumen_alloc::erts::exception::system;
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Closure, Integer, Term, Tuple, TypedTerm,
-};
-use lumen_runtime::otp::erlang;
+use liblumen_alloc::erts::term::TypedTerm;
 
 use super::{CallExecutor, OpResult};
 use crate::module::ErlangFunction;

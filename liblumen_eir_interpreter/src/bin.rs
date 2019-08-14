@@ -1,18 +1,21 @@
 use std::path::Path;
 
-use clap::{arg_enum, value_t, App, Arg, ArgMatches, SubCommand};
+use clap::{App, Arg};
 
 use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
-use libeir_intern::Ident;
+
 use libeir_ir::{FunctionIdent, Module};
+
 use libeir_passes::PassManager;
+
 use libeir_syntax_erl::ast::Module as ErlAstModule;
 use libeir_syntax_erl::lower_module;
 use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
 use liblumen_eir_interpreter::{call_erlang, VM};
 
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::Atom;
+
 use lumen_runtime::registry;
 
 fn parse_file<T, P>(path: P, config: ParseConfig) -> (T, Parser)

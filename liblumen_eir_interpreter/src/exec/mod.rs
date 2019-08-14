@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use cranelift_entity::EntityRef;
@@ -11,25 +10,13 @@ use libeir_ir::{Block, OpKind, PrimOpKind, Value, ValueKind};
 use liblumen_alloc::erts::exception::system;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::module::{ErlangFunction, NativeFunctionKind, ResolvedFunction};
 use crate::vm::VMState;
 
 mod r#match;
-
-#[derive(Debug)]
-pub struct TermCall {
-    pub fun: Rc<Term>,
-    pub args: Vec<Rc<Term>>,
-}
-
-pub enum Continuation {
-    Term(TermCall),
-    ReturnOk(Rc<Term>),
-    ReturnThrow(Rc<Term>, Rc<Term>, Rc<Term>),
-}
 
 pub struct CallExecutor {
     binds: HashMap<Value, Term>,
@@ -306,7 +293,6 @@ impl CallExecutor {
                     kind => unimplemented!("{:?}", kind),
                 }
             }
-            k => unimplemented!("{:?}", k),
         }
     }
 
@@ -497,12 +483,12 @@ impl CallExecutor {
             OpKind::MapPut { action } => {
                 let map_read = reads[2];
                 if let Some(constant) = fun.fun.value_const(map_read) {
-                    if let ConstKind::Map { keys, values } = fun.fun.cons().const_kind(constant) {
+                    if let ConstKind::Map { keys, .. } = fun.fun.cons().const_kind(constant) {
                         if keys.len(&fun.fun.cons().const_pool) == 0 {
                             let mut vec = Vec::new();
 
                             let mut idx = 3;
-                            for action in action.iter() {
+                            for _ in action.iter() {
                                 let key = self.make_term(proc, fun, reads[idx])?;
                                 let val = self.make_term(proc, fun, reads[idx + 1])?;
                                 idx += 2;

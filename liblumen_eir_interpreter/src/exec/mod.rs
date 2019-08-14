@@ -116,21 +116,19 @@ impl CallExecutor {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Closure(closure) => {
                     //assert!(closure.env_hack.len() != 1);
-                    if closure.env_hack.len() > 0 {
-                        let env_list = proc
-                            .list_from_iter(closure.env_hack.iter().skip(1).cloned())
-                            .unwrap();
+                    if closure.env.len() > 0 {
+                        let env_list = proc.list_from_slice(&closure.env[1..]).unwrap();
                         proc.stack_push(env_list)?;
 
-                        let block_id = closure.env_hack[0];
+                        let block_id = closure.env[0];
                         proc.stack_push(block_id)?;
                     }
 
                     let arg_list = proc.list_from_iter(args.iter().cloned()).unwrap();
                     proc.stack_push(arg_list)?;
 
-                    let mfa = closure.module_function_arity();
-                    if closure.env_hack.len() > 0 {
+                    if closure.env.len() > 0 {
+                        let mfa = closure.module_function_arity();
                         proc.stack_push(proc.integer(mfa.arity).unwrap()).unwrap();
                     }
 

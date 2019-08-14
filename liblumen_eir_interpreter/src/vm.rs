@@ -9,7 +9,6 @@ use libeir_ir::{FunctionIdent, Module};
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
-use lumen_runtime::code::apply_fn;
 use lumen_runtime::registry;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
@@ -23,7 +22,7 @@ pub struct VMState {
 
 impl VMState {
     pub fn new() -> Self {
-        lumen_runtime::code::set_apply_fn(crate::code::apply);
+        lumen_runtime::otp::erlang::apply_3::set_code(crate::code::apply);
 
         let arc_scheduler = Scheduler::current();
         let init_arc_scheduler = Arc::clone(&arc_scheduler);
@@ -62,15 +61,14 @@ impl VMState {
         // if this fails the entire tab is out-of-memory
         let heap = heap(heap_size).unwrap();
 
-        let run_arc_process = Scheduler::spawn(
+        let run_arc_process = Scheduler::spawn_apply_3(
             &init_arc_process,
             module,
             function,
             arguments,
-            apply_fn(),
             heap,
             heap_size)
-        // if this fails, don't use `default_heap` and instead use a bigger sized heap
+            // if this fails  a bigger sized heap
             .unwrap();
 
         loop {

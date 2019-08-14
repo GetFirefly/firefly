@@ -5,7 +5,7 @@ use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
-use lumen_runtime::code::apply_fn;
+
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
 
@@ -64,16 +64,16 @@ pub fn call_erlang(
     // if this fails the entire tab is out-of-memory
     let heap = heap(heap_size).unwrap();
 
-    let run_arc_process = Scheduler::spawn(
+    let run_arc_process = Scheduler::spawn_apply_3(
         &proc,
         module,
         function,
         arguments,
-        apply_fn(),
         heap,
-        heap_size)
-    // if this fails, don't use `default_heap` and instead use a bigger sized heap
-        .unwrap();
+        heap_size
+    )
+    // if this fails increase heap size
+    .unwrap();
 
     loop {
         let ran = Scheduler::current().run_through(&run_arc_process);

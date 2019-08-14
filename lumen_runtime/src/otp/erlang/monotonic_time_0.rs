@@ -12,6 +12,12 @@ use liblumen_alloc::ModuleFunctionArity;
 
 use crate::time::{monotonic, Unit::Native};
 
+pub fn native(process_control_block: &ProcessControlBlock) -> exception::Result {
+    let big_int = monotonic::time(Native);
+
+    Ok(process_control_block.integer(big_int)?)
+}
+
 pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
     process.place_frame(frame(), placement);
 }
@@ -45,10 +51,4 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
         function: function(),
         arity: 0,
     })
-}
-
-fn native(process_control_block: &ProcessControlBlock) -> exception::Result {
-    let big_int = monotonic::time(Native);
-
-    Ok(process_control_block.integer(big_int)?)
 }

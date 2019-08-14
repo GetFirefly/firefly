@@ -19,6 +19,55 @@ use liblumen_alloc::ModuleFunctionArity;
 
 use crate::scheduler::Scheduler;
 
+pub fn native(
+    process_control_block: &ProcessControlBlock,
+    module: Term,
+    function: Term,
+    arguments: Term,
+) -> exception::Result {
+    let module_atom: Atom = module.try_into()?;
+    let function_atom: Atom = function.try_into()?;
+
+    let option_pid = match arguments.to_typed_term().unwrap() {
+        TypedTerm::Nil => {
+            let (heap, heap_size) = default_heap()?;
+            let arc_process = Scheduler::spawn_apply_3(
+                process_control_block,
+                module_atom,
+                function_atom,
+                arguments,
+                heap,
+                heap_size,
+            )?;
+
+            Some(arc_process.pid())
+        }
+        TypedTerm::List(cons) => {
+            if cons.is_proper() {
+                let (heap, heap_size) = default_heap()?;
+                let arc_process = Scheduler::spawn_apply_3(
+                    process_control_block,
+                    module_atom,
+                    function_atom,
+                    arguments,
+                    heap,
+                    heap_size,
+                )?;
+
+                Some(arc_process.pid())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
+    match option_pid {
+        Some(pid) => Ok(unsafe { pid.as_term() }),
+        None => Err(badarg!().into()),
+    }
+}
+
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
@@ -67,53 +116,4 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
         function: function(),
         arity: 3,
     })
-}
-
-pub fn native(
-    process_control_block: &ProcessControlBlock,
-    module: Term,
-    function: Term,
-    arguments: Term,
-) -> exception::Result {
-    let module_atom: Atom = module.try_into()?;
-    let function_atom: Atom = function.try_into()?;
-
-    let option_pid = match arguments.to_typed_term().unwrap() {
-        TypedTerm::Nil => {
-            let (heap, heap_size) = default_heap()?;
-            let arc_process = Scheduler::spawn_apply_3(
-                process_control_block,
-                module_atom,
-                function_atom,
-                arguments,
-                heap,
-                heap_size,
-            )?;
-
-            Some(arc_process.pid())
-        }
-        TypedTerm::List(cons) => {
-            if cons.is_proper() {
-                let (heap, heap_size) = default_heap()?;
-                let arc_process = Scheduler::spawn_apply_3(
-                    process_control_block,
-                    module_atom,
-                    function_atom,
-                    arguments,
-                    heap,
-                    heap_size,
-                )?;
-
-                Some(arc_process.pid())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    };
-
-    match option_pid {
-        Some(pid) => Ok(unsafe { pid.as_term() }),
-        None => Err(badarg!().into()),
-    }
 }

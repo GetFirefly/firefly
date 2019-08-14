@@ -16,6 +16,11 @@ use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::ModuleFunctionArity;
 
 /// `-/2` infix operator
+pub fn native(process: &ProcessControlBlock, minuend: Term, subtrahend: Term) -> exception::Result {
+    number_infix_operator!(minuend, subtrahend, process, checked_sub, -)
+}
+
+/// `-/2` infix operator
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
@@ -61,8 +66,4 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
         function: function(),
         arity: 0,
     })
-}
-
-fn native(process: &ProcessControlBlock, minuend: Term, subtrahend: Term) -> exception::Result {
-    number_infix_operator!(minuend, subtrahend, process, checked_sub, -)
 }

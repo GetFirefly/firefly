@@ -11,6 +11,7 @@ pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;
 pub mod subtract_2;
+pub mod unlink_1;
 
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
 // use proptest completely for wasm32

@@ -7,7 +7,7 @@ use intrusive_collections::{LinkedListLink, UnsafeRef};
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::Term;
+use crate::erts::term::{layout_from_word_size, Term, Tuple};
 use crate::std_alloc;
 
 use super::HeapAlloc;
@@ -96,6 +96,22 @@ impl HeapFragment {
             },
         );
         Ok(NonNull::new_unchecked(ptr))
+    }
+
+    pub unsafe fn new_from_word_size(word_size: usize) -> Result<NonNull<Self>, Alloc> {
+        let layout = layout_from_word_size(word_size);
+
+        Self::new(layout)
+    }
+
+    /// Creates a new `HeapFragment` that can hold a tuple
+    pub fn tuple_from_slice(elements: &[Term]) -> Result<(Term, NonNull<HeapFragment>), Alloc> {
+        let need_in_words = Tuple::need_in_words_from_elements(elements);
+        let mut non_null_heap_fragment = unsafe { Self::new_from_word_size(need_in_words)? };
+        let heap_fragment = unsafe { non_null_heap_fragment.as_mut() };
+        let term = Tuple::clone_to_heap_from_elements(heap_fragment, elements)?;
+
+        Ok((term, non_null_heap_fragment))
     }
 }
 impl Drop for HeapFragment {

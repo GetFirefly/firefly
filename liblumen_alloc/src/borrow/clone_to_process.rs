@@ -1,4 +1,3 @@
-use core::alloc::Layout;
 use core::mem;
 use core::ptr::NonNull;
 
@@ -45,12 +44,8 @@ pub trait CloneToProcess {
     ///
     /// If unable to allocate a heap fragment that fits this value, `Err(Alloc)` is returned
     fn clone_to_fragment(&self) -> Result<(Term, NonNull<HeapFragment>), Alloc> {
-        let need = self.size_in_words();
-        let layout = unsafe {
-            let size = need * mem::size_of::<usize>();
-            Layout::from_size_align_unchecked(size, mem::align_of::<Term>())
-        };
-        let mut frag = unsafe { HeapFragment::new(layout)? };
+        let word_size = self.size_in_words();
+        let mut frag = unsafe { HeapFragment::new_from_word_size(word_size)? };
         let frag_ref = unsafe { frag.as_mut() };
         let term = self.clone_to_heap(frag_ref)?;
         Ok((term, frag))

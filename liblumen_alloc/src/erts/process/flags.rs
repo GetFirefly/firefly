@@ -23,9 +23,13 @@ impl ProcessFlags {
     pub const DisableGC: Self = Self(1 << 4);
     /// This flag indicates that GC should be delayed temporarily
     pub const DelayGC: Self = Self(1 << 5);
+    /// This flag indicates the processes linked to this process should send exit messages instead
+    /// of causing this process to exit when they exit
+    pub const TrapExit: Self = Self(1 << 6);
 
-    // Internal value used to validate conversions from raw u32 values
-    const MAX_VALUE: u32 = 1 << 5;
+    pub fn are_set(&self, flags: ProcessFlags) -> bool {
+        (*self & flags) == flags
+    }
 }
 impl Into<u32> for ProcessFlags {
     #[inline]
@@ -36,7 +40,6 @@ impl Into<u32> for ProcessFlags {
 impl From<u32> for ProcessFlags {
     #[inline]
     fn from(n: u32) -> Self {
-        assert!(n <= Self::MAX_VALUE);
         Self(n)
     }
 }

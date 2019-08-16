@@ -56,6 +56,39 @@ pub struct Tuple {
     header: Term,
 }
 impl Tuple {
+    pub fn clone_to_heap_from_elements<A: HeapAlloc>(
+        heap: &mut A,
+        elements: &[Term],
+    ) -> Result<Term, Alloc> {
+        // The result of calling this will be a Tuple with everything located
+        // contiguously in memory
+        unsafe {
+            // Allocate the space needed for the header and all the elements
+            let len = elements.len();
+            let words = Self::need_in_words_from_len(len);
+
+            let tuple_ptr = heap.alloc(words)?.as_ptr() as *mut Self;
+            // Write the header
+            tuple_ptr.write(Tuple::new(len));
+
+            let mut element_ptr = tuple_ptr.offset(1) as *mut Term;
+            // Write each element
+            for element in elements {
+                if element.is_immediate() {
+                    element_ptr.write(*element);
+                } else {
+                    // Recursively call clone_to_heap, and then write the box header here
+                    let boxed = element.clone_to_heap(heap)?;
+                    element_ptr.write(boxed);
+                }
+
+                element_ptr = element_ptr.offset(1);
+            }
+
+            Ok(Term::make_boxed(tuple_ptr))
+        }
+    }
+
     /// Create a new `Tuple` struct
     ///
     /// NOTE: This does not allocate space for the tuple, it simply
@@ -91,8 +124,32 @@ impl Tuple {
     /// the memory needed by elements of the tuple
     #[inline]
     pub fn layout(num_elements: usize) -> Layout {
-        let size = mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>());
+        let size = Self::need_in_bytes_from_len(num_elements);
         unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
+    }
+
+    /// The number of bytes for the header and immediate terms or box term pointer to elements
+    /// allocated elsewhere.
+    pub fn need_in_bytes_from_len(len: usize) -> usize {
+        mem::size_of::<Self>() + (len * mem::size_of::<Term>())
+    }
+
+    /// The number of words for the header and immediate terms or box term pointer to elements
+    /// allocated elsewhere.
+    pub fn need_in_words_from_len(len: usize) -> usize {
+        to_word_size(Self::need_in_bytes_from_len(len))
+    }
+
+    /// The number of words for the header and immediate terms or box term pointer and the data
+    /// the box is pointing to.
+    pub fn need_in_words_from_elements(elements: &[Term]) -> usize {
+        let mut words = Self::need_in_words_from_len(elements.len());
+
+        for element in elements {
+            words += element.size_in_words();
+        }
+
+        words
     }
 
     /// Constructs an iterator over elements of the tuple
@@ -185,47 +242,11 @@ unsafe impl AsTerm for Tuple {
 }
 impl CloneToProcess for Tuple {
     fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
-        // The result of calling this will be a Tuple with everything located
-        // contigously in memory
-        unsafe {
-            // Allocate the space needed for the header and all the elements
-            let num_elements = self.len();
-            let words =
-                to_word_size(mem::size_of::<Self>() + (num_elements * mem::size_of::<Term>()));
-            let ptr = heap.alloc(words)?.as_ptr() as *mut Self;
-            // Get pointer to the old head element location
-            let old_head = self.head();
-            // Get pointer to the new head element location
-            let head = ptr.add(1) as *mut Term;
-            // Write the header
-            ptr::write(
-                ptr,
-                Self {
-                    header: self.header,
-                },
-            );
-            // Write each element
-            for offset in 0..num_elements {
-                let old = *old_head.add(offset);
-                if old.is_immediate() {
-                    ptr::write(head.add(offset), old);
-                } else {
-                    // Recursively call clone_to_process, and then write the box header here
-                    let boxed = old.clone_to_heap(heap)?;
-                    ptr::write(head.add(offset), boxed);
-                }
-            }
-            Ok(Term::make_boxed(ptr))
-        }
+        Tuple::clone_to_heap_from_elements(heap, self)
     }
 
     fn size_in_words(&self) -> usize {
-        let elements = self.len();
-        let mut words = to_word_size(mem::size_of::<Self>() + (elements * mem::size_of::<Term>()));
-        for element in self.iter() {
-            words += element.size_in_words();
-        }
-        words
+        Self::need_in_words_from_elements(self)
     }
 }
 

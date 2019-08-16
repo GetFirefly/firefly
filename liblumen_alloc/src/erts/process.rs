@@ -159,17 +159,39 @@ impl ProcessControlBlock {
 
     // Flags
 
-    /// Set the given process flag
-    #[inline]
-    pub fn set_flags(&self, flags: ProcessFlags) {
-        self.flags.set(flags);
+    pub fn are_flags_set(&self, flags: ProcessFlags) -> bool {
+        self.flags.are_set(flags)
     }
 
-    /// Unset the given process flag
+    /// Set the given process flags
     #[inline]
-    pub fn clear_flags(&self, flags: ProcessFlags) {
-        self.flags.clear(flags);
+    pub fn set_flags(&self, flags: ProcessFlags) -> ProcessFlags {
+        self.flags.set(flags)
     }
+
+    /// Unset the given process flags
+    #[inline]
+    pub fn clear_flags(&self, flags: ProcessFlags) -> ProcessFlags {
+        self.flags.clear(flags)
+    }
+
+    pub fn trap_exit(&self, value: bool) -> bool {
+        let flag = ProcessFlags::TrapExit;
+
+        let old_flags = if value {
+            self.set_flags(flag)
+        } else {
+            self.clear_flags(flag)
+        };
+
+        old_flags.are_set(flag)
+    }
+
+    pub fn traps_exit(&self) -> bool {
+        self.are_flags_set(ProcessFlags::TrapExit)
+    }
+
+    // Alloc
 
     /// Acquires exclusive access to the process heap, blocking the current thread until it is able
     /// to do so.

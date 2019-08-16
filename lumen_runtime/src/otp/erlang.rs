@@ -7,6 +7,7 @@ pub mod exit_1;
 pub mod link_1;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
+pub mod process_flag_2;
 pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;

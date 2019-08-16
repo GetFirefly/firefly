@@ -138,7 +138,7 @@ impl Scheduler {
                         Some(exiting_arc_process) => match *exiting_arc_process.status.read() {
                             Status::Exiting(ref exception) => {
                                 process::log_exit(&exiting_arc_process, exception);
-                                process::propagate_exit(&exiting_arc_process);
+                                process::propagate_exit(&exiting_arc_process, exception);
                             }
                             _ => unreachable!(),
                         },

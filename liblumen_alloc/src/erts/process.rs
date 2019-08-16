@@ -19,7 +19,7 @@ use core::sync::atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering};
 
 use ::alloc::sync::Arc;
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use intrusive_collections::{LinkedList, UnsafeRef};
 
 use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
@@ -100,6 +100,9 @@ pub struct ProcessControlBlock {
     code_stack: Mutex<code::stack::Stack>,
     pub status: RwLock<Status>,
     pub registered_name: RwLock<Option<Atom>>,
+    /// Pids of processes that are linked to this process and need to be exited when this process
+    /// exits
+    pub linked_pid_set: Mutex<HashSet<Pid>>,
     pub mailbox: Mutex<RefCell<Mailbox>>,
     // process heap, cache line aligned to avoid false sharing with rest of struct
     heap: Mutex<ProcessHeap>,
@@ -140,6 +143,7 @@ impl ProcessControlBlock {
             run_reductions: Default::default(),
             total_reductions: Default::default(),
             registered_name: Default::default(),
+            linked_pid_set: Default::default(),
         }
     }
 
@@ -242,6 +246,8 @@ impl ProcessControlBlock {
         heap.virtual_alloc(bin)
     }
 
+    // Stack
+
     /// Frees stack space occupied by the last term on the stack,
     /// adjusting the stack pointer accordingly.
     ///
@@ -289,6 +295,23 @@ impl ProcessControlBlock {
     pub fn stack_used(&self) -> usize {
         self.heap.lock().stack_used()
     }
+
+    // Links
+
+    pub fn link(&self, other: &ProcessControlBlock) {
+        // link in order so that locks are always taken in the same order to prevent deadlocks
+        if self.pid < other.pid {
+            let mut self_pid_set = self.linked_pid_set.lock();
+            let mut other_pid_set = other.linked_pid_set.lock();
+
+            self_pid_set.insert(other.pid);
+            other_pid_set.insert(self.pid);
+        } else {
+            other.link(self)
+        }
+    }
+
+    // Pid
 
     pub fn pid(&self) -> Pid {
         self.pid

@@ -10,20 +10,18 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::Code;
 #[cfg(test)]
 use liblumen_alloc::erts::process::Priority;
 use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
-use liblumen_alloc::erts::term::{reference, Atom, Reference, Term, TypedTerm};
+use liblumen_alloc::erts::term::{reference, Atom, Reference, Term};
 
 use crate::process;
 use crate::registry::put_pid_to_process;
 use crate::run;
 use crate::run::Run;
-use crate::system;
 use crate::timer::Hierarchy;
 
 pub trait Scheduled {
@@ -143,29 +141,10 @@ impl Scheduler {
 
                     match self.run_queues.write().requeue(arc_process) {
                         Some(exiting_arc_process) => match *exiting_arc_process.status.read() {
-                            Status::Exiting(ref exception) => match exception.class {
-                                runtime::Class::Exit => {
-                                    let reason = exception.reason;
-
-                                    if !is_expected_exit_reason(reason) {
-                                        system::io::puts(&format!(
-                                            "** (EXIT from {}) exited with reason: {}",
-                                            exiting_arc_process, reason
-                                        ));
-                                    }
-                                }
-                                runtime::Class::Error { .. } => {
-                                    system::io::puts(
-                                        &format!(
-                                            "** (EXIT from {}) exited with reason: an exception was raised: {}\n{}",
-                                            exiting_arc_process,
-                                            exception.reason,
-                                            exiting_arc_process.stacktrace()
-                                        )
-                                    )
-                                }
-                                _ => unimplemented!("{:?}", exception),
-                            },
+                            Status::Exiting(ref exception) => {
+                                process::log_exit(&exiting_arc_process, exception);
+                                process::propagate_exit(&exiting_arc_process);
+                            }
                             _ => unreachable!(),
                         },
                         None => (),
@@ -368,27 +347,6 @@ thread_local! {
 lazy_static! {
     static ref SCHEDULER_BY_ID: Mutex<HashMap<ID, Weak<Scheduler>>> =
         Mutex::new(Default::default());
-}
-
-fn is_expected_exit_reason(reason: Term) -> bool {
-    match reason.to_typed_term().unwrap() {
-        TypedTerm::Atom(atom) => match atom.name() {
-            "normal" | "shutdown" => true,
-            _ => false,
-        },
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::Tuple(tuple) => {
-                tuple.len() == 2 && {
-                    match tuple[0].to_typed_term().unwrap() {
-                        TypedTerm::Atom(atom) => atom.name() == "shutdown",
-                        _ => false,
-                    }
-                }
-            }
-            _ => false,
-        },
-        _ => false,
-    }
 }
 
 #[cfg(test)]

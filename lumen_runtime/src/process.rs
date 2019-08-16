@@ -7,6 +7,7 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLockWriteGuard;
 
+use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
@@ -19,6 +20,62 @@ use crate::code;
 use crate::otp::erlang::apply_3;
 use crate::registry::*;
 use crate::scheduler::Scheduler;
+use crate::system;
+#[cfg(test)]
+use crate::test;
+
+fn is_expected_exit_reason(reason: Term) -> bool {
+    match reason.to_typed_term().unwrap() {
+        TypedTerm::Atom(atom) => match atom.name() {
+            "normal" | "shutdown" => true,
+            _ => false,
+        },
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::Tuple(tuple) => {
+                tuple.len() == 2 && {
+                    match tuple[0].to_typed_term().unwrap() {
+                        TypedTerm::Atom(atom) => atom.name() == "shutdown",
+                        _ => false,
+                    }
+                }
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+pub fn log_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
+    match exception.class {
+        runtime::Class::Exit => {
+            let reason = exception.reason;
+
+            if !is_expected_exit_reason(reason) {
+                system::io::puts(&format!(
+                    "** (EXIT from {}) exited with reason: {}",
+                    process, reason
+                ));
+            }
+        }
+        runtime::Class::Error { .. } => system::io::puts(&format!(
+            "** (EXIT from {}) exited with reason: an exception was raised: {}\n{}",
+            process,
+            exception.reason,
+            process.stacktrace()
+        )),
+        _ => unimplemented!("{:?}", exception),
+    }
+}
+
+pub fn propagate_exit(process: &ProcessControlBlock) {
+    for linked_pid in process.linked_pid_set.lock().iter() {
+        if let Some(linked_pid_arc_process) = pid_to_process(linked_pid) {
+            // only tell the linked process to exit.  When it is run by its scheduler, it will
+            // go through propagating its own exit.
+            linked_pid_arc_process.exit()
+        }
+    }
+}
 
 pub fn register_in(
     arc_process_control_block: Arc<ProcessControlBlock>,

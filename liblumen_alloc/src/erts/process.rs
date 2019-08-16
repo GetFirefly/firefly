@@ -774,6 +774,15 @@ impl ProcessControlBlock {
         locked_code_stack.push(frame);
     }
 
+    pub fn remove_last_frame(&self) {
+        let mut locked_code_stack = self.code_stack.lock();
+
+        assert_eq!(locked_code_stack.len(), 1);
+
+        // unwrap to ensure there is a frame to replace
+        locked_code_stack.pop().unwrap();
+    }
+
     pub fn return_from_call(&self, term: Term) -> Result<(), Alloc> {
         let has_caller = {
             let mut locked_stack = self.code_stack.lock();

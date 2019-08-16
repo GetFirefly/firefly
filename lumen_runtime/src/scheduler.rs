@@ -105,7 +105,7 @@ impl Scheduler {
     /// Returns `true` if a process was run.  Returns `false` if no process could be run and the
     /// scheduler should sleep or work steal.
     #[must_use]
-    fn run_once(&self) -> bool {
+    pub fn run_once(&self) -> bool {
         match self.hierarchy.write().timeout() {
             Ok(()) => (),
             Err(_) => unimplemented!(
@@ -204,7 +204,7 @@ impl Scheduler {
         }
     }
 
-    fn schedule(
+    pub fn schedule(
         self: Arc<Scheduler>,
         process_control_block: ProcessControlBlock,
     ) -> Arc<ProcessControlBlock> {

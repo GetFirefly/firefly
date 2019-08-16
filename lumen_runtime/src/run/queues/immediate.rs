@@ -10,6 +10,11 @@ use crate::run::Run;
 pub struct Immediate(VecDeque<Arc<ProcessControlBlock>>);
 
 impl Immediate {
+    #[cfg(test)]
+    pub fn contains(&self, value: &Arc<ProcessControlBlock>) -> bool {
+        self.0.contains(value)
+    }
+
     pub fn len(&self) -> usize {
         self.0.len()
     }

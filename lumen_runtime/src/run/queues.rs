@@ -25,6 +25,14 @@ pub struct Queues {
 
 impl Queues {
     #[cfg(test)]
+    pub fn contains(&self, value: &Arc<ProcessControlBlock>) -> bool {
+        self.waiting.contains(value)
+            || self.normal_low.contains(value)
+            || self.high.contains(value)
+            || self.max.contains(value)
+    }
+
+    #[cfg(test)]
     pub fn run_queue_len(&self, priority: Priority) -> usize {
         match priority {
             Priority::Low | Priority::Normal => self.normal_low.len(),
@@ -117,6 +125,11 @@ impl Next {
 pub struct Waiting(HashSet<Arc<ProcessControlBlock>>);
 
 impl Waiting {
+    #[cfg(test)]
+    fn contains(&self, value: &Arc<ProcessControlBlock>) -> bool {
+        self.0.contains(value)
+    }
+
     fn get<Q: ?Sized>(&self, value: &Q) -> Option<&Arc<ProcessControlBlock>>
     where
         Arc<ProcessControlBlock>: Borrow<Q>,

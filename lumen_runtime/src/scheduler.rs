@@ -184,6 +184,11 @@ impl Scheduler {
         self.run_queues.read().run_queue_len(priority)
     }
 
+    #[cfg(test)]
+    pub fn is_run_queued(&self, value: &Arc<ProcessControlBlock>) -> bool {
+        self.run_queues.read().contains(value)
+    }
+
     /// Returns `true` if `arc_process` was run; otherwise, `false`.
     #[must_use]
     pub fn run_through(&self, arc_process: &Arc<ProcessControlBlock>) -> bool {

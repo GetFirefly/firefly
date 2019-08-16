@@ -1,3 +1,5 @@
+pub mod r#loop;
+
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
 // use proptest completely for wasm32
 //

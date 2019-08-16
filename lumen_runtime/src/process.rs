@@ -11,8 +11,6 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::{self, ProcessControlBlock};
-#[cfg(test)]
-use liblumen_alloc::erts::term::atom_unchecked;
 use liblumen_alloc::erts::term::{AsTerm, Atom, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::CloneToProcess;
@@ -190,11 +188,19 @@ pub fn test_init() -> Arc<ProcessControlBlock> {
 pub fn test(parent_process: &ProcessControlBlock) -> Arc<ProcessControlBlock> {
     let heap_size = process::next_heap_size(16_000);
     let heap = process::heap(heap_size).unwrap();
-    let erlang = Atom::try_from_str("erlang").unwrap();
-    let exit = Atom::try_from_str("exit").unwrap();
+    let module = test::r#loop::module();
+    let function = test::r#loop::function();
+    let arguments = vec![];
+    let code = test::r#loop::code;
 
-    let normal = atom_unchecked("normal");
-    let arguments = parent_process.list_from_slice(&[normal]).unwrap();
-
-    Scheduler::spawn_apply_3(parent_process, erlang, exit, arguments, heap, heap_size).unwrap()
+    Scheduler::spawn(
+        parent_process,
+        module,
+        function,
+        arguments,
+        code,
+        heap,
+        heap_size,
+    )
+    .unwrap()
 }

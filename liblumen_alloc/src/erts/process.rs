@@ -359,13 +359,18 @@ impl ProcessControlBlock {
     /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
     pub fn send_from_other(&self, data: Term) -> Result<bool, Alloc> {
         match self.heap.try_lock() {
-            Some(ref mut destination_heap) => {
-                let destination_data = data.clone_to_heap(destination_heap)?;
+            Some(ref mut destination_heap) => match data.clone_to_heap(destination_heap) {
+                Ok(destination_data) => {
+                    self.send_message(Message::Process(message::Process {
+                        data: destination_data,
+                    }));
+                }
+                Err(_) => {
+                    let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
 
-                self.send_message(Message::Process(message::Process {
-                    data: destination_data,
-                }));
-            }
+                    self.send_heap_message(heap_fragment, heap_fragment_data);
+                }
+            },
             None => {
                 let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
 

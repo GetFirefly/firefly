@@ -9,7 +9,7 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
         let half_milliseconds = milliseconds / 2;
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
-        timer::timeout().unwrap();
+        timer::timeout();
 
         let timeout_message = timeout_message(timer_reference, message, process);
 
@@ -27,7 +27,7 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
         );
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
-        timer::timeout().unwrap();
+        timer::timeout();
 
         assert!(!has_message(process, timeout_message));
 
@@ -43,7 +43,7 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
 fn with_timeout_returns_ok_after_timeout_message_was_sent() {
     with_timer(|milliseconds, message, timer_reference, process| {
         thread::sleep(Duration::from_millis(milliseconds + 1));
-        timer::timeout().unwrap();
+        timer::timeout();
 
         let timeout_message = timeout_message(timer_reference, message, process);
 

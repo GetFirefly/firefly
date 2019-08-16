@@ -48,7 +48,7 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
                     prop_assert!(!has_message(&destination_arc_process, timeout_message));
 
                     thread::sleep(Duration::from_millis(milliseconds + 1));
-                    timer::timeout().unwrap();
+                    timer::timeout();
 
                     prop_assert!(has_message(&destination_arc_process, timeout_message));
 
@@ -101,7 +101,7 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
                 prop_assert!(!has_message(&arc_process, timeout_message));
 
                 thread::sleep(Duration::from_millis(milliseconds + 1));
-                timer::timeout().unwrap();
+                timer::timeout();
 
                 prop_assert!(has_message(&arc_process, timeout_message));
 

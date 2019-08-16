@@ -35,7 +35,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
                     // No sleeping is necessary because timeout is in the past and so the timer will
                     // timeout at once
 
-                    timer::timeout().unwrap();
+                    timer::timeout();
 
                     prop_assert!(!has_message(&arc_process, message));
 

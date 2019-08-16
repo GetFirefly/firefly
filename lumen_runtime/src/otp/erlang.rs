@@ -1800,7 +1800,7 @@ fn cancel_timer(
                                 timer_reference,
                                 canceled_term,
                             ])?;
-                            process_control_block.send_from_self(cancel_timer_message)?;
+                            process_control_block.send_from_self(cancel_timer_message);
 
                             atom_unchecked("ok")
                         } else {
@@ -1914,7 +1914,7 @@ fn read_timer(
                             timer_reference,
                             read_term,
                         ])?;
-                        process_control_block.send_from_self(read_timer_message)?;
+                        process_control_block.send_from_self(read_timer_message);
 
                         atom_unchecked("ok")
                     } else {

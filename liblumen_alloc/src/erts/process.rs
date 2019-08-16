@@ -336,11 +336,7 @@ impl ProcessControlBlock {
 
     // Send
 
-    pub fn send_heap_message(
-        &self,
-        heap_fragment: NonNull<HeapFragment>,
-        data: Term,
-    ) -> Result<(), Alloc> {
+    pub fn send_heap_message(&self, heap_fragment: NonNull<HeapFragment>, data: Term) {
         let heap_fragment_ptr = heap_fragment.as_ptr();
 
         let off_heap_unsafe_ref_heap_fragment = unsafe { UnsafeRef::from_raw(heap_fragment_ptr) };
@@ -353,11 +349,11 @@ impl ProcessControlBlock {
         self.send_message(Message::HeapFragment(message::HeapFragment {
             unsafe_ref_heap_fragment: message_unsafe_ref_heap_fragment,
             data,
-        }))
+        }));
     }
 
-    pub fn send_from_self(&self, data: Term) -> Result<(), Alloc> {
-        self.send_message(Message::Process(message::Process { data }))
+    pub fn send_from_self(&self, data: Term) {
+        self.send_message(Message::Process(message::Process { data }));
     }
 
     /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
@@ -368,12 +364,12 @@ impl ProcessControlBlock {
 
                 self.send_message(Message::Process(message::Process {
                     data: destination_data,
-                }))?;
+                }));
             }
             None => {
                 let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
 
-                self.send_heap_message(heap_fragment, heap_fragment_data)?;
+                self.send_heap_message(heap_fragment, heap_fragment_data);
             }
         }
 
@@ -391,10 +387,8 @@ impl ProcessControlBlock {
         }
     }
 
-    fn send_message(&self, message: Message) -> Result<(), Alloc> {
-        self.mailbox.lock().borrow_mut().push(message);
-
-        Ok(())
+    fn send_message(&self, message: Message) {
+        self.mailbox.lock().borrow_mut().push(message)
     }
 
     // Terms

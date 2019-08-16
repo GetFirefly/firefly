@@ -174,7 +174,7 @@ where
 
 fn timeout_after_half(milliseconds: Milliseconds, barrier: &Barrier) {
     thread::sleep(Duration::from_millis(milliseconds / 2 + 1));
-    timer::timeout().unwrap();
+    timer::timeout();
     barrier.wait();
 }
 

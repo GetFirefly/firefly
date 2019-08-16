@@ -59,12 +59,8 @@ pub fn start(
 /// Times out the timers for the thread that have timed out since the last time `timeout` was
 /// called.
 #[cfg(all(not(target_arch = "wasm32"), test))]
-pub fn timeout() -> Result<(), Alloc> {
-    let scheduler = Scheduler::current();
-
-    let result = scheduler.hierarchy.write().timeout();
-
-    result
+pub fn timeout() {
+    Scheduler::current().hierarchy.write().timeout();
 }
 
 #[derive(Clone)]
@@ -190,14 +186,14 @@ impl Hierarchy {
         Ok(process_reference)
     }
 
-    pub fn timeout(&mut self) -> Result<(), Alloc> {
-        self.timeout_at_once()?;
+    pub fn timeout(&mut self) {
+        self.timeout_at_once();
 
         let monotonic_time_milliseconds = monotonic::time_in_milliseconds();
         let milliseconds = monotonic_time_milliseconds - self.soon.slot_monotonic_time_milliseconds;
 
         for _ in 0..milliseconds {
-            self.timeout_soon_slot()?;
+            self.timeout_soon_slot();
 
             assert!(self.soon.is_empty());
             self.soon.next_slot();
@@ -223,33 +219,27 @@ impl Hierarchy {
                 }
             }
         }
-
-        Ok(())
     }
 
-    fn timeout_at_once(&mut self) -> Result<(), Alloc> {
+    fn timeout_at_once(&mut self) {
         for arc_timer in self.at_once.drain(..) {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
 
-            Self::timeout_arc_timer(arc_timer)?;
+            Self::timeout_arc_timer(arc_timer);
         }
-
-        Ok(())
     }
 
-    fn timeout_soon_slot(&mut self) -> Result<(), Alloc> {
+    fn timeout_soon_slot(&mut self) {
         for arc_timer in self.soon.drain(..) {
             self.timer_by_reference_number
                 .remove(&arc_timer.reference_number);
 
-            Self::timeout_arc_timer(arc_timer)?;
+            Self::timeout_arc_timer(arc_timer);
         }
-
-        Ok(())
     }
 
-    fn timeout_arc_timer(arc_timer: Arc<Timer>) -> Result<(), Alloc> {
+    fn timeout_arc_timer(arc_timer: Arc<Timer>) {
         match Arc::try_unwrap(arc_timer) {
             Ok(timer) => timer.timeout(),
             Err(_) => panic!("Timer Dropped"),
@@ -390,7 +380,7 @@ impl Timer {
         }
     }
 
-    fn timeout(self) -> Result<(), Alloc> {
+    fn timeout(self) {
         let option_destination_arc_process = match &self.destination {
             Destination::Name(ref name) => registry::atom_to_process(name),
             Destination::Process(destination_process_weak) => destination_process_weak.upgrade(),
@@ -402,9 +392,7 @@ impl Timer {
                 term,
             } = self.message_heap.into_inner();
 
-            destination_arc_process.send_heap_message(heap_fragment, term)
-        } else {
-            Ok(())
+            destination_arc_process.send_heap_message(heap_fragment, term);
         }
     }
 }

@@ -33,7 +33,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
                 thread::sleep(Duration::from_millis(milliseconds + 1));
 
-                timer::timeout().unwrap();
+                timer::timeout();
 
                 prop_assert!(!has_message(&arc_process, message));
 

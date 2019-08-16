@@ -3,6 +3,8 @@
 pub mod add_2;
 pub mod apply_3;
 pub mod convert_time_unit_3;
+pub mod exit_1;
+pub mod link_1;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
 pub mod self_0;
@@ -38,7 +40,7 @@ use liblumen_alloc::erts::term::{
     Term, Tuple, TypedTerm,
 };
 use liblumen_alloc::erts::ProcessControlBlock;
-use liblumen_alloc::{badarg, badarith, badkey, badmap, error, exit, raise, throw};
+use liblumen_alloc::{badarg, badarith, badkey, badmap, error, raise, throw};
 
 use crate::binary::{start_length_to_part_range, PartRange, ToTermOptions};
 use crate::node;
@@ -820,10 +822,6 @@ pub fn error_1(reason: Term) -> Result {
 
 pub fn error_2(reason: Term, arguments: Term) -> Result {
     Err(error!(reason, Some(arguments)).into())
-}
-
-pub fn exit_1(reason: Term) -> Result {
-    Err(exit!(reason).into())
 }
 
 pub fn hd_1(list: Term) -> Result {

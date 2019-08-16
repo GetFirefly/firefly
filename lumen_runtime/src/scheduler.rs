@@ -198,7 +198,7 @@ impl Scheduler {
         // The same as `run`, but stops when the process is run once
         loop {
             if self.run_once() {
-                if arc_process.total_reductions.load(Ordering::SeqCst) <= reductions_before {
+                if reductions_before < arc_process.total_reductions.load(Ordering::SeqCst) {
                     break true;
                 } else {
                     continue;

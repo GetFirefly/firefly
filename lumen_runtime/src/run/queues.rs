@@ -80,8 +80,13 @@ impl Queues {
                 None
             }
             PushBack => {
-                self.enqueue(arc_process);
-                None
+                if arc_process.code_stack_len() == 0 {
+                    arc_process.exit();
+                    Some(arc_process)
+                } else {
+                    self.enqueue(arc_process);
+                    None
+                }
             }
             Exit => Some(arc_process),
         }

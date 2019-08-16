@@ -16,7 +16,7 @@ use super::alloc;
 fn gc_simple_fullsweep_test() {
     // Create process
     let process = process();
-    process.set_flags(ProcessFlag::NeedFullSweep);
+    process.set_flags(ProcessFlags::NeedFullSweep);
     simple_gc_test(process);
 }
 

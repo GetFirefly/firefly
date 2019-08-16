@@ -72,7 +72,7 @@ pub struct ProcessControlBlock {
     /// The priority of the process in `scheduler`.
     pub priority: Priority,
     /// Process flags, e.g. `Process.flag/1`
-    flags: AtomicProcessFlag,
+    flags: AtomicProcessFlags,
     /// Minimum size of the heap that this process will start with
     min_heap_size: usize,
     /// The maximum size of the heap allowed for this process
@@ -122,7 +122,7 @@ impl ProcessControlBlock {
         let pid = pid::next();
 
         Self {
-            flags: AtomicProcessFlag::new(ProcessFlag::Default),
+            flags: AtomicProcessFlags::new(ProcessFlags::Default),
             min_heap_size: heap_size,
             max_heap_size: 0,
             min_vheap_size: 0,
@@ -161,13 +161,13 @@ impl ProcessControlBlock {
 
     /// Set the given process flag
     #[inline]
-    pub fn set_flags(&self, flags: ProcessFlag) {
+    pub fn set_flags(&self, flags: ProcessFlags) {
         self.flags.set(flags);
     }
 
     /// Unset the given process flag
     #[inline]
-    pub fn clear_flags(&self, flags: ProcessFlag) {
+    pub fn clear_flags(&self, flags: ProcessFlags) {
         self.flags.clear(flags);
     }
 
@@ -620,22 +620,22 @@ impl ProcessControlBlock {
 
     #[inline]
     fn is_gc_forced(&self) -> bool {
-        self.flags.is_set(ProcessFlag::ForceGC)
+        self.flags.are_set(ProcessFlags::ForceGC)
     }
 
     #[inline(always)]
     fn is_gc_delayed(&self) -> bool {
-        self.flags.is_set(ProcessFlag::DelayGC)
+        self.flags.are_set(ProcessFlags::DelayGC)
     }
 
     #[inline(always)]
     fn is_gc_disabled(&self) -> bool {
-        self.flags.is_set(ProcessFlag::DisableGC)
+        self.flags.are_set(ProcessFlags::DisableGC)
     }
 
     #[inline(always)]
     fn needs_fullsweep(&self) -> bool {
-        self.flags.is_set(ProcessFlag::NeedFullSweep)
+        self.flags.are_set(ProcessFlags::NeedFullSweep)
     }
 
     /// Performs a garbage collection, using the provided root set

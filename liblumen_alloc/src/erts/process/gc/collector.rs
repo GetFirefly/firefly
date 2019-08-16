@@ -129,7 +129,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
         // Unset heap_grow and need_fullsweep flags, because we are doing both
         self.process
             .flags
-            .clear(ProcessFlag::GrowHeap | ProcessFlag::NeedFullSweep);
+            .clear(ProcessFlags::GrowHeap | ProcessFlags::NeedFullSweep);
         // Allocate new heap
         let new_heap_start = alloc::heap(new_size).map_err(|alloc| GcError::Alloc(alloc))?;
         let mut new_heap = YoungHeap::new(new_heap_start, new_size);
@@ -247,7 +247,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
             panic!("Full sweep finished, but the needed size exceeds even the most pessimistic estimate, this must be a bug");
         } else if total_size * 3 < need_after * 4 {
             // `need_after` requires more than 75% of the current size, schedule some growth
-            self.process.flags.set(ProcessFlag::GrowHeap);
+            self.process.flags.set(ProcessFlags::GrowHeap);
         } else if total_size > need_after * 4 && self.process.min_heap_size < total_size {
             // We need less than 25% of the current heap, shrink
             let wanted = need_after * 2;
@@ -560,7 +560,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
     /// Determines if we should try and grow the heap even when not necessary
     #[inline]
     fn should_force_heap_growth(&self) -> bool {
-        self.process.flags.is_set(ProcessFlag::GrowHeap)
+        self.process.flags.are_set(ProcessFlags::GrowHeap)
     }
 
     /// Calculates the reduction count cost of a collection

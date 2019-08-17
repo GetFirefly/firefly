@@ -311,6 +311,19 @@ impl ProcessControlBlock {
         }
     }
 
+    pub fn unlink(&self, other: &ProcessControlBlock) {
+        // unlink in order so that locks are always taken in the same order to prevent deadlocks
+        if self.pid < other.pid {
+            let mut self_pid_set = self.linked_pid_set.lock();
+            let mut other_pid_set = other.linked_pid_set.lock();
+
+            self_pid_set.remove(&other.pid);
+            other_pid_set.remove(&self.pid);
+        } else {
+            other.unlink(self)
+        }
+    }
+
     // Pid
 
     pub fn pid(&self) -> Pid {

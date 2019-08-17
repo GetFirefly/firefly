@@ -1,112 +1,123 @@
-version: 2
+version: 2.1
+commands:
+  version_information:
+    steps:
+      - run:
+          name: rustup version
+          command: |
+            rustup --version | tee rustup.version
+      - run:
+          name: rustc version
+          command: |
+            rustc --version | tee rustc.version
+      - run:
+          name: cargo version
+          command: |
+            cargo --version | tee cargo.version
+  build_package:
+    parameters:
+      package:
+        type: string
+    steps:
+      - run:
+          name: Building << parameters.package >>
+          command: cargo test --locked --no-run --package << parameters.package >>
+  build:
+    steps:
+      - version_information
+      - restore_cache:
+          keys:
+            - v7-x86_64-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}
+            - v7-x86_64-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}
+            - v7-x86_64-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}
+            - v7-x86_64-{{ arch }}-rustup-{{ checksum "rustup.version" }}
+            - v7-x86_64-{{ arch }}
+      - run:
+          name: Building workspace
+          command: cargo test --locked --no-run
+      # for some reason `cargo test` or `cargo test --all` is not the same as going into each package in the workspace
+      # too, but doing both the top of the workspace AND each `--package` is stable. 🤷‍♂️
+      - build_package:
+          package: liblumen_alloc
+      - build_package:
+          package: liblumen_alloc_macros
+      - build_package:
+          package: liblumen_arena
+      - build_package:
+          package: liblumen_beam
+      - build_package:
+          package: liblumen_codegen
+      - build_package:
+          package: liblumen_common
+      - build_package:
+          package: liblumen_compiler
+      - build_package:
+          package: liblumen_core
+      - build_package:
+          package: liblumen_diagnostics
+      - build_package:
+          package: liblumen_eir_interpreter
+      - build_package:
+          package: liblumen_syntax
+      - build_package:
+          package: lumen
+      - build_package:
+          package: lumen_runtime
+      # lumen_web excluded because it only works on wasm32
+      - save_cache:
+          key: v7-x86_64-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}
+          paths:
+            - cargo
+            - target
+      - persist_to_workspace:
+          root: .
+          paths:
+            - cargo
+            - examples
+            - liblumen_alloc
+            - liblumen_alloc_macros
+            - liblumen_arena
+            - liblumen_beam
+            - liblumen_codegen
+            - liblumen_common
+            - liblumen_compiler
+            - liblumen_core
+            - liblumen_diagnostics
+            - liblumen_eir_interpreter
+            - liblumen_syntax
+            - lumen
+            - lumen_runtime
+            - lumen_web
+            - target
+            - .rustfmt.toml
+            - Cargo.lock
+            - Cargo.toml
+            - Makefile
+  test_package:
+    parameters:
+      package:
+        type: string
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Testing << parameters.package >>
+          command: cargo test --locked --offline --package << parameters.package >>
+executors:
+  x86_64_linux:
+    parameters:
+      resource_class:
+        type: string
+        default: medium
+    docker:
+      # `kronicdeth` is temporary until we get a DockerHub organization
+      - image: kronicdeth/lumen-development
+    resource_class: << parameters.resource_class >>
+    environment:
+      CARGO_HOME: cargo
 jobs:
-  x86_64_build:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    resource_class: xlarge
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - checkout
-      - run:
-          name: Version Information
-          command: rustc --version; cargo --version; rustup --version
-      - restore_cache:
-          keys:
-            - v4-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
-      - run:
-          name: Build all targets
-          command: cargo test --all --all-targets --locked --no-run
-      - save_cache:
-          key: v4-cargo-cache-x86_64-{{ checksum "Cargo.lock" }}
-          paths:
-            - cargo
-            - target/debug/.fingerprint
-            - target/debug/build
-            - target/debug/deps
-      - persist_to_workspace:
-          root: .
-          paths:
-            - cargo
-            - examples
-            - liblumen_alloc
-            - liblumen_alloc_macros
-            - liblumen_arena
-            - liblumen_beam
-            - liblumen_codegen
-            - liblumen_common
-            - liblumen_compiler
-            - liblumen_core
-            - liblumen_diagnostics
-            - liblumen_eir_interpreter
-            - liblumen_syntax
-            - lumen
-            - lumen_runtime
-            - lumen_web
-            - target/debug/.fingerprint
-            - target/debug/build
-            - target/debug/deps
-            - .rustfmt.toml
-            - Cargo.lock
-            - Cargo.toml
-            - Makefile
-  wasm32_build:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - checkout
-      - run:
-          name: Version Information
-          command: rustc --version; cargo --version; rustup --version
-      - restore_cache:
-          keys:
-            - v4-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
-      - run:
-          working_directory: "lumen_runtime"
-          command: wasm-pack build
-      - save_cache:
-          key: v4-cargo-cache-wasm32-{{ checksum "Cargo.lock" }}
-          paths:
-            - cargo
-            - target/debug/.fingerprint
-            - target/debug/build
-            - target/debug/deps
-      - persist_to_workspace:
-          root: .
-          paths:
-            - cargo
-            - examples
-            - liblumen_alloc
-            - liblumen_alloc_macros
-            - liblumen_arena
-            - liblumen_beam
-            - liblumen_codegen
-            - liblumen_common
-            - liblumen_compiler
-            - liblumen_core
-            - liblumen_diagnostics
-            - liblumen_eir_interpreter
-            - liblumen_syntax
-            - lumen
-            - lumen_runtime
-            - lumen_web
-            - target/debug/.fingerprint
-            - target/debug/build
-            - target/debug/deps
-            - .rustfmt.toml
-            - Cargo.lock
-            - Cargo.toml
-            - Makefile
   check_formatted:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
+    executor: x86_64_linux
     steps:
       - attach_workspace:
           at: .
@@ -115,260 +126,149 @@ jobs:
           command: |
             rustfmt --version
             cargo fmt -- --check
-  chrome_examples_spawn_chain_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
+  x86_64_linux_build:
+    executor:
+      name: x86_64_linux
+      resource_class: xlarge
     steps:
-      - attach_workspace:
-          at: .
+      - checkout
+      - build
+  x86_64_linux_test:
+    parameters:
+      resource_class:
+        type: string
+        default: medium
+      package:
+        type: string
+    executor:
+      name: x86_64_linux
+      resource_class: << parameters.resource_class >>
+    steps:
+      - test_package:
+          package: << parameters.package >>
+  wasm32_linux_examples_spawn_chain_build:
+    executor:
+      name: x86_64_linux
+      resource_class: xlarge
+    steps:
+      - checkout
+      - version_information
       - run:
-          name: Run all tests
+          name: wasm-pack version
+          command: |
+            wasm-pack --version | tee wasm-pack.version
+      - restore_cache:
+          keys:
+            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
+            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}
+            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}
+            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}
+            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}
+            - v6-wasm32-example-spawn-chain-{{ arch }}
+      - run:
+          name: Build tests
           working_directory: "examples/spawn-chain"
-          command: wasm-pack test --chrome --headless
-  firefox_examples_spawn_chain_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
+          # `--no-run` for `test` will only do build
+          command: wasm-pack test --chrome --firefox --headless -- --no-run
+      - save_cache:
+          key: v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
+          paths:
+            - cargo
+            - target
+      - persist_to_workspace:
+          root: .
+          paths:
+            - cargo
+            - examples
+            - liblumen_alloc
+            - liblumen_alloc_macros
+            - liblumen_arena
+            - liblumen_beam
+            - liblumen_codegen
+            - liblumen_common
+            - liblumen_compiler
+            - liblumen_core
+            - liblumen_diagnostics
+            - liblumen_eir_interpreter
+            - liblumen_syntax
+            - lumen
+            - lumen_runtime
+            - lumen_web
+            - target
+            - .rustfmt.toml
+            - Cargo.lock
+            - Cargo.toml
+            - Makefile
+  wasm32_linux_examples_spawn_chain_test:
+    parameters:
+      browser:
+        type: string
+    executor: x86_64_linux
     steps:
       - attach_workspace:
           at: .
       - run:
-          name: Run all tests
+          name: Test in << parameters.browser >>
           working_directory: "examples/spawn-chain"
-          command: wasm-pack test --firefox --headless
-  x86_64_examples_spawn_chain_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "examples/spawn-chain"
-          command: cargo test --locked -- --test-threads=1
-  x86_64_liblumen_alloc_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_alloc"
-          command: cargo test --locked
-  x86_64_liblumen_arena_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_arena"
-          command: cargo test --locked
-  x86_64_liblumen_beam_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_beam"
-          command: cargo test --locked
-  x86_64_liblumen_codegen_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_codegen"
-          command: cargo test --locked
-  x86_64_liblumen_common_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_common"
-          command: cargo test --locked
-  x86_64_liblumen_compiler_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_compiler"
-          command: cargo test --locked
-  x86_64_liblumen_core_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_core"
-          command: cargo test --locked
-  x86_64_liblumen_diagnostics_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_diagnostics"
-          command: cargo test --locked
-  x86_64_liblumen_eir_interpreter_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_eir_interpreter"
-          command: cargo test --locked
-      - run:
-          name: Fibonacci
-          working_directory: "liblumen_eir_interpreter"
-          command: cargo run -- --ident fib:run/0 fib.erl
-  x86_64_liblumen_syntax_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "liblumen_syntax"
-          command: cargo test --locked
-  x86_64_lumen_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "lumen"
-          command: cargo test --locked
-  x86_64_lumen_runtime_test:
-    docker:
-      # `kronicdeth` is temporary until we get a DockerHub organization
-      - image: kronicdeth/lumen-development
-    resource_class: xlarge
-    environment:
-      CARGO_HOME: cargo
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: Run all tests
-          working_directory: "lumen_runtime"
-          command: cargo test --locked
-
+          command: wasm-pack test --<< parameters.browser >> --headless
 workflows:
   version: 2
   primary:
     jobs:
-      - x86_64_build
-      - wasm32_build
       - check_formatted:
           requires:
-            - x86_64_build
-      - x86_64_examples_spawn_chain_test:
+            - x86_64_linux_build
+      - x86_64_linux_build
+      - x86_64_linux_test:
+          name: x86_64_linux_liblumen_alloc_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_alloc_test:
+           - x86_64_linux_build
+          package: "liblumen_alloc"
+      - x86_64_linux_test:
+          name: x86_64_linux_liblumen_arena_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_arena_test:
+           - x86_64_linux_build
+          package: "liblumen_arena"
+      - x86_64_linux_test:
+          name: x86_64_linux_liblumen_beam_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_beam_test:
+            - x86_64_linux_build
+          package: "liblumen_beam"
+      - x86_64_linux_test:
+          name: x86_64_linux_liblumen_core_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_codegen_test:
+            - x86_64_linux_build
+          package: "liblumen_core"
+      - x86_64_linux_test:
+          name: x86_64_linux_liblumen_diagnostics_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_common_test:
+            - x86_64_linux_build
+          package: "liblumen_diagnostics"
+      - x86_64_linux_test:
+          name: x86_64_linux_liblumen_eir_interpreter_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_compiler_test:
+            - x86_64_linux_build
+          package: "liblumen_eir_interpreter"
+      - x86_64_linux_test:
+          name: x86_64_linux_liblumen_syntax_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_core_test:
+            - x86_64_linux_build
+          package: "liblumen_syntax"
+      - x86_64_linux_test:
+          name: x86_64_linux_lumen_runtime_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_diagnostics_test:
+            - x86_64_linux_build
+          resource_class: xlarge
+          package: "lumen_runtime"
+      - wasm32_linux_examples_spawn_chain_build
+      - wasm32_linux_examples_spawn_chain_test:
+          name: wasm32_chrome_examples_spawn_chain_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_eir_interpreter_test:
+            - wasm32_linux_examples_spawn_chain_build
+          browser: chrome
+      - wasm32_linux_examples_spawn_chain_test:
+          name: wasm32_firefox_examples_spawn_chain_test
           requires:
-            - x86_64_build
-      - x86_64_liblumen_syntax_test:
-          requires:
-            - x86_64_build
-      - x86_64_lumen_test:
-          requires:
-            - x86_64_build
-      - x86_64_lumen_runtime_test:
-          requires:
-            - x86_64_build
-      - chrome_examples_spawn_chain_test:
-          requires:
-            - wasm32_build
-      - firefox_examples_spawn_chain_test:
-          requires:
-            - wasm32_build
-
+            - wasm32_linux_examples_spawn_chain_build
+          browser: firefox
 

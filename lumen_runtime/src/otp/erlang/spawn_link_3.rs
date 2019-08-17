@@ -25,7 +25,7 @@ pub fn native(
 ) -> exception::Result {
     spawn_linkage_3::native(
         process_control_block,
-        Linkage::None,
+        Linkage::Link,
         module,
         function,
         arguments,
@@ -42,7 +42,7 @@ pub fn place_frame_with_arguments(
     spawn_linkage_3::place_frame_with_arguments(
         process,
         placement,
-        Linkage::None,
+        Linkage::Link,
         module,
         function,
         arguments,

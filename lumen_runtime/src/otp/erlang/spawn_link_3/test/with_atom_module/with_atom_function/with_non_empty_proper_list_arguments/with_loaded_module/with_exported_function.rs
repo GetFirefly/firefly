@@ -3,7 +3,7 @@ use super::*;
 mod with_arity;
 
 #[test]
-fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
+fn without_arity_when_run_exits_undef_and_parent_exits() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -25,7 +25,7 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
         ])
         .unwrap();
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -63,5 +63,5 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
 
-    assert!(!parent_arc_process.is_exiting());
+    assert!(child_arc_process.is_exiting())
 }

@@ -1,31 +1,27 @@
 use super::*;
 
-mod with_arity;
+mod with_loaded_module;
 
 #[test]
-fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
+fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
+    // Typo
+    let module_atom = Atom::try_from_str("erlan").unwrap();
     let module = unsafe { module_atom.as_term() };
 
     let function_atom = Atom::try_from_str("+").unwrap();
     let function = unsafe { function_atom.as_term() };
 
-    // erlang.+/1 and erlang.+/2 exists so use 3 for invalid arity
     let arguments = parent_arc_process
-        .list_from_slice(&[
-            parent_arc_process.integer(0).unwrap(),
-            parent_arc_process.integer(1).unwrap(),
-            parent_arc_process.integer(2).unwrap(),
-        ])
+        .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
         .unwrap();
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -63,5 +59,5 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
 
-    assert!(!parent_arc_process.is_exiting());
+    assert!(child_arc_process.is_exiting());
 }

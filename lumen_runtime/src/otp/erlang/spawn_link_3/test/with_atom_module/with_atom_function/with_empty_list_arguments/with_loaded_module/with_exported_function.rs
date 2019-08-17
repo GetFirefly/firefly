@@ -16,7 +16,7 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
 
     let arguments = Term::NIL;
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -33,8 +33,8 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
 
     let child_arc_process = pid_to_process(&child_pid_pid).unwrap();
 
+    assert!(!parent_arc_process.is_exiting());
     assert!(arc_scheduler.run_through(&child_arc_process));
-    assert!(!arc_scheduler.run_through(&child_arc_process));
 
     assert_eq!(child_arc_process.code_stack_len(), 0);
     assert_eq!(child_arc_process.current_module_function_arity(), None);
@@ -46,11 +46,11 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
 
-    assert!(!parent_arc_process.is_exiting());
+    assert!(!parent_arc_process.is_exiting())
 }
 
 #[test]
-fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
+fn without_arity_when_run_exits_undef_and_exits_parent() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -66,7 +66,7 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
     // `+` is arity 1, not 0
     let arguments = Term::NIL;
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -84,7 +84,6 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
     let child_arc_process = pid_to_process(&child_pid_pid).unwrap();
 
     assert!(arc_scheduler.run_through(&child_arc_process));
-    assert!(!arc_scheduler.run_through(&child_arc_process));
 
     assert_eq!(child_arc_process.code_stack_len(), 1);
     assert_eq!(
@@ -104,5 +103,5 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
 
-    assert!(!parent_arc_process.is_exiting());
+    assert!(parent_arc_process.is_exiting());
 }

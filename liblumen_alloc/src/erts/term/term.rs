@@ -938,6 +938,15 @@ impl Term {
         typecheck::is_list(self.0)
     }
 
+    pub fn is_proper_list(&self) -> bool {
+        self.is_nil()
+            || (self.is_non_empty_list() && {
+                let cons: Boxed<Cons> = (*self).try_into().unwrap();
+
+                cons.is_proper()
+            })
+    }
+
     /// Returns true if this a term that the runtime should accept as an argument.
     pub fn is_runtime(&self) -> bool {
         self.is_immediate() || self.is_boxed() || self.is_non_empty_list()

@@ -69,7 +69,7 @@ fn with_existing_linked_pid_returns_true() {
 }
 
 #[test]
-fn when_a_linked_process_exits_the_process_exits_too() {
+fn when_a_linked_process_exits_normal_the_process_does_not_exit() {
     with_process(|process| {
         let other_arc_process = process::test(process);
 
@@ -93,12 +93,100 @@ fn when_a_linked_process_exits_the_process_exits_too() {
         assert!(Scheduler::current().run_through(&other_arc_process));
 
         assert!(other_arc_process.is_exiting());
+        assert!(!process.is_exiting())
+    });
+}
+
+#[test]
+fn when_a_linked_process_exits_shutdown_the_process_does_not_exit() {
+    with_process(|process| {
+        let other_arc_process = process::test(process);
+
+        assert_eq!(
+            native(process, other_arc_process.pid_term()),
+            Ok(true.into())
+        );
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(!other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+
+        erlang::exit_1::place_frame_with_arguments(
+            &other_arc_process,
+            Placement::Replace,
+            atom_unchecked("shutdown"),
+        )
+        .unwrap();
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(other_arc_process.is_exiting());
+        assert!(!process.is_exiting())
+    });
+}
+
+#[test]
+fn when_a_linked_process_exits_with_shutdown_tuple_the_process_does_not_exit() {
+    with_process(|process| {
+        let other_arc_process = process::test(process);
+
+        assert_eq!(
+            native(process, other_arc_process.pid_term()),
+            Ok(true.into())
+        );
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(!other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+
+        let tag = atom_unchecked("shutdown");
+        let shutdown_reason = atom_unchecked("test");
+        let reason = other_arc_process
+            .tuple_from_slice(&[tag, shutdown_reason])
+            .unwrap();
+        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
+            .unwrap();
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(other_arc_process.is_exiting());
+        assert!(!process.is_exiting())
+    });
+}
+
+#[test]
+fn when_a_linked_process_exits_unexpected_the_process_does_not_exit() {
+    with_process(|process| {
+        let other_arc_process = process::test(process);
+
+        assert_eq!(
+            native(process, other_arc_process.pid_term()),
+            Ok(true.into())
+        );
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(!other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+
+        erlang::exit_1::place_frame_with_arguments(
+            &other_arc_process,
+            Placement::Replace,
+            atom_unchecked("abnormal"),
+        )
+        .unwrap();
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(other_arc_process.is_exiting());
         assert!(process.is_exiting())
     });
 }
 
 #[test]
-fn when_the_process_exits_linked_processes_exit_too() {
+fn when_the_process_exits_unexpected_linked_processes_exit_too() {
     with_process_arc(|arc_process| {
         let other_arc_process = process::test(&arc_process);
 
@@ -115,7 +203,7 @@ fn when_the_process_exits_linked_processes_exit_too() {
         erlang::exit_1::place_frame_with_arguments(
             &arc_process,
             Placement::Replace,
-            atom_unchecked("normal"),
+            atom_unchecked("abnormal"),
         )
         .unwrap();
 

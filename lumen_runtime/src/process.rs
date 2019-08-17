@@ -25,6 +25,24 @@ use crate::system;
 #[cfg(test)]
 use crate::test;
 
+/// How the spawned child process is linked to parent
+#[derive(Clone, Copy)]
+pub enum Linkage {
+    /// No link or monitor
+    None,
+    /// Parent monitors child, but child does not monitor parent.
+    Monitor,
+    /// Parent and child are mutually linked.
+    Link,
+}
+
+fn is_expected_exception(exception: &runtime::Exception) -> bool {
+    match exception.class {
+        runtime::Class::Exit => is_expected_exit_reason(exception.reason),
+        _ => false,
+    }
+}
+
 fn is_expected_exit_reason(reason: Term) -> bool {
     match reason.to_typed_term().unwrap() {
         TypedTerm::Atom(atom) => match atom.name() {
@@ -69,24 +87,33 @@ pub fn log_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
 }
 
 pub fn propagate_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
-    let tag = atom_unchecked("EXIT");
-    let from = process.pid_term();
-    let reason = exception.reason;
-    let exit_message_elements: &[Term] = &[tag, from, reason];
-    let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);
+    if !is_expected_exception(exception) {
+        let tag = atom_unchecked("EXIT");
+        let from = process.pid_term();
+        let reason = exception.reason;
+        let exit_message_elements: &[Term] = &[tag, from, reason];
+        let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);
 
-    for linked_pid in process.linked_pid_set.lock().iter() {
-        if let Some(linked_pid_arc_process) = pid_to_process(linked_pid) {
-            if linked_pid_arc_process.traps_exit() {
-                match linked_pid_arc_process.try_acquire_heap() {
-                    Some(ref mut linked_pid_heap) => {
-                        if exit_message_word_size <= linked_pid_heap.heap_available() {
-                            let linked_pid_data = linked_pid_heap
-                                .tuple_from_slice(exit_message_elements)
-                                .unwrap();
+        for linked_pid in process.linked_pid_set.lock().iter() {
+            if let Some(linked_pid_arc_process) = pid_to_process(linked_pid) {
+                if linked_pid_arc_process.traps_exit() {
+                    match linked_pid_arc_process.try_acquire_heap() {
+                        Some(ref mut linked_pid_heap) => {
+                            if exit_message_word_size <= linked_pid_heap.heap_available() {
+                                let linked_pid_data = linked_pid_heap
+                                    .tuple_from_slice(exit_message_elements)
+                                    .unwrap();
 
-                            linked_pid_arc_process.send_from_self(linked_pid_data);
-                        } else {
+                                linked_pid_arc_process.send_from_self(linked_pid_data);
+                            } else {
+                                let (heap_fragment_data, heap_fragment) =
+                                    HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
+
+                                linked_pid_arc_process
+                                    .send_heap_message(heap_fragment, heap_fragment_data);
+                            }
+                        }
+                        None => {
                             let (heap_fragment_data, heap_fragment) =
                                 HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
 
@@ -94,17 +121,11 @@ pub fn propagate_exit(process: &ProcessControlBlock, exception: &runtime::Except
                                 .send_heap_message(heap_fragment, heap_fragment_data);
                         }
                     }
-                    None => {
-                        let (heap_fragment_data, heap_fragment) =
-                            HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
-
-                        linked_pid_arc_process.send_heap_message(heap_fragment, heap_fragment_data);
-                    }
+                } else {
+                    // only tell the linked process to exit.  When it is run by its scheduler, it
+                    // will go through propagating its own exit.
+                    linked_pid_arc_process.exit();
                 }
-            } else {
-                // only tell the linked process to exit.  When it is run by its scheduler, it will
-                // go through propagating its own exit.
-                linked_pid_arc_process.exit();
             }
         }
     }
@@ -211,8 +232,9 @@ pub fn spawn(
 ///
 /// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
 /// MFA unique to a given application.
-pub fn spawn_apply_3(
+pub fn spawn_linkage_apply_3(
     parent_process: &ProcessControlBlock,
+    linkage: Linkage,
     module: Atom,
     function: Atom,
     arguments: Term,
@@ -255,6 +277,13 @@ pub fn spawn_apply_3(
         function_term,
         heap_arguments,
     )?;
+
+    // Link after placing frame, so that any logging can show the `Frame`s when linking occurs
+    match linkage {
+        Linkage::None => (),
+        Linkage::Monitor => unimplemented!(),
+        Linkage::Link => parent_process.link(&process_control_block),
+    };
 
     Ok(process_control_block)
 }

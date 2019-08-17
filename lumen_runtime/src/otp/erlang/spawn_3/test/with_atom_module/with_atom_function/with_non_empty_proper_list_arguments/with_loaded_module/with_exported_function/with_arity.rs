@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn with_valid_arguments_when_run_exits_normal() {
+fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -32,24 +32,26 @@ fn with_valid_arguments_when_run_exits_normal() {
 
     assert_eq!(run_queue_length_after, run_queue_length_before + 1);
 
-    let arc_process = pid_to_process(&child_pid_pid).unwrap();
+    let child_arc_process = pid_to_process(&child_pid_pid).unwrap();
 
-    assert!(arc_scheduler.run_through(&arc_process));
-    assert!(!arc_scheduler.run_through(&arc_process));
+    assert!(arc_scheduler.run_through(&child_arc_process));
+    assert!(!arc_scheduler.run_through(&child_arc_process));
 
-    assert_eq!(arc_process.code_stack_len(), 0);
-    assert_eq!(arc_process.current_module_function_arity(), None);
+    assert_eq!(child_arc_process.code_stack_len(), 0);
+    assert_eq!(child_arc_process.current_module_function_arity(), None);
 
-    match *arc_process.status.read() {
+    match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
             assert_eq!(runtime_exception, &exit!(atom_unchecked("normal")));
         }
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
+
+    assert!(!parent_arc_process.is_exiting());
 }
 
 #[test]
-fn without_valid_arguments_when_run_exits() {
+fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -81,14 +83,14 @@ fn without_valid_arguments_when_run_exits() {
 
     assert_eq!(run_queue_length_after, run_queue_length_before + 1);
 
-    let arc_process = pid_to_process(&child_pid_pid).unwrap();
+    let child_arc_process = pid_to_process(&child_pid_pid).unwrap();
 
-    assert!(arc_scheduler.run_through(&arc_process));
-    assert!(!arc_scheduler.run_through(&arc_process));
+    assert!(arc_scheduler.run_through(&child_arc_process));
+    assert!(!arc_scheduler.run_through(&child_arc_process));
 
-    assert_eq!(arc_process.code_stack_len(), 1);
+    assert_eq!(child_arc_process.code_stack_len(), 1);
     assert_eq!(
-        arc_process.current_module_function_arity(),
+        child_arc_process.current_module_function_arity(),
         Some(Arc::new(ModuleFunctionArity {
             module: module_atom,
             function: function_atom,
@@ -96,10 +98,12 @@ fn without_valid_arguments_when_run_exits() {
         }))
     );
 
-    match *arc_process.status.read() {
+    match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
             assert_eq!(runtime_exception, &badarith!());
         }
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
+
+    assert!(!parent_arc_process.is_exiting())
 }

@@ -37,7 +37,7 @@ fn without_exported_function_when_run_exits_undef() {
 
     assert_eq!(run_queue_length_after, run_queue_length_before + 1);
 
-    let arc_process = pid_to_process(child_pid_pid).unwrap();
+    let arc_process = pid_to_process(&child_pid_pid).unwrap();
 
     assert!(arc_scheduler.run_through(&arc_process));
     assert!(!arc_scheduler.run_through(&arc_process));

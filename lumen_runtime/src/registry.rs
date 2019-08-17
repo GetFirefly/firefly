@@ -34,10 +34,10 @@ pub fn names(process_control_block: &ProcessControlBlock) -> exception::Result {
     Ok(acc)
 }
 
-pub fn pid_to_process(pid: Pid) -> Option<Arc<ProcessControlBlock>> {
+pub fn pid_to_process(pid: &Pid) -> Option<Arc<ProcessControlBlock>> {
     RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID
         .read()
-        .get(&pid)
+        .get(pid)
         .and_then(|weak_process| weak_process.clone().upgrade())
 }
 
@@ -48,7 +48,7 @@ pub fn pid_to_self_or_process(
     if process_arc.pid() == pid {
         Some(process_arc.clone())
     } else {
-        pid_to_process(pid)
+        pid_to_process(&pid)
     }
 }
 

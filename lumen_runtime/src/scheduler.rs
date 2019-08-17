@@ -1,3 +1,6 @@
+#[cfg(test)]
+pub mod test;
+
 use core::fmt::{self, Debug};
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -7,20 +10,18 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::Code;
 #[cfg(test)]
 use liblumen_alloc::erts::process::Priority;
 use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
-use liblumen_alloc::erts::term::{reference, Atom, Reference, Term, TypedTerm};
+use liblumen_alloc::erts::term::{reference, Atom, Reference, Term};
 
 use crate::process;
 use crate::registry::put_pid_to_process;
 use crate::run;
 use crate::run::Run;
-use crate::system;
 use crate::timer::Hierarchy;
 
 pub trait Scheduled {
@@ -134,33 +135,16 @@ impl Scheduler {
                                 *arc_process.acquire_heap()
                             ),
                         }
+                    } else {
+                        arc_process.reduce()
                     }
 
                     match self.run_queues.write().requeue(arc_process) {
                         Some(exiting_arc_process) => match *exiting_arc_process.status.read() {
-                            Status::Exiting(ref exception) => match exception.class {
-                                runtime::Class::Exit => {
-                                    let reason = exception.reason;
-
-                                    if !is_expected_exit_reason(reason) {
-                                        system::io::puts(&format!(
-                                            "** (EXIT from {}) exited with reason: {}",
-                                            exiting_arc_process, reason
-                                        ));
-                                    }
-                                }
-                                runtime::Class::Error { .. } => {
-                                    system::io::puts(
-                                        &format!(
-                                            "** (EXIT from {}) exited with reason: an exception was raised: {}\n{}",
-                                            exiting_arc_process,
-                                            exception.reason,
-                                            exiting_arc_process.stacktrace()
-                                        )
-                                    )
-                                }
-                                _ => unimplemented!("{:?}", exception),
-                            },
+                            Status::Exiting(ref exception) => {
+                                process::log_exit(&exiting_arc_process, exception);
+                                process::propagate_exit(&exiting_arc_process);
+                            }
                             _ => unreachable!(),
                         },
                         None => (),
@@ -184,6 +168,11 @@ impl Scheduler {
         self.run_queues.read().run_queue_len(priority)
     }
 
+    #[cfg(test)]
+    pub fn is_run_queued(&self, value: &Arc<ProcessControlBlock>) -> bool {
+        self.run_queues.read().contains(value)
+    }
+
     /// Returns `true` if `arc_process` was run; otherwise, `false`.
     #[must_use]
     pub fn run_through(&self, arc_process: &Arc<ProcessControlBlock>) -> bool {
@@ -193,7 +182,7 @@ impl Scheduler {
         // The same as `run`, but stops when the process is run once
         loop {
             if self.run_once() {
-                if arc_process.total_reductions.load(Ordering::SeqCst) <= reductions_before {
+                if reductions_before < arc_process.total_reductions.load(Ordering::SeqCst) {
                     break true;
                 } else {
                     continue;
@@ -360,27 +349,6 @@ lazy_static! {
         Mutex::new(Default::default());
 }
 
-fn is_expected_exit_reason(reason: Term) -> bool {
-    match reason.to_typed_term().unwrap() {
-        TypedTerm::Atom(atom) => match atom.name() {
-            "normal" | "shutdown" => true,
-            _ => false,
-        },
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::Tuple(tuple) => {
-                tuple.len() == 2 && {
-                    match tuple[0].to_typed_term().unwrap() {
-                        TypedTerm::Atom(atom) => atom.name() == "shutdown",
-                        _ => false,
-                    }
-                }
-            }
-            _ => false,
-        },
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 pub fn with_process<F>(f: F)
 where
@@ -395,58 +363,4 @@ where
     F: FnOnce(Arc<ProcessControlBlock>) -> (),
 {
     f(process::test(&process::test_init()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod scheduler {
-        use super::*;
-
-        mod new_process {
-            use super::*;
-
-            use liblumen_alloc::erts::process::default_heap;
-            use liblumen_alloc::erts::term::atom_unchecked;
-
-            #[test]
-            fn different_processes_have_different_pids() {
-                let erlang = Atom::try_from_str("erlang").unwrap();
-                let exit = Atom::try_from_str("exit").unwrap();
-                let normal = atom_unchecked("normal");
-                let parent_arc_process_control_block = process::test_init();
-
-                let first_process_arguments = parent_arc_process_control_block
-                    .list_from_slice(&[normal])
-                    .unwrap();
-                let (first_heap, first_heap_size) = default_heap().unwrap();
-                let first_process = Scheduler::spawn_apply_3(
-                    &parent_arc_process_control_block,
-                    erlang,
-                    exit,
-                    first_process_arguments,
-                    first_heap,
-                    first_heap_size,
-                )
-                .unwrap();
-
-                let second_process_arguments = parent_arc_process_control_block
-                    .list_from_slice(&[normal])
-                    .unwrap();
-                let (second_heap, second_heap_size) = default_heap().unwrap();
-                let second_process = Scheduler::spawn_apply_3(
-                    &first_process,
-                    erlang,
-                    exit,
-                    second_process_arguments,
-                    second_heap,
-                    second_heap_size,
-                )
-                .unwrap();
-
-                assert_ne!(first_process.pid_term(), second_process.pid_term());
-            }
-        }
-    }
 }

@@ -65,7 +65,7 @@ pub fn send(
 
                 Ok(Sent::Sent)
             } else {
-                match pid_to_process(destination_pid) {
+                match pid_to_process(&destination_pid) {
                     Some(destination_arc_process_control_block) => {
                         if destination_arc_process_control_block.send_from_other(message)? {
                             let scheduler_id = destination_arc_process_control_block

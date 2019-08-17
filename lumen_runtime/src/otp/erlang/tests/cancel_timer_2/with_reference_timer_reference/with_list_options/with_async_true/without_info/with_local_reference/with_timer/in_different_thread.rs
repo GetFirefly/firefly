@@ -5,6 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 #[test]
+#[ignore]
 fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_message() {
     with_timer(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
@@ -34,6 +35,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         let milliseconds_remaining = received_tuple[2];
 
         assert!(milliseconds_remaining.is_integer());
+        // flaky
         assert!(process.integer(0).unwrap() < milliseconds_remaining);
         assert!(milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 

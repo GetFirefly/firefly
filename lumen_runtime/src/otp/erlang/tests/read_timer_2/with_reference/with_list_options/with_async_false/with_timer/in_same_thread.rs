@@ -4,6 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 #[test]
+#[ignore]
 fn without_timeout_returns_milliseconds() {
     with_timer(|milliseconds, message, timer_reference, process| {
         let half_milliseconds = milliseconds / 2;
@@ -22,6 +23,7 @@ fn without_timeout_returns_milliseconds() {
         let first_milliseconds_remaining = first_result.unwrap();
 
         assert!(first_milliseconds_remaining.is_integer());
+        // flaky
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
         assert!(first_milliseconds_remaining <= process.integer(half_milliseconds).unwrap());
 

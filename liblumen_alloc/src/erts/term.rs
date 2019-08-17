@@ -29,7 +29,9 @@ pub use term::*;
 pub use tuple::*;
 pub use typed_term::*;
 
+use core::alloc::Layout;
 use core::fmt;
+use core::mem;
 use core::str::Utf8Error;
 
 use crate::erts::exception::system::Alloc;
@@ -204,15 +206,19 @@ pub(crate) fn follow_moved(term: Term) -> Term {
 /// needed to hold that number of bytes, rounding up if necessary
 #[inline]
 pub(crate) fn to_word_size(bytes: usize) -> usize {
-    use core::mem;
     use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
 
     round_up_to_multiple_of(bytes, mem::size_of::<usize>()) / mem::size_of::<usize>()
 }
 
+pub(crate) fn layout_from_word_size(word_size: usize) -> Layout {
+    let byte_size = word_size * mem::size_of::<Term>();
+
+    unsafe { Layout::from_size_align_unchecked(byte_size, mem::align_of::<Term>()) }
+}
+
 /// Returns the size in words required to hold the non-header fields of type `T`
 #[inline]
 pub(crate) fn arity_of<T: Sized>() -> usize {
-    use core::mem;
     to_word_size(mem::size_of::<T>() - mem::size_of::<Term>())
 }

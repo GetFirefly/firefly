@@ -61,7 +61,7 @@ pub fn send(
         }
         TypedTerm::Pid(destination_pid) => {
             if destination_pid == process_control_block.pid() {
-                process_control_block.send_from_self(message)?;
+                process_control_block.send_from_self(message);
 
                 Ok(Sent::Sent)
             } else {
@@ -166,7 +166,7 @@ fn send_to_name(
     process_control_block: &ProcessControlBlock,
 ) -> Result<Sent, Exception> {
     if *process_control_block.registered_name.read() == Some(destination) {
-        process_control_block.send_from_self(message)?;
+        process_control_block.send_from_self(message);
 
         Ok(Sent::Sent)
     } else {

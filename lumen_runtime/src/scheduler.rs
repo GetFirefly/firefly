@@ -107,12 +107,7 @@ impl Scheduler {
     /// scheduler should sleep or work steal.
     #[must_use]
     pub fn run_once(&self) -> bool {
-        match self.hierarchy.write().timeout() {
-            Ok(()) => (),
-            Err(_) => unimplemented!(
-                "GC _everything_ to get free space for `Messages.alloc` during `send_message`"
-            ),
-        };
+        self.hierarchy.write().timeout();
 
         loop {
             // separate from `match` below so that WriteGuard temporary is not held while process
@@ -143,7 +138,7 @@ impl Scheduler {
                         Some(exiting_arc_process) => match *exiting_arc_process.status.read() {
                             Status::Exiting(ref exception) => {
                                 process::log_exit(&exiting_arc_process, exception);
-                                process::propagate_exit(&exiting_arc_process);
+                                process::propagate_exit(&exiting_arc_process, exception);
                             }
                             _ => unreachable!(),
                         },

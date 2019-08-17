@@ -72,7 +72,7 @@ pub struct ProcessControlBlock {
     /// The priority of the process in `scheduler`.
     pub priority: Priority,
     /// Process flags, e.g. `Process.flag/1`
-    flags: AtomicProcessFlag,
+    flags: AtomicProcessFlags,
     /// Minimum size of the heap that this process will start with
     min_heap_size: usize,
     /// The maximum size of the heap allowed for this process
@@ -122,7 +122,7 @@ impl ProcessControlBlock {
         let pid = pid::next();
 
         Self {
-            flags: AtomicProcessFlag::new(ProcessFlag::Default),
+            flags: AtomicProcessFlags::new(ProcessFlags::Default),
             min_heap_size: heap_size,
             max_heap_size: 0,
             min_vheap_size: 0,
@@ -159,17 +159,39 @@ impl ProcessControlBlock {
 
     // Flags
 
-    /// Set the given process flag
-    #[inline]
-    pub fn set_flags(&self, flags: ProcessFlag) {
-        self.flags.set(flags);
+    pub fn are_flags_set(&self, flags: ProcessFlags) -> bool {
+        self.flags.are_set(flags)
     }
 
-    /// Unset the given process flag
+    /// Set the given process flags
     #[inline]
-    pub fn clear_flags(&self, flags: ProcessFlag) {
-        self.flags.clear(flags);
+    pub fn set_flags(&self, flags: ProcessFlags) -> ProcessFlags {
+        self.flags.set(flags)
     }
+
+    /// Unset the given process flags
+    #[inline]
+    pub fn clear_flags(&self, flags: ProcessFlags) -> ProcessFlags {
+        self.flags.clear(flags)
+    }
+
+    pub fn trap_exit(&self, value: bool) -> bool {
+        let flag = ProcessFlags::TrapExit;
+
+        let old_flags = if value {
+            self.set_flags(flag)
+        } else {
+            self.clear_flags(flag)
+        };
+
+        old_flags.are_set(flag)
+    }
+
+    pub fn traps_exit(&self) -> bool {
+        self.are_flags_set(ProcessFlags::TrapExit)
+    }
+
+    // Alloc
 
     /// Acquires exclusive access to the process heap, blocking the current thread until it is able
     /// to do so.
@@ -336,11 +358,7 @@ impl ProcessControlBlock {
 
     // Send
 
-    pub fn send_heap_message(
-        &self,
-        heap_fragment: NonNull<HeapFragment>,
-        data: Term,
-    ) -> Result<(), Alloc> {
+    pub fn send_heap_message(&self, heap_fragment: NonNull<HeapFragment>, data: Term) {
         let heap_fragment_ptr = heap_fragment.as_ptr();
 
         let off_heap_unsafe_ref_heap_fragment = unsafe { UnsafeRef::from_raw(heap_fragment_ptr) };
@@ -353,27 +371,32 @@ impl ProcessControlBlock {
         self.send_message(Message::HeapFragment(message::HeapFragment {
             unsafe_ref_heap_fragment: message_unsafe_ref_heap_fragment,
             data,
-        }))
+        }));
     }
 
-    pub fn send_from_self(&self, data: Term) -> Result<(), Alloc> {
-        self.send_message(Message::Process(message::Process { data }))
+    pub fn send_from_self(&self, data: Term) {
+        self.send_message(Message::Process(message::Process { data }));
     }
 
     /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
     pub fn send_from_other(&self, data: Term) -> Result<bool, Alloc> {
         match self.heap.try_lock() {
-            Some(ref mut destination_heap) => {
-                let destination_data = data.clone_to_heap(destination_heap)?;
+            Some(ref mut destination_heap) => match data.clone_to_heap(destination_heap) {
+                Ok(destination_data) => {
+                    self.send_message(Message::Process(message::Process {
+                        data: destination_data,
+                    }));
+                }
+                Err(_) => {
+                    let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
 
-                self.send_message(Message::Process(message::Process {
-                    data: destination_data,
-                }))?;
-            }
+                    self.send_heap_message(heap_fragment, heap_fragment_data);
+                }
+            },
             None => {
                 let (heap_fragment_data, heap_fragment) = data.clone_to_fragment()?;
 
-                self.send_heap_message(heap_fragment, heap_fragment_data)?;
+                self.send_heap_message(heap_fragment, heap_fragment_data);
             }
         }
 
@@ -391,10 +414,8 @@ impl ProcessControlBlock {
         }
     }
 
-    fn send_message(&self, message: Message) -> Result<(), Alloc> {
-        self.mailbox.lock().borrow_mut().push(message);
-
-        Ok(())
+    fn send_message(&self, message: Message) {
+        self.mailbox.lock().borrow_mut().push(message)
     }
 
     // Terms
@@ -626,22 +647,22 @@ impl ProcessControlBlock {
 
     #[inline]
     fn is_gc_forced(&self) -> bool {
-        self.flags.is_set(ProcessFlag::ForceGC)
+        self.flags.are_set(ProcessFlags::ForceGC)
     }
 
     #[inline(always)]
     fn is_gc_delayed(&self) -> bool {
-        self.flags.is_set(ProcessFlag::DelayGC)
+        self.flags.are_set(ProcessFlags::DelayGC)
     }
 
     #[inline(always)]
     fn is_gc_disabled(&self) -> bool {
-        self.flags.is_set(ProcessFlag::DisableGC)
+        self.flags.are_set(ProcessFlags::DisableGC)
     }
 
     #[inline(always)]
     fn needs_fullsweep(&self) -> bool {
-        self.flags.is_set(ProcessFlag::NeedFullSweep)
+        self.flags.are_set(ProcessFlags::NeedFullSweep)
     }
 
     /// Performs a garbage collection, using the provided root set

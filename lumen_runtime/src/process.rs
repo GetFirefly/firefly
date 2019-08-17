@@ -9,12 +9,13 @@ use liblumen_core::locks::RwLockWriteGuard;
 
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::{self, ProcessControlBlock};
-use liblumen_alloc::erts::term::{AsTerm, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Term, Tuple, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::CloneToProcess;
+use liblumen_alloc::{CloneToProcess, HeapFragment};
 
 use crate::code;
 use crate::otp::erlang::apply_3;
@@ -67,12 +68,44 @@ pub fn log_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
     }
 }
 
-pub fn propagate_exit(process: &ProcessControlBlock) {
+pub fn propagate_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
+    let tag = atom_unchecked("EXIT");
+    let from = process.pid_term();
+    let reason = exception.reason;
+    let exit_message_elements: &[Term] = &[tag, from, reason];
+    let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);
+
     for linked_pid in process.linked_pid_set.lock().iter() {
         if let Some(linked_pid_arc_process) = pid_to_process(linked_pid) {
-            // only tell the linked process to exit.  When it is run by its scheduler, it will
-            // go through propagating its own exit.
-            linked_pid_arc_process.exit()
+            if linked_pid_arc_process.traps_exit() {
+                match linked_pid_arc_process.try_acquire_heap() {
+                    Some(ref mut linked_pid_heap) => {
+                        if exit_message_word_size <= linked_pid_heap.heap_available() {
+                            let linked_pid_data = linked_pid_heap
+                                .tuple_from_slice(exit_message_elements)
+                                .unwrap();
+
+                            linked_pid_arc_process.send_from_self(linked_pid_data);
+                        } else {
+                            let (heap_fragment_data, heap_fragment) =
+                                HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
+
+                            linked_pid_arc_process
+                                .send_heap_message(heap_fragment, heap_fragment_data);
+                        }
+                    }
+                    None => {
+                        let (heap_fragment_data, heap_fragment) =
+                            HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
+
+                        linked_pid_arc_process.send_heap_message(heap_fragment, heap_fragment_data);
+                    }
+                }
+            } else {
+                // only tell the linked process to exit.  When it is run by its scheduler, it will
+                // go through propagating its own exit.
+                linked_pid_arc_process.exit();
+            }
         }
     }
 }

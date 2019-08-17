@@ -6,8 +6,8 @@ use core::sync::atomic::{AtomicU32, Ordering};
 /// to combine multiple flags in one value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct ProcessFlag(u32);
-impl ProcessFlag {
+pub struct ProcessFlags(u32);
+impl ProcessFlags {
     #![allow(non_upper_case_globals)]
 
     /// The default value where no flags are set
@@ -23,93 +23,96 @@ impl ProcessFlag {
     pub const DisableGC: Self = Self(1 << 4);
     /// This flag indicates that GC should be delayed temporarily
     pub const DelayGC: Self = Self(1 << 5);
+    /// This flag indicates the processes linked to this process should send exit messages instead
+    /// of causing this process to exit when they exit
+    pub const TrapExit: Self = Self(1 << 6);
 
-    // Internal value used to validate conversions from raw u32 values
-    const MAX_VALUE: u32 = 1 << 5;
+    pub fn are_set(&self, flags: ProcessFlags) -> bool {
+        (*self & flags) == flags
+    }
 }
-impl Into<u32> for ProcessFlag {
+impl Into<u32> for ProcessFlags {
     #[inline]
     fn into(self) -> u32 {
         self.0
     }
 }
-impl From<u32> for ProcessFlag {
+impl From<u32> for ProcessFlags {
     #[inline]
     fn from(n: u32) -> Self {
-        assert!(n <= Self::MAX_VALUE);
         Self(n)
     }
 }
-impl Not for ProcessFlag {
+impl Not for ProcessFlags {
     type Output = Self;
 
     fn not(self) -> Self {
         Self(!self.0)
     }
 }
-impl BitOr for ProcessFlag {
+impl BitOr for ProcessFlags {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self {
         Self(self.0 | rhs.0)
     }
 }
-impl BitOrAssign for ProcessFlag {
+impl BitOrAssign for ProcessFlags {
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0
     }
 }
-impl BitAnd for ProcessFlag {
+impl BitAnd for ProcessFlags {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self {
         Self(self.0 & rhs.0)
     }
 }
-impl BitAndAssign for ProcessFlag {
+impl BitAndAssign for ProcessFlags {
     fn bitand_assign(&mut self, rhs: Self) {
         self.0 &= rhs.0
     }
 }
 
 /// This type is a wrapper around `AtomicU32` and provides atomic
-/// semantics for the `ProcessFlag` enum type
+/// semantics for the `ProcessFlags` enum type
 #[repr(transparent)]
-pub struct AtomicProcessFlag(AtomicU32);
-impl AtomicProcessFlag {
-    /// Create a new `AtomicProcessFlag`
+pub struct AtomicProcessFlags(AtomicU32);
+impl AtomicProcessFlags {
+    /// Create a new `AtomicProcessFlags`
     #[inline]
-    pub fn new(flag: ProcessFlag) -> Self {
+    pub fn new(flag: ProcessFlags) -> Self {
         Self(AtomicU32::new(flag.into()))
     }
 
     /// Fetch the current value, with the given `Ordering`
     #[inline]
-    pub fn load(&self, ordering: Ordering) -> ProcessFlag {
+    pub fn load(&self, ordering: Ordering) -> ProcessFlags {
         self.0.load(ordering).into()
     }
 
     /// Fetch the current value, using `Relaxed` ordering
     #[inline]
-    pub fn get(&self) -> ProcessFlag {
+    pub fn get(&self) -> ProcessFlags {
         self.0.load(Ordering::Relaxed).into()
     }
 
     /// Check if the current value contains the given flags, uses `Relaxed` ordering
     #[inline]
-    pub fn is_set(&self, flags: ProcessFlag) -> bool {
+    pub fn are_set(&self, flags: ProcessFlags) -> bool {
         self.get() & flags == flags
     }
 
     /// Set the given flags, uses `AcqRel` ordering
     #[inline]
-    pub fn set(&self, flags: ProcessFlag) -> ProcessFlag {
+    pub fn set(&self, flags: ProcessFlags) -> ProcessFlags {
         self.0.fetch_or(flags.into(), Ordering::AcqRel).into()
     }
 
     /// Clear the given flags, uses `AcqRel` ordering
     #[inline]
-    pub fn clear(&self, flags: ProcessFlag) -> ProcessFlag {
+    pub fn clear(&self, flags: ProcessFlags) -> ProcessFlags {
         let cleared = !flags;
         self.0.fetch_and(cleared.into(), Ordering::AcqRel).into()
     }
@@ -121,34 +124,34 @@ mod tests {
 
     #[test]
     fn process_flag_test() {
-        let mut flags = ProcessFlag::Default;
+        let mut flags = ProcessFlags::Default;
         // Set fullsweep
-        flags |= ProcessFlag::NeedFullSweep;
-        assert!(flags & ProcessFlag::NeedFullSweep == ProcessFlag::NeedFullSweep);
+        flags |= ProcessFlags::NeedFullSweep;
+        assert!(flags & ProcessFlags::NeedFullSweep == ProcessFlags::NeedFullSweep);
         // Set force_gc
-        flags |= ProcessFlag::ForceGC;
-        assert!(flags & ProcessFlag::NeedFullSweep == ProcessFlag::NeedFullSweep);
-        assert!(flags & ProcessFlag::ForceGC == ProcessFlag::ForceGC);
+        flags |= ProcessFlags::ForceGC;
+        assert!(flags & ProcessFlags::NeedFullSweep == ProcessFlags::NeedFullSweep);
+        assert!(flags & ProcessFlags::ForceGC == ProcessFlags::ForceGC);
         // Ensure we can check multiple flags at once
-        let checking = ProcessFlag::ForceGC | ProcessFlag::NeedFullSweep;
+        let checking = ProcessFlags::ForceGC | ProcessFlags::NeedFullSweep;
         assert!(flags & checking == checking);
         // Clear force_gc
-        flags &= !ProcessFlag::ForceGC;
-        assert!(flags & ProcessFlag::ForceGC != ProcessFlag::ForceGC);
-        assert!(flags & ProcessFlag::NeedFullSweep == ProcessFlag::NeedFullSweep);
+        flags &= !ProcessFlags::ForceGC;
+        assert!(flags & ProcessFlags::ForceGC != ProcessFlags::ForceGC);
+        assert!(flags & ProcessFlags::NeedFullSweep == ProcessFlags::NeedFullSweep);
     }
 
     #[test]
     fn atomic_process_flag_test() {
-        let flags = AtomicProcessFlag::new(ProcessFlag::Default);
-        flags.set(ProcessFlag::NeedFullSweep);
-        assert!(flags.is_set(ProcessFlag::NeedFullSweep));
-        flags.set(ProcessFlag::ForceGC);
-        assert!(flags.is_set(ProcessFlag::NeedFullSweep));
-        assert!(flags.is_set(ProcessFlag::ForceGC));
-        assert!(flags.is_set(ProcessFlag::ForceGC | ProcessFlag::NeedFullSweep));
-        flags.clear(ProcessFlag::ForceGC);
-        assert!(flags.is_set(ProcessFlag::NeedFullSweep));
-        assert!(!flags.is_set(ProcessFlag::ForceGC));
+        let flags = AtomicProcessFlags::new(ProcessFlags::Default);
+        flags.set(ProcessFlags::NeedFullSweep);
+        assert!(flags.are_set(ProcessFlags::NeedFullSweep));
+        flags.set(ProcessFlags::ForceGC);
+        assert!(flags.are_set(ProcessFlags::NeedFullSweep));
+        assert!(flags.are_set(ProcessFlags::ForceGC));
+        assert!(flags.are_set(ProcessFlags::ForceGC | ProcessFlags::NeedFullSweep));
+        flags.clear(ProcessFlags::ForceGC);
+        assert!(flags.are_set(ProcessFlags::NeedFullSweep));
+        assert!(!flags.are_set(ProcessFlags::ForceGC));
     }
 }

@@ -7,7 +7,6 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::term::{
     make_pid, next_pid, BigInteger, HeapBin, SmallInteger, SubBinary,
 };
@@ -16,7 +15,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use crate::otp::erlang;
 use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::strategy;
+use crate::test::{has_heap_message, has_message, has_process_message, strategy};
 
 mod abs_1;
 mod and_2;
@@ -173,44 +172,6 @@ where
     F: FnOnce(&ProcessControlBlock) -> Result,
 {
     with_process(|process| assert_badarith!(actual(&process)))
-}
-
-fn has_message(process: &ProcessControlBlock, data: Term) -> bool {
-    process.mailbox.lock().borrow().iter().any(|message| {
-        &data
-            == match message {
-                Message::Process(message::Process { data }) => data,
-                Message::HeapFragment(message::HeapFragment { data, .. }) => data,
-            }
-    })
-}
-
-fn has_heap_message(process: &ProcessControlBlock, data: Term) -> bool {
-    process
-        .mailbox
-        .lock()
-        .borrow()
-        .iter()
-        .any(|message| match message {
-            Message::HeapFragment(message::HeapFragment {
-                data: message_data, ..
-            }) => message_data == &data,
-            _ => false,
-        })
-}
-
-fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
-    process
-        .mailbox
-        .lock()
-        .borrow()
-        .iter()
-        .any(|message| match message {
-            Message::Process(message::Process {
-                data: message_data, ..
-            }) => message_data == &data,
-            _ => false,
-        })
 }
 
 fn list_term(process: &ProcessControlBlock) -> Term {

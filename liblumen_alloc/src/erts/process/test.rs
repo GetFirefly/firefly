@@ -16,7 +16,7 @@ use super::alloc;
 fn gc_simple_fullsweep_test() {
     // Create process
     let process = process();
-    process.set_flags(ProcessFlag::NeedFullSweep);
+    process.set_flags(ProcessFlags::NeedFullSweep);
     simple_gc_test(process);
 }
 
@@ -46,6 +46,55 @@ fn gc_minor_tenuring_test() {
 fn gc_fullsweep_after_tenuring_test() {
     let process = process();
     tenuring_gc_test(process, true);
+}
+
+mod are_flags_set {
+    use super::*;
+
+    #[test]
+    fn trap_exit_is_not_set_by_default() {
+        let process = process();
+
+        assert_eq!(process.are_flags_set(ProcessFlags::TrapExit), false);
+    }
+}
+
+mod trap_exit {
+    use super::*;
+
+    #[test]
+    fn returns_true_for_the_default_old_value() {
+        let process = process();
+
+        assert_eq!(process.trap_exit(true), false);
+    }
+
+    #[test]
+    fn returns_old_value() {
+        let process = process();
+
+        assert_eq!(process.trap_exit(true), false);
+        assert_eq!(process.trap_exit(false), true);
+    }
+}
+
+mod traps_exit {
+    use super::*;
+
+    #[test]
+    fn returns_false_by_default() {
+        let process = process();
+
+        assert_eq!(process.traps_exit(), false);
+    }
+
+    #[test]
+    fn returns_true_after_trap_exit_true() {
+        let process = process();
+
+        assert_eq!(process.trap_exit(true), false);
+        assert_eq!(process.traps_exit(), true);
+    }
 }
 
 mod integer {

@@ -19,6 +19,7 @@ fn without_atom_errors_badarg() {
 }
 
 #[test]
+#[ignore]
 fn with_atom_returns_chars_in_list() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))

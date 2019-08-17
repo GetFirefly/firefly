@@ -63,6 +63,10 @@ impl ProcessHeap {
         // Run the collector
         gc.collect(need)
     }
+
+    pub fn heap_available(&self) -> usize {
+        self.young.unused()
+    }
 }
 impl HeapAlloc for ProcessHeap {
     #[inline]

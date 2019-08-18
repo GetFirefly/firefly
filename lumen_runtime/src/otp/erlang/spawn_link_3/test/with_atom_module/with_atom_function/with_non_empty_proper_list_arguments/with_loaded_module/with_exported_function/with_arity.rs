@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
+fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -11,12 +11,13 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
     let module_atom = Atom::try_from_str("erlang").unwrap();
     let module = unsafe { module_atom.as_term() };
 
-    let function_atom = Atom::try_from_str("self").unwrap();
+    let function_atom = Atom::try_from_str("+").unwrap();
     let function = unsafe { function_atom.as_term() };
 
-    let arguments = Term::NIL;
+    let number = parent_arc_process.integer(0).unwrap();
+    let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -31,26 +32,24 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
 
     assert_eq!(run_queue_length_after, run_queue_length_before + 1);
 
-    let child_arc_process = pid_to_process(&child_pid_pid).unwrap();
+    let arc_process = pid_to_process(&child_pid_pid).unwrap();
 
-    assert!(arc_scheduler.run_through(&child_arc_process));
-    assert!(!arc_scheduler.run_through(&child_arc_process));
+    assert!(arc_scheduler.run_through(&arc_process));
+    assert!(!arc_scheduler.run_through(&arc_process));
 
-    assert_eq!(child_arc_process.code_stack_len(), 0);
-    assert_eq!(child_arc_process.current_module_function_arity(), None);
+    assert_eq!(arc_process.code_stack_len(), 0);
+    assert_eq!(arc_process.current_module_function_arity(), None);
 
-    match *child_arc_process.status.read() {
+    match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
             assert_eq!(runtime_exception, &exit!(atom_unchecked("normal")));
         }
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
-
-    assert!(!parent_arc_process.is_exiting());
 }
 
 #[test]
-fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
+fn without_valid_arguments_when_run_exits_and_parent_exits() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -63,10 +62,11 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
     let function_atom = Atom::try_from_str("+").unwrap();
     let function = unsafe { function_atom.as_term() };
 
-    // `+` is arity 1, not 0
-    let arguments = Term::NIL;
+    // not a number
+    let number = atom_unchecked("zero");
+    let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
-    let result = spawn_3::native(&parent_arc_process, module, function, arguments);
+    let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
@@ -89,20 +89,19 @@ fn without_arity_when_run_exits_undef_and_parent_does_not_exit() {
     assert_eq!(child_arc_process.code_stack_len(), 1);
     assert_eq!(
         child_arc_process.current_module_function_arity(),
-        Some(apply_3::module_function_arity())
+        Some(Arc::new(ModuleFunctionArity {
+            module: module_atom,
+            function: function_atom,
+            arity: 1
+        }))
     );
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: runtime::Exception =
-                undef!(&child_arc_process, module, function, arguments)
-                    .try_into()
-                    .unwrap();
-
-            assert_eq!(runtime_exception, &runtime_undef);
+            assert_eq!(runtime_exception, &badarith!());
         }
         ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
     };
 
-    assert!(!parent_arc_process.is_exiting());
+    assert!(parent_arc_process.is_exiting())
 }

@@ -6,7 +6,7 @@ use liblumen_alloc::erts::term::{atom_unchecked, Term};
 use crate::otp::erlang;
 use crate::process;
 use crate::scheduler::Scheduler;
-use crate::test::has_message;
+use crate::test::{has_message, has_no_message};
 
 #[test]
 fn without_boolean_value_errors_badarg() {
@@ -51,6 +51,91 @@ fn with_true_value_then_boolean_value_returns_old_value_true() {
             Ok(())
         })
         .unwrap();
+}
+
+#[test]
+fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_normal() {
+    with_process(|process| {
+        let other_arc_process = process::test(process);
+
+        process.link(&other_arc_process);
+
+        assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(!other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+
+        let reason = atom_unchecked("normal");
+
+        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
+            .unwrap();
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+        assert!(has_no_message(process));
+    });
+}
+
+#[test]
+fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_shutdown() {
+    with_process(|process| {
+        let other_arc_process = process::test(process);
+
+        process.link(&other_arc_process);
+
+        assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(!other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+
+        let reason = atom_unchecked("shutdown");
+
+        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
+            .unwrap();
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+        assert!(has_no_message(process));
+    });
+}
+
+#[test]
+fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_with_shutdown_tuple() {
+    with_process(|process| {
+        let other_arc_process = process::test(process);
+
+        process.link(&other_arc_process);
+
+        assert_eq!(native(process, flag(), true.into()), Ok(false.into()));
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(!other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+
+        let tag = atom_unchecked("shutdown");
+        let shutdown_reason = atom_unchecked("shutdown_reason");
+        let reason = other_arc_process
+            .tuple_from_slice(&[tag, shutdown_reason])
+            .unwrap();
+
+        erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
+            .unwrap();
+
+        assert!(Scheduler::current().run_through(&other_arc_process));
+
+        assert!(other_arc_process.is_exiting());
+        assert!(!process.is_exiting());
+        assert!(has_no_message(process));
+    });
 }
 
 #[test]

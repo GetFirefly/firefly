@@ -18,10 +18,9 @@ use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::{reference, Atom, Reference, Term};
 
-use crate::process;
+use crate::process::{self, Linkage};
 use crate::registry::put_pid_to_process;
-use crate::run;
-use crate::run::Run;
+use crate::run::{self, Run};
 use crate::timer::Hierarchy;
 
 pub trait Scheduled {
@@ -207,16 +206,24 @@ impl Scheduler {
     ///
     /// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
     /// MFA unique to a given application.
-    pub fn spawn_apply_3(
+    pub fn spawn_linkage_apply_3(
         parent_process: &ProcessControlBlock,
+        linkage: Linkage,
         module: Atom,
         function: Atom,
         arguments: Term,
         heap: *mut Term,
         heap_size: usize,
     ) -> Result<Arc<ProcessControlBlock>, Alloc> {
-        let process =
-            process::spawn_apply_3(parent_process, module, function, arguments, heap, heap_size)?;
+        let process = process::spawn_linkage_apply_3(
+            parent_process,
+            linkage,
+            module,
+            function,
+            arguments,
+            heap,
+            heap_size,
+        )?;
         let arc_scheduler = parent_process.scheduler().unwrap();
         let arc_process = arc_scheduler.schedule(process);
 

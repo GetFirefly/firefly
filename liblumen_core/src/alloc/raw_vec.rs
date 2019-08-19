@@ -9,7 +9,7 @@ use core::slice;
 use core::alloc::{Alloc, Layout};
 
 use core_alloc::alloc::handle_alloc_error;
-use core_alloc::collections::CollectionAllocErr::{self, *};
+use core_alloc::collections::TryReserveError::{self, *};
 
 use crate::alloc::alloc_ref::{AllocRef, AsAllocRef};
 use crate::alloc::boxed::Box;
@@ -371,7 +371,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
         &mut self,
         used_cap: usize,
         needed_extra_cap: usize,
-    ) -> Result<(), CollectionAllocErr> {
+    ) -> Result<(), TryReserveError> {
         self.reserve_internal(used_cap, needed_extra_cap, Fallible, Exact)
     }
 
@@ -397,7 +397,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     pub fn reserve_exact(&mut self, used_cap: usize, needed_extra_cap: usize) {
         match self.reserve_internal(used_cap, needed_extra_cap, Infallible, Exact) {
             Err(CapacityOverflow) => capacity_overflow(),
-            Err(AllocErr) => unreachable!(),
+            Err(_) => unreachable!(),
             Ok(()) => { /* yay */ }
         }
     }
@@ -409,7 +409,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
         &self,
         used_cap: usize,
         needed_extra_cap: usize,
-    ) -> Result<usize, CollectionAllocErr> {
+    ) -> Result<usize, TryReserveError> {
         // Nothing we can really do about these checks :(
         let required_cap = used_cap
             .checked_add(needed_extra_cap)
@@ -425,7 +425,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
         &mut self,
         used_cap: usize,
         needed_extra_cap: usize,
-    ) -> Result<(), CollectionAllocErr> {
+    ) -> Result<(), TryReserveError> {
         self.reserve_internal(used_cap, needed_extra_cap, Fallible, Amortized)
     }
 
@@ -452,7 +452,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
     pub fn reserve(&mut self, used_cap: usize, needed_extra_cap: usize) {
         match self.reserve_internal(used_cap, needed_extra_cap, Infallible, Amortized) {
             Err(CapacityOverflow) => capacity_overflow(),
-            Err(AllocErr) => unreachable!(),
+            Err(_) => unreachable!(),
             Ok(()) => { /* yay */ }
         }
     }
@@ -599,7 +599,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
         needed_extra_cap: usize,
         fallibility: Fallibility,
         strategy: ReserveStrategy,
-    ) -> Result<(), CollectionAllocErr> {
+    ) -> Result<(), TryReserveError> {
         unsafe {
             use core::alloc::AllocErr;
 
@@ -639,7 +639,7 @@ impl<'a, T, A: AllocRef<'a>> RawVec<'a, T, A> {
                 _ => {}
             }
 
-            self.ptr = res?.cast().into();
+            self.ptr = res.unwrap().cast().into();
             self.cap = new_cap;
 
             Ok(())
@@ -676,7 +676,7 @@ unsafe impl<'a, #[may_dangle] T, A: AllocRef<'a>> Drop for RawVec<'a, T, A> {
 // all 4GB in user-space. e.g., PAE or x32
 
 #[inline]
-fn alloc_guard(alloc_size: usize) -> Result<(), CollectionAllocErr> {
+fn alloc_guard(alloc_size: usize) -> Result<(), TryReserveError> {
     if mem::size_of::<usize>() < 8 && alloc_size > core::isize::MAX as usize {
         Err(CapacityOverflow)
     } else {

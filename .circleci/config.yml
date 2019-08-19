@@ -159,19 +159,19 @@ jobs:
             wasm-pack --version | tee wasm-pack.version
       - restore_cache:
           keys:
-            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
-            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}
-            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}
-            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}
-            - v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}
-            - v6-wasm32-example-spawn-chain-{{ arch }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}
       - run:
           name: Build tests
           working_directory: "examples/spawn-chain"
           # `--no-run` for `test` will only do build
           command: wasm-pack test --chrome --firefox --headless -- --no-run
       - save_cache:
-          key: v6-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
+          key: v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
           paths:
             - cargo
             - target
@@ -211,6 +211,50 @@ jobs:
           name: Test in << parameters.browser >>
           working_directory: "examples/spawn-chain"
           command: wasm-pack test --<< parameters.browser >> --headless
+  wasm32_linux_examples_spawn_chain_deploy:
+    executor: x86_64_linux
+    steps:
+      - checkout
+      - version_information
+      - run:
+          name: wasm-pack version
+          command: |
+            wasm-pack --version | tee wasm-pack.version
+      - restore_cache:
+          keys:
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}
+            - v7-wasm32-example-spawn-chain-{{ arch }}
+      - run:
+         name: Build WebAssembly
+         working_directory: "examples/spawn-chain"
+         command: wasm-pack build
+      - save_cache:
+          key: v7-wasm32-example-spawn-chain-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
+          paths:
+            - cargo
+            - examples/spawn-chain/pkg
+            - target
+      - run:
+         name: Pack distribution
+         working_directory: "examples/spawn-chain"
+         command: |
+           pushd www
+           npm install
+           popd
+           pushd pkg
+           sudo npm link
+           popd
+           pushd www
+           sudo npm link spawn-chain
+           npm run build
+           popd
+      - store_artifacts:
+         path: "examples/spawn-chain/www/dist"
+         destination: "demos/spawn-chain"
 workflows:
   version: 2
   primary:
@@ -271,4 +315,5 @@ workflows:
           requires:
             - wasm32_linux_examples_spawn_chain_build
           browser: firefox
+      - wasm32_linux_examples_spawn_chain_deploy
 

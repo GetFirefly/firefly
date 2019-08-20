@@ -12,16 +12,16 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{Atom, Term};
-use liblumen_alloc::ModuleFunctionArity;
-
-use crate::otp::lists::reverse_2;
+use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::{badarg, ModuleFunctionArity};
 
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
     list: Term,
+    tail: Term,
 ) -> Result<(), Alloc> {
+    process.stack_push(tail)?;
     process.stack_push(list)?;
     process.place_frame(frame(), placement);
 
@@ -34,10 +34,11 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
     let list = arc_process.stack_pop().unwrap();
+    let tail = arc_process.stack_pop().unwrap();
 
-    match native(arc_process, list) {
-        Ok(reversed) => {
-            arc_process.return_from_call(reversed)?;
+    match native(arc_process, list, tail) {
+        Ok(reversed_with_tail) => {
+            arc_process.return_from_call(reversed_with_tail)?;
 
             ProcessControlBlock::call_code(arc_process)
         }
@@ -57,10 +58,27 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: 1,
+        arity: 2,
     })
 }
 
-fn native(process: &ProcessControlBlock, list: Term) -> exception::Result {
-    reverse_2::native(process, list, Term::NIL)
+pub(super) fn native(process: &ProcessControlBlock, list: Term, tail: Term) -> exception::Result {
+    match list.to_typed_term().unwrap() {
+        TypedTerm::Nil => Ok(tail),
+        TypedTerm::List(cons) => {
+            let mut reversed = tail;
+
+            for result in cons.into_iter() {
+                match result {
+                    Ok(element) => {
+                        reversed = process.cons(element, reversed)?;
+                    }
+                    Err(_) => return Err(badarg!().into()),
+                }
+            }
+
+            Ok(reversed)
+        }
+        _ => Err(badarg!().into()),
+    }
 }

@@ -3,6 +3,7 @@
 pub mod keyfind_3;
 pub mod keymember_3;
 pub mod reverse_1;
+pub mod reverse_2;
 
 use std::convert::TryInto;
 

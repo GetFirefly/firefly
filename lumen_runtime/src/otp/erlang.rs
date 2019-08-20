@@ -797,11 +797,10 @@ pub fn divide_2(
 }
 
 pub fn element_2(index: Term, tuple: Term) -> Result {
-    let inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let index_usize: usize = index.try_into()?;
+    let tuple_tuple: Boxed<Tuple> = tuple.try_into()?;
 
-    inner_tuple
-        .get_element_internal(index_usize)
+    tuple_tuple
+        .get_element_from_one_based_term_index(index)
         .map_err(|error| error.into())
 }
 

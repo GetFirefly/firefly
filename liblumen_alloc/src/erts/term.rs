@@ -3,6 +3,7 @@ pub mod binary;
 mod boxed;
 mod closure;
 mod float;
+pub mod index;
 mod integer;
 pub mod list;
 mod map;

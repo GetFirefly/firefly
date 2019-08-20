@@ -15,6 +15,7 @@ use super::{module_function_arity, size_range};
 
 pub mod binary;
 pub mod function;
+pub mod index;
 pub mod integer;
 pub mod is_binary;
 pub mod is_bitstring;

@@ -42,8 +42,8 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let tuple_list = arc_process.stack_pop().unwrap();
 
     match native(key, one_based_index, tuple_list) {
-        Ok(tuple_or_false) => {
-            arc_process.return_from_call(tuple_or_false)?;
+        Ok(boolean) => {
+            arc_process.return_from_call(boolean)?;
 
             ProcessControlBlock::call_code(arc_process)
         }
@@ -56,7 +56,7 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("keyfind").unwrap()
+    Atom::try_from_str("keymember").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
@@ -68,8 +68,11 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 }
 
 fn native(key: Term, one_based_index: Term, tuple_list: Term) -> exception::Result {
-    get_by_term_one_based_index_key(tuple_list, one_based_index, key).map(|option| match option {
-        Some(found) => found,
-        None => false.into(),
+    get_by_term_one_based_index_key(tuple_list, one_based_index, key).map(|option| {
+        match option {
+            Some(_) => true,
+            None => false,
+        }
+        .into()
     })
 }

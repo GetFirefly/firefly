@@ -6,38 +6,12 @@ use core::hash::{Hash, Hasher};
 use core::iter::FusedIterator;
 use core::mem;
 use core::ops::Deref;
-use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
+use crate::erts::term::index::{self, try_from_one_based_term_to_zero_based_usize};
 
 use super::*;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum IndexError {
-    OutOfBounds { len: usize, index: usize },
-    BadArgument(Term),
-}
-impl IndexError {
-    pub fn new(index: usize, len: usize) -> Self {
-        Self::OutOfBounds { len, index }
-    }
-}
-impl fmt::Display for IndexError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Self::OutOfBounds { len, index } => {
-                write!(f, "invalid index {}: exceeds max length of {}", index, len)
-            }
-            &Self::BadArgument(term) => write!(f, "invalid index: bad argument {:?}", term),
-        }
-    }
-}
-impl From<BadArgument> for IndexError {
-    fn from(badarg: BadArgument) -> Self {
-        Self::BadArgument(badarg.argument())
-    }
-}
 
 /// Represents a tuple term in memory.
 ///
@@ -160,86 +134,70 @@ impl Tuple {
 
     /// Sets an element in the tuple, returns `Ok(())` if successful,
     /// otherwise returns `Err(IndexErr)` if the given index is invalid
-    #[inline]
-    pub fn set_element(&mut self, index: Term, element: Term) -> Result<(), IndexError> {
+    pub fn set_element_from_one_based_term_index(
+        &mut self,
+        index: Term,
+        element: Term,
+    ) -> Result<(), index::Error> {
+        let index_usize: usize = try_from_one_based_term_to_zero_based_usize(index)?;
+
+        self.set_element_from_zero_based_usize_index(index_usize, element)
+    }
+
+    /// Like `set_element` but for internal runtime use, as it takes a zero-based `usize` directly
+    pub fn set_element_from_zero_based_usize_index(
+        &mut self,
+        index: usize,
+        element: Term,
+    ) -> Result<(), index::Error> {
         let len = self.len();
-        if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
-            match small.try_into() {
-                Ok(i) if i > 0 && i <= len => Ok(self.do_set_element(i, element)),
-                Ok(i) => Err(IndexError::new(i, len)),
-                Err(_) => Err(BadArgument::new(index).into()),
+
+        if index < len {
+            unsafe {
+                self.head().add(index).write(element);
+
+                Ok(())
             }
         } else {
-            Err(BadArgument::new(index).into())
-        }
-    }
-
-    /// Like `set_element` but for internal runtime use, as it takes a `usize` directly
-    #[inline]
-    pub fn set_element_internal(&mut self, index: usize, element: Term) -> Result<(), IndexError> {
-        let len = self.len();
-        if index > 0 && index <= len {
-            Ok(self.do_set_element(index, element))
-        } else {
-            Err(IndexError::new(index, len))
-        }
-    }
-
-    #[inline]
-    fn do_set_element(&mut self, index: usize, element: Term) {
-        assert!(index > 0 && index <= self.len());
-        assert!(element.is_runtime());
-        unsafe {
-            let ptr = self.head().add(index - 1);
-            ptr::write(ptr, element);
+            Err(index::Error::OutOfBounds { len, index })
         }
     }
 
     /// Fetches an element from the tuple, returns `Ok(term)` if the index is
     /// valid, otherwise returns `Err(IndexErr)`
-    #[inline]
-    pub fn get_element(&self, index: Term) -> Result<Term, IndexError> {
-        let len = self.len();
+    pub fn get_element_from_one_based_term_index(&self, index: Term) -> Result<Term, index::Error> {
+        let index_usize: usize = try_from_one_based_term_to_zero_based_usize(index)?;
 
-        if let Ok(TypedTerm::SmallInteger(small)) = index.to_typed_term() {
-            match small.try_into() {
-                Ok(i) if i > 0 && i <= len => Ok(self.do_get_element(i)),
-                Ok(i) => Err(IndexError::new(i, len)),
-                Err(_) => Err(BadArgument::new(index).into()),
-            }
-        } else {
-            Err(BadArgument::new(index).into())
-        }
+        self.get_element_from_zero_based_usize_index(index_usize)
     }
 
     /// Like `get_element` but for internal runtime use, as it takes a `usize`
     /// directly, rather than a value of type `Term`
-    #[inline]
-    pub fn get_element_internal(&self, index: usize) -> Result<Term, IndexError> {
+    pub fn get_element_from_zero_based_usize_index(
+        &self,
+        index: usize,
+    ) -> Result<Term, index::Error> {
         let len = self.len();
 
-        if 0 < index && index <= len {
-            Ok(self.do_get_element(index))
-        } else {
-            Err(IndexError::new(index, len))
-        }
-    }
+        if index < len {
+            unsafe {
+                let ptr = self.head().add(index);
 
-    #[inline]
-    fn do_get_element(&self, index: usize) -> Term {
-        assert!(index > 0 && index <= self.len());
-        unsafe {
-            let ptr = self.head().add(index - 1);
-            follow_moved(*ptr)
+                Ok(follow_moved(*ptr))
+            }
+        } else {
+            Err(index::Error::OutOfBounds { index, len })
         }
     }
 }
+
 unsafe impl AsTerm for Tuple {
     #[inline]
     unsafe fn as_term(&self) -> Term {
         Term::make_boxed(self)
     }
 }
+
 impl CloneToProcess for Tuple {
     fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         Tuple::clone_to_heap_from_elements(heap, self)
@@ -395,7 +353,7 @@ mod tests {
     use crate::erts::term::{Boxed, Tuple};
     use crate::erts::ModuleFunctionArity;
 
-    mod element {
+    mod get_element_from_zero_based_usize_index {
         use super::*;
 
         #[test]
@@ -405,8 +363,8 @@ mod tests {
             let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
 
             assert_eq!(
-                boxed_tuple.get_element_internal(0),
-                Err(IndexError::new(0, 0))
+                boxed_tuple.get_element_from_zero_based_usize_index(1),
+                Err(index::Error::OutOfBounds { index: 1, len: 0 })
             );
         }
 
@@ -419,7 +377,7 @@ mod tests {
             let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
 
             assert_eq!(
-                boxed_tuple.get_element_internal(1),
+                boxed_tuple.get_element_from_zero_based_usize_index(0),
                 Ok(process.integer(0).unwrap())
             );
         }

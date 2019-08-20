@@ -281,9 +281,9 @@ fn simple_gc_test(process: ProcessControlBlock) {
     let new_tuple = unsafe { &*(new_tuple_ptr as *mut Tuple) };
     assert_eq!(new_tuple.len(), 2);
     // First, the atom
-    assert_eq!(Ok(ok), new_tuple.get_element_internal(1));
+    assert_eq!(Ok(ok), new_tuple.get_element_from_zero_based_usize_index(0));
     // Then to validate the greeting, we need to follow the boxed term, unwrap it, and validate it
-    let greeting_element = new_tuple.get_element_internal(2);
+    let greeting_element = new_tuple.get_element_from_zero_based_usize_index(1);
     assert!(greeting_element.is_ok());
     let greeting_box = greeting_element.unwrap();
     assert!(greeting_box.is_boxed());
@@ -381,7 +381,8 @@ fn tenuring_gc_test(process: ProcessControlBlock, _perform_fullsweep: bool) {
     let new_greeting_term = process.binary_from_str(new_greeting).unwrap();
 
     // Update second element of the tuple above
-    tup.set_element_internal(2, new_greeting_term).unwrap();
+    tup.set_element_from_zero_based_usize_index(1, new_greeting_term)
+        .unwrap();
     let mut tup_iter = tup.iter();
     let t1 = tup_iter.next().unwrap();
     assert!(t1.is_smallint());
@@ -588,9 +589,9 @@ fn verify_tuple_root(tuple_root: Term, tuple_ptr: *mut Term) {
     assert_eq!(new_tuple.len(), 2);
     // First, the atom
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
-    assert_eq!(Ok(ok), new_tuple.get_element_internal(1));
+    assert_eq!(Ok(ok), new_tuple.get_element_from_zero_based_usize_index(0));
     // Then to validate the greeting, we need to follow the boxed term, unwrap it, and validate it
-    let greeting_element = new_tuple.get_element_internal(2);
+    let greeting_element = new_tuple.get_element_from_zero_based_usize_index(1);
     assert!(greeting_element.is_ok());
     let greeting_box = greeting_element.unwrap();
     assert!(greeting_box.is_boxed());

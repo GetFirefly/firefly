@@ -6,9 +6,8 @@ use crate::erts::exception::system::Alloc;
 use crate::erts::process::ProcessControlBlock;
 use crate::erts::term::atom::{AtomError, EncodingError};
 use crate::erts::term::list::ImproperList;
-use crate::erts::term::tuple::IndexError;
 use crate::erts::term::{
-    atom_unchecked, BoolError, Term, TryIntoIntegerError, TypeError, TypedTerm,
+    atom_unchecked, index, BoolError, Term, TryIntoIntegerError, TypeError, TypedTerm,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -245,8 +244,8 @@ impl From<ImproperList> for Exception {
     }
 }
 
-impl From<IndexError> for Exception {
-    fn from(_: IndexError) -> Self {
+impl From<index::Error> for Exception {
+    fn from(_: index::Error) -> Self {
         badarg!()
     }
 }

@@ -10,9 +10,9 @@ use crate::erts::process::ProcessControlBlock;
 use crate::erts::term::atom::AtomError;
 use crate::erts::term::atom::EncodingError;
 use crate::erts::term::list::ImproperList;
-use crate::erts::term::tuple::IndexError;
 use crate::erts::term::{
-    BoolError, BytesFromBinaryError, StrFromBinaryError, Term, TryIntoIntegerError, TypeError,
+    index, BoolError, BytesFromBinaryError, StrFromBinaryError, Term, TryIntoIntegerError,
+    TypeError,
 };
 
 #[derive(Debug, PartialEq)]
@@ -147,8 +147,8 @@ impl From<ImproperList> for Exception {
     }
 }
 
-impl From<IndexError> for Exception {
-    fn from(index_error: IndexError) -> Self {
+impl From<index::Error> for Exception {
+    fn from(index_error: index::Error) -> Self {
         Self::Runtime(index_error.into())
     }
 }

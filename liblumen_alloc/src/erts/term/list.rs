@@ -206,28 +206,19 @@ impl PartialOrd<Cons> for Cons {
 }
 impl CloneToProcess for Cons {
     fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
-        // To make sure we don't blow the stack, we do not recursively walk
-        // the list. Instead we use a list builder and traverse the list iteratively,
-        // cloning each element as we go via the builder
-        let mut builder = ListBuilder::new(heap);
-        // Start with the current cell
-        let mut current = self;
-        loop {
-            builder = builder.push(current.head);
+        let mut vec: alloc::vec::Vec<Term> = Default::default();
+        let mut tail = Term::NIL;
 
-            // Determine whether we're done, or have more cells to traverse
-            if current.tail.is_non_empty_list() {
-                // Traverse to the next cell
-                current = unsafe { &*current.tail.list_val() };
-                continue;
-            } else if current.tail.is_nil() {
-                // End of proper list
-                return builder.finish();
-            } else {
-                // End of improper list
-                return builder.finish_with(current.tail);
+        for result in self.into_iter() {
+            match result {
+                Ok(element) => vec.push(element),
+                Err(ImproperList {
+                    tail: improper_tail,
+                }) => tail = improper_tail,
             }
         }
+
+        heap.improper_list_from_slice(&vec, tail)
     }
 
     fn size_in_words(&self) -> usize {

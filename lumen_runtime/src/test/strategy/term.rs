@@ -296,6 +296,12 @@ pub fn is_not_list(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term>
     .boxed()
 }
 
+pub fn is_not_local_pid(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Term cannot be a local pid", |term| !term.is_local_pid())
+        .boxed()
+}
+
 pub fn is_not_map(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Term cannot be a map", |v| !v.is_map())

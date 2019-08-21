@@ -700,6 +700,50 @@ mod tests {
         }
 
         #[test]
+        fn three_element_proper() {
+            let process = process();
+            let element0 = process.integer(0).unwrap();
+            let element1 = process.integer(1).unwrap();
+            let element2 = process.integer(2).unwrap();
+            let tail = Term::NIL;
+            let cons_term = process
+                .cons(
+                    element0,
+                    process
+                        .cons(element1, process.cons(element2, tail).unwrap())
+                        .unwrap(),
+                )
+                .unwrap();
+            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+
+            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+
+            assert_eq!(heap_fragment_cons_term, cons_term);
+        }
+
+        #[test]
+        fn tree_element_proper_with_nil_element() {
+            let process = process();
+            let element0 = process.integer(0).unwrap();
+            let element1 = Term::NIL;
+            let element2 = process.integer(2).unwrap();
+            let tail = Term::NIL;
+            let cons_term = process
+                .cons(
+                    element0,
+                    process
+                        .cons(element1, process.cons(element2, tail).unwrap())
+                        .unwrap(),
+                )
+                .unwrap();
+            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+
+            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+
+            assert_eq!(heap_fragment_cons_term, cons_term);
+        }
+
+        #[test]
         fn two_element_improper() {
             let process = process();
             let head = atom_unchecked("head");

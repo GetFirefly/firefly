@@ -155,7 +155,7 @@ impl Debug for Cons {
         if let Some(first_result) = iter.next() {
             write!(f, "{:?}", first_result.unwrap())?;
 
-            for result in iter.next() {
+            for result in iter {
                 match result {
                     Ok(element) => write!(f, ", {:?}", element)?,
                     Err(ImproperList { tail }) => write!(f, " | {:?}", tail)?,
@@ -176,7 +176,7 @@ impl Display for Cons {
         if let Some(first_result) = iter.next() {
             write!(f, "{}", first_result.unwrap())?;
 
-            for result in iter.next() {
+            for result in iter {
                 match result {
                     Ok(element) => write!(f, ", {}", element)?,
                     Err(ImproperList { tail }) => write!(f, " | {}", tail)?,

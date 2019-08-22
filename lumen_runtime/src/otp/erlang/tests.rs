@@ -1,7 +1,5 @@
 use super::*;
 
-use std::sync::atomic::AtomicUsize;
-
 use proptest::arbitrary::any;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
@@ -15,7 +13,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use crate::otp::erlang;
 use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::{has_heap_message, has_message, has_process_message, strategy};
+use crate::test::{has_heap_message, has_message, has_process_message, registered_name, strategy};
 
 mod abs_1;
 mod and_2;
@@ -191,18 +189,6 @@ fn receive_message(process: &ProcessControlBlock) -> Option<Term> {
         .borrow_mut()
         .receive(process)
         .map(|result| result.unwrap())
-}
-
-static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-fn registered_name() -> Term {
-    atom_unchecked(
-        format!(
-            "registered{}",
-            REGISTERED_NAME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-        )
-        .as_ref(),
-    )
 }
 
 fn timeout_message(timer_reference: Term, message: Term, process: &ProcessControlBlock) -> Term {

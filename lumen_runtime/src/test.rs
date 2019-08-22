@@ -7,9 +7,11 @@ pub mod r#loop;
 #[cfg(all(not(target_arch = "wasm32"), test))]
 pub mod strategy;
 
+use std::sync::atomic::AtomicUsize;
+
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::{atom_unchecked, Term};
 
 pub fn has_no_message(process: &ProcessControlBlock) -> bool {
     process.mailbox.lock().borrow().len() == 0
@@ -51,4 +53,16 @@ pub fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
             }) => message_data == &data,
             _ => false,
         })
+}
+
+static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+pub fn registered_name() -> Term {
+    atom_unchecked(
+        format!(
+            "registered{}",
+            REGISTERED_NAME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        )
+        .as_ref(),
+    )
 }

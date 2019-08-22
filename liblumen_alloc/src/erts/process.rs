@@ -91,8 +91,7 @@ pub struct ProcessControlBlock {
     /// The `pid` of the process that `spawn`ed this process.
     parent_pid: Option<Pid>,
     pid: Pid,
-    #[allow(dead_code)]
-    initial_module_function_arity: Arc<ModuleFunctionArity>,
+    pub initial_module_function_arity: Arc<ModuleFunctionArity>,
     /// The number of reductions in the current `run`.  `code` MUST return when `run_reductions`
     /// exceeds `MAX_REDUCTIONS_PER_RUN`.
     run_reductions: AtomicU16,

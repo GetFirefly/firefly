@@ -11,6 +11,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::{code, ProcessControlBlock};
 use liblumen_alloc::erts::term::{resource, Atom, Term, TypedTerm};
 
+use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::Scheduled;
 use lumen_runtime::{process, registry};
 
@@ -18,14 +19,13 @@ use lumen_runtime::{process, registry};
 /// the promise.
 pub fn spawn<F>(
     parent_process: &ProcessControlBlock,
-    heap: *mut Term,
-    heap_size: usize,
+    options: Options,
     place_frame_with_arguments: F,
 ) -> Result<Promise, Alloc>
 where
     F: Fn(&ProcessControlBlock) -> Result<(), Alloc>,
 {
-    let (process, promise) = spawn_unscheduled(parent_process, heap, heap_size)?;
+    let (process, promise) = spawn_unscheduled(parent_process, options)?;
 
     place_frame_with_arguments(&process)?;
 
@@ -86,17 +86,15 @@ fn function() -> Atom {
 /// ```
 fn spawn_unscheduled(
     parent_process: &ProcessControlBlock,
-    heap: *mut Term,
-    heap_size: usize,
+    options: Options,
 ) -> Result<(ProcessControlBlock, Promise), Alloc> {
-    let process = process::spawn(
+    let process = process::spawn::code(
         parent_process,
+        options,
         super::module(),
         function(),
         vec![],
         code,
-        heap,
-        heap_size,
     )?;
 
     let mut executor = Executor::new();

@@ -18,7 +18,8 @@ use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::{reference, Atom, Reference, Term};
 
-use crate::process::{self, Linkage};
+use crate::process;
+use crate::process::spawn::options::Options;
 use crate::registry::put_pid_to_process;
 use crate::run::{self, Run};
 use crate::timer::Hierarchy;
@@ -206,24 +207,15 @@ impl Scheduler {
     ///
     /// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
     /// MFA unique to a given application.
-    pub fn spawn_linkage_apply_3(
+    pub fn spawn_apply_3(
         parent_process: &ProcessControlBlock,
-        linkage: Linkage,
+        options: Options,
         module: Atom,
         function: Atom,
         arguments: Term,
-        heap: *mut Term,
-        heap_size: usize,
     ) -> Result<Arc<ProcessControlBlock>, Alloc> {
-        let process = process::spawn_linkage_apply_3(
-            parent_process,
-            linkage,
-            module,
-            function,
-            arguments,
-            heap,
-            heap_size,
-        )?;
+        let process =
+            process::spawn::apply_3(parent_process, options, module, function, arguments)?;
         let arc_scheduler = parent_process.scheduler().unwrap();
         let arc_process = arc_scheduler.schedule(process);
 
@@ -234,24 +226,16 @@ impl Scheduler {
 
     /// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
     /// of passing through `apply/3`.
-    pub fn spawn(
+    pub fn spawn_code(
         parent_process: &ProcessControlBlock,
+        options: Options,
         module: Atom,
         function: Atom,
         arguments: Vec<Term>,
         code: Code,
-        heap: *mut Term,
-        heap_size: usize,
     ) -> Result<Arc<ProcessControlBlock>, Alloc> {
-        let process = process::spawn(
-            parent_process,
-            module,
-            function,
-            arguments,
-            code,
-            heap,
-            heap_size,
-        )?;
+        let process =
+            process::spawn::code(parent_process, options, module, function, arguments, code)?;
         let arc_scheduler = parent_process.scheduler().unwrap();
         let arc_process = arc_scheduler.schedule(process);
 

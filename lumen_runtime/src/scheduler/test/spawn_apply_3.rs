@@ -1,9 +1,8 @@
 use super::*;
 
-use liblumen_alloc::erts::process::default_heap;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 
-use crate::process::{self, Linkage};
+use crate::process;
 
 #[test]
 fn different_processes_have_different_pids() {
@@ -15,30 +14,24 @@ fn different_processes_have_different_pids() {
     let first_process_arguments = parent_arc_process_control_block
         .list_from_slice(&[normal])
         .unwrap();
-    let (first_heap, first_heap_size) = default_heap().unwrap();
-    let first_process = Scheduler::spawn_linkage_apply_3(
+    let first_process = Scheduler::spawn_apply_3(
         &parent_arc_process_control_block,
-        Linkage::None,
+        Default::default(),
         erlang,
         exit,
         first_process_arguments,
-        first_heap,
-        first_heap_size,
     )
     .unwrap();
 
     let second_process_arguments = parent_arc_process_control_block
         .list_from_slice(&[normal])
         .unwrap();
-    let (second_heap, second_heap_size) = default_heap().unwrap();
-    let second_process = Scheduler::spawn_linkage_apply_3(
+    let second_process = Scheduler::spawn_apply_3(
         &first_process,
-        Linkage::None,
+        Default::default(),
         erlang,
         exit,
         second_process_arguments,
-        second_heap,
-        second_heap_size,
     )
     .unwrap();
 

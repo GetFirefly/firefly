@@ -4,10 +4,10 @@ use std::sync::RwLock;
 use libeir_ir::FunctionIdent;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
+use liblumen_alloc::erts::process::Status;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 
-use lumen_runtime::process::Linkage;
+use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
 
@@ -46,18 +46,15 @@ impl VMState {
             // if not enough memory here, resize `spawn_init` heap
             .unwrap();
 
-        let heap_size = next_heap_size(4 + 1000 * 2);
-        // if this fails the entire tab is out-of-memory
-        let heap = heap(heap_size).unwrap();
+        let mut options: Options = Default::default();
+        options.min_heap_size = Some(4 + 1000 * 2);
 
-        let run_arc_process = Scheduler::spawn_linkage_apply_3(
+        let run_arc_process = Scheduler::spawn_apply_3(
             &init_arc_process,
-            Linkage::None,
+            options,
             module,
             function,
-            arguments,
-            heap,
-            heap_size)
+            arguments)
             // if this fails  a bigger sized heap
             .unwrap();
 

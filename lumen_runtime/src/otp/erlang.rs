@@ -12,8 +12,8 @@ pub mod process_info_2;
 pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;
+pub mod spawn_apply_3;
 pub mod spawn_link_3;
-pub mod spawn_linkage_3;
 pub mod subtract_2;
 pub mod unlink_1;
 

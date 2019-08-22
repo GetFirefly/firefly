@@ -1,5 +1,4 @@
-///! The memory specific to a process in the VM.
-use core::convert::TryInto;
+pub mod spawn;
 
 use alloc::sync::Arc;
 
@@ -10,31 +9,20 @@ use liblumen_core::locks::RwLockWriteGuard;
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::code::Code;
+use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::{self, ProcessControlBlock};
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, Tuple, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::{CloneToProcess, HeapFragment};
+use liblumen_alloc::HeapFragment;
 
 use crate::code;
-use crate::otp::erlang::apply_3;
+#[cfg(test)]
+use crate::process::spawn::options::Options;
 use crate::registry::*;
 use crate::scheduler::Scheduler;
 use crate::system;
 #[cfg(test)]
 use crate::test;
-
-/// How the spawned child process is linked to parent
-#[derive(Clone, Copy)]
-pub enum Linkage {
-    /// No link or monitor
-    None,
-    /// Parent monitors child, but child does not monitor parent.
-    Monitor,
-    /// Parent and child are mutually linked.
-    Link,
-}
 
 fn is_expected_exception(exception: &runtime::Exception) -> bool {
     match exception.class {
@@ -191,103 +179,6 @@ impl SchedulerDependentAlloc for ProcessControlBlock {
     }
 }
 
-/// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
-/// of passing through `apply/3`.
-pub fn spawn(
-    parent_process: &ProcessControlBlock,
-    module: Atom,
-    function: Atom,
-    arguments: Vec<Term>,
-    code: Code,
-    heap: *mut Term,
-    heap_size: usize,
-) -> Result<ProcessControlBlock, Alloc> {
-    let arity = arguments.len() as u8;
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module,
-        function,
-        arity,
-    });
-
-    let process_control_block = ProcessControlBlock::new(
-        parent_process.priority,
-        Some(parent_process.pid()),
-        Arc::clone(&module_function_arity),
-        heap,
-        heap_size,
-    );
-
-    for argument in arguments.iter().rev() {
-        let process_argument = argument.clone_to_process(&process_control_block);
-        process_control_block.stack_push(process_argument)?;
-    }
-
-    let frame = Frame::new(module_function_arity, code);
-    process_control_block.push_frame(frame);
-
-    Ok(process_control_block)
-}
-
-/// Spawns a process with arguments for `apply(module, function, arguments)` on its stack.
-///
-/// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
-/// MFA unique to a given application.
-pub fn spawn_linkage_apply_3(
-    parent_process: &ProcessControlBlock,
-    linkage: Linkage,
-    module: Atom,
-    function: Atom,
-    arguments: Term,
-    heap: *mut Term,
-    heap_size: usize,
-) -> Result<ProcessControlBlock, Alloc> {
-    let arity: u8 = match arguments.to_typed_term().unwrap() {
-        TypedTerm::Nil => 0,
-        TypedTerm::List(cons) => cons.count().unwrap().try_into().unwrap(),
-        _ => {
-            panic!(
-                "Arguments {:?} are neither an empty nor a proper list",
-                arguments
-            );
-        }
-    };
-
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module,
-        function,
-        arity,
-    });
-
-    let process_control_block = ProcessControlBlock::new(
-        parent_process.priority,
-        Some(parent_process.pid()),
-        Arc::clone(&module_function_arity),
-        heap,
-        heap_size,
-    );
-
-    let module_term = unsafe { module.as_term() };
-    let function_term = unsafe { function.as_term() };
-    let heap_arguments = arguments.clone_to_process(&process_control_block);
-
-    apply_3::place_frame_with_arguments(
-        &process_control_block,
-        Placement::Push,
-        module_term,
-        function_term,
-        heap_arguments,
-    )?;
-
-    // Link after placing frame, so that any logging can show the `Frame`s when linking occurs
-    match linkage {
-        Linkage::None => (),
-        Linkage::Monitor => unimplemented!(),
-        Linkage::Link => parent_process.link(&process_control_block),
-    };
-
-    Ok(process_control_block)
-}
-
 #[cfg(test)]
 pub fn test_init() -> Arc<ProcessControlBlock> {
     // During test allow multiple unregistered init processes because in tests, the `Scheduler`s
@@ -305,21 +196,12 @@ pub fn test_init() -> Arc<ProcessControlBlock> {
 
 #[cfg(test)]
 pub fn test(parent_process: &ProcessControlBlock) -> Arc<ProcessControlBlock> {
-    let heap_size = process::next_heap_size(16_000);
-    let heap = process::heap(heap_size).unwrap();
+    let mut options: Options = Default::default();
+    options.min_heap_size = Some(16_000);
     let module = test::r#loop::module();
     let function = test::r#loop::function();
     let arguments = vec![];
     let code = test::r#loop::code;
 
-    Scheduler::spawn(
-        parent_process,
-        module,
-        function,
-        arguments,
-        code,
-        heap,
-        heap_size,
-    )
-    .unwrap()
+    Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()
 }

@@ -27,8 +27,12 @@ lazy_static! {
 /// Allocate a new default sized process heap
 #[inline]
 pub fn default_heap() -> Result<(*mut Term, usize), Alloc> {
-    let size = ProcessHeapAlloc::HEAP_SIZES[ProcessHeapAlloc::MIN_HEAP_SIZE_INDEX];
+    let size = default_heap_size();
     PROC_ALLOC.alloc(size).map(|ptr| (ptr, size))
+}
+
+pub fn default_heap_size() -> usize {
+    ProcessHeapAlloc::HEAP_SIZES[ProcessHeapAlloc::MIN_HEAP_SIZE_INDEX]
 }
 
 /// Allocate a new process heap of the given size

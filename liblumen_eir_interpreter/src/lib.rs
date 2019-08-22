@@ -3,12 +3,11 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::process::{heap, next_heap_size, Status};
+use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use lumen_runtime::process::Linkage;
+use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
 
@@ -63,18 +62,15 @@ pub fn call_erlang(
     // if not enough memory here, resize `spawn_init` heap
         .unwrap();
 
-    let heap_size = next_heap_size(50000);
-    // if this fails the entire tab is out-of-memory
-    let heap = heap(heap_size).unwrap();
+    let mut options: Options = Default::default();
+    options.min_heap_size = Some(50_000);
 
-    let run_arc_process = Scheduler::spawn_linkage_apply_3(
+    let run_arc_process = Scheduler::spawn_apply_3(
         &proc,
-        Linkage::None,
+        options,
         module,
         function,
         arguments,
-        heap,
-        heap_size
     )
     // if this fails increase heap size
     .unwrap();

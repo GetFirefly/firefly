@@ -8,8 +8,8 @@ mod elixir;
 mod start;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::{heap, next_heap_size};
 
+use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::Scheduler;
 
 use lumen_web::wait;
@@ -52,14 +52,12 @@ fn run(count: usize, output: Output) -> js_sys::Promise {
     // Don't register, so that tests can run concurrently
     let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
-    let heap_size = next_heap_size(79 + count * 5);
-    // if this fails the entire tab is out-of-memory
-    let heap = heap(heap_size).unwrap();
+    let mut options: Options = Default::default();
+    options.min_heap_size = Some(79 + count * 5);
 
     wait::with_return_0::spawn(
         &parent_arc_process,
-        heap,
-        heap_size,
+        options,
     |child_process| {
             let count_term = child_process.integer(count)?;
 

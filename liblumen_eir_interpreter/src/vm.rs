@@ -1,10 +1,10 @@
 use std::rc::Rc;
-use std::sync::RwLock;
+use std::sync::{RwLock, Arc};
 
 use libeir_ir::FunctionIdent;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::Status;
+use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 
 use lumen_runtime::process::spawn::options::Options;
@@ -16,6 +16,7 @@ use super::module::ModuleRegistry;
 pub struct VMState {
     pub modules: RwLock<ModuleRegistry>,
     pub closure_hack: RwLock<Vec<Vec<Term>>>,
+    pub init: Arc<ProcessControlBlock>,
 }
 
 impl VMState {
@@ -24,10 +25,16 @@ impl VMState {
 
         let mut modules = ModuleRegistry::new();
         modules.register_native_module(crate::native::make_erlang());
+        modules.register_native_module(crate::native::make_lists());
+        modules.register_native_module(crate::native::make_lumen_intrinsics());
+
+        let arc_scheduler = Scheduler::current();
+        let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
 
         VMState {
             modules: RwLock::new(modules),
             closure_hack: RwLock::new(Vec::new()),
+            init: init_arc_process,
         }
     }
 

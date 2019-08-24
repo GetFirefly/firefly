@@ -258,8 +258,8 @@ fn simple_gc_test(process: ProcessControlBlock) {
     // Grab current heap size
     let peak_size = process.young_heap_used();
     // Run garbage collection, using a pointer to the boxed tuple as our sole root
-    let roots = [tuple_term, list_term];
-    process.garbage_collect(0, &roots).unwrap();
+    let mut roots = [tuple_term, list_term];
+    process.garbage_collect(0, &mut roots).unwrap();
     // Grab post-collection size
     let collected_size = process.young_heap_used();
     // We should be missing _exactly_ `greeting` bytes (rounded up to nearest word)
@@ -397,8 +397,8 @@ fn tenuring_gc_test(process: ProcessControlBlock, _perform_fullsweep: bool) {
     // Grab current heap size
     let peak_size = process.young_heap_used();
     // Run first garbage collection
-    let roots = [];
-    process.garbage_collect(0, &roots).unwrap();
+    let mut roots = [];
+    process.garbage_collect(0, &mut roots).unwrap();
 
     // Verify size of garbage collected meets expectation
     let collected_size = process.young_heap_used();
@@ -486,8 +486,8 @@ fn tenuring_gc_test(process: ProcessControlBlock, _perform_fullsweep: bool) {
     // Run second garbage collection, which should tenure everything except the new term we just
     // allocated
     let second_peak_size = process.young_heap_used();
-    let roots = [];
-    process.garbage_collect(0, &roots).unwrap();
+    let mut roots = [];
+    process.garbage_collect(0, &mut roots).unwrap();
 
     // Verify no garbage was collected, we should have just tenured some data,
     // the only data on the young heap should be a single cons cell

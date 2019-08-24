@@ -12,12 +12,12 @@ use crate::erts::Term;
 /// pointer to the root to perform the replacement
 pub struct RootSet(Vec<*mut Term>);
 impl RootSet {
-    pub fn new(roots: &[Term]) -> Self {
+    pub fn new(roots: &mut [Term]) -> Self {
         let len = roots.len();
         let mut set = Vec::with_capacity(len);
         if len > 0 {
             for root in roots {
-                set.push(root as *const _ as *mut _);
+                set.push(root as *mut _);
             }
         }
         Self(set)

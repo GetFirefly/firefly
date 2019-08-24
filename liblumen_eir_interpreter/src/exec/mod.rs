@@ -5,7 +5,7 @@ use std::sync::Arc;
 use cranelift_entity::EntityRef;
 use libeir_intern::Symbol;
 use libeir_ir::constant::{AtomicTerm, Const, ConstKind};
-use libeir_ir::{Block, OpKind, PrimOpKind, Value, ValueKind};
+use libeir_ir::{Block, LogicOp, OpKind, PrimOpKind, Value, ValueKind};
 
 use liblumen_alloc::erts::exception::system;
 use liblumen_alloc::erts::process::code::Result;
@@ -17,6 +17,12 @@ use crate::module::{ErlangFunction, NativeFunctionKind, ResolvedFunction};
 use crate::vm::VMState;
 
 mod r#match;
+
+macro_rules! trace {
+    ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
+}
+
+const VALUE_LIST_MARKER: &str = "eir_value_list_marker_df8gy43h";
 
 pub struct CallExecutor {
     binds: HashMap<Value, Term>,
@@ -46,6 +52,7 @@ impl CallExecutor {
         arity: usize,
         args: &[Term],
     ) -> Result {
+        trace!("======== RUN {} ========", proc.pid());
         let modules = vm.modules.read().unwrap();
         match modules.lookup_function(module, function, arity) {
             None => self.fun_not_found(proc, args[1]),
@@ -56,6 +63,16 @@ impl CallExecutor {
             }
         }
     }
+
+    //pub fn try_gc<F>(&mut self, proc: &Arc<ProcessControlBlock>, terms: &mut [Term], fun: &mut F) -> Result
+    //where
+    //    F: FnMut(&mut CallExecutor, &Arc<ProcessControlBlock>, &mut [Term]) -> Result
+    //{
+    //    match fun(self, proc, terms) {
+    //        Ok(inner) => Ok(inner),
+    //        Err(err) => unimplemented!("{:?}", err),
+    //    }
+    //}
 
     pub fn call_block(
         &mut self,
@@ -68,8 +85,9 @@ impl CallExecutor {
         block: Block,
         env: &[Term],
     ) -> Result {
+        trace!("======== RUN {} ========", proc.pid());
         let modules = vm.modules.read().unwrap();
-        println!("ARGS {:?}", args);
+        trace!("ARGS {:?}", args);
         match modules.lookup_function(module, function, arity) {
             None => self.fun_not_found(proc, args[1]),
             Some(ResolvedFunction::Native(_ptr)) => unreachable!(),
@@ -104,19 +122,19 @@ impl CallExecutor {
                 TypedTerm::Closure(closure) => {
                     //assert!(closure.env_hack.len() != 1);
                     if closure.env.len() > 0 {
-                        let env_list = proc.list_from_slice(&closure.env[1..]).unwrap();
+                        let env_list = proc.list_from_slice(&closure.env[1..])?;
                         proc.stack_push(env_list)?;
 
                         let block_id = closure.env[0];
                         proc.stack_push(block_id)?;
                     }
 
-                    let arg_list = proc.list_from_iter(args.iter().cloned()).unwrap();
+                    let arg_list = proc.list_from_iter(args.iter().cloned())?;
                     proc.stack_push(arg_list)?;
 
                     if closure.env.len() > 0 {
                         let mfa = closure.module_function_arity();
-                        proc.stack_push(proc.integer(mfa.arity).unwrap()).unwrap();
+                        proc.stack_push(proc.integer(mfa.arity).unwrap())?;
                     }
 
                     proc.replace_frame(closure.frame());
@@ -125,7 +143,7 @@ impl CallExecutor {
                 }
                 _ => panic!(),
             },
-            _ => panic!(),
+            t => panic!("CALL TO: {:?}", t),
         }
     }
 
@@ -177,9 +195,26 @@ impl CallExecutor {
         fun: &ErlangFunction,
         const_val: Const,
     ) -> std::result::Result<Term, system::Exception> {
-        match fun.fun.cons().const_kind(const_val) {
+        let res = match fun.fun.cons().const_kind(const_val) {
             ConstKind::Atomic(AtomicTerm::Atom(atom)) => Ok(atom_unchecked(&atom.0.as_str())),
-            ConstKind::Atomic(AtomicTerm::Int(int)) => Ok(proc.integer(int.0)?),
+            ConstKind::Atomic(AtomicTerm::Int(int)) =>
+                Ok(proc.integer(int.0).unwrap()),
+            ConstKind::Tuple { entries } => {
+                let vec: std::result::Result<Vec<_>, _> = entries
+                    .as_slice(&fun.fun.cons().const_pool)
+                    .iter()
+                    .map(|e| self.make_const_term(proc, fun, *e))
+                    .collect();
+                let tup = proc.tuple_from_slice(&vec.unwrap()).unwrap();
+                Ok(tup)
+            },
+            ConstKind::ListCell { head, tail } => {
+                let res = proc.cons(
+                    self.make_const_term(proc, fun, *head)?,
+                    self.make_const_term(proc, fun, *tail)?,
+                )?;
+                Ok(res)
+            },
             //ConstKind::Atomic(AtomicTerm::BigInt(int)) => {
             //    Term::Integer(int.0.clone()).into()
             //}
@@ -219,8 +254,19 @@ impl CallExecutor {
             //    Term::Map(map).into()
             //}
             kind => unimplemented!("{:?}", kind),
-        }
+        };
+        res
     }
+
+    //fn calc_make_closure_heap_size(
+    //    &self,
+    //    fun: &ErlangFunction,
+    //    block: Block,
+    //) -> usize {
+    //    let live = &fun.live.live[&block];
+    //    let live_len = live.len(&fun.live.pool);
+    //    Closure::need_in_bytes_from_env_len(live_len)
+    //}
 
     fn make_closure(
         &self,
@@ -253,6 +299,22 @@ impl CallExecutor {
         Ok(closure)
     }
 
+    //fn calc_make_term_heap_size(
+    //    &self,
+    //    fun: &ErlangFunction,
+    //    value: Value,
+    //) -> usize {
+    //    match fun.fun.value_kind(value) {
+    //        ValueKind::Block(block) => self.calc_make_closure_heap_size(fun, block),
+    //        // Term already exists, requires no space on heap
+    //        ValueKind::Argument(_, _) => 0,
+    //        ValueKind::Const(cons) => self.calc_make_const_term_heap_size(fun, cons),
+    //        ValueKind::PrimOp(prim) => {
+    //            
+    //        },
+    //    }
+    //}
+
     fn make_term(
         &self,
         proc: &Arc<ProcessControlBlock>,
@@ -271,18 +333,59 @@ impl CallExecutor {
                             .iter()
                             .map(|r| self.make_term(proc, fun, *r))
                             .collect();
-                        Ok(proc.tuple_from_slice(&terms?)?)
+                        let mut vec = terms?;
+                        vec.insert(0, atom_unchecked(VALUE_LIST_MARKER));
+                        Ok(proc.tuple_from_slice(&vec)?)
                     }
-                    //PrimOpKind::Tuple => {
-                    //    let terms: Vec<_> = reads.iter()
-                    //        .map(|r| self.make_term(fun, *r)).collect();
-                    //    Term::Tuple(terms).into()
-                    //}
+                    PrimOpKind::Tuple => {
+                        let terms: std::result::Result<Vec<_>, _> = reads.iter()
+                            .map(|r| self.make_term(proc, fun, *r))
+                            .collect();
+                        let vec = terms?;
+                        Ok(proc.tuple_from_slice(&vec)?)
+                    }
                     PrimOpKind::ListCell => {
                         assert!(reads.len() == 2);
                         let head = self.make_term(proc, fun, reads[0])?;
                         let tail = self.make_term(proc, fun, reads[1])?;
-                        Ok(proc.cons(head, tail)?)
+                        let res = proc.cons(head, tail)?;
+                        Ok(res)
+                    }
+                    PrimOpKind::LogicOp(LogicOp::And) => {
+                        let mut acc = true;
+                        for read in reads.iter() {
+                            let term = self.make_term(proc, fun, *read).unwrap();
+                            let res: bool = term.try_into().ok().unwrap();
+                            acc = acc & res;
+                        }
+                        Ok(acc.into())
+                    }
+                    PrimOpKind::LogicOp(LogicOp::Or) => {
+                        let mut acc = false;
+                        for read in reads.iter() {
+                            let term = self.make_term(proc, fun, *read).unwrap();
+                            let res: bool = term.try_into().ok().unwrap();
+                            acc = acc | res;
+                        }
+                        Ok(acc.into())
+                    }
+                    PrimOpKind::CaptureFunction => {
+                        let module: Atom = self.make_term(proc, fun, reads[0])?.try_into().unwrap();
+                        let function: Atom = self.make_term(proc, fun, reads[1])?.try_into().unwrap();
+                        let arity: usize = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
+
+                        let mfa = ModuleFunctionArity {
+                            module,
+                            function,
+                            arity: arity as u8,
+                        };
+
+                        Ok(proc.closure(
+                            proc.pid_term(),
+                            mfa.into(),
+                            crate::code::interpreter_mfa_code,
+                            vec![],
+                        )?)
                     }
                     //PrimOpKind::BinOp(BinOp::Equal) => {
                     //    assert!(reads.len() == 2);
@@ -319,13 +422,14 @@ impl CallExecutor {
     ) -> std::result::Result<OpResult, system::Exception> {
         let reads = fun.fun.block_reads(block);
         let kind = fun.fun.block_kind(block).unwrap();
-        println!("OP: {:?}", kind);
+        trace!("OP: {:?}", kind);
         match kind {
             OpKind::Call => {
                 for read in reads.iter().skip(1) {
                     let term = self.make_term(proc, fun, *read)?;
                     self.next_args.push(term);
                 }
+                //println!("CALL ARGS: {:?}", self.next_args);
                 self.val_call(proc, fun, reads[0])
             }
             OpKind::UnpackValueList(num) => {
@@ -334,11 +438,19 @@ impl CallExecutor {
                 match term.to_typed_term().unwrap() {
                     TypedTerm::Boxed(inner) => match inner.to_typed_term().unwrap() {
                         TypedTerm::Tuple(items) => {
-                            assert!(items.len() == *num);
-                            for item in items.iter() {
-                                self.next_args.push(item);
+                            match items[0].to_typed_term().unwrap() {
+                                TypedTerm::Atom(atom) if atom.name() == VALUE_LIST_MARKER => {
+                                    assert!(items.len() - 1 == *num);
+                                    for item in items.iter().skip(1) {
+                                        self.next_args.push(item);
+                                    }
+                                    self.val_call(proc, fun, reads[0])
+                                }
+                                _ => {
+                                    self.next_args.push(term);
+                                    self.val_call(proc, fun, reads[0])
+                                }
                             }
-                            self.val_call(proc, fun, reads[0])
                         }
                         _ => {
                             self.next_args.push(term);

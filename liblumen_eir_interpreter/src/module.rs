@@ -7,6 +7,10 @@ use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{Atom, Term};
 
+macro_rules! trace {
+    ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
+}
+
 pub enum ResolvedFunction<'a> {
     Native(NativeFunctionKind),
     Erlang(&'a ErlangFunction),
@@ -52,7 +56,7 @@ impl ModuleRegistry {
         function: Atom,
         arity: usize,
     ) -> Option<ResolvedFunction> {
-        println!("LOOKUP {:?}:{:?}/{}", module, function, arity,);
+        trace!("LOOKUP {}:{}/{}", module, function, arity);
         match self.map.get(&module) {
             None => None,
             Some(ModuleType::Erlang(erl)) => erl

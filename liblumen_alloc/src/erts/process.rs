@@ -672,8 +672,10 @@ impl ProcessControlBlock {
     /// collection and discovering that a full sweep is needed, rather than doing so automatically,
     /// the decision is left up to the caller to make. Other errors are described in the
     /// `GcError` documentation.
+    ///
+    /// `need` is specified in words.
     #[inline]
-    pub fn garbage_collect(&self, need: usize, roots: &[Term]) -> Result<usize, GcError> {
+    pub fn garbage_collect(&self, need: usize, roots: &mut [Term]) -> Result<usize, GcError> {
         let mut heap = self.heap.lock();
         // The roots passed in here are pointers to the native stack/registers, all other roots
         // we are able to pick up from the current process context

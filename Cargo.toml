@@ -2,6 +2,7 @@
 
 members = [
   "examples/spawn-chain",
+  "examples/interpreter-in-browser",
   "lumen",
   "lumen_runtime",
   "liblumen_arena",

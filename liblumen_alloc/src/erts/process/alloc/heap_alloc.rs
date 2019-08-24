@@ -475,14 +475,19 @@ pub trait HeapAlloc {
         let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
         let head_ptr = unsafe { tuple_ptr.add(1) as *mut Term };
         let tuple = Tuple::new(len);
+        let mut iter_len = 0;
         unsafe {
             // Write header
             ptr::write(tuple_ptr, tuple);
             // Write each element
             for (index, element) in iterator.enumerate() {
                 ptr::write(head_ptr.add(index), element);
+
+                iter_len += 1;
+                debug_assert!(index < len);
             }
         }
+        debug_assert!(iter_len == len);
         // Return box to tuple
         Ok(Term::make_boxed(tuple_ptr))
     }
@@ -531,6 +536,12 @@ pub trait HeapAlloc {
         // Return box to tuple
         Ok(Term::make_boxed(tuple_ptr))
     }
+
+    //fn closure_with_env_from_slices(&mut self, slices: &[&[Term]]) -> Result<Term, Alloc> {
+    //    unimplemented!()
+    //}
+
+
 }
 impl<A, H> HeapAlloc for H
 where

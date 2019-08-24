@@ -61,6 +61,35 @@ pub fn match_op(
                     _ => unreachable!(),
                 }
             }
+            MatchKind::Tuple(arity) => {
+                assert!(branch_args.len() == 0);
+
+                match unpack_term.to_typed_term().unwrap() {
+                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+                        TypedTerm::Tuple(tup) => {
+                            //assert!(tup.get_element_from_zero_based_usize_index(0).ok().map(|v| ))
+                            if tup.len() == *arity {
+                                exec.next_args.extend(tup.iter());
+                                return exec.val_call(proc, fun, *branch);
+                            }
+                        }
+                        _ => (),
+                    }
+                    _ => (),
+                }
+            }
+            MatchKind::ListCell => {
+                assert!(branch_args.len() == 0);
+
+                match unpack_term.to_typed_term().unwrap() {
+                    TypedTerm::List(cons) => {
+                        exec.next_args.push(cons.head);
+                        exec.next_args.push(cons.tail);
+                        return exec.val_call(proc, fun, *branch);
+                    }
+                    _ => (),
+                }
+            }
             MatchKind::Wildcard => {
                 assert!(branch_args.len() == 0);
                 return exec.val_call(proc, fun, *branch);

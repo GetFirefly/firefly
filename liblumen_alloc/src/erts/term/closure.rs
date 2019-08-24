@@ -8,7 +8,7 @@ use core::ptr;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
-use super::{AsTerm, Term};
+use super::{AsTerm, Term, to_word_size};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
@@ -23,6 +23,8 @@ pub struct Closure {
     creator: Term, // pid of creator process, possible to be either Pid or ExternalPid
     module_function_arity: Arc<ModuleFunctionArity>,
     code: Code, // pointer to function entry
+    //env_len: usize,
+    //env: *const Term, // environment array
     pub env: Vec<Term>,
 }
 
@@ -79,6 +81,19 @@ impl Closure {
 
         Ok(())
     }
+
+    /// The number of bytes for the header and immediate terms or box term pointer to elements
+    /// allocated elsewhere.
+    pub fn need_in_bytes_from_env_len(_env_len: usize) -> usize {
+        mem::size_of::<Self>()
+    }
+
+    /// The number of words for the header and immediate terms or box term pointer to elements
+    /// allocated elsewhere.
+    pub fn need_in_words_from_env_len(env_len: usize) -> usize {
+        to_word_size(Self::need_in_bytes_from_env_len(env_len))
+    }
+
 }
 
 unsafe impl AsTerm for Closure {

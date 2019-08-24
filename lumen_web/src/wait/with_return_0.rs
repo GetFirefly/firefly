@@ -6,7 +6,7 @@ use wasm_bindgen::JsValue;
 
 use js_sys::{Function, Promise};
 
-use web_sys::{Document, Element, Text};
+use web_sys::{Document, Element, HtmlElement, Text};
 
 use liblumen_core::locks::Mutex;
 
@@ -74,6 +74,10 @@ fn resource_reference_to_js_value(resource_reference: resource::Reference) -> Js
         let element: &Element = resource_reference.downcast_ref().unwrap();
 
         element.into()
+    } else if resource_type_id == TypeId::of::<HtmlElement>() {
+        let html_element: &HtmlElement = resource_reference.downcast_ref().unwrap();
+
+        html_element.into()
     } else if resource_type_id == TypeId::of::<Text>() {
         let text: &Text = resource_reference.downcast_ref().unwrap();
 

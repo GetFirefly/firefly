@@ -1,3 +1,4 @@
+pub mod body_1;
 /// The Document interface represents any web page loaded in the browser
 pub mod create_element_2;
 pub mod create_text_node_2;

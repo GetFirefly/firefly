@@ -7,7 +7,7 @@ use std::any::TypeId;
 use std::convert::TryInto;
 use std::mem;
 
-use web_sys::{Document, Element, Node, Text};
+use web_sys::{Document, Element, HtmlElement, Node, Text};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
@@ -32,6 +32,12 @@ fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
         let element: &Element = resource_reference.downcast_ref().unwrap();
         let node: &'static Node =
             unsafe { mem::transmute::<&Node, &'static Node>(element.as_ref()) };
+
+        Ok(node)
+    } else if resource_type_id == TypeId::of::<HtmlElement>() {
+        let html_element: &HtmlElement = resource_reference.downcast_ref().unwrap();
+        let node: &'static Node =
+            unsafe { mem::transmute::<&Node, &'static Node>(html_element.as_ref()) };
 
         Ok(node)
     } else if resource_type_id == TypeId::of::<Text>() {

@@ -13,7 +13,7 @@ use crate::otp::erlang::{exit_1, node_0};
 use crate::process;
 use crate::registry;
 use crate::scheduler::Scheduler;
-use crate::test::{has_message, registered_name};
+use crate::test::{has_message, monitor_count, monitored_count, registered_name};
 
 #[test]
 fn without_process_identifier_errors_badarg() {
@@ -51,10 +51,6 @@ fn is_not_process_identifier(arc_process: Arc<ProcessControlBlock>) -> BoxedStra
             },
         )
         .boxed()
-}
-
-fn monitor_count(process: &ProcessControlBlock) -> usize {
-    process.monitor_by_reference.lock().len()
 }
 
 fn r#type() -> Term {

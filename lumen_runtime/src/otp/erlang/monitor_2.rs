@@ -109,6 +109,7 @@ fn monitor_process_pid(
             let monitor = Monitor::Pid {
                 monitoring_pid: process.pid(),
             };
+            process.monitor(reference_reference.clone(), monitored_arc_process.pid());
             monitored_arc_process.monitored(reference_reference.clone(), monitor);
 
             Ok(reference)
@@ -131,6 +132,7 @@ fn monitor_process_registered_name(
                 monitoring_pid: process.pid(),
                 monitored_name: atom,
             };
+            process.monitor(reference_reference.clone(), monitored_arc_process.pid());
             monitored_arc_process.monitored(reference_reference.clone(), monitor);
 
             Ok(reference)
@@ -166,7 +168,11 @@ fn monitor_process_tuple(
     }
 }
 
-fn native(process: &ProcessControlBlock, r#type: Term, item: Term) -> exception::Result {
+pub(in crate::otp::erlang) fn native(
+    process: &ProcessControlBlock,
+    r#type: Term,
+    item: Term,
+) -> exception::Result {
     let type_atom: Atom = r#type.try_into()?;
 
     match type_atom.name() {

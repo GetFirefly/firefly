@@ -6,6 +6,7 @@ fn returns_reference() {
         let monitored_arc_process = process::test(&monitoring_arc_process);
 
         let monitored_monitor_count_before = monitor_count(&monitored_arc_process);
+        let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
         let monitor_reference_result = native(
             &monitoring_arc_process,
@@ -20,10 +21,15 @@ fn returns_reference() {
         assert!(monitor_reference.is_reference());
 
         let monitored_monitor_count_after = monitor_count(&monitored_arc_process);
+        let monitoring_monitored_count_after = monitored_count(&monitoring_arc_process);
 
         assert_eq!(
             monitored_monitor_count_after,
             monitored_monitor_count_before + 1
+        );
+        assert_eq!(
+            monitoring_monitored_count_after,
+            monitoring_monitored_count_before + 1
         );
     });
 }
@@ -34,6 +40,7 @@ fn returns_different_reference_each_time() {
         let monitored_arc_process = process::test(&monitoring_arc_process);
 
         let monitored_monitor_count_before = monitor_count(&monitored_arc_process);
+        let monitoring_monitored_count_before = monitored_count(&monitoring_arc_process);
 
         let first_monitor_reference = native(
             &monitoring_arc_process,
@@ -51,10 +58,15 @@ fn returns_different_reference_each_time() {
         assert_ne!(first_monitor_reference, second_monitor_reference);
 
         let monitored_monitor_count_after = monitor_count(&monitored_arc_process);
+        let monitoring_monitored_count_after = monitored_count(&monitoring_arc_process);
 
         assert_eq!(
             monitored_monitor_count_after,
             monitored_monitor_count_before + 2
+        );
+        assert_eq!(
+            monitoring_monitored_count_after,
+            monitoring_monitored_count_before + 2
         );
     });
 }

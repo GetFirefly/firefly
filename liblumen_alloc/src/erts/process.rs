@@ -107,6 +107,8 @@ pub struct ProcessControlBlock {
     /// Maps monitor references to the PID of the process that is monitoring through that
     /// reference.
     pub monitor_by_reference: Mutex<HashMap<Reference, Monitor>>,
+    /// Maps monitor references to the PID of the process being monitored by this process.
+    pub monitored_pid_by_reference: Mutex<HashMap<Reference, Pid>>,
     pub mailbox: Mutex<RefCell<Mailbox>>,
     // process heap, cache line aligned to avoid false sharing with rest of struct
     heap: Mutex<ProcessHeap>,
@@ -149,6 +151,7 @@ impl ProcessControlBlock {
             registered_name: Default::default(),
             linked_pid_set: Default::default(),
             monitor_by_reference: Default::default(),
+            monitored_pid_by_reference: Default::default(),
         }
     }
 
@@ -353,8 +356,25 @@ impl ProcessControlBlock {
 
     // Monitors
 
+    pub fn monitor(&self, reference: Reference, monitored_pid: Pid) {
+        self.monitored_pid_by_reference
+            .lock()
+            .insert(reference, monitored_pid);
+    }
+
+    pub fn demonitor(&self, reference: &Reference) -> Option<Pid> {
+        self.monitored_pid_by_reference.lock().remove(reference)
+    }
+
     pub fn monitored(&self, reference: Reference, monitor: Monitor) {
         self.monitor_by_reference.lock().insert(reference, monitor);
+    }
+
+    pub fn demonitored(&self, reference: &Reference) -> Option<Pid> {
+        self.monitor_by_reference
+            .lock()
+            .remove(reference)
+            .map(|monitor| *monitor.monitoring_pid())
     }
 
     // Pid

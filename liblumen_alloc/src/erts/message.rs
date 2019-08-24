@@ -12,6 +12,15 @@ pub enum Message {
     HeapFragment(HeapFragment),
 }
 
+impl Message {
+    pub fn data(&self) -> &Term {
+        match self {
+            Self::Process(Process { data }) => data,
+            Self::HeapFragment(HeapFragment { data, .. }) => data,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Process {
     pub data: Term,

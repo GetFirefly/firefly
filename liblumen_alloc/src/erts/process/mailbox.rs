@@ -1,6 +1,6 @@
 use core::default::Default;
 
-use alloc::collections::vec_deque::Iter;
+use alloc::collections::vec_deque::{Iter, IterMut};
 use alloc::collections::VecDeque;
 
 use crate::borrow::CloneToProcess;
@@ -46,6 +46,20 @@ impl Mailbox {
         self.cursor = 0;
     }
     // End receive implementation for the eir interpreter
+
+    pub fn flush<F>(&mut self, predicate: F, process: &ProcessControlBlock) -> bool
+    where
+        F: Fn(&Message) -> bool,
+    {
+        match self.iter().position(predicate) {
+            Some(index) => {
+                self.remove(index, process);
+
+                true
+            }
+            None => false,
+        }
+    }
 
     pub fn iter(&self) -> Iter<Message> {
         self.messages.iter()

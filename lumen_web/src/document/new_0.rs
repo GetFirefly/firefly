@@ -7,11 +7,14 @@ use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::Atom;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::option_to_ok_tuple_or_error;
+use crate::{error, ok_tuple};
 
+/// Returns a new document whose `origin` is the `origin` of the current global object's associated
+/// `Document`.
+///
 /// ```elixir
-/// case Lumen.Web.Window.window() do
-///    {:ok, window} -> ...
+/// case Lumen.Web.Document.new() do
+///    {:ok, document} -> ...
 ///    :error -> ...
 /// end
 /// ```
@@ -39,7 +42,7 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("window").unwrap()
+    Atom::try_from_str("new").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
@@ -51,7 +54,9 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 }
 
 fn native(process: &ProcessControlBlock) -> exception::Result {
-    let option_window = web_sys::window();
-
-    option_to_ok_tuple_or_error(process, option_window).map_err(|error| error.into())
+    match web_sys::Document::new() {
+        Ok(document) => ok_tuple(process, Box::new(document)).map_err(|error| error.into()),
+        // Not sure how this can happen
+        Err(_) => Ok(error()),
+    }
 }

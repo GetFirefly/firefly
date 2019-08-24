@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::convert::TryInto;
 use std::sync::Arc;
 
@@ -5,11 +6,13 @@ use wasm_bindgen::JsValue;
 
 use js_sys::{Function, Promise};
 
+use web_sys::{Document, Element, HtmlElement, Text};
+
 use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::{code, ProcessControlBlock};
-use liblumen_alloc::erts::term::{resource, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::{resource, Atom, SmallInteger, Term, Tuple, TypedTerm};
 
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::Scheduled;
@@ -38,6 +41,10 @@ where
 
 // Private
 
+fn atom_to_js_value(atom: Atom) -> JsValue {
+    js_sys::Symbol::for_(atom.name()).into()
+}
+
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let return_term = arc_process.stack_pop().unwrap();
     let executor_term = arc_process.stack_pop().unwrap();
@@ -54,6 +61,40 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
 
 fn function() -> Atom {
     Atom::try_from_str("with_return").unwrap()
+}
+
+fn resource_reference_to_js_value(resource_reference: resource::Reference) -> JsValue {
+    let resource_type_id = resource_reference.type_id();
+
+    if resource_type_id == TypeId::of::<Document>() {
+        let document: &Document = resource_reference.downcast_ref().unwrap();
+
+        document.into()
+    } else if resource_type_id == TypeId::of::<Element>() {
+        let element: &Element = resource_reference.downcast_ref().unwrap();
+
+        element.into()
+    } else if resource_type_id == TypeId::of::<HtmlElement>() {
+        let html_element: &HtmlElement = resource_reference.downcast_ref().unwrap();
+
+        html_element.into()
+    } else if resource_type_id == TypeId::of::<Text>() {
+        let text: &Text = resource_reference.downcast_ref().unwrap();
+
+        text.into()
+    } else {
+        unimplemented!("Convert {:?} to JsValue", resource_reference);
+    }
+}
+
+fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
+    let i: isize = small_integer.into();
+
+    if (std::i32::MIN as isize) <= i && i <= (std::i32::MAX as isize) {
+        (i as i32).into()
+    } else {
+        (i as f64).into()
+    }
 }
 
 /// Spawns process with this as the first frame, so that any later `Frame`s can return to it.
@@ -108,17 +149,28 @@ fn spawn_unscheduled(
 
 fn term_to_js_value(term: Term) -> JsValue {
     match term.to_typed_term().unwrap() {
-        TypedTerm::SmallInteger(small_integer) => {
-            let i: isize = small_integer.into();
-
-            if (std::i32::MIN as isize) <= i && i <= (std::i32::MAX as isize) {
-                (i as i32).into()
-            } else {
-                (i as f64).into()
+        TypedTerm::Atom(atom) => atom_to_js_value(atom),
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::ResourceReference(resource_reference) => {
+                resource_reference_to_js_value(resource_reference)
             }
-        }
+            TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
+            _ => unimplemented!("Convert {:?} to JsValue", term),
+        },
+        TypedTerm::SmallInteger(small_integer) => small_integer_to_js_value(small_integer),
         _ => unimplemented!("Convert {:?} to JsValue", term),
     }
+}
+
+fn tuple_to_js_value(tuple: &Tuple) -> JsValue {
+    let array = js_sys::Array::new();
+
+    for element_term in tuple.iter() {
+        let element_js_value = term_to_js_value(element_term);
+        array.push(&element_js_value);
+    }
+
+    array.into()
 }
 
 /// The executor for a `js_sys::Promise` that will be resolved by `code` or rejected when the owning

@@ -55,6 +55,15 @@ pub fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
         })
 }
 
+pub fn receive_message(process: &ProcessControlBlock) -> Option<Term> {
+    process
+        .mailbox
+        .lock()
+        .borrow_mut()
+        .receive(process)
+        .map(|result| result.unwrap())
+}
+
 static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 pub fn registered_name() -> Term {

@@ -1,13 +1,14 @@
 use core::alloc::Layout;
 use core::cmp;
+use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
-use core::mem;
+use core::mem::{self, size_of};
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::{arity_of, AsTerm, Boxed, Term};
+use crate::erts::term::{arity_of, to_word_size, AsTerm, Boxed, Term, TypeError, TypedTerm};
 use crate::erts::{scheduler, HeapAlloc, Node};
 
 pub type Number = u64;
@@ -21,6 +22,10 @@ pub struct Reference {
 }
 
 impl Reference {
+    pub fn need_in_words() -> usize {
+        to_word_size(size_of::<Self>())
+    }
+
     /// Create a new `Reference` struct
     pub fn new(scheduler_id: scheduler::ID, number: Number) -> Self {
         Self {
@@ -111,6 +116,28 @@ impl PartialEq<ExternalReference> for Reference {
 impl PartialOrd<Reference> for Reference {
     fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl TryFrom<Term> for Boxed<Reference> {
+    type Error = TypeError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.to_typed_term().unwrap().try_into()
+    }
+}
+
+impl TryFrom<TypedTerm> for Boxed<Reference> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+                TypedTerm::Reference(reference) => Ok(reference),
+                _ => Err(TypeError),
+            },
+            _ => Err(TypeError),
+        }
     }
 }
 

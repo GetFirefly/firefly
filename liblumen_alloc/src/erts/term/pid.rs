@@ -69,6 +69,8 @@ impl Pid {
         (bit_size_of::<usize>() - (Self::NUMBER_BIT_COUNT as usize) - 7) as u8;
     const SERIAL_MASK: usize = !Self::NUMBER_MASK;
     pub const SERIAL_MAX: usize = (1 << (Self::SERIAL_BIT_COUNT as usize)) - 1;
+
+    pub const SIZE_IN_WORDS: usize = 1;
 }
 
 unsafe impl AsTerm for Pid {

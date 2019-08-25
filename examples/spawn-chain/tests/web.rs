@@ -17,6 +17,46 @@ use spawn_chain::start;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
+mod run {
+    use super::*;
+
+    use spawn_chain::run;
+
+    #[wasm_bindgen_test(async)]
+    fn with_1() -> impl Future<Item = (), Error = JsValue> {
+        eq_in_the_future(1)
+    }
+
+    #[wasm_bindgen_test(async)]
+    fn with_2() -> impl Future<Item = (), Error = JsValue> {
+        eq_in_the_future(2)
+    }
+
+    #[wasm_bindgen_test(async)]
+    fn with_4() -> impl Future<Item = (), Error = JsValue> {
+        eq_in_the_future(4)
+    }
+
+    #[wasm_bindgen_test(async)]
+    fn with_8() -> impl Future<Item = (), Error = JsValue> {
+        eq_in_the_future(8)
+    }
+
+    #[wasm_bindgen_test(async)]
+    fn with_16() -> impl Future<Item = (), Error = JsValue> {
+        eq_in_the_future(16)
+    }
+
+    #[wasm_bindgen_test(async)]
+    fn with_32() -> impl Future<Item = (), Error = JsValue> {
+        eq_in_the_future(32)
+    }
+
+    fn eq_in_the_future(n: usize) -> impl Future<Item = (), Error = JsValue> {
+        super::eq_in_the_future(run, n)
+    }
+}
+
 mod log_to_console {
     use super::*;
 

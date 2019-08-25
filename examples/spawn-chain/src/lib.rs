@@ -16,7 +16,7 @@ use lumen_web::wait;
 
 use wasm_bindgen::prelude::*;
 
-use crate::elixir::chain::{console_1, dom_1};
+use crate::elixir::chain::{console_1, dom_1, none_1};
 use crate::start::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -33,21 +33,27 @@ pub fn start() {
 }
 
 #[wasm_bindgen]
+pub fn run(count: usize) -> js_sys::Promise {
+    run_with_output(count, Output::None)
+}
+
+#[wasm_bindgen]
 pub fn log_to_console(count: usize) -> js_sys::Promise {
-    run(count, Output::Console)
+    run_with_output(count, Output::Console)
 }
 
 #[wasm_bindgen]
 pub fn log_to_dom(count: usize) -> js_sys::Promise {
-    run(count, Output::Dom)
+    run_with_output(count, Output::Dom)
 }
 
 enum Output {
+    None,
     Console,
     Dom,
 }
 
-fn run(count: usize, output: Output) -> js_sys::Promise {
+fn run_with_output(count: usize, output: Output) -> js_sys::Promise {
     let arc_scheduler = Scheduler::current();
     // Don't register, so that tests can run concurrently
     let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
@@ -61,14 +67,15 @@ fn run(count: usize, output: Output) -> js_sys::Promise {
     |child_process| {
             let count_term = child_process.integer(count)?;
 
-            match output {
+        // if this fails use a bigger sized heap
+        match output {
+                Output::None => {
+                    none_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
+                }
                 Output::Console => {
-
-                    // if this fails use a bigger sized heap
                     console_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
                 }
                 Output::Dom => {
-                    // if this fails use a bigger sized heap
                     dom_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
                 }
             }

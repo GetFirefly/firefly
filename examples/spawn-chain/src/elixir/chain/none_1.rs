@@ -1,26 +1,28 @@
-mod label_1;
-mod label_2;
-
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, ProcessControlBlock};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use lumen_runtime::otp::timer;
+use crate::elixir::chain::{none_output_1, run_2};
 
+/// ```elixir
+/// # pushed to stack: (n)
+/// # returned from call: N/A
+/// # full stack: (n)
+/// # returns: final_answer
+/// def none(n) do
+///   run(n, &none_output/1)
+/// end
+/// ```
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
     n: Term,
-    output: Term,
 ) -> Result<(), Alloc> {
     assert!(n.is_integer());
-    assert!(output.is_function(), "{:?} is not a function", output);
-
-    process.stack_push(output)?;
     process.stack_push(n)?;
     process.place_frame(frame(), placement);
 
@@ -29,30 +31,14 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-/// ```elixir
-/// def run(n, output) do
-///   {time, value} = :timer.tc(Chain, :create_processes, [n, output])
-///   output.("Chain.run(#{n}) in #{time} microseconds")
-///   {time, value}
-/// end
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
     let n = arc_process.stack_pop().unwrap();
-    let output = arc_process.stack_pop().unwrap();
+    assert!(n.is_integer());
 
-    label_1::place_frame_with_arguments(arc_process, Placement::Replace, output, n)?;
-
-    let module = atom_unchecked("Elixir.Chain");
-    let function = atom_unchecked("create_processes");
-    let arguments = arc_process.list_from_slice(&[n, output])?;
-    timer::tc_3::place_frame_with_arguments(
-        arc_process,
-        Placement::Push,
-        module,
-        function,
-        arguments,
-    )?;
+    let none_output_closure = none_output_1::closure(arc_process)?;
+    run_2::place_frame_with_arguments(arc_process, Placement::Replace, n, none_output_closure)?;
 
     ProcessControlBlock::call_code(arc_process)
 }
@@ -62,13 +48,13 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("run").unwrap()
+    Atom::try_from_str("none").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: 2,
+        arity: 1,
     })
 }

@@ -19,7 +19,7 @@ pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
 /// # full stack: ({:ok, document})
 /// # returns: {:ok, body} | :error
 /// body_tuple = Lumen.Web.Document.body(document)
-/// Lumen::Web::Wait.with_return(body_tuple)
+/// Lumen.Web:.Wait.with_return(body_tuple)
 /// ```
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();

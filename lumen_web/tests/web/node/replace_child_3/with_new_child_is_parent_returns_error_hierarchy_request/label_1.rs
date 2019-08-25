@@ -6,21 +6,25 @@ use liblumen_alloc::erts::process::{code, ProcessControlBlock};
 use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Tuple};
 use liblumen_alloc::ModuleFunctionArity;
 
+use super::label_2;
+
 pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
     process.place_frame(frame(), placement);
 }
 
 // Private
 
-/// ```elixir
-/// # label 2
-/// # pushed to stack: ()
-/// # returned from call: {:ok, document}
-/// # full stack: ({:ok, document})
-/// # returns: {:ok, body} | :error
-/// body_tuple = Lumen.Web.Document.body(document)
-/// Lumen.Web:.Wait.with_return(body_tuple)
-/// ```
+// ```elixir
+// # label 1
+// # pushed to stack: ("div")
+// # returned form call: {:ok, document}
+// # full stack: ({:ok, document}, "div")
+// # returns: {:ok, old_child}
+// {:ok, old_child} = Lumen.Web.Document.create_element(document, "table")
+// {:ok, parent} = Lumen.Web.Document.create_element(document, "div")
+// :ok = Lumen.Web.Node.append_child(parent, old_child)
+// {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
+// ```
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
@@ -36,10 +40,14 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let document = ok_document_tuple[1];
     assert!(document.is_resource_reference());
 
-    lumen_web::document::body_1::place_frame_with_arguments(
+    label_2::place_frame_with_arguments(arc_process, Placement::Replace, document)?;
+
+    let old_child_tag = arc_process.binary_from_str("table")?;
+    lumen_web::document::create_element_2::place_frame_with_arguments(
         arc_process,
-        Placement::Replace,
+        Placement::Push,
         document,
+        old_child_tag,
     )?;
 
     ProcessControlBlock::call_code(arc_process)

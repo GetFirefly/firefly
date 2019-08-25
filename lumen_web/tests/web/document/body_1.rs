@@ -23,9 +23,9 @@ fn without_body() -> impl Future<Item = (), Error = JsValue> {
     let options: Options = Default::default();
 
     // ```elixir
-    // {:ok, document} = Lumen::Web::Document.new()
+    // {:ok, document} = Lumen.Web.Document.new()
     // body_tuple = Lumen.Web.Document.body(document)
-    // Lumen::Web::Wait.with_return(body_tuple)
+    // Lumen.Web.Wait.with_return(body_tuple)
     // ```
     let promise = wait::with_return_0::spawn(&parent_arc_process, options, |child_process| {
         // ```elixir
@@ -35,7 +35,7 @@ fn without_body() -> impl Future<Item = (), Error = JsValue> {
         // # full stack: ({:ok, document})
         // # returns: {:ok, body} | :error
         // body_tuple = Lumen.Web.Document.body(document)
-        // Lumen::Web::Wait.with_return(body_tuple)
+        // Lumen.Web.Wait.with_return(body_tuple)
         // ```
         without_body::label_1::place_frame(child_process, Placement::Push);
         // ```elixir
@@ -68,9 +68,9 @@ fn with_body() -> impl Future<Item = (), Error = JsValue> {
     let options: Options = Default::default();
 
     // ```elixir
-    // {:ok, document} = Lumen::Web::Document.new()
+    // {:ok, document} = Lumen.Web.Document.new()
     // body_tuple = Lumen.Web.Document.body(document)
-    // Lumen::Web::Wait.with_return(body_tuple)
+    // Lumen.Web.Wait.with_return(body_tuple)
     // ```
     let promise = wait::with_return_0::spawn(&parent_arc_process, options, |child_process| {
         // ```elixir
@@ -79,9 +79,9 @@ fn with_body() -> impl Future<Item = (), Error = JsValue> {
         // # returned from call: {:ok, window}
         // # full stack: ({:ok, window})
         // # returns: {:ok, document}
-        // {:ok, document} = Lumen::Web::Window.document(window)
+        // {:ok, document} = Lumen.Web.Window.document(window)
         // body_tuple = Lumen.Web.Document.body(document)
-        // Lumen::Web::Wait.with_return(body_tuple)
+        // Lumen.Web.Wait.with_return(body_tuple)
         // ```
         with_body::label_1::place_frame(child_process, Placement::Push);
         // ```elixir

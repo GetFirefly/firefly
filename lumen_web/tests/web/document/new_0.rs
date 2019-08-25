@@ -17,8 +17,8 @@ fn returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> {
     let options: Options = Default::default();
 
     // ```elixir
-    // document_tuple = Lumen::Web::Document.new()
-    // Lumen::Web::Wait.with_return(document_tuple)
+    // document_tuple = Lumen.Web.Document.new()
+    // Lumen.Web.Wait.with_return(document_tuple)
     // ```
     let promise = wait::with_return_0::spawn(&parent_arc_process, options, |child_process| {
         // ```elixir

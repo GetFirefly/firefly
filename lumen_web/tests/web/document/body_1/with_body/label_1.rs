@@ -4,9 +4,9 @@ use std::sync::Arc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, ProcessControlBlock};
 use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Tuple};
+use liblumen_alloc::ModuleFunctionArity;
 
 use super::label_2;
-use liblumen_alloc::ModuleFunctionArity;
 
 pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
     process.place_frame(frame(), placement);
@@ -20,9 +20,9 @@ pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
 /// # returned from call: {:ok, window}
 /// # full stack: ({:ok, window})
 /// # returns: {:ok, document}
-/// {:ok, document} = Lumen::Web::Window.document(window)
+/// {:ok, document} = Lumen.Web.Window.document(window)
 /// body_tuple = Lumen.Web.Document.body(document)
-/// Lumen::Web::Wait.with_return(body_tuple)
+/// Lumen.Web.Wait.with_return(body_tuple)
 /// ```
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();

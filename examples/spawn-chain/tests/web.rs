@@ -7,11 +7,13 @@ use std::sync::Once;
 
 use futures::future::Future;
 
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{JsCast, JsValue};
 
 use wasm_bindgen_futures::JsFuture;
 
 use wasm_bindgen_test::*;
+
+use js_sys::Reflect;
 
 use spawn_chain::start;
 
@@ -149,9 +151,25 @@ fn eq_in_the_future(
 
     JsFuture::from(promise)
         .map(move |resolved| {
-            let n_js_value: JsValue = (n as i32).into();
+            assert!(
+                js_sys::Array::is_array(&resolved),
+                "{:?} is not an array",
+                resolved
+            );
 
-            assert_eq!(resolved, n_js_value)
+            let resolved_array: js_sys::Array = resolved.dyn_into().unwrap();
+
+            assert_eq!(resolved_array.length(), 2);
+
+            let resolved_time = Reflect::get(&resolved_array, &0.into()).unwrap();
+
+            assert!(js_sys::Number::is_integer(&resolved_time));
+
+            let n_js_value: JsValue = (n as i32).into();
+            assert_eq!(
+                Reflect::get(&resolved_array, &1.into()).unwrap(),
+                n_js_value
+            );
         })
         .map_err(|_| unreachable!())
 }

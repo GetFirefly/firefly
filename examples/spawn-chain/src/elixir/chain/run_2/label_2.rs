@@ -8,18 +8,18 @@ use liblumen_alloc::erts::term::{atom_unchecked, Term};
 
 /// ```elixir
 /// # label 2
-/// # pushed to stack: (value)
+/// # pushed to stack: ({time, value})
 /// # returned from call: :ok
-/// # full stack: (:ok, value)
-/// # returns: value
-/// value
+/// # full stack: (:ok, {time, value})
+/// # returns: {time, value}
+/// {time, value}
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
-    value: Term,
+    time_value: Term,
 ) -> Result<(), Alloc> {
-    assert!(value.is_integer());
-    process.stack_push(value)?;
+    assert!(time_value.is_tuple());
+    process.stack_push(time_value)?;
     process.place_frame(frame(process), placement);
 
     Ok(())
@@ -32,9 +32,9 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
 
     let ok = arc_process.stack_pop().unwrap();
     assert_eq!(ok, atom_unchecked("ok"));
-    let value = arc_process.stack_pop().unwrap();
+    let time_value = arc_process.stack_pop().unwrap();
 
-    arc_process.return_from_call(value)?;
+    arc_process.return_from_call(time_value)?;
 
     ProcessControlBlock::call_code(arc_process)
 }

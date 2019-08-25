@@ -2,6 +2,7 @@
 /// types to be treated similarly; for example, inheriting the same set of methods or being
 /// tested in the same way.
 pub mod append_child_2;
+pub mod replace_child_3;
 
 use std::any::TypeId;
 use std::convert::TryInto;
@@ -40,6 +41,11 @@ fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
             unsafe { mem::transmute::<&Node, &'static Node>(html_element.as_ref()) };
 
         Ok(node)
+    } else if resource_type_id == TypeId::of::<Node>() {
+        let node: &Node = resource_reference.downcast_ref().unwrap();
+        let static_node: &'static Node = unsafe { mem::transmute::<&Node, &'static Node>(node) };
+
+        Ok(static_node)
     } else if resource_type_id == TypeId::of::<Text>() {
         let text: &Text = resource_reference.downcast_ref().unwrap();
         let node: &'static Node = unsafe { mem::transmute::<&Node, &'static Node>(text.as_ref()) };

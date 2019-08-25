@@ -1,6 +1,6 @@
 use core::default::Default;
 
-use alloc::collections::vec_deque::{Iter, IterMut};
+use alloc::collections::vec_deque::Iter;
 use alloc::collections::VecDeque;
 
 use crate::borrow::CloneToProcess;

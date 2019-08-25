@@ -1,8 +1,12 @@
+#![deny(warnings)]
+
 //! Test suite for the Web and headless browsers.
 #![cfg(target_arch = "wasm32")]
 
 #[path = "./web/document.rs"]
 mod document;
+#[path = "./web/node.rs"]
+mod node;
 
 extern crate wasm_bindgen_test;
 

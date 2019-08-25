@@ -4,9 +4,9 @@ use std::sync::Arc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, ProcessControlBlock};
 use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Tuple};
+use liblumen_alloc::ModuleFunctionArity;
 
 use super::label_2;
-use liblumen_alloc::ModuleFunctionArity;
 
 pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
     process.place_frame(frame(), placement);

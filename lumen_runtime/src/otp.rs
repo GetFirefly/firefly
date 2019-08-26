@@ -3,4 +3,5 @@
 pub mod binary;
 pub mod erlang;
 pub mod lists;
+pub mod maps;
 pub mod timer;

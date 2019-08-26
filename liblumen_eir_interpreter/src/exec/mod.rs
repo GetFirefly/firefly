@@ -188,7 +188,7 @@ impl CallExecutor {
                 self.fun_not_found(proc, args[1], module, function, arity).unwrap();
             },
             Some(ResolvedFunction::Native(native)) => {
-                assert!(arity == args.len() + 2);
+                assert!(arity + 2 == args.len());
                 self.run_native(vm, proc, native, args);
             },
             Some(ResolvedFunction::Erlang(fun)) => {

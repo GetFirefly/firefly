@@ -7,12 +7,13 @@ use std::convert::TryInto;
 use liblumen_alloc::erts::{HeapFragment, ModuleFunctionArity};
 use liblumen_alloc::erts::term::{Term, Atom, Boxed, Closure, TypedTerm};
 use liblumen_alloc::erts::term::resource::Reference as ResourceReference;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::process::spawn::options::Options;
+use lumen_runtime::system;
 
 /// A sort of ghetto-future used to get the result from a process
 /// spawn.
@@ -36,6 +37,52 @@ pub struct ProcessResult {
 
 struct ProcessResultSender {
     tx: Sender<ProcessResult>,
+}
+
+pub fn call_run_erlang(
+    proc: Arc<ProcessControlBlock>,
+    module: Atom,
+    function: Atom,
+    args: &[Term],
+) -> ProcessResult {
+    let recv = call_erlang(proc, module, function, args);
+    let run_arc_process = recv.process.clone();
+
+    loop {
+        let ran = Scheduler::current().run_through(&run_arc_process);
+
+        match *run_arc_process.status.read() {
+            Status::Exiting(_) => {
+                return recv.try_get().unwrap();
+            },
+            Status::Waiting => {
+                if ran {
+                    system::io::puts(&format!(
+                        "WAITING Run queues len = {:?}",
+                        Scheduler::current().run_queues_len()
+                    ));
+                } else {
+                    panic!(
+                        "{:?} did not run.  Deadlock likely in {:#?}",
+                        run_arc_process,
+                        Scheduler::current()
+                    );
+                }
+            }
+            Status::Runnable => {
+                system::io::puts(&format!(
+                    "RUNNABLE Run queues len = {:?}",
+                    Scheduler::current().run_queues_len()
+                ));
+            }
+            Status::Running => {
+                system::io::puts(&format!(
+                    "RUNNING Run queues len = {:?}",
+                    Scheduler::current().run_queues_len()
+                ));
+            }
+        }
+    }
 }
 
 pub fn call_erlang(

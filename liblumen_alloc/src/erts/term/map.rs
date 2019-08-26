@@ -22,6 +22,13 @@ pub struct Map {
 }
 
 impl Map {
+    pub(in crate::erts) fn from_hash_map(value: HashMap<Term, Term>) -> Self {
+        let arity = to_word_size(mem::size_of_val(&value));
+        let header = Term::make_header(arity, Term::FLAG_MAP);
+
+        Self { header, value }
+    }
+
     pub(in crate::erts) fn from_slice(slice: &[(Term, Term)]) -> Self {
         let mut value: HashMap<Term, Term> = HashMap::with_capacity(slice.len());
 
@@ -29,10 +36,7 @@ impl Map {
             value.insert(*entry_key, *entry_value);
         }
 
-        let arity = to_word_size(mem::size_of_val(&value));
-        let header = Term::make_header(arity, Term::FLAG_MAP);
-
-        Self { header, value }
+        Self::from_hash_map(value)
     }
 
     pub fn get(&self, key: Term) -> Option<Term> {
@@ -58,11 +62,24 @@ impl Map {
     }
 }
 
+impl AsRef<HashMap<Term, Term>> for Boxed<Map> {
+    fn as_ref(&self) -> &HashMap<Term, Term> {
+        &self.value
+    }
+}
+
+impl AsRef<HashMap<Term, Term>> for Map {
+    fn as_ref(&self) -> &HashMap<Term, Term> {
+        &self.value
+    }
+}
+
 unsafe impl AsTerm for Map {
     unsafe fn as_term(&self) -> Term {
         Term::make_boxed(self)
     }
 }
+
 impl crate::borrow::CloneToProcess for Map {
     fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         let size = mem::size_of_val(self);

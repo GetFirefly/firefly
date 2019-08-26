@@ -535,6 +535,10 @@ impl ProcessControlBlock {
         self.acquire_heap().improper_list_from_slice(slice, tail)
     }
 
+    pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> Result<Term, Alloc> {
+        self.acquire_heap().map_from_hash_map(hash_map)
+    }
+
     pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> Result<Term, Alloc> {
         self.acquire_heap().map_from_slice(slice)
     }

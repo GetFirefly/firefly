@@ -8,7 +8,7 @@ fn without_function_right_returns_false() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::function(arc_process.clone()),
+                    strategy::term::is_function(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be function", |v| !v.is_closure()),
                 ),
@@ -26,11 +26,14 @@ fn without_function_right_returns_false() {
 fn with_same_function_right_returns_true() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(&strategy::term::function(arc_process.clone()), |operand| {
-                prop_assert_eq!(erlang::are_exactly_equal_2(operand, operand), true.into());
+            .run(
+                &strategy::term::is_function(arc_process.clone()),
+                |operand| {
+                    prop_assert_eq!(erlang::are_exactly_equal_2(operand, operand), true.into());
 
-                Ok(())
-            })
+                    Ok(())
+                },
+            )
             .unwrap();
     });
 }

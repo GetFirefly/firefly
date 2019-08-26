@@ -72,7 +72,6 @@ mod is_integer_1;
 mod is_less_than_2;
 mod is_list_1;
 mod is_map_1;
-mod is_map_key_2;
 mod is_number_1;
 mod is_pid_1;
 mod is_record_2;

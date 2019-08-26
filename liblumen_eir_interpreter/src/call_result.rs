@@ -1,0 +1,164 @@
+use core::ptr::NonNull;
+
+use std::sync::Arc;
+use std::sync::mpsc::{channel, Sender, Receiver};
+use std::convert::TryInto;
+
+use liblumen_alloc::erts::{HeapFragment, ModuleFunctionArity};
+use liblumen_alloc::erts::term::{Term, Atom, Boxed, Closure, TypedTerm};
+use liblumen_alloc::erts::term::resource::Reference as ResourceReference;
+use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::code;
+use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
+
+use lumen_runtime::scheduler::Scheduler;
+use lumen_runtime::process::spawn::options::Options;
+
+/// A sort of ghetto-future used to get the result from a process
+/// spawn.
+pub struct ProcessResultReceiver {
+    pub process: Arc<ProcessControlBlock>,
+    rx: Receiver<ProcessResult>,
+}
+
+impl ProcessResultReceiver {
+
+    pub fn try_get(&self) -> Option<ProcessResult> {
+        self.rx.try_recv().ok()
+    }
+
+}
+
+pub struct ProcessResult {
+    pub heap: NonNull<HeapFragment>,
+    pub result: Result<Term, (Term, Term, Term)>,
+}
+
+struct ProcessResultSender {
+    tx: Sender<ProcessResult>,
+}
+
+pub fn call_erlang(
+    proc: Arc<ProcessControlBlock>,
+    module: Atom,
+    function: Atom,
+    args: &[Term],
+) -> ProcessResultReceiver {
+
+    let (tx, rx) = channel();
+
+    let sender = ProcessResultSender {
+        tx,
+    };
+    let sender_term = proc.resource(Box::new(sender)).unwrap();
+
+    let return_ok = {
+        let mfa = ModuleFunctionArity {
+            module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
+            function: Atom::try_from_str("return_ok").unwrap(),
+            arity: 1,
+        };
+        proc.closure_with_env_from_slice(
+            mfa.into(),
+            return_ok,
+            proc.pid_term(),
+            &[sender_term],
+        ).unwrap()
+    };
+
+    let return_throw = {
+        let mfa = ModuleFunctionArity {
+            module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
+            function: Atom::try_from_str("return_ok").unwrap(),
+            arity: 1,
+        };
+        proc.closure_with_env_from_slice(
+            mfa.into(),
+            return_throw,
+            proc.pid_term(),
+            &[sender_term],
+        ).unwrap()
+    };
+
+    let mut args_vec = vec![return_ok, return_throw];
+    args_vec.extend(args.iter().cloned());
+
+    let arguments = proc.list_from_slice(&args_vec).unwrap();
+
+    let options: Options = Default::default();
+    //options.min_heap_size = Some(100_000);
+
+    let run_arc_process = Scheduler::spawn_apply_3(
+        &proc,
+        options,
+        module,
+        function,
+        arguments,
+    ).unwrap();
+
+    ProcessResultReceiver {
+        process: run_arc_process,
+        rx,
+    }
+}
+
+fn return_ok(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+    let argument_list = arc_process.stack_pop().unwrap();
+    let closure_term = arc_process.stack_pop().unwrap();
+
+    let mut argument_vec: Vec<Term> = Vec::new();
+    match argument_list.to_typed_term().unwrap() {
+        TypedTerm::Nil => (),
+        TypedTerm::List(argument_cons) => {
+            for result in argument_cons.into_iter() {
+                let element = result.unwrap();
+
+                argument_vec.push(element);
+            }
+        }
+        _ => panic!(),
+    }
+    assert!(argument_vec.len() == 1);
+
+    let closure: Boxed<Closure> = closure_term.try_into().unwrap();
+    let sender_any: ResourceReference = closure.env_slice()[0].try_into().unwrap();
+    let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
+
+    let mut fragment = unsafe { HeapFragment::new_from_word_size(100) }.unwrap();
+    let frag_mut = unsafe { fragment.as_mut() };
+    let ret = argument_vec[0].clone_to_heap(frag_mut).unwrap();
+
+    sender.tx.send(ProcessResult {
+        heap: fragment,
+        result: Ok(ret),
+    }).unwrap();
+
+    Ok(arc_process.return_from_call(argument_vec[0])?)
+}
+
+fn return_throw(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+    let _argument_list = arc_process.stack_pop().unwrap();
+    let _closure_term = arc_process.stack_pop().unwrap();
+
+    panic!()
+
+    //let closure: Boxed<Closure> = closure_term.try_into().unwrap();
+    //let sender_any: ResourceReference = closure.env_slice()[0].try_into().unwrap();
+    //let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
+
+    //let class: Atom = class_term.try_into().unwrap();
+    //let class = match class.name() {
+    //    "EXIT" => Class::Exit,
+    //    k => unreachable!("{:?}", k),
+    //};
+
+    //let exc = Exception {
+    //    class,
+    //    reason: reason_term,
+    //    stacktrace: Some(trace_term),
+    //    file: "",
+    //    line: 0,
+    //    column: 0,
+    //};
+    //result_from_exception(arc_process, exc.into())
+}

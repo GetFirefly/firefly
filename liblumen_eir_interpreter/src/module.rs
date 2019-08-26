@@ -10,6 +10,9 @@ use liblumen_alloc::erts::term::{Atom, Term};
 macro_rules! trace {
     ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
 }
+//macro_rules! trace {
+//    ($($t:tt)*) => ()
+//}
 
 pub enum ResolvedFunction<'a> {
     Native(NativeFunctionKind),

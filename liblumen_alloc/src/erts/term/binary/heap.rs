@@ -256,3 +256,11 @@ impl TryInto<String> for Boxed<HeapBin> {
         }
     }
 }
+
+impl TryInto<Vec<u8>> for Boxed<HeapBin> {
+    type Error = runtime::Exception;
+
+    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+        Ok(self.as_bytes().to_vec())
+    }
+}

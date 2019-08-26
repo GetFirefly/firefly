@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Lumen Spawn Chain Demo</title>
+    <style>
+      table {
+        border-collapse: collapse;
+      }
+
+      td, th {
+        border: 1px solid #898989;
+        padding: 8px;
+      }
+
+      th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: #7331af;
+        color: white;
+      }
+
+      tr:nth-child(even) {
+        background-color: #f2f2f2;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="./bootstrap.js"></script>
+    Open DevTools and type one of the following (can use any non-negative integer for <code>1</code> also):
+    <ul>
+      <li><code>Chain.log_to_console(1)</code></li>
+      <li><code>Chain.log_to_dom(1)</code></li>
+    </ul>
+
+    <table>
+      <thead>
+        <tr>
+          <th>PID</th>
+          <th>Log</th>
+        </tr>
+      </thead>
+      <tbody id="output">
+      </tbody>
+    </table>
+  </body>
+</html>

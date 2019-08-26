@@ -40,7 +40,7 @@ use self::code::stack;
 use self::code::stack::frame::{Frame, Placement};
 pub use self::flags::*;
 pub use self::flags::*;
-use self::gc::{GcError, RootSet};
+pub use self::gc::{GcError, RootSet};
 use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::priority::Priority;
@@ -443,15 +443,10 @@ impl ProcessControlBlock {
         self.acquire_heap().charlist_from_str(s)
     }
 
-    pub fn closure(
-        &self,
-        creator: Term,
-        module_function_arity: Arc<ModuleFunctionArity>,
-        code: Code,
-        env: Vec<Term>,
-    ) -> Result<Term, Alloc> {
-        self.acquire_heap()
-            .closure(creator, module_function_arity, code, env)
+    pub fn closure_with_env_from_slice(&self, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term,
+                                   slice: &[Term]) -> Result<Term, Alloc>
+    {
+        self.acquire_heap().closure_with_env_from_slice(mfa, code, creator, slice)
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
@@ -664,6 +659,16 @@ impl ProcessControlBlock {
         self.flags.are_set(ProcessFlags::NeedFullSweep)
     }
 
+    /// Inserts roots from the process into the given root set.
+    /// This includes all process dictionary entries.
+    #[inline]
+    pub fn base_root_set(&self, rootset: &mut RootSet) {
+        for (k, v) in self.dictionary.lock().iter() {
+            rootset.push(k as *const _ as *mut _);
+            rootset.push(v as *const _ as *mut _);
+        }
+    }
+
     /// Performs a garbage collection, using the provided root set
     ///
     /// The result is either `Ok(reductions)`, where `reductions` is the estimated cost
@@ -680,11 +685,7 @@ impl ProcessControlBlock {
         // The roots passed in here are pointers to the native stack/registers, all other roots
         // we are able to pick up from the current process context
         let mut rootset = RootSet::new(roots);
-        // The process dictionary is also used for roots
-        for (k, v) in self.dictionary.lock().iter() {
-            rootset.push(k as *const _ as *mut _);
-            rootset.push(v as *const _ as *mut _);
-        }
+        self.base_root_set(&mut rootset);
         // Initialize the collector with the given root set
         heap.garbage_collect(self, need, rootset)
     }

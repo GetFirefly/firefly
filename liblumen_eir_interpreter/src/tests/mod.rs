@@ -133,39 +133,40 @@ fib(X) -> fib(X - 1) + fib(X-2).
         .unwrap();
 }
 
-//#[test]
-//fn fib_gc() {
-//    &*VM;
-//
-//    let arc_scheduler = Scheduler::current();
-//    let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-//
-//    let module = Atom::try_from_str("fib").unwrap();
-//    let function = Atom::try_from_str("fib").unwrap();
-//
-//    let config = ParseConfig::default();
-//    let mut eir_mod = lower(
-//        "
-//-module(fib).
-//
-//fib(X) when X < 2 -> 1;
-//fib(X) -> fib(X - 1) + fib(X-2).
-//",
-//        config,
-//    )
-//        .unwrap();
-//
-//    for fun in eir_mod.functions.values() {
-//        fun.graph_validate_global();
-//    }
-//
-//    let mut pass_manager = PassManager::default();
-//    pass_manager.run(&mut eir_mod);
-//
-//    VM.modules.write().unwrap().register_erlang_module(eir_mod);
-//
-//    let int = init_arc_process.integer(20).unwrap();
-//    call_erlang(init_arc_process, module, function, &[int])
-//        .ok()
-//        .unwrap();
-//}
+#[test]
+fn fib_gc() {
+    &*VM;
+
+    let arc_scheduler = Scheduler::current();
+    let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    let module = Atom::try_from_str("fib2").unwrap();
+    let function = Atom::try_from_str("fib").unwrap();
+
+    let config = ParseConfig::default();
+    let mut eir_mod = lower(
+        "
+-module(fib2).
+
+fib(0) -> 0;
+fib(1) -> 1;
+fib(X) -> fib(X - 1) + fib(X - 2).
+",
+        config,
+    )
+        .unwrap();
+
+    for fun in eir_mod.functions.values() {
+        fun.graph_validate_global();
+    }
+
+    let mut pass_manager = PassManager::default();
+    pass_manager.run(&mut eir_mod);
+
+    VM.modules.write().unwrap().register_erlang_module(eir_mod);
+
+    let int = init_arc_process.integer(14).unwrap();
+    call_erlang(init_arc_process, module, function, &[int])
+        .ok()
+        .unwrap();
+}

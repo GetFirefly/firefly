@@ -493,7 +493,8 @@ mod tests {
         };
 
         process
-            .closure(creator, module_function_arity, code, vec![])
+            .acquire_heap()
+            .closure_with_env_from_slices(module_function_arity, code, creator, &[&[]])
             .unwrap()
     }
 

@@ -7,8 +7,9 @@ use libeir_ir::Block;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::{Atom, Term, TypedTerm, Boxed, Closure};
 use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::erts::exception::system;
 
 use crate::exec::CallExecutor;
 
@@ -80,6 +81,7 @@ pub fn interpreter_mfa_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     }
     //println!("{:?} {}", argument_vec, argument_vec.len());
 
+    //println!("{:?} {:?}", mfa, argument_vec.get(3));
     assert!(mfa.arity as usize == argument_vec.len() - 2);
 
     let mut exec = CallExecutor::new();
@@ -89,8 +91,10 @@ pub fn interpreter_mfa_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
         mfa.module,
         mfa.function,
         argument_vec.len() - 2,
-        &argument_vec,
-    )
+        &mut argument_vec,
+    );
+
+    Ok(())
 }
 
 /// Expects the following on stack:
@@ -99,16 +103,15 @@ pub fn interpreter_mfa_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 /// * block id integer
 /// * environment list
 pub fn interpreter_closure_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
-    let arity_term = arc_process.stack_pop().unwrap();
     let argument_list = arc_process.stack_pop().unwrap();
-    let block_id_term = arc_process.stack_pop().unwrap();
-    let environment_list = arc_process.stack_pop().unwrap();
+    let closure_term = arc_process.stack_pop().unwrap();
+
+    let closure: Boxed<Closure> = closure_term.try_into().unwrap();
 
     let mfa = arc_process.current_module_function_arity().unwrap();
+    let arity = mfa.arity;
 
-    let arity: usize = arity_term.try_into().unwrap();
-
-    let block_id: usize = block_id_term.try_into().unwrap();
+    let block_id: usize = closure.env_slice()[0].try_into().unwrap();
     let block = Block::new(block_id);
 
     let mut argument_vec: Vec<Term> = Vec::new();
@@ -124,18 +127,7 @@ pub fn interpreter_closure_code(arc_process: &Arc<ProcessControlBlock>) -> Resul
         _ => panic!(),
     }
 
-    let mut environment_vec: Vec<Term> = Vec::new();
-    match environment_list.to_typed_term().unwrap() {
-        TypedTerm::Nil => (),
-        TypedTerm::List(env_cons) => {
-            for result in env_cons.into_iter() {
-                let element = result.unwrap();
-
-                environment_vec.push(element);
-            }
-        }
-        _ => panic!(),
-    }
+    let mut environment_vec: Vec<Term> = closure.env_slice()[1..].to_owned();
 
     let mut exec = CallExecutor::new();
     exec.call_block(
@@ -143,11 +135,13 @@ pub fn interpreter_closure_code(arc_process: &Arc<ProcessControlBlock>) -> Resul
         arc_process,
         mfa.module,
         mfa.function,
-        arity,
-        &argument_vec,
+        arity as usize,
+        &mut argument_vec,
         block,
-        &environment_vec,
-    )
+        &mut environment_vec,
+    );
+
+    Ok(())
 }
 
 pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {

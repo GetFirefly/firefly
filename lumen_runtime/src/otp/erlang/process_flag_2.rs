@@ -63,7 +63,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, flag: Term, value: Term) -> exception::Result {
+pub fn native(process: &ProcessControlBlock, flag: Term, value: Term) -> exception::Result {
     let flag_atom: Atom = flag.try_into()?;
 
     match flag_atom.name() {

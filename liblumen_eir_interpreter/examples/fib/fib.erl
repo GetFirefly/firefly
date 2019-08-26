@@ -3,7 +3,8 @@
 -export([run/0]).
 
 run() ->
-    N = fib(8).
+    N = fib(8),
+    lumen_intrinsics:println(N).
 
 fib(0) -> 0;
 fib(1) -> 1;

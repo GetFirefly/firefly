@@ -1730,6 +1730,14 @@ impl TryInto<String> for Term {
     }
 }
 
+impl TryInto<Vec<u8>> for Term {
+    type Error = runtime::Exception;
+
+    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+        self.to_typed_term().unwrap().try_into()
+    }
+}
+
 pub enum BoolError {
     Type,
     NotABooleanName,

@@ -70,7 +70,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(
+pub fn native(
     process: &ProcessControlBlock,
     time: Term,
     from_unit: Term,

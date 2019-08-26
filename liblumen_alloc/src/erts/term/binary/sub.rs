@@ -502,3 +502,19 @@ impl TryInto<String> for SubBinary {
         }
     }
 }
+
+impl TryInto<Vec<u8>> for SubBinary {
+    type Error = runtime::Exception;
+
+    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+        if self.is_binary() {
+            if self.is_aligned() {
+                Ok(unsafe { self.as_bytes() }.to_vec())
+            } else {
+                Ok(self.full_byte_iter().collect())
+            }
+        } else {
+            Err(badarg!())
+        }
+    }
+}

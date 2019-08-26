@@ -125,8 +125,12 @@ impl Scheduler {
                             Ok(()) => (),
                             Err(exception) => {
                                 match exception {
-                                    Exception::Alloc(_) => {
-                                        unimplemented!()
+                                    Exception::Alloc(_inner) => {
+                                        println!("========================================== GC ==============");
+                                        match arc_process.garbage_collect(0, &mut []) {
+                                            Ok(_freed) => (),
+                                            Err(gc_err) => panic!("Gc error: {:?}", gc_err),
+                                        }
                                     }
                                 }
                             }

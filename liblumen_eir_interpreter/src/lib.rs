@@ -1,4 +1,4 @@
-#![deny(warnings)]
+//#![deny(warnings)]
 
 use std::sync::Arc;
 
@@ -14,8 +14,10 @@ use lumen_runtime::system;
 pub mod code;
 mod exec;
 mod module;
+pub use module::NativeModule;
 mod native;
 mod vm;
+pub mod call_result;
 
 #[cfg(test)]
 mod tests;
@@ -39,7 +41,7 @@ pub fn call_erlang(
             function: Atom::try_from_str("return_ok").unwrap(),
             arity: 1,
         };
-        proc.closure(proc.pid_term(), mfa.into(), crate::code::return_ok, vec![])
+        proc.closure_with_env_from_slice(mfa.into(), crate::code::return_ok, proc.pid_term(), &[])
             .unwrap()
     };
     let return_throw = {
@@ -48,11 +50,11 @@ pub fn call_erlang(
             function: Atom::try_from_str("return_throw").unwrap(),
             arity: 3,
         };
-        proc.closure(
-            proc.pid_term(),
+        proc.closure_with_env_from_slice(
             mfa.into(),
             crate::code::return_throw,
-            vec![],
+            proc.pid_term(),
+            &[],
         )
         .unwrap()
     };
@@ -65,8 +67,8 @@ pub fn call_erlang(
     // if not enough memory here, resize `spawn_init` heap
         .unwrap();
 
-    let mut options: Options = Default::default();
-    options.min_heap_size = Some(100_000);
+    let options: Options = Default::default();
+    //options.min_heap_size = Some(100_000);
 
     let run_arc_process = Scheduler::spawn_apply_3(
         &proc,

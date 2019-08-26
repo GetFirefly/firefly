@@ -374,7 +374,7 @@ impl PartialEq<TypedTerm> for TypedTerm {
                 TypedTerm::List(other_cons) => self_cons.eq(other_cons),
                 _ => false,
             },
-            _ => unreachable!(),
+            t => unreachable!("{:?}", t),
         }
     }
 }
@@ -948,3 +948,19 @@ impl TryInto<String> for TypedTerm {
         }
     }
 }
+
+impl TryInto<Vec<u8>> for TypedTerm {
+    type Error = runtime::Exception;
+
+    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+        match self {
+            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
+            TypedTerm::HeapBinary(heap_binary) => heap_binary.try_into(),
+            TypedTerm::SubBinary(subbinary) => subbinary.try_into(),
+            TypedTerm::ProcBin(process_binary) => process_binary.try_into(),
+            TypedTerm::MatchContext(match_context) => match_context.try_into(),
+            _ => Err(badarg!()),
+        }
+    }
+}
+

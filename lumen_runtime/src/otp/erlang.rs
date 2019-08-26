@@ -5,6 +5,7 @@ pub mod apply_3;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
+pub mod is_function_1;
 pub mod is_function_2;
 pub mod link_1;
 pub mod monitor_2;

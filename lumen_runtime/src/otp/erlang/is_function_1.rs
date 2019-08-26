@@ -5,7 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
@@ -20,9 +19,7 @@ pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
     term: Term,
-    arity: Term,
 ) -> Result<(), Alloc> {
-    process.stack_push(arity)?;
     process.stack_push(term)?;
     process.place_frame(frame(), placement);
 
@@ -35,9 +32,8 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
     let term = arc_process.stack_pop().unwrap();
-    let arity = arc_process.stack_pop().unwrap();
 
-    match native(term, arity) {
+    match native(term) {
         Ok(boolean) => {
             arc_process.return_from_call(boolean)?;
 
@@ -59,12 +55,10 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: 2,
+        arity: 1,
     })
 }
 
-fn native(term: Term, arity: Term) -> exception::Result {
-    let arity_arity: usize = arity.try_into()?;
-
-    Ok(term.is_function_with_arity(arity_arity).into())
+fn native(term: Term) -> exception::Result {
+    Ok(term.is_function().into())
 }

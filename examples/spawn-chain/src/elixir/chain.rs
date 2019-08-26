@@ -38,6 +38,10 @@
 //!     run(n, &dom_output/1)
 //!   end
 //!
+//!   def none(n) do
+//!     run(n, &none_output/1)
+//!   end
+//!
 //!   # Private Functions
 //!
 //!   defp console_output(text) do
@@ -63,6 +67,10 @@
 //!     Lumen::Web::Element.append_child(output, tr)
 //!   end
 //!
+//!   defp none_output(_text) do
+//!     :ok
+//!   end
+//!
 //!   defp run(n, output) when is_function(output, 1) do
 //!     {time, value} = :timer.tc(Chain, :create_processes, [n, output])
 //!     output.("Chain.run(#{n}) in #{time} microseconds")
@@ -78,6 +86,8 @@ pub mod create_processes_2;
 mod create_processes_reducer_2;
 pub mod dom_1;
 mod dom_output_1;
+pub mod none_1;
+mod none_output_1;
 mod run_2;
 
 use liblumen_alloc::erts::term::Atom;

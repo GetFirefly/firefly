@@ -4,6 +4,7 @@ mod flags;
 mod gc;
 mod heap;
 mod mailbox;
+mod monitor;
 mod priority;
 
 use core::alloc::Layout;
@@ -28,7 +29,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::layout_to_words;
-use crate::erts::term::{atom_unchecked, pid, reference, Atom, Integer, Pid, ProcBin};
+use crate::erts::term::{atom_unchecked, pid, reference, Atom, Integer, Pid, ProcBin, Reference};
 
 use super::*;
 
@@ -43,6 +44,7 @@ pub use self::flags::*;
 pub use self::gc::{GcError, RootSet};
 use self::heap::ProcessHeap;
 pub use self::mailbox::*;
+pub use self::monitor::Monitor;
 pub use self::priority::Priority;
 use crate::erts::process::alloc::heap_alloc::MakePidError;
 use crate::erts::process::code::Code;
@@ -102,6 +104,11 @@ pub struct ProcessControlBlock {
     /// Pids of processes that are linked to this process and need to be exited when this process
     /// exits
     pub linked_pid_set: Mutex<HashSet<Pid>>,
+    /// Maps monitor references to the PID of the process that is monitoring through that
+    /// reference.
+    pub monitor_by_reference: Mutex<HashMap<Reference, Monitor>>,
+    /// Maps monitor references to the PID of the process being monitored by this process.
+    pub monitored_pid_by_reference: Mutex<HashMap<Reference, Pid>>,
     pub mailbox: Mutex<RefCell<Mailbox>>,
     // process heap, cache line aligned to avoid false sharing with rest of struct
     heap: Mutex<ProcessHeap>,
@@ -143,6 +150,8 @@ impl ProcessControlBlock {
             total_reductions: Default::default(),
             registered_name: Default::default(),
             linked_pid_set: Default::default(),
+            monitor_by_reference: Default::default(),
+            monitored_pid_by_reference: Default::default(),
         }
     }
 
@@ -343,6 +352,29 @@ impl ProcessControlBlock {
         } else {
             other.unlink(self)
         }
+    }
+
+    // Monitors
+
+    pub fn monitor(&self, reference: Reference, monitored_pid: Pid) {
+        self.monitored_pid_by_reference
+            .lock()
+            .insert(reference, monitored_pid);
+    }
+
+    pub fn demonitor(&self, reference: &Reference) -> Option<Pid> {
+        self.monitored_pid_by_reference.lock().remove(reference)
+    }
+
+    pub fn monitored(&self, reference: Reference, monitor: Monitor) {
+        self.monitor_by_reference.lock().insert(reference, monitor);
+    }
+
+    pub fn demonitored(&self, reference: &Reference) -> Option<Pid> {
+        self.monitor_by_reference
+            .lock()
+            .remove(reference)
+            .map(|monitor| *monitor.monitoring_pid())
     }
 
     // Pid

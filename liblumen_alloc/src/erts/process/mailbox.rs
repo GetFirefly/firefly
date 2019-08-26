@@ -47,6 +47,20 @@ impl Mailbox {
     }
     // End receive implementation for the eir interpreter
 
+    pub fn flush<F>(&mut self, predicate: F, process: &ProcessControlBlock) -> bool
+    where
+        F: Fn(&Message) -> bool,
+    {
+        match self.iter().position(predicate) {
+            Some(index) => {
+                self.remove(index, process);
+
+                true
+            }
+            None => false,
+        }
+    }
+
     pub fn iter(&self) -> Iter<Message> {
         self.messages.iter()
     }

@@ -3,8 +3,10 @@
 pub mod add_2;
 pub mod apply_3;
 pub mod convert_time_unit_3;
+pub mod demonitor_2;
 pub mod exit_1;
 pub mod link_1;
+pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
 pub mod process_flag_2;

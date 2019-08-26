@@ -55,6 +55,23 @@ pub fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
         })
 }
 
+pub fn monitor_count(process: &ProcessControlBlock) -> usize {
+    process.monitor_by_reference.lock().len()
+}
+
+pub fn monitored_count(process: &ProcessControlBlock) -> usize {
+    process.monitored_pid_by_reference.lock().len()
+}
+
+pub fn receive_message(process: &ProcessControlBlock) -> Option<Term> {
+    process
+        .mailbox
+        .lock()
+        .borrow_mut()
+        .receive(process)
+        .map(|result| result.unwrap())
+}
+
 static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 pub fn registered_name() -> Term {

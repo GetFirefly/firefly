@@ -361,7 +361,7 @@ pub fn is_not_proper_list(arc_process: Arc<ProcessControlBlock>) -> BoxedStrateg
 
 pub fn is_not_reference(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     super::term(arc_process)
-        .prop_filter("Value must not be a tuple", |v| !v.is_reference())
+        .prop_filter("Value must not be a reference", |v| !v.is_reference())
         .boxed()
 }
 

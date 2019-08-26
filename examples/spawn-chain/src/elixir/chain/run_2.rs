@@ -33,7 +33,7 @@ pub fn place_frame_with_arguments(
 /// def run(n, output) do
 ///   {time, value} = :timer.tc(Chain, :create_processes, [n, output])
 ///   output.("Chain.run(#{n}) in #{time} microseconds")
-///   value
+///   {time, value}
 /// end
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();

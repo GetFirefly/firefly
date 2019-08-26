@@ -38,6 +38,8 @@ lazy_static! {
 #[repr(transparent)]
 pub struct Atom(usize);
 impl Atom {
+    pub const SIZE_IN_WORDS: usize = 1;
+
     /// Gets the identifier associated with this atom
     #[inline(always)]
     pub fn id(&self) -> usize {

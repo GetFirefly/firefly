@@ -1,3 +1,4 @@
+pub mod monitor;
 pub mod spawn;
 
 use alloc::sync::Arc;
@@ -75,6 +76,11 @@ pub fn log_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
 }
 
 pub fn propagate_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
+    monitor::propagate_exit(process, exception);
+    propagate_exit_to_links(process, exception);
+}
+
+pub fn propagate_exit_to_links(process: &ProcessControlBlock, exception: &runtime::Exception) {
     if !is_expected_exception(exception) {
         let tag = atom_unchecked("EXIT");
         let from = process.pid_term();

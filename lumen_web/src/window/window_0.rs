@@ -46,7 +46,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: 1,
+        arity: 0,
     })
 }
 

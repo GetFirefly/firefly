@@ -26,12 +26,7 @@ impl BigInteger {
     /// Creates a new BigInteger from a BigInt value
     #[inline]
     pub fn new(value: BigInt) -> Self {
-        let flag = match value.sign() {
-            Sign::NoSign | Sign::Plus => Term::FLAG_POS_BIG_INTEGER,
-            Sign::Minus => Term::FLAG_NEG_BIG_INTEGER,
-        };
-        let arity = to_word_size(mem::size_of_val(&value) - mem::size_of::<Term>());
-        let header = Term::make_header(arity, flag);
+        let header = Term::make_bigint_header(&value);
         Self { header, value }
     }
 }
@@ -73,15 +68,16 @@ impl From<SmallInteger> for BigInteger {
         Self::new(BigInt::from(n.0 as i64))
     }
 }
-impl From<u64> for BigInteger {
-    fn from(n: u64) -> Self {
-        Self::new(BigInt::from(n))
-    }
-}
 impl From<usize> for BigInteger {
     #[inline]
     fn from(n: usize) -> Self {
         Self::new(BigInt::from(n as u64))
+    }
+}
+impl From<u64> for BigInteger {
+    #[inline]
+    fn from(n: u64) -> Self {
+        Self::new(BigInt::from(n))
     }
 }
 impl From<isize> for BigInteger {

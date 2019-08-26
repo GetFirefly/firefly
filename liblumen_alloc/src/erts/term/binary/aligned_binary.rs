@@ -2,8 +2,7 @@ use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
 use core::str;
 
-use crate::erts::term::binary::heap::HeapBin;
-use crate::erts::term::binary::process::ProcBin;
+use super::{HeapBin, ProcBin, BinaryLiteral};
 
 /// A `BitString` that is guaranteed to always be a binary of aligned bytes
 pub trait AlignedBinary {
@@ -43,6 +42,7 @@ macro_rules! display_aligned_binary {
 
 display_aligned_binary!(HeapBin);
 display_aligned_binary!(ProcBin);
+display_aligned_binary!(BinaryLiteral);
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait
 macro_rules! hash_aligned_binary {
@@ -57,6 +57,7 @@ macro_rules! hash_aligned_binary {
 
 hash_aligned_binary!(HeapBin);
 hash_aligned_binary!(ProcBin);
+hash_aligned_binary!(BinaryLiteral);
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait
 macro_rules! partial_eq_aligned_binary_aligned_binary {
@@ -74,7 +75,10 @@ macro_rules! partial_eq_aligned_binary_aligned_binary {
 partial_eq_aligned_binary_aligned_binary!(HeapBin for HeapBin);
 // No (ProcBin for HeapBin) as we always reverse order to save space
 partial_eq_aligned_binary_aligned_binary!(HeapBin for ProcBin);
+partial_eq_aligned_binary_aligned_binary!(HeapBin for BinaryLiteral);
 partial_eq_aligned_binary_aligned_binary!(ProcBin for ProcBin);
+partial_eq_aligned_binary_aligned_binary!(ProcBin for BinaryLiteral);
+partial_eq_aligned_binary_aligned_binary!(BinaryLiteral for BinaryLiteral);
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait
 macro_rules! ord_aligned_binary {
@@ -99,3 +103,4 @@ macro_rules! ord_aligned_binary {
 
 ord_aligned_binary!(HeapBin);
 ord_aligned_binary!(ProcBin);
+ord_aligned_binary!(BinaryLiteral);

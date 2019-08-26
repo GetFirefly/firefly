@@ -7,7 +7,7 @@ pub use small::*;
 use num_bigint::{BigInt, Sign};
 
 use core::cmp::Ordering;
-use core::convert::TryInto;
+use core::convert::{TryInto, TryFrom};
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ops::*;
@@ -34,6 +34,48 @@ macro_rules! unwrap_integer_self {
             &Self::Small(ref $name) => $blk,
         }
     };
+}
+
+#[derive(Clone)]
+pub enum Arch64Integer {
+    Small(u64),
+    Big(BigInt),
+}
+impl From<u64> for Arch64Integer {
+    fn from(value: u64) -> Self {
+        Self::Small(value)
+    }
+}
+impl From<BigInt> for Arch64Integer {
+    fn from(value: BigInt) -> Self {
+        Self::Big(value)
+    }
+}
+
+#[derive(Clone)]
+pub enum Arch32Integer {
+    Small(u32),
+    Big(BigInt),
+}
+impl From<u32> for Arch32Integer {
+    fn from(value: u32) -> Self {
+        Self::Small(value)
+    }
+}
+impl TryFrom<u64> for Arch32Integer {
+    type Error = TryFromIntError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value.try_into() {
+            Err(_) => Err(TryFromIntError),
+            Ok(i) => Ok(Self::Small(i))
+        }
+    }
+}
+impl From<BigInt> for Arch32Integer {
+    fn from(value: BigInt) -> Self {
+        Self::Big(value)
+    }
 }
 
 /// A wrapped type for integers that transparently handles promotion/demotion

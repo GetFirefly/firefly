@@ -22,10 +22,9 @@ use crate::erts::term::binary::sub::{Original, SubBinary};
 use crate::erts::term::{arity_of, AsTerm, Boxed, MatchContext, Term};
 use crate::erts::HeapAlloc;
 
-use super::{
-    aligned_binary::AlignedBinary, BinaryType, Bitstring, FLAG_IS_LATIN1_BIN, FLAG_IS_RAW_BIN,
-    FLAG_IS_UTF8_BIN, FLAG_MASK,
-};
+use super::aligned_binary::AlignedBinary;
+use super::constants::*;
+use super::{BinaryLiteral, HeapBin, Original, SubBinary, MatchContext, Bitstring};
 
 /// This is the header written alongside all procbin binaries in the heap,
 /// it owns the refcount and has the pointer to the data and its size
@@ -47,26 +46,26 @@ impl ProcBinInner {
     }
 
     #[inline]
-    fn binary_type(&self) -> BinaryType {
-        BinaryType::from_flags(self.flags)
+    fn encoding(&self) -> Encoding {
+        super::encoding_from_flags(self.flags)
     }
 
     /// Returns true if this binary is a raw binary
     #[inline]
     fn is_raw(&self) -> bool {
-        self.flags & FLAG_MASK == FLAG_IS_RAW_BIN
+        self.flags & BIN_TYPE_MASK == FLAG_IS_RAW_BIN
     }
 
     /// Returns true if this binary is a Latin-1 binary
     #[inline]
     fn is_latin1(&self) -> bool {
-        self.flags & FLAG_MASK == FLAG_IS_LATIN1_BIN
+        self.flags & BIN_TYPE_MASK == FLAG_IS_LATIN1_BIN
     }
 
     /// Returns true if this binary is a UTF-8 binary
     #[inline]
     fn is_utf8(&self) -> bool {
-        self.flags & FLAG_MASK == FLAG_IS_UTF8_BIN
+        self.flags & BIN_TYPE_MASK == FLAG_IS_UTF8_BIN
     }
 }
 
@@ -89,7 +88,7 @@ impl Debug for ProcBinInner {
 #[repr(C)]
 pub struct ProcBin {
     pub(super) header: Term,
-    inner: NonNull<ProcBinInner>,
+    pub(crate) inner: NonNull<ProcBinInner>,
     pub link: LinkedListLink,
 }
 impl ProcBin {
@@ -150,10 +149,10 @@ impl ProcBin {
         self.inner().is_utf8()
     }
 
-    /// Returns a `BinaryType` representing the encoding type of this binary
+    /// Returns a `Encoding` representing the encoding type of this binary
     #[inline]
-    pub fn binary_type(&self) -> BinaryType {
-        self.inner().binary_type()
+    pub fn encoding(&self) -> Encoding {
+        self.inner().encoding()
     }
 
     /// Returns a raw pointer to the binary data underlying this `ProcBin`
@@ -171,13 +170,13 @@ impl ProcBin {
 
     /// Creates a new procbin from a str slice, by copying it to the heap
     pub fn from_str(s: &str) -> Result<Self, Alloc> {
-        let binary_type = BinaryType::from_str(s);
+        let encoding = Encoding::from_str(s);
 
-        Self::from_slice(s.as_bytes(), binary_type)
+        Self::from_slice(s.as_bytes(), encoding)
     }
 
     /// Creates a new procbin from a raw byte slice, by copying it to the heap
-    pub fn from_slice(s: &[u8], binary_type: BinaryType) -> Result<Self, Alloc> {
+    pub fn from_slice(s: &[u8], encoding: Encoding) -> Result<Self, Alloc> {
         use liblumen_core::sys::alloc as sys_alloc;
 
         let full_byte_len = s.len();
@@ -196,7 +195,7 @@ impl ProcBin {
 
                     inner_ptr.write(ProcBinInner {
                         refc: AtomicUsize::new(1),
-                        flags: full_byte_len | binary_type.to_flags(),
+                        flags: full_byte_len | super::encoding_to_flags(encoding),
                         bytes,
                     });
                     ptr::copy_nonoverlapping(s.as_ptr(), bytes, full_byte_len);
@@ -386,6 +385,12 @@ impl Original for ProcBin {
     }
 }
 
+impl PartialEq<BinaryLiteral> for ProcBin {
+    fn eq(&self, other: &BinaryLiteral) -> bool {
+        other.eq(self)
+    }
+}
+
 impl PartialEq<Boxed<HeapBin>> for ProcBin {
     fn eq(&self, other: &Boxed<HeapBin>) -> bool {
         self.eq(other.as_ref())
@@ -401,6 +406,12 @@ impl PartialEq<MatchContext> for ProcBin {
 impl PartialEq<SubBinary> for ProcBin {
     fn eq(&self, other: &SubBinary) -> bool {
         other.eq(self)
+    }
+}
+
+impl PartialOrd<BinaryLiteral> for ProcBin {
+    fn partial_cmp(&self, other: &BinaryLiteral) -> Option<core::cmp::Ordering> {
+        self.as_bytes().partial_cmp(other.as_bytes())
     }
 }
 

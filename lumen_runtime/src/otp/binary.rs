@@ -56,6 +56,19 @@ pub fn bin_to_list(binary: Term, position: Term, length: Term, process: &Process
 
                 Ok(list)
             }
+            TypedTerm::BinaryLiteral(process_binary) => {
+                let available_byte_count = process_binary.full_byte_len();
+                let part_range =
+                    start_length_to_part_range(position_usize, length_isize, available_byte_count)?;
+                let range: Range<usize> = part_range.into();
+                let byte_slice: &[u8] = &process_binary.as_bytes()[range];
+                let byte_iter = byte_slice.iter();
+                let byte_term_iter = byte_iter.map(|byte| (*byte).into());
+
+                let list = process_control_block.list_from_iter(byte_term_iter)?;
+
+                Ok(list)
+            }
             TypedTerm::SubBinary(subbinary) => {
                 let available_byte_count = subbinary.full_byte_len();
                 let part_range =

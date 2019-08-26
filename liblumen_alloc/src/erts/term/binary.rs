@@ -3,22 +3,25 @@ mod heap;
 mod match_context;
 pub mod maybe_aligned_maybe_binary;
 mod process;
+mod literal;
 mod sub;
 
 use core::mem;
 use core::ptr;
 use core::slice;
 
+
 use crate::borrow::CloneToProcess;
+use crate::erts::string::Encoding;
 use crate::erts::term::binary::aligned_binary::AlignedBinary;
 use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use crate::mem::bit_size_of;
 
 use super::*;
 
 pub use heap::HeapBin;
 pub use match_context::MatchContext;
 pub use process::ProcBin;
+pub use literal::BinaryLiteral;
 pub use sub::{Original, SubBinary};
 
 struct PartialByteBitIter {
@@ -126,8 +129,10 @@ macro_rules! partial_eq_aligned_binary_maybe_aligned_maybe_binary {
 
 partial_eq_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for MatchContext);
 partial_eq_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for MatchContext);
+partial_eq_aligned_binary_maybe_aligned_maybe_binary!(BinaryLiteral for MatchContext);
 partial_eq_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for SubBinary);
 partial_eq_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for SubBinary);
+partial_eq_aligned_binary_maybe_aligned_maybe_binary!(BinaryLiteral for SubBinary);
 
 // Has to have explicit types to prevent E0119: conflicting implementations of trait
 macro_rules! partial_ord_aligned_binary_maybe_aligned_maybe_binary {
@@ -184,50 +189,76 @@ macro_rules! partial_ord_aligned_binary_maybe_aligned_maybe_binary {
 
 partial_ord_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for MatchContext);
 partial_ord_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for MatchContext);
+partial_ord_aligned_binary_maybe_aligned_maybe_binary!(BinaryLiteral for MatchContext);
 partial_ord_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for SubBinary);
 partial_ord_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for SubBinary);
+partial_ord_aligned_binary_maybe_aligned_maybe_binary!(BinaryLiteral for SubBinary);
 
-const FLAG_SHIFT: usize = bit_size_of::<usize>() - 2;
-const FLAG_IS_RAW_BIN: usize = 1 << FLAG_SHIFT;
-const FLAG_IS_LATIN1_BIN: usize = 2 << FLAG_SHIFT;
-const FLAG_IS_UTF8_BIN: usize = 3 << FLAG_SHIFT;
-const FLAG_MASK: usize = FLAG_IS_RAW_BIN | FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum BinaryType {
-    Raw,
-    Latin1,
-    Utf8,
+mod constants {
+    pub(super) mod arch64 {
+        #![allow(unused)]
+        pub(crate) const FLAG_SHIFT: u64 = 64 - 3;
+        pub(crate) const FLAG_IS_RAW_BIN: u64 = 1 << FLAG_SHIFT;
+        pub(crate) const FLAG_IS_LATIN1_BIN: u64 = 2 << FLAG_SHIFT;
+        pub(crate) const FLAG_IS_UTF8_BIN: u64 = 3 << FLAG_SHIFT;
+        // NOTE: FLAG_IS_LITERAL should only ever be set on BinaryLiteral, which has
+        // its size shifted left to leave the lowest bit unused
+        pub(crate) const FLAG_IS_LITERAL: u64 = 1;
+        pub(crate) const BIN_TYPE_MASK: u64 = FLAG_IS_RAW_BIN | FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN;
+        pub(crate) const FLAG_MASK: u64 = BIN_TYPE_MASK | FLAG_IS_LITERAL;
+    }
+
+    pub(super) mod arch32 {
+        #![allow(unused)]
+        pub(crate) const FLAG_SHIFT: u32 = 32 - 3;
+        pub(crate) const FLAG_IS_RAW_BIN: u32 = 1 << FLAG_SHIFT;
+        pub(crate) const FLAG_IS_LATIN1_BIN: u32 = 2 << FLAG_SHIFT;
+        pub(crate) const FLAG_IS_UTF8_BIN: u32 = 3 << FLAG_SHIFT;
+        // NOTE: FLAG_IS_LITERAL should only ever be set on BinaryLiteral, which has
+        // its size shifted left to leave the lowest bit unused
+        pub(crate) const FLAG_IS_LITERAL: u32 = 1;
+        pub(crate) const BIN_TYPE_MASK: u32 = FLAG_IS_RAW_BIN | FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN;
+        pub(crate) const FLAG_MASK: u32 = BIN_TYPE_MASK | FLAG_IS_LITERAL;
+   }
+
+   #[cfg(target_pointer_width = "64")]
+   use self::arch64 as native;
+   #[cfg(target_pointer_width = "32")]
+   use self::arch32 as native;
+
+   pub const FLAG_IS_RAW_BIN: usize = native::FLAG_IS_RAW_BIN as usize;
+   pub const FLAG_IS_LATIN1_BIN: usize = native::FLAG_IS_LATIN1_BIN as usize;
+   pub const FLAG_IS_UTF8_BIN: usize = native::FLAG_IS_UTF8_BIN as usize;
+   // NOTE: FLAG_IS_LITERAL should only ever be set on BinaryLiteral, which has
+   // its size shifted left to leave the lowest bit unused
+   pub const FLAG_IS_LITERAL: usize = native::FLAG_IS_LITERAL as usize;
+   pub const BIN_TYPE_MASK: usize = native::BIN_TYPE_MASK as usize;
+   pub const FLAG_MASK: usize = native::FLAG_MASK as usize;
 }
-impl BinaryType {
-    #[inline]
-    pub fn to_flags(&self) -> usize {
-        match self {
-            &BinaryType::Raw => FLAG_IS_RAW_BIN,
-            &BinaryType::Latin1 => FLAG_IS_LATIN1_BIN,
-            &BinaryType::Utf8 => FLAG_IS_UTF8_BIN,
-        }
-    }
 
-    #[inline]
-    pub fn from_flags(flags: usize) -> Self {
-        match flags & FLAG_MASK {
-            FLAG_IS_RAW_BIN => BinaryType::Raw,
-            FLAG_IS_LATIN1_BIN => BinaryType::Latin1,
-            FLAG_IS_UTF8_BIN => BinaryType::Utf8,
-            _ => panic!(
-                "invalid flags value given to BinaryType::from_flags: {}",
-                flags
-            ),
-        }
-    }
+use constants::{FLAG_IS_RAW_BIN, FLAG_IS_LATIN1_BIN, FLAG_IS_UTF8_BIN};
+pub use constants::FLAG_IS_LITERAL;
 
-    pub fn from_str(s: &str) -> Self {
-        if s.is_ascii() {
-            Self::Latin1
-        } else {
-            Self::Utf8
-        }
+#[inline]
+pub fn encoding_to_flags(encoding: Encoding) -> usize {
+    match encoding {
+        Encoding::Raw => FLAG_IS_RAW_BIN,
+        Encoding::Latin1 => FLAG_IS_LATIN1_BIN,
+        Encoding::Utf8 => FLAG_IS_UTF8_BIN,
+    }
+}
+
+#[inline]
+pub fn encoding_from_flags(flags: usize) -> Encoding {
+    match flags & constants::BIN_TYPE_MASK {
+        FLAG_IS_RAW_BIN => Encoding::Raw,
+        FLAG_IS_LATIN1_BIN => Encoding::Latin1,
+        FLAG_IS_UTF8_BIN => Encoding::Utf8,
+        _ => panic!(
+            "invalid flags value given to encoding_from_flags: {}",
+            flags
+        ),
     }
 }
 

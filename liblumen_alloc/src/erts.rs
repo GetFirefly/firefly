@@ -6,6 +6,7 @@ mod node;
 pub mod process;
 pub mod scheduler;
 pub mod term;
+pub mod string;
 
 pub use fragment::{HeapFragment, HeapFragmentAdapter};
 pub use message::Message;

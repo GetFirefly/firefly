@@ -65,6 +65,9 @@ fn with_utf8_binary_with_encoding_returns_atom_with_binary_name() {
                             TypedTerm::ProcBin(process_binary) => {
                                 process_binary.as_bytes().to_vec()
                             }
+                            TypedTerm::BinaryLiteral(process_binary) => {
+                                process_binary.as_bytes().to_vec()
+                            }
                             unboxed_typed_term => {
                                 panic!("unboxed_typed_term = {:?}", unboxed_typed_term)
                             }

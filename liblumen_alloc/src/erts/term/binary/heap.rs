@@ -13,13 +13,15 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::term::term::Term;
-use crate::erts::term::{to_word_size, AsTerm, Boxed, ProcBin, TypeError, TypedTerm};
+use crate::erts::term::{to_word_size, AsTerm, Boxed, TypeError, TypedTerm};
+use crate::erts::string::Encoding;
 use crate::erts::HeapAlloc;
 
-use super::{
-    aligned_binary::AlignedBinary, BinaryType, Bitstring, Original, FLAG_IS_LATIN1_BIN,
-    FLAG_IS_RAW_BIN, FLAG_IS_UTF8_BIN, FLAG_MASK,
-};
+use super::aligned_binary::AlignedBinary;
+use super::constants::*;
+use super::{ProcBin, BinaryLiteral};
+use super::{Bitstring, Original};
+
 
 /// Process heap allocated binary, smaller than 64 bytes
 #[derive(Debug, Clone)]
@@ -71,25 +73,25 @@ impl HeapBin {
     /// Returns true if this binary is a raw binary
     #[inline]
     pub fn is_raw(&self) -> bool {
-        self.flags & FLAG_MASK == FLAG_IS_RAW_BIN
+        self.flags & BIN_TYPE_MASK == FLAG_IS_RAW_BIN
     }
 
     /// Returns true if this binary is a Latin-1 binary
     #[inline]
     pub fn is_latin1(&self) -> bool {
-        self.flags & FLAG_MASK == FLAG_IS_LATIN1_BIN
+        self.flags & BIN_TYPE_MASK == FLAG_IS_LATIN1_BIN
     }
 
     /// Returns true if this binary is a UTF-8 binary
     #[inline]
     pub fn is_utf8(&self) -> bool {
-        self.flags & FLAG_MASK == FLAG_IS_UTF8_BIN
+        self.flags & BIN_TYPE_MASK == FLAG_IS_UTF8_BIN
     }
 
-    /// Returns a `BinaryType` representing the encoding type of this binary
+    /// Returns a `Encoding` representing the encoding type of this binary
     #[inline]
-    pub fn binary_type(&self) -> BinaryType {
-        BinaryType::from_flags(self.flags)
+    pub fn encoding(&self) -> Encoding {
+        super::encoding_from_flags(self.flags)
     }
 
     /// Returns the size of just the binary data of this HeapBin in bytes
@@ -220,8 +222,20 @@ impl PartialEq<ProcBin> for Boxed<HeapBin> {
     }
 }
 
+impl PartialEq<BinaryLiteral> for Boxed<HeapBin> {
+    fn eq(&self, other: &BinaryLiteral) -> bool {
+        other.eq(self)
+    }
+}
+
 impl PartialOrd<ProcBin> for Boxed<HeapBin> {
     fn partial_cmp(&self, other: &ProcBin) -> Option<cmp::Ordering> {
+        other.partial_cmp(self).map(|ordering| ordering.reverse())
+    }
+}
+
+impl PartialOrd<BinaryLiteral> for Boxed<HeapBin> {
+    fn partial_cmp(&self, other: &BinaryLiteral) -> Option<cmp::Ordering> {
         other.partial_cmp(self).map(|ordering| ordering.reverse())
     }
 }

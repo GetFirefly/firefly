@@ -1,6 +1,7 @@
 pub(in crate::erts) mod atom;
 pub mod binary;
 mod boxed;
+pub mod arch;
 mod closure;
 mod float;
 pub mod index;
@@ -222,4 +223,20 @@ pub(crate) fn layout_from_word_size(word_size: usize) -> Layout {
 #[inline]
 pub(crate) fn arity_of<T: Sized>() -> usize {
     to_word_size(mem::size_of::<T>() - mem::size_of::<Term>())
+}
+
+#[allow(unused)]
+#[inline]
+pub(crate) fn to_arch64_word_size(bytes: usize) -> usize {
+    use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
+
+    round_up_to_multiple_of(bytes, 8) / 8
+}
+
+#[allow(unused)]
+#[inline]
+pub(crate) fn to_arch32_word_size(bytes: usize) -> usize {
+    use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
+
+    round_up_to_multiple_of(bytes, 4) / 4
 }

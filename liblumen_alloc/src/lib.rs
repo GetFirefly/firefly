@@ -20,6 +20,7 @@
 #![feature(underscore_const_names)]
 #![feature(const_compare_raw_pointers)]
 #![feature(const_raw_ptr_to_usize_cast)]
+#![feature(const_raw_ptr_deref)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

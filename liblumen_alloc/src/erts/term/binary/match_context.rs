@@ -17,10 +17,12 @@ use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBina
 use crate::erts::term::binary::sub::PartialByteBitIter;
 use crate::erts::term::term::Term;
 use crate::erts::term::{
-    arity_of, follow_moved, to_word_size, AsTerm, HeapBin, IterableBitstring, ProcBin, SubBinary,
+    arity_of, follow_moved, to_word_size, AsTerm, IterableBitstring,
 };
 use crate::erts::HeapAlloc;
 
+use super::FLAG_IS_LITERAL;
+use super::{HeapBin, ProcBin, BinaryLiteral, SubBinary};
 use super::{byte_offset, num_bytes, Bitstring, ByteIterator, MaybePartialByte};
 
 pub struct FullByteIter {}
@@ -77,6 +79,9 @@ impl MatchBuffer {
             if bin.is_procbin() {
                 let pb = unsafe { &*(bin_ptr as *mut ProcBin) };
                 (pb.bytes(), pb.full_byte_len() * 8, 0, 0, 0)
+            } else if bin.is_binary_literal() {
+                let bl = unsafe { &*(bin_ptr as *mut BinaryLiteral) };
+                (bl.bytes(), bl.full_byte_len() * 8, 0, 0, 0)
             } else if bin.is_heapbin() {
                 let hb = unsafe { &*(bin_ptr as *mut HeapBin) };
                 (hb.bytes(), hb.full_byte_len() * 8, 0, 0, 0)
@@ -160,13 +165,18 @@ impl MatchContext {
         if real_bin.is_procbin() {
             let bin = &*(real_bin_ptr as *mut ProcBin);
             let bytes = bin.bytes().add(byte_offset(self.buffer.bit_offset));
-            let flags = bin.binary_type().to_flags();
+            let flags = super::encoding_to_flags(bin.encoding());
             (bin.header, flags, bytes, num_bytes(self.buffer.bit_len))
+        } else if real_bin.is_binary_literal() {
+            let bin = &*(real_bin_ptr as *mut BinaryLiteral);
+            let bytes = bin.bytes().add(byte_offset(self.buffer.bit_offset));
+            let flags = super::encoding_to_flags(bin.encoding());
+            (bin.header, flags | FLAG_IS_LITERAL, bytes, num_bytes(self.buffer.bit_len))
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);
             let bytes = bin.bytes().add(byte_offset(self.buffer.bit_offset));
-            let flags = bin.binary_type().to_flags();
+            let flags = super::encoding_to_flags(bin.encoding());
             (bin.header, flags, bytes, num_bytes(self.buffer.bit_len))
         }
     }
@@ -188,8 +198,11 @@ impl CloneToProcess for MatchContext {
         let real_bin_ptr = follow_moved(self.buffer.original).boxed_val();
         let real_bin = unsafe { *real_bin_ptr };
         // For ref-counted binaries and those that are already on the process heap,
-        // we just need to copy the match context header, not the binary as well
-        if real_bin.is_procbin() || (real_bin.is_heapbin() && heap.is_owner(real_bin_ptr)) {
+        // we just need to copy the match context header, not the binary as well.
+        // Likewise with binary literals
+        if real_bin.is_binary_literal() ||
+           real_bin.is_procbin() ||
+           (real_bin.is_heapbin() && heap.is_owner(real_bin_ptr)) {
             let size = mem::size_of::<Self>();
             unsafe {
                 // Allocate space for header and copy it

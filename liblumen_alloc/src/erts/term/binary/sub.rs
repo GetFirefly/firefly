@@ -33,6 +33,7 @@ impl Iterator for PartialByteBitIter {
             let byte = match self.original.to_typed_term().unwrap() {
                 TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                     TypedTerm::ProcBin(proc_bin) => proc_bin.byte(self.current_byte_offset),
+                    TypedTerm::BinaryLiteral(literal_bin) => literal_bin.byte(self.current_byte_offset),
                     TypedTerm::HeapBinary(heap_binary) => {
                         heap_binary.byte(self.current_byte_offset)
                     }
@@ -79,6 +80,17 @@ impl FullByteIter {
                         first_byte
                     } else {
                         let second_byte = proc_bin.byte(first_index + 1);
+
+                        (first_byte << self.bit_offset) | (second_byte >> (8 - self.bit_offset))
+                    }
+                }
+                TypedTerm::BinaryLiteral(literal_bin) => {
+                    let first_byte = literal_bin.byte(first_index);
+
+                    if self.is_aligned() {
+                        first_byte
+                    } else {
+                        let second_byte = literal_bin.byte(first_index + 1);
 
                         (first_byte << self.bit_offset) | (second_byte >> (8 - self.bit_offset))
                     }
@@ -160,7 +172,7 @@ pub struct SubBinary {
     partial_byte_bit_len: u8,
     /// Indicates the underlying binary is writable
     writable: bool,
-    /// Original binary term (`ProcBin` or `HeapBin`)
+    /// Original binary term (`ProcBin`, `BinaryLiteral` or `HeapBin`)
     original: Term,
 }
 
@@ -235,6 +247,9 @@ impl SubBinary {
         if real_bin.is_procbin() {
             let bin = unsafe { &*(real_bin_ptr as *mut ProcBin) };
             bin.bytes()
+        } else if real_bin.is_binary_literal() {
+            let bin = unsafe { &*(real_bin_ptr as *mut BinaryLiteral) };
+            bin.bytes()
         } else {
             assert!(real_bin.is_heapbin());
             let bin = unsafe { &*(real_bin_ptr as *mut HeapBin) };
@@ -270,6 +285,10 @@ impl SubBinary {
             let bin = &*(real_bin_ptr as *mut ProcBin);
             let bytes = bin.bytes().add(self.byte_offset);
             (bin.header, FLAG_IS_RAW_BIN, bytes, self.full_byte_len)
+        } else if real_bin.is_binary_literal() {
+            let bin = &*(real_bin_ptr as *mut BinaryLiteral);
+            let bytes = bin.bytes().add(self.byte_offset);
+            (bin.header, FLAG_IS_RAW_BIN | FLAG_IS_LITERAL, bytes, self.full_byte_len)
         } else {
             assert!(real_bin.is_heapbin());
             let bin = &*(real_bin_ptr as *mut HeapBin);

@@ -18,401 +18,15 @@ use num_bigint::BigInt;
 
 use super::*;
 
-#[cfg(target_pointer_width = "64")]
-mod constants {
-    use super::Term;
-
-    use crate::erts::term::list::Cons;
-    use crate::mem::bit_size_of;
-
-    ///! This module contains constants for 64-bit architectures used by the term
-    /// implementation. !
-    ///! On 64-bit platforms, the highest 16 bits of pointers are unused and
-    ///! because we enforce 8-byte aligned allocations, the lowest 3 bits are
-    ///! also unused. To keep things simple on this arch, we put all of our flags in the
-    ///! highest 16 bits, with the exception of the literal flag, which we put
-    ///! in the lowest bit of the address. This means that for pointer-typed terms,
-    ///! the raw value just needs to be masked to access either the pointer or the flags,
-    ///! no shifts are required.
-    #[cfg(test)]
-    use core::mem;
-
-    const NUM_BITS: usize = bit_size_of::<usize>();
-    #[cfg(test)]
-    const MIN_ALIGNMENT: usize = mem::align_of::<usize>();
-
-    /// This is the highest logical 8-byte aligned address on this architecture
-    #[cfg(test)]
-    const MAX_LOGICAL_ALIGNED_ADDR: usize = usize::max_value() & !(MIN_ALIGNMENT - 1);
-    /// This is the highest assignable 8-byte aligned address on this architecture
-    ///
-    /// NOTE: On all modern 64-bit systems I'm aware of, the highest 16 bits are unused
-    #[cfg(test)]
-    pub const MAX_ALIGNED_ADDR: usize = MAX_LOGICAL_ALIGNED_ADDR - (0xFFFFusize << (NUM_BITS - 16));
-
-    pub const MAX_IMMEDIATE1_VALUE: usize = usize::max_value() >> 4;
-    pub const MAX_IMMEDIATE2_VALUE: usize = usize::max_value() >> 6;
-
-    const PRIMARY_SHIFT: usize = NUM_BITS - 2;
-    const IMMEDIATE1_SHIFT: usize = NUM_BITS - 4;
-    const IMMEDIATE2_SHIFT: usize = NUM_BITS - 6;
-    const HEADER_TAG_SHIFT: usize = NUM_BITS - 6;
-
-    // Primary types
-    pub const FLAG_HEADER: usize = 0;
-    pub const FLAG_LIST: usize = 1 << PRIMARY_SHIFT;
-    pub const FLAG_BOXED: usize = 2 << PRIMARY_SHIFT;
-    pub const FLAG_IMMEDIATE: usize = 3 << PRIMARY_SHIFT;
-    pub const FLAG_IMMEDIATE2: usize = FLAG_IMMEDIATE | (2 << IMMEDIATE1_SHIFT);
-
-    // First class immediates
-    pub const FLAG_PID: usize = (0 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE;
-    pub const FLAG_PORT: usize = (1 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE;
-    pub const FLAG_SMALL_INTEGER: usize = (3 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE;
-
-    // Small Integers are isize, but with the loss of the FLAG_SMALL_INTEGER bits
-    pub const MIN_SMALLINT_VALUE: isize = std::isize::MIN >> (NUM_BITS - IMMEDIATE1_SHIFT);
-    pub const MAX_SMALLINT_VALUE: isize = std::isize::MAX >> (NUM_BITS - IMMEDIATE1_SHIFT);
-
-    // Second class immediates
-    pub const FLAG_ATOM: usize = (0 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2;
-    pub const FLAG_CATCH: usize = (1 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2;
-    /// Also unused in BEAM
-    pub const FLAG_UNUSED_1: usize = (2 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2;
-    pub const FLAG_NIL: usize = (3 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2;
-
-    // NOTE: This flag is only used with BOXED and LIST terms, and indicates that the term
-    // is a pointer to a literal, rather than a pointer to a term on the process heap/stack.
-    // Literals are stored as constants in the compiled code, so these terms are never GCed.
-    // In order to properly check if a term is a literal, you must first mask off the primary
-    // bits and verify it is either boxed or list, then mask off the immediate1 bits, and check
-    // for the literal tag
-    pub const FLAG_LITERAL: usize = 1;
-
-    // Header types
-    pub const FLAG_TUPLE: usize = (0 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    /// Binary aggregate in BEAM
-    pub const FLAG_NONE: usize = (1 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_POS_BIG_INTEGER: usize = (2 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_NEG_BIG_INTEGER: usize = (3 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_REFERENCE: usize = (4 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_CLOSURE: usize = (5 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_FLOAT: usize = (6 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    /// EXPORT in BEAM
-    pub const FLAG_RESOURCE_REFERENCE: usize = (7 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_PROCBIN: usize = (8 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_HEAPBIN: usize = (9 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_SUBBINARY: usize = (10 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_MATCH_CTX: usize = (11 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_EXTERN_PID: usize = (12 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_EXTERN_PORT: usize = (13 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_EXTERN_REF: usize = (14 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-    pub const FLAG_MAP: usize = (15 << HEADER_TAG_SHIFT) | FLAG_HEADER;
-
-    // The primary tag is given by masking bits 0-2
-    pub const MASK_PRIMARY: usize = 0xC000_0000_0000_0000;
-    // First class immediate tags are given by masking bits 2-4
-    pub const MASK_IMMEDIATE1_TAG: usize = 0x3000_0000_0000_0000;
-    // Second class immediate tags are given by masking bits 4-6
-    pub const MASK_IMMEDIATE2_TAG: usize = 0x0C00_0000_0000_0000;
-    // To mask off the entire immediate header, we mask off both the primary and immediate tag
-    pub const MASK_IMMEDIATE1: usize = MASK_PRIMARY | MASK_IMMEDIATE1_TAG;
-    pub const MASK_IMMEDIATE2: usize = MASK_IMMEDIATE1 | MASK_IMMEDIATE2_TAG;
-    pub const MASK_HEADER_TAG: usize = 0x3C00_0000_0000_0000;
-    // Header is composed of 2 primary tag bits, and 4 subtag bits:
-    pub const MASK_HEADER: usize = MASK_PRIMARY | MASK_HEADER_TAG;
-
-    // The literal tag is given by masking the lowest bit
-    pub const MASK_LITERAL: usize = 0x1;
-
-    /// The pattern 0b0101 out to usize bits, but with the header bits
-    /// masked out, and flagged as the none value
-    pub const NONE_VAL: usize = 0x155555554AAAAAAAusize & !MASK_HEADER;
-
-    #[inline]
-    pub const fn is_literal(term: usize) -> bool {
-        term & FLAG_LITERAL == FLAG_LITERAL
-    }
-
-    #[inline]
-    pub const fn primary_tag(term: usize) -> usize {
-        term & MASK_PRIMARY
-    }
-
-    #[inline]
-    pub const fn make_list(value: *const Cons) -> usize {
-        unsafe { value as usize | FLAG_LIST }
-    }
-
-    #[inline]
-    pub const fn make_header(term: usize, tag: usize) -> usize {
-        term | tag
-    }
-
-    #[inline]
-    pub const fn header_tag(term: usize) -> usize {
-        term & MASK_HEADER
-    }
-
-    #[inline]
-    pub const fn header_value(term: usize) -> usize {
-        term & !MASK_HEADER
-    }
-
-    #[inline]
-    pub const fn make_immediate1(value: usize, tag: usize) -> usize {
-        value | tag
-    }
-
-    pub const fn make_smallint(value: isize) -> usize {
-        FLAG_SMALL_INTEGER | (value as usize)
-    }
-
-    #[inline]
-    pub const fn make_immediate2(value: usize, tag: usize) -> usize {
-        value | tag
-    }
-
-    #[inline]
-    pub const fn immediate1_tag(term: usize) -> usize {
-        term & MASK_IMMEDIATE1
-    }
-
-    #[inline]
-    pub const fn immediate2_tag(term: usize) -> usize {
-        term & MASK_IMMEDIATE2
-    }
-
-    #[inline]
-    pub const fn immediate1_value(term: usize) -> usize {
-        term & !MASK_IMMEDIATE1
-    }
-
-    #[inline]
-    pub const fn immediate2_value(term: usize) -> usize {
-        term & !MASK_IMMEDIATE2
-    }
-
-    #[inline]
-    pub const fn boxed_value(term: usize) -> *mut Term {
-        (term & !(MASK_PRIMARY | MASK_LITERAL)) as *mut Term
-    }
-
-    #[inline]
-    pub const fn list_value(term: usize) -> *mut Cons {
-        (term & !(MASK_PRIMARY | MASK_LITERAL)) as *mut Cons
-    }
-
-    pub const fn smallint_value(term: usize) -> isize {
-        (((term & !MASK_IMMEDIATE1) << (NUM_BITS - IMMEDIATE1_SHIFT)) as isize)
-            >> (NUM_BITS - IMMEDIATE1_SHIFT)
-    }
-}
-
-#[cfg(target_pointer_width = "32")]
-mod constants {
-    use super::Term;
-
-    use crate::erts::term::list::Cons;
-    use crate::mem::bit_size_of;
-    ///! This module contains constants for 64-bit architectures used by the term
-    /// implementation. !
-    ///! On 32-bit platforms we generally can use the high bits like we
-    ///! do on 64-bit platforms, as the full address space is rarely available,
-    ///! e.g. Windows with 2-3gb addressable range, Linux with 3gb. But to avoid
-    ///! the reliance on that fact, we use the low bits on 32-bit platforms
-    ///! for the pointer-typed terms. We have 3 bits available to us because we
-    ///! require an 8-byte minimum alignment for all allocations, ensuring that
-    ///! the lowest 3 bits are always zeroes, and thus available for tags. For
-    ///! non-pointer terms, the flags all go in the high bits, to make accessing
-    ///! the value and tags as easy as applying a mask, no shifts needed.
-    #[cfg(test)]
-    use core::mem;
-
-    const NUM_BITS: usize = bit_size_of::<usize>();
-    #[cfg(test)]
-    const MIN_ALIGNMENT: usize = mem::align_of::<usize>();
-
-    #[cfg(test)]
-    const MAX_LOGICAL_ALIGNED_ADDR: usize = usize::max_value() & !(MIN_ALIGNMENT - 1);
-    /// This is the highest assignable 8-byte aligned address on this architecture
-    ///
-    /// NOTE: On Windows and Linux, this address is actually capped at 2gb and 3gb respectively,
-    /// but other platforms may not have this restriction, so our tagging scheme tries to avoid
-    /// using high bits if at all possible. We do use the highest bit as a flag for literal values,
-    /// i.e. pointers to literal constants
-    #[cfg(test)]
-    pub const MAX_ALIGNED_ADDR: usize = MAX_LOGICAL_ALIGNED_ADDR - (1usize << (NUM_BITS - 1));
-
-    // https://blog.stenmans.org/theBeamBook/#_the_tagging_scheme
-
-    const PRIMARY_SHIFT: usize = 0;
-    const IMMEDIATE1_SHIFT: usize = 2;
-    const IMMEDIATE1_VALUE_SHIFT: usize = 4;
-    const IMMEDIATE2_SHIFT: usize = 4;
-    const IMMEDIATE2_VALUE_SHIFT: usize = 6;
-    const HEADER_TAG_SHIFT: usize = 2;
-    const HEADER_VALUE_SHIFT: usize = 6;
-
-    pub const MAX_IMMEDIATE1_VALUE: usize = usize::max_value() >> IMMEDIATE1_VALUE_SHIFT;
-    pub const MAX_IMMEDIATE2_VALUE: usize = usize::max_value() >> IMMEDIATE2_VALUE_SHIFT;
-
-    const FLAG_PRIMARY: usize = 0;
-
-    // Primary types
-    pub const FLAG_HEADER: usize = (0 << PRIMARY_SHIFT) | FLAG_PRIMARY; // 0b00
-    pub const FLAG_LIST: usize = (1 << PRIMARY_SHIFT) | FLAG_PRIMARY; // 0b01
-    pub const FLAG_BOXED: usize = (2 << PRIMARY_SHIFT) | FLAG_PRIMARY; // 0b10
-    pub const FLAG_IMMEDIATE: usize = (3 << PRIMARY_SHIFT) | FLAG_PRIMARY; // 0b11
-
-    // First class immediates
-    pub const FLAG_PID: usize = (0 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b00_11
-    pub const FLAG_PORT: usize = (1 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b01_11
-    pub const FLAG_IMMEDIATE2: usize = (2 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b10_11
-    pub const FLAG_SMALL_INTEGER: usize = (3 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b11_11
-
-    // Small Integers are isize, but with the loss of the FLAG_SMALL_INTEGER bits
-    pub const MIN_SMALLINT_VALUE: isize = std::isize::MIN >> IMMEDIATE1_VALUE_SHIFT;
-    pub const MAX_SMALLINT_VALUE: isize = std::isize::MAX >> IMMEDIATE1_VALUE_SHIFT;
-
-    // Second class immediates
-    pub const FLAG_ATOM: usize = (0 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2; // 0b00_10_11
-    pub const FLAG_CATCH: usize = (1 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2; // 0b01_10_11
-    /// Also unused in BEAM
-    pub const FLAG_UNUSED_1: usize = (2 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2; // 0b10_10_11
-    pub const FLAG_NIL: usize = (3 << IMMEDIATE2_SHIFT) | FLAG_IMMEDIATE2; // 0b11_10_11
-
-    pub const FLAG_LITERAL: usize = 1 << (NUM_BITS - 1); // 0b1000_0000_0000_0000_0000_0000_0000_0000
-
-    // Header types, these flags re-use the literal flag bit, as it only applies to primary tags
-    pub const FLAG_TUPLE: usize = (0 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0000_00
-    /// Binary aggregate in BEAM
-    pub const FLAG_NONE: usize = (1 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0001_00
-    pub const FLAG_POS_BIG_INTEGER: usize = (2 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0010_00
-    pub const FLAG_NEG_BIG_INTEGER: usize = (3 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0011_00
-    pub const FLAG_REFERENCE: usize = (4 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0100_00
-    pub const FLAG_CLOSURE: usize = (5 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0101_00
-    pub const FLAG_FLOAT: usize = (6 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0110_00
-    /// EXPORT in BEAM
-    pub const FLAG_RESOURCE_REFERENCE: usize = (7 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b0111_00
-    pub const FLAG_PROCBIN: usize = (8 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1000_00
-    pub const FLAG_HEAPBIN: usize = (9 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1001_00
-    pub const FLAG_SUBBINARY: usize = (10 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1010_00
-    pub const FLAG_MATCH_CTX: usize = (11 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1011_00
-    pub const FLAG_EXTERN_PID: usize = (12 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1100_00
-    pub const FLAG_EXTERN_PORT: usize = (13 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1101_00
-    pub const FLAG_EXTERN_REF: usize = (14 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1110_00
-    pub const FLAG_MAP: usize = (15 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b1111_00
-
-    // The primary tag is given by masking bits 0-1
-    pub const MASK_PRIMARY: usize = 0b11;
-    // First class immediate tags are given by masking bits 2-3
-    pub const MASK_IMMEDIATE1_TAG: usize = 0b11_00;
-    // Second class immediate tags are given by masking bits 6-7
-    pub const MASK_IMMEDIATE2_TAG: usize = 0b11_00_00;
-    // To mask off the entire immediate header, we mask off the primary and immediate tag
-    pub const MASK_IMMEDIATE1: usize = MASK_IMMEDIATE1_TAG | MASK_PRIMARY;
-    pub const MASK_IMMEDIATE2: usize = MASK_IMMEDIATE2_TAG | MASK_IMMEDIATE1;
-    pub const MASK_HEADER_TAG: usize = 0b1111_00;
-    pub const MASK_HEADER: usize = MASK_HEADER_TAG | MASK_PRIMARY;
-
-    // The literal flag is the highest bit.  Assert check that we're not hitting it under large
-    // memory usage.
-    pub const MASK_LITERAL: usize = 1 << (NUM_BITS - 1);
-
-    /// The pattern 0b0101 out to usize bits, but with the header bits
-    /// masked out, and flagged as the none value
-    pub const NONE_VAL: usize = 0x55555555usize & !MASK_HEADER;
-
-    #[inline]
-    pub const fn is_literal(term: usize) -> bool {
-        term & FLAG_LITERAL == FLAG_LITERAL
-    }
-
-    #[inline]
-    pub const fn primary_tag(term: usize) -> usize {
-        term & MASK_PRIMARY
-    }
-
-    #[inline]
-    pub const fn make_list(value: *const Cons) -> usize {
-        unsafe { value as usize | FLAG_LIST }
-    }
-
-    #[inline]
-    pub const fn make_header(term: usize, tag: usize) -> usize {
-        (term << HEADER_VALUE_SHIFT) | tag
-    }
-
-    #[inline]
-    pub const fn header_tag(term: usize) -> usize {
-        term & MASK_HEADER
-    }
-
-    #[inline]
-    pub const fn header_value(term: usize) -> usize {
-        (term & !MASK_HEADER) >> HEADER_VALUE_SHIFT
-    }
-
-    #[inline]
-    pub const fn make_immediate1(value: usize, tag: usize) -> usize {
-        (value << IMMEDIATE1_VALUE_SHIFT) | tag
-    }
-
-    pub const fn make_smallint(value: isize) -> usize {
-        ((value << IMMEDIATE1_VALUE_SHIFT) as usize) | FLAG_SMALL_INTEGER
-    }
-
-    #[inline]
-    pub const fn make_immediate2(value: usize, tag: usize) -> usize {
-        (value << IMMEDIATE2_VALUE_SHIFT) | tag
-    }
-
-    #[inline]
-    pub const fn immediate1_tag(term: usize) -> usize {
-        term & MASK_IMMEDIATE1
-    }
-
-    #[inline]
-    pub const fn immediate2_tag(term: usize) -> usize {
-        term & MASK_IMMEDIATE2
-    }
-
-    #[inline]
-    pub const fn immediate1_value(term: usize) -> usize {
-        (term & !MASK_IMMEDIATE1) >> IMMEDIATE1_VALUE_SHIFT
-    }
-
-    #[inline]
-    pub const fn immediate2_value(term: usize) -> usize {
-        (term & !MASK_IMMEDIATE2) >> IMMEDIATE2_VALUE_SHIFT
-    }
-
-    #[inline]
-    pub const fn boxed_value(term: usize) -> *mut Term {
-        (term & !MASK_PRIMARY) as *mut Term
-    }
-
-    #[inline]
-    pub const fn list_value(term: usize) -> *mut Cons {
-        (term & !MASK_PRIMARY) as *mut Cons
-    }
-
-    pub const fn smallint_value(term: usize) -> isize {
-        (
-            // cast to isize before shift to get sign extension
-            (term & !MASK_IMMEDIATE1) as isize
-        ) >> IMMEDIATE1_VALUE_SHIFT
-    }
-}
+use super::arch::native as constants;
 
 mod typecheck {
     ///! This module contains functions which perform type checking on raw term values.
     ///!
     ///! These functions are all constant functions, so they are also used in static
-    /// assertions ! to verify that the functions are correct at compile-time, rather than
-    /// depending on tests.
-    use super::constants;
+    ///! assertions to verify that the functions are correct at compile-time, rather than
+    ///! depending on tests.
+    use crate::erts::term::arch::native as constants;
 
     pub const NONE: usize = constants::NONE_VAL | constants::FLAG_NONE;
     pub const NIL: usize = constants::FLAG_NIL;
@@ -773,16 +387,80 @@ impl Term {
     /// Creates a small integer term from a raw usize value
     #[inline]
     pub fn make_smallint(value: isize) -> Self {
-        assert!(constants::MIN_SMALLINT_VALUE <= value);
-        assert!(value <= constants::MAX_SMALLINT_VALUE);
-
         Self(constants::make_smallint(value))
+    }
+
+    /// Creates an target-appropriate integer from the given input value
+    pub fn make_integer_for_arch64(value: i64) -> Arch64Integer {
+        use crate::erts::term::arch::arch64;
+
+        const MAX_VALUE: i64 = arch64::MAX_SMALLINT_VALUE as i64;
+        const MIN_VALUE: i64 = !MAX_VALUE;
+        if value > MAX_VALUE || value < MIN_VALUE {
+            BigInt::from(value).into()
+        } else {
+            arch64::make_smallint(value).into()
+        }
+    }
+
+    /// Creates an target-appropriate integer from the given input value
+    pub fn make_integer_for_arch32(value: i32) -> Arch32Integer {
+        use crate::erts::term::arch::arch32;
+
+        const MAX_VALUE: i32 = arch32::MAX_SMALLINT_VALUE as i32;
+        const MIN_VALUE: i32 = !MAX_VALUE;
+        if value > MAX_VALUE || value < MIN_VALUE {
+            BigInt::from(value).into()
+        } else {
+            arch32::make_smallint(value).into()
+        }
+    }
+
+    /// Creates a header for the given BigInt value
+    #[inline]
+    pub fn make_bigint_header(value: &num_bigint::BigInt) -> Term {
+        use num_bigint::Sign;
+
+        let flag = match value.sign() {
+            Sign::NoSign | Sign::Plus => Self::FLAG_POS_BIG_INTEGER,
+            Sign::Minus => Self::FLAG_NEG_BIG_INTEGER,
+        };
+        let arity = to_word_size(mem::size_of_val(value) - mem::size_of::<Term>());
+        Self(constants::make_header(arity, flag))
+    }
+
+    /// Creates a header for the given BigInt value
+    #[cfg(target_pointer_width = "64")]
+    pub fn make_bigint_header_for_arch64(value: &num_bigint::BigInt) -> u64 {
+        use num_bigint::Sign;
+        use crate::erts::term::arch::arch64;
+
+        let flag = match value.sign() {
+            Sign::NoSign | Sign::Plus => arch64::FLAG_POS_BIG_INTEGER,
+            Sign::Minus => arch64::FLAG_NEG_BIG_INTEGER,
+        };
+        let arity = to_arch64_word_size(mem::size_of_val(value) - mem::size_of::<u64>()) as u64;
+        arch64::make_header(arity, flag)
+    }
+
+    /// Creates a header for the given BigInt value
+    #[cfg(target_pointer_width = "32")]
+    pub fn make_bigint_header_for_arch32(value: &num_bigint::BigInt) -> u32 {
+        use num_bigint::Sign;
+        use crate::erts::term::arch::arch32;
+
+        let flag = match value.sign() {
+            Sign::NoSign | Sign::Plus => arch32::FLAG_POS_BIG_INTEGER,
+            Sign::Minus => arch32::FLAG_NEG_BIG_INTEGER,
+        };
+        let arity = to_arch32_word_size(mem::size_of_val(value) - mem::size_of::<u32>()) as u32;
+        arch32::make_header(arity, flag)
     }
 
     /// Creates an atom term from a raw value (atom id)
     #[inline]
     pub fn make_atom(id: usize) -> Self {
-        assert!(id <= constants::MAX_IMMEDIATE2_VALUE);
+        assert!(id <= constants::MAX_ATOM_ID);
         Self(constants::make_immediate2(id, Self::FLAG_ATOM))
     }
 
@@ -896,7 +574,7 @@ impl Term {
         let tagged = self.0;
 
         typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
-            let ptr = constants::boxed_value(tagged);
+            let ptr = constants::unbox(tagged);
 
             unsafe { &*ptr }.is_function_header()
         }
@@ -1127,7 +805,7 @@ impl Term {
         let tagged = self.0;
 
         typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
-            let ptr = constants::boxed_value(tagged);
+            let ptr = constants::unbox(tagged);
             let term = unsafe { &*ptr };
 
             term.is_local_reference_header()
@@ -1148,7 +826,7 @@ impl Term {
         let tagged = self.0;
 
         typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
-            let ptr = constants::boxed_value(tagged);
+            let ptr = constants::unbox(tagged);
 
             unsafe { &*ptr }.is_local_reference_header()
         }
@@ -1170,7 +848,7 @@ impl Term {
         let tagged = self.0;
 
         typecheck::is_boxed(tagged) && !constants::is_literal(tagged) && {
-            let ptr = constants::boxed_value(tagged);
+            let ptr = constants::unbox(tagged);
 
             unsafe { &*ptr }.is_resource_reference_header()
         }
@@ -1180,10 +858,43 @@ impl Term {
         typecheck::is_resource_reference(self.0)
     }
 
+    /// Returns true if this term is a pointer to a binary literal
+    /// or the header of a binary literal
+    #[inline]
+    pub fn is_binary_literal(&self) -> bool {
+        use liblumen_core::offset_of;
+
+        if typecheck::is_boxed(self.0) && constants::is_literal(self.0) {
+            let ptr = constants::unbox(self.0) as *const usize;
+            return typecheck::is_procbin(unsafe { *ptr });
+        } else if typecheck::is_procbin(self.0) {
+            let offset = offset_of!(BinaryLiteral, flags);
+            debug_assert!(offset == offset_of!(ProcBin, inner));
+            let flags_ptr = (self as *const _ as usize + offset) as *const usize;
+            let flags = unsafe { *flags_ptr };
+            return flags & binary::FLAG_IS_LITERAL == binary::FLAG_IS_LITERAL;
+        }
+
+        false
+    }
+
     /// Returns true if this term is a reference-counted binary
     #[inline]
     pub fn is_procbin(&self) -> bool {
-        typecheck::is_procbin(self.0)
+        use liblumen_core::offset_of;
+
+        if typecheck::is_procbin(self.0) {
+            // Since ProcBin and BinaryLiteral share the same type tag, we need
+            // to ensure that this isn't a BinaryLiteral before we confirm that it
+            // is a ProcBin
+            let offset = offset_of!(BinaryLiteral, flags);
+            debug_assert!(offset == offset_of!(ProcBin, inner));
+            let flags_ptr = (self as *const _ as usize + offset) as *const usize;
+            let flags = unsafe { *flags_ptr };
+            return flags & binary::FLAG_IS_LITERAL != binary::FLAG_IS_LITERAL;
+        }
+
+        false
     }
 
     /// Returns true if this term is a binary on a process heap
@@ -1195,7 +906,7 @@ impl Term {
     /// Returns true if this term is a boxed sub-binary.
     pub fn is_subbinary(&self) -> bool {
         typecheck::is_boxed(self.0)
-            && unsafe { &*constants::boxed_value(self.0) }.is_subbinary_header()
+            && unsafe { &*constants::unbox(self.0) }.is_subbinary_header()
     }
 
     /// Returns true if this term is an unboxed sub-binary.
@@ -1213,7 +924,7 @@ impl Term {
     /// Returns true if this term is a boxed closure
     pub fn is_closure(&self) -> bool {
         typecheck::is_boxed(self.0)
-            && typecheck::is_closure(unsafe { *constants::boxed_value(self.0) }.0)
+            && typecheck::is_closure(unsafe { *constants::unbox(self.0) }.0)
     }
 
     /// Returns true if this term is an unboxed closure header
@@ -1257,7 +968,7 @@ impl Term {
     pub fn is_binary(&self) -> bool {
         match self.to_typed_term().unwrap() {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::HeapBinary(_) | TypedTerm::ProcBin(_) => true,
+                TypedTerm::HeapBinary(_) | TypedTerm::ProcBin(_) | TypedTerm::BinaryLiteral(_) => true,
                 TypedTerm::SubBinary(subbinary) => subbinary.partial_byte_bit_len() == 0,
                 TypedTerm::MatchContext(match_context) => match_context.partial_byte_bit_len() == 0,
                 _ => false,
@@ -1273,6 +984,7 @@ impl Term {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::HeapBinary(_)
                 | TypedTerm::ProcBin(_)
+                | TypedTerm::BinaryLiteral(_)
                 | TypedTerm::SubBinary(_)
                 | TypedTerm::MatchContext(_) => true,
                 _ => false,
@@ -1293,7 +1005,7 @@ impl Term {
     #[inline]
     pub fn boxed_val(&self) -> *mut Term {
         assert!(self.is_boxed());
-        constants::boxed_value(self.0)
+        constants::unbox(self.0)
     }
 
     /// Given a non-empty list term, this function returns a pointer to the underlying `Cons`
@@ -1302,7 +1014,7 @@ impl Term {
     #[inline]
     pub(crate) fn list_val(&self) -> *mut Cons {
         assert!(self.is_non_empty_list());
-        constants::list_value(self.0)
+        constants::unbox_list(self.0)
     }
 
     /// Given a header term, this function returns the raw arity value,
@@ -1328,7 +1040,7 @@ impl Term {
         match constants::primary_tag(val) {
             Self::FLAG_HEADER => unsafe { Self::header_to_typed_term(self, val) },
             Self::FLAG_LIST => {
-                let ptr = constants::list_value(val);
+                let ptr = constants::unbox_list(val);
                 if constants::is_literal(val) {
                     Ok(TypedTerm::List(unsafe { Boxed::from_raw_literal(ptr) }))
                 } else {
@@ -1336,8 +1048,12 @@ impl Term {
                 }
             }
             Self::FLAG_BOXED => {
-                let ptr = constants::boxed_value(val);
-                if constants::is_literal(val) {
+                let ptr = constants::unbox(val);
+                let unboxed = unsafe { *ptr };
+                let is_literal = constants::is_literal(val);
+                if is_literal && typecheck::is_procbin(unboxed.0) {
+                    Ok(TypedTerm::BinaryLiteral(unsafe { BinaryLiteral::from_raw(ptr as *mut BinaryLiteral) }))
+                } else if is_literal {
                     Ok(TypedTerm::Literal(unsafe { *ptr }))
                 } else {
                     Ok(TypedTerm::Boxed(unsafe { Boxed::from_raw(ptr) }))
@@ -1372,6 +1088,8 @@ impl Term {
 
     #[inline]
     unsafe fn header_to_typed_term(ptr: &Term, val: usize) -> Result<TypedTerm, InvalidTermError> {
+        use liblumen_core::offset_of;
+
         let ptr = ptr as *const _ as *mut Term;
         let ty = match constants::header_tag(val) {
             Self::FLAG_TUPLE => TypedTerm::Tuple(Boxed::from_raw(ptr as *mut Tuple)),
@@ -1395,8 +1113,17 @@ impl Term {
             Self::FLAG_RESOURCE_REFERENCE => TypedTerm::ResourceReference(
                 resource::Reference::from_raw(ptr as *mut resource::Reference),
             ),
-            Self::FLAG_PROCBIN => TypedTerm::ProcBin(ProcBin::from_raw(ptr as *mut ProcBin)),
-            Self::FLAG_HEAPBIN => TypedTerm::HeapBinary(Boxed::from_raw(ptr as *mut HeapBin)),
+            Self::FLAG_PROCBIN => {
+                let offset = offset_of!(BinaryLiteral, flags);
+                debug_assert!(offset == offset_of!(ProcBin, inner));
+                let flags_ptr = (ptr as usize + offset) as *const usize;
+                let flags = *flags_ptr;
+                if flags & binary::FLAG_IS_LITERAL == binary::FLAG_IS_LITERAL {
+                    TypedTerm::BinaryLiteral(BinaryLiteral::from_raw(ptr as *mut BinaryLiteral))
+                } else {
+                    TypedTerm::ProcBin(ProcBin::from_raw(ptr as *mut ProcBin))
+                }
+            }
             Self::FLAG_SUBBINARY => {
                 TypedTerm::SubBinary(SubBinary::from_raw(ptr as *mut SubBinary))
             }
@@ -1487,6 +1214,13 @@ impl Debug for Term {
                     write!(f, "Term(Closure({:?}))", &*(ptr as *const Closure))
                 } else if self.is_float_header() {
                     write!(f, "Term({})", &*(ptr as *mut Float))
+                } else if self.is_binary_literal() {
+                    let bin = &*(ptr as *const BinaryLiteral);
+                    if bin.is_raw() {
+                        write!(f, "Term(BinaryLiteral({:?})", bin.as_bytes())
+                    } else {
+                        write!(f, "Term(BinaryLiteral({})", bin.as_str())
+                    }
                 } else if self.is_procbin() {
                     let bin = &*(ptr as *const ProcBin);
                     if bin.is_raw() {
@@ -1774,7 +1508,7 @@ mod tests {
             constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED
         ));
         assert_eq!(
-            constants::boxed_value(constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED) as usize,
+            constants::unbox(constants::MAX_ALIGNED_ADDR | constants::FLAG_BOXED) as usize,
             constants::MAX_ALIGNED_ADDR
         );
     }
@@ -1799,7 +1533,7 @@ mod tests {
     #[test]
     fn atom_term_invariants() {
         let a = constants::make_immediate2(1, constants::FLAG_ATOM);
-        let b = constants::make_immediate2(constants::MAX_IMMEDIATE2_VALUE, constants::FLAG_ATOM);
+        let b = constants::make_immediate2(constants::MAX_ATOM_ID, constants::FLAG_ATOM);
         assert!(typecheck::is_atom(a));
         assert!(typecheck::is_atom(b));
         assert_eq!(constants::immediate1_tag(a), constants::FLAG_ATOM);
@@ -1862,11 +1596,11 @@ mod tests {
         assert!(!typecheck::is_header(a));
         assert!(!typecheck::is_header(b));
         assert_eq!(
-            constants::list_value(a) as usize,
+            constants::unbox_list(a) as usize,
             ptr::null::<Term>() as usize
         );
         assert_eq!(
-            constants::list_value(b) as usize,
+            constants::unbox_list(b) as usize,
             constants::MAX_ALIGNED_ADDR
         );
 

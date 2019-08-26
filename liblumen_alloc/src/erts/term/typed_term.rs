@@ -41,6 +41,7 @@ pub enum TypedTerm {
     Float(Float),
     Atom(Atom),
     ResourceReference(resource::Reference),
+    BinaryLiteral(BinaryLiteral),
     ProcBin(ProcBin),
     HeapBinary(Boxed<HeapBin>),
     SubBinary(SubBinary),
@@ -79,6 +80,7 @@ impl TypedTerm {
     #[inline]
     pub fn is_binary(&self) -> bool {
         match self {
+            &Self::BinaryLiteral(_) => true,
             &Self::ProcBin(_) => true,
             &Self::HeapBinary(_) => true,
             &Self::SubBinary(_) => true,
@@ -176,6 +178,7 @@ impl Display for TypedTerm {
             Pid(pid) => write!(f, "{}", pid),
             Port(port) => write!(f, "{}", port),
             ProcBin(process_binary) => write!(f, "{}", process_binary),
+            BinaryLiteral(process_binary) => write!(f, "{}", process_binary),
             Reference(reference) => write!(f, "{}", reference),
             ResourceReference(resource_reference) => write!(f, "{}", resource_reference),
             SmallInteger(small_integer) => write!(f, "{}", small_integer),
@@ -205,6 +208,7 @@ impl Hash for TypedTerm {
             Self::Atom(atom) => atom.hash(state),
             Self::ResourceReference(resource_reference) => resource_reference.hash(state),
             Self::ProcBin(process_binary) => process_binary.hash(state),
+            Self::BinaryLiteral(process_binary) => process_binary.hash(state),
             Self::HeapBinary(heap_binary) => heap_binary.hash(state),
             Self::SubBinary(subbinary) => subbinary.hash(state),
             Self::MatchContext(match_context) => match_context.hash(state),
@@ -323,6 +327,9 @@ impl PartialEq<TypedTerm> for TypedTerm {
                         TypedTerm::ProcBin(other_process_binary) => {
                             other_process_binary.eq(&self_heap_binary)
                         }
+                        TypedTerm::BinaryLiteral(other_process_binary) => {
+                            other_process_binary.eq(&self_heap_binary)
+                        }
                         TypedTerm::SubBinary(other_subbinary) => {
                             other_subbinary.eq(self_heap_binary.as_ref())
                         }
@@ -341,6 +348,30 @@ impl PartialEq<TypedTerm> for TypedTerm {
                         TypedTerm::ProcBin(other_process_binary) => {
                             self_process_binary.eq(&other_process_binary)
                         }
+                        TypedTerm::BinaryLiteral(other_process_binary) => {
+                            self_process_binary.eq(&other_process_binary)
+                        }
+                        TypedTerm::SubBinary(other_subbinary) => {
+                            other_subbinary.eq(&self_process_binary)
+                        }
+                        TypedTerm::MatchContext(other_match_context) => {
+                            other_match_context.eq(&self_process_binary)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::BinaryLiteral(self_process_binary) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::HeapBinary(other_heap_binary) => {
+                            self_process_binary.eq(&other_heap_binary)
+                        }
+                        TypedTerm::ProcBin(other_process_binary) => {
+                            self_process_binary.eq(&other_process_binary)
+                        }
+                        TypedTerm::BinaryLiteral(other_process_binary) => {
+                            self_process_binary.eq(&other_process_binary)
+                        }
                         TypedTerm::SubBinary(other_subbinary) => {
                             other_subbinary.eq(&self_process_binary)
                         }
@@ -357,6 +388,9 @@ impl PartialEq<TypedTerm> for TypedTerm {
                             self_subbinary.eq(other_heap_binary.as_ref())
                         }
                         TypedTerm::ProcBin(other_process_binary) => {
+                            self_subbinary.eq(&other_process_binary)
+                        }
+                        TypedTerm::BinaryLiteral(other_process_binary) => {
                             self_subbinary.eq(&other_process_binary)
                         }
                         TypedTerm::SubBinary(other_subbinary) => {
@@ -587,6 +621,10 @@ impl Ord for TypedTerm {
                                 .partial_cmp(&self_heap_binary)
                                 .unwrap()
                                 .reverse(),
+                            TypedTerm::BinaryLiteral(other_process_binary) => other_process_binary
+                                .partial_cmp(&self_heap_binary)
+                                .unwrap()
+                                .reverse(),
                             TypedTerm::SubBinary(other_subbinary) => other_subbinary
                                 .partial_cmp(self_heap_binary.as_ref())
                                 .unwrap()
@@ -622,6 +660,45 @@ impl Ord for TypedTerm {
                             TypedTerm::ProcBin(other_process_binary) => self_process_binary
                                 .partial_cmp(&other_process_binary)
                                 .unwrap(),
+                            TypedTerm::BinaryLiteral(other_process_binary) => self_process_binary
+                                .partial_cmp(&other_process_binary)
+                                .unwrap(),
+                            TypedTerm::SubBinary(other_subbinary) => other_subbinary
+                                .partial_cmp(&self_process_binary)
+                                .unwrap()
+                                .reverse(),
+                            TypedTerm::MatchContext(other_match_context) => other_match_context
+                                .partial_cmp(&self_process_binary)
+                                .unwrap()
+                                .reverse(),
+                            _ => unreachable!(),
+                        },
+                        TypedTerm::Atom(_) | TypedTerm::Pid(_) | TypedTerm::Nil => Greater,
+                        _ => unreachable!(),
+                    }
+                    TypedTerm::BinaryLiteral(self_process_binary) => match other {
+                        TypedTerm::SmallInteger(_) => Greater,
+                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
+                        {
+                            TypedTerm::Float(_)
+                            | TypedTerm::BigInteger(_)
+                            | TypedTerm::Reference(_)
+                            | TypedTerm::ExternalReference(_)
+                            | TypedTerm::Closure(_)
+                            | TypedTerm::ExternalPort(_)
+                            | TypedTerm::ExternalPid(_)
+                            | TypedTerm::Tuple(_)
+                            | TypedTerm::Map(_)
+                            | TypedTerm::List(_) => Greater,
+                            TypedTerm::HeapBinary(other_heap_binary) => {
+                                self_process_binary.partial_cmp(&other_heap_binary).unwrap()
+                            }
+                            TypedTerm::ProcBin(other_process_binary) => self_process_binary
+                                .partial_cmp(&other_process_binary)
+                                .unwrap(),
+                            TypedTerm::BinaryLiteral(other_process_binary) => self_process_binary
+                                .partial_cmp(&other_process_binary)
+                                .unwrap(),
                             TypedTerm::SubBinary(other_subbinary) => other_subbinary
                                 .partial_cmp(&self_process_binary)
                                 .unwrap()
@@ -655,6 +732,9 @@ impl Ord for TypedTerm {
                                 .partial_cmp(other_heap_binary.as_ref())
                                 .unwrap(),
                             TypedTerm::ProcBin(other_process_binary) => {
+                                self_subbinary.partial_cmp(&other_process_binary).unwrap()
+                            }
+                            TypedTerm::BinaryLiteral(other_process_binary) => {
                                 self_subbinary.partial_cmp(&other_process_binary).unwrap()
                             }
                             TypedTerm::SubBinary(other_subbinary) => {
@@ -795,6 +875,7 @@ unsafe impl AsTerm for TypedTerm {
             &Self::Float(ref inner) => inner.as_term(),
             &Self::Atom(ref inner) => inner.as_term(),
             &Self::ResourceReference(ref inner) => inner.as_term(),
+            &Self::BinaryLiteral(ref inner) => inner.as_term(),
             &Self::ProcBin(ref inner) => inner.as_term(),
             &Self::HeapBinary(ref inner) => inner.as_term(),
             &Self::SubBinary(ref inner) => inner.as_term(),
@@ -828,6 +909,7 @@ impl CloneToProcess for TypedTerm {
             &Self::Float(inner) => inner.clone_to_process(process),
             &Self::Atom(inner) => unsafe { inner.as_term() },
             &Self::ResourceReference(ref inner) => inner.clone_to_process(process),
+            &Self::BinaryLiteral(ref inner) => inner.clone_to_process(process),
             &Self::ProcBin(ref inner) => inner.clone_to_process(process),
             &Self::HeapBinary(ref inner) => inner.clone_to_process(process),
             &Self::SubBinary(ref inner) => inner.clone_to_process(process),
@@ -859,6 +941,7 @@ impl CloneToProcess for TypedTerm {
             &Self::Float(inner) => inner.clone_to_heap(heap),
             &Self::Atom(inner) => Ok(unsafe { inner.as_term() }),
             &Self::ResourceReference(ref inner) => inner.clone_to_heap(heap),
+            &Self::BinaryLiteral(ref inner) => inner.clone_to_heap(heap),
             &Self::ProcBin(ref inner) => inner.clone_to_heap(heap),
             &Self::HeapBinary(ref inner) => inner.clone_to_heap(heap),
             &Self::SubBinary(ref inner) => inner.clone_to_heap(heap),
@@ -882,6 +965,7 @@ impl CloneToProcess for TypedTerm {
             &Self::ExternalReference(ref inner) => inner.size_in_words(),
             &Self::BigInteger(ref inner) => inner.size_in_words(),
             &Self::Float(inner) => inner.size_in_words(),
+            &Self::BinaryLiteral(ref inner) => inner.size_in_words(),
             &Self::ProcBin(ref inner) => inner.size_in_words(),
             &Self::HeapBinary(ref inner) => inner.size_in_words(),
             &Self::SubBinary(ref inner) => inner.size_in_words(),
@@ -966,6 +1050,7 @@ impl TryInto<Vec<u8>> for TypedTerm {
             TypedTerm::HeapBinary(heap_binary) => heap_binary.try_into(),
             TypedTerm::SubBinary(subbinary) => subbinary.try_into(),
             TypedTerm::ProcBin(process_binary) => process_binary.try_into(),
+            TypedTerm::BinaryLiteral(process_binary) => process_binary.try_into(),
             TypedTerm::MatchContext(match_context) => match_context.try_into(),
             _ => Err(badarg!()),
         }

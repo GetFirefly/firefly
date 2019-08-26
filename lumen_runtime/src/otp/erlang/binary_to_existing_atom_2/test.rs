@@ -88,6 +88,9 @@ fn with_utf8_binary_with_valid_encoding_with_existing_atom_returns_atom() {
                             TypedTerm::ProcBin(process_binary) => {
                                 process_binary.as_bytes().to_vec()
                             }
+                            TypedTerm::BinaryLiteral(process_binary) => {
+                                process_binary.as_bytes().to_vec()
+                            }
                             TypedTerm::SubBinary(subbinary) => subbinary.full_byte_iter().collect(),
                             unboxed_typed_term => {
                                 panic!("unboxed_typed_term = {:?}", unboxed_typed_term)

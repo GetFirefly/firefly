@@ -15,13 +15,14 @@ use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetim
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::Code;
+use crate::erts::string::Encoding;
 use crate::erts::term::binary::aligned_binary::AlignedBinary;
 use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
 use crate::erts::term::binary::IterableBitstring;
 use crate::erts::term::reference::{self, Reference};
 use crate::erts::term::resource;
 use crate::erts::term::{
-    make_pid, pid, AsTerm, BinaryType, BytesFromBinaryError, Closure, Cons, ExternalPid, Float,
+    make_pid, pid, AsTerm, BytesFromBinaryError, Closure, Cons, ExternalPid, Float,
     HeapBin, Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
 };
 use crate::{erts, ModuleFunctionArity};
@@ -99,6 +100,9 @@ pub trait HeapAlloc {
                     Ok(unsafe { bytes::inherit_lifetime(heap_binary.as_bytes()) })
                 }
                 TypedTerm::ProcBin(process_binary) => {
+                    Ok(unsafe { bytes::inherit_lifetime(process_binary.as_bytes()) })
+                }
+                TypedTerm::BinaryLiteral(process_binary) => {
                     Ok(unsafe { bytes::inherit_lifetime(process_binary.as_bytes()) })
                 }
                 TypedTerm::SubBinary(subbinary) => {
@@ -355,7 +359,7 @@ pub trait HeapAlloc {
     /// given process
     fn procbin_from_bytes(&mut self, s: &[u8]) -> Result<Term, Alloc> {
         // Allocates on global heap
-        let bin = ProcBin::from_slice(s, BinaryType::Raw)?;
+        let bin = ProcBin::from_slice(s, Encoding::Raw)?;
         // Allocates space on the process heap for the header
         let header_ptr = unsafe { self.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
         // Write the header to the process heap

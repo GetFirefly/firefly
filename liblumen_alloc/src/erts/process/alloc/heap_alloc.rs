@@ -8,6 +8,8 @@ use core::mem;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
+use hashbrown::HashMap;
+
 use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
@@ -315,6 +317,14 @@ pub trait HeapAlloc {
 
     fn list_from_slice(&mut self, slice: &[Term]) -> Result<Term, Alloc> {
         self.improper_list_from_slice(slice, Term::NIL)
+    }
+
+    /// Constructs a map and associated with the given process.
+    fn map_from_hash_map(&mut self, hash_map: HashMap<Term, Term>) -> Result<Term, Alloc>
+    where
+        Self: core::marker::Sized,
+    {
+        Map::from_hash_map(hash_map).clone_to_heap(self)
     }
 
     /// Constructs a map and associated with the given process.

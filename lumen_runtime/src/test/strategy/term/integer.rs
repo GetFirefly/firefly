@@ -17,6 +17,14 @@ pub fn big(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     .boxed()
 }
 
+pub fn negative(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    prop_oneof![
+        big::negative(arc_process.clone()),
+        small::negative(arc_process)
+    ]
+    .boxed()
+}
+
 pub fn non_negative(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     prop_oneof![
         small::non_negative(arc_process.clone()),

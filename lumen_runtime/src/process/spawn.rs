@@ -25,7 +25,7 @@ pub fn apply_3(
 ) -> Result<ProcessControlBlock, Alloc> {
     let arity = arity(arguments);
 
-    let child_process = options.spawn(parent_process, module, function, arity)?;
+    let child_process = options.spawn(Some(parent_process), module, function, arity)?;
 
     let module_term = unsafe { module.as_term() };
     let function_term = unsafe { function.as_term() };
@@ -40,7 +40,7 @@ pub fn apply_3(
     )?;
 
     // Connect after placing frame, so that any logging can show the `Frame`s when connections occur
-    options.connect(&parent_process, &child_process);
+    options.connect(Some(&parent_process), &child_process);
 
     Ok(child_process)
 }
@@ -48,7 +48,7 @@ pub fn apply_3(
 /// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
 /// of passing through `apply/3`.
 pub fn code(
-    parent_process: &ProcessControlBlock,
+    parent_process: Option<&ProcessControlBlock>,
     options: Options,
     module: Atom,
     function: Atom,
@@ -68,7 +68,7 @@ pub fn code(
     child_process.push_frame(frame);
 
     // Connect after placing frame, so that any logging can show the `Frame`s when connections occur
-    options.connect(&parent_process, &child_process);
+    options.connect(parent_process, &child_process);
 
     Ok(child_process)
 }

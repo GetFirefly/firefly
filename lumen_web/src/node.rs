@@ -15,7 +15,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::{resource, Atom, Term};
 
 fn module() -> Atom {
-    Atom::try_from_str("Lumen.Web.Node").unwrap()
+    Atom::try_from_str("Elixir.Lumen.Web.Node").unwrap()
 }
 
 fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {

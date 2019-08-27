@@ -245,8 +245,14 @@ impl Scheduler {
         arguments: Vec<Term>,
         code: Code,
     ) -> Result<Arc<ProcessControlBlock>, Alloc> {
-        let process =
-            process::spawn::code(parent_process, options, module, function, arguments, code)?;
+        let process = process::spawn::code(
+            Some(parent_process),
+            options,
+            module,
+            function,
+            arguments,
+            code,
+        )?;
         let arc_scheduler = parent_process.scheduler().unwrap();
         let arc_process = arc_scheduler.schedule(process);
 

@@ -9,12 +9,14 @@ use liblumen_alloc::erts::term::{Atom, Boxed, Cons, Term, Tuple, TypedTerm};
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 
 #[allow(dead_code)]
+#[derive(Clone, Copy)]
 pub struct MaxHeapSize {
     size: Option<usize>,
     kill: Option<bool>,
     error_logger: Option<bool>,
 }
 
+#[derive(Clone, Copy)]
 pub enum MessageQueueData {
     OnHeap,
     OffHeap,
@@ -40,6 +42,7 @@ impl TryFrom<Term> for MessageQueueData {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Options {
     pub link: bool,
     pub monitor: bool,
@@ -56,11 +59,11 @@ pub struct Options {
 impl Options {
     pub fn connect(
         &self,
-        parent_process: &ProcessControlBlock,
+        parent_process: Option<&ProcessControlBlock>,
         child_process: &ProcessControlBlock,
     ) {
         if self.link {
-            parent_process.link(child_process)
+            parent_process.unwrap().link(child_process)
         }
 
         if self.monitor {
@@ -74,7 +77,7 @@ impl Options {
     /// placing any frames in the `child_process` returns from this function.
     pub fn spawn(
         &self,
-        parent_process: &ProcessControlBlock,
+        parent_process: Option<&ProcessControlBlock>,
         module: Atom,
         function: Atom,
         arity: u8,
@@ -89,7 +92,7 @@ impl Options {
 
         let process = ProcessControlBlock::new(
             priority,
-            Some(parent_process.pid()),
+            parent_process.map(|process| process.pid()),
             Arc::clone(&module_function_arity),
             heap,
             heap_size,
@@ -100,8 +103,14 @@ impl Options {
 
     // Private
 
-    fn cascaded_priority(&self, parent_process: &ProcessControlBlock) -> Priority {
-        self.priority.unwrap_or(parent_process.priority)
+    fn cascaded_priority(&self, parent_process: Option<&ProcessControlBlock>) -> Priority {
+        match self.priority {
+            Some(priority) => priority,
+            None => match parent_process {
+                Some(process) => process.priority,
+                None => Default::default(),
+            },
+        }
     }
 
     /// `heap` size in words.

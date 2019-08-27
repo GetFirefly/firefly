@@ -15,7 +15,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use crate::option_to_ok_tuple_or_error;
 
 /// ```elixir
-/// case Lumen.Web.Document.document(window) do
+/// case Lumen.Web.Window.document(window) do
 ///    {:ok, document} -> ...
 ///    :error -> ...
 /// end

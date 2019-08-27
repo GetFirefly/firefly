@@ -904,6 +904,10 @@ impl Term {
         }
     }
 
+    pub fn is_function_with_arity(&self, arity: usize) -> bool {
+        self.to_typed_term().unwrap().is_function_with_arity(arity)
+    }
+
     pub fn is_function_header(&self) -> bool {
         typecheck::is_function(self.0)
     }

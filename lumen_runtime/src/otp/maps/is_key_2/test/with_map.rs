@@ -1,31 +1,9 @@
 use super::*;
 
-use proptest::strategy::Strategy;
+use liblumen_alloc::erts::term::atom_unchecked;
 
 #[test]
-fn without_map_errors_badmap() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    strategy::term::is_not_map(arc_process.clone()),
-                ),
-                |(key, map)| {
-                    prop_assert_eq!(
-                        erlang::is_map_key_2(key, map, &arc_process),
-                        Err(badmap!(&arc_process, map))
-                    );
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
-}
-
-#[test]
-fn with_map_without_key_returns_false() {
+fn without_key_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -45,10 +23,7 @@ fn with_map_without_key_returns_false() {
                         )
                     }),
                 |(key, map)| {
-                    prop_assert_eq!(
-                        erlang::is_map_key_2(key, map, &arc_process),
-                        Ok(false.into())
-                    );
+                    prop_assert_eq!(native(&arc_process, key, map), Ok(false.into()));
 
                     Ok(())
                 },
@@ -58,7 +33,7 @@ fn with_map_without_key_returns_false() {
 }
 
 #[test]
-fn with_map_with_key_returns_true() {
+fn with_key_returns_true() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -68,10 +43,7 @@ fn with_map_with_key_returns_true() {
                     (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
                 }),
                 |(key, map)| {
-                    prop_assert_eq!(
-                        erlang::is_map_key_2(key, map, &arc_process),
-                        Ok(true.into())
-                    );
+                    prop_assert_eq!(native(&arc_process, key, map), Ok(true.into()));
 
                     Ok(())
                 },

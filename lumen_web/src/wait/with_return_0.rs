@@ -15,25 +15,20 @@ use liblumen_alloc::erts::process::{code, ProcessControlBlock};
 use liblumen_alloc::erts::term::{resource, Atom, SmallInteger, Term, Tuple, TypedTerm};
 
 use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::Scheduled;
+use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::{process, registry};
 
 /// Spawns process with this as the first frame, so that the next frame added in `call` can fulfill
 /// the promise.
-pub fn spawn<F>(
-    parent_process: &ProcessControlBlock,
-    options: Options,
-    place_frame_with_arguments: F,
-) -> Result<Promise, Alloc>
+pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> Result<Promise, Alloc>
 where
     F: Fn(&ProcessControlBlock) -> Result<(), Alloc>,
 {
-    let (process, promise) = spawn_unscheduled(parent_process, options)?;
+    let (process, promise) = spawn_unscheduled(options)?;
 
     place_frame_with_arguments(&process)?;
 
-    let parent_scheduler = parent_process.scheduler().unwrap();
-    let arc_process = parent_scheduler.schedule(process);
+    let arc_process = Scheduler::current().schedule(process);
     registry::put_pid_to_process(&arc_process);
 
     Ok(promise)
@@ -109,30 +104,24 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 /// when only the `with_return/0` frame is there.
 ///
 /// ```
-/// use liblumen_alloc::default_heap;
 /// use liblumen_alloc::erts::process::code::stack::frame::Placement;
 ///
 /// use lumen_runtime::otp::erlang::self_0;
+/// # use lumen_runtime::process::spawn::options::Options;
 /// use lumen_runtime::registry;
-/// use lumen_runtime::scheduler::{Scheduler, Scheduler};
+/// use lumen_runtime::scheduler::{Scheduled, Scheduler};
 ///
-/// # let arc_scheduler = Scheduler::current();
-/// # let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
-///
-/// # let (heap, heap_size) = default_heap();
-/// let (process, promise) = lumen_web::wait::with_return_0::spawn_unscheduled(&parent_arc_process, heap, heap_size);
+/// # let options: Options = Default::default();
+/// let (process, promise) = lumen_web::wait::with_return_0::spawn_unscheduled(options);
 /// self_0::place_frame(promise, Placement::Push);
 ///
-/// let parent_scheduler = parent_process.scheduler().unwrap();
-/// let arc_process = parent_scheduler.schedule(process);
+/// let arc_process = Scheduler::current().schedule(process);
 /// registry::put_pid_to_process(arc_process);
 ///
 /// promise
 /// ```
-fn spawn_unscheduled(
-    parent_process: &ProcessControlBlock,
-    options: Options,
-) -> Result<(ProcessControlBlock, Promise), Alloc> {
+fn spawn_unscheduled(options: Options) -> Result<(ProcessControlBlock, Promise), Alloc> {
+    let parent_process = None;
     let process = process::spawn::code(
         parent_process,
         options,

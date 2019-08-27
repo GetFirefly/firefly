@@ -17,11 +17,14 @@ js-sys = "0.3.25"
 liblumen_alloc = { path = "../liblumen_alloc" }
 liblumen_core = { path = "../liblumen_core" }
 lumen_runtime = { path = "../lumen_runtime" }
-wasm-bindgen = "0.2.48"
+
+[dependencies.wasm-bindgen]
+version = "0.2.48"
+features = ["nightly"]
 
 [dependencies.web-sys]
 version = "0.3.25"
-features = ["Document", "DomException", "Element", "HtmlElement", "Node", "Text", "Window"]
+features = ["Document", "DomException", "Element", "Event", "EventListener", "EventTarget", "HtmlCollection", "HtmlElement", "HtmlFormElement", "HtmlInputElement", "Node", "Text", "Window"]
 
 [dev-dependencies]
 futures = "0.1.28"

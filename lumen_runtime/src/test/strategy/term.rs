@@ -8,7 +8,7 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::term::{atom_unchecked, Float, SmallInteger, Term, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Float, SmallInteger, Term, TypedTerm};
 use liblumen_alloc::erts::{ModuleFunctionArity, ProcessControlBlock};
 
 use super::{module_function_arity, size_range};
@@ -80,37 +80,11 @@ pub fn float(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
-pub fn function(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
-    (
-        module_function_arity::module(),
-        module_function_arity::function(),
-        module_function_arity::arity(),
-    )
-        .prop_map(move |(module, function, arity)| {
-            let creator = arc_process.pid_term();
-            let module_function_arity = Arc::new(ModuleFunctionArity {
-                module,
-                function,
-                arity,
-            });
-            let code = |arc_process: &Arc<ProcessControlBlock>| {
-                arc_process.wait();
-
-                Ok(())
-            };
-
-            arc_process
-                .closure(creator, module_function_arity, code, vec![])
-                .unwrap()
-        })
-        .boxed()
-}
-
 pub fn function_port_pid_tuple_map_list_or_bitstring(
     arc_process: Arc<ProcessControlBlock>,
 ) -> BoxedStrategy<Term> {
     prop_oneof![
-        function(arc_process.clone()),
+        is_function(arc_process.clone()),
         // TODO `Port` and `ExternalPort`
         is_pid(arc_process.clone()),
         tuple(arc_process.clone()),
@@ -145,6 +119,46 @@ pub fn is_encoding() -> BoxedStrategy<Term> {
     .boxed()
 }
 
+pub fn is_function(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    (
+        module_function_arity::module(),
+        module_function_arity::function(),
+        module_function_arity::arity(),
+    )
+        .prop_map(move |(module, function, arity)| closure(&arc_process, module, function, arity))
+        .boxed()
+}
+
+pub fn is_function_with_arity(
+    arc_process: Arc<ProcessControlBlock>,
+    arity: u8,
+) -> BoxedStrategy<Term> {
+    (
+        module_function_arity::module(),
+        module_function_arity::function(),
+    )
+        .prop_map(move |(module, function)| closure(&arc_process, module, function, arity))
+        .boxed()
+}
+
+fn closure(process: &ProcessControlBlock, module: Atom, function: Atom, arity: u8) -> Term {
+    let creator = process.pid_term();
+    let module_function_arity = Arc::new(ModuleFunctionArity {
+        module,
+        function,
+        arity,
+    });
+    let code = |arc_process: &Arc<ProcessControlBlock>| {
+        arc_process.wait();
+
+        Ok(())
+    };
+
+    process
+        .closure(creator, module_function_arity, code, vec![])
+        .unwrap()
+}
+
 pub fn is_integer(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     prop_oneof![
         integer::small(arc_process.clone()),
@@ -174,7 +188,7 @@ pub fn is_not_binary(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Ter
     prop_oneof![
         integer::big(arc_process.clone()),
         local_reference(arc_process.clone()),
-        function(arc_process.clone()),
+        is_function(arc_process.clone()),
         float(arc_process.clone()),
         // TODO `Export`
         // TODO `ReferenceCountedBinary`
@@ -198,7 +212,7 @@ pub fn is_not_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<
     prop_oneof![
         integer::big(arc_process.clone()),
         local_reference(arc_process.clone()),
-        function(arc_process.clone()),
+        is_function(arc_process.clone()),
         float(arc_process.clone()),
         // TODO `Export`
         // TODO `ReferenceCountedBinary`
@@ -262,6 +276,12 @@ pub fn is_not_float(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term
         .boxed()
 }
 
+pub fn is_not_function(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Term cannot be a function", |v| !v.is_function())
+        .boxed()
+}
+
 pub fn is_not_integer(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Term cannot be an integer", |v| !v.is_integer())
@@ -275,7 +295,7 @@ pub fn is_not_list(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term>
     prop_oneof![
         integer::big(arc_process.clone()),
         local_reference(arc_process.clone()),
-        function(arc_process.clone()),
+        is_function(arc_process.clone()),
         float(arc_process.clone()),
         // TODO `Export`
         // TODO `ReferenceCountedBinary`
@@ -337,7 +357,7 @@ pub fn is_not_proper_list(arc_process: Arc<ProcessControlBlock>) -> BoxedStrateg
     prop_oneof![
         integer::big(arc_process.clone()),
         local_reference(arc_process.clone()),
-        function(arc_process.clone()),
+        is_function(arc_process.clone()),
         float(arc_process.clone()),
         // TODO `Export`
         // TODO `ReferenceCountedBinary`
@@ -407,7 +427,7 @@ pub fn leaf(
         // TODO `BinaryAggregate`
         integer::big(arc_process.clone()),
         local_reference(arc_process.clone()),
-        function(arc_process.clone()),
+        is_function(arc_process.clone()),
         float(arc_process.clone()),
         // TODO `Export`
         // TODO `ReferenceCountedBinary`
@@ -478,7 +498,7 @@ pub fn number_atom_reference_function_or_port(
         atom(),
         local_reference(arc_process.clone()),
         // TODO `ExternalReference`
-        function(arc_process),
+        is_function(arc_process),
         // TODO Port
     ]
     .boxed()
@@ -491,7 +511,7 @@ pub fn number_atom_reference_function_port_or_local_pid(
         is_number(arc_process.clone()),
         atom(),
         is_reference(arc_process.clone()),
-        function(arc_process),
+        is_function(arc_process),
         // TODO ports
         pid::local()
     ]
@@ -505,7 +525,7 @@ pub fn number_atom_reference_function_port_or_pid(
         is_number(arc_process.clone()),
         atom(),
         is_reference(arc_process.clone()),
-        function(arc_process.clone()),
+        is_function(arc_process.clone()),
         // TODO ports
         is_pid(arc_process)
     ]

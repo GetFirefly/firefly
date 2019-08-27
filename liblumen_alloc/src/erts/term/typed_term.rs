@@ -98,6 +98,16 @@ impl TypedTerm {
         }
     }
 
+    pub fn is_function_with_arity(&self, arity: usize) -> bool {
+        match self {
+            Self::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+                Self::Closure(closure) => (closure.arity() as usize) == arity,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     #[inline]
     pub fn is_pid(&self) -> bool {
         match self {

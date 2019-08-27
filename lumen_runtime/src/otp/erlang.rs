@@ -2,9 +2,13 @@
 
 pub mod add_2;
 pub mod apply_3;
+pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
+pub mod is_function_1;
+pub mod is_function_2;
+pub mod is_map_key_2;
 pub mod link_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
@@ -929,15 +933,6 @@ pub fn is_list_1(term: Term) -> Term {
 
 pub fn is_map_1(term: Term) -> Term {
     term.is_map().into()
-}
-
-pub fn is_map_key_2(key: Term, map: Term, process_control_block: &ProcessControlBlock) -> Result {
-    let result: core::result::Result<Boxed<Map>, _> = map.try_into();
-
-    match result {
-        Ok(map_header) => Ok(map_header.is_key(key).into()),
-        Err(_) => Err(badmap!(process_control_block, map)),
-    }
 }
 
 pub fn is_number_1(term: Term) -> Term {

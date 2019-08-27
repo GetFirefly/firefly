@@ -11,16 +11,14 @@ use lumen_web::document;
 #[wasm_bindgen_test(async)]
 fn returns_ok_tuple() -> impl Future<Item = (), Error = JsValue> {
     start_once();
-    let arc_scheduler = Scheduler::current();
-    // Don't register, so that tests can run concurrently
-    let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
     let options: Options = Default::default();
 
     // ```elixir
     // document_tuple = Lumen.Web.Document.new()
     // Lumen.Web.Wait.with_return(document_tuple)
     // ```
-    let promise = wait::with_return_0::spawn(&parent_arc_process, options, |child_process| {
+    let promise = wait::with_return_0::spawn(options, |child_process| {
         // ```elixir
         // # pushed to stack: ()
         // # returned from call: N/A

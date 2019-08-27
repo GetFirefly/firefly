@@ -17,9 +17,7 @@ use lumen_web::document;
 fn with_new_child_is_parent_returns_error_hierarchy_request(
 ) -> impl Future<Item = (), Error = JsValue> {
     start_once();
-    let arc_scheduler = Scheduler::current();
-    // Don't register, so that tests can run concurrently
-    let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
     let options: Options = Default::default();
 
     // ```elixir
@@ -29,7 +27,7 @@ fn with_new_child_is_parent_returns_error_hierarchy_request(
     // :ok = Lumen.Web.Node.append_child(parent, old_child)
     // {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
     // ```
-    let promise = wait::with_return_0::spawn(&parent_arc_process, options, |child_process| {
+    let promise = wait::with_return_0::spawn(options, |child_process| {
         // ```elixir
         // # label 1
         // # pushed to stack: ()
@@ -84,9 +82,7 @@ fn with_new_child_is_parent_returns_error_hierarchy_request(
 #[wasm_bindgen_test(async)]
 fn with_new_child_returns_ok_replaced_child() -> impl Future<Item = (), Error = JsValue> {
     start_once();
-    let arc_scheduler = Scheduler::current();
-    // Don't register, so that tests can run concurrently
-    let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
     let options: Options = Default::default();
 
     // ```elixir
@@ -97,7 +93,7 @@ fn with_new_child_returns_ok_replaced_child() -> impl Future<Item = (), Error = 
     // {:ok, new_child} = Lumen.Web.Document.create_element(document, "ul");
     // {:ok, replaced_child} = Lumen.Web.replace_child(parent, new_child, old_child)
     // ```
-    let promise = wait::with_return_0::spawn(&parent_arc_process, options, |child_process| {
+    let promise = wait::with_return_0::spawn(options, |child_process| {
         // ```elixir
         // # label 1
         // # pushed to stack: ()

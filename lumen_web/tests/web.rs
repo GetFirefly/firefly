@@ -23,7 +23,6 @@ use wasm_bindgen_test::*;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 
 use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::Scheduler;
 
 use lumen_web::wait;
 

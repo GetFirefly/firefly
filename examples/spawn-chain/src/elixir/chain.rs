@@ -42,6 +42,14 @@
 //!     run(n, &none_output/1)
 //!   end
 //!
+//!   def on_submit(event) do
+//!     {:ok, event_target} = Lumen.Web.Event.target(event)
+//!     {:ok, n_input} = Lumen.Web.HTMLFormElement.element(event_target, "n")
+//!     value_string = Lumen.Web.HTMLInputElement.value(n_input)
+//!     n = :erlang.binary_to_integer(value_string)
+//!     dom(n)
+//!   end
+//!
 //!   # Private Functions
 //!
 //!   defp console_output(text) do
@@ -88,6 +96,7 @@ pub mod dom_1;
 mod dom_output_1;
 pub mod none_1;
 mod none_output_1;
+pub mod on_submit_1;
 mod run_2;
 
 use liblumen_alloc::erts::term::Atom;

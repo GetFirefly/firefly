@@ -2,6 +2,7 @@
 
 pub mod add_2;
 pub mod apply_3;
+pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;

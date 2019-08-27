@@ -33,7 +33,6 @@ mod binary_part_3;
 mod binary_to_atom_2;
 mod binary_to_existing_atom_2;
 mod binary_to_float_1;
-mod binary_to_integer_1;
 mod binary_to_integer_2;
 mod binary_to_list_1;
 mod binary_to_list_3;

@@ -1,31 +1,29 @@
+// wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
+// use proptest completely for wasm32
+//
+// See https://github.com/rust-lang/cargo/issues/4866
+#[cfg(all(not(target_arch = "wasm32"), test))]
+mod test;
+
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use web_sys::Window;
+use num_bigint::BigInt;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{resource, Atom, Term};
-use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::{badarg, ModuleFunctionArity};
 
-use crate::option_to_ok_tuple_or_error;
-
-/// ```elixir
-/// case Lumen.Web.Window.document(window) do
-///    {:ok, document} -> ...
-///    :error -> ...
-/// end
-/// ```
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
-    window: Term,
+    binary: Term,
 ) -> Result<(), Alloc> {
-    process.stack_push(window)?;
+    process.stack_push(binary)?;
     process.place_frame(frame(), placement);
 
     Ok(())
@@ -36,11 +34,11 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
-    let window = arc_process.stack_pop().unwrap();
+    let binary = arc_process.stack_pop().unwrap();
 
-    match native(arc_process, window) {
-        Ok(ok_tuple_or_error) => {
-            arc_process.return_from_call(ok_tuple_or_error)?;
+    match native(arc_process, binary) {
+        Ok(boolean) => {
+            arc_process.return_from_call(boolean)?;
 
             ProcessControlBlock::call_code(arc_process)
         }
@@ -53,7 +51,7 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("document").unwrap()
+    Atom::try_from_str("binary_to_integer").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
@@ -64,10 +62,11 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, window: Term) -> exception::Result {
-    let window_reference: resource::Reference = window.try_into()?;
-    let window_window: &Window = window_reference.downcast_ref().ok_or_else(|| badarg!())?;
-    let option_document = window_window.document();
+fn native(process: &ProcessControlBlock, binary: Term) -> exception::Result {
+    let string: String = binary.try_into()?;
 
-    option_to_ok_tuple_or_error(process, option_document).map_err(|error| error.into())
+    match BigInt::parse_bytes(string.as_bytes(), 10) {
+        Some(big_int) => process.integer(big_int).map_err(|error| error.into()),
+        None => Err(badarg!().into()),
+    }
 }

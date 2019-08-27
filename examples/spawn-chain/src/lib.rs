@@ -10,7 +10,6 @@ mod start;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 
 use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::Scheduler;
 
 use lumen_web::wait;
 
@@ -54,15 +53,10 @@ enum Output {
 }
 
 fn run_with_output(count: usize, output: Output) -> js_sys::Promise {
-    let arc_scheduler = Scheduler::current();
-    // Don't register, so that tests can run concurrently
-    let parent_arc_process = arc_scheduler.spawn_init(0).unwrap();
-
     let mut options: Options = Default::default();
     options.min_heap_size = Some(79 + count * 5);
 
     wait::with_return_0::spawn(
-        &parent_arc_process,
         options,
     |child_process| {
             let count_term = child_process.integer(count)?;

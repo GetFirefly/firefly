@@ -1,31 +1,26 @@
-use std::convert::TryInto;
 use std::sync::Arc;
 
-use web_sys::Window;
-
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{resource, Atom, Term};
+use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::option_to_ok_tuple_or_error;
+use crate::{error, event, ok};
 
 /// ```elixir
-/// case Lumen.Web.Window.document(window) do
-///    {:ok, document} -> ...
-///    :error -> ...
+/// case Lumen.Web.Event.target(event) do
+///
 /// end
 /// ```
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
-    window: Term,
+    event: Term,
 ) -> Result<(), Alloc> {
-    process.stack_push(window)?;
+    process.stack_push(event)?;
     process.place_frame(frame(), placement);
 
     Ok(())
@@ -36,11 +31,11 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
-    let window = arc_process.stack_pop().unwrap();
+    let event = arc_process.stack_pop().unwrap();
 
-    match native(arc_process, window) {
-        Ok(ok_tuple_or_error) => {
-            arc_process.return_from_call(ok_tuple_or_error)?;
+    match native(arc_process, event) {
+        Ok(ok_event_target_or_error) => {
+            arc_process.return_from_call(ok_event_target_or_error)?;
 
             ProcessControlBlock::call_code(arc_process)
         }
@@ -53,7 +48,7 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("document").unwrap()
+    Atom::try_from_str("target").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
@@ -64,10 +59,23 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, window: Term) -> exception::Result {
-    let window_reference: resource::Reference = window.try_into()?;
-    let window_window: &Window = window_reference.downcast_ref().ok_or_else(|| badarg!())?;
-    let option_document = window_window.document();
+fn native(process: &ProcessControlBlock, event_term: Term) -> exception::Result {
+    let event = event::from_term(event_term)?;
 
-    option_to_ok_tuple_or_error(process, option_document).map_err(|error| error.into())
+    match event.target() {
+        Some(event_target) => {
+            lumen_runtime::system::io::puts(&format!(
+                "[{}:{}] event_target = {:?}",
+                file!(),
+                line!(),
+                event_target
+            ));
+            let event_target_resource_reference = process.resource(Box::new(event_target))?;
+
+            process
+                .tuple_from_slice(&[ok(), event_target_resource_reference])
+                .map_err(|error| error.into())
+        }
+        None => Ok(error()),
+    }
 }

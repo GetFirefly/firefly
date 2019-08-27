@@ -1,28 +1,11 @@
 use super::*;
 
-use proptest::strategy::Strategy;
+use std::convert::TryInto;
+
+use liblumen_alloc::erts::term::SmallInteger;
 
 #[test]
-fn without_binary_errors_badarg() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &strategy::term::is_not_binary(arc_process.clone()),
-                |binary| {
-                    prop_assert_eq!(
-                        erlang::binary_to_integer_1(binary, &arc_process),
-                        Err(badarg!().into())
-                    );
-
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
-}
-
-#[test]
-fn with_binary_with_small_integer_returns_small_integer() {
+fn with_small_integer_returns_small_integer() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -35,7 +18,7 @@ fn with_binary_with_small_integer_returns_small_integer() {
                     )
                 }),
                 |(integer, binary)| {
-                    let result = erlang::binary_to_integer_1(binary, &arc_process);
+                    let result = native(&arc_process, binary);
 
                     prop_assert!(result.is_ok());
 
@@ -59,7 +42,7 @@ fn with_binary_with_small_integer_returns_small_integer() {
 }
 
 #[test]
-fn with_binary_with_big_integer_returns_big_integer() {
+fn with_big_integer_returns_big_integer() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -72,7 +55,7 @@ fn with_binary_with_big_integer_returns_big_integer() {
                     )
                 }),
                 |(integer, binary)| {
-                    let result = erlang::binary_to_integer_1(binary, &arc_process);
+                    let result = native(&arc_process, binary);
 
                     prop_assert!(result.is_ok());
 
@@ -89,7 +72,7 @@ fn with_binary_with_big_integer_returns_big_integer() {
 }
 
 #[test]
-fn with_binary_with_non_decimal_errors_badarg() {
+fn with_non_decimal_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -98,10 +81,7 @@ fn with_binary_with_non_decimal_errors_badarg() {
                     arc_process.clone(),
                 ),
                 |binary| {
-                    prop_assert_eq!(
-                        erlang::binary_to_integer_1(binary, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
 
                     Ok(())
                 },

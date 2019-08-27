@@ -1,31 +1,24 @@
-use std::convert::TryInto;
 use std::sync::Arc;
 
-use web_sys::Window;
-
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::ProcessControlBlock;
-use liblumen_alloc::erts::term::{resource, Atom, Term};
+use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::option_to_ok_tuple_or_error;
+use crate::html_input_element;
 
 /// ```elixir
-/// case Lumen.Web.Window.document(window) do
-///    {:ok, document} -> ...
-///    :error -> ...
-/// end
+/// value_string = Lumen.Web.HTMLInputElement.value(html_input_element)
 /// ```
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
-    window: Term,
+    html_input_element: Term,
 ) -> Result<(), Alloc> {
-    process.stack_push(window)?;
+    process.stack_push(html_input_element)?;
     process.place_frame(frame(), placement);
 
     Ok(())
@@ -36,11 +29,11 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
-    let window = arc_process.stack_pop().unwrap();
+    let html_input_element = arc_process.stack_pop().unwrap();
 
-    match native(arc_process, window) {
-        Ok(ok_tuple_or_error) => {
-            arc_process.return_from_call(ok_tuple_or_error)?;
+    match native(arc_process, html_input_element) {
+        Ok(body) => {
+            arc_process.return_from_call(body)?;
 
             ProcessControlBlock::call_code(arc_process)
         }
@@ -53,7 +46,7 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("document").unwrap()
+    Atom::try_from_str("value").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
@@ -64,10 +57,11 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, window: Term) -> exception::Result {
-    let window_reference: resource::Reference = window.try_into()?;
-    let window_window: &Window = window_reference.downcast_ref().ok_or_else(|| badarg!())?;
-    let option_document = window_window.document();
+fn native(process: &ProcessControlBlock, html_input_element_term: Term) -> exception::Result {
+    let html_input_element = html_input_element::from_term(html_input_element_term)?;
+    let value_string = html_input_element.value();
 
-    option_to_ok_tuple_or_error(process, option_document).map_err(|error| error.into())
+    process
+        .binary_from_str(&value_string)
+        .map_err(|error| error.into())
 }

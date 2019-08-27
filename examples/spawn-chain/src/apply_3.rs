@@ -100,6 +100,18 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
                 }
                 _ => undef(arc_process, module_term, function_term, argument_list),
             },
+            "on_submit" => match arity {
+                1 => {
+                    elixir::chain::on_submit_1::place_frame_with_arguments(
+                        arc_process,
+                        Placement::Replace,
+                        argument_vec[0],
+                    )?;
+
+                    ProcessControlBlock::call_code(arc_process)
+                }
+                _ => undef(arc_process, module_term, function_term, argument_list),
+            },
             _ => undef(arc_process, module_term, function_term, argument_list),
         },
         _ => undef(arc_process, module_term, function_term, argument_list),

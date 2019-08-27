@@ -28,12 +28,29 @@
   </head>
   <body>
     <script src="./bootstrap.js"></script>
-    Open DevTools and type one of the following (can use any positive integer for <code>1</code> also):
-    <ul>
-      <li><code>Chain.run(1)</code></li>
-      <li><code>Chain.log_to_console(1)</code></li>
-      <li><code>Chain.log_to_dom(1)</code></li>
-    </ul>
+
+    <h2>In Console</h2>
+
+    <div>
+      Open DevTools and type one of the following (can use any positive integer for <code>1</code> also):
+      <ul>
+        <li><code>Chain.run(1)</code></li>
+        <li><code>Chain.log_to_console(1)</code></li>
+        <li><code>Chain.log_to_dom(1)</code></li>
+      </ul>
+    </div>
+
+    <h2>Using DOM</h2>
+
+    <form action="#" data-lumen-submit-module="Elixir.Chain" data-lumen-submit-function="on_submit">
+      <div>
+        <label for="n">n:</label>
+        <input id="n" name="n" type="number" min="1" max="60000">
+      </div>
+      <input type="submit" value="Chain.log_to_dom">
+    </form>
+
+    <h2>DOM Output</h2>
 
     <table>
       <thead>

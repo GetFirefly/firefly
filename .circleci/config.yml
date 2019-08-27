@@ -146,6 +146,71 @@ jobs:
     steps:
       - test_package:
           package: << parameters.package >>
+  wasm32_linux_lumen_web_build:
+    executor:
+      name: x86_64_linux
+      resource_class: xlarge
+    steps:
+      - checkout
+      - version_information
+      - run:
+          name: wasm-pack version
+          command: |
+            wasm-pack --version | tee wasm-pack.version
+      - restore_cache:
+          keys:
+            - v7-wasm32-lumen-web-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
+            - v7-wasm32-lumen-web-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}
+            - v7-wasm32-lumen-web-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}
+            - v7-wasm32-lumen-web-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}
+            - v7-wasm32-lumen-web-{{ arch }}-rustup-{{ checksum "rustup.version" }}
+            - v7-wasm32-lumen-web-{{ arch }}
+      - run:
+          name: Build tests
+          working_directory: "lumen_web"
+          # `--no-run` for `test` will only do build
+          command: wasm-pack test --chrome --firefox --headless -- --no-run
+      - save_cache:
+          key: v7-wasm32-lumen-web-{{ arch }}-rustup-{{ checksum "rustup.version" }}-rustc-{{ checksum "rustc.version" }}-cargo-{{ checksum "cargo.version" }}-lock-{{ checksum "Cargo.lock" }}-wasm-pack-{{ checksum "wasm-pack.version" }}
+          paths:
+            - cargo
+            - target
+      - persist_to_workspace:
+          root: .
+          paths:
+            - cargo
+            - examples
+            - liblumen_alloc
+            - liblumen_alloc_macros
+            - liblumen_arena
+            - liblumen_beam
+            - liblumen_codegen
+            - liblumen_common
+            - liblumen_compiler
+            - liblumen_core
+            - liblumen_diagnostics
+            - liblumen_eir_interpreter
+            - liblumen_syntax
+            - lumen
+            - lumen_runtime
+            - lumen_web
+            - target
+            - .rustfmt.toml
+            - Cargo.lock
+            - Cargo.toml
+            - Makefile
+  wasm32_linux_lumen_web_test:
+    parameters:
+      browser:
+        type: string
+    executor: x86_64_linux
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Test in << parameters.browser >>
+          working_directory: "lumen_web"
+          command: wasm-pack test --<< parameters.browser >> --headless
   wasm32_linux_examples_spawn_chain_build:
     executor:
       name: x86_64_linux
@@ -304,6 +369,17 @@ workflows:
             - x86_64_linux_build
           resource_class: xlarge
           package: "lumen_runtime"
+      - wasm32_linux_lumen_web_build
+      - wasm32_linux_lumen_web_test:
+          name: wasm32_chrome_lumen_web_test
+          requires:
+            - wasm32_linux_lumen_web_build
+          browser: chrome
+      - wasm32_linux_lumen_web_test:
+          name: wasm32_firefox_lumen_web_test
+          requires:
+            - wasm32_linux_lumen_web_build
+          browser: firefox
       - wasm32_linux_examples_spawn_chain_build
       - wasm32_linux_examples_spawn_chain_test:
           name: wasm32_chrome_examples_spawn_chain_test

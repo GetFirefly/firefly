@@ -64,12 +64,6 @@ fn native(process: &ProcessControlBlock, event_term: Term) -> exception::Result 
 
     match event.target() {
         Some(event_target) => {
-            lumen_runtime::system::io::puts(&format!(
-                "[{}:{}] event_target = {:?}",
-                file!(),
-                line!(),
-                event_target
-            ));
             let event_target_resource_reference = process.resource(Box::new(event_target))?;
 
             process

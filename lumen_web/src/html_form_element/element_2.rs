@@ -73,17 +73,8 @@ fn native(
     html_form_element_term: Term,
     name: Term,
 ) -> exception::Result {
-    lumen_runtime::system::io::puts(&format!(
-        "[{}:{}] html_form_element_term = {:?}; name = {:?}",
-        file!(),
-        line!(),
-        html_form_element_term,
-        name
-    ));
     let html_form_element_term = html_form_element::from_term(html_form_element_term)?;
-    lumen_runtime::system::io::puts(&format!("[{}:{}]", file!(), line!(),));
     let name_string: String = name.try_into()?;
-    lumen_runtime::system::io::puts(&format!("[{}:{}]", file!(), line!(),));
 
     let object = html_form_element_term.get_with_name(&name_string);
     let result_html_input_element: Result<HtmlInputElement, _> = object.dyn_into();

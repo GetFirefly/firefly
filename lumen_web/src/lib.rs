@@ -5,6 +5,7 @@ pub mod element;
 pub mod event;
 pub mod html_form_element;
 pub mod html_input_element;
+pub mod math;
 pub mod node;
 pub mod wait;
 pub mod window;

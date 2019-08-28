@@ -5,6 +5,8 @@
 
 #[path = "./web/document.rs"]
 mod document;
+#[path = "./web/math.rs"]
+mod math;
 #[path = "./web/node.rs"]
 mod node;
 
@@ -23,7 +25,6 @@ use wasm_bindgen_test::*;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 
 use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::Scheduler;
 
 use lumen_web::wait;
 

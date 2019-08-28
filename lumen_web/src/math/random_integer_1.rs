@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
@@ -8,19 +9,17 @@ use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::{error, event, ok};
-
-/// ```elixir
-/// case Lumen.Web.Event.target(event) do
+/// Generates an integer between 0 and (exclusive_max - 1).
 ///
-/// end
+/// ```elixir
+/// random_integer = Lumen.Web.Math.random_integer(exclusive_max)
 /// ```
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
     placement: Placement,
-    event: Term,
+    exclusive_max: Term,
 ) -> Result<(), Alloc> {
-    process.stack_push(event)?;
+    process.stack_push(exclusive_max)?;
     process.place_frame(frame(), placement);
 
     Ok(())
@@ -31,11 +30,11 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
-    let event = arc_process.stack_pop().unwrap();
+    let exclusive_max = arc_process.stack_pop().unwrap();
 
-    match native(arc_process, event) {
-        Ok(ok_event_target_or_error) => {
-            arc_process.return_from_call(ok_event_target_or_error)?;
+    match native(arc_process, exclusive_max) {
+        Ok(random_integer) => {
+            arc_process.return_from_call(random_integer)?;
 
             ProcessControlBlock::call_code(arc_process)
         }
@@ -48,7 +47,7 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("target").unwrap()
+    Atom::try_from_str("random_integer").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
@@ -59,17 +58,10 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, event_term: Term) -> exception::Result {
-    let event = event::from_term(event_term)?;
+fn native(process: &ProcessControlBlock, exclusive_max: Term) -> exception::Result {
+    let exclusive_max_usize: usize = exclusive_max.try_into()?;
+    let exclusive_max_f64 = exclusive_max_usize as f64;
+    let random_usize = (js_sys::Math::random() * exclusive_max_f64).trunc() as usize;
 
-    match event.target() {
-        Some(event_target) => {
-            let event_target_resource_reference = process.resource(Box::new(event_target))?;
-
-            process
-                .tuple_from_slice(&[ok(), event_target_resource_reference])
-                .map_err(|error| error.into())
-        }
-        None => Ok(error()),
-    }
+    process.integer(random_usize).map_err(|error| error.into())
 }

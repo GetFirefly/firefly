@@ -67,7 +67,6 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 
 fn native(process: &ProcessControlBlock, document: Term, tag: Term) -> exception::Result {
     let document_document = document_from_term(document)?;
-
     let tag_string: String = tag.try_into()?;
 
     match document_document.create_element(&tag_string) {

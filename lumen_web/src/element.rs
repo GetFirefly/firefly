@@ -1,3 +1,4 @@
+pub mod remove_1;
 pub mod set_attribute_3;
 
 use liblumen_alloc::erts::term::Atom;

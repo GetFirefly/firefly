@@ -12,7 +12,7 @@ use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::{code, ProcessControlBlock};
-use liblumen_alloc::erts::term::{resource, Atom, SmallInteger, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::{resource, Atom, Pid, SmallInteger, Term, Tuple, TypedTerm};
 
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::Scheduler;
@@ -56,6 +56,15 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
 
 fn function() -> Atom {
     Atom::try_from_str("with_return").unwrap()
+}
+
+fn pid_to_js_value(pid: Pid) -> JsValue {
+    let array = js_sys::Array::new();
+
+    array.push(&(pid.number() as i32).into());
+    array.push(&(pid.serial() as i32).into());
+
+    array.into()
 }
 
 fn resource_reference_to_js_value(resource_reference: resource::Reference) -> JsValue {
@@ -150,6 +159,7 @@ fn term_to_js_value(term: Term) -> JsValue {
             TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
             _ => unimplemented!("Convert {:?} to JsValue", term),
         },
+        TypedTerm::Pid(pid) => pid_to_js_value(pid),
         TypedTerm::SmallInteger(small_integer) => small_integer_to_js_value(small_integer),
         _ => unimplemented!("Convert {:?} to JsValue", term),
     }

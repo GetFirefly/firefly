@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod test;
+
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;

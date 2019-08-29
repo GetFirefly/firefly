@@ -37,6 +37,17 @@ pub fn place_frame_with_arguments(
 
 // Private
 
+#[cfg(not(target_arch = "wasm32"))]
+pub fn puts(s: &str) {
+    println!("{}", s);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(dead_code)]
+pub fn puts(s: &str) {
+    web_sys::console::log_1(&s.into());
+}
+
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     arc_process.reduce();
 
@@ -105,6 +116,8 @@ fn monitor_process_pid(
         Some(monitored_arc_process) => {
             let reference = process.next_reference()?;
 
+            puts(&format!("{:?}", reference));
+
             let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
             let monitor = Monitor::Pid {
                 monitoring_pid: process.pid(),
@@ -127,7 +140,9 @@ fn monitor_process_registered_name(
         Some(monitored_arc_process) => {
             let reference = process.next_reference()?;
 
-            let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
+            puts(&format!("{:?}", reference));
+
+            let reference_reference: Boxed<Reference> = reference.try_into().expect("fail here");
             let monitor = Monitor::Name {
                 monitoring_pid: process.pid(),
                 monitored_name: atom,
@@ -168,7 +183,7 @@ fn monitor_process_tuple(
     }
 }
 
-pub(in crate::otp::erlang) fn native(
+pub fn native(
     process: &ProcessControlBlock,
     r#type: Term,
     item: Term,

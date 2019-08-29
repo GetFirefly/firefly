@@ -1444,10 +1444,12 @@ set_flags(Flags, State) ->
     end.
 
 check_flags(SupFlags) when is_map(SupFlags) ->
-    do_check_flags(maps:merge(#{strategy => one_for_one,
-                                intensity => 1,
-                                period => 5},
-                              SupFlags));
+% PATCH FOR maps:merge
+    %do_check_flags(maps:merge(#{strategy => one_for_one,
+    %                            intensity => 1,
+    %                            period => 5},
+    %                          SupFlags));
+    do_check_flags(SupFlags);
 check_flags({Strategy,MaxIntensity,Period}) ->
     check_flags(#{strategy => Strategy,
                   intensity => MaxIntensity,
@@ -1509,10 +1511,13 @@ check_startspec([], Ids, Db) ->
     {ok,{lists:reverse(Ids),Db}}.
 
 check_childspec(ChildSpec) when is_map(ChildSpec) ->
+    % PATCH FOR maps:merge/2
+    %catch
+    %    do_check_childspec(maps:merge(#{restart => permanent,
+    %                                    type => worker},
+    %                                  ChildSpec));
     catch
-        do_check_childspec(maps:merge(#{restart => permanent,
-                                        type => worker},
-                                      ChildSpec));
+        do_check_childspec(ChildSpec);
 check_childspec({Id,Func,RestartType,Shutdown,ChildType,Mods}) ->
     check_childspec(#{id => Id,
                       start => Func,

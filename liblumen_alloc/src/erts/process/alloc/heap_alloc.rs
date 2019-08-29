@@ -28,6 +28,17 @@ use crate::erts::term::{
 use crate::{erts, ModuleFunctionArity};
 use crate::{scheduler, VirtualAlloc};
 
+#[cfg(not(target_arch = "wasm32"))]
+pub fn puts(s: &str) {
+    println!("{}", s);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[allow(dead_code)]
+pub fn puts(s: &str) {
+    web_sys::console::log_1(&s.into());
+}
+
 /// A trait, like `Alloc`, specifically for allocation of terms on a process heap
 pub trait HeapAlloc {
     /// Perform a heap allocation.
@@ -390,10 +401,12 @@ pub trait HeapAlloc {
         let layout = Reference::layout();
         let reference_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Reference };
         let reference = Reference::new(scheduler_id, number);
+
         unsafe {
             // Write header
             ptr::write(reference_ptr, reference);
         }
+
         // Return box to tuple
         let reference = Term::make_boxed(reference_ptr);
 

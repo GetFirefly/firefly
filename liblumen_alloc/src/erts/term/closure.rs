@@ -16,6 +16,7 @@ use crate::erts::process::code::Code;
 use crate::erts::term::{arity_of, Boxed, TypeError, TypedTerm};
 use crate::erts::{HeapAlloc, ModuleFunctionArity};
 
+#[repr(C)]
 pub struct Closure {
     header: Term,
     creator: Term, // pid of creator process, possible to be either Pid or ExternalPid

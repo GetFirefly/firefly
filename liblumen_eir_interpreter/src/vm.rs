@@ -26,6 +26,8 @@ impl VMState {
         let mut modules = ModuleRegistry::new();
         modules.register_native_module(crate::native::make_erlang());
         modules.register_native_module(crate::native::make_lists());
+        modules.register_native_module(crate::native::make_maps());
+        modules.register_native_module(crate::native::make_logger());
         modules.register_native_module(crate::native::make_lumen_intrinsics());
 
         let arc_scheduler = Scheduler::current();

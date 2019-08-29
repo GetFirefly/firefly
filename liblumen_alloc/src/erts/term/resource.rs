@@ -67,6 +67,7 @@ impl Display for Resource {
 }
 
 /// A reference to `Resource`
+#[repr(C)]
 pub struct Reference {
     header: Term,
     resource: NonNull<Resource>,

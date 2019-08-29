@@ -16,5 +16,10 @@ pub fn make_lumen_intrinsics() -> NativeModule {
         Ok(term)
     });
 
+    native.add_simple(Atom::try_from_str("dump_process_heap").unwrap(), 0, |proc, _args| {
+        lumen_runtime::system::io::puts(&format!("{:?}", proc.acquire_heap()));
+        Ok(atom_unchecked("ok"))
+    });
+
     native
 }

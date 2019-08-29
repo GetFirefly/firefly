@@ -26,6 +26,7 @@ use super::*;
 /// as we still have to follow pointers to get at the individual elements,
 /// so whether they are right next to the `Tuple` itself, or elsewhere is not
 /// critical
+#[repr(C)]
 pub struct Tuple {
     header: Term,
 }

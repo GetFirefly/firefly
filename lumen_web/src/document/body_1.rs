@@ -61,7 +61,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, document: Term) -> exception::Result {
+pub fn native(process: &ProcessControlBlock, document: Term) -> exception::Result {
     let document_document = document_from_term(document)?;
 
     option_to_ok_tuple_or_error(process, document_document.body()).map_err(|error| error.into())

@@ -1,16 +1,17 @@
-use std::collections::HashMap;
-use std::convert::TryInto;
+use std::convert::{TryInto, AsRef};
 use std::sync::Arc;
+
+use hashbrown::HashMap;
 
 use cranelift_entity::EntityRef;
 use libeir_intern::Symbol;
 use libeir_ir::constant::{AtomicTerm, Const, ConstKind};
-use libeir_ir::{Block, LogicOp, OpKind, PrimOpKind, Value, ValueKind, BinaryEntrySpecifier};
+use libeir_ir::{Block, LogicOp, OpKind, PrimOpKind, BinOp, Value, ValueKind, BinaryEntrySpecifier, MapPutUpdate};
 
 use liblumen_alloc::erts::exception::system;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::{ProcessControlBlock, ProcessFlags};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm, AsTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm, AsTerm, Map, Boxed};
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::erts::process::RootSet;
 
@@ -99,7 +100,7 @@ where
                 // Terms are in root set
                 unsafe { terms.add(&mut rootset) };
 
-                trace!("=================================================== GC");
+                lumen_runtime::system::io::puts("=================================================== GC");
                 match heap.garbage_collect(proc, 0, rootset) {
                     Ok(_) => (),
                     Err(_) => {
@@ -111,7 +112,7 @@ where
                         // Terms are in root set
                         unsafe { terms.add(&mut rootset) };
 
-                        trace!("=================================================== FULLSWEEP GC");
+                        lumen_runtime::system::io::puts("=================================================== FULL GC");
                         match heap.garbage_collect(proc, 0, rootset) {
                             Ok(_) => (),
                             Err(_) => panic!(),
@@ -270,7 +271,7 @@ impl CallExecutor {
 
             // Insert block argument into environment
             let block_arg_vals = fun.fun.block_args(block);
-            trace!("{:?} {:?}", &block_arg_vals, &exec.next_args);
+            //trace!("{:?} {:?}", &block_arg_vals, &exec.next_args);
             assert!(block_arg_vals.len() == exec.next_args.len());
             for (v, t) in block_arg_vals.iter().zip(exec.next_args.iter()) {
                 exec.binds.insert(*v, t.clone());
@@ -319,6 +320,20 @@ impl CallExecutor {
                 Ok(res)
             },
             ConstKind::Atomic(AtomicTerm::Nil) => Ok(Term::NIL),
+            ConstKind::Map { keys, values } => {
+                let mut map = HashMap::new();
+
+                for (k, v) in keys.as_slice(&fun.fun.cons().const_pool)
+                    .iter().zip(values.as_slice(&fun.fun.cons().const_pool).iter())
+                {
+                    map.insert(
+                        self.make_const_term(proc, fun, *k)?,
+                        self.make_const_term(proc, fun, *v)?,
+                    );
+                }
+
+                Ok(proc.map_from_hash_map(map)?)
+            }
             kind => unimplemented!("{:?}", kind),
         };
         res
@@ -409,6 +424,11 @@ impl CallExecutor {
                             acc = acc | res;
                         }
                         Ok(acc.into())
+                    }
+                    PrimOpKind::BinOp(BinOp::Equal) => {
+                        let lhs: Atom = self.make_term(proc, fun, reads[0])?.try_into().unwrap();
+                        let rhs: Atom = self.make_term(proc, fun, reads[1])?.try_into().unwrap();
+                        Ok((lhs == rhs).into())
                     }
                     PrimOpKind::CaptureFunction => {
                         let module: Atom = self.make_term(proc, fun, reads[0])?.try_into().unwrap();
@@ -569,28 +589,53 @@ impl CallExecutor {
             }
             OpKind::Match { branches } => self::r#match::match_op(self, proc, fun, branches, block),
             OpKind::MapPut { action } => {
-                let map_read = reads[2];
-                if let Some(constant) = fun.fun.value_const(map_read) {
-                    if let ConstKind::Map { keys, .. } = fun.fun.cons().const_kind(constant) {
-                        if keys.len(&fun.fun.cons().const_pool) == 0 {
-                            let mut vec = Vec::new();
+                //let map_read = reads[2];
+                //if let Some(constant) = fun.fun.value_const(map_read) {
+                //    if let ConstKind::Map { keys, .. } = fun.fun.cons().const_kind(constant) {
+                //        if keys.len(&fun.fun.cons().const_pool) == 0 {
+                //            let mut vec = Vec::new();
 
-                            let mut idx = 3;
-                            for _ in action.iter() {
-                                let key = self.make_term(proc, fun, reads[idx])?;
-                                let val = self.make_term(proc, fun, reads[idx + 1])?;
-                                idx += 2;
+                //            let mut idx = 3;
+                //            for _ in action.iter() {
+                //                let key = self.make_term(proc, fun, reads[idx])?;
+                //                let val = self.make_term(proc, fun, reads[idx + 1])?;
+                //                idx += 2;
 
-                                vec.push((key, val));
+                //                vec.push((key, val));
+                //            }
+
+                //            self.next_args.push(proc.map_from_slice(&vec)?);
+                //            return self.val_call(proc, fun, reads[0]);
+                //        }
+                //    }
+                //}
+
+                let map_term: Boxed<Map> = self.make_term(proc, fun, reads[2])?
+                    .try_into().unwrap();
+                let hashmap_ref: &HashMap<Term, Term> = map_term.as_ref();
+                let mut hashmap = hashmap_ref.clone();
+
+                let mut idx = 3;
+                for action in action.iter() {
+                    let key = self.make_term(proc, fun, reads[idx])?;
+                    let val = self.make_term(proc, fun, reads[idx + 1])?;
+                    idx += 2;
+
+                    match action {
+                        MapPutUpdate::Put => {
+                            hashmap.insert(key, val);
+                        }
+                        MapPutUpdate::Update => {
+                            if hashmap.contains_key(&key) {
+                                panic!()
                             }
-
-                            self.next_args.push(proc.map_from_slice(&vec)?);
-                            return self.val_call(proc, fun, reads[0]);
+                            hashmap.insert(key, val);
                         }
                     }
                 }
 
-                unimplemented!()
+                self.next_args.push(proc.map_from_hash_map(hashmap)?);
+                return self.val_call(proc, fun, reads[0]);
             }
             OpKind::Intrinsic(name) if *name == Symbol::intern("receive_start") => {
                 assert!(reads.len() == 2);

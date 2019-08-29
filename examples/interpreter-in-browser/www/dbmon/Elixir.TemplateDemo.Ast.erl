@@ -30,16 +30,41 @@
 '__info__'(deprecated) ->
     [].
 
+%ast() ->
+%      [{text,<<"\n  ">>},
+%       {element,p,[],[{text,<<"Hello">>}]},
+%       {text,<<"\n  ">>},
+%       {element,
+%        h1,
+%        [],
+%        [{text,<<"This is an example rendering from Lumen">>}]},
+%       {text,<<"\n">>}].
+
+%ast() ->
+%    [{element,
+%      'div',
+%      [{attribute,id,<<"foo">>}],
+%      [{text,<<"\n  ">>},
+%       {element,p,[],[{text,<<"Hello">>}]},
+%       {text,<<"\n  ">>},
+%       {element,
+%        h1,
+%        [],
+%        [{text,<<"This is an example rendering from Lumen">>}]},
+%       {text,<<"\n">>}]}].
+
+
+
 ast() ->
-    [[element,
+    [{element,
       'div',
-      [[attribute,id,<<"foo">>]],
-      [[text,<<"\n  ">>],
-       [element,p,[],[[text,<<"Hello">>]]],
-       [text,<<"\n  ">>],
-       [element,
+      [{attribute,id,<<"foo">>}],
+      [{text,<<"\n  ">>},
+       {element,p,[],[]},
+       {text,<<"\n  ">>},
+       {element,
         h1,
         [],
-        [[text,<<"This is an example rendering from Lumen">>]]],
-       [text,<<"\n">>]]]].
+        []},
+       {text,<<"\n">>}]}].
 

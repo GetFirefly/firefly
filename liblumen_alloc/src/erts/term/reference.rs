@@ -14,6 +14,7 @@ use crate::erts::{scheduler, HeapAlloc, Node};
 pub type Number = u64;
 
 #[derive(Clone, Copy, Eq)]
+#[repr(C)]
 pub struct Reference {
     #[allow(dead_code)]
     header: Term,

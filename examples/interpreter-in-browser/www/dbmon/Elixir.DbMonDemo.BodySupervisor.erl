@@ -1,6 +1,6 @@
--file("lib/db_mon_demo/window_supervisor.ex", 1).
+-file("lib/db_mon_demo/body_supervisor.ex", 1).
 
--module('Elixir.DbMonDemo.WindowSupervisor').
+-module('Elixir.DbMonDemo.BodySupervisor').
 
 -export(['__info__'/1,
          child_spec/1,
@@ -20,7 +20,7 @@
                     any().
 
 '__info__'(module) ->
-    'Elixir.DbMonDemo.WindowSupervisor';
+    'Elixir.DbMonDemo.BodySupervisor';
 '__info__'(functions) ->
     [{child_spec,1},
      {handle_call,3},
@@ -31,17 +31,17 @@
 '__info__'(macros) ->
     [];
 '__info__'(Key = attributes) ->
-    erlang:get_module_info('Elixir.DbMonDemo.WindowSupervisor', Key);
+    erlang:get_module_info('Elixir.DbMonDemo.BodySupervisor', Key);
 '__info__'(Key = compile) ->
-    erlang:get_module_info('Elixir.DbMonDemo.WindowSupervisor', Key);
+    erlang:get_module_info('Elixir.DbMonDemo.BodySupervisor', Key);
 '__info__'(Key = md5) ->
-    erlang:get_module_info('Elixir.DbMonDemo.WindowSupervisor', Key);
+    erlang:get_module_info('Elixir.DbMonDemo.BodySupervisor', Key);
 '__info__'(deprecated) ->
     [].
 
 child_spec(__@1) ->
-    #{id => 'Elixir.DbMonDemo.WindowSupervisor',
-      start => {'Elixir.DbMonDemo.WindowSupervisor',start_link,[__@1]},
+    #{id => 'Elixir.DbMonDemo.BodySupervisor',
+      start => {'Elixir.DbMonDemo.BodySupervisor',start_link,[__@1]},
       type => supervisor,
       restart => temporary,
       shutdown => 500}.
@@ -64,9 +64,9 @@ fetch_child_from_pid(__@1, __@2) ->
             __@13
     end.
 
-handle_call(window, __from@1, _state@1) ->
-    _window@1 = 'Elixir.Keyword':get(_state@1, window),
-    {reply,_window@1,_state@1};
+handle_call(body, __from@1, _state@1) ->
+    _document@1 = 'Elixir.Keyword':get(_state@1, body),
+    {reply,_document@1,_state@1};
 handle_call(ast, __from@1, _state@1) ->
     _ast@1 = 'Elixir.Keyword':get(_state@1, ast),
     {reply,_ast@1,_state@1};
@@ -94,10 +94,20 @@ handle_msg({'EXIT',__@1,__@2}, {__@3,__@4,__@5,__@6}) ->
     end.
 
 init(_ast@1) ->
-    lumen_intrinsics:println({window_supervisor, _ast@1}),
+    lumen_intrinsics:println(body_supervisor),
+    %lumen_intrinsics:dump_process_heap(),
+    lumen_intrinsics:println({body_supervisor, _ast@1}),
     {ok,_window@1} = 'Elixir.Lumen.Web.Window':window(),
-    _children@1 = [{'Elixir.DbMonDemo.DocumentSupervisor',_ast@1}],
-    {ok,_children@1,[{window,_window@1},{ast,_ast@1}]}.
+    {ok,_document@1} = 'Elixir.Lumen.Web.Window':document(_window@1),
+    {ok, Body} = 'Elixir.Lumen.Web.Document':body(_document@1),
+    %_document@1 =
+    %    'Elixir.GenServer':call('Elixir.DbMonDemo.DocumentSupervisor',
+    %                            document, infinity),
+    %{ok,_body@1} = 'Elixir.Lumen.Web.Document':body(_document@1),
+    _children@1 =
+        'Elixir.DbMonDemo.ElementSupervisor':build_children_from_ast(_ast@1,
+                                                                     Body),
+    {ok,_children@1,[{body,Body},{ast,_ast@1}]}.
 
 init_it(__@1, __@2, __@3) ->
     {ok,__@4,__@5} = apply(__@1, init, [__@3]),
@@ -119,10 +129,10 @@ restart_child(__@1, __@2) ->
     apply(__@3, __@4, __@5).
 
 start_link(_ast@1) ->
-    'Elixir.DbMonDemo.Supervisor':start_link('Elixir.DbMonDemo.WindowSupervisor',
+    'Elixir.DbMonDemo.Supervisor':start_link('Elixir.DbMonDemo.BodySupervisor',
                                              _ast@1,
                                              [{name,
-                                               'Elixir.DbMonDemo.WindowSupervisor'}]).
+                                               'Elixir.DbMonDemo.BodySupervisor'}]).
 
 sup_children(__@1) ->
     element(1,

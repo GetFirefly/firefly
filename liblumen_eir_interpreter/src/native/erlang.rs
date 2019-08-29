@@ -6,11 +6,18 @@ use lumen_runtime::otp::erlang;
 
 use crate::module::NativeModule;
 
+macro_rules! trace {
+    ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
+}
+
 pub fn make_erlang() -> NativeModule {
     let mut native = NativeModule::new(Atom::try_from_str("erlang").unwrap());
 
     native.add_simple(Atom::try_from_str("<").unwrap(), 2, |_proc, args| {
         Ok(erlang::is_less_than_2(args[0], args[1]))
+    });
+    native.add_simple(Atom::try_from_str(">").unwrap(), 2, |_proc, args| {
+        Ok(erlang::is_greater_than_2(args[0], args[1]))
     });
     native.add_simple(Atom::try_from_str("=<").unwrap(), 2, |_proc, args| {
         Ok(erlang::is_equal_or_less_than_2(args[0], args[1]))
@@ -75,11 +82,37 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::spawn_3::native(proc, args[0], args[1], inner_args).unwrap())
     });
 
-    native.add_simple(Atom::try_from_str("monitor").unwrap(), 2, |_proc, _args| {
-        Ok(Term::NIL)
+    native.add_simple(Atom::try_from_str("spawn_link").unwrap(), 3, |proc, args| {
+        let ret = {
+            let mfa = ModuleFunctionArity {
+                module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
+                function: Atom::try_from_str("return_clean").unwrap(),
+                arity: 1,
+            };
+            proc.closure_with_env_from_slice(
+                mfa.into(),
+                crate::code::return_clean,
+                proc.pid_term(),
+                &[],
+            )
+                .unwrap()
+        };
+
+        let inner_args = proc.cons(ret, proc.cons(ret, args[2]).unwrap()).unwrap();
+        Ok(erlang::spawn_link_3::native(proc, args[0], args[1], inner_args).unwrap())
     });
-    native.add_simple(Atom::try_from_str("demonitor").unwrap(), 2, |_proc, _args| {
-        Ok(Term::NIL)
+
+    native.add_simple(Atom::try_from_str("exit").unwrap(), 1, |_proc, args| {
+        panic!("{:?}", args[0]);
+        //Ok(erlang::exit_1::native(args[0]).unwrap())
+    });
+
+    native.add_simple(Atom::try_from_str("monitor").unwrap(), 2, |proc, args| {
+        trace!("{:?}", args);
+        Ok(erlang::monitor_2::native(proc, args[0], args[1]).unwrap())
+    });
+    native.add_simple(Atom::try_from_str("demonitor").unwrap(), 2, |proc, args| {
+        Ok(erlang::demonitor_2::native(proc, args[0], args[1]).unwrap())
     });
 
     native.add_simple(Atom::try_from_str("register").unwrap(), 2, |proc, args| {
@@ -132,6 +165,9 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::is_pid_1(args[0]))
     });
     native.add_simple(Atom::try_from_str("is_function").unwrap(), 1, |_proc, args| {
+        Ok(erlang::is_function_1(args[0]))
+    });
+    native.add_simple(Atom::try_from_str("is_function").unwrap(), 2, |_proc, args| {
         Ok(erlang::is_function_1(args[0]))
     });
     native.add_simple(Atom::try_from_str("is_tuple").unwrap(), 1, |_proc, args| {
@@ -193,6 +229,10 @@ pub fn make_erlang() -> NativeModule {
 
     native.add_simple(Atom::try_from_str("convert_time_unit").unwrap(), 3, |proc, args| {
         Ok(erlang::convert_time_unit_3::native(proc, args[0], args[1], args[2]).unwrap())
+    });
+
+    native.add_simple(Atom::try_from_str("element").unwrap(), 2, |_proc, args| {
+        Ok(erlang::element_2(args[0], args[1]).unwrap())
     });
 
     native

@@ -30,3 +30,7 @@ libeir_syntax_erl = { path = "../../core_erlang_3/libeir_syntax_erl" }
 # workspace crates
 liblumen_alloc = { path = "../liblumen_alloc" }
 lumen_runtime = { path = "../lumen_runtime" }
+
+[dependencies.hashbrown]
+version = "0.5"
+features = ["nightly"]

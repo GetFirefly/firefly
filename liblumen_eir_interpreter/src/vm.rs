@@ -24,6 +24,7 @@ impl VMState {
 
         let mut modules = ModuleRegistry::new();
         modules.register_native_module(crate::native::make_erlang());
+        modules.register_native_module(crate::native::make_maps());
 
         VMState {
             modules: RwLock::new(modules),

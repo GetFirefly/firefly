@@ -2,6 +2,7 @@
 /// types to be treated similarly; for example, inheriting the same set of methods or being
 /// tested in the same way.
 pub mod append_child_2;
+pub mod insert_before_3;
 pub mod replace_child_3;
 
 use std::any::TypeId;

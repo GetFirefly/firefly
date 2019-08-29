@@ -180,6 +180,12 @@ impl Hash for Reference {
     }
 }
 
+impl PartialEq for Reference {
+    fn eq(&self, other: &Self) -> bool {
+        self.resource == other.resource
+    }
+}
+
 impl TryFrom<Term> for Reference {
     type Error = TypeError;
 

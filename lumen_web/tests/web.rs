@@ -5,6 +5,8 @@
 
 #[path = "./web/document.rs"]
 mod document;
+#[path = "./web/element.rs"]
+mod element;
 #[path = "./web/math.rs"]
 mod math;
 #[path = "./web/node.rs"]

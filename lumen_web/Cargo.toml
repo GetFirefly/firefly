@@ -24,7 +24,9 @@ features = ["nightly"]
 
 [dependencies.web-sys]
 version = "0.3.25"
-features = ["Document", "DomException", "Element", "Event", "EventListener", "EventTarget", "HtmlCollection", "HtmlElement", "HtmlFormElement", "HtmlInputElement", "Node", "Text", "Window"]
+features = ["Document", "DomException", "Element", "Event", "EventListener", "EventTarget", "HtmlCollection",
+            "HtmlBodyElement", "HtmlElement", "HtmlFormElement", "HtmlInputElement", "HtmlTableElement", "Node", "Text",
+            "Window"]
 
 [dev-dependencies]
 futures = "0.1.28"

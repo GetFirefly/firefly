@@ -9,7 +9,7 @@ use std::any::TypeId;
 use std::convert::TryInto;
 use std::mem;
 
-use web_sys::{Document, Element, HtmlElement, Node, Text};
+use web_sys::{Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node, Text};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
@@ -36,10 +36,22 @@ fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
             unsafe { mem::transmute::<&Node, &'static Node>(element.as_ref()) };
 
         Ok(node)
+    } else if resource_type_id == TypeId::of::<HtmlBodyElement>() {
+        let html_body_element: &HtmlBodyElement = resource_reference.downcast_ref().unwrap();
+        let node: &'static Node =
+            unsafe { mem::transmute::<&Node, &'static Node>(html_body_element.as_ref()) };
+
+        Ok(node)
     } else if resource_type_id == TypeId::of::<HtmlElement>() {
         let html_element: &HtmlElement = resource_reference.downcast_ref().unwrap();
         let node: &'static Node =
             unsafe { mem::transmute::<&Node, &'static Node>(html_element.as_ref()) };
+
+        Ok(node)
+    } else if resource_type_id == TypeId::of::<HtmlTableElement>() {
+        let html_table_element: &HtmlTableElement = resource_reference.downcast_ref().unwrap();
+        let node: &'static Node =
+            unsafe { mem::transmute::<&Node, &'static Node>(html_table_element.as_ref()) };
 
         Ok(node)
     } else if resource_type_id == TypeId::of::<Node>() {
@@ -53,6 +65,12 @@ fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
 
         Ok(node)
     } else {
+        lumen_runtime::system::io::puts(&format!(
+            "[{}:{}] resource_type_id = {:?}",
+            file!(),
+            line!(),
+            resource_type_id
+        ));
         Err(badarg!().into())
     }
 }

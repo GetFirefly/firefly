@@ -277,6 +277,15 @@ impl PartialEq<TypedTerm> for TypedTerm {
                     },
                     _ => false,
                 },
+                TypedTerm::ResourceReference(self_resource_reference) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::ResourceReference(other_resource_reference) => {
+                            self_resource_reference.eq(&other_resource_reference)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
                 TypedTerm::Closure(self_closure) => match other {
                     TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
                         TypedTerm::Closure(other_closure) => self_closure.eq(&other_closure),

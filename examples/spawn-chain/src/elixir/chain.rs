@@ -6,7 +6,7 @@
 //!     receive do
 //!       n ->
 //!         output.("received #{n}")
-//!         send next_pid, n + 1
+//!         sent = send next_pid, n + 1
 //!         output.("sent #{sent} to #{next_pid}")
 //!     end
 //!   end
@@ -15,7 +15,7 @@
 //!     last =
 //!       Enum.reduce(
 //!         1..n,
-//!         self,
+//!         self(),
 //!         fn (_, send_to) ->
 //!           spawn(Chain, :counter, [send_to, output])
 //!         end
@@ -57,22 +57,22 @@
 //!   end
 //!
 //!   defp dom_output(text) do
-//!     window = Lumen::Web::Window.window()
-//!     document = Lumen::Web::Window.document(window)
-//!     {:ok, tr} = Lumen::Web::Document.create_element(document, "tr")
+//!     window = Lumen.Web.Window.window()
+//!     document = Lumen.Web.Window.document(window)
+//!     {:ok, tr} = Lumen.Web.Document.create_element(document, "tr")
 //!
-//!     {:ok, pid_text} = Lumen::Web::Document.create_text_node(document, to_string(self()))
-//!     {:ok, pid_td} = Lumen::Web::Document.create_element(document, "td")
-//!     Lumen::Web::Element.append_child(pid_td, pid_text);
-//!     Lumen::Web::Element.append_child(tr, pid_td)
+//!     {:ok, pid_text} = Lumen.Web.Document.create_text_node(document, to_string(self()))
+//!     {:ok, pid_td} = Lumen.Web.Document.create_element(document, "td")
+//!     Lumen.Web.Element.append_child(pid_td, pid_text);
+//!     Lumen.Web.Element.append_child(tr, pid_td)
 //!
-//!     {:ok, text_text} = Lumen::Web::Document.create_text_node(document, to_string(text()))
-//!     {:ok, text_td} = Lumen::Web::Document.create_element(document, "td")
-//!     Lumen::Web::Element.append_child(text_td, text_text);
-//!     Lumen::Web::Element.append_child(tr, text_td)
+//!     {:ok, text_text} = Lumen.Web.Document.create_text_node(document, text)
+//!     {:ok, text_td} = Lumen.Web.Document.create_element(document, "td")
+//!     Lumen.Web.Element.append_child(text_td, text_text);
+//!     Lumen.Web.Element.append_child(tr, text_td)
 //!
-//!     {:ok, output} = Lumen::Web::Document.get_element_by_id("output")
-//!     Lumen::Web::Element.append_child(output, tr)
+//!     {:ok, output} = Lumen.Web.Document.get_element_by_id("output")
+//!     Lumen.Web.Element.append_child(output, tr)
 //!   end
 //!
 //!   defp none_output(_text) do
@@ -82,7 +82,7 @@
 //!   defp run(n, output) when is_function(output, 1) do
 //!     {time, value} = :timer.tc(Chain, :create_processes, [n, output])
 //!     output.("Chain.run(#{n}) in #{time} microseconds")
-//!     value
+//!     {time, value}
 //!   end
 //! end
 //! ```

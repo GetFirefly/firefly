@@ -65,12 +65,6 @@ fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
 
         Ok(node)
     } else {
-        lumen_runtime::system::io::puts(&format!(
-            "[{}:{}] resource_type_id = {:?}",
-            file!(),
-            line!(),
-            resource_type_id
-        ));
         Err(badarg!().into())
     }
 }

@@ -50,8 +50,6 @@ commands:
       - build_package:
           package: liblumen_core
       - build_package:
-          package: liblumen_diagnostics
-      - build_package:
           package: liblumen_eir_interpreter
       - build_package:
           package: liblumen_syntax
@@ -76,7 +74,6 @@ commands:
             - liblumen_beam
             - liblumen_compiler
             - liblumen_core
-            - liblumen_diagnostics
             - liblumen_eir_interpreter
             - liblumen_syntax
             - lumen
@@ -180,7 +177,6 @@ jobs:
             - liblumen_beam
             - liblumen_compiler
             - liblumen_core
-            - liblumen_diagnostics
             - liblumen_eir_interpreter
             - liblumen_syntax
             - lumen
@@ -243,7 +239,6 @@ jobs:
             - liblumen_beam
             - liblumen_compiler
             - liblumen_core
-            - liblumen_diagnostics
             - liblumen_eir_interpreter
             - liblumen_syntax
             - lumen
@@ -338,11 +333,6 @@ workflows:
           requires:
             - x86_64_linux_build
           package: "liblumen_core"
-      - x86_64_linux_test:
-          name: x86_64_linux_liblumen_diagnostics_test
-          requires:
-            - x86_64_linux_build
-          package: "liblumen_diagnostics"
       - x86_64_linux_test:
           name: x86_64_linux_liblumen_eir_interpreter_test
           requires:

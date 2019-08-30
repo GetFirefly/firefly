@@ -8,13 +8,10 @@ use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::{element, ok};
+use crate::element;
 
 /// ```elixir
-/// case Lumen.Web.Element.set_attribute(element, "data-attribute", "data-value") do
-///   :ok -> ...
-///   {:error, {:name, name} -> ...
-/// end
+/// class_name = Lumen.Web.Element.class_name(element)
 /// ``
 pub fn place_frame_with_arguments(
     process: &ProcessControlBlock,
@@ -34,7 +31,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
 
     let element = arc_process.stack_pop().unwrap();
 
-    match native(element) {
+    match native(arc_process, element) {
         Ok(ok) => {
             arc_process.return_from_call(ok)?;
 
@@ -49,7 +46,7 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("set_attribute").unwrap()
+    Atom::try_from_str("class_name").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
@@ -60,10 +57,9 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(element_term: Term) -> exception::Result {
+fn native(process: &ProcessControlBlock, element_term: Term) -> exception::Result {
     let element = element::from_term(element_term)?;
+    let class_name_binary = process.binary_from_str(&element.class_name())?;
 
-    element.remove();
-
-    Ok(ok())
+    Ok(class_name_binary)
 }

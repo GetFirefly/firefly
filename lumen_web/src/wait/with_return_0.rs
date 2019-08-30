@@ -1,5 +1,6 @@
 use std::any::TypeId;
 use std::convert::TryInto;
+use std::str;
 use std::sync::Arc;
 
 use wasm_bindgen::JsValue;
@@ -12,6 +13,7 @@ use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
 use liblumen_alloc::erts::term::{resource, Atom, Pid, SmallInteger, Term, Tuple, TypedTerm};
 
 use lumen_runtime::process::spawn::options::Options;
@@ -36,8 +38,23 @@ where
 
 // Private
 
+fn aligned_binary_to_js_value<A: AlignedBinary>(aligned_binary: A) -> JsValue {
+    bytes_to_js_value(aligned_binary.as_bytes())
+}
+
 fn atom_to_js_value(atom: Atom) -> JsValue {
     js_sys::Symbol::for_(atom.name()).into()
+}
+
+fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
+    match str::from_utf8(bytes) {
+        Ok(s) => s.into(),
+        Err(_) => {
+            let uint8_array = unsafe { js_sys::Uint8Array::view(bytes) };
+
+            uint8_array.into()
+        }
+    }
 }
 
 fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
@@ -161,6 +178,8 @@ fn term_to_js_value(term: Term) -> JsValue {
     match term.to_typed_term().unwrap() {
         TypedTerm::Atom(atom) => atom_to_js_value(atom),
         TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::HeapBinary(heap_binary) => aligned_binary_to_js_value(heap_binary),
+            TypedTerm::ProcBin(process_binary) => aligned_binary_to_js_value(process_binary),
             TypedTerm::ResourceReference(resource_reference) => {
                 resource_reference_to_js_value(resource_reference)
             }

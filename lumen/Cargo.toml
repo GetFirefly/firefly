@@ -10,6 +10,5 @@ edition = "2018"
 clap = "2.32.0"
 human-panic = "1.0"
 failure = "0.1"
-liblumen_diagnostics = { path = "../liblumen_diagnostics" }
-liblumen_syntax = { path = "../liblumen_syntax" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
 liblumen_compiler = { path = "../liblumen_compiler" }

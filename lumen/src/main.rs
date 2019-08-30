@@ -7,7 +7,7 @@ use clap::{App, Arg, SubCommand};
 use failure::Error;
 
 use liblumen_compiler::CompilerError;
-use liblumen_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
+use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
 
 fn main() {
     human_panic::setup_panic!();

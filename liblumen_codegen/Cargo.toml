@@ -8,12 +8,12 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-llvm-sys = "70"
+llvm-sys = "90"
 libc = "0.2"
 failure = "0.1"
 tempfile = "3.0"
-liblumen_diagnostics = { path = "../liblumen_diagnostics" }
-liblumen_syntax = { path = "../liblumen_syntax" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git" }
 
 [build-dependencies]
 cc = "1.0.25"

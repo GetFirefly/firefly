@@ -5,19 +5,21 @@ use std::sync::Arc;
 
 use failure::{format_err, Error};
 
-use liblumen_diagnostics::emitter::{cyan, green, green_bold, white, yellow, yellow_bold};
-use liblumen_diagnostics::{ColorSpec, Emitter, NullEmitter, StandardStreamEmitter};
-use liblumen_diagnostics::{Diagnostic, Severity};
+use libeir_diagnostics::emitter::{cyan, green, green_bold, white, yellow, yellow_bold};
+use libeir_diagnostics::{ColorSpec, Emitter, NullEmitter, StandardStreamEmitter};
+use libeir_diagnostics::{Diagnostic, Severity};
 
-use liblumen_syntax::ast::Module;
-use liblumen_syntax::{Parser, Symbol};
+use libeir_intern::Ident;
+use libeir_ir::Module;
 
-use liblumen_codegen as codegen;
-use liblumen_common as common;
+use libeir_syntax_erl::{
+    ParseConfig,
+    Parser,
+};
+use libeir_passes::PassManager;
 
 pub use super::config::{CompilerMode, CompilerSettings, Verbosity};
 pub use super::errors::CompilerError;
-use super::lint;
 
 /// The result produced by compiler functions
 pub type CompileResult = Result<(), Error>;
@@ -60,40 +62,17 @@ impl Compiler {
     }
 
     pub fn compile(&mut self) -> Result<(), Error> {
-        codegen::initialize();
-
-        let modules = self.parse_modules()?;
-        // Perform initial verification of parsed modules
-        for (_name, module) in modules.iter() {
-            lint::module(self, module)?;
-        }
-        // Lower from parse tree to Core IR
-        //let _modules = core::transform(self, modules)?;
-        //let modules = semantic_analysis::analyze(&config, core)?;
-        //let modules = cps::transform(&config, modules)?;
-        //let info = codegen::run(&config, modules, codegen::OutputType::IR)?;
-
-        self.write_info(green_bold(), "Compilation successful!\n");
-        self.write_info(
-            green(),
-            format!(
-                "Compiled {} modules in {}",
-                self.info.num_modules, self.info.compilation_time
-            ),
-        );
-
-        Ok(())
+        unimplemented!()
     }
 
     // Parses all modules into a map. The map uses the module name symbol
     // as the key, and the AST for the module as the value.
-    fn parse_modules(&mut self) -> Result<HashMap<Symbol, Module>, Error> {
+    fn parse_modules(&mut self) -> Result<HashMap<Ident, Module>, Error> {
         use walkdir::{DirEntry, WalkDir};
 
         let mut parser = Parser::new(self.config.clone().into());
 
         let extension = match self.config.mode {
-            CompilerMode::BEAM => "beam",
             CompilerMode::Erlang => "erl",
         };
 
@@ -120,50 +99,47 @@ impl Compiler {
             .into_iter();
 
         let mut modules = HashMap::new();
+        let config = ParseConfig::default();
+        let mut parser = Parser::new(config);
 
         for entry in walker.filter_entry(|e| !is_hidden(e) && is_source_file(e, extension)) {
             let entry = entry.unwrap();
             let file = entry.path();
 
             let mut module = match self.config.mode {
-                CompilerMode::BEAM => self.parse_beam(file)?,
                 CompilerMode::Erlang => self.parse_erl(&mut parser, file)?,
             };
 
-            self.apply_compiler_settings(&mut module);
-
-            modules.insert(module.name.name.clone(), module);
+            modules.insert(module.name.clone(), module);
         }
 
         Ok(modules)
     }
 
-    // Compiles a BEAM file to a Module
-    fn parse_beam(&self, _file: &Path) -> Result<Module, Error> {
-        Err(format_err!(
-            "Currently, compiler support for BEAM files is unimplemented"
-        ))
-    }
-
     // Compiles a .erl file to Erlang AST
     fn parse_erl(&self, parser: &mut Parser, file: &Path) -> Result<Module, Error> {
-        match parser.parse_file::<&Path, Module>(file) {
-            Ok(module) => Ok(module),
+        use libeir_syntax_erl::ast;
+        match parser.parse_file::<&Path, ast::Module>(file) {
+            Ok(ast) => {
+                let (res, messages) = libeir_syntax_erl::lower_module(&ast);
+                for msg in messages.iter() {
+                    self.diagnostic(&msg.to_diagnostic());
+                }
+                match res.ok() {
+                    Some(mut ir) => {
+                        let mut pass_manager = PassManager::default();
+                        pass_manager.run(&mut ir);
+                        Ok(ir)
+                    }
+                    None => Err(CompilerError::Failed.into())
+                }
+            }
             Err(errs) => Err(CompilerError::Parser {
                 codemap: self.config.codemap.clone(),
                 errs,
             }
             .into()),
         }
-    }
-
-    fn apply_compiler_settings(&self, module: &mut Module) {
-        module.compile.as_mut().and_then(|mut co| {
-            co.warnings_as_errors = self.config.warnings_as_errors;
-            co.no_warn = self.config.no_warn;
-
-            Some(co)
-        });
     }
 
     #[inline]
@@ -187,34 +163,33 @@ impl Compiler {
             .debug(Some(color), &message.to_string())
             .unwrap();
     }
-}
-impl common::compiler::Compiler for Compiler {
-    fn warnings_as_errors(&self) -> bool {
+
+    pub fn warnings_as_errors(&self) -> bool {
         self.config.warnings_as_errors
     }
 
-    fn no_warn(&self) -> bool {
+    pub fn no_warn(&self) -> bool {
         self.config.no_warn
     }
 
-    fn output_dir(&self) -> PathBuf {
+    pub fn output_dir(&self) -> PathBuf {
         self.config.output_dir.clone()
     }
 
-    fn warn<M: Display>(&self, message: M) {
+    pub fn warn<M: Display>(&self, message: M) {
         self.write_warning(yellow_bold(), "WARN: ");
         self.write_warning(yellow(), &message.to_string());
     }
 
-    fn info<M: Display>(&self, message: M) {
+    pub fn info<M: Display>(&self, message: M) {
         self.write_info(cyan(), &message.to_string());
     }
 
-    fn debug<M: Display>(&self, message: M) {
+    pub fn debug<M: Display>(&self, message: M) {
         self.write_info(white(), &message.to_string());
     }
 
-    fn diagnostic(&self, diagnostic: &Diagnostic) {
+    pub fn diagnostic(&self, diagnostic: &Diagnostic) {
         self.emitter.diagnostic(diagnostic).unwrap();
     }
 }

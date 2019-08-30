@@ -3,12 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use failure::Fail;
 
-use liblumen_diagnostics::CodeMap;
-use liblumen_syntax::ParserError;
-
-use liblumen_beam::FromBeamError;
-
-use liblumen_codegen::CodeGenError;
+use libeir_diagnostics::CodeMap;
+use libeir_syntax_erl::ParserError;
 
 /// Represents various compilation errors to compiler consumers
 #[derive(Fail, Debug)]
@@ -22,24 +18,11 @@ pub enum CompilerError {
         errs: Vec<ParserError>,
     },
 
-    #[fail(display = "invalid beam source")]
-    FromBeam(#[fail(cause)] FromBeamError),
-
-    #[fail(display = "codegen failed")]
-    CodeGenerator(#[fail(cause)] CodeGenError),
+    #[fail(display = "compilation failed")]
+    Failed
 }
 impl From<std::io::Error> for CompilerError {
     fn from(err: std::io::Error) -> Self {
         CompilerError::IO(err)
-    }
-}
-impl From<FromBeamError> for CompilerError {
-    fn from(err: FromBeamError) -> Self {
-        CompilerError::FromBeam(err)
-    }
-}
-impl From<CodeGenError> for CompilerError {
-    fn from(err: CodeGenError) -> Self {
-        CompilerError::CodeGenerator(err)
     }
 }

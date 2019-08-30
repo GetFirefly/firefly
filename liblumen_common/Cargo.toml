@@ -1,9 +1,0 @@
-[package]
-name = "liblumen_common"
-version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
-publish = false
-edition = "2018"
-
-[dependencies]
-liblumen_diagnostics = { path = "../liblumen_diagnostics" }

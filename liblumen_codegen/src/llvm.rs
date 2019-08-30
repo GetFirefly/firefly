@@ -12,7 +12,7 @@ use llvm_sys::prelude::*;
 use llvm_sys::target::*;
 use llvm_sys::*;
 
-use liblumen_diagnostics::{ColorChoice, Diagnostic, Emitter, Severity, StandardStreamEmitter};
+use libeir_diagnostics::{ColorChoice, Diagnostic, Emitter, Severity, StandardStreamEmitter};
 
 use super::CodeGenError;
 

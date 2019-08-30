@@ -1,15 +1,15 @@
 [package]
 name = "liblumen_compiler"
 version = "0.1.0"
-authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>", "Luke Imhoff <Kronic.Deth@gmail.com>"]
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
 edition = "2018"
 publish = false
 
 [dependencies]
 walkdir = "2.2"
 failure = "0.1"
-liblumen_diagnostics = { path = "../liblumen_diagnostics" }
-liblumen_common = { path = "../liblumen_common" }
-liblumen_syntax = { path = "../liblumen_syntax" }
-liblumen_beam = { path = "../liblumen_beam" }
-liblumen_codegen = { path = "../liblumen_codegen" }
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
+libeir_intern = { git = "https://github.com/eirproject/eir.git" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git" }
+libeir_passes = { git = "https://github.com/eirproject/eir.git" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }

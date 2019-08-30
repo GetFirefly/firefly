@@ -39,7 +39,7 @@ fn without_atom_errors_badarg() {
     });
 }
 
-fn options(abs: Term, process: &ProcessControlBlock) -> Term {
+fn options(abs: Term, process: &Process) -> Term {
     process
         .cons(
             process

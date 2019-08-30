@@ -94,7 +94,7 @@ fn with_subbinary_name_errors_badarg() {
 
 fn with_name_errors_badarg<N>(name: N)
 where
-    N: FnOnce(&ProcessControlBlock) -> Term,
+    N: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
         let destination = process

@@ -2,11 +2,11 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Tuple};
 use liblumen_alloc::ModuleFunctionArity;
 
-pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
+pub fn place_frame(process: &Process, placement: Placement) {
     process.place_frame(frame(), placement);
 }
 
@@ -21,7 +21,7 @@ pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
 /// body_tuple = Lumen.Web.Document.body(document)
 /// Lumen.Web:.Wait.with_return(body_tuple)
 /// ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok_document = arc_process.stack_pop().unwrap();
@@ -42,7 +42,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         document,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn frame() -> Frame {

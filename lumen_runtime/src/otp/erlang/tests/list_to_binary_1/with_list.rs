@@ -58,7 +58,7 @@ fn with_subbinary_with_bit_count_errors_badarg() {
     });
 }
 
-fn is_not_byte_binary_nor_list(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn is_not_byte_binary_nor_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process.clone())
         .prop_filter("Element must not be a binary or byte", move |element| {
             !(element.is_binary()

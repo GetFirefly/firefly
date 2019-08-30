@@ -6,13 +6,13 @@ use libeir_ir::Block;
 
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Result;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::exec::CallExecutor;
 
-pub fn return_throw(arc_process: &Arc<ProcessControlBlock>) -> Result {
+pub fn return_throw(arc_process: &Arc<Process>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     panic!("{:?}", argument_list);
@@ -34,25 +34,25 @@ pub fn return_throw(arc_process: &Arc<ProcessControlBlock>) -> Result {
     //result_from_exception(arc_process, exc.into())
 }
 
-pub fn return_ok(arc_process: &Arc<ProcessControlBlock>) -> Result {
+pub fn return_ok(arc_process: &Arc<Process>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     println!("PROCESS EXIT NORMAL WITH: {:?}", argument_list);
 
     arc_process.return_from_call(argument_list)?;
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
-pub fn return_clean(arc_process: &Arc<ProcessControlBlock>) -> Result {
+pub fn return_clean(arc_process: &Arc<Process>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
     arc_process.return_from_call(argument_list)?;
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 /// Expects the following on stack:
 /// * arity integer
 /// * argument list
-pub fn interpreter_mfa_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+pub fn interpreter_mfa_code(arc_process: &Arc<Process>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mfa = arc_process.current_module_function_arity().unwrap();
@@ -88,7 +88,7 @@ pub fn interpreter_mfa_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 /// * argument list
 /// * block id integer
 /// * environment list
-pub fn interpreter_closure_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
     let arity_term = arc_process.stack_pop().unwrap();
     let argument_list = arc_process.stack_pop().unwrap();
     let block_id_term = arc_process.stack_pop().unwrap();
@@ -140,7 +140,7 @@ pub fn interpreter_closure_code(arc_process: &Arc<ProcessControlBlock>) -> Resul
     )
 }
 
-pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
+pub fn apply(arc_process: &Arc<Process>) -> Result {
     let module_term = arc_process.stack_pop().unwrap();
     let function_term = arc_process.stack_pop().unwrap();
     let argument_list = arc_process.stack_pop().unwrap();
@@ -166,5 +166,5 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
     arc_process.stack_push(argument_list)?;
     arc_process.replace_frame(frame);
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }

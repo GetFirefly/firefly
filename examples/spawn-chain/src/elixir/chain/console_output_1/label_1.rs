@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::Term;
 
 use crate::elixir;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     text: Term,
 ) -> Result<(), Alloc> {
@@ -28,7 +28,7 @@ pub fn place_frame_with_arguments(
 /// # returns: :ok
 /// IO.puts("#{self()} #{text}")
 /// ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let self_term = arc_process.stack_pop().unwrap();
@@ -39,10 +39,10 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let full_text = arc_process.binary_from_str(&format!("pid={} {}", self_term, text))?;
     elixir::io::puts_1::place_frame_with_arguments(arc_process, Placement::Replace, full_text)?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
-fn frame(process: &ProcessControlBlock) -> Frame {
+fn frame(process: &Process) -> Frame {
     let module_function_arity = process.current_module_function_arity().unwrap();
 
     Frame::new(module_function_arity, code)

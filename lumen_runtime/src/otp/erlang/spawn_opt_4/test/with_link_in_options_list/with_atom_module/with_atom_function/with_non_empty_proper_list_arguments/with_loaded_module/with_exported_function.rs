@@ -66,7 +66,7 @@ fn without_arity_when_run_exits_undef_and_parent_exits() {
 
             assert_eq!(runtime_exception, &runtime_undef);
         }
-        ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
+        ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
 
     assert!(child_arc_process.is_exiting())

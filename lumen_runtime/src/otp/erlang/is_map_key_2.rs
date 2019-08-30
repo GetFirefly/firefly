@@ -2,14 +2,14 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::ModuleFunctionArity;
 
 use crate::otp::maps;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     key: Term,
     map: Term,

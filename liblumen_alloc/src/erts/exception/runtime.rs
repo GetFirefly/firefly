@@ -3,7 +3,7 @@ use core::num::TryFromIntError;
 use core::result::Result;
 
 use crate::erts::exception::system::Alloc;
-use crate::erts::process::ProcessControlBlock;
+use crate::erts::process::Process;
 use crate::erts::term::atom::{AtomError, EncodingError};
 use crate::erts::term::list::ImproperList;
 use crate::erts::term::{
@@ -56,7 +56,7 @@ impl Exception {
     }
 
     pub fn badarity(
-        process: &ProcessControlBlock,
+        process: &Process,
         function: Term,
         arguments: Term,
         file: &'static str,
@@ -70,7 +70,7 @@ impl Exception {
     }
 
     pub fn badfun(
-        process: &ProcessControlBlock,
+        process: &Process,
         function: Term,
         file: &'static str,
         line: u32,
@@ -85,7 +85,7 @@ impl Exception {
     }
 
     pub fn badkey(
-        process: &ProcessControlBlock,
+        process: &Process,
         key: Term,
         file: &'static str,
         line: u32,
@@ -99,7 +99,7 @@ impl Exception {
     }
 
     pub fn badmap(
-        process: &ProcessControlBlock,
+        process: &Process,
         map: Term,
         file: &'static str,
         line: u32,
@@ -124,7 +124,7 @@ impl Exception {
     }
 
     pub fn undef(
-        process: &ProcessControlBlock,
+        process: &Process,
         module: Term,
         function: Term,
         arguments: Term,
@@ -151,11 +151,7 @@ impl Exception {
         atom_unchecked("badarith")
     }
 
-    fn badarity_reason(
-        process: &ProcessControlBlock,
-        function: Term,
-        arguments: Term,
-    ) -> Result<Term, Alloc> {
+    fn badarity_reason(process: &Process, function: Term, arguments: Term) -> Result<Term, Alloc> {
         let function_arguments = process.tuple_from_slice(&[function, arguments])?;
 
         process.tuple_from_slice(&[Self::badarity_tag(), function_arguments])
@@ -200,7 +196,7 @@ impl Exception {
     }
 
     fn undef_stacktrace(
-        process: &ProcessControlBlock,
+        process: &Process,
         module: Term,
         function: Term,
         arguments: Term,

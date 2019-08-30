@@ -117,13 +117,13 @@ fn base() -> BoxedStrategy<u8> {
     (2_u8..=36_u8).boxed()
 }
 
-fn term_is_base(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn term_is_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     base()
         .prop_map(move |base| arc_process.integer(base).unwrap())
         .boxed()
 }
 
-fn term_is_not_base(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn term_is_not_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter("Cannot be a base (2-36)", |term| {
             match term.to_typed_term().unwrap() {

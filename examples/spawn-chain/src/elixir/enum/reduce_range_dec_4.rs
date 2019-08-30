@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -16,7 +16,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 /// end
 /// ```
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     first: Term,
     last: Term,
@@ -32,7 +32,7 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
-fn code(_arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(_arc_process: &Arc<Process>) -> code::Result {
     unimplemented!()
 }
 

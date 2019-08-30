@@ -12,7 +12,7 @@ use web_sys::{Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement,
 use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
 use liblumen_alloc::erts::term::{resource, Atom, Pid, SmallInteger, Term, Tuple, TypedTerm};
 
@@ -24,7 +24,7 @@ use lumen_runtime::{process, registry};
 /// the promise.
 pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> Result<Promise, Alloc>
 where
-    F: Fn(&ProcessControlBlock) -> Result<(), Alloc>,
+    F: Fn(&Process) -> Result<(), Alloc>,
 {
     let (process, promise) = spawn_unscheduled(options)?;
 
@@ -57,7 +57,7 @@ fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
     }
 }
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     let return_term = arc_process.stack_pop().unwrap();
     let executor_term = arc_process.stack_pop().unwrap();
     assert!(executor_term.is_resource_reference());
@@ -68,7 +68,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
 
     arc_process.remove_last_frame();
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn function() -> Atom {
@@ -132,7 +132,7 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 
 /// Spawns process with this as the first frame, so that any later `Frame`s can return to it.
 ///
-/// The returns `ProcessControlBlock` is **NOT** scheduled with the scheduler yet, so that
+/// The returns `Process` is **NOT** scheduled with the scheduler yet, so that
 /// the frame that will return to this frame can be added prior to running the process to
 /// prevent a race condition on the `parent_process`'s scheduler running the new child process
 /// when only the `with_return/0` frame is there.
@@ -154,7 +154,7 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 ///
 /// promise
 /// ```
-fn spawn_unscheduled(options: Options) -> Result<(ProcessControlBlock, Promise), Alloc> {
+fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
     let parent_process = None;
     let process = process::spawn::code(
         parent_process,

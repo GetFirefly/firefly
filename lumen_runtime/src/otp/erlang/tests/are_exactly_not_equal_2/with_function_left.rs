@@ -52,7 +52,7 @@ fn with_same_value_function_right_returns_false() {
                     strategy::module_function_arity::arity(),
                 )
                     .prop_map(move |(module, function, arity)| {
-                        let code = |arc_process: &Arc<ProcessControlBlock>| {
+                        let code = |arc_process: &Arc<Process>| {
                             arc_process.wait();
 
                             Ok(())
@@ -107,7 +107,7 @@ fn with_different_function_right_returns_true() {
                             function,
                             arity,
                         });
-                        let left_code = |arc_process: &Arc<ProcessControlBlock>| {
+                        let left_code = |arc_process: &Arc<Process>| {
                             arc_process.wait();
 
                             Ok(())
@@ -121,7 +121,7 @@ fn with_different_function_right_returns_true() {
                             function,
                             arity,
                         });
-                        let right_code = |arc_process: &Arc<ProcessControlBlock>| {
+                        let right_code = |arc_process: &Arc<Process>| {
                             arc_process.wait();
 
                             Ok(())

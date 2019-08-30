@@ -93,13 +93,13 @@ fn with_65536() {
     run_through(65536)
 }
 
-fn inspect_code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn inspect_code(arc_process: &Arc<Process>) -> code::Result {
     let time_value = arc_process.stack_pop().unwrap();
 
     lumen_runtime::system::io::puts(&format!("{}", time_value));
     arc_process.remove_last_frame();
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn run_through(n: usize) {

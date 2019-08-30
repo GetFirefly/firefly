@@ -89,7 +89,7 @@ fn with_bitstring_right_returns_false() {
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::is_greater_than_or_equal(
         |process| {

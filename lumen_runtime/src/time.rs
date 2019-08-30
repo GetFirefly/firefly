@@ -6,7 +6,7 @@ use num_traits::Zero;
 use liblumen_alloc::erts::exception::runtime::Exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::term::{atom_unchecked, Term, TypedTerm};
-use liblumen_alloc::{badarg, ProcessControlBlock};
+use liblumen_alloc::{badarg, Process};
 
 pub mod monotonic;
 
@@ -61,9 +61,9 @@ impl Unit {
         }
     }
 
-    pub fn to_term(&self, process_control_block: &ProcessControlBlock) -> Result<Term, Alloc> {
+    pub fn to_term(&self, process: &Process) -> Result<Term, Alloc> {
         match self {
-            Unit::Hertz(hertz) => process_control_block.integer(*hertz),
+            Unit::Hertz(hertz) => process.integer(*hertz),
             Unit::Second => Ok(atom_unchecked("second")),
             Unit::Millisecond => Ok(atom_unchecked("millisecond")),
             Unit::Microsecond => Ok(atom_unchecked("microsecond")),

@@ -5,7 +5,7 @@ use crate::erts::term::{ProcBin, Term};
 
 use super::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use super::gc::*;
-use super::ProcessControlBlock;
+use super::Process;
 
 #[derive(Debug)]
 #[repr(C)]
@@ -52,7 +52,7 @@ impl ProcessHeap {
     #[inline]
     pub fn garbage_collect(
         &mut self,
-        process: &ProcessControlBlock,
+        process: &Process,
         need: usize,
         mut rootset: RootSet,
     ) -> Result<usize, GcError> {

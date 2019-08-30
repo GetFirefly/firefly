@@ -114,7 +114,7 @@ fn with_subbinary_without_bitcount_returns_binary() {
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &ProcessControlBlock) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
         let head = process.binary_from_bytes(&[0, 1]).unwrap();

@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::Atom;
 
-pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+pub fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 pub fn function() -> Atom {

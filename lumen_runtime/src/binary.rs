@@ -4,7 +4,7 @@ use core::ops::Range;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::{self, Exception};
 use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
-use liblumen_alloc::erts::ProcessControlBlock;
+use liblumen_alloc::erts::Process;
 
 pub(crate) struct PartRange {
     pub byte_offset: usize,
@@ -52,7 +52,7 @@ pub(crate) fn start_length_to_part_range(
 }
 
 pub trait ToTerm {
-    fn to_term(&self, options: ToTermOptions, process: &ProcessControlBlock) -> exception::Result;
+    fn to_term(&self, options: ToTermOptions, process: &Process) -> exception::Result;
 }
 
 pub struct ToTermOptions {

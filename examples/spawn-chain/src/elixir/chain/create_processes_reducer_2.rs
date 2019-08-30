@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::otp::erlang;
 
-pub fn closure(process: &ProcessControlBlock, output: Term) -> std::result::Result<Term, Alloc> {
+pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, Alloc> {
     process.closure(
         process.pid_term(),
         module_function_arity(),
@@ -29,7 +29,7 @@ pub fn closure(process: &ProcessControlBlock, output: Term) -> std::result::Resu
 ///   spawn(Chain, :counter, [send_to, output])
 /// end
 /// ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     // from environment
@@ -56,7 +56,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         arguments,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn function() -> Atom {

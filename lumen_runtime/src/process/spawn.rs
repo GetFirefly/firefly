@@ -5,7 +5,7 @@ use std::convert::TryInto;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{AsTerm, Atom, Term, TypedTerm};
 use liblumen_alloc::CloneToProcess;
 
@@ -17,12 +17,12 @@ use crate::process::spawn::options::Options;
 /// This allows the `apply/3` code to be changed with `apply_3::set_code(code)` to handle new
 /// MFA unique to a given application.
 pub fn apply_3(
-    parent_process: &ProcessControlBlock,
+    parent_process: &Process,
     options: Options,
     module: Atom,
     function: Atom,
     arguments: Term,
-) -> Result<ProcessControlBlock, Alloc> {
+) -> Result<Process, Alloc> {
     let arity = arity(arguments);
 
     let child_process = options.spawn(Some(parent_process), module, function, arity)?;
@@ -48,13 +48,13 @@ pub fn apply_3(
 /// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
 /// of passing through `apply/3`.
 pub fn code(
-    parent_process: Option<&ProcessControlBlock>,
+    parent_process: Option<&Process>,
     options: Options,
     module: Atom,
     function: Atom,
     arguments: Vec<Term>,
     code: Code,
-) -> Result<ProcessControlBlock, Alloc> {
+) -> Result<Process, Alloc> {
     let arity = arguments.len() as u8;
 
     let child_process = options.spawn(parent_process, module, function, arity)?;

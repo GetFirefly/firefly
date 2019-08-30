@@ -147,7 +147,7 @@ fn with_subbinary_with_bitcount_errors_badarg() {
 
 fn with<F>(f: F)
 where
-    F: FnOnce(u8, Term, &ProcessControlBlock) -> (),
+    F: FnOnce(u8, Term, &Process) -> (),
 {
     with_process(|process| {
         let head_byte: u8 = 0;

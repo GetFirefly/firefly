@@ -7,11 +7,11 @@ use liblumen_core::locks::RwLock;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::{AsTerm, Atom, Pid, Term};
-use liblumen_alloc::{HeapAlloc, ProcessControlBlock};
+use liblumen_alloc::{HeapAlloc, Process};
 
 use crate::process;
 
-pub fn atom_to_process(name: &Atom) -> Option<Arc<ProcessControlBlock>> {
+pub fn atom_to_process(name: &Atom) -> Option<Arc<Process>> {
     let readable_registry = RW_LOCK_REGISTERED_BY_NAME.read();
 
     readable_registry
@@ -21,9 +21,9 @@ pub fn atom_to_process(name: &Atom) -> Option<Arc<ProcessControlBlock>> {
         })
 }
 
-pub fn names(process_control_block: &ProcessControlBlock) -> exception::Result {
+pub fn names(process: &Process) -> exception::Result {
     let mut acc = Term::NIL;
-    let mut heap = process_control_block.acquire_heap();
+    let mut heap = process.acquire_heap();
 
     for name in RW_LOCK_REGISTERED_BY_NAME.read().keys() {
         let name_term = unsafe { name.as_term() };
@@ -34,17 +34,14 @@ pub fn names(process_control_block: &ProcessControlBlock) -> exception::Result {
     Ok(acc)
 }
 
-pub fn pid_to_process(pid: &Pid) -> Option<Arc<ProcessControlBlock>> {
+pub fn pid_to_process(pid: &Pid) -> Option<Arc<Process>> {
     RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID
         .read()
         .get(pid)
         .and_then(|weak_process| weak_process.clone().upgrade())
 }
 
-pub fn pid_to_self_or_process(
-    pid: Pid,
-    process_arc: &Arc<ProcessControlBlock>,
-) -> Option<Arc<ProcessControlBlock>> {
+pub fn pid_to_self_or_process(pid: Pid, process_arc: &Arc<Process>) -> Option<Arc<Process>> {
     if process_arc.pid() == pid {
         Some(process_arc.clone())
     } else {
@@ -52,14 +49,11 @@ pub fn pid_to_self_or_process(
     }
 }
 
-pub fn put_atom_to_process(
-    name: Atom,
-    arc_process_control_block: Arc<ProcessControlBlock>,
-) -> bool {
+pub fn put_atom_to_process(name: Atom, arc_process: Arc<Process>) -> bool {
     let writable_registry = RW_LOCK_REGISTERED_BY_NAME.write();
 
     if !writable_registry.contains_key(&name) {
-        if process::register_in(arc_process_control_block, writable_registry, name) {
+        if process::register_in(arc_process, writable_registry, name) {
             true
         } else {
             false
@@ -69,36 +63,33 @@ pub fn put_atom_to_process(
     }
 }
 
-pub fn put_pid_to_process(arc_process_control_block: &Arc<ProcessControlBlock>) {
-    if let Some(_) = RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID.write().insert(
-        arc_process_control_block.pid(),
-        Arc::downgrade(&arc_process_control_block),
-    ) {
+pub fn put_pid_to_process(arc_process: &Arc<Process>) {
+    if let Some(_) = RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID
+        .write()
+        .insert(arc_process.pid(), Arc::downgrade(&arc_process))
+    {
         panic!("Process already registered with pid");
     }
 }
 
 pub fn unregister(name: &Atom) -> bool {
     match RW_LOCK_REGISTERED_BY_NAME.write().remove(name) {
-        Some(Registered::Process(weak_process_control_block)) => {
-            match weak_process_control_block.upgrade() {
-                Some(arc_process_control_block) => {
-                    let mut writable_registerd_name =
-                        arc_process_control_block.registered_name.write();
-                    *writable_registerd_name = None;
+        Some(Registered::Process(weak_process)) => match weak_process.upgrade() {
+            Some(arc_process) => {
+                let mut writable_registerd_name = arc_process.registered_name.write();
+                *writable_registerd_name = None;
 
-                    true
-                }
-                None => false,
+                true
             }
-        }
+            None => false,
+        },
         None => false,
     }
 }
 
 #[cfg_attr(test, derive(Debug))]
 pub enum Registered {
-    Process(Weak<ProcessControlBlock>),
+    Process(Weak<Process>),
 }
 
 impl PartialEq for Registered {
@@ -114,5 +105,5 @@ impl PartialEq for Registered {
 lazy_static! {
     static ref RW_LOCK_REGISTERED_BY_NAME: RwLock<HashMap<Atom, Registered>> = Default::default();
     // Strong references are owned by the scheduler run queues
-    static ref RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID: RwLock<HashMap<Pid, Weak<ProcessControlBlock>>> = Default::default();
+    static ref RW_LOCK_WEAK_PROCESS_CONTROL_BLOCK_BY_PID: RwLock<HashMap<Pid, Weak<Process>>> = Default::default();
 }

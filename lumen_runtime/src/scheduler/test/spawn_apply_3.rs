@@ -9,13 +9,11 @@ fn different_processes_have_different_pids() {
     let erlang = Atom::try_from_str("erlang").unwrap();
     let exit = Atom::try_from_str("exit").unwrap();
     let normal = atom_unchecked("normal");
-    let parent_arc_process_control_block = process::test_init();
+    let parent_arc_process = process::test_init();
 
-    let first_process_arguments = parent_arc_process_control_block
-        .list_from_slice(&[normal])
-        .unwrap();
+    let first_process_arguments = parent_arc_process.list_from_slice(&[normal]).unwrap();
     let first_process = Scheduler::spawn_apply_3(
-        &parent_arc_process_control_block,
+        &parent_arc_process,
         Default::default(),
         erlang,
         exit,
@@ -23,9 +21,7 @@ fn different_processes_have_different_pids() {
     )
     .unwrap();
 
-    let second_process_arguments = parent_arc_process_control_block
-        .list_from_slice(&[normal])
-        .unwrap();
+    let second_process_arguments = parent_arc_process.list_from_slice(&[normal]).unwrap();
     let second_process = Scheduler::spawn_apply_3(
         &first_process,
         Default::default(),

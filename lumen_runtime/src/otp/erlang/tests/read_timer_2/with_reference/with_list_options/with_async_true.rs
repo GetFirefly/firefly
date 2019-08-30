@@ -18,7 +18,7 @@ fn without_timer_returns_ok_and_sends_read_timer_message() {
     });
 }
 
-fn options(process: &ProcessControlBlock) -> Term {
+fn options(process: &Process) -> Term {
     process
         .cons(async_option(true, process), Term::NIL)
         .unwrap()

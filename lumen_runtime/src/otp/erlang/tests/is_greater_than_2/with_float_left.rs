@@ -57,7 +57,7 @@ fn without_number_returns_false() {
 
 fn is_greater_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::is_greater_than(|process| process.float(1.0).unwrap(), right, expected);
 }

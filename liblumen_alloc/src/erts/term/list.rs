@@ -656,7 +656,7 @@ mod tests {
 
         use ::alloc::sync::Arc;
 
-        use crate::erts::process::{alloc, Priority, ProcessControlBlock};
+        use crate::erts::process::{alloc, Priority, Process};
         use crate::erts::scheduler;
         use crate::erts::term::{atom_unchecked, Atom};
         use crate::erts::ModuleFunctionArity;
@@ -747,7 +747,7 @@ mod tests {
             assert_eq!(heap_fragment_cons_term, cons_term);
         }
 
-        fn process() -> ProcessControlBlock {
+        fn process() -> Process {
             let init = Atom::try_from_str("init").unwrap();
             let initial_module_function_arity = Arc::new(ModuleFunctionArity {
                 module: init,
@@ -756,7 +756,7 @@ mod tests {
             });
             let (heap, heap_size) = alloc::default_heap().unwrap();
 
-            let process = ProcessControlBlock::new(
+            let process = Process::new(
                 Priority::Normal,
                 None,
                 initial_module_function_arity,

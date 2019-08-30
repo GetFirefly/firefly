@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -15,7 +15,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 /// random_integer = Lumen.Web.Math.random_integer(exclusive_max)
 /// ```
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     exclusive_max: Term,
 ) -> Result<(), Alloc> {
@@ -27,7 +27,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let exclusive_max = arc_process.stack_pop().unwrap();
@@ -36,7 +36,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(random_integer) => {
             arc_process.return_from_call(random_integer)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -58,7 +58,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, exclusive_max: Term) -> exception::Result {
+fn native(process: &Process, exclusive_max: Term) -> exception::Result {
     let exclusive_max_usize: usize = exclusive_max.try_into()?;
     let exclusive_max_f64 = exclusive_max_usize as f64;
     let random_usize = (js_sys::Math::random() * exclusive_max_f64).trunc() as usize;

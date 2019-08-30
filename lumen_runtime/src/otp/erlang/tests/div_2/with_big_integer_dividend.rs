@@ -57,7 +57,7 @@ fn with_big_integer_divisor_without_underflow_returns_big_integer() {
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &ProcessControlBlock) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
         let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();

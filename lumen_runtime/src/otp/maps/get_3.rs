@@ -12,12 +12,12 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Boxed, Map, Term};
 use liblumen_alloc::{badmap, ModuleFunctionArity};
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     key: Term,
     map: Term,
@@ -33,7 +33,7 @@ pub fn place_frame_with_arguments(
 
 // Crate Public
 
-pub(in crate::otp) fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+pub(in crate::otp) fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let default = arc_process.stack_pop().unwrap();
@@ -44,7 +44,7 @@ pub(in crate::otp) fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Resu
         Ok(boolean) => {
             arc_process.return_from_call(boolean)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -68,12 +68,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-pub fn native(
-    process: &ProcessControlBlock,
-    key: Term,
-    map: Term,
-    default: Term,
-) -> exception::Result {
+pub fn native(process: &Process, key: Term, map: Term, default: Term) -> exception::Result {
     let result_map: Result<Boxed<Map>, _> = map.try_into();
 
     match result_map {

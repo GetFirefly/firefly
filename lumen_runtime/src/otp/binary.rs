@@ -6,7 +6,7 @@ use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
 use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
 use liblumen_alloc::erts::term::binary::IterableBitstring;
 use liblumen_alloc::erts::term::{Bitstring, Term, TypedTerm};
-use liblumen_alloc::{badarg, ProcessControlBlock};
+use liblumen_alloc::{badarg, Process};
 
 use crate::binary::start_length_to_part_range;
 
@@ -24,12 +24,7 @@ use crate::binary::start_length_to_part_range;
 ///
 /// * `Ok(Term)` - the list of bytes
 /// * `Err(BadArgument)` - binary is not a binary; position is invalid; length is invalid.
-pub fn bin_to_list(
-    binary: Term,
-    position: Term,
-    length: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn bin_to_list(binary: Term, position: Term, length: Term, process: &Process) -> Result {
     let position_usize: usize = position.try_into()?;
     let length_isize: isize = length.try_into()?;
 
@@ -44,7 +39,7 @@ pub fn bin_to_list(
                 let byte_iter = byte_slice.iter();
                 let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
-                let list = process_control_block.list_from_iter(byte_term_iter)?;
+                let list = process.list_from_iter(byte_term_iter)?;
 
                 Ok(list)
             }
@@ -57,7 +52,7 @@ pub fn bin_to_list(
                 let byte_iter = byte_slice.iter();
                 let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
-                let list = process_control_block.list_from_iter(byte_term_iter)?;
+                let list = process.list_from_iter(byte_term_iter)?;
 
                 Ok(list)
             }
@@ -72,7 +67,7 @@ pub fn bin_to_list(
                     let byte_iter = byte_slice.iter();
                     let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
-                    process_control_block.list_from_iter(byte_term_iter)
+                    process.list_from_iter(byte_term_iter)
                 } else {
                     let mut byte_iter = subbinary.full_byte_iter();
 
@@ -87,7 +82,7 @@ pub fn bin_to_list(
 
                     let byte_term_iter = byte_iter.map(|byte| byte.into());
 
-                    process_control_block.list_from_iter(byte_term_iter)
+                    process.list_from_iter(byte_term_iter)
                 };
 
                 match result {

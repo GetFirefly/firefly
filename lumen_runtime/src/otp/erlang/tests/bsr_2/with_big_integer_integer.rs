@@ -53,7 +53,7 @@ fn with_positive_with_underflow_returns_zero() {
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &ProcessControlBlock) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
         let integer = process

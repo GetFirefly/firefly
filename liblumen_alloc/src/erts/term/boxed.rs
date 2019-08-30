@@ -8,7 +8,7 @@ use core::ptr::NonNull;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::term::binary::Bitstring;
-use crate::erts::ProcessControlBlock;
+use crate::erts::Process;
 use crate::erts::{HeapAlloc, HeapFragment};
 
 use super::{AsTerm, Term};
@@ -137,7 +137,7 @@ impl<T: PartialOrd> PartialOrd<T> for Boxed<T> {
 }
 
 impl<T: CloneToProcess> CloneToProcess for Boxed<T> {
-    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
+    fn clone_to_process(&self, process: &Process) -> Term {
         let term = unsafe { &*self.term };
         term.clone_to_process(process)
     }

@@ -71,7 +71,7 @@ fn with_tuple_map_list_or_bitstring_returns_first() {
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::min(
         |process| process.external_pid_with_node_id(1, 2, 3).unwrap(),

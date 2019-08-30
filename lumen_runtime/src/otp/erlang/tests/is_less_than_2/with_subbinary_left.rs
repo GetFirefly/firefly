@@ -163,7 +163,7 @@ fn with_subbinary_with_value_with_shorter_length_returns_true() {
 
 fn is_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::is_less_than(|process| bitstring!(1, 1 :: 2, &process), right, expected);
 }

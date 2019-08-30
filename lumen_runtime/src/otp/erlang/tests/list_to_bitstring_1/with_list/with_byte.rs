@@ -188,7 +188,7 @@ fn with_subbinary_with_bit_count_7_returns_subbinary() {
 
 fn with_tail_errors_badarg<T>(tail: T)
 where
-    T: FnOnce(&ProcessControlBlock) -> Term,
+    T: FnOnce(&Process) -> Term,
 {
     with(|_, head, process| {
         let iolist = process.cons(head, tail(&process)).unwrap();
@@ -199,7 +199,7 @@ where
 
 fn with<F>(f: F)
 where
-    F: FnOnce(u8, Term, &ProcessControlBlock) -> (),
+    F: FnOnce(u8, Term, &Process) -> (),
 {
     with_process(|process| {
         let head_byte: u8 = 0;

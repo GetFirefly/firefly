@@ -68,7 +68,7 @@ fn with_list_or_bitstring_second_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::max(|_| make_pid(0, 1).unwrap(), second, which);
 }

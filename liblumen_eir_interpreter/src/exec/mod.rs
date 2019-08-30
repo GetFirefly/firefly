@@ -9,7 +9,7 @@ use libeir_ir::{Block, OpKind, PrimOpKind, Value, ValueKind};
 
 use liblumen_alloc::erts::exception::system;
 use liblumen_alloc::erts::process::code::Result;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -40,7 +40,7 @@ impl CallExecutor {
     pub fn call(
         &mut self,
         vm: &VMState,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         module: Atom,
         function: Atom,
         arity: usize,
@@ -60,7 +60,7 @@ impl CallExecutor {
     pub fn call_block(
         &mut self,
         vm: &VMState,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         module: Atom,
         function: Atom,
         arity: usize,
@@ -86,19 +86,14 @@ impl CallExecutor {
         }
     }
 
-    fn fun_not_found(&self, proc: &Arc<ProcessControlBlock>, throw_cont: Term) -> Result {
+    fn fun_not_found(&self, proc: &Arc<Process>, throw_cont: Term) -> Result {
         let exit_atom = atom_unchecked("EXIT");
         let undef_atom = atom_unchecked("undef");
         let trace_atom = atom_unchecked("trace");
         self.call_closure(proc, throw_cont, &[exit_atom, undef_atom, trace_atom])
     }
 
-    fn call_closure(
-        &self,
-        proc: &Arc<ProcessControlBlock>,
-        closure: Term,
-        args: &[Term],
-    ) -> Result {
+    fn call_closure(&self, proc: &Arc<Process>, closure: Term, args: &[Term]) -> Result {
         match closure.to_typed_term().unwrap() {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Closure(closure) => {
@@ -120,7 +115,7 @@ impl CallExecutor {
                     }
 
                     proc.replace_frame(closure.frame());
-                    //ProcessControlBlock::call_code(proc)
+                    //Process::call_code(proc)
                     Ok(())
                 }
                 _ => panic!(),
@@ -132,7 +127,7 @@ impl CallExecutor {
     fn run_native(
         &mut self,
         _vm: &VMState,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         native: NativeFunctionKind,
         args: &[Term],
     ) -> Result {
@@ -148,7 +143,7 @@ impl CallExecutor {
     fn run_erlang(
         &mut self,
         vm: &VMState,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         fun: &ErlangFunction,
         mut block: Block,
         args: &[Term],
@@ -173,7 +168,7 @@ impl CallExecutor {
 
     fn make_const_term(
         &self,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         fun: &ErlangFunction,
         const_val: Const,
     ) -> std::result::Result<Term, system::Exception> {
@@ -224,7 +219,7 @@ impl CallExecutor {
 
     fn make_closure(
         &self,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         fun: &ErlangFunction,
         block: Block,
     ) -> std::result::Result<Term, system::Exception> {
@@ -255,7 +250,7 @@ impl CallExecutor {
 
     fn make_term(
         &self,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         fun: &ErlangFunction,
         value: Value,
     ) -> std::result::Result<Term, system::Exception> {
@@ -298,7 +293,7 @@ impl CallExecutor {
 
     fn val_call(
         &mut self,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         fun: &ErlangFunction,
         value: Value,
     ) -> std::result::Result<OpResult, system::Exception> {
@@ -313,7 +308,7 @@ impl CallExecutor {
     fn run_erlang_op(
         &mut self,
         _vm: &VMState,
-        proc: &Arc<ProcessControlBlock>,
+        proc: &Arc<Process>,
         fun: &ErlangFunction,
         block: Block,
     ) -> std::result::Result<OpResult, system::Exception> {

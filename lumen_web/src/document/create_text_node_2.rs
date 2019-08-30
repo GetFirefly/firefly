@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -15,7 +15,7 @@ use crate::document::document_from_term;
 /// text = Lumen.Web.Document.create_text_node(document, data)
 /// ```
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     document: Term,
     data: Term,
@@ -29,7 +29,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let document = arc_process.stack_pop().unwrap();
@@ -39,7 +39,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(ok_or_error) => {
             arc_process.return_from_call(ok_or_error)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -61,7 +61,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, document: Term, data: Term) -> exception::Result {
+fn native(process: &Process, document: Term, data: Term) -> exception::Result {
     let document_document = document_from_term(document)?;
     let data_string: String = data.try_into()?;
 

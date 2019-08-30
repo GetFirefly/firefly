@@ -70,14 +70,14 @@ impl VMState {
                         ..
                     } => {
                         if *reason != atom_unchecked("normal") {
-                            panic!("ProcessControlBlock exited: {:?}", reason);
+                            panic!("Process exited: {:?}", reason);
                         } else {
                             panic!("yay!");
                         }
                     }
                     _ => {
                         panic!(
-                            "ProcessControlBlock exception: {:?}\n{:?}",
+                            "Process exception: {:?}\n{:?}",
                             exception,
                             run_arc_process.stacktrace()
                         );

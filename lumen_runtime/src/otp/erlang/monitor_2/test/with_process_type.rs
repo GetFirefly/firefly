@@ -34,7 +34,7 @@ fn without_process_identifier_errors_badarg() {
     });
 }
 
-fn is_not_process_identifier(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn is_not_process_identifier(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter(
             "Process identifier cannot be a pid, atom, or {atom, atom}",

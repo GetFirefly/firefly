@@ -3,7 +3,7 @@ use std::sync::Arc;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::erts::term::Term;
-use liblumen_alloc::erts::ProcessControlBlock;
+use liblumen_alloc::erts::Process;
 
 use crate::test::strategy::{self, bits_to_bytes, size_range};
 
@@ -26,10 +26,7 @@ pub fn byte_offset() -> BoxedStrategy<usize> {
     size_range::strategy()
 }
 
-pub fn containing_bytes(
-    byte_vec: Vec<u8>,
-    arc_process: Arc<ProcessControlBlock>,
-) -> BoxedStrategy<Term> {
+pub fn containing_bytes(byte_vec: Vec<u8>, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (byte_offset(), bit_offset(), Just(byte_vec))
         .prop_flat_map(|(byte_offset, bit_offset, byte_vec)| {
             let original_bit_len = original_bit_len(byte_offset, bit_offset, byte_vec.len(), 0);
@@ -56,7 +53,7 @@ pub fn containing_bytes(
         .boxed()
 }
 
-pub fn is_binary(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn is_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     with_size_range(
         byte_offset(),
         bit_offset(),
@@ -66,7 +63,7 @@ pub fn is_binary(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     )
 }
 
-pub fn is_not_binary(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn is_not_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     with_size_range(
         byte_offset(),
         bit_offset(),
@@ -80,7 +77,7 @@ fn original_bit_len(byte_offset: usize, bit_offset: u8, byte_count: usize, bit_c
     byte_offset * 8 + bit_offset as usize + byte_count * 8 + bit_count as usize
 }
 
-pub fn with_bit_count(bit_count: u8, arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn with_bit_count(bit_count: u8, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     with_size_range(
         byte_offset(),
         bit_offset(),
@@ -95,7 +92,7 @@ pub fn with_size_range(
     bit_offset: BoxedStrategy<u8>,
     byte_count: BoxedStrategy<usize>,
     bit_count: BoxedStrategy<u8>,
-    arc_process: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> BoxedStrategy<Term> {
     let original_arc_process = arc_process.clone();
     let subbinary_arc_process = arc_process.clone();

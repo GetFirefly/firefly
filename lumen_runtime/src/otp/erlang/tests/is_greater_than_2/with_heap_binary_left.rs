@@ -174,7 +174,7 @@ fn with_subbinary_with_value_with_shorter_length_returns_false() {
 
 fn is_greater_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::is_greater_than(
         |process| process.binary_from_bytes(&[1, 1]).unwrap(),

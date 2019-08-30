@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
+use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -25,7 +25,7 @@ lazy_static! {
 }
 
 pub fn call_erlang(
-    proc: Arc<ProcessControlBlock>,
+    proc: Arc<Process>,
     module: Atom,
     function: Atom,
     args: &[Term],
@@ -87,7 +87,7 @@ pub fn call_erlang(
                 } => {
                     if *reason != atom_unchecked("normal") {
                         return Err(());
-                    //panic!("ProcessControlBlock exited: {:?}", reason);
+                    //panic!("Process exited: {:?}", reason);
                     } else {
                         return Ok(());
                     }
@@ -95,7 +95,7 @@ pub fn call_erlang(
                 _ => {
                     return Err(());
                     //panic!(
-                    //    "ProcessControlBlock exception: {:?}\n{:?}",
+                    //    "Process exception: {:?}\n{:?}",
                     //    exception,
                     //    run_arc_process.stacktrace()
                     //);

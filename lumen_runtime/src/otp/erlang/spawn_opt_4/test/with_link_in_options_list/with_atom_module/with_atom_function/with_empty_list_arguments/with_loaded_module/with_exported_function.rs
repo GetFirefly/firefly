@@ -49,7 +49,7 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
         Status::Exiting(ref runtime_exception) => {
             assert_eq!(runtime_exception, &exit!(atom_unchecked("normal")));
         }
-        ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
+        ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
 
     assert!(!parent_arc_process.is_exiting())
@@ -112,7 +112,7 @@ fn without_arity_when_run_exits_undef_and_exits_parent() {
 
             assert_eq!(runtime_exception, &runtime_undef);
         }
-        ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
+        ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
 
     assert!(parent_arc_process.is_exiting());

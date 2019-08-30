@@ -57,17 +57,13 @@ enum CollectionType {
 /// missing features here correspondingly
 pub struct GarbageCollector<'p, 'h> {
     mode: CollectionType,
-    process: &'p ProcessControlBlock,
+    process: &'p Process,
     heap: &'h mut ProcessHeap,
     roots: RootSet,
 }
 impl<'p, 'h> GarbageCollector<'p, 'h> {
     /// Initializes the collector with the given process and root set
-    pub fn new(
-        heap: &'h mut ProcessHeap,
-        process: &'p ProcessControlBlock,
-        roots: RootSet,
-    ) -> Self {
+    pub fn new(heap: &'h mut ProcessHeap, process: &'p Process, roots: RootSet) -> Self {
         let mode = if Self::need_fullsweep(heap, process) {
             CollectionType::Full
         } else {
@@ -550,7 +546,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
 
     /// Determines if the current collection requires a full sweep or not
     #[inline]
-    fn need_fullsweep(heap: &ProcessHeap, process: &ProcessControlBlock) -> bool {
+    fn need_fullsweep(heap: &ProcessHeap, process: &Process) -> bool {
         if process.needs_fullsweep() {
             return true;
         }

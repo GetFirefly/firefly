@@ -69,7 +69,7 @@ fn with_tuple_map_list_or_bitstring_returns_false() {
 
 fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::is_greater_than_or_equal(
         |process| process.external_pid_with_node_id(1, 2, 3).unwrap(),

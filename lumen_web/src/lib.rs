@@ -21,7 +21,7 @@ use web_sys::Window;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Term};
 
 use lumen_runtime::scheduler::Scheduler;
@@ -70,7 +70,7 @@ fn ok() -> Term {
     atom_unchecked("ok")
 }
 
-fn ok_tuple(process: &ProcessControlBlock, value: Box<dyn Any>) -> Result<Term, Alloc> {
+fn ok_tuple(process: &Process, value: Box<dyn Any>) -> Result<Term, Alloc> {
     let ok = ok();
     let resource_term = process.resource(value)?;
 
@@ -78,7 +78,7 @@ fn ok_tuple(process: &ProcessControlBlock, value: Box<dyn Any>) -> Result<Term, 
 }
 
 fn option_to_ok_tuple_or_error<T: 'static>(
-    process: &ProcessControlBlock,
+    process: &Process,
     option: Option<T>,
 ) -> Result<Term, Alloc> {
     match option {

@@ -12,7 +12,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::{Monitor, ProcessControlBlock};
+use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::{
     atom_unchecked, Atom, Boxed, Pid, Reference, Term, Tuple, TypedTerm,
 };
@@ -23,7 +23,7 @@ use crate::process::SchedulerDependentAlloc;
 use crate::registry;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     r#type: Term,
     item: Term,
@@ -37,7 +37,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let r#type = arc_process.stack_pop().unwrap();
@@ -47,7 +47,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(true_term) => {
             arc_process.return_from_call(true_term)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -69,10 +69,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn monitor_process_identifier(
-    process: &ProcessControlBlock,
-    process_identifier: Term,
-) -> exception::Result {
+fn monitor_process_identifier(process: &Process, process_identifier: Term) -> exception::Result {
     match process_identifier.to_typed_term().unwrap() {
         TypedTerm::Atom(atom) => monitor_process_registered_name(process, process_identifier, atom),
         TypedTerm::Pid(pid) => monitor_process_pid(process, process_identifier, pid),
@@ -85,10 +82,7 @@ fn monitor_process_identifier(
     }
 }
 
-fn monitor_process_identifier_noproc(
-    process: &ProcessControlBlock,
-    identifier: Term,
-) -> exception::Result {
+fn monitor_process_identifier_noproc(process: &Process, identifier: Term) -> exception::Result {
     let monitor_reference = process.next_reference()?;
     let noproc_message = noproc_message(process, monitor_reference, identifier)?;
     process.send_from_self(noproc_message);
@@ -96,11 +90,7 @@ fn monitor_process_identifier_noproc(
     Ok(monitor_reference)
 }
 
-fn monitor_process_pid(
-    process: &ProcessControlBlock,
-    process_identifier: Term,
-    pid: Pid,
-) -> exception::Result {
+fn monitor_process_pid(process: &Process, process_identifier: Term, pid: Pid) -> exception::Result {
     match registry::pid_to_process(&pid) {
         Some(monitored_arc_process) => {
             let reference = process.next_reference()?;
@@ -119,7 +109,7 @@ fn monitor_process_pid(
 }
 
 fn monitor_process_registered_name(
-    process: &ProcessControlBlock,
+    process: &Process,
     process_identifier: Term,
     atom: Atom,
 ) -> exception::Result {
@@ -146,7 +136,7 @@ fn monitor_process_registered_name(
 }
 
 fn monitor_process_tuple(
-    process: &ProcessControlBlock,
+    process: &Process,
     _process_identifier: Term,
     tuple: &Tuple,
 ) -> exception::Result {
@@ -169,7 +159,7 @@ fn monitor_process_tuple(
 }
 
 pub(in crate::otp::erlang) fn native(
-    process: &ProcessControlBlock,
+    process: &Process,
     r#type: Term,
     item: Term,
 ) -> exception::Result {
@@ -183,18 +173,14 @@ pub(in crate::otp::erlang) fn native(
     }
 }
 
-fn noproc_message(
-    process: &ProcessControlBlock,
-    reference: Term,
-    identifier: Term,
-) -> Result<Term, Alloc> {
+fn noproc_message(process: &Process, reference: Term, identifier: Term) -> Result<Term, Alloc> {
     let noproc = atom_unchecked("noproc");
 
     down_message(process, reference, identifier, noproc)
 }
 
 fn down_message(
-    process: &ProcessControlBlock,
+    process: &Process,
     reference: Term,
     identifier: Term,
     info: Term,

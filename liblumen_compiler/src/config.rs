@@ -1,4 +1,4 @@
-use std::collections::{VecDeque, HashMap};
+use std::collections::{HashMap, VecDeque};
 use std::convert::Into;
 use std::path::PathBuf;
 use std::str::FromStr;

@@ -12,11 +12,8 @@ use libeir_diagnostics::{Diagnostic, Severity};
 use libeir_intern::Ident;
 use libeir_ir::Module;
 
-use libeir_syntax_erl::{
-    ParseConfig,
-    Parser,
-};
 use libeir_passes::PassManager;
+use libeir_syntax_erl::{ParseConfig, Parser};
 
 pub use super::config::{CompilerMode, CompilerSettings, Verbosity};
 pub use super::errors::CompilerError;
@@ -131,7 +128,7 @@ impl Compiler {
                         pass_manager.run(&mut ir);
                         Ok(ir)
                     }
-                    None => Err(CompilerError::Failed.into())
+                    None => Err(CompilerError::Failed.into()),
                 }
             }
             Err(errs) => Err(CompilerError::Parser {

@@ -46,8 +46,6 @@ commands:
       - build_package:
           package: liblumen_beam
       - build_package:
-          package: liblumen_common
-      - build_package:
           package: liblumen_compiler
       - build_package:
           package: liblumen_core
@@ -76,7 +74,6 @@ commands:
             - liblumen_alloc_macros
             - liblumen_arena
             - liblumen_beam
-            - liblumen_common
             - liblumen_compiler
             - liblumen_core
             - liblumen_diagnostics
@@ -181,7 +178,6 @@ jobs:
             - liblumen_alloc_macros
             - liblumen_arena
             - liblumen_beam
-            - liblumen_common
             - liblumen_compiler
             - liblumen_core
             - liblumen_diagnostics
@@ -245,7 +241,6 @@ jobs:
             - liblumen_alloc_macros
             - liblumen_arena
             - liblumen_beam
-            - liblumen_common
             - liblumen_compiler
             - liblumen_core
             - liblumen_diagnostics

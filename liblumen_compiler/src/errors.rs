@@ -19,7 +19,7 @@ pub enum CompilerError {
     },
 
     #[fail(display = "compilation failed")]
-    Failed
+    Failed,
 }
 impl From<std::io::Error> for CompilerError {
     fn from(err: std::io::Error) -> Self {

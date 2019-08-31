@@ -6,8 +6,8 @@ use clap::{crate_description, crate_name, crate_version};
 use clap::{App, Arg, SubCommand};
 use failure::Error;
 
-use liblumen_compiler::CompilerError;
 use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
+use liblumen_compiler::CompilerError;
 
 fn main() {
     human_panic::setup_panic!();

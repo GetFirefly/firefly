@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 use clap::{value_t, ArgMatches};
 use failure::Error;
 
-use liblumen_compiler::{Compiler, CompilerMode, CompilerSettings, Verbosity};
 use libeir_diagnostics::{CodeMap, ColorChoice};
+use liblumen_compiler::{Compiler, CompilerMode, CompilerSettings, Verbosity};
 
 /// Dispatches command-line arguments to the compiler backend
 pub fn dispatch<'a>(args: &'a ArgMatches) -> Result<(), Error> {

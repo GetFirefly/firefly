@@ -1,5 +1,3 @@
-//#![deny(warnings)]
-
 pub mod code;
 mod exec;
 mod module;

@@ -126,6 +126,7 @@ call(Process, Label, Request, Timeout)
         fun(Pid) ->
                do_call(Pid, Label, Request, Timeout)
         end,
+    lumen_intrinsics:println({call_to_proc, Process}),
     do_for_proc(Process, Fun).
 
 do_call(Process, Label, Request, Timeout)

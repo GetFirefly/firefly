@@ -269,7 +269,7 @@ mod constants {
 
     // First class immediates
     pub const FLAG_PID: usize = (0 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b00_11
-    pub const FLAG_PORT: usize = (1 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b01_011
+    pub const FLAG_PORT: usize = (1 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b01_11
     pub const FLAG_IMMEDIATE2: usize = (2 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b10_11
     pub const FLAG_SMALL_INTEGER: usize = (3 << IMMEDIATE1_SHIFT) | FLAG_IMMEDIATE; // 0b11_11
 
@@ -392,12 +392,12 @@ mod constants {
 
     #[inline]
     pub const fn boxed_value(term: usize) -> *mut Term {
-        (term & !(MASK_PRIMARY | MASK_LITERAL)) as *mut Term
+        (term & !MASK_PRIMARY) as *mut Term
     }
 
     #[inline]
     pub const fn list_value(term: usize) -> *mut Cons {
-        (term & !(MASK_PRIMARY | MASK_LITERAL)) as *mut Cons
+        (term & !MASK_PRIMARY) as *mut Cons
     }
 
     pub const fn smallint_value(term: usize) -> isize {
@@ -1293,7 +1293,7 @@ impl Term {
     ///
     /// NOTE: This is used internally by GC, you should use `to_typed_term` everywhere else
     #[inline]
-    pub(crate) fn boxed_val(&self) -> *mut Term {
+    pub fn boxed_val(&self) -> *mut Term {
         assert!(self.is_boxed());
         constants::boxed_value(self.0)
     }
@@ -1325,6 +1325,7 @@ impl Term {
 
     /// Given a pointer to a generic term, converts it to its typed representation
     pub fn to_typed_term(&self) -> Result<TypedTerm, InvalidTermError> {
+        //puts(&format!("ToTypedTerm {:032b}", self.as_usize()));
         let val = self.0;
         match constants::primary_tag(val) {
             Self::FLAG_HEADER => unsafe { Self::header_to_typed_term(self, val) },

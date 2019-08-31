@@ -11,7 +11,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::otp::erlang;
 
 pub fn closure(process: &ProcessControlBlock) -> Result<Term, Alloc> {
-    process.closure(process.pid_term(), module_function_arity(), code, vec![])
+    process.closure_with_env_from_slice(module_function_arity(), code, process.pid_term(), &[])
 }
 
 /// defp console_output(text) do

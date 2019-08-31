@@ -7,8 +7,7 @@ use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use crate::erts::term::{
-    binary_bytes, is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
-    Closure,
+    binary_bytes, is_move_marker, Closure, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
 };
 use crate::erts::*;
 use crate::mem::bit_size_of;

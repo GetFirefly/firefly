@@ -1,9 +1,9 @@
 use core::alloc::Layout;
 use core::any::Any;
+use core::mem;
 use core::ops::DerefMut;
 use core::ptr::{self, NonNull};
 use core::str::Chars;
-use core::mem;
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -27,17 +27,6 @@ use crate::erts::term::{
 };
 use crate::{erts, ModuleFunctionArity};
 use crate::{scheduler, VirtualAlloc};
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn puts(s: &str) {
-    println!("{}", s);
-}
-
-#[cfg(target_arch = "wasm32")]
-#[allow(dead_code)]
-pub fn puts(s: &str) {
-    web_sys::console::log_1(&s.into());
-}
 
 /// A trait, like `Alloc`, specifically for allocation of terms on a process heap
 pub trait HeapAlloc {
@@ -551,9 +540,13 @@ pub trait HeapAlloc {
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
-    fn closure_with_env_from_slice(&mut self, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term,
-                                   slice: &[Term]) -> Result<Term, Alloc>
-    {
+    fn closure_with_env_from_slice(
+        &mut self,
+        mfa: Arc<ModuleFunctionArity>,
+        code: Code,
+        creator: Term,
+        slice: &[Term],
+    ) -> Result<Term, Alloc> {
         self.closure_with_env_from_slices(mfa, code, creator, &[slice])
     }
 
@@ -565,9 +558,13 @@ pub trait HeapAlloc {
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
-    fn closure_with_env_from_slices(&mut self, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term,
-                                    slices: &[&[Term]]) -> Result<Term, Alloc>
-    {
+    fn closure_with_env_from_slices(
+        &mut self,
+        mfa: Arc<ModuleFunctionArity>,
+        code: Code,
+        creator: Term,
+        slices: &[&[Term]],
+    ) -> Result<Term, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
         let layout = Closure::layout(len);
         let alloc_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() };
@@ -592,8 +589,6 @@ pub trait HeapAlloc {
 
         Ok(Term::make_boxed(closure_ptr))
     }
-
-
 }
 impl<A, H> HeapAlloc for H
 where

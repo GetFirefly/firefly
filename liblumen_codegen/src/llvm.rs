@@ -1,18 +1,18 @@
 #![allow(dead_code)]
 
-pub(crate) mod enums;
+mod enums;
 mod memory_buffer;
 mod target;
 
 use std::ffi::CString;
-use std::sync::Once;
+use std::sync::{Once, ONCE_INIT};
 
 use llvm_sys::core::*;
 use llvm_sys::prelude::*;
 use llvm_sys::target::*;
 use llvm_sys::*;
 
-use liblumen_diagnostics::{ColorChoice, Diagnostic, Emitter, Severity, StandardStreamEmitter};
+use codemap_diagnostic::{ColorConfig, Diagnostic, Emitter, Level};
 
 use super::CodeGenError;
 
@@ -20,7 +20,7 @@ pub use self::enums::*;
 use self::target::{Target, TargetMachine};
 
 // Used to ensure LLVM is only initialized once
-static ONCE: Once = Once::new();
+static ONCE: Once = ONCE_INIT;
 
 /// Initialize LLVM internals
 pub fn initialize() {
@@ -48,20 +48,20 @@ extern "C" fn diganostic_handler(info: LLVMDiagnosticInfoRef, ctx: *mut libc::c_
     let severity = unsafe { LLVMGetDiagInfoSeverity(info) };
     let description = unsafe { LLVMGetDiagInfoDescription(info) };
     let d = Diagnostic {
-        severity: severity_to_diagnostic_severity(severity),
+        level: severity_to_diagnostic_level(severity),
+        message: c_str_to_str!(description).to_string(),
         code: None,
-        message: c_str_to_str!(description).to_owned(),
-        labels: Vec::new(),
+        spans: Vec::new(),
     };
-    ctx.emitter.diagnostic(&d).unwrap_or(());
+    ctx.emitter.emit(&vec![d]);
 }
 
-fn severity_to_diagnostic_severity(severity: LLVMDiagnosticSeverity) -> Severity {
+fn severity_to_diagnostic_level(severity: LLVMDiagnosticSeverity) -> Level {
     match severity {
-        LLVMDiagnosticSeverity::LLVMDSError => Severity::Error,
-        LLVMDiagnosticSeverity::LLVMDSWarning => Severity::Warning,
-        LLVMDiagnosticSeverity::LLVMDSRemark => Severity::Help,
-        LLVMDiagnosticSeverity::LLVMDSNote => Severity::Note,
+        LLVMDiagnosticSeverity::LLVMDSError => Level::Error,
+        LLVMDiagnosticSeverity::LLVMDSWarning => Level::Warning,
+        LLVMDiagnosticSeverity::LLVMDSRemark => Level::Help,
+        LLVMDiagnosticSeverity::LLVMDSNote => Level::Note,
     }
 }
 
@@ -71,22 +71,16 @@ pub struct Module {
 }
 impl Module {
     pub fn new(name: &str, m: LLVMModuleRef) -> Module {
-        Module {
-            name: name.to_string(),
-            m,
-        }
+        Module { name: name.to_string(), m }
     }
 
     pub fn parse(context: &Context, name: &str, ir: &str) -> Result<Module, CodeGenError> {
         // First, create an LLVM memory buffer to hold the IR
         let len = ir.len();
         let ir = CString::new(ir).expect("generated IR is an invalid C string");
-        let buf =
-            unsafe { LLVMCreateMemoryBufferWithMemoryRange(ir.as_ptr(), len, c_str!(name), 0) };
+        let buf = unsafe { LLVMCreateMemoryBufferWithMemoryRange(ir.as_ptr(), len, c_str!(name), 0) };
         if buf.is_null() {
-            return Err(CodeGenError::LLVMError(
-                "could not create LLVM memory buffer to parse IR".to_string(),
-            ));
+            return Err(CodeGenError::LLVMError("could not create LLVM memory buffer to parse IR".to_string()));
         }
         // Then, parse the IR from the memory buffer
         let module: *mut LLVMModuleRef = std::ptr::null_mut();
@@ -148,12 +142,7 @@ impl Module {
 
             let pm = LLVMCreatePassManager();
             let pmb = LLVMPassManagerBuilderCreate();
-            LLVMPassManagerBuilderPopulateLTOPassManager(
-                pmb,
-                pm,
-                internalize.into(),
-                inline.into(),
-            );
+            LLVMPassManagerBuilderPopulateLTOPassManager(pmb, pm, internalize.into(), inline.into());
             LLVMPassManagerBuilderDispose(pmb);
 
             LLVMRunPassManager(pm, self.m);
@@ -174,11 +163,7 @@ impl Module {
 
         let mut err: *mut libc::c_char = std::ptr::null_mut();
         let result = unsafe {
-            LLVMVerifyModule(
-                self.m,
-                LLVMVerifierFailureAction::LLVMReturnStatusAction,
-                &mut err,
-            )
+            LLVMVerifyModule(self.m, LLVMVerifierFailureAction::LLVMReturnStatusAction, &mut err)
         };
         if result != 0 {
             let err = c_str_to_str!(err);
@@ -188,17 +173,17 @@ impl Module {
     }
 }
 
-pub struct Context {
+pub struct Context<'a> {
     ctx: LLVMContextRef,
-    emitter: StandardStreamEmitter,
+    emitter: Emitter<'a>,
     target: Target,
     machine: TargetMachine,
     builder: Builder,
 }
-impl Context {
-    pub fn new() -> Result<Context, CodeGenError> {
+impl<'a> Context<'a> {
+    pub fn new() -> Result<Context<'a>, CodeGenError> {
         let ctx = unsafe { LLVMContextCreate() };
-        let emitter = StandardStreamEmitter::new(ColorChoice::Auto);
+        let emitter = Emitter::stderr(ColorConfig::Auto, None);
         // Create context
         let target = Target::default()?;
         let machine = TargetMachine::new(&target);
@@ -228,7 +213,7 @@ impl Context {
         Block::new(blk)
     }
 }
-impl std::convert::Into<LLVMContextRef> for Context {
+impl<'a> std::convert::Into<LLVMContextRef> for Context<'a> {
     fn into(self) -> LLVMContextRef {
         self.ctx
     }

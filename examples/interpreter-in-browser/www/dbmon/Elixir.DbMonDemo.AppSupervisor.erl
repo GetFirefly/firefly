@@ -38,8 +38,6 @@
     [].
 
 init(_ast@1) ->
-    lumen_intrinsics:println({app_supervisor, _ast@1}),
-    lumen_intrinsics:dump_process_heap(),
     _children@1 = [{'Elixir.DbMonDemo.WindowSupervisor',_ast@1}],
     'Elixir.Supervisor':init(_children@1, [{strategy,one_for_one}]).
 

@@ -53,7 +53,6 @@ build_child_from_node({text,_value@1}, _element@1) ->
 build_children_from_ast([], __element@1) ->
     [];
 build_children_from_ast([_node@1|_nodes@1], _element@1) ->
-    lumen_intrinsics:println({abc, _node@1, _nodes@1}),
     [build_child_from_node(_node@1, _element@1)|
      build_children_from_ast(_nodes@1, _element@1)].
 
@@ -112,26 +111,21 @@ handle_msg({'EXIT',__@1,__@2}, {__@3,__@4,__@5,__@6}) ->
     end.
 
 init({_tag_name@1,_attributes@1,_ast@1,_parent_node@1}) ->
-    lumen_intrinsics:println({tag_name, _tag_name@1}),
-    lumen_intrinsics:println({attributes, _attributes@1}),
-    lumen_intrinsics:println({ast, _ast@1}),
-    lumen_intrinsics:println({parent_node, _parent_node@1}),
-    lumen_intrinsics:println({aaa, _tag_name@1,_attributes@1,_ast@1,_parent_node@1}),
     {ok,_element@1} = init_element(_tag_name@1, _attributes@1),
-    {ok,_element@2} =
+    ok =
         'Elixir.Lumen.Web.Node':append_child(_parent_node@1, _element@1),
-    _children@1 = build_children_from_ast(_ast@1, _element@2),
-    {ok,_children@1,[{element,_element@2},{ast,_ast@1}]}.
+    _children@1 = build_children_from_ast(_ast@1, _element@1),
+    {ok,_children@1,[{element,_element@1},{ast,_ast@1}]}.
 
 init_element(_tag_name@1, _attributes@1) ->
     _document@1 =
         'Elixir.GenServer':call('Elixir.DbMonDemo.DocumentSupervisor',
-                                document),
+                                document, infinity),
     {ok,_element@1} =
         'Elixir.Lumen.Web.Document':create_element(_document@1,
                                                    _tag_name@1),
     'Elixir.Enum':each(_attributes@1,
-                       fun([attribute,_name@1,_value@1]) ->
+                       fun({attribute,_name@1,_value@1}) ->
                               'Elixir.Lumen.Web.Element':set_attribute(_element@1,
                                                                        _name@1,
                                                                        _value@1)

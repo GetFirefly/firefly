@@ -95,7 +95,7 @@ impl ProcessHeapAlloc {
     }
 
     /// Corresponds to the first heap size of 233 words
-    const MIN_HEAP_SIZE_INDEX: usize = 10;
+    const MIN_HEAP_SIZE_INDEX: usize = 0;
 
     /// Creates a new `ProcessAlloc` instance
     pub fn new() -> Self {

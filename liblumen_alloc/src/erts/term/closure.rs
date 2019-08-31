@@ -7,12 +7,13 @@ use core::mem;
 
 use alloc::sync::Arc;
 
-use super::{AsTerm, Term, to_word_size};
+use super::{to_word_size, AsTerm, Term};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
-use crate::erts::process::code::stack::frame::Frame;
+use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
+use crate::erts::process::ProcessControlBlock;
 use crate::erts::term::{arity_of, Boxed, TypeError, TypedTerm};
 use crate::erts::{HeapAlloc, ModuleFunctionArity};
 
@@ -51,6 +52,32 @@ impl Closure {
 
     pub fn module_function_arity(&self) -> Arc<ModuleFunctionArity> {
         Arc::clone(&self.module_function_arity)
+    }
+
+    pub fn place_frame_with_arguments(
+        &self,
+        process: &ProcessControlBlock,
+        placement: Placement,
+        arguments: Vec<Term>,
+    ) -> Result<(), Alloc> {
+        assert_eq!(arguments.len(), self.arity() as usize);
+        for argument in arguments.iter().rev() {
+            process.stack_push(*argument)?;
+        }
+
+        self.push_env_to_stack(process)?;
+
+        process.place_frame(self.frame(), placement);
+
+        Ok(())
+    }
+
+    fn push_env_to_stack(&self, process: &ProcessControlBlock) -> Result<(), Alloc> {
+        for term in self.env_slice().iter().rev() {
+            process.stack_push(*term)?;
+        }
+
+        Ok(())
     }
 
     /// Returns the pointer to the head of the closure environment
@@ -108,7 +135,6 @@ impl Closure {
     pub fn base_size_words() -> usize {
         to_word_size(Self::base_size())
     }
-
 }
 
 unsafe impl AsTerm for Closure {
@@ -127,7 +153,12 @@ impl CloneToProcess for Closure {
             let base_ptr = heap.alloc(words)?.as_ptr() as *mut Term;
             let closure_ptr = base_ptr as *mut Self;
             // Write header
-            closure_ptr.write(Closure::new(self.module_function_arity.clone(), self.code, self.creator, len));
+            closure_ptr.write(Closure::new(
+                self.module_function_arity.clone(),
+                self.code,
+                self.creator,
+                len,
+            ));
 
             // Write the elements
             let mut element_ptr = base_ptr.offset(Self::base_size_words() as isize);

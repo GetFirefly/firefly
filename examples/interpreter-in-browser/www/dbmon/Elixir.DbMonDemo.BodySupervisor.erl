@@ -94,20 +94,14 @@ handle_msg({'EXIT',__@1,__@2}, {__@3,__@4,__@5,__@6}) ->
     end.
 
 init(_ast@1) ->
-    lumen_intrinsics:println(body_supervisor),
-    %lumen_intrinsics:dump_process_heap(),
-    lumen_intrinsics:println({body_supervisor, _ast@1}),
-    {ok,_window@1} = 'Elixir.Lumen.Web.Window':window(),
-    {ok,_document@1} = 'Elixir.Lumen.Web.Window':document(_window@1),
-    {ok, Body} = 'Elixir.Lumen.Web.Document':body(_document@1),
-    %_document@1 =
-    %    'Elixir.GenServer':call('Elixir.DbMonDemo.DocumentSupervisor',
-    %                            document, infinity),
-    %{ok,_body@1} = 'Elixir.Lumen.Web.Document':body(_document@1),
+    _document@1 =
+        'Elixir.GenServer':call('Elixir.DbMonDemo.DocumentSupervisor',
+                                document, infinity),
+    {ok,_body@1} = 'Elixir.Lumen.Web.Document':body(_document@1),
     _children@1 =
         'Elixir.DbMonDemo.ElementSupervisor':build_children_from_ast(_ast@1,
-                                                                     Body),
-    {ok,_children@1,[{body,Body},{ast,_ast@1}]}.
+                                                                     _body@1),
+    {ok,_children@1,[{body,_body@1},{ast,_ast@1}]}.
 
 init_it(__@1, __@2, __@3) ->
     {ok,__@4,__@5} = apply(__@1, init, [__@3]),

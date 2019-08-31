@@ -1,6 +1,4 @@
-use std::convert::TryInto;
-
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::otp::erlang;
 
@@ -140,7 +138,7 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::add_2::native(proc, args[0], args[1]).unwrap())
     });
 
-    native.add_simple(Atom::try_from_str("self").unwrap(), 0, |proc, args| {
+    native.add_simple(Atom::try_from_str("self").unwrap(), 0, |proc, _args| {
         Ok(proc.pid_term())
     });
 
@@ -186,7 +184,7 @@ pub fn make_erlang() -> NativeModule {
     native.add_simple(
         Atom::try_from_str("monotonic_time").unwrap(),
         0,
-        |proc, args| {
+        |proc, _args| {
             Ok(erlang::monotonic_time_0::native(proc).unwrap())
         },
     );
@@ -201,10 +199,10 @@ pub fn make_erlang() -> NativeModule {
         crate::code::apply(proc)
     });
 
-    native.add_simple(Atom::try_from_str("node").unwrap(), 0, |_proc, args| {
+    native.add_simple(Atom::try_from_str("node").unwrap(), 0, |_proc, _args| {
         Ok(erlang::node_0())
     });
-    native.add_simple(Atom::try_from_str("node").unwrap(), 1, |_proc, args| {
+    native.add_simple(Atom::try_from_str("node").unwrap(), 1, |_proc, _args| {
         Ok(atom_unchecked("nonode@nohost"))
     });
     native.add_simple(Atom::try_from_str("whereis").unwrap(), 1, |_proc, args| {

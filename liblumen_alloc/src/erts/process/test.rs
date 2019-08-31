@@ -6,7 +6,7 @@ use core::ptr;
 use ::alloc::sync::Arc;
 
 use crate::erts::term::list::ListBuilder;
-use crate::erts::term::{follow_moved, is_move_marker, Atom, Cons, HeapBin, Tuple, Closure};
+use crate::erts::term::{follow_moved, is_move_marker, Atom, Closure, Cons, HeapBin, Tuple};
 use crate::erts::*;
 
 use super::alloc;
@@ -195,7 +195,8 @@ mod tuple_from_slice {
             Ok(())
         };
 
-        process.acquire_heap()
+        process
+            .acquire_heap()
             .closure_with_env_from_slices(module_function_arity, code, creator, &[&[]])
             .unwrap()
     }
@@ -263,8 +264,12 @@ fn simple_gc_test(process: ProcessControlBlock) {
 
     let closure_term = process
         .acquire_heap()
-        .closure_with_env_from_slices(module_function_arity, code, creator,
-                                      &[&[closure_num, closure_string_term]])
+        .closure_with_env_from_slices(
+            module_function_arity,
+            code,
+            creator,
+            &[&[closure_num, closure_string_term]],
+        )
         .unwrap();
     assert!(closure_term.is_boxed());
     let closure_term_ref = unsafe { &*(closure_term.boxed_val() as *mut Closure) };

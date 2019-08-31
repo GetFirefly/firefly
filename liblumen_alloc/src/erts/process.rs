@@ -475,10 +475,15 @@ impl ProcessControlBlock {
         self.acquire_heap().charlist_from_str(s)
     }
 
-    pub fn closure_with_env_from_slice(&self, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term,
-                                   slice: &[Term]) -> Result<Term, Alloc>
-    {
-        self.acquire_heap().closure_with_env_from_slice(mfa, code, creator, slice)
+    pub fn closure_with_env_from_slice(
+        &self,
+        mfa: Arc<ModuleFunctionArity>,
+        code: Code,
+        creator: Term,
+        slice: &[Term],
+    ) -> Result<Term, Alloc> {
+        self.acquire_heap()
+            .closure_with_env_from_slice(mfa, code, creator, slice)
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.

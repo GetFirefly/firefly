@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::Atom;
 
 use crate::module::NativeModule;
 

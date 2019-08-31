@@ -94,7 +94,6 @@ handle_msg({'EXIT',__@1,__@2}, {__@3,__@4,__@5,__@6}) ->
     end.
 
 init(_ast@1) ->
-    lumen_intrinsics:println({window_supervisor, _ast@1}),
     {ok,_window@1} = 'Elixir.Lumen.Web.Window':window(),
     _children@1 = [{'Elixir.DbMonDemo.DocumentSupervisor',_ast@1}],
     {ok,_children@1,[{window,_window@1},{ast,_ast@1}]}.

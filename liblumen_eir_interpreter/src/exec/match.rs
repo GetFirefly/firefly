@@ -67,7 +67,6 @@ pub fn match_op(
                 match unpack_term.to_typed_term().unwrap() {
                     TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                         TypedTerm::Tuple(tup) => {
-                            //assert!(tup.get_element_from_zero_based_usize_index(0).ok().map(|v| ))
                             if tup.len() == *arity {
                                 exec.next_args.extend(tup.iter());
                                 return exec.val_call(proc, fun, *branch);

@@ -40,31 +40,31 @@
 %        [{text,<<"This is an example rendering from Lumen">>}]},
 %       {text,<<"\n">>}].
 
+ast() ->
+    [{element,
+      <<"div">>,
+      [{attribute,<<"id">>,<<"foo">>}],
+      [{text,<<"\n  ">>},
+       {element,<<"p">>,[],[{text,<<"Hello">>}]},
+       {text,<<"\n  ">>},
+       {element,
+        <<"h1">>,
+        [],
+        [{text,<<"This is an example rendering from Lumen">>}]},
+       {text,<<"\n">>}]}].
+
+
+
 %ast() ->
 %    [{element,
 %      'div',
 %      [{attribute,id,<<"foo">>}],
 %      [{text,<<"\n  ">>},
-%       {element,p,[],[{text,<<"Hello">>}]},
+%       {element,p,[],[]},
 %       {text,<<"\n  ">>},
 %       {element,
 %        h1,
 %        [],
-%        [{text,<<"This is an example rendering from Lumen">>}]},
+%        []},
 %       {text,<<"\n">>}]}].
-
-
-
-ast() ->
-    [{element,
-      'div',
-      [{attribute,id,<<"foo">>}],
-      [{text,<<"\n  ">>},
-       {element,p,[],[]},
-       {text,<<"\n  ">>},
-       {element,
-        h1,
-        [],
-        []},
-       {text,<<"\n">>}]}].
-
+%

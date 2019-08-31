@@ -318,6 +318,5 @@ impl TryInto<Vec<u8>> for MatchContext {
         } else {
             Err(badarg!())
         }
-
     }
 }

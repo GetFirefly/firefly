@@ -9,17 +9,8 @@ use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::ProcessControlBlock;
 use liblumen_alloc::erts::term::{Atom, Term, TypedTerm, Boxed, Closure};
 use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::erts::exception::system;
 
 use crate::exec::CallExecutor;
-
-//pub fn replace_landing_frame(_arc_process: &Arc<ProcessControlBlock>) -> Result {
-//    unimplemented!()
-//}
-//
-//pub fn return_landing_code(_arc_process: &Arc<ProcessControlBlock>) -> Result {
-//    unimplemented!()
-//}
 
 pub fn return_throw(arc_process: &Arc<ProcessControlBlock>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
@@ -79,9 +70,6 @@ pub fn interpreter_mfa_code(arc_process: &Arc<ProcessControlBlock>) -> Result {
         }
         _ => panic!(),
     }
-    //println!("{:?} {}", argument_vec, argument_vec.len());
-
-    //println!("{:?} {:?}", mfa, argument_vec.get(3));
     assert!(mfa.arity as usize == argument_vec.len() - 2);
 
     let mut exec = CallExecutor::new();
@@ -151,22 +139,6 @@ pub fn apply(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
     let module: Atom = module_term.try_into().unwrap();
     let function: Atom = function_term.try_into().unwrap();
-    //println!("APPLY {:?} {:?}", module, function);
-    //println!("APPLY_ARGS {:?}", argument_list);
-
-    //match argument_list.to_typed_term().unwrap() {
-    //    TypedTerm::List(cons) => {
-    //        for v in cons.into_iter() {
-    //            println!("APPLY SINGLEARG {:?}", v);
-    //        }
-    //    },
-    //    _ => panic!(),
-    //}
-
-    //match argument_list.to_typed_term().unwrap() {
-    //    TypedTerm::List(cons) => println!("APPLY LEN {}", cons.into_iter().count()),
-    //    _ => panic!(),
-    //}
 
     let arity;
     match argument_list.to_typed_term().unwrap() {

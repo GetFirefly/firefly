@@ -94,14 +94,11 @@ handle_msg({'EXIT',__@1,__@2}, {__@3,__@4,__@5,__@6}) ->
     end.
 
 init(_ast@1) ->
-    lumen_intrinsics:println({document_supervisor, _ast@1}),
-    %_window@1 =
-    %    'Elixir.GenServer':call('Elixir.DbMonDemo.WindowSupervisor',
-    %                            window, infinity),
-    {ok,_window@1} = 'Elixir.Lumen.Web.Window':window(),
+    _window@1 =
+        'Elixir.GenServer':call('Elixir.DbMonDemo.WindowSupervisor',
+                                window, infinity),
     {ok,_document@1} = 'Elixir.Lumen.Web.Window':document(_window@1),
     _children@1 = [{'Elixir.DbMonDemo.BodySupervisor',_ast@1}],
-    lumen_intrinsics:println({document_supervisor_children, _children@1}),
     {ok,_children@1,[{document,_document@1},{ast,_ast@1}]}.
 
 init_it(__@1, __@2, __@3) ->

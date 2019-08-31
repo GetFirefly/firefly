@@ -11,7 +11,7 @@ use libeir_ir::{Block, LogicOp, OpKind, PrimOpKind, BinOp, Value, ValueKind, Bin
 use liblumen_alloc::erts::exception::system;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::{ProcessControlBlock, ProcessFlags};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm, AsTerm, Map, Boxed};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm, Map, Boxed};
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::erts::process::RootSet;
 
@@ -20,12 +20,12 @@ use crate::vm::VMState;
 
 mod r#match;
 
-//macro_rules! trace {
-//    ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
-//}
 macro_rules! trace {
-    ($($t:tt)*) => ()
+    ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
 }
+//macro_rules! trace {
+//    ($($t:tt)*) => ()
+//}
 
 const VALUE_LIST_MARKER: &str = "eir_value_list_marker_df8gy43h";
 
@@ -272,7 +272,8 @@ impl CallExecutor {
             // Insert block argument into environment
             let block_arg_vals = fun.fun.block_args(block);
             //trace!("{:?} {:?}", &block_arg_vals, &exec.next_args);
-            assert!(block_arg_vals.len() == exec.next_args.len());
+            assert!(block_arg_vals.len() == exec.next_args.len(), "{} == {}",
+                    block_arg_vals.len(), exec.next_args.len());
             for (v, t) in block_arg_vals.iter().zip(exec.next_args.iter()) {
                 exec.binds.insert(*v, t.clone());
             }
@@ -391,7 +392,8 @@ impl CallExecutor {
                             .collect();
                         let mut vec = terms?;
                         vec.insert(0, atom_unchecked(VALUE_LIST_MARKER));
-                        Ok(proc.tuple_from_slice(&vec)?)
+                        let term = proc.tuple_from_slice(&vec)?;
+                        Ok(term)
                     }
                     PrimOpKind::Tuple => {
                         let terms: std::result::Result<Vec<_>, _> = reads.iter()
@@ -478,7 +480,7 @@ impl CallExecutor {
 
         let reads = fun.fun.block_reads(block);
         let kind = fun.fun.block_kind(block).unwrap();
-        trace!("OP: {:?}", kind);
+        trace!("OP: {:?} {}", kind, block);
 
         proc.reduce();
 
@@ -652,6 +654,8 @@ impl CallExecutor {
             OpKind::Intrinsic(name) if *name == Symbol::intern("receive_wait") => {
                 assert!(reads.len() == 2);
 
+                let curr_cont = self.make_closure(proc, fun, block)?;
+
                 let mailbox_lock = proc.mailbox.lock();
                 let mut mailbox = mailbox_lock.borrow_mut();
                 if let Some(msg_term) = mailbox.recv_peek() {
@@ -665,7 +669,6 @@ impl CallExecutor {
                 } else {
                     // If there are no messages, schedule a call
                     // to the current block for later.
-                    let curr_cont = self.make_closure(proc, fun, block).unwrap();
                     self.next_args.push(Term::NIL);
                     proc.wait();
                     Ok(OpResult::TermYield(curr_cont))
@@ -695,7 +698,6 @@ impl CallExecutor {
                 assert!(reads.len() == 4);
                 let head = self.make_term(proc, fun, reads[2])?;
                 let tail = self.make_term(proc, fun, reads[3])?;
-                trace!("{:?} {:?}", head, tail);
 
                 let mut head_bin: Vec<u8> = head.try_into().unwrap();
                 let tail_bin: Vec<u8> = tail.try_into().unwrap();

@@ -9,7 +9,7 @@ use core::mem;
 use proc_macro::TokenStream;
 
 use proc_macro2::Span;
-use quote::quote_spanned;
+use quote::{quote, quote_spanned};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::{Bracket, Comma};

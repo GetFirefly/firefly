@@ -973,4 +973,3 @@ impl TryInto<Vec<u8>> for TypedTerm {
         }
     }
 }
-

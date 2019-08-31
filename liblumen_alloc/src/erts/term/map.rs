@@ -47,6 +47,10 @@ impl Map {
         self.value.contains_key(&key)
     }
 
+    pub fn keys(&self) -> Vec<Term> {
+        self.value.keys().into_iter().copied().collect()
+    }
+
     pub fn len(&self) -> usize {
         self.value.len()
     }

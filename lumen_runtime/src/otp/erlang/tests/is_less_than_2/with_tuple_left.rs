@@ -109,7 +109,7 @@ fn with_map_list_or_bitstring_returns_true() {
 
 fn is_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::is_less_than(
         |process| {

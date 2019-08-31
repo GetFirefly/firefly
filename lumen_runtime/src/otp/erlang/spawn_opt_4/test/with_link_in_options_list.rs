@@ -31,6 +31,6 @@ fn without_atom_module_errors_badarg() {
     });
 }
 
-fn options(process: &ProcessControlBlock) -> Term {
+fn options(process: &Process) -> Term {
     process.list_from_slice(&[atom_unchecked("link")]).unwrap()
 }

@@ -17,7 +17,7 @@ use liblumen_core::locks::Mutex;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::term::{atom_unchecked, reference, Atom, Reference, Term};
 use liblumen_alloc::CloneToProcess;
-use liblumen_alloc::ProcessControlBlock;
+use liblumen_alloc::Process;
 
 use crate::registry;
 use crate::scheduler::{Scheduled, Scheduler};
@@ -40,7 +40,7 @@ pub fn start(
     destination: Destination,
     timeout: Timeout,
     process_message: Term,
-    process_control_block: &ProcessControlBlock,
+    process: &Process,
 ) -> Result<Term, Alloc> {
     let scheduler = Scheduler::current();
 
@@ -49,7 +49,7 @@ pub fn start(
         destination,
         timeout,
         process_message,
-        process_control_block,
+        process,
         &scheduler,
     );
 
@@ -67,7 +67,7 @@ pub fn timeout() {
 #[cfg_attr(debug_assertions, derive(Debug))]
 pub enum Destination {
     Name(Atom),
-    Process(Weak<ProcessControlBlock>),
+    Process(Weak<Process>),
 }
 
 #[cfg_attr(test, derive(Debug))]
@@ -137,21 +137,17 @@ impl Hierarchy {
         destination: Destination,
         timeout: Timeout,
         process_message: Term,
-        process_control_block: &ProcessControlBlock,
+        process: &Process,
         scheduler: &Scheduler,
     ) -> Result<Term, Alloc> {
         let reference_number = scheduler.next_reference_number();
-        let process_reference =
-            process_control_block.reference_from_scheduler(scheduler.id, reference_number)?;
+        let process_reference = process.reference_from_scheduler(scheduler.id, reference_number)?;
         let (heap_fragment_message, heap_fragment) = match timeout {
             Timeout::Message => process_message.clone_to_fragment()?,
             Timeout::TimeoutTuple => {
                 let tag = atom_unchecked("timeout");
-                let process_tuple = process_control_block.tuple_from_slice(&[
-                    tag,
-                    process_reference,
-                    process_message,
-                ])?;
+                let process_tuple =
+                    process.tuple_from_slice(&[tag, process_reference, process_message])?;
 
                 process_tuple.clone_to_fragment()?
             }

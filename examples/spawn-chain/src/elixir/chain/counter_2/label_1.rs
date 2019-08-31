@@ -3,7 +3,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::Term;
 
 use lumen_runtime::otp::erlang;
@@ -11,7 +11,7 @@ use lumen_runtime::otp::erlang;
 use crate::elixir::chain::counter_2::label_2;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     next_pid: Term,
     output: Term,
@@ -38,7 +38,7 @@ pub fn place_frame_with_arguments(
 ///     output.("sent #{sent} to #{next_pid}")
 /// end
 /// ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     // Because there is a guardless match in the receive block, the first message will always be
@@ -77,14 +77,14 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
             let one = arc_process.integer(1)?;
             erlang::add_2::place_frame_with_arguments(arc_process, Placement::Push, n, one)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         None => Ok(Arc::clone(arc_process).wait()),
         Some(Err(alloc_err)) => Err(alloc_err.into()),
     }
 }
 
-fn frame(process: &ProcessControlBlock) -> Frame {
+fn frame(process: &Process) -> Frame {
     let module_function_arity = process.current_module_function_arity().unwrap();
 
     Frame::new(module_function_arity, code)

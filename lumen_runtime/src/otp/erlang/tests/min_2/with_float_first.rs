@@ -57,7 +57,7 @@ fn without_number_returns_first() {
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::min(|process| process.float(1.0).unwrap(), second, which);
 }

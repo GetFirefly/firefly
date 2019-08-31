@@ -3,14 +3,14 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Term, Tuple};
 use liblumen_alloc::ModuleFunctionArity;
 
 use super::label_4;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     document: Term,
 ) -> Result<(), Alloc> {
@@ -34,7 +34,7 @@ pub fn place_frame_with_arguments(
 // remove_ok = Lumen.Web.Element.remove(child);
 // Lumen.Web.Wait.with_return(remove_ok)
 // ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok_body = arc_process.stack_pop().unwrap();
@@ -58,7 +58,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         child_tag,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn frame() -> Frame {

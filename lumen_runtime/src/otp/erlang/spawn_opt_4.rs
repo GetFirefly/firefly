@@ -12,7 +12,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::ModuleFunctionArity;
 
@@ -20,7 +20,7 @@ use crate::otp::erlang::spawn_apply_3;
 use crate::process::spawn::options::Options;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     module: Term,
     function: Term,
@@ -38,7 +38,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+pub fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let module = arc_process.stack_pop().unwrap();
@@ -50,7 +50,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(child_pid) => {
             arc_process.return_from_call(child_pid)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -73,7 +73,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 }
 
 fn native(
-    process_control_block: &ProcessControlBlock,
+    process: &Process,
     module: Term,
     function: Term,
     arguments: Term,
@@ -81,11 +81,5 @@ fn native(
 ) -> exception::Result {
     let options_options: Options = options.try_into()?;
 
-    spawn_apply_3::native(
-        process_control_block,
-        options_options,
-        module,
-        function,
-        arguments,
-    )
+    spawn_apply_3::native(process, options_options, module, function, arguments)
 }

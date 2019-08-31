@@ -60,7 +60,7 @@ fn without_number_or_atom_returns_true() {
 
 fn is_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::is_less_than(|_| atom_unchecked("left"), right, expected);
 }

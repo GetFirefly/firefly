@@ -66,7 +66,7 @@ fn with_subbinary_timer_reference_errors_badarg() {
     with_timer_reference_errors_badarg(|process| bitstring!(1 :: 1, process));
 }
 
-fn options(process: &ProcessControlBlock) -> Term {
+fn options(process: &Process) -> Term {
     process
         .cons(info_option(false, process), super::options(process))
         .unwrap()
@@ -74,7 +74,7 @@ fn options(process: &ProcessControlBlock) -> Term {
 
 fn with_timer_reference_errors_badarg<T>(timer_reference: T)
 where
-    T: FnOnce(&ProcessControlBlock) -> Term,
+    T: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
         assert_badarg!(erlang::cancel_timer_2(

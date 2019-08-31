@@ -63,7 +63,7 @@ fn with_list_or_bitstring_returns_true() {
 
 fn is_equal_or_less_than<R>(right: R, expected: bool)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::is_equal_or_less_than(|_| make_pid(0, 1).unwrap(), right, expected);
 }

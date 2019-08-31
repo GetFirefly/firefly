@@ -7,7 +7,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::ModuleFunctionArity;
 
@@ -43,7 +43,7 @@ use crate::elixir;
 /// end
 /// ```
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     n: Term,
     output: Term,
@@ -59,7 +59,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     let n = arc_process.stack_pop().unwrap();
     let output = arc_process.stack_pop().unwrap();
 
@@ -101,7 +101,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
                 reducer,
             )?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }

@@ -6,32 +6,32 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::Atom;
 use liblumen_alloc::ModuleFunctionArity;
 
 use crate::time::{monotonic, Unit::Native};
 
-pub fn native(process_control_block: &ProcessControlBlock) -> exception::Result {
+pub fn native(process: &Process) -> exception::Result {
     let big_int = monotonic::time(Native);
 
-    Ok(process_control_block.integer(big_int)?)
+    Ok(process.integer(big_int)?)
 }
 
-pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
+pub fn place_frame(process: &Process, placement: Placement) {
     process.place_frame(frame(), placement);
 }
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     match native(arc_process) {
         Ok(time) => {
             arc_process.return_from_call(time)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }

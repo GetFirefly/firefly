@@ -85,7 +85,7 @@ fn with_float_multiplicand_with_overflow_returns_max_float() {
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &ProcessControlBlock) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
         let multiplier = process.float(2.0).unwrap();

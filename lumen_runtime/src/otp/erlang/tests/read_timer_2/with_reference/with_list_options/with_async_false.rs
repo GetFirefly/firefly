@@ -14,7 +14,7 @@ fn without_timer_returns_false() {
     });
 }
 
-fn options(process: &ProcessControlBlock) -> Term {
+fn options(process: &Process) -> Term {
     process
         .cons(async_option(false, process), Term::NIL)
         .unwrap()

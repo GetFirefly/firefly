@@ -176,7 +176,7 @@ fn with_binary_encoding_small_atom_utf8_returns_atom() {
 
 fn with_binary_returns_term<T>(byte_vec: Vec<u8>, term: T)
 where
-    T: Fn(&ProcessControlBlock) -> Term,
+    T: Fn(&Process) -> Term,
 {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))

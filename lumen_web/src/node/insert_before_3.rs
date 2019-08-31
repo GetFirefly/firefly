@@ -8,7 +8,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -29,7 +29,7 @@ use crate::{error, ok_tuple};
 /// end
 /// ```
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     parent: Term,
     new_child: Term,
@@ -45,7 +45,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+pub fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let parent = arc_process.stack_pop().unwrap();
@@ -56,7 +56,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(ok_or_error_tuple) => {
             arc_process.return_from_call(ok_or_error_tuple)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -79,7 +79,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 }
 
 fn native(
-    process: &ProcessControlBlock,
+    process: &Process,
     parent: Term,
     new_child: Term,
     reference_child: Term,

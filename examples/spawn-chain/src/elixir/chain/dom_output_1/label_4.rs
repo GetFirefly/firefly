@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::Term;
 
 use crate::elixir::chain::dom_output_1::label_5;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     document: Term,
     tr: Term,
@@ -43,7 +43,7 @@ pub fn place_frame_with_arguments(
 /// {:ok, tbody} = Lumen::Web::Document.get_element_by_id(document, "output")
 /// Lumen::Web::Node.append_child(tbody, tr)
 /// ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let pid_text = arc_process.stack_pop().unwrap();
@@ -71,10 +71,10 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         tag,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
-fn frame(process: &ProcessControlBlock) -> Frame {
+fn frame(process: &Process) -> Frame {
     let module_function_arity = process.current_module_function_arity().unwrap();
 
     Frame::new(module_function_arity, code)

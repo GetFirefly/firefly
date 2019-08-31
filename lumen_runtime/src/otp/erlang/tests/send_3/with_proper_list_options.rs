@@ -34,7 +34,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
         .unwrap();
 }
 
-fn valid_options(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn valid_options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let noconnect = atom_unchecked("noconnect");
     let nosuspend = atom_unchecked("nosuspend");
 

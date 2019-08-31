@@ -5,49 +5,43 @@ mod system;
 
 #[macro_export]
 macro_rules! badkey {
-    ($process_control_block:expr, $key:expr) => {{
+    ($process:expr, $key:expr) => {{
         use $crate::erts::exception::Exception;
 
-        Exception::badkey($process_control_block, $key, file!(), line!(), column!())
+        Exception::badkey($process, $key, file!(), line!(), column!())
     }};
-    ($process_control_block:expr, $key:expr,) => {{
-        badkey!($process_control_block, $key)
+    ($process:expr, $key:expr,) => {{
+        badkey!($process, $key)
     }};
 }
 
 #[macro_export]
 macro_rules! badmap {
-    ($process_control_block:expr, $map:expr) => {{
+    ($process:expr, $map:expr) => {{
         use $crate::erts::exception::Exception;
 
-        Exception::badmap($process_control_block, $map, file!(), line!(), column!())
+        Exception::badmap($process, $map, file!(), line!(), column!())
     }};
-    ($process_control_block:expr, $map:expr,) => {{
-        badmap!($process_control_block, $map)
+    ($process:expr, $map:expr,) => {{
+        badmap!($process, $map)
     }};
 }
 
 #[macro_export]
 macro_rules! undef {
-    ($process_control_block:expr, $module:expr, $function:expr, $arguments:expr) => {{
+    ($process:expr, $module:expr, $function:expr, $arguments:expr) => {{
         use $crate::erts::Term;
 
-        $crate::undef!(
-            $process_control_block,
-            $module,
-            $function,
-            $arguments,
-            Term::NIL
-        )
+        $crate::undef!($process, $module, $function, $arguments, Term::NIL)
     }};
-    ($process_control_block:expr, $module:expr, $function:expr, $arguments:expr,) => {
-        $crate::undef!($process_control_block, $module, $function, $arguments)
+    ($process:expr, $module:expr, $function:expr, $arguments:expr,) => {
+        $crate::undef!($process, $module, $function, $arguments)
     };
-    ($process_control_block:expr, $module:expr, $function:expr, $arguments:expr, $stacktrace_tail:expr) => {{
+    ($process:expr, $module:expr, $function:expr, $arguments:expr, $stacktrace_tail:expr) => {{
         use $crate::erts::exception::{runtime, Exception};
 
         Exception::undef(
-            $process_control_block,
+            $process,
             $module,
             $function,
             $arguments,
@@ -57,13 +51,7 @@ macro_rules! undef {
             column!(),
         )
     }};
-    ($process_control_block:expr, $module:expr, $function:expr, $arguments:expr, $stacktrace_tail:expr,) => {
-        $crate::undef!(
-            $process_control_block,
-            $module,
-            $function,
-            $arguments,
-            $stacktrace_tail
-        )
+    ($process:expr, $module:expr, $function:expr, $arguments:expr, $stacktrace_tail:expr,) => {
+        $crate::undef!($process, $module, $function, $arguments, $stacktrace_tail)
     };
 }

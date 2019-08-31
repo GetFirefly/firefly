@@ -2,7 +2,7 @@ use core::mem;
 use core::ptr::NonNull;
 
 use crate::erts::exception::system::Alloc;
-use crate::erts::{self, HeapAlloc, HeapFragment, ProcessControlBlock, Term};
+use crate::erts::{self, HeapAlloc, HeapFragment, Process, Term};
 
 /// This trait represents cloning, like `Clone`, but specifically
 /// in the context of terms which need to be cloned into the heap
@@ -21,7 +21,7 @@ pub trait CloneToProcess {
     /// Returns boxed copy of this value, performing any heap allocations
     /// using the process heap of `process`, possibly using heap fragments if
     /// there is not enough space for the cloned value
-    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
+    fn clone_to_process(&self, process: &Process) -> Term {
         let mut heap = process.acquire_heap();
         match self.clone_to_heap(&mut heap) {
             Ok(term) => term,

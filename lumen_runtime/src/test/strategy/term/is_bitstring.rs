@@ -4,14 +4,14 @@ use std::sync::Arc;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::{ProcessControlBlock, Term};
+use liblumen_alloc::{Process, Term};
 
 use super::binary::sub::{bit_count, bit_offset, byte_offset};
 use super::binary::{heap, sub};
 
 pub fn with_byte_len_range(
     byte_len_range_inclusive: RangeInclusive<usize>,
-    arc_process: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> BoxedStrategy<Term> {
     prop_oneof![
         heap::with_size_range(byte_len_range_inclusive.clone().into(), arc_process.clone()),

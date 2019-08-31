@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{atom_unchecked, resource, Boxed, Tuple};
 use liblumen_alloc::ModuleFunctionArity;
 
@@ -10,7 +10,7 @@ use web_sys::Window;
 
 use super::label_2;
 
-pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
+pub fn place_frame(process: &Process, placement: Placement) {
     process.place_frame(frame(), placement);
 }
 
@@ -29,7 +29,7 @@ pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
 // :ok = Lumen.Web.Element.remove(child);
 // Lumen.Web.Wait.with_return(body_tuple)
 // ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok_window = arc_process.stack_pop().unwrap();
@@ -52,7 +52,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         window,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn frame() -> Frame {

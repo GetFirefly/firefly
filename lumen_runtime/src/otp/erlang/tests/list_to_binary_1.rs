@@ -88,16 +88,13 @@ fn with_recursive_lists_of_binaries_and_bytes_ending_in_binary_or_empty_list_ret
     });
 }
 
-fn byte(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     any::<u8>()
         .prop_map(move |byte| arc_process.integer(byte).unwrap())
         .boxed()
 }
 
-fn container(
-    element: BoxedStrategy<Term>,
-    arc_process: Arc<ProcessControlBlock>,
-) -> BoxedStrategy<Term> {
+fn container(element: BoxedStrategy<Term>, arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (
         proptest::collection::vec(element, 0..=3),
         tail(arc_process.clone()),
@@ -110,7 +107,7 @@ fn container(
         .boxed()
 }
 
-fn leaf(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn leaf(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         strategy::term::is_binary(arc_process.clone()),
         byte(arc_process),
@@ -118,7 +115,7 @@ fn leaf(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
     .boxed()
 }
 
-fn recursive(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn recursive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     leaf(arc_process.clone())
         .prop_recursive(3, 3 * 4, 3, move |element| {
             container(element, arc_process.clone())
@@ -126,11 +123,11 @@ fn recursive(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
-fn tail(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn tail(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![strategy::term::is_binary(arc_process), Just(Term::NIL)].boxed()
 }
 
-fn top(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn top(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (
         proptest::collection::vec(recursive(arc_process.clone()), 1..=4),
         tail(arc_process.clone()),

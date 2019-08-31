@@ -4,7 +4,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -14,7 +14,7 @@ use crate::html_input_element;
 /// value_string = Lumen.Web.HTMLInputElement.value(html_input_element)
 /// ```
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     html_input_element: Term,
 ) -> Result<(), Alloc> {
@@ -26,7 +26,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let html_input_element = arc_process.stack_pop().unwrap();
@@ -35,7 +35,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(body) => {
             arc_process.return_from_call(body)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -57,7 +57,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, html_input_element_term: Term) -> exception::Result {
+fn native(process: &Process, html_input_element_term: Term) -> exception::Result {
     let html_input_element = html_input_element::from_term(html_input_element_term)?;
     let value_string = html_input_element.value();
 

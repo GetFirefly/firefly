@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{Boxed, Closure, Term};
 
 use lumen_runtime::otp::erlang;
@@ -16,7 +16,7 @@ use crate::elixir::chain::create_processes_2::label_2;
 ///  # full stack: (last, output)
 ///  # returns: sent
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     output: Term,
 ) -> Result<(), Alloc> {
@@ -45,7 +45,7 @@ pub fn place_frame_with_arguments(
 ///     final_answer
 /// end
 /// ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     // placed on top of stack by return from `elixir::r#enum::reduce_0_code`
     let last = arc_process.stack_pop().unwrap();
     assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
@@ -76,10 +76,10 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let message = arc_process.integer(0)?;
     erlang::send_2::place_frame_with_arguments(arc_process, Placement::Push, last, message)?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
-fn frame(process: &ProcessControlBlock) -> Frame {
+fn frame(process: &Process) -> Frame {
     let module_function_arity = process.current_module_function_arity().unwrap();
 
     Frame::new(module_function_arity, code)

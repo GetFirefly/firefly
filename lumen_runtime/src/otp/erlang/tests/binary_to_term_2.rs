@@ -53,7 +53,7 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
             .unwrap();
     });
 
-    fn options(process: &ProcessControlBlock) -> Term {
+    fn options(process: &Process) -> Term {
         process.cons(atom_unchecked("used"), Term::NIL).unwrap()
     }
 }

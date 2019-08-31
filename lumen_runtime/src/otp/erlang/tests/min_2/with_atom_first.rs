@@ -63,7 +63,7 @@ fn without_number_or_atom_returns_first() {
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::min(|_| atom_unchecked("first"), second, which);
 }

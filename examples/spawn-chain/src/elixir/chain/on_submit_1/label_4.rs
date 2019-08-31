@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::atom_unchecked;
 
 use lumen_runtime::otp::erlang;
@@ -15,13 +15,13 @@ use lumen_runtime::otp::erlang;
 /// # returns: {time, value}
 /// :erlang.spawn_opt(Chain, dom, [n], [min_heap_size: 79 + n *5])
 /// ```
-pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
+pub fn place_frame(process: &Process, placement: Placement) {
     process.place_frame(frame(process), placement);
 }
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let n = arc_process.stack_pop().unwrap();
@@ -40,10 +40,10 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         ])?])?,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
-fn frame(process: &ProcessControlBlock) -> Frame {
+fn frame(process: &Process) -> Frame {
     let module_function_arity = process.current_module_function_arity().unwrap();
 
     Frame::new(module_function_arity, code)

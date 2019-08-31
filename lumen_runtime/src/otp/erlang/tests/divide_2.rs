@@ -96,7 +96,7 @@ fn with_number_dividend_without_zero_number_divisor_returns_float() {
     });
 }
 
-fn number_is_not_zero(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn number_is_not_zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term::is_number(arc_process)
         .prop_filter("Number must not be zero", |number| {
             match number.to_typed_term().unwrap() {
@@ -119,7 +119,7 @@ fn number_is_not_zero(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Te
         .boxed()
 }
 
-fn zero(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         Just(arc_process.integer(0).unwrap()),
         Just(arc_process.float(0.0).unwrap())

@@ -5,7 +5,7 @@ use core::hash::Hash;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::process::{Priority, ProcessControlBlock, Status};
+use liblumen_alloc::erts::process::{Priority, Process, Status};
 
 use crate::run::queues::delayed::Delayed;
 use crate::run::queues::immediate::Immediate;
@@ -25,7 +25,7 @@ pub struct Queues {
 
 impl Queues {
     #[cfg(test)]
-    pub fn contains(&self, value: &Arc<ProcessControlBlock>) -> bool {
+    pub fn contains(&self, value: &Arc<Process>) -> bool {
         self.waiting.contains(value)
             || self.normal_low.contains(value)
             || self.high.contains(value)
@@ -53,7 +53,7 @@ impl Queues {
         }
     }
 
-    pub fn enqueue(&mut self, arc_process: Arc<ProcessControlBlock>) {
+    pub fn enqueue(&mut self, arc_process: Arc<Process>) {
         match arc_process.priority {
             Priority::Low | Priority::Normal => self.normal_low.enqueue(arc_process),
             Priority::High => self.high.enqueue(arc_process),
@@ -67,10 +67,7 @@ impl Queues {
 
     /// Returns the process is not pushed back because it is exiting
     #[must_use]
-    pub fn requeue(
-        &mut self,
-        arc_process: Arc<ProcessControlBlock>,
-    ) -> Option<Arc<ProcessControlBlock>> {
+    pub fn requeue(&mut self, arc_process: Arc<Process>) -> Option<Arc<Process>> {
         let next = Next::from_status(&arc_process.status.read());
 
         // has to be separate so that `arc_process` can be moved
@@ -92,7 +89,7 @@ impl Queues {
         }
     }
 
-    pub fn stop_waiting(&mut self, process: &ProcessControlBlock) {
+    pub fn stop_waiting(&mut self, process: &Process) {
         match self.waiting.get(process) {
             Some(arc_process) => {
                 let arc_process = Arc::clone(arc_process);
@@ -127,23 +124,23 @@ impl Next {
 }
 
 #[derive(Default)]
-pub struct Waiting(HashSet<Arc<ProcessControlBlock>>);
+pub struct Waiting(HashSet<Arc<Process>>);
 
 impl Waiting {
     #[cfg(test)]
-    fn contains(&self, value: &Arc<ProcessControlBlock>) -> bool {
+    fn contains(&self, value: &Arc<Process>) -> bool {
         self.0.contains(value)
     }
 
-    fn get<Q: ?Sized>(&self, value: &Q) -> Option<&Arc<ProcessControlBlock>>
+    fn get<Q: ?Sized>(&self, value: &Q) -> Option<&Arc<Process>>
     where
-        Arc<ProcessControlBlock>: Borrow<Q>,
+        Arc<Process>: Borrow<Q>,
         Q: Hash + Eq,
     {
         self.0.get(value)
     }
 
-    fn insert(&mut self, waiter: Arc<ProcessControlBlock>) -> bool {
+    fn insert(&mut self, waiter: Arc<Process>) -> bool {
         self.0.insert(waiter)
     }
 
@@ -151,7 +148,7 @@ impl Waiting {
         self.0.len()
     }
 
-    fn remove(&mut self, waiter: &Arc<ProcessControlBlock>) -> bool {
+    fn remove(&mut self, waiter: &Arc<Process>) -> bool {
         self.0.remove(waiter)
     }
 }
@@ -159,15 +156,10 @@ impl Waiting {
 impl Debug for Waiting {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut vec: Vec<_> = self.0.iter().collect();
-        vec.sort_by_key(|arc_process_control_block| arc_process_control_block.pid());
+        vec.sort_by_key(|arc_process| arc_process.pid());
 
-        for arc_process_control_block in vec {
-            write!(
-                f,
-                "{:?}:\n{:?}",
-                arc_process_control_block,
-                arc_process_control_block.stacktrace()
-            )?;
+        for arc_process in vec {
+            write!(f, "{:?}:\n{:?}", arc_process, arc_process.stacktrace())?;
         }
 
         Ok(())

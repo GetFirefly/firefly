@@ -6,7 +6,7 @@ use core::convert::Into;
 use core::num::TryFromIntError;
 
 use crate::erts::process::alloc::heap_alloc::MakePidError;
-use crate::erts::process::ProcessControlBlock;
+use crate::erts::process::Process;
 use crate::erts::term::atom::AtomError;
 use crate::erts::term::atom::EncodingError;
 use crate::erts::term::list::ImproperList;
@@ -23,7 +23,7 @@ pub enum Exception {
 
 impl Exception {
     pub fn badarity(
-        process: &ProcessControlBlock,
+        process: &Process,
         function: Term,
         arguments: Term,
         file: &'static str,
@@ -37,7 +37,7 @@ impl Exception {
     }
 
     pub fn badfun(
-        process: &ProcessControlBlock,
+        process: &Process,
         function: Term,
         file: &'static str,
         line: u32,
@@ -50,7 +50,7 @@ impl Exception {
     }
 
     pub fn badkey(
-        process: &ProcessControlBlock,
+        process: &Process,
         key: Term,
         file: &'static str,
         line: u32,
@@ -63,7 +63,7 @@ impl Exception {
     }
 
     pub fn badmap(
-        process: &ProcessControlBlock,
+        process: &Process,
         map: Term,
         file: &'static str,
         line: u32,
@@ -76,7 +76,7 @@ impl Exception {
     }
 
     pub fn undef(
-        process: &ProcessControlBlock,
+        process: &Process,
         module: Term,
         function: Term,
         arguments: Term,

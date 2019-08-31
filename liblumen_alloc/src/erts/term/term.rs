@@ -14,7 +14,7 @@ use crate::erts::exception::system::Alloc;
 use crate::erts::term::binary::aligned_binary::AlignedBinary;
 use crate::erts::term::resource;
 use crate::erts::term::InvalidTermError;
-use crate::erts::ProcessControlBlock;
+use crate::erts::Process;
 
 use num_bigint::BigInt;
 
@@ -1587,7 +1587,7 @@ impl Ord for Term {
 }
 
 impl CloneToProcess for Term {
-    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
+    fn clone_to_process(&self, process: &Process) -> Term {
         if self.is_immediate() {
             *self
         } else if self.is_boxed() || self.is_non_empty_list() {

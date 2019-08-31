@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 
 use lumen_runtime::otp::erlang;
 
@@ -16,13 +16,13 @@ use super::label_4;
 /// n = :erlang.binary_to_integer(value_string)
 /// dom(n)
 /// ```
-pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
+pub fn place_frame(process: &Process, placement: Placement) {
     process.place_frame(frame(process), placement);
 }
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let value_string = arc_process.stack_pop().unwrap();
@@ -44,10 +44,10 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         value_string,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
-fn frame(process: &ProcessControlBlock) -> Frame {
+fn frame(process: &Process) -> Frame {
     let module_function_arity = process.current_module_function_arity().unwrap();
 
     Frame::new(module_function_arity, code)

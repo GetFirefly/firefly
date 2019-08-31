@@ -63,7 +63,7 @@ fn without_number_or_atom_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::max(|_| atom_unchecked("first"), second, which);
 }

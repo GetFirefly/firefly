@@ -36,6 +36,6 @@ fn without_non_negative_integer_time_errors_badarg() {
     });
 }
 
-fn options(process: &ProcessControlBlock) -> Term {
+fn options(process: &Process) -> Term {
     super::options(true.into(), process)
 }

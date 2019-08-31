@@ -5,7 +5,7 @@ use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 
 use crate::otp::erlang::link_1::native;
 use crate::scheduler::{with_process, with_process_arc};
@@ -30,6 +30,6 @@ fn without_pid_or_port_errors_badarg() {
     });
 }
 
-fn link_count(process: &ProcessControlBlock) -> usize {
+fn link_count(process: &Process) -> usize {
     process.linked_pid_set.lock().len()
 }

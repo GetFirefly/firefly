@@ -13,12 +13,12 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Pid, Term};
 use liblumen_alloc::{badarg, AsTerm, ModuleFunctionArity};
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     pid: Term,
     item: Term,
@@ -32,7 +32,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let pid = arc_process.stack_pop().unwrap();
@@ -42,7 +42,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(info) => {
             arc_process.return_from_call(info)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -64,7 +64,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, pid: Term, item: Term) -> exception::Result {
+fn native(process: &Process, pid: Term, item: Term) -> exception::Result {
     let pid_pid: Pid = pid.try_into()?;
     let item_atom: Atom = item.try_into()?;
 
@@ -78,7 +78,7 @@ fn native(process: &ProcessControlBlock, pid: Term, item: Term) -> exception::Re
     }
 }
 
-fn process_info(process: &ProcessControlBlock, item: Atom) -> exception::Result {
+fn process_info(process: &Process, item: Atom) -> exception::Result {
     match item.name() {
         "backtrace" => unimplemented!(),
         "binary" => unimplemented!(),
@@ -117,7 +117,7 @@ fn process_info(process: &ProcessControlBlock, item: Atom) -> exception::Result 
     }
 }
 
-fn registered_name(process: &ProcessControlBlock) -> exception::Result {
+fn registered_name(process: &Process) -> exception::Result {
     match *process.registered_name.read() {
         Some(registered_name) => {
             let tag = atom_unchecked("registered_name");

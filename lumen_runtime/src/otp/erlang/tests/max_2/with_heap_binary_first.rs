@@ -176,7 +176,7 @@ fn with_subbinary_with_value_with_shorter_length_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::max(
         |process| process.binary_from_bytes(&[1, 1]).unwrap(),

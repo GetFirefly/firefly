@@ -8,21 +8,19 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::term::{Boxed, Term, Tuple};
-use liblumen_alloc::erts::ProcessControlBlock;
+use liblumen_alloc::erts::Process;
 
 pub fn intermediate(
     element: BoxedStrategy<Term>,
     size_range: SizeRange,
-    arc_process: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> BoxedStrategy<Term> {
     proptest::collection::vec(element, size_range)
         .prop_map(move |vec| arc_process.tuple_from_slice(&vec).unwrap())
         .boxed()
 }
 
-pub fn with_index(
-    arc_process: Arc<ProcessControlBlock>,
-) -> BoxedStrategy<(Vec<Term>, usize, Term, Term)> {
+pub fn with_index(arc_process: Arc<Process>) -> BoxedStrategy<(Vec<Term>, usize, Term, Term)> {
     (Just(arc_process), 1_usize..=4_usize)
         .prop_flat_map(|(arc_process, len)| {
             (
@@ -44,7 +42,7 @@ pub fn with_index(
         .boxed()
 }
 
-pub fn without_index(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<(Term, Term)> {
+pub fn without_index(arc_process: Arc<Process>) -> BoxedStrategy<(Term, Term)> {
     (super::tuple(arc_process.clone()), super::super::term(arc_process.clone()))
         .prop_filter("Index either needs to not be an integer or not be an integer in the index range 1..=len", |(tuple, index)| {
             let index_big_int_result: std::result::Result<BigInt, _> = (*index).try_into();

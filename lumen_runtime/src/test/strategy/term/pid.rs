@@ -3,11 +3,11 @@ use std::sync::Arc;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::term::{make_pid, Pid, Term};
-use liblumen_alloc::erts::ProcessControlBlock;
+use liblumen_alloc::erts::Process;
 
 pub mod external;
 
-pub fn external(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn external(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let external_pid_arc_process = arc_process.clone();
 
     (external::node_id(), number(), serial())

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::Atom;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -15,20 +15,20 @@ use crate::option_to_ok_tuple_or_error;
 ///    :error -> ...
 /// end
 /// ```
-pub fn place_frame(process: &ProcessControlBlock, placement: Placement) {
+pub fn place_frame(process: &Process, placement: Placement) {
     process.place_frame(frame(), placement);
 }
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     match native(arc_process) {
         Ok(ok_tuple_or_error) => {
             arc_process.return_from_call(ok_tuple_or_error)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -50,7 +50,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock) -> exception::Result {
+fn native(process: &Process) -> exception::Result {
     let option_window = web_sys::window();
 
     option_to_ok_tuple_or_error(process, option_window).map_err(|error| error.into())

@@ -15,11 +15,11 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-pub fn closure(process: &ProcessControlBlock) -> Result<Term, Alloc> {
+pub fn closure(process: &Process) -> Result<Term, Alloc> {
     process.closure(process.pid_term(), module_function_arity(), code, vec![])
 }
 
@@ -48,7 +48,7 @@ pub fn closure(process: &ProcessControlBlock) -> Result<Term, Alloc> {
 ///   Lumen::Web::Node.append_child(tbody, tr)
 /// end
 /// ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let text = arc_process.stack_pop().unwrap();
@@ -56,7 +56,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     label_1::place_frame_with_arguments(arc_process, Placement::Replace, text)?;
     lumen_web::window::window_0::place_frame(arc_process, Placement::Push);
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn function() -> Atom {

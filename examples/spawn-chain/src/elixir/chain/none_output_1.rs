@@ -1,25 +1,25 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-pub fn closure(process: &ProcessControlBlock) -> Result<Term, Alloc> {
+pub fn closure(process: &Process) -> Result<Term, Alloc> {
     process.closure_with_env_from_slice(module_function_arity(), code, process.pid_term(), &[])
 }
 
 /// defp none_output(_text) do
 ///   :ok
 /// end
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let _text = arc_process.stack_pop().unwrap();
 
-    ProcessControlBlock::return_from_call(arc_process, atom_unchecked("ok"))?;
+    Process::return_from_call(arc_process, atom_unchecked("ok"))?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn function() -> Atom {

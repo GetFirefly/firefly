@@ -12,7 +12,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{Event, EventTarget, Window};
 
 use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 
 use lumen_runtime::process::spawn::options::Options;
@@ -25,7 +25,7 @@ pub fn add_event_listener<F>(
     options: Options,
     place_frame_with_arguments: F,
 ) where
-    F: Fn(&ProcessControlBlock, Term) -> Result<(), Alloc> + 'static,
+    F: Fn(&Process, Term) -> Result<(), Alloc> + 'static,
 {
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();

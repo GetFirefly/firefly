@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::convert::Into;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -6,15 +6,14 @@ use std::sync::{Arc, Mutex};
 
 use failure::{format_err, Error};
 
-use liblumen_diagnostics::{CodeMap, ColorChoice};
-use liblumen_syntax::{MacroDef, ParseConfig, Symbol};
+use libeir_diagnostics::{CodeMap, ColorChoice};
+use libeir_syntax_erl::ParseConfig;
 
 /// Determines which type of compilation to perform,
 /// either parsing modules from BEAM files, or by
 /// parsing modules from Erlang source code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
 pub enum CompilerMode {
-    BEAM,
     Erlang,
 }
 impl FromStr for CompilerMode {
@@ -22,7 +21,6 @@ impl FromStr for CompilerMode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "beam" => Ok(CompilerMode::BEAM),
             "erl" => Ok(CompilerMode::Erlang),
             _ => Err(format_err!("invalid file type {}", s)),
         }
@@ -60,11 +58,12 @@ pub struct CompilerSettings {
     pub color: ColorChoice,
     pub source_dir: PathBuf,
     pub output_dir: PathBuf,
-    pub defines: HashMap<Symbol, MacroDef>,
+    //pub defines: HashMap<Symbol, MacroDef>,
     pub warnings_as_errors: bool,
     pub no_warn: bool,
     pub verbosity: Verbosity,
     pub code_path: Vec<PathBuf>,
+    pub include_path: VecDeque<PathBuf>,
     pub codemap: Arc<Mutex<CodeMap>>,
 }
 impl Into<ParseConfig> for CompilerSettings {
@@ -74,7 +73,8 @@ impl Into<ParseConfig> for CompilerSettings {
             warnings_as_errors: self.warnings_as_errors,
             no_warn: self.no_warn,
             code_paths: self.code_path.clone().into(),
-            macros: Some(self.defines.clone()),
+            include_paths: self.include_path.clone(),
+            macros: None,
         }
     }
 }

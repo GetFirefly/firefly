@@ -49,7 +49,7 @@ fn with_reference_without_list_options_errors_badarg() {
     });
 }
 
-fn async_option(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn async_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term::is_boolean()
         .prop_map(move |async_value| {
             arc_process
@@ -59,7 +59,7 @@ fn async_option(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
         .boxed()
 }
 
-fn options(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         Just(Term::NIL),
         async_option(arc_process.clone()).prop_map(move |async_option| {

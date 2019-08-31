@@ -9,12 +9,16 @@ macro_rules! trace {
 pub fn make_lumen_web_node() -> NativeModule {
     let mut native = NativeModule::new(Atom::try_from_str("Elixir.Lumen.Web.Node").unwrap());
 
-    native.add_simple(Atom::try_from_str("append_child").unwrap(), 2, |_proc, args| {
-        trace!("{:?}", args);
-        let ret = lumen_web::node::append_child_2::native(args[0], args[1]).unwrap();
-        trace!("{:?}", ret);
-        Ok(ret)
-    });
+    native.add_simple(
+        Atom::try_from_str("append_child").unwrap(),
+        2,
+        |_proc, args| {
+            trace!("{:?}", args);
+            let ret = lumen_web::node::append_child_2::native(args[0], args[1]).unwrap();
+            trace!("{:?}", ret);
+            Ok(ret)
+        },
+    );
 
     native
 }

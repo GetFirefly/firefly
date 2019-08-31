@@ -44,7 +44,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
         Status::Exiting(ref runtime_exception) => {
             assert_eq!(runtime_exception, &exit!(atom_unchecked("normal")));
         }
-        ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
+        ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
 
     assert!(!parent_arc_process.is_exiting());
@@ -102,7 +102,7 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
         Status::Exiting(ref runtime_exception) => {
             assert_eq!(runtime_exception, &badarith!());
         }
-        ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
+        ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
 
     assert!(!parent_arc_process.is_exiting())

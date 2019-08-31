@@ -11,7 +11,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 #[cfg(test)]
 use liblumen_alloc::erts::term::TypedTerm;
 use liblumen_alloc::erts::term::{Atom, Term};
@@ -53,7 +53,7 @@ pub fn set_code(code: Code) {
 }
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     module: Term,
     function: Term,
@@ -71,7 +71,7 @@ pub fn place_frame_with_arguments(
 
 /// Treats all MFAs as undefined.
 #[cfg(not(test))]
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     // arguments are consumed, but unused
     let module = arc_process.stack_pop().unwrap();
     let function = arc_process.stack_pop().unwrap();
@@ -89,7 +89,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
 }
 
 #[cfg(test)]
-pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+pub fn code(arc_process: &Arc<Process>) -> code::Result {
     let module = arc_process.stack_pop().unwrap();
     let function = arc_process.stack_pop().unwrap();
     let argument_list = arc_process.stack_pop().unwrap();
@@ -123,7 +123,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
                         argument_vec[0],
                     )?;
 
-                    ProcessControlBlock::call_code(arc_process)
+                    Process::call_code(arc_process)
                 }
                 _ => undef(arc_process, module, function, argument_list),
             },
@@ -131,7 +131,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
                 0 => {
                     erlang::self_0::place_frame(arc_process, Placement::Replace);
 
-                    ProcessControlBlock::call_code(arc_process)
+                    Process::call_code(arc_process)
                 }
                 _ => undef(arc_process, module, function, argument_list),
             },
@@ -159,7 +159,7 @@ pub(crate) fn module_function_arity() -> Arc<ModuleFunctionArity> {
 
 #[cfg(test)]
 fn undef(
-    arc_process: &Arc<ProcessControlBlock>,
+    arc_process: &Arc<Process>,
     module: Term,
     function: Term,
     arguments: Term,

@@ -63,7 +63,7 @@ fn with_big_integer_right_returns_big_integer() {
 
 fn with<F>(f: F)
 where
-    F: FnOnce(Term, &ProcessControlBlock) -> (),
+    F: FnOnce(Term, &Process) -> (),
 {
     with_process(|process| {
         let left = process

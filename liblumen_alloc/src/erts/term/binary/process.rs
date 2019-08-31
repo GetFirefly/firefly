@@ -16,7 +16,7 @@ use intrusive_collections::LinkedListLink;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
-use crate::erts::process::ProcessControlBlock;
+use crate::erts::process::Process;
 use crate::erts::term::binary::heap::HeapBin;
 use crate::erts::term::binary::sub::{Original, SubBinary};
 use crate::erts::term::{arity_of, AsTerm, Boxed, MatchContext, Term};
@@ -292,7 +292,7 @@ impl Clone for ProcBin {
 }
 
 impl CloneToProcess for ProcBin {
-    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
+    fn clone_to_process(&self, process: &Process) -> Term {
         let mut heap = process.acquire_heap();
         let boxed = self.clone_to_heap(&mut heap).unwrap();
         let ptr = boxed.boxed_val() as *mut Self;

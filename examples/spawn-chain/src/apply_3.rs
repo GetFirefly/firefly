@@ -4,12 +4,12 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::code::Result;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
 
 use crate::elixir;
 
-pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
+pub fn code(arc_process: &Arc<Process>) -> Result {
     let module_term = arc_process.stack_pop().unwrap();
     let function_term = arc_process.stack_pop().unwrap();
 
@@ -52,7 +52,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
                     // don't count finding the function as a reduction if it is found, only on
                     // exception in `undef`, so that each path is at least one reduction.
-                    ProcessControlBlock::call_code(arc_process)
+                    Process::call_code(arc_process)
                 }
                 _ => undef(arc_process, module_term, function_term, argument_list),
             },
@@ -67,7 +67,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
                     // don't count finding the function as a reduction if it is found, only on
                     // exception in `undef`, so that each path is at least one reduction.
-                    ProcessControlBlock::call_code(arc_process)
+                    Process::call_code(arc_process)
                 }
                 _ => undef(arc_process, module_term, function_term, argument_list),
             },
@@ -82,7 +82,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
                     // don't count finding the function as a reduction if it is found, only on
                     // exception in `undef`, so that each path is at least one reduction.
-                    ProcessControlBlock::call_code(arc_process)
+                    Process::call_code(arc_process)
                 }
                 _ => undef(arc_process, module_term, function_term, argument_list),
             },
@@ -96,7 +96,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
 
                     // don't count finding the function as a reduction if it is found, only on
                     // exception in `undef`, so that each path is at least one reduction.
-                    ProcessControlBlock::call_code(arc_process)
+                    Process::call_code(arc_process)
                 }
                 _ => undef(arc_process, module_term, function_term, argument_list),
             },
@@ -108,7 +108,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
                         argument_vec[0],
                     )?;
 
-                    ProcessControlBlock::call_code(arc_process)
+                    Process::call_code(arc_process)
                 }
                 _ => undef(arc_process, module_term, function_term, argument_list),
             },
@@ -118,12 +118,7 @@ pub fn code(arc_process: &Arc<ProcessControlBlock>) -> Result {
     }
 }
 
-fn undef(
-    arc_process: &Arc<ProcessControlBlock>,
-    module: Term,
-    function: Term,
-    arguments: Term,
-) -> Result {
+fn undef(arc_process: &Arc<Process>, module: Term, function: Term, arguments: Term) -> Result {
     arc_process.reduce();
     let exception = liblumen_alloc::undef!(arc_process, module, function, arguments);
     let runtime_exception: runtime::Exception = exception.try_into().unwrap();

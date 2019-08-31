@@ -2,13 +2,13 @@ use core::ptr::NonNull;
 
 use wasm_bindgen::prelude::*;
 
-use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::erts::HeapFragment;
-use liblumen_alloc::erts::term::{Term, Atom, AsTerm, Pid as PidTerm};
 use liblumen_alloc::erts::process::HeapAlloc;
+use liblumen_alloc::erts::term::{AsTerm, Atom, Pid as PidTerm, Term};
+use liblumen_alloc::erts::HeapFragment;
+use liblumen_alloc::erts::ModuleFunctionArity;
+use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::registry::pid_to_process;
 use lumen_runtime::scheduler::Scheduler;
-use lumen_runtime::process::spawn::options::Options;
 
 #[wasm_bindgen]
 pub struct Pid(PidTerm);
@@ -21,7 +21,6 @@ pub struct JsHeap {
 
 #[wasm_bindgen]
 impl JsHeap {
-
     #[wasm_bindgen(constructor)]
     pub fn new(size: usize) -> JsHeap {
         let fragment = unsafe { HeapFragment::new_from_word_size(size) }.unwrap();
@@ -51,10 +50,9 @@ impl JsHeap {
     pub fn tuple(&mut self, elems: &[usize]) -> usize {
         let frag = unsafe { self.fragment.as_mut() };
         let terms = &self.terms;
-        let term = frag.tuple_from_iter(
-            elems.iter().map(|n| terms[*n]),
-            elems.len()
-        ).unwrap();
+        let term = frag
+            .tuple_from_iter(elems.iter().map(|n| terms[*n]), elems.len())
+            .unwrap();
         self.push(term)
     }
 
@@ -84,8 +82,9 @@ impl JsHeap {
                 mfa.into(),
                 liblumen_eir_interpreter::code::return_clean,
                 proc.pid_term(),
-                &[]
-            ).unwrap()
+                &[],
+            )
+            .unwrap()
         };
         let return_throw = {
             let mfa = ModuleFunctionArity {
@@ -98,7 +97,8 @@ impl JsHeap {
                 liblumen_eir_interpreter::code::return_clean,
                 proc.pid_term(),
                 &[],
-            ).unwrap()
+            )
+            .unwrap()
         };
 
         let mut args_vec = vec![return_ok, return_throw];
@@ -112,15 +112,9 @@ impl JsHeap {
         let mut options: Options = Default::default();
         options.min_heap_size = Some(heap_size);
 
-        let run_arc_process = Scheduler::spawn_apply_3(
-            &proc,
-            options,
-            module,
-            function,
-            arguments,
-        ).unwrap();
+        let run_arc_process =
+            Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
 
         Pid(run_arc_process.pid())
     }
-
 }

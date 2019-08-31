@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{atom_unchecked, Term};
 use liblumen_alloc::ModuleFunctionArity;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     parent: Term,
     old_child: Term,
@@ -29,7 +29,7 @@ pub fn place_frame_with_arguments(
 // # returns: {:error, :hierarchy_request}
 // {:error, :hierarchy_request} = Lumen.Web.replace_child(parent, old_child, parent)
 // ```
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok = arc_process.stack_pop().unwrap();
@@ -47,7 +47,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         old_child,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn frame() -> Frame {

@@ -45,7 +45,7 @@ fn with_non_empty_list_or_bitstring_right_returns_false() {
     });
 }
 
-fn non_empty_list_or_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn non_empty_list_or_bitstring(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
         strategy::term::is_bitstring(arc_process)

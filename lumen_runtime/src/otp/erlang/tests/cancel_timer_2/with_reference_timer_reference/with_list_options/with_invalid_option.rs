@@ -71,7 +71,7 @@ fn with_subbinary_option_errors_badarg() {
 
 fn with_option_errors_badarg<O>(option: O)
 where
-    O: FnOnce(&ProcessControlBlock) -> Term,
+    O: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
         let timer_reference = process.next_reference().unwrap();

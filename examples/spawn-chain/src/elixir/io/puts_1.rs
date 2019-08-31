@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::Term;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 use liblumen_alloc::erts::ModuleFunctionArity;
@@ -13,7 +13,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::system;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     binary: Term,
 ) -> Result<(), Alloc> {
@@ -27,7 +27,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     let elixir_string = arc_process.stack_pop().unwrap();
 
     match elixir_string.try_into(): Result<String, runtime::Exception> {
@@ -39,7 +39,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
             let ok = atom_unchecked("ok");
             arc_process.return_from_call(ok)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => {
             arc_process.reduce();

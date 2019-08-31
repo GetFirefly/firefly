@@ -67,11 +67,7 @@ pub fn in_area_inclusive<T, U>(ptr: *const T, start: *const U, end: *const U) ->
 /// by the given pointers + size in bytes is not allocated. The caller must ensure that
 /// is the case before calling this.
 #[inline]
-pub unsafe fn compare_bytes(
-    src: *const u8,
-    dst: *const u8,
-    size: usize,
-) -> bool {
+pub unsafe fn compare_bytes(src: *const u8, dst: *const u8, size: usize) -> bool {
     let lhs = core::slice::from_raw_parts(src, size);
     let rhs = core::slice::from_raw_parts(dst, size);
     lhs.eq(rhs)

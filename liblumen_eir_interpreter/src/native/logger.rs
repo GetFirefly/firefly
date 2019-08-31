@@ -13,10 +13,14 @@ pub fn make_logger() -> NativeModule {
         Ok(true.into())
     });
 
-    native.add_simple(Atom::try_from_str("macro_log").unwrap(), 4, |_proc, args| {
-        trace!("{} {} {} {}", args[0], args[1], args[2], args[3]);
-        Ok(true.into())
-    });
+    native.add_simple(
+        Atom::try_from_str("macro_log").unwrap(),
+        4,
+        |_proc, args| {
+            trace!("{} {} {} {}", args[0], args[1], args[2], args[3]);
+            Ok(true.into())
+        },
+    );
 
     native
 }

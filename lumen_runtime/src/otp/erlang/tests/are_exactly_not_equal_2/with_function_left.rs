@@ -52,7 +52,7 @@ fn with_same_value_function_right_returns_false() {
                     strategy::module_function_arity::arity(),
                 )
                     .prop_map(move |(module, function, arity)| {
-                        let code = |arc_process: &Arc<ProcessControlBlock>| {
+                        let code = |arc_process: &Arc<Process>| {
                             arc_process.wait();
 
                             Ok(())
@@ -65,7 +65,12 @@ fn with_same_value_function_right_returns_false() {
                             arity,
                         });
                         let left_term = arc_process
-                            .closure_with_env_from_slice(left_module_function_arity, code, creator, &[])
+                            .closure_with_env_from_slice(
+                                left_module_function_arity,
+                                code,
+                                creator,
+                                &[],
+                            )
                             .unwrap();
 
                         let right_module_function_arity = Arc::new(ModuleFunctionArity {
@@ -74,7 +79,12 @@ fn with_same_value_function_right_returns_false() {
                             arity,
                         });
                         let right_term = arc_process
-                            .closure_with_env_from_slice(right_module_function_arity, code, creator, &[])
+                            .closure_with_env_from_slice(
+                                right_module_function_arity,
+                                code,
+                                creator,
+                                &[],
+                            )
                             .unwrap();
 
                         (left_term, right_term)
@@ -107,13 +117,18 @@ fn with_different_function_right_returns_true() {
                             function,
                             arity,
                         });
-                        let left_code = |arc_process: &Arc<ProcessControlBlock>| {
+                        let left_code = |arc_process: &Arc<Process>| {
                             arc_process.wait();
 
                             Ok(())
                         };
                         let left_term = arc_process
-                            .closure_with_env_from_slice(left_module_function_arity, left_code, creator, &[])
+                            .closure_with_env_from_slice(
+                                left_module_function_arity,
+                                left_code,
+                                creator,
+                                &[],
+                            )
                             .unwrap();
 
                         let right_module_function_arity = Arc::new(ModuleFunctionArity {
@@ -121,13 +136,18 @@ fn with_different_function_right_returns_true() {
                             function,
                             arity,
                         });
-                        let right_code = |arc_process: &Arc<ProcessControlBlock>| {
+                        let right_code = |arc_process: &Arc<Process>| {
                             arc_process.wait();
 
                             Ok(())
                         };
                         let right_term = arc_process
-                            .closure_with_env_from_slice(right_module_function_arity, right_code, creator, &[])
+                            .closure_with_env_from_slice(
+                                right_module_function_arity,
+                                right_code,
+                                creator,
+                                &[],
+                            )
                             .unwrap();
 
                         (left_term, right_term)

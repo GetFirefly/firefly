@@ -4,7 +4,7 @@ use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::term::{SmallInteger, Term};
-use liblumen_alloc::erts::ProcessControlBlock;
+use liblumen_alloc::erts::Process;
 
 pub fn isize() -> BoxedStrategy<isize> {
     prop_oneof![
@@ -14,13 +14,13 @@ pub fn isize() -> BoxedStrategy<isize> {
     .boxed()
 }
 
-pub fn negative(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn negative(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (std::isize::MIN..(SmallInteger::MIN_VALUE - 1))
         .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()
 }
 
-pub fn positive(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn positive(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     ((SmallInteger::MAX_VALUE + 1)..std::isize::MAX)
         .prop_map(move |i| arc_process.integer(i).unwrap())
         .boxed()

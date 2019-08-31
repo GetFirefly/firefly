@@ -51,7 +51,8 @@ pub fn make_erlang() -> NativeModule {
                 crate::code::return_clean,
                 proc.pid_term(),
                 &[],
-            ).unwrap()
+            )
+            .unwrap()
         };
 
         let inner_args = proc.cons(ret, proc.cons(ret, args[2]).unwrap()).unwrap();
@@ -80,25 +81,29 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::spawn_3::native(proc, args[0], args[1], inner_args).unwrap())
     });
 
-    native.add_simple(Atom::try_from_str("spawn_link").unwrap(), 3, |proc, args| {
-        let ret = {
-            let mfa = ModuleFunctionArity {
-                module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-                function: Atom::try_from_str("return_clean").unwrap(),
-                arity: 1,
-            };
-            proc.closure_with_env_from_slice(
-                mfa.into(),
-                crate::code::return_clean,
-                proc.pid_term(),
-                &[],
-            )
+    native.add_simple(
+        Atom::try_from_str("spawn_link").unwrap(),
+        3,
+        |proc, args| {
+            let ret = {
+                let mfa = ModuleFunctionArity {
+                    module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
+                    function: Atom::try_from_str("return_clean").unwrap(),
+                    arity: 1,
+                };
+                proc.closure_with_env_from_slice(
+                    mfa.into(),
+                    crate::code::return_clean,
+                    proc.pid_term(),
+                    &[],
+                )
                 .unwrap()
-        };
+            };
 
-        let inner_args = proc.cons(ret, proc.cons(ret, args[2]).unwrap()).unwrap();
-        Ok(erlang::spawn_link_3::native(proc, args[0], args[1], inner_args).unwrap())
-    });
+            let inner_args = proc.cons(ret, proc.cons(ret, args[2]).unwrap()).unwrap();
+            Ok(erlang::spawn_link_3::native(proc, args[0], args[1], inner_args).unwrap())
+        },
+    );
 
     native.add_simple(Atom::try_from_str("exit").unwrap(), 1, |_proc, args| {
         panic!("{:?}", args[0]);
@@ -116,9 +121,11 @@ pub fn make_erlang() -> NativeModule {
     native.add_simple(Atom::try_from_str("register").unwrap(), 2, |proc, args| {
         Ok(erlang::register_2(args[0], args[1], proc.clone()).unwrap())
     });
-    native.add_simple(Atom::try_from_str("process_flag").unwrap(), 2, |proc, args| {
-        Ok(erlang::process_flag_2::native(proc, args[0], args[1]).unwrap())
-    });
+    native.add_simple(
+        Atom::try_from_str("process_flag").unwrap(),
+        2,
+        |proc, args| Ok(erlang::process_flag_2::native(proc, args[0], args[1]).unwrap()),
+    );
 
     native.add_simple(Atom::try_from_str("send").unwrap(), 2, |proc, args| {
         Ok(erlang::send_2(args[0], args[1], proc).unwrap())
@@ -153,30 +160,38 @@ pub fn make_erlang() -> NativeModule {
     native.add_simple(Atom::try_from_str("is_list").unwrap(), 1, |_proc, args| {
         Ok(erlang::is_list_1(args[0]))
     });
-    native.add_simple(Atom::try_from_str("is_binary").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_binary_1(args[0]))
-    });
+    native.add_simple(
+        Atom::try_from_str("is_binary").unwrap(),
+        1,
+        |_proc, args| Ok(erlang::is_binary_1(args[0])),
+    );
     native.add_simple(Atom::try_from_str("is_atom").unwrap(), 1, |_proc, args| {
         Ok(erlang::is_atom_1(args[0]))
     });
     native.add_simple(Atom::try_from_str("is_pid").unwrap(), 1, |_proc, args| {
         Ok(erlang::is_pid_1(args[0]))
     });
-    native.add_simple(Atom::try_from_str("is_function").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_function_1(args[0]))
-    });
-    native.add_simple(Atom::try_from_str("is_function").unwrap(), 2, |_proc, args| {
-        Ok(erlang::is_function_1(args[0]))
-    });
+    native.add_simple(
+        Atom::try_from_str("is_function").unwrap(),
+        1,
+        |_proc, args| Ok(erlang::is_function_1(args[0])),
+    );
+    native.add_simple(
+        Atom::try_from_str("is_function").unwrap(),
+        2,
+        |_proc, args| Ok(erlang::is_function_1(args[0])),
+    );
     native.add_simple(Atom::try_from_str("is_tuple").unwrap(), 1, |_proc, args| {
         Ok(erlang::is_tuple_1(args[0]))
     });
     native.add_simple(Atom::try_from_str("is_map").unwrap(), 1, |_proc, args| {
         Ok(erlang::is_map_1(args[0]))
     });
-    native.add_simple(Atom::try_from_str("is_bitstring").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_bitstring_1(args[0]))
-    });
+    native.add_simple(
+        Atom::try_from_str("is_bitstring").unwrap(),
+        1,
+        |_proc, args| Ok(erlang::is_bitstring_1(args[0])),
+    );
     native.add_simple(Atom::try_from_str("is_float").unwrap(), 1, |_proc, args| {
         Ok(erlang::is_bitstring_1(args[0]))
     });
@@ -184,9 +199,7 @@ pub fn make_erlang() -> NativeModule {
     native.add_simple(
         Atom::try_from_str("monotonic_time").unwrap(),
         0,
-        |proc, _args| {
-            Ok(erlang::monotonic_time_0::native(proc).unwrap())
-        },
+        |proc, _args| Ok(erlang::monotonic_time_0::native(proc).unwrap()),
     );
 
     native.add_yielding(Atom::try_from_str("apply").unwrap(), 3, |proc, args| {
@@ -209,14 +222,14 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::whereis_1(args[0]).unwrap())
     });
 
-    native.add_simple(Atom::try_from_str("process_info").unwrap(), 2, |_proc, args| {
-        match args[1].to_typed_term().unwrap() {
-            TypedTerm::Atom(atom) if atom.name() == "registered_name" => {
-                Ok(args[0])
-            }
-            _ => panic!()
-        }
-    });
+    native.add_simple(
+        Atom::try_from_str("process_info").unwrap(),
+        2,
+        |_proc, args| match args[1].to_typed_term().unwrap() {
+            TypedTerm::Atom(atom) if atom.name() == "registered_name" => Ok(args[0]),
+            _ => panic!(),
+        },
+    );
 
     native.add_simple(Atom::try_from_str("get").unwrap(), 1, |proc, args| {
         Ok(proc.get(args[0]))
@@ -225,9 +238,13 @@ pub fn make_erlang() -> NativeModule {
         Ok(proc.put(args[0], args[1]).unwrap())
     });
 
-    native.add_simple(Atom::try_from_str("convert_time_unit").unwrap(), 3, |proc, args| {
-        Ok(erlang::convert_time_unit_3::native(proc, args[0], args[1], args[2]).unwrap())
-    });
+    native.add_simple(
+        Atom::try_from_str("convert_time_unit").unwrap(),
+        3,
+        |proc, args| {
+            Ok(erlang::convert_time_unit_3::native(proc, args[0], args[1], args[2]).unwrap())
+        },
+    );
 
     native.add_simple(Atom::try_from_str("element").unwrap(), 2, |_proc, args| {
         Ok(erlang::element_2(args[0], args[1]).unwrap())

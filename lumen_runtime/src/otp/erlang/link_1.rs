@@ -11,14 +11,14 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
 use liblumen_alloc::{badarg, error, ModuleFunctionArity};
 
 use crate::registry::pid_to_process;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     pid_or_port: Term,
 ) -> Result<(), Alloc> {
@@ -30,7 +30,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let pid_or_port = arc_process.stack_pop().unwrap();
@@ -39,7 +39,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(true_term) => {
             arc_process.return_from_call(true_term)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -61,7 +61,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &ProcessControlBlock, pid_or_port: Term) -> exception::Result {
+fn native(process: &Process, pid_or_port: Term) -> exception::Result {
     match pid_or_port.to_typed_term().unwrap() {
         TypedTerm::Pid(pid) => {
             if pid == process.pid() {

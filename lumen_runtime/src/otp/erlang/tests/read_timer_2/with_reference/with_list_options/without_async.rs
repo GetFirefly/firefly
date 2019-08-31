@@ -14,6 +14,6 @@ fn without_timer_returns_false() {
     });
 }
 
-fn options(_process: &ProcessControlBlock) -> Term {
+fn options(_process: &Process) -> Term {
     Term::NIL
 }

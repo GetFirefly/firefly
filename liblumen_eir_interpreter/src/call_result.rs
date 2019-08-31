@@ -1,33 +1,31 @@
 use core::ptr::NonNull;
 
-use std::sync::Arc;
-use std::sync::mpsc::{channel, Sender, Receiver};
 use std::convert::TryInto;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
 
-use liblumen_alloc::erts::{HeapFragment, ModuleFunctionArity};
-use liblumen_alloc::erts::term::{Term, Atom, Boxed, Closure, TypedTerm};
-use liblumen_alloc::erts::term::resource::Reference as ResourceReference;
-use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
-use liblumen_alloc::erts::process::code;
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
+use liblumen_alloc::erts::process::code;
+use liblumen_alloc::erts::process::{Process, Status};
+use liblumen_alloc::erts::term::resource::Reference as ResourceReference;
+use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
+use liblumen_alloc::erts::{HeapFragment, ModuleFunctionArity};
 
-use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::process::spawn::options::Options;
+use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::system;
 
 /// A sort of ghetto-future used to get the result from a process
 /// spawn.
 pub struct ProcessResultReceiver {
-    pub process: Arc<ProcessControlBlock>,
+    pub process: Arc<Process>,
     rx: Receiver<ProcessResult>,
 }
 
 impl ProcessResultReceiver {
-
     pub fn try_get(&self) -> Option<ProcessResult> {
         self.rx.try_recv().ok()
     }
-
 }
 
 pub struct ProcessResult {
@@ -40,7 +38,7 @@ struct ProcessResultSender {
 }
 
 pub fn call_run_erlang(
-    proc: Arc<ProcessControlBlock>,
+    proc: Arc<Process>,
     module: Atom,
     function: Atom,
     args: &[Term],
@@ -54,7 +52,7 @@ pub fn call_run_erlang(
         match *run_arc_process.status.read() {
             Status::Exiting(_) => {
                 return recv.try_get().unwrap();
-            },
+            }
             Status::Waiting => {
                 if ran {
                     system::io::puts(&format!(
@@ -86,17 +84,14 @@ pub fn call_run_erlang(
 }
 
 pub fn call_erlang(
-    proc: Arc<ProcessControlBlock>,
+    proc: Arc<Process>,
     module: Atom,
     function: Atom,
     args: &[Term],
 ) -> ProcessResultReceiver {
-
     let (tx, rx) = channel();
 
-    let sender = ProcessResultSender {
-        tx,
-    };
+    let sender = ProcessResultSender { tx };
     let sender_term = proc.resource(Box::new(sender)).unwrap();
 
     let return_ok = {
@@ -105,12 +100,8 @@ pub fn call_erlang(
             function: Atom::try_from_str("return_ok").unwrap(),
             arity: 1,
         };
-        proc.closure_with_env_from_slice(
-            mfa.into(),
-            return_ok,
-            proc.pid_term(),
-            &[sender_term],
-        ).unwrap()
+        proc.closure_with_env_from_slice(mfa.into(), return_ok, proc.pid_term(), &[sender_term])
+            .unwrap()
     };
 
     let return_throw = {
@@ -119,12 +110,8 @@ pub fn call_erlang(
             function: Atom::try_from_str("return_ok").unwrap(),
             arity: 1,
         };
-        proc.closure_with_env_from_slice(
-            mfa.into(),
-            return_throw,
-            proc.pid_term(),
-            &[sender_term],
-        ).unwrap()
+        proc.closure_with_env_from_slice(mfa.into(), return_throw, proc.pid_term(), &[sender_term])
+            .unwrap()
     };
 
     let mut args_vec = vec![return_ok, return_throw];
@@ -135,13 +122,8 @@ pub fn call_erlang(
     let options: Options = Default::default();
     //options.min_heap_size = Some(100_000);
 
-    let run_arc_process = Scheduler::spawn_apply_3(
-        &proc,
-        options,
-        module,
-        function,
-        arguments,
-    ).unwrap();
+    let run_arc_process =
+        Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
 
     ProcessResultReceiver {
         process: run_arc_process,
@@ -149,7 +131,7 @@ pub fn call_erlang(
     }
 }
 
-fn return_ok(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn return_ok(arc_process: &Arc<Process>) -> code::Result {
     let argument_list = arc_process.stack_pop().unwrap();
     let closure_term = arc_process.stack_pop().unwrap();
 
@@ -175,15 +157,18 @@ fn return_ok(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
     let frag_mut = unsafe { fragment.as_mut() };
     let ret = argument_vec[0].clone_to_heap(frag_mut).unwrap();
 
-    sender.tx.send(ProcessResult {
-        heap: fragment,
-        result: Ok(ret),
-    }).unwrap();
+    sender
+        .tx
+        .send(ProcessResult {
+            heap: fragment,
+            result: Ok(ret),
+        })
+        .unwrap();
 
     Ok(arc_process.return_from_call(argument_vec[0])?)
 }
 
-fn return_throw(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn return_throw(arc_process: &Arc<Process>) -> code::Result {
     let _argument_list = arc_process.stack_pop().unwrap();
     let _closure_term = arc_process.stack_pop().unwrap();
 

@@ -178,7 +178,7 @@ mod tuple_from_slice {
         }
     }
 
-    fn closure(process: &ProcessControlBlock) -> Term {
+    fn closure(process: &Process) -> Term {
         let creator = process.pid_term();
 
         let module = Atom::try_from_str("module").unwrap();
@@ -189,7 +189,7 @@ mod tuple_from_slice {
             function,
             arity,
         });
-        let code = |arc_process: &Arc<ProcessControlBlock>| {
+        let code = |arc_process: &Arc<Process>| {
             arc_process.wait();
 
             Ok(())
@@ -202,7 +202,7 @@ mod tuple_from_slice {
     }
 }
 
-fn simple_gc_test(process: ProcessControlBlock) {
+fn simple_gc_test(process: Process) {
     // Allocate an `{:ok, "hello world"}` tuple
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
@@ -256,7 +256,7 @@ fn simple_gc_test(process: ProcessControlBlock) {
         function,
         arity,
     });
-    let code = |arc_process: &Arc<ProcessControlBlock>| {
+    let code = |arc_process: &Arc<Process>| {
         arc_process.wait();
 
         Ok(())
@@ -357,7 +357,7 @@ fn simple_gc_test(process: ProcessControlBlock) {
     assert!(closure_root_ref.get_env_element(1).is_boxed());
 }
 
-fn tenuring_gc_test(process: ProcessControlBlock, _perform_fullsweep: bool) {
+fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     // Allocate an `{:ok, "hello world"}` tuple
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().as_term() };
@@ -600,7 +600,7 @@ fn tenuring_gc_test(process: ProcessControlBlock, _perform_fullsweep: bool) {
     */
 }
 
-fn process() -> ProcessControlBlock {
+fn process() -> Process {
     let init = Atom::try_from_str("init").unwrap();
     let initial_module_function_arity = Arc::new(ModuleFunctionArity {
         module: init,
@@ -609,7 +609,7 @@ fn process() -> ProcessControlBlock {
     });
     let (heap, heap_size) = alloc::default_heap().unwrap();
 
-    let process = ProcessControlBlock::new(
+    let process = Process::new(
         Priority::Normal,
         None,
         initial_module_function_arity,

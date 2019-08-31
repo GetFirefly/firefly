@@ -349,7 +349,7 @@ mod tests {
 
     use alloc::sync::Arc;
 
-    use crate::erts::process::{default_heap, Priority, ProcessControlBlock};
+    use crate::erts::process::{default_heap, Priority, Process};
     use crate::erts::scheduler;
     use crate::erts::term::{Boxed, Tuple};
     use crate::erts::ModuleFunctionArity;
@@ -476,7 +476,7 @@ mod tests {
         }
     }
 
-    fn closure(process: &ProcessControlBlock) -> Term {
+    fn closure(process: &Process) -> Term {
         let creator = process.pid_term();
 
         let module = Atom::try_from_str("module").unwrap();
@@ -487,7 +487,7 @@ mod tests {
             function,
             arity,
         });
-        let code = |arc_process: &Arc<ProcessControlBlock>| {
+        let code = |arc_process: &Arc<Process>| {
             arc_process.wait();
 
             Ok(())
@@ -499,7 +499,7 @@ mod tests {
             .unwrap()
     }
 
-    fn process() -> ProcessControlBlock {
+    fn process() -> Process {
         let init = Atom::try_from_str("init").unwrap();
         let initial_module_function_arity = Arc::new(ModuleFunctionArity {
             module: init,
@@ -508,7 +508,7 @@ mod tests {
         });
         let (heap, heap_size) = default_heap().unwrap();
 
-        let process = ProcessControlBlock::new(
+        let process = Process::new(
             Priority::Normal,
             None,
             initial_module_function_arity,

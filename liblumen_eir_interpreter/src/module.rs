@@ -4,7 +4,7 @@ use std::sync::Arc;
 use libeir_ir::{Function, LiveValues, Module};
 
 use liblumen_alloc::erts::process::code::Result;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 
 macro_rules! trace {
@@ -86,8 +86,8 @@ impl ModuleRegistry {
 
 #[derive(Copy, Clone)]
 pub enum NativeFunctionKind {
-    Simple(fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>),
-    Yielding(fn(&Arc<ProcessControlBlock>, &[Term]) -> Result),
+    Simple(fn(&Arc<Process>, &[Term]) -> std::result::Result<Term, ()>),
+    Yielding(fn(&Arc<Process>, &[Term]) -> Result),
 }
 
 pub struct NativeModule {
@@ -106,7 +106,7 @@ impl NativeModule {
         &mut self,
         name: Atom,
         arity: usize,
-        fun: fn(&Arc<ProcessControlBlock>, &[Term]) -> std::result::Result<Term, ()>,
+        fun: fn(&Arc<Process>, &[Term]) -> std::result::Result<Term, ()>,
     ) {
         self.functions
             .insert((name, arity), NativeFunctionKind::Simple(fun));
@@ -116,7 +116,7 @@ impl NativeModule {
         &mut self,
         name: Atom,
         arity: usize,
-        fun: fn(&Arc<ProcessControlBlock>, &[Term]) -> Result,
+        fun: fn(&Arc<Process>, &[Term]) -> Result,
     ) {
         self.functions
             .insert((name, arity), NativeFunctionKind::Yielding(fun));

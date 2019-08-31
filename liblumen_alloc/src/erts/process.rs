@@ -68,7 +68,7 @@ cfg_if::cfg_if! {
 /// to a writer lock and modify/access the heap, process dictionary, off-heap
 /// fragments and message list without requiring multiple locks
 #[repr(C)]
-pub struct ProcessControlBlock {
+pub struct Process {
     /// ID of the scheduler that is running the process
     scheduler_id: Mutex<Option<scheduler::ID>>,
     /// The priority of the process in `scheduler`.
@@ -113,7 +113,7 @@ pub struct ProcessControlBlock {
     // process heap, cache line aligned to avoid false sharing with rest of struct
     heap: Mutex<ProcessHeap>,
 }
-impl ProcessControlBlock {
+impl Process {
     /// Creates a new PCB with a heap defined by the given pointer, and
     /// `heap_size`, which is the size of the heap in words.
     pub fn new(
@@ -328,7 +328,7 @@ impl ProcessControlBlock {
 
     // Links
 
-    pub fn link(&self, other: &ProcessControlBlock) {
+    pub fn link(&self, other: &Process) {
         // link in order so that locks are always taken in the same order to prevent deadlocks
         if self.pid < other.pid {
             let mut self_pid_set = self.linked_pid_set.lock();
@@ -341,7 +341,7 @@ impl ProcessControlBlock {
         }
     }
 
-    pub fn unlink(&self, other: &ProcessControlBlock) {
+    pub fn unlink(&self, other: &Process) {
         // unlink in order so that locks are always taken in the same order to prevent deadlocks
         if self.pid < other.pid {
             let mut self_pid_set = self.linked_pid_set.lock();
@@ -757,7 +757,7 @@ impl ProcessControlBlock {
     }
 
     /// Run process until `reductions` exceeds `MAX_REDUCTIONS` or process exits
-    pub fn run(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+    pub fn run(arc_process: &Arc<Process>) -> code::Result {
         arc_process.start_running();
 
         // `code` is expected to set `code` before it returns to be the next spot to continue
@@ -830,7 +830,7 @@ impl ProcessControlBlock {
     }
 
     /// Calls top `Frame`'s `Code` if it exists and the process is not reduced.
-    pub fn call_code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+    pub fn call_code(arc_process: &Arc<Process>) -> code::Result {
         if !arc_process.is_reduced() {
             let option_code = arc_process
                 .code_stack
@@ -910,7 +910,7 @@ impl ProcessControlBlock {
 }
 
 #[cfg(test)]
-impl ProcessControlBlock {
+impl Process {
     #[inline]
     fn young_heap_used(&self) -> usize {
         let heap = self.heap.lock();
@@ -930,7 +930,7 @@ impl ProcessControlBlock {
     }
 }
 
-impl fmt::Debug for ProcessControlBlock {
+impl fmt::Debug for Process {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.pid)?;
 
@@ -941,7 +941,7 @@ impl fmt::Debug for ProcessControlBlock {
     }
 }
 
-impl fmt::Display for ProcessControlBlock {
+impl fmt::Display for Process {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let pid = self.pid;
         let (number, serial) = (pid.number(), pid.serial());
@@ -955,22 +955,22 @@ impl fmt::Display for ProcessControlBlock {
     }
 }
 
-impl Eq for ProcessControlBlock {}
+impl Eq for Process {}
 
-impl Hash for ProcessControlBlock {
+impl Hash for Process {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.pid.hash(state);
     }
 }
 
-impl PartialEq for ProcessControlBlock {
+impl PartialEq for Process {
     fn eq(&self, other: &Self) -> bool {
         self.pid == other.pid
     }
 }
 
-unsafe impl Send for ProcessControlBlock {}
-unsafe impl Sync for ProcessControlBlock {}
+unsafe impl Send for Process {}
+unsafe impl Sync for Process {}
 
 type Reductions = u16;
 

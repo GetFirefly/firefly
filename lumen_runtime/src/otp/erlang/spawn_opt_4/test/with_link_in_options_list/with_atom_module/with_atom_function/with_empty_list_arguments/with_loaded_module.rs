@@ -60,6 +60,6 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
 
             assert_eq!(runtime_exception, &runtime_undef);
         }
-        ref status => panic!("ProcessControlBlock status ({:?}) is not exiting.", status),
+        ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
 }

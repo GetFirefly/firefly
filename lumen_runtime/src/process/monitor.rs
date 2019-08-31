@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-use liblumen_alloc::erts::process::{Monitor, ProcessControlBlock};
+use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::{
     atom_unchecked, AsTerm, Atom, Boxed, Pid, Reference, Term, Tuple,
 };
@@ -32,7 +32,7 @@ pub fn is_down(message: &Message, reference: &Reference) -> bool {
     }
 }
 
-pub fn propagate_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
+pub fn propagate_exit(process: &Process, exception: &runtime::Exception) {
     let info = exception.reason;
 
     for (reference, monitor) in process.monitor_by_reference.lock().iter() {
@@ -79,7 +79,7 @@ const DOWN_LEN: usize = 5;
 fn down<A: HeapAlloc>(
     heap: &mut A,
     reference: &Reference,
-    process: &ProcessControlBlock,
+    process: &Process,
     monitor: &Monitor,
     info: Term,
 ) -> Term {
@@ -108,11 +108,7 @@ fn down_tag() -> Term {
     atom_unchecked("DOWN")
 }
 
-fn identifier<A: HeapAlloc>(
-    process: &ProcessControlBlock,
-    monitor: &Monitor,
-    heap: &mut A,
-) -> Term {
+fn identifier<A: HeapAlloc>(process: &Process, monitor: &Monitor, heap: &mut A) -> Term {
     match monitor {
         Monitor::Pid { .. } => process.pid_term(),
         Monitor::Name { monitored_name, .. } => {
@@ -135,10 +131,10 @@ fn identifier_need_in_words(monitor: &Monitor) -> usize {
 }
 
 fn send_heap_down_message(
-    monitoring_process: &ProcessControlBlock,
+    monitoring_process: &Process,
     down_message_need_in_words: usize,
     reference: &Reference,
-    monitored_process: &ProcessControlBlock,
+    monitored_process: &Process,
     monitor: &Monitor,
     info: Term,
 ) {

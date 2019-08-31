@@ -4,7 +4,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
-use liblumen_alloc::erts::process::{Priority, ProcessControlBlock};
+use liblumen_alloc::erts::process::{Priority, Process};
 use liblumen_alloc::erts::term::{Atom, Boxed, Cons, Term, Tuple, TypedTerm};
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 
@@ -57,11 +57,7 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn connect(
-        &self,
-        parent_process: Option<&ProcessControlBlock>,
-        child_process: &ProcessControlBlock,
-    ) {
+    pub fn connect(&self, parent_process: Option<&Process>, child_process: &Process) {
         if self.link {
             parent_process.unwrap().link(child_process)
         }
@@ -77,11 +73,11 @@ impl Options {
     /// placing any frames in the `child_process` returns from this function.
     pub fn spawn(
         &self,
-        parent_process: Option<&ProcessControlBlock>,
+        parent_process: Option<&Process>,
         module: Atom,
         function: Atom,
         arity: u8,
-    ) -> Result<ProcessControlBlock, Alloc> {
+    ) -> Result<Process, Alloc> {
         let priority = self.cascaded_priority(parent_process);
         let module_function_arity = Arc::new(ModuleFunctionArity {
             module,
@@ -91,7 +87,7 @@ impl Options {
         let (heap, heap_size) = self.sized_heap()?;
         crate::system::io::puts(&format!("{:?}", heap));
 
-        let process = ProcessControlBlock::new(
+        let process = Process::new(
             priority,
             parent_process.map(|process| process.pid()),
             Arc::clone(&module_function_arity),
@@ -104,7 +100,7 @@ impl Options {
 
     // Private
 
-    fn cascaded_priority(&self, parent_process: Option<&ProcessControlBlock>) -> Priority {
+    fn cascaded_priority(&self, parent_process: Option<&Process>) -> Priority {
         match self.priority {
             Some(priority) => priority,
             None => match parent_process {

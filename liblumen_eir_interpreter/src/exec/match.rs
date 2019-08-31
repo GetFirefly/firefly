@@ -3,7 +3,7 @@ use std::sync::Arc;
 use libeir_ir::{BasicType, Block, MatchKind, PrimOpKind};
 
 use liblumen_alloc::erts::exception::system;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::TypedTerm;
 
 use super::{CallExecutor, OpResult};
@@ -11,7 +11,7 @@ use crate::module::ErlangFunction;
 
 pub fn match_op(
     exec: &mut CallExecutor,
-    proc: &Arc<ProcessControlBlock>,
+    proc: &Arc<Process>,
     fun: &ErlangFunction,
     branches: &[MatchKind],
     block: Block,
@@ -73,7 +73,7 @@ pub fn match_op(
                             }
                         }
                         _ => (),
-                    }
+                    },
                     _ => (),
                 }
             }

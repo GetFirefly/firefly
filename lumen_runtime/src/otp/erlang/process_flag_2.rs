@@ -12,12 +12,12 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     flag: Term,
     value: Term,
@@ -31,7 +31,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let flag = arc_process.stack_pop().unwrap();
@@ -41,7 +41,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(old_value) => {
             arc_process.return_from_call(old_value)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
@@ -63,7 +63,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-pub fn native(process: &ProcessControlBlock, flag: Term, value: Term) -> exception::Result {
+pub fn native(process: &Process, flag: Term, value: Term) -> exception::Result {
     let flag_atom: Atom = flag.try_into()?;
 
     match flag_atom.name() {

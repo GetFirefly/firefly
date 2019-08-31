@@ -102,6 +102,6 @@ fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
     });
 }
 
-fn options(process: &ProcessControlBlock) -> Term {
+fn options(process: &Process) -> Term {
     process.cons(atom_unchecked("safe"), Term::NIL).unwrap()
 }

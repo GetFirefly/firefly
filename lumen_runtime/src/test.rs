@@ -10,14 +10,14 @@ pub mod strategy;
 use std::sync::atomic::AtomicUsize;
 
 use liblumen_alloc::erts::message::{self, Message};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Term};
 
-pub fn has_no_message(process: &ProcessControlBlock) -> bool {
+pub fn has_no_message(process: &Process) -> bool {
     process.mailbox.lock().borrow().len() == 0
 }
 
-pub fn has_message(process: &ProcessControlBlock, data: Term) -> bool {
+pub fn has_message(process: &Process, data: Term) -> bool {
     process.mailbox.lock().borrow().iter().any(|message| {
         &data
             == match message {
@@ -27,7 +27,7 @@ pub fn has_message(process: &ProcessControlBlock, data: Term) -> bool {
     })
 }
 
-pub fn has_heap_message(process: &ProcessControlBlock, data: Term) -> bool {
+pub fn has_heap_message(process: &Process, data: Term) -> bool {
     process
         .mailbox
         .lock()
@@ -41,7 +41,7 @@ pub fn has_heap_message(process: &ProcessControlBlock, data: Term) -> bool {
         })
 }
 
-pub fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
+pub fn has_process_message(process: &Process, data: Term) -> bool {
     process
         .mailbox
         .lock()
@@ -55,15 +55,15 @@ pub fn has_process_message(process: &ProcessControlBlock, data: Term) -> bool {
         })
 }
 
-pub fn monitor_count(process: &ProcessControlBlock) -> usize {
+pub fn monitor_count(process: &Process) -> usize {
     process.monitor_by_reference.lock().len()
 }
 
-pub fn monitored_count(process: &ProcessControlBlock) -> usize {
+pub fn monitored_count(process: &Process) -> usize {
     process.monitored_pid_by_reference.lock().len()
 }
 
-pub fn receive_message(process: &ProcessControlBlock) -> Option<Term> {
+pub fn receive_message(process: &Process) -> Option<Term> {
     process
         .mailbox
         .lock()

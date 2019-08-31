@@ -107,7 +107,7 @@ fn with_timeout_returns_ok_after_timeout_message_was_sent() {
 
 fn with_timer<F>(f: F)
 where
-    F: FnOnce(u64, &Barrier, Term, &ProcessControlBlock) -> (),
+    F: FnOnce(u64, &Barrier, Term, &Process) -> (),
 {
     let same_thread_process_arc = process::test(&process::test_init());
     let milliseconds: u64 = 100;

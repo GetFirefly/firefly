@@ -4,18 +4,18 @@ use num_bigint::BigInt;
 
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Term, TypedTerm};
 
 use crate::test::strategy;
 
-pub fn is_one_based(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn is_one_based(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (1_usize..std::usize::MAX)
         .prop_map(move |u| arc_process.integer(u).unwrap())
         .boxed()
 }
 
-pub fn is_not_one_based(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn is_not_one_based(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter(
             "Index either must not be an integer or must be an integer <= 1",

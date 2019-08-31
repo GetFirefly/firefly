@@ -125,11 +125,7 @@ enum FirstSecond {
     Second,
 }
 
-fn cancel_timer_message(
-    timer_reference: Term,
-    result: Term,
-    process: &ProcessControlBlock,
-) -> Term {
+fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
     timer_message("cancel_timer", timer_reference, result, process)
 }
 
@@ -160,38 +156,33 @@ fn count_ones_in_big_integer(big_integer: Boxed<BigInteger>) -> u32 {
 
 fn errors_badarg<F>(actual: F)
 where
-    F: FnOnce(&ProcessControlBlock) -> Result,
+    F: FnOnce(&Process) -> Result,
 {
     with_process(|process| assert_badarg!(actual(&process)))
 }
 
 fn errors_badarith<F>(actual: F)
 where
-    F: FnOnce(&ProcessControlBlock) -> Result,
+    F: FnOnce(&Process) -> Result,
 {
     with_process(|process| assert_badarith!(actual(&process)))
 }
 
-fn list_term(process: &ProcessControlBlock) -> Term {
+fn list_term(process: &Process) -> Term {
     let head_term = atom_unchecked("head");
 
     process.cons(head_term, Term::NIL).unwrap()
 }
 
-fn read_timer_message(timer_reference: Term, result: Term, process: &ProcessControlBlock) -> Term {
+fn read_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
     timer_message("read_timer", timer_reference, result, process)
 }
 
-fn timeout_message(timer_reference: Term, message: Term, process: &ProcessControlBlock) -> Term {
+fn timeout_message(timer_reference: Term, message: Term, process: &Process) -> Term {
     timer_message("timeout", timer_reference, message, process)
 }
 
-fn timer_message(
-    tag: &str,
-    timer_reference: Term,
-    message: Term,
-    process: &ProcessControlBlock,
-) -> Term {
+fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
     process
         .tuple_from_slice(&[atom_unchecked(tag), timer_reference, message])
         .unwrap()

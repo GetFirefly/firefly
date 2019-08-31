@@ -2,7 +2,7 @@ use alloc::collections::vec_deque::VecDeque;
 use alloc::sync::Arc;
 
 use liblumen_alloc::erts::process::Priority;
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 
 use crate::run::Run;
 
@@ -14,7 +14,7 @@ pub struct Delayed(VecDeque<DelayedProcess>);
 
 impl Delayed {
     #[cfg(test)]
-    pub fn contains(&self, value: &Arc<ProcessControlBlock>) -> bool {
+    pub fn contains(&self, value: &Arc<Process>) -> bool {
         self.0
             .iter()
             .any(|delayed_process| &delayed_process.arc_process == value)
@@ -40,7 +40,7 @@ impl Delayed {
         }
     }
 
-    pub fn enqueue(&mut self, arc_process: Arc<ProcessControlBlock>) {
+    pub fn enqueue(&mut self, arc_process: Arc<Process>) {
         let delayed_process = DelayedProcess::new(arc_process);
         self.0.push_back(delayed_process);
     }
@@ -51,11 +51,11 @@ type Delay = u8;
 #[derive(Debug)]
 struct DelayedProcess {
     delay: Delay,
-    arc_process: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 }
 
 impl DelayedProcess {
-    fn new(arc_process: Arc<ProcessControlBlock>) -> DelayedProcess {
+    fn new(arc_process: Arc<Process>) -> DelayedProcess {
         DelayedProcess {
             delay: Self::priority_to_delay(arc_process.priority),
             arc_process,

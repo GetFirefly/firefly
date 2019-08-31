@@ -44,6 +44,7 @@ use liblumen_core::locks::MutexGuard;
 
 use liblumen_alloc::erts::exception::runtime::Class;
 use liblumen_alloc::erts::exception::{Exception, Result};
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
 use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
 use liblumen_alloc::erts::term::binary::{Bitstring, IterableBitstring, MaybePartialByte};
@@ -51,7 +52,6 @@ use liblumen_alloc::erts::term::{
     atom_unchecked, AsTerm, Atom, Boxed, Cons, Encoding, Float, ImproperList, Map, SmallInteger,
     Term, Tuple, TypedTerm,
 };
-use liblumen_alloc::erts::ProcessControlBlock;
 use liblumen_alloc::{badarg, badarith, badkey, badmap, error, raise, throw};
 
 use crate::binary::{start_length_to_part_range, PartRange, ToTermOptions};
@@ -67,14 +67,14 @@ use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
-pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn abs_1(number: Term, process: &Process) -> Result {
     let option_abs = match number.to_typed_term().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
             let i: isize = small_integer.into();
 
             if i < 0 {
                 let positive = -i;
-                let abs_number = process_control_block.integer(positive)?;
+                let abs_number = process.integer(positive)?;
 
                 Some(abs_number)
             } else {
@@ -89,7 +89,7 @@ pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Resul
                 let abs_number: Term = if big_int < zero_big_int {
                     let positive_big_int: BigInt = -1 * big_int;
 
-                    process_control_block.integer(positive_big_int)?
+                    process.integer(positive_big_int)?
                 } else {
                     number
                 };
@@ -103,7 +103,7 @@ pub fn abs_1(number: Term, process_control_block: &ProcessControlBlock) -> Resul
                     Ordering::Less => {
                         let positive_f = f.abs();
 
-                        process_control_block.float(positive_f).unwrap()
+                        process.float(positive_f).unwrap()
                     }
                     _ => number,
                 };
@@ -144,13 +144,9 @@ pub fn andalso_2(boolean: Term, term: Term) -> Result {
     }
 }
 
-pub fn append_element_2(
-    tuple: Term,
-    element: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn append_element_2(tuple: Term, element: Term, process: &Process) -> Result {
     let internal: Boxed<Tuple> = tuple.try_into()?;
-    let new_tuple = process_control_block.tuple_from_slices(&[&internal[..], &[element]])?;
+    let new_tuple = process.tuple_from_slices(&[&internal[..], &[element]])?;
 
     Ok(new_tuple)
 }
@@ -175,15 +171,11 @@ pub fn are_not_equal_after_conversion_2(left: Term, right: Term) -> Term {
     left.ne(&right).into()
 }
 
-pub fn atom_to_binary_2(
-    atom: Term,
-    encoding: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn atom_to_binary_2(atom: Term, encoding: Term, process: &Process) -> Result {
     match atom.to_typed_term().unwrap() {
         TypedTerm::Atom(atom) => {
             let _: Encoding = encoding.try_into()?;
-            let binary = process_control_block.binary_from_str(atom.name())?;
+            let binary = process.binary_from_str(atom.name())?;
 
             Ok(binary)
         }
@@ -191,44 +183,29 @@ pub fn atom_to_binary_2(
     }
 }
 
-pub fn atom_to_list_1(atom: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn atom_to_list_1(atom: Term, process: &Process) -> Result {
     match atom.to_typed_term().unwrap() {
         TypedTerm::Atom(atom) => {
             let chars = atom.name().chars();
 
-            process_control_block
-                .list_from_chars(chars)
-                .map_err(|error| error.into())
+            process.list_from_chars(chars).map_err(|error| error.into())
         }
         _ => Err(badarg!().into()),
     }
 }
 
 // `band/2` infix operator.
-pub fn band_2(
-    left_integer: Term,
-    right_integer: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    bitwise_infix_operator!(left_integer, right_integer, process_control_block, &)
+pub fn band_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {
+    bitwise_infix_operator!(left_integer, right_integer, process, &)
 }
 
-pub fn binary_part_2(
-    binary: Term,
-    start_length: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Result {
     let option_result = match start_length.to_typed_term().unwrap() {
         TypedTerm::Boxed(unboxed_start_length) => {
             match unboxed_start_length.to_typed_term().unwrap() {
                 TypedTerm::Tuple(tuple) => {
                     if tuple.len() == 2 {
-                        Some(binary_part_3(
-                            binary,
-                            tuple[0],
-                            tuple[1],
-                            process_control_block,
-                        ))
+                        Some(binary_part_3(binary, tuple[0], tuple[1], process))
                     } else {
                         None
                     }
@@ -245,12 +222,7 @@ pub fn binary_part_2(
     }
 }
 
-pub fn binary_part_3(
-    binary: Term,
-    start: Term,
-    length: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn binary_part_3(binary: Term, start: Term, length: Term, process: &Process) -> Result {
     let start_usize: usize = start.try_into()?;
     let length_isize: isize = length.try_into()?;
 
@@ -266,7 +238,7 @@ pub fn binary_part_3(
                 if (byte_offset == 0) && (byte_len == available_byte_count) {
                     Ok(binary)
                 } else {
-                    process_control_block
+                    process
                         .subbinary_from_original(binary, byte_offset, 0, byte_len, 0)
                         .map_err(|error| error.into())
                 }
@@ -281,7 +253,7 @@ pub fn binary_part_3(
                 if (byte_offset == 0) && (byte_len == available_byte_count) {
                     Ok(binary)
                 } else {
-                    process_control_block
+                    process
                         .subbinary_from_original(binary, byte_offset, 0, byte_len, 0)
                         .map_err(|error| error.into())
                 }
@@ -303,7 +275,7 @@ pub fn binary_part_3(
                 {
                     Ok(binary)
                 } else {
-                    process_control_block
+                    process
                         .subbinary_from_original(
                             subbinary.original(),
                             subbinary.byte_offset() + byte_offset,
@@ -390,11 +362,8 @@ pub fn binary_to_existing_atom_2(binary: Term, encoding: Term) -> Result {
     .map(|atom| unsafe { atom.as_term() })
 }
 
-pub fn binary_to_float_1<'process>(
-    binary: Term,
-    process_control_block: &'process ProcessControlBlock,
-) -> Result {
-    let mut heap: MutexGuard<'process, _> = process_control_block.acquire_heap();
+pub fn binary_to_float_1<'process>(binary: Term, process: &'process Process) -> Result {
+    let mut heap: MutexGuard<'process, _> = process.acquire_heap();
     let s: &str = heap.str_from_binary(binary)?;
 
     match s.parse::<f64>() {
@@ -423,11 +392,8 @@ pub fn binary_to_float_1<'process>(
     }
 }
 
-pub fn binary_to_integer_1<'process>(
-    binary: Term,
-    process_control_block: &'process ProcessControlBlock,
-) -> Result {
-    let mut heap = process_control_block.acquire_heap();
+pub fn binary_to_integer_1<'process>(binary: Term, process: &'process Process) -> Result {
+    let mut heap = process.acquire_heap();
     let s: &str = heap.str_from_binary(binary)?;
     let bytes = s.as_bytes();
 
@@ -444,9 +410,9 @@ pub fn binary_to_integer_1<'process>(
 pub fn binary_to_integer_2<'process>(
     binary: Term,
     base: Term,
-    process_control_block: &'process ProcessControlBlock,
+    process: &'process Process,
 ) -> Result {
-    let mut heap = process_control_block.acquire_heap();
+    let mut heap = process.acquire_heap();
     let s: &str = heap.str_from_binary(binary)?;
     let radix: usize = base.try_into()?;
 
@@ -467,11 +433,11 @@ pub fn binary_to_integer_2<'process>(
     .map_err(|error| error.into())
 }
 
-pub fn binary_to_list_1(binary: Term, process_control_block: &ProcessControlBlock) -> Result {
-    let bytes = process_control_block.bytes_from_binary(binary)?;
+pub fn binary_to_list_1(binary: Term, process: &Process) -> Result {
+    let bytes = process.bytes_from_binary(binary)?;
     let byte_terms = bytes.iter().map(|byte| (*byte).into());
 
-    process_control_block
+    process
         .list_from_iter(byte_terms)
         .map_err(|error| error.into())
 }
@@ -479,12 +445,7 @@ pub fn binary_to_list_1(binary: Term, process_control_block: &ProcessControlBloc
 /// The one-based indexing for binaries used by this function is deprecated. New code is to use
 /// [crate::otp::binary::bin_to_list] instead. All functions in module [crate::otp::binary]
 /// consistently use zero-based indexing.
-pub fn binary_to_list_3(
-    binary: Term,
-    start: Term,
-    stop: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn binary_to_list_3(binary: Term, start: Term, stop: Term, process: &Process) -> Result {
     let one_based_start_usize: usize = start.try_into()?;
 
     if 1 <= one_based_start_usize {
@@ -498,9 +459,9 @@ pub fn binary_to_list_3(
 
             otp::binary::bin_to_list(
                 binary,
-                process_control_block.integer(zero_based_start_usize)?,
-                process_control_block.integer(length_usize)?,
-                process_control_block,
+                process.integer(zero_based_start_usize)?,
+                process.integer(length_usize)?,
+                process,
             )
         } else {
             Err(badarg!().into())
@@ -510,15 +471,11 @@ pub fn binary_to_list_3(
     }
 }
 
-pub fn binary_to_term_1(binary: Term, process_control_block: &ProcessControlBlock) -> Result {
-    binary_to_term_2(binary, Term::NIL, process_control_block)
+pub fn binary_to_term_1(binary: Term, process: &Process) -> Result {
+    binary_to_term_2(binary, Term::NIL, process)
 }
 
-pub fn binary_to_term_2(
-    binary: Term,
-    options: Term,
-    _process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn binary_to_term_2(binary: Term, options: Term, _process: &Process) -> Result {
     let _to_term_options: ToTermOptions = options.try_into()?;
 
     match binary.to_typed_term().unwrap() {
@@ -532,7 +489,7 @@ pub fn binary_to_term_2(
     }
 }
 
-pub fn bit_size_1(bitstring: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn bit_size_1(bitstring: Term, process: &Process) -> Result {
     let option_total_bit_len = match bitstring.to_typed_term().unwrap() {
         TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_bit_len()),
@@ -544,7 +501,7 @@ pub fn bit_size_1(bitstring: Term, process_control_block: &ProcessControlBlock) 
     };
 
     match option_total_bit_len {
-        Some(total_bit_len) => Ok(process_control_block.integer(total_bit_len)?),
+        Some(total_bit_len) => Ok(process.integer(total_bit_len)?),
         None => Err(badarg!().into()),
     }
 }
@@ -552,17 +509,14 @@ pub fn bit_size_1(bitstring: Term, process_control_block: &ProcessControlBlock) 
 /// Returns a list of integers corresponding to the bytes of `bitstring`. If the number of bits in
 /// `bitstring` is not divisible by `8`, the last element of the list is a `bitstring` containing
 /// the remaining `1`-`7` bits.
-pub fn bitstring_to_list_1<'process>(
-    bitstring: Term,
-    process_control_block: &'process ProcessControlBlock,
-) -> Result {
+pub fn bitstring_to_list_1<'process>(bitstring: Term, process: &'process Process) -> Result {
     match bitstring.to_typed_term().unwrap() {
         TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => {
                 let byte_term_iter = heap_binary.as_bytes().iter().map(|byte| (*byte).into());
                 let last = Term::NIL;
 
-                process_control_block
+                process
                     .improper_list_from_iter(byte_term_iter, last)
                     .map_err(|error| error.into())
             }
@@ -570,7 +524,7 @@ pub fn bitstring_to_list_1<'process>(
                 let byte_term_iter = process_binary.as_bytes().iter().map(|byte| (*byte).into());
                 let last = Term::NIL;
 
-                process_control_block
+                process
                     .improper_list_from_iter(byte_term_iter, last)
                     .map_err(|error| error.into())
             }
@@ -578,7 +532,7 @@ pub fn bitstring_to_list_1<'process>(
                 let last = if subbinary.is_binary() {
                     Term::NIL
                 } else {
-                    let partial_byte_subbinary = process_control_block.subbinary_from_original(
+                    let partial_byte_subbinary = process.subbinary_from_original(
                         subbinary.original(),
                         subbinary.byte_offset() + subbinary.full_byte_len(),
                         subbinary.bit_offset(),
@@ -586,12 +540,12 @@ pub fn bitstring_to_list_1<'process>(
                         subbinary.partial_byte_bit_len(),
                     )?;
 
-                    process_control_block.cons(partial_byte_subbinary, Term::NIL)?
+                    process.cons(partial_byte_subbinary, Term::NIL)?
                 };
 
                 let byte_term_iter = subbinary.full_byte_iter().map(|byte| byte.into());
 
-                process_control_block
+                process
                     .improper_list_from_iter(byte_term_iter, last)
                     .map_err(|error| error.into())
             }
@@ -602,12 +556,12 @@ pub fn bitstring_to_list_1<'process>(
 }
 
 // `bnot/1` prefix operator.
-pub fn bnot_1(integer: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn bnot_1(integer: Term, process: &Process) -> Result {
     match integer.to_typed_term().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
             let integer_isize: isize = small_integer.into();
             let output = !integer_isize;
-            let output_term = process_control_block.integer(output)?;
+            let output_term = process.integer(output)?;
 
             Ok(output_term)
         }
@@ -615,7 +569,7 @@ pub fn bnot_1(integer: Term, process_control_block: &ProcessControlBlock) -> Res
             TypedTerm::BigInteger(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let output_big_int = !big_int;
-                let output_term = process_control_block.integer(output_big_int)?;
+                let output_term = process.integer(output_big_int)?;
 
                 Ok(output_term)
             }
@@ -626,36 +580,28 @@ pub fn bnot_1(integer: Term, process_control_block: &ProcessControlBlock) -> Res
 }
 
 /// `bor/2` infix operator.
-pub fn bor_2(
-    left_integer: Term,
-    right_integer: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    bitwise_infix_operator!(left_integer, right_integer, process_control_block, |)
+pub fn bor_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {
+    bitwise_infix_operator!(left_integer, right_integer, process, |)
 }
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 /// `bsl/2` infix operator.
-pub fn bsl_2(integer: Term, shift: Term, process_control_block: &ProcessControlBlock) -> Result {
-    bitshift_infix_operator!(integer, shift, process_control_block, <<, >>)
+pub fn bsl_2(integer: Term, shift: Term, process: &Process) -> Result {
+    bitshift_infix_operator!(integer, shift, process, <<, >>)
 }
 
 /// `bsr/2` infix operator.
-pub fn bsr_2(integer: Term, shift: Term, process_control_block: &ProcessControlBlock) -> Result {
-    bitshift_infix_operator!(integer, shift, process_control_block, >>, <<)
+pub fn bsr_2(integer: Term, shift: Term, process: &Process) -> Result {
+    bitshift_infix_operator!(integer, shift, process, >>, <<)
 }
 
 /// `bxor/2` infix operator.
-pub fn bxor_2(
-    left_integer: Term,
-    right_integer: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    bitwise_infix_operator!(left_integer, right_integer, process_control_block, ^)
+pub fn bxor_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {
+    bitwise_infix_operator!(left_integer, right_integer, process, ^)
 }
 
-pub fn byte_size_1(bitstring: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn byte_size_1(bitstring: Term, process: &Process) -> Result {
     let option_total_byte_len = match bitstring.to_typed_term().unwrap() {
         TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_byte_len()),
@@ -667,29 +613,22 @@ pub fn byte_size_1(bitstring: Term, process_control_block: &ProcessControlBlock)
     };
 
     match option_total_byte_len {
-        Some(total_byte_len) => Ok(process_control_block.integer(total_byte_len)?),
+        Some(total_byte_len) => Ok(process.integer(total_byte_len)?),
         None => Err(badarg!().into()),
     }
 }
 
-pub fn cancel_timer_1(
-    timer_reference: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    cancel_timer(timer_reference, Default::default(), process_control_block)
+pub fn cancel_timer_1(timer_reference: Term, process: &Process) -> Result {
+    cancel_timer(timer_reference, Default::default(), process)
 }
 
-pub fn cancel_timer_2(
-    timer_reference: Term,
-    options: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn cancel_timer_2(timer_reference: Term, options: Term, process: &Process) -> Result {
     let cancel_timer_options: timer::cancel::Options = options.try_into()?;
 
-    cancel_timer(timer_reference, cancel_timer_options, process_control_block)
+    cancel_timer(timer_reference, cancel_timer_options, process)
 }
 
-pub fn ceil_1(number: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn ceil_1(number: Term, process: &Process) -> Result {
     let option_ceil = match number.to_typed_term().unwrap() {
         TypedTerm::SmallInteger(_) => Some(number),
         TypedTerm::Boxed(boxed) => {
@@ -704,13 +643,13 @@ pub fn ceil_1(number: Term, process_control_block: &ProcessControlBlock) -> Resu
                         <= ceil_inner
                         && ceil_inner <= (SmallInteger::MAX_VALUE as f64).min(Float::INTEGRAL_MAX)
                     {
-                        process_control_block.integer(ceil_inner as isize)?
+                        process.integer(ceil_inner as isize)?
                     } else {
                         let ceil_string = ceil_inner.to_string();
                         let ceil_bytes = ceil_string.as_bytes();
                         let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
 
-                        process_control_block.integer(big_int)?
+                        process.integer(big_int)?
                     };
 
                     Some(ceil_term)
@@ -728,18 +667,14 @@ pub fn ceil_1(number: Term, process_control_block: &ProcessControlBlock) -> Resu
 }
 
 /// `++/2`
-pub fn concatenate_2(
-    list: Term,
-    term: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn concatenate_2(list: Term, term: Term, process: &Process) -> Result {
     match list.to_typed_term().unwrap() {
         TypedTerm::Nil => Ok(term),
         TypedTerm::List(cons) => match cons
             .into_iter()
             .collect::<std::result::Result<Vec<Term>, _>>()
         {
-            Ok(vec) => process_control_block
+            Ok(vec) => process
                 .improper_list_from_slice(&vec, term)
                 .map_err(|error| error.into()),
             Err(ImproperList { .. }) => Err(badarg!().into()),
@@ -748,11 +683,7 @@ pub fn concatenate_2(
     }
 }
 
-pub fn delete_element_2(
-    index: Term,
-    tuple: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn delete_element_2(index: Term, tuple: Term, process: &Process) -> Result {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
     let ZeroBasedIndex(index_zero_based): ZeroBasedIndex = index.try_into()?;
     let initial_len = initial_inner_tuple.len();
@@ -770,8 +701,7 @@ pub fn delete_element_2(
                         Some(old_term)
                     }
                 });
-        let smaller_tuple =
-            process_control_block.tuple_from_iter(smaller_element_iterator, smaller_len)?;
+        let smaller_tuple = process.tuple_from_iter(smaller_element_iterator, smaller_len)?;
 
         Ok(smaller_tuple)
     } else {
@@ -780,17 +710,13 @@ pub fn delete_element_2(
 }
 
 /// `div/2` infix operator.  Integer division.
-pub fn div_2(dividend: Term, divisor: Term, process_control_block: &ProcessControlBlock) -> Result {
-    integer_infix_operator!(dividend, divisor, process_control_block, /)
+pub fn div_2(dividend: Term, divisor: Term, process: &Process) -> Result {
+    integer_infix_operator!(dividend, divisor, process, /)
 }
 
 /// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
 /// `float`.
-pub fn divide_2(
-    dividend: Term,
-    divisor: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn divide_2(dividend: Term, divisor: Term, process: &Process) -> Result {
     let dividend_f64: f64 = dividend.try_into().map_err(|_| badarith!())?;
     let divisor_f64: f64 = divisor.try_into().map_err(|_| badarith!())?;
 
@@ -798,7 +724,7 @@ pub fn divide_2(
         Err(badarith!().into())
     } else {
         let quotient_f64 = dividend_f64 / divisor_f64;
-        let quotient_term = process_control_block.float(quotient_f64)?;
+        let quotient_term = process.float(quotient_f64)?;
 
         Ok(quotient_term)
     }
@@ -841,12 +767,7 @@ pub fn hd_1(list: Term) -> Result {
     Ok(cons.head)
 }
 
-pub fn insert_element_3(
-    index: Term,
-    tuple: Term,
-    element: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn insert_element_3(index: Term, tuple: Term, element: Term, process: &Process) -> Result {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
     let ZeroBasedIndex(index_zero_based): ZeroBasedIndex = index.try_into()?;
 
@@ -855,15 +776,15 @@ pub fn insert_element_3(
     // can be equal to arity when insertion is at the end
     if index_zero_based <= length {
         if index_zero_based == 0 {
-            process_control_block.tuple_from_slices(&[&[element], &initial_inner_tuple[..]])
+            process.tuple_from_slices(&[&[element], &initial_inner_tuple[..]])
         } else if index_zero_based < length {
-            process_control_block.tuple_from_slices(&[
+            process.tuple_from_slices(&[
                 &initial_inner_tuple[..index_zero_based],
                 &[element],
                 &initial_inner_tuple[index_zero_based..],
             ])
         } else {
-            process_control_block.tuple_from_slices(&[&initial_inner_tuple[..], &[element]])
+            process.tuple_from_slices(&[&initial_inner_tuple[..], &[element]])
         }
         .map_err(|error| error.into())
     } else {
@@ -963,11 +884,11 @@ pub fn is_tuple_1(term: Term) -> Term {
     term.is_tuple().into()
 }
 
-pub fn length_1(list: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn length_1(list: Term, process: &Process) -> Result {
     match list.to_typed_term().unwrap() {
         TypedTerm::Nil => Ok(0.into()),
         TypedTerm::List(cons) => match cons.count() {
-            Some(count) => Ok(process_control_block.integer(count)?),
+            Some(count) => Ok(process.integer(count)?),
             None => Err(badarg!().into()),
         },
         _ => Err(badarg!().into()),
@@ -988,7 +909,7 @@ pub fn list_to_existing_atom_1(string: Term) -> Result {
     })
 }
 
-pub fn list_to_binary_1(iolist: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn list_to_binary_1(iolist: Term, process: &Process) -> Result {
     match iolist.to_typed_term().unwrap() {
         TypedTerm::Nil | TypedTerm::List(_) => {
             let mut byte_vec: Vec<u8> = Vec::new();
@@ -1038,15 +959,13 @@ pub fn list_to_binary_1(iolist: Term, process_control_block: &ProcessControlBloc
                 }
             }
 
-            Ok(process_control_block
-                .binary_from_bytes(byte_vec.as_slice())
-                .unwrap())
+            Ok(process.binary_from_bytes(byte_vec.as_slice()).unwrap())
         }
         _ => Err(badarg!().into()),
     }
 }
 
-pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn list_to_bitstring_1(iolist: Term, process: &Process) -> Result {
     match iolist.to_typed_term().unwrap() {
         TypedTerm::Nil | TypedTerm::List(_) => {
             let mut byte_vec: Vec<u8> = Vec::new();
@@ -1135,17 +1054,13 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
             }
 
             if partial_byte_bit_count == 0 {
-                Ok(process_control_block
-                    .binary_from_bytes(byte_vec.as_slice())
-                    .unwrap())
+                Ok(process.binary_from_bytes(byte_vec.as_slice()).unwrap())
             } else {
                 let full_byte_len = byte_vec.len();
                 byte_vec.push(partial_byte);
-                let original = process_control_block
-                    .binary_from_bytes(byte_vec.as_slice())
-                    .unwrap();
+                let original = process.binary_from_bytes(byte_vec.as_slice()).unwrap();
 
-                Ok(process_control_block
+                Ok(process
                     .subbinary_from_original(original, 0, 0, full_byte_len, partial_byte_bit_count)
                     .unwrap())
             }
@@ -1154,7 +1069,7 @@ pub fn list_to_bitstring_1(iolist: Term, process_control_block: &ProcessControlB
     }
 }
 
-pub fn list_to_pid_1(string: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn list_to_pid_1(string: Term, process: &Process) -> Result {
     let cons: Boxed<Cons> = string.try_into()?;
 
     let prefix_tail = skip_char(cons, '<')?;
@@ -1178,7 +1093,7 @@ pub fn list_to_pid_1(string: Term, process_control_block: &ProcessControlBlock) 
     let suffix_tail = skip_char(serial_tail_cons, '>')?;
 
     if suffix_tail.is_nil() {
-        process_control_block
+        process
             .pid_with_node_id(node_id, number, serial)
             .map_err(|error| error.into())
     } else {
@@ -1186,51 +1101,45 @@ pub fn list_to_pid_1(string: Term, process_control_block: &ProcessControlBlock) 
     }
 }
 
-pub fn list_to_tuple_1(list: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn list_to_tuple_1(list: Term, process: &Process) -> Result {
     match list.to_typed_term().unwrap() {
-        TypedTerm::Nil => process_control_block
-            .tuple_from_slices(&[])
-            .map_err(|error| error.into()),
+        TypedTerm::Nil => process.tuple_from_slices(&[]).map_err(|error| error.into()),
         TypedTerm::List(cons) => {
             let vec: Vec<Term> = cons.into_iter().collect::<std::result::Result<_, _>>()?;
 
-            process_control_block
-                .tuple_from_slice(&vec)
-                .map_err(|error| error.into())
+            process.tuple_from_slice(&vec).map_err(|error| error.into())
         }
         _ => Err(badarg!().into()),
     }
 }
 
-pub fn make_ref_0(process_control_block: &ProcessControlBlock) -> Result {
-    process_control_block
-        .next_reference()
-        .map_err(|error| error.into())
+pub fn make_ref_0(process: &Process) -> Result {
+    process.next_reference().map_err(|error| error.into())
 }
 
-pub fn map_get_2(key: Term, map: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn map_get_2(key: Term, map: Term, process: &Process) -> Result {
     let result: core::result::Result<Boxed<Map>, _> = map.try_into();
 
     match result {
         Ok(map_header) => match map_header.get(key) {
             Some(value) => Ok(value),
-            None => Err(badkey!(process_control_block, key)),
+            None => Err(badkey!(process, key)),
         },
-        Err(_) => Err(badmap!(process_control_block, map)),
+        Err(_) => Err(badmap!(process, map)),
     }
 }
 
-pub fn map_size_1(map: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn map_size_1(map: Term, process: &Process) -> Result {
     let result: core::result::Result<Boxed<Map>, _> = map.try_into();
 
     match result {
         Ok(map_header) => {
             let len = map_header.len();
-            let len_term = process_control_block.integer(len)?;
+            let len_term = process.integer(len)?;
 
             Ok(len_term)
         }
-        Err(_) => Err(badmap!(process_control_block, map)),
+        Err(_) => Err(badmap!(process, map)),
     }
 }
 
@@ -1254,30 +1163,26 @@ pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
 }
 
-pub fn monotonic_time_1(unit: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn monotonic_time_1(unit: Term, process: &Process) -> Result {
     let unit_unit: crate::time::Unit = unit.try_into()?;
     let big_int = monotonic::time(unit_unit);
-    let term = process_control_block.integer(big_int)?;
+    let term = process.integer(big_int)?;
 
     Ok(term)
 }
 
 /// `*/2` infix operator
-pub fn multiply_2(
-    multiplier: Term,
-    multiplicand: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    number_infix_operator!(multiplier, multiplicand, process_control_block, checked_mul, *)
+pub fn multiply_2(multiplier: Term, multiplicand: Term, process: &Process) -> Result {
+    number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)
 }
 
 /// `-/1` prefix operator.
-pub fn negate_1(number: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn negate_1(number: Term, process: &Process) -> Result {
     let option_negated = match number.to_typed_term().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
             let number_isize: isize = small_integer.into();
             let negated_isize = -number_isize;
-            let negated_number: Term = process_control_block.integer(negated_isize)?;
+            let negated_number: Term = process.integer(negated_isize)?;
 
             Some(negated_number)
         }
@@ -1285,14 +1190,14 @@ pub fn negate_1(number: Term, process_control_block: &ProcessControlBlock) -> Re
             TypedTerm::BigInteger(big_integer) => {
                 let big_int: &BigInt = big_integer.as_ref().into();
                 let negated_big_int = -big_int;
-                let negated_number = process_control_block.integer(negated_big_int)?;
+                let negated_number = process.integer(negated_big_int)?;
 
                 Some(negated_number)
             }
             TypedTerm::Float(float) => {
                 let number_f64: f64 = float.into();
                 let negated_f64: f64 = -number_f64;
-                let negated_number = process_control_block.float(negated_f64)?;
+                let negated_number = process.float(negated_f64)?;
 
                 Some(negated_number)
             }
@@ -1338,38 +1243,31 @@ pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
     Err(runtime_exception.into())
 }
 
-pub fn read_timer_1(timer_reference: Term, process_control_block: &ProcessControlBlock) -> Result {
-    read_timer(timer_reference, Default::default(), process_control_block)
+pub fn read_timer_1(timer_reference: Term, process: &Process) -> Result {
+    read_timer(timer_reference, Default::default(), process)
 }
 
-pub fn read_timer_2(
-    timer_reference: Term,
-    options: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn read_timer_2(timer_reference: Term, options: Term, process: &Process) -> Result {
     let read_timer_options: timer::read::Options = options.try_into()?;
 
-    read_timer(timer_reference, read_timer_options, process_control_block)
+    read_timer(timer_reference, read_timer_options, process)
 }
 
-pub fn register_2(
-    name: Term,
-    pid_or_port: Term,
-    arc_process_control_block: Arc<ProcessControlBlock>,
-) -> Result {
+pub fn register_2(name: Term, pid_or_port: Term, arc_process: Arc<Process>) -> Result {
     let atom: Atom = name.try_into()?;
 
     let option_registered: Option<Term> = match atom.name() {
         "undefined" => None,
         _ => match pid_or_port.to_typed_term().unwrap() {
-            TypedTerm::Pid(pid) => pid_to_self_or_process(pid, &arc_process_control_block)
-                .and_then(|pid_arc_process_control_block| {
-                    if registry::put_atom_to_process(atom, pid_arc_process_control_block) {
+            TypedTerm::Pid(pid) => {
+                pid_to_self_or_process(pid, &arc_process).and_then(|pid_arc_process| {
+                    if registry::put_atom_to_process(atom, pid_arc_process) {
                         Some(true.into())
                     } else {
                         None
                     }
-                }),
+                })
+            }
             _ => None,
         },
     };
@@ -1380,27 +1278,17 @@ pub fn register_2(
     }
 }
 
-pub fn registered_0(process_control_block: &ProcessControlBlock) -> Result {
-    registry::names(process_control_block)
+pub fn registered_0(process: &Process) -> Result {
+    registry::names(process)
 }
 
 /// `rem/2` infix operator.  Integer remainder.
-pub fn rem_2(dividend: Term, divisor: Term, process_control_block: &ProcessControlBlock) -> Result {
-    integer_infix_operator!(dividend, divisor, process_control_block, %)
+pub fn rem_2(dividend: Term, divisor: Term, process: &Process) -> Result {
+    integer_infix_operator!(dividend, divisor, process, %)
 }
 
-pub fn send_2(
-    destination: Term,
-    message: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
-    send(
-        destination,
-        message,
-        Default::default(),
-        process_control_block,
-    )
-    .map(|sent| match sent {
+pub fn send_2(destination: Term, message: Term, process: &Process) -> Result {
+    send(destination, message, Default::default(), process).map(|sent| match sent {
         Sent::Sent => message,
         _ => unreachable!(),
     })
@@ -1408,15 +1296,10 @@ pub fn send_2(
 
 // `send(destination, message, [nosuspend])` is used in `gen.erl`, which is used by `gen_server.erl`
 // See https://github.com/erlang/otp/blob/8f6d45ddc8b2b12376c252a30b267a822cad171a/lib/stdlib/src/gen.erl#L167
-pub fn send_3(
-    destination: Term,
-    message: Term,
-    options: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn send_3(destination: Term, message: Term, options: Term, process: &Process) -> Result {
     let send_options: send::Options = options.try_into()?;
 
-    send(destination, message, send_options, process_control_block)
+    send(destination, message, send_options, process)
         .map(|sent| match sent {
             Sent::Sent => "ok",
             Sent::ConnectRequired => "noconnect",
@@ -1429,7 +1312,7 @@ pub fn send_after_3(
     time: Term,
     destination: Term,
     message: Term,
-    arc_process_control_block: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> Result {
     start_timer(
         time,
@@ -1437,7 +1320,7 @@ pub fn send_after_3(
         Timeout::Message,
         message,
         Default::default(),
-        arc_process_control_block,
+        arc_process,
     )
 }
 
@@ -1446,7 +1329,7 @@ pub fn send_after_4(
     destination: Term,
     message: Term,
     options: Term,
-    arc_process_control_block: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> Result {
     let timer_start_options: timer::start::Options = options.try_into()?;
 
@@ -1456,16 +1339,11 @@ pub fn send_after_4(
         Timeout::Message,
         message,
         timer_start_options,
-        arc_process_control_block,
+        arc_process,
     )
 }
 
-pub fn setelement_3(
-    index: Term,
-    tuple: Term,
-    value: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn setelement_3(index: Term, tuple: Term, value: Term, process: &Process) -> Result {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
     let ZeroBasedIndex(index_zero_based): ZeroBasedIndex = index.try_into()?;
 
@@ -1474,19 +1352,18 @@ pub fn setelement_3(
     if index_zero_based < length {
         if index_zero_based == 0 {
             if 1 < length {
-                process_control_block.tuple_from_slices(&[&[value], &initial_inner_tuple[1..]])
+                process.tuple_from_slices(&[&[value], &initial_inner_tuple[1..]])
             } else {
-                process_control_block.tuple_from_slice(&[value])
+                process.tuple_from_slice(&[value])
             }
         } else if index_zero_based < (length - 1) {
-            process_control_block.tuple_from_slices(&[
+            process.tuple_from_slices(&[
                 &initial_inner_tuple[..index_zero_based],
                 &[value],
                 &initial_inner_tuple[(index_zero_based + 1)..],
             ])
         } else {
-            process_control_block
-                .tuple_from_slices(&[&initial_inner_tuple[..index_zero_based], &[value]])
+            process.tuple_from_slices(&[&initial_inner_tuple[..index_zero_based], &[value]])
         }
         .map_err(|error| error.into())
     } else {
@@ -1494,7 +1371,7 @@ pub fn setelement_3(
     }
 }
 
-pub fn size_1(binary_or_tuple: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
     let option_size = match binary_or_tuple.to_typed_term().unwrap() {
         TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::Tuple(tuple) => Some(tuple.len()),
@@ -1507,16 +1384,12 @@ pub fn size_1(binary_or_tuple: Term, process_control_block: &ProcessControlBlock
     };
 
     match option_size {
-        Some(size) => Ok(process_control_block.integer(size)?),
+        Some(size) => Ok(process.integer(size)?),
         None => Err(badarg!().into()),
     }
 }
 
-pub fn split_binary_2(
-    binary: Term,
-    position: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn split_binary_2(binary: Term, position: Term, process: &Process) -> Result {
     let index: usize = position.try_into()?;
 
     match binary.to_typed_term().unwrap() {
@@ -1525,7 +1398,7 @@ pub fn split_binary_2(
                 unboxed_typed_term @ TypedTerm::HeapBinary(_)
                 | unboxed_typed_term @ TypedTerm::ProcBin(_) => {
                     if index == 0 {
-                        let mut heap = process_control_block.acquire_heap();
+                        let mut heap = process.acquire_heap();
 
                         let empty_prefix = heap.subbinary_from_original(binary, index, 0, 0, 0)?;
 
@@ -1541,7 +1414,7 @@ pub fn split_binary_2(
                         };
 
                         if index < full_byte_length {
-                            let mut heap = process_control_block.acquire_heap();
+                            let mut heap = process.acquire_heap();
                             let prefix = heap.subbinary_from_original(binary, 0, 0, index, 0)?;
                             let suffix = heap.subbinary_from_original(
                                 binary,
@@ -1554,7 +1427,7 @@ pub fn split_binary_2(
                             heap.tuple_from_slice(&[prefix, suffix])
                                 .map_err(|error| error.into())
                         } else if index == full_byte_length {
-                            let mut heap = process_control_block.acquire_heap();
+                            let mut heap = process.acquire_heap();
                             let empty_suffix =
                                 heap.subbinary_from_original(binary, index, 0, 0, 0)?;
 
@@ -1569,7 +1442,7 @@ pub fn split_binary_2(
                 }
                 TypedTerm::SubBinary(subbinary) => {
                     if index == 0 {
-                        let mut heap = process_control_block.acquire_heap();
+                        let mut heap = process.acquire_heap();
                         let empty_prefix = heap.subbinary_from_original(
                             subbinary.original(),
                             subbinary.byte_offset() + index,
@@ -1587,7 +1460,7 @@ pub fn split_binary_2(
                         let total_byte_length = subbinary.total_byte_len();
 
                         if index < total_byte_length {
-                            let mut heap = process_control_block.acquire_heap();
+                            let mut heap = process.acquire_heap();
                             let original = subbinary.original();
                             let byte_offset = subbinary.byte_offset();
                             let bit_offset = subbinary.bit_offset();
@@ -1613,7 +1486,7 @@ pub fn split_binary_2(
                         } else if (index == total_byte_length)
                             & (subbinary.partial_byte_bit_len() == 0)
                         {
-                            let mut heap = process_control_block.acquire_heap();
+                            let mut heap = process.acquire_heap();
                             let empty_suffix = heap.subbinary_from_original(
                                 subbinary.original(),
                                 subbinary.byte_offset() + index,
@@ -1640,7 +1513,7 @@ pub fn start_timer_3(
     time: Term,
     destination: Term,
     message: Term,
-    arc_process_control_block: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> Result {
     start_timer(
         time,
@@ -1648,7 +1521,7 @@ pub fn start_timer_3(
         Timeout::TimeoutTuple,
         message,
         Default::default(),
-        arc_process_control_block,
+        arc_process,
     )
 }
 
@@ -1657,7 +1530,7 @@ pub fn start_timer_4(
     destination: Term,
     message: Term,
     options: Term,
-    arc_process_control_block: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> Result {
     let timer_start_options: timer::start::Options = options.try_into()?;
 
@@ -1667,15 +1540,11 @@ pub fn start_timer_4(
         Timeout::TimeoutTuple,
         message,
         timer_start_options,
-        arc_process_control_block,
+        arc_process,
     )
 }
 
-pub fn subtract_list_2(
-    minuend: Term,
-    subtrahend: Term,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+pub fn subtract_list_2(minuend: Term, subtrahend: Term, process: &Process) -> Result {
     match (
         minuend.to_typed_term().unwrap(),
         subtrahend.to_typed_term().unwrap(),
@@ -1708,7 +1577,7 @@ pub fn subtract_list_2(
                         };
                     }
 
-                    process_control_block
+                    process
                         .list_from_slice(&minuend_vec)
                         .map_err(|error| error.into())
                 }
@@ -1729,16 +1598,16 @@ pub fn tl_1(list: Term) -> Result {
     Ok(cons.tail)
 }
 
-pub fn tuple_size_1(tuple: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn tuple_size_1(tuple: Term, process: &Process) -> Result {
     let tuple: Boxed<Tuple> = tuple.try_into()?;
-    let size = process_control_block.integer(tuple.len())?;
+    let size = process.integer(tuple.len())?;
 
     Ok(size)
 }
 
-pub fn tuple_to_list_1(tuple: Term, process_control_block: &ProcessControlBlock) -> Result {
+pub fn tuple_to_list_1(tuple: Term, process: &Process) -> Result {
     let tuple: Boxed<Tuple> = tuple.try_into()?;
-    let mut heap = process_control_block.acquire_heap();
+    let mut heap = process.acquire_heap();
     let mut acc = Term::NIL;
 
     for element in tuple.iter().rev() {
@@ -1761,8 +1630,7 @@ pub fn unregister_1(name: Term) -> Result {
 pub fn whereis_1(name: Term) -> Result {
     let atom: Atom = name.try_into()?;
 
-    let option = registry::atom_to_process(&atom)
-        .map(|arc_process_control_block| arc_process_control_block.pid());
+    let option = registry::atom_to_process(&atom).map(|arc_process| arc_process.pid());
 
     let term = match option {
         Some(pid) => unsafe { pid.as_term() },
@@ -1784,7 +1652,7 @@ pub fn xor_2(left_boolean: Term, right_boolean: Term) -> Result {
 fn cancel_timer(
     timer_reference: Term,
     options: timer::cancel::Options,
-    process_control_block: &ProcessControlBlock,
+    process: &Process,
 ) -> Result {
     match timer_reference.to_typed_term().unwrap() {
         TypedTerm::Boxed(unboxed_timer_reference) => {
@@ -1793,7 +1661,7 @@ fn cancel_timer(
                     let canceled = timer::cancel(reference);
 
                     let term = if options.info {
-                        let mut heap = process_control_block.acquire_heap();
+                        let mut heap = process.acquire_heap();
                         let canceled_term = match canceled {
                             Some(milliseconds_remaining) => heap.integer(milliseconds_remaining)?,
                             None => false.into(),
@@ -1805,7 +1673,7 @@ fn cancel_timer(
                                 timer_reference,
                                 canceled_term,
                             ])?;
-                            process_control_block.send_from_self(cancel_timer_message);
+                            process.send_from_self(cancel_timer_message);
 
                             atom_unchecked("ok")
                         } else {
@@ -1896,17 +1764,13 @@ fn next_decimal_digit(cons: Boxed<Cons>) -> std::result::Result<(u8, Term), Exce
     }
 }
 
-fn read_timer(
-    timer_reference: Term,
-    options: timer::read::Options,
-    process_control_block: &ProcessControlBlock,
-) -> Result {
+fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Process) -> Result {
     match timer_reference.to_typed_term().unwrap() {
         TypedTerm::Boxed(unboxed_timer_reference) => {
             match unboxed_timer_reference.to_typed_term().unwrap() {
                 TypedTerm::Reference(ref local_reference) => {
                     let read = timer::read(local_reference);
-                    let mut heap = process_control_block.acquire_heap();
+                    let mut heap = process.acquire_heap();
 
                     let read_term = match read {
                         Some(milliseconds_remaining) => heap.integer(milliseconds_remaining)?,
@@ -1919,7 +1783,7 @@ fn read_timer(
                             timer_reference,
                             read_term,
                         ])?;
-                        process_control_block.send_from_self(read_timer_message);
+                        process.send_from_self(read_timer_message);
 
                         atom_unchecked("ok")
                     } else {
@@ -1979,7 +1843,7 @@ fn start_timer(
     timeout: Timeout,
     message: Term,
     options: timer::start::Options,
-    arc_process_control_block: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> Result {
     if time.is_integer() {
         let reference_frame_milliseconds: Milliseconds = time.try_into()?;
@@ -1998,22 +1862,22 @@ fn start_timer(
                 timer::Destination::Name(destination_atom),
                 timeout,
                 message,
-                &arc_process_control_block,
+                &arc_process,
             )
             .map_err(|error| error.into()),
             // PIDs are looked up at time of create.  If they don't exist, they still return a
             // LocalReference.
             TypedTerm::Pid(destination_pid) => {
-                match pid_to_self_or_process(destination_pid, &arc_process_control_block) {
-                    Some(pid_arc_process_control_block) => timer::start(
+                match pid_to_self_or_process(destination_pid, &arc_process) {
+                    Some(pid_arc_process) => timer::start(
                         absolute_milliseconds,
-                        timer::Destination::Process(Arc::downgrade(&pid_arc_process_control_block)),
+                        timer::Destination::Process(Arc::downgrade(&pid_arc_process)),
                         timeout,
                         message,
-                        &arc_process_control_block,
+                        &arc_process,
                     )
                     .map_err(|error| error.into()),
-                    None => make_ref_0(&arc_process_control_block),
+                    None => make_ref_0(&arc_process),
                 }
             }
             _ => Err(badarg!().into()),

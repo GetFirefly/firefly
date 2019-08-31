@@ -29,7 +29,7 @@ fn without_atom_or_integer_errors_badarg() {
 
 fn errors_badarg<U>(unit: U)
 where
-    U: FnOnce(&ProcessControlBlock) -> Term,
+    U: FnOnce(&Process) -> Term,
 {
     super::errors_badarg(|process| erlang::monotonic_time_1(unit(&process), process));
 }

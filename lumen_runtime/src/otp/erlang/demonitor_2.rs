@@ -14,7 +14,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 
 use liblumen_alloc::erts::term::{Atom, Boxed, Reference, Term};
 use liblumen_alloc::ModuleFunctionArity;
@@ -24,7 +24,7 @@ use crate::process::monitor::is_down;
 use crate::registry::pid_to_process;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     reference: Term,
     options: Term,
@@ -38,7 +38,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let reference = arc_process.stack_pop().unwrap();
@@ -48,14 +48,14 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         Ok(true_term) => {
             arc_process.return_from_call(true_term)?;
 
-            ProcessControlBlock::call_code(arc_process)
+            Process::call_code(arc_process)
         }
         Err(exception) => result_from_exception(arc_process, exception),
     }
 }
 
 fn demonitor(
-    monitoring_process: &ProcessControlBlock,
+    monitoring_process: &Process,
     reference: &Reference,
     Options { flush, info }: Options,
 ) -> exception::Result {
@@ -91,7 +91,7 @@ fn demonitor(
     }
 }
 
-fn flush(monitoring_process: &ProcessControlBlock, reference: &Reference) -> bool {
+fn flush(monitoring_process: &Process, reference: &Reference) -> bool {
     monitoring_process
         .mailbox
         .lock()
@@ -115,7 +115,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-pub fn native(process: &ProcessControlBlock, reference: Term, options: Term) -> exception::Result {
+pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result {
     let reference_reference: Boxed<Reference> = reference.try_into()?;
     let options_options: Options = options.try_into()?;
 

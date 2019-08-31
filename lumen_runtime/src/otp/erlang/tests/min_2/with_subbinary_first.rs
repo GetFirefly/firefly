@@ -172,7 +172,7 @@ fn with_subbinary_with_value_with_shorter_length_returns_first() {
 
 fn min<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::min(|process| bitstring!(1, 1 :: 2, &process), second, which);
 }

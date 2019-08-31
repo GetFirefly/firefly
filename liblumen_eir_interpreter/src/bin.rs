@@ -12,8 +12,8 @@ use libeir_syntax_erl::ast::Module as ErlAstModule;
 use libeir_syntax_erl::lower_module;
 use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
-use liblumen_eir_interpreter::VM;
 use liblumen_eir_interpreter::call_result::call_run_erlang;
+use liblumen_eir_interpreter::VM;
 
 use liblumen_alloc::erts::term::Atom;
 

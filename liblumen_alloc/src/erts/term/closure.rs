@@ -13,7 +13,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
-use crate::erts::process::ProcessControlBlock;
+use crate::erts::process::Process;
 use crate::erts::term::{arity_of, Boxed, TypeError, TypedTerm};
 use crate::erts::{HeapAlloc, ModuleFunctionArity};
 
@@ -56,7 +56,7 @@ impl Closure {
 
     pub fn place_frame_with_arguments(
         &self,
-        process: &ProcessControlBlock,
+        process: &Process,
         placement: Placement,
         arguments: Vec<Term>,
     ) -> Result<(), Alloc> {
@@ -72,7 +72,7 @@ impl Closure {
         Ok(())
     }
 
-    fn push_env_to_stack(&self, process: &ProcessControlBlock) -> Result<(), Alloc> {
+    fn push_env_to_stack(&self, process: &Process) -> Result<(), Alloc> {
         for term in self.env_slice().iter().rev() {
             process.stack_push(*term)?;
         }

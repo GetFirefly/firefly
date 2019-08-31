@@ -59,8 +59,8 @@ fn max_is_second_if_first_is_less_than_second() {
 
 fn max<F, S>(first: F, second: S, which: FirstSecond)
 where
-    F: FnOnce(&ProcessControlBlock) -> Term,
-    S: FnOnce(Term, &ProcessControlBlock) -> Term,
+    F: FnOnce(&Process) -> Term,
+    S: FnOnce(Term, &Process) -> Term,
 {
     with_process(|process| {
         let first = first(&process);

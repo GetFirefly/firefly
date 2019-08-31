@@ -41,7 +41,7 @@ fn with_list_or_bitstring_right_returns_true() {
         .unwrap();
 }
 
-fn list_or_bitstring(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn list_or_bitstring(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         strategy::term::is_list(arc_process.clone()),
         strategy::term::is_bitstring(arc_process)

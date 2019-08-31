@@ -1,18 +1,20 @@
 use std::any::TypeId;
 use std::convert::TryInto;
+use std::str;
 use std::sync::Arc;
 
 use wasm_bindgen::JsValue;
 
 use js_sys::{Function, Promise};
 
-use web_sys::{Document, Element, HtmlElement, Node, Text};
+use web_sys::{Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node, Text};
 
 use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
-use liblumen_alloc::erts::term::{resource, Atom, SmallInteger, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::process::{code, Process};
+use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
+use liblumen_alloc::erts::term::{resource, Atom, Pid, SmallInteger, Term, Tuple, TypedTerm};
 
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::Scheduler;
@@ -22,7 +24,7 @@ use lumen_runtime::{process, registry};
 /// the promise.
 pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> Result<Promise, Alloc>
 where
-    F: Fn(&ProcessControlBlock) -> Result<(), Alloc>,
+    F: Fn(&Process) -> Result<(), Alloc>,
 {
     let (process, promise) = spawn_unscheduled(options)?;
 
@@ -36,11 +38,26 @@ where
 
 // Private
 
+fn aligned_binary_to_js_value<A: AlignedBinary>(aligned_binary: A) -> JsValue {
+    bytes_to_js_value(aligned_binary.as_bytes())
+}
+
 fn atom_to_js_value(atom: Atom) -> JsValue {
     js_sys::Symbol::for_(atom.name()).into()
 }
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
+    match str::from_utf8(bytes) {
+        Ok(s) => s.into(),
+        Err(_) => {
+            let uint8_array = unsafe { js_sys::Uint8Array::view(bytes) };
+
+            uint8_array.into()
+        }
+    }
+}
+
+fn code(arc_process: &Arc<Process>) -> code::Result {
     let return_term = arc_process.stack_pop().unwrap();
     let executor_term = arc_process.stack_pop().unwrap();
     assert!(executor_term.is_resource_reference());
@@ -51,11 +68,20 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
 
     arc_process.remove_last_frame();
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
 fn function() -> Atom {
     Atom::try_from_str("with_return").unwrap()
+}
+
+fn pid_to_js_value(pid: Pid) -> JsValue {
+    let array = js_sys::Array::new();
+
+    array.push(&(pid.number() as i32).into());
+    array.push(&(pid.serial() as i32).into());
+
+    array.into()
 }
 
 fn resource_reference_to_js_value(resource_reference: resource::Reference) -> JsValue {
@@ -69,10 +95,18 @@ fn resource_reference_to_js_value(resource_reference: resource::Reference) -> Js
         let element: &Element = resource_reference.downcast_ref().unwrap();
 
         element.into()
+    } else if resource_type_id == TypeId::of::<HtmlBodyElement>() {
+        let html_body_element: &HtmlBodyElement = resource_reference.downcast_ref().unwrap();
+
+        html_body_element.into()
     } else if resource_type_id == TypeId::of::<HtmlElement>() {
         let html_element: &HtmlElement = resource_reference.downcast_ref().unwrap();
 
         html_element.into()
+    } else if resource_type_id == TypeId::of::<HtmlTableElement>() {
+        let html_table_element: &HtmlTableElement = resource_reference.downcast_ref().unwrap();
+
+        html_table_element.into()
     } else if resource_type_id == TypeId::of::<Node>() {
         let node: &Node = resource_reference.downcast_ref().unwrap();
 
@@ -98,7 +132,7 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 
 /// Spawns process with this as the first frame, so that any later `Frame`s can return to it.
 ///
-/// The returns `ProcessControlBlock` is **NOT** scheduled with the scheduler yet, so that
+/// The returns `Process` is **NOT** scheduled with the scheduler yet, so that
 /// the frame that will return to this frame can be added prior to running the process to
 /// prevent a race condition on the `parent_process`'s scheduler running the new child process
 /// when only the `with_return/0` frame is there.
@@ -120,7 +154,7 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 ///
 /// promise
 /// ```
-fn spawn_unscheduled(options: Options) -> Result<(ProcessControlBlock, Promise), Alloc> {
+fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
     let parent_process = None;
     let process = process::spawn::code(
         parent_process,
@@ -144,12 +178,15 @@ fn term_to_js_value(term: Term) -> JsValue {
     match term.to_typed_term().unwrap() {
         TypedTerm::Atom(atom) => atom_to_js_value(atom),
         TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::HeapBinary(heap_binary) => aligned_binary_to_js_value(heap_binary),
+            TypedTerm::ProcBin(process_binary) => aligned_binary_to_js_value(process_binary),
             TypedTerm::ResourceReference(resource_reference) => {
                 resource_reference_to_js_value(resource_reference)
             }
             TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
             _ => unimplemented!("Convert {:?} to JsValue", term),
         },
+        TypedTerm::Pid(pid) => pid_to_js_value(pid),
         TypedTerm::SmallInteger(small_integer) => small_integer_to_js_value(small_integer),
         _ => unimplemented!("Convert {:?} to JsValue", term),
     }

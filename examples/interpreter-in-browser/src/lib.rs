@@ -3,9 +3,9 @@
 #![feature(allocator_api)]
 #![feature(type_ascription)]
 
-mod start;
 mod heap;
 mod module;
+mod start;
 
 //use liblumen_alloc::erts::process::code::stack::frame::Placement;
 
@@ -49,10 +49,22 @@ pub fn start() {
 
     lumen_web::start();
 
-    VM.modules.write().unwrap().register_native_module(module::make_lumen_web_window());
-    VM.modules.write().unwrap().register_native_module(module::make_lumen_web_document());
-    VM.modules.write().unwrap().register_native_module(module::make_lumen_web_element());
-    VM.modules.write().unwrap().register_native_module(module::make_lumen_web_node());
+    VM.modules
+        .write()
+        .unwrap()
+        .register_native_module(module::make_lumen_web_window());
+    VM.modules
+        .write()
+        .unwrap()
+        .register_native_module(module::make_lumen_web_document());
+    VM.modules
+        .write()
+        .unwrap()
+        .register_native_module(module::make_lumen_web_element());
+    VM.modules
+        .write()
+        .unwrap()
+        .register_native_module(module::make_lumen_web_node());
 
     system::io::puts("initialized");
 }
@@ -66,8 +78,8 @@ where
         Ok(ast) => return (ast, parser),
         Err(errs) => errs,
     };
-    let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-        .set_codemap(parser.config.codemap.clone());
+    let emitter =
+        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
     for err in errs.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -78,8 +90,8 @@ pub fn lower(input: &str, config: ParseConfig) -> Result<Module, ()> {
     let (parsed, parser): (ErlAstModule, _) = parse(input, config);
     let (res, messages) = lower_module(&parsed);
 
-    let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-        .set_codemap(parser.config.codemap.clone());
+    let emitter =
+        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
     for err in messages.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -142,8 +154,8 @@ fn run(count: usize, output: Output) -> js_sys::Promise {
     //            Output::Console => {
 
     //                // if this fails use a bigger sized heap
-    //                console_1::place_frame_with_arguments(child_process, Placement::Push, count_term)
-    //            }
+    //                console_1::place_frame_with_arguments(child_process, Placement::Push,
+    // count_term)            }
     //            Output::Dom => {
     //                // if this fails use a bigger sized heap
     //                dom_1::place_frame_with_arguments(child_process, Placement::Push, count_term)

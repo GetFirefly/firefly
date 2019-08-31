@@ -21,6 +21,6 @@ fn without_monitor_returns_true() {
     });
 }
 
-fn options(process: &ProcessControlBlock) -> Term {
+fn options(process: &Process) -> Term {
     process.list_from_slice(&[atom_unchecked("flush")]).unwrap()
 }

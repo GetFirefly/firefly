@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
@@ -10,7 +10,7 @@ use crate::elixir::r#enum::reduce_range_dec_4;
 use crate::elixir::r#enum::reduce_range_inc_4;
 
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     enumerable: Term,
     acc: Term,
@@ -26,7 +26,7 @@ pub fn place_frame_with_arguments(
 
 // Private
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     let enumerable = arc_process.stack_pop().unwrap();
     let initial = arc_process.stack_pop().unwrap();
     let reducer = arc_process.stack_pop().unwrap();
@@ -67,7 +67,7 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
                                 )?;
                             }
 
-                            ProcessControlBlock::call_code(arc_process)
+                            Process::call_code(arc_process)
                         } else {
                             arc_process.reduce();
                             arc_process.exception(liblumen_alloc::badarg!());

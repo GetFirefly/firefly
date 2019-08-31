@@ -82,7 +82,7 @@ fn with_subbinary_right_returns_true() {
 
 fn with_right_returns_right<R>(right: R)
 where
-    R: FnOnce(&ProcessControlBlock) -> Term,
+    R: FnOnce(&Process) -> Term,
 {
     with_process(|process| {
         let left = false.into();

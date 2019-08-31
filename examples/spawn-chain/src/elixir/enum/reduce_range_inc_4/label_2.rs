@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::{code, ProcessControlBlock};
+use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::Term;
 
 use crate::elixir::r#enum::reduce_range_inc_4;
@@ -15,7 +15,7 @@ use crate::elixir::r#enum::reduce_range_inc_4;
 /// reduce_range_inc(new_first, last, new_acc, reducer)
 /// ```
 pub fn place_frame_with_arguments(
-    process: &ProcessControlBlock,
+    process: &Process,
     placement: Placement,
     new_first: Term,
     last: Term,
@@ -33,7 +33,7 @@ pub fn place_frame_with_arguments(
     Ok(())
 }
 
-fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
+fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     // new_acc is on top of stack because it is the return from `reducer` call
@@ -51,10 +51,10 @@ fn code(arc_process: &Arc<ProcessControlBlock>) -> code::Result {
         reducer,
     )?;
 
-    ProcessControlBlock::call_code(arc_process)
+    Process::call_code(arc_process)
 }
 
-fn frame(process: &ProcessControlBlock) -> Frame {
+fn frame(process: &Process) -> Frame {
     let module_function_arity = process.current_module_function_arity().unwrap();
 
     Frame::new(module_function_arity, code)

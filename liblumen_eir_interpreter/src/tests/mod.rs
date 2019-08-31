@@ -23,8 +23,8 @@ where
         Ok(ast) => return (ast, parser),
         Err(errs) => errs,
     };
-    let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-        .set_codemap(parser.config.codemap.clone());
+    let emitter =
+        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
     for err in errs.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -35,8 +35,8 @@ pub fn lower(input: &str, config: ParseConfig) -> Result<Module, ()> {
     let (parsed, parser): (ErlAstModule, _) = parse(input, config);
     let (res, messages) = lower_module(&parsed);
 
-    let emitter = StandardStreamEmitter::new(ColorChoice::Auto)
-        .set_codemap(parser.config.codemap.clone());
+    let emitter =
+        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
     for err in messages.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -46,8 +46,7 @@ pub fn lower(input: &str, config: ParseConfig) -> Result<Module, ()> {
 
 pub fn compile(input: &str) -> Module {
     let config = ParseConfig::default();
-    let mut eir_mod = lower(input, config)
-        .unwrap();
+    let mut eir_mod = lower(input, config).unwrap();
 
     for fun in eir_mod.functions.values() {
         fun.graph_validate_global();
@@ -90,7 +89,7 @@ fn simple_function() {
 -module(simple_function_test).
 
 run() -> yay.
-"
+",
     );
 
     VM.modules.write().unwrap().register_erlang_module(eir_mod);
@@ -122,7 +121,8 @@ fib(X) -> fib(X - 1) + fib(X - 2).
     VM.modules.write().unwrap().register_erlang_module(eir_mod);
 
     let int = init_arc_process.integer(5).unwrap();
-    let res = crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[int]);
+    let res =
+        crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[int]);
 
     let int = init_arc_process.integer(5).unwrap();
     assert!(res.result == Ok(int));
@@ -151,7 +151,8 @@ fib(X) -> fib(X - 1) + fib(X - 2).
     VM.modules.write().unwrap().register_erlang_module(eir_mod);
 
     let int = init_arc_process.integer(14).unwrap();
-    let res = crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[int]);
+    let res =
+        crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[int]);
 
     let int = init_arc_process.integer(377).unwrap();
     assert!(res.result == Ok(int));

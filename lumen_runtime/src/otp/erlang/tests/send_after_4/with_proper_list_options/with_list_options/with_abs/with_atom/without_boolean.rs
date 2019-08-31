@@ -38,7 +38,7 @@ fn without_non_negative_integer_time_error_badarg() {
     });
 }
 
-fn options(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process.clone())
         .prop_map(move |value| super::options(value, &arc_process))
         .boxed()

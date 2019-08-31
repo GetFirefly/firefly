@@ -3,7 +3,7 @@ use core::result::Result;
 
 use liblumen_alloc::erts::exception::{runtime, Exception};
 use liblumen_alloc::term::{Atom, Term, TypedTerm};
-use liblumen_alloc::{badarg, ProcessControlBlock};
+use liblumen_alloc::{badarg, Process};
 
 use crate::node;
 use crate::registry::{self, pid_to_process};
@@ -13,11 +13,11 @@ pub fn send(
     destination: Term,
     message: Term,
     options: Options,
-    process_control_block: &ProcessControlBlock,
+    process: &Process,
 ) -> Result<Sent, Exception> {
     match destination.to_typed_term().unwrap() {
         TypedTerm::Atom(destination_atom) => {
-            send_to_name(destination_atom, message, options, process_control_block)
+            send_to_name(destination_atom, message, options, process)
         }
         TypedTerm::Boxed(unboxed_destination) => {
             match unboxed_destination.to_typed_term().unwrap() {
@@ -31,12 +31,9 @@ pub fn send(
 
                                 match node.to_typed_term().unwrap() {
                                     TypedTerm::Atom(node_atom) => match node_atom.name() {
-                                        node::DEAD => send_to_name(
-                                            name_atom,
-                                            message,
-                                            options,
-                                            process_control_block,
-                                        ),
+                                        node::DEAD => {
+                                            send_to_name(name_atom, message, options, process)
+                                        }
                                         _ => {
                                             if !options.connect {
                                                 Ok(Sent::ConnectRequired)
@@ -60,19 +57,17 @@ pub fn send(
             }
         }
         TypedTerm::Pid(destination_pid) => {
-            if destination_pid == process_control_block.pid() {
-                process_control_block.send_from_self(message);
+            if destination_pid == process.pid() {
+                process.send_from_self(message);
 
                 Ok(Sent::Sent)
             } else {
                 match pid_to_process(&destination_pid) {
-                    Some(destination_arc_process_control_block) => {
-                        if destination_arc_process_control_block.send_from_other(message)? {
-                            let scheduler_id = destination_arc_process_control_block
-                                .scheduler_id()
-                                .unwrap();
+                    Some(destination_arc_process) => {
+                        if destination_arc_process.send_from_other(message)? {
+                            let scheduler_id = destination_arc_process.scheduler_id().unwrap();
                             let arc_scheduler = Scheduler::from_id(&scheduler_id).unwrap();
-                            arc_scheduler.stop_waiting(&destination_arc_process_control_block);
+                            arc_scheduler.stop_waiting(&destination_arc_process);
                         }
 
                         Ok(Sent::Sent)
@@ -163,21 +158,19 @@ fn send_to_name(
     destination: Atom,
     message: Term,
     _options: Options,
-    process_control_block: &ProcessControlBlock,
+    process: &Process,
 ) -> Result<Sent, Exception> {
-    if *process_control_block.registered_name.read() == Some(destination) {
-        process_control_block.send_from_self(message);
+    if *process.registered_name.read() == Some(destination) {
+        process.send_from_self(message);
 
         Ok(Sent::Sent)
     } else {
         match registry::atom_to_process(&destination) {
-            Some(destination_arc_process_control_block) => {
-                if destination_arc_process_control_block.send_from_other(message)? {
-                    let scheduler_id = destination_arc_process_control_block
-                        .scheduler_id()
-                        .unwrap();
+            Some(destination_arc_process) => {
+                if destination_arc_process.send_from_other(message)? {
+                    let scheduler_id = destination_arc_process.scheduler_id().unwrap();
                     let arc_scheduler = Scheduler::from_id(&scheduler_id).unwrap();
-                    arc_scheduler.stop_waiting(&destination_arc_process_control_block);
+                    arc_scheduler.stop_waiting(&destination_arc_process);
                 }
 
                 Ok(Sent::Sent)

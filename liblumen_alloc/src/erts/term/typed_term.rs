@@ -11,7 +11,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::term::resource;
-use crate::erts::ProcessControlBlock;
+use crate::erts::Process;
 
 use super::*;
 
@@ -272,6 +272,15 @@ impl PartialEq<TypedTerm> for TypedTerm {
                     TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
                         TypedTerm::Reference(other_reference) => {
                             self_reference.eq(&other_reference)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                TypedTerm::ResourceReference(self_resource_reference) => match other {
+                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
+                        TypedTerm::ResourceReference(other_resource_reference) => {
+                            self_resource_reference.eq(&other_resource_reference)
                         }
                         _ => false,
                     },
@@ -795,7 +804,7 @@ unsafe impl AsTerm for TypedTerm {
 }
 
 impl CloneToProcess for TypedTerm {
-    fn clone_to_process(&self, process: &ProcessControlBlock) -> Term {
+    fn clone_to_process(&self, process: &Process) -> Term {
         // Immediates are just copied and returned, all other terms
         // are expected to require allocation, so we delegate to those types
         match self {

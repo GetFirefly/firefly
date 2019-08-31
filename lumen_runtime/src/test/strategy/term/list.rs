@@ -4,11 +4,11 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::{ProcessControlBlock, Term};
+use liblumen_alloc::{Process, Term};
 
 use crate::test::strategy::{self, NON_EMPTY_RANGE_INCLUSIVE};
 
-pub fn improper(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn improper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let size_range: SizeRange = NON_EMPTY_RANGE_INCLUSIVE.into();
 
     (
@@ -25,7 +25,7 @@ pub fn improper(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
 pub fn intermediate(
     element: BoxedStrategy<Term>,
     size_range: SizeRange,
-    arc_process: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
 ) -> BoxedStrategy<Term> {
     proptest::collection::vec(element, size_range)
         .prop_map(move |vec| match vec.len() {
@@ -42,7 +42,7 @@ pub fn intermediate(
         .boxed()
 }
 
-pub fn non_empty_maybe_improper(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn non_empty_maybe_improper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let size_range: SizeRange = NON_EMPTY_RANGE_INCLUSIVE.clone().into();
 
     proptest::collection::vec(strategy::term(arc_process.clone()), size_range)
@@ -59,7 +59,7 @@ pub fn non_empty_maybe_improper(arc_process: Arc<ProcessControlBlock>) -> BoxedS
         .boxed()
 }
 
-pub fn non_empty_proper(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn non_empty_proper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     let size_range: SizeRange = NON_EMPTY_RANGE_INCLUSIVE.clone().into();
 
     (
@@ -70,6 +70,6 @@ pub fn non_empty_proper(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<
         .boxed()
 }
 
-pub fn proper(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+pub fn proper(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![Just(Term::NIL), non_empty_proper(arc_process)].boxed()
 }

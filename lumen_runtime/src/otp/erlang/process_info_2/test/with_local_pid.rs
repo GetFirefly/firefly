@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::process::ProcessControlBlock;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Term, TypedTerm};
 
 #[test]
@@ -23,7 +23,7 @@ fn without_supported_item_errors_badarg() {
     });
 }
 
-fn unsupported_item(arc_process: Arc<ProcessControlBlock>) -> BoxedStrategy<Term> {
+fn unsupported_item(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter("Item cannot be supported", |item| {
             match item.to_typed_term().unwrap() {

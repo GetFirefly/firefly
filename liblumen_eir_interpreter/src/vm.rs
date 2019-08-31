@@ -1,10 +1,10 @@
 use std::rc::Rc;
-use std::sync::{RwLock, Arc};
+use std::sync::{Arc, RwLock};
 
 use libeir_ir::FunctionIdent;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::process::{ProcessControlBlock, Status};
+use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 
 use lumen_runtime::process::spawn::options::Options;
@@ -16,7 +16,7 @@ use super::module::ModuleRegistry;
 pub struct VMState {
     pub modules: RwLock<ModuleRegistry>,
     pub closure_hack: RwLock<Vec<Vec<Term>>>,
-    pub init: Arc<ProcessControlBlock>,
+    pub init: Arc<Process>,
 }
 
 impl VMState {
@@ -78,14 +78,14 @@ impl VMState {
                         ..
                     } => {
                         if *reason != atom_unchecked("normal") {
-                            panic!("ProcessControlBlock exited: {:?}", reason);
+                            panic!("Process exited: {:?}", reason);
                         } else {
                             panic!("yay!");
                         }
                     }
                     _ => {
                         panic!(
-                            "ProcessControlBlock exception: {:?}\n{:?}",
+                            "Process exception: {:?}\n{:?}",
                             exception,
                             run_arc_process.stacktrace()
                         );

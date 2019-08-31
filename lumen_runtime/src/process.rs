@@ -11,7 +11,7 @@ use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
-use liblumen_alloc::erts::process::{self, ProcessControlBlock};
+use liblumen_alloc::erts::process::{self, Process};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, Tuple, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::HeapFragment;
@@ -53,7 +53,7 @@ fn is_expected_exit_reason(reason: Term) -> bool {
     }
 }
 
-pub fn log_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
+pub fn log_exit(process: &Process, exception: &runtime::Exception) {
     match exception.class {
         runtime::Class::Exit => {
             let reason = exception.reason;
@@ -75,12 +75,12 @@ pub fn log_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
     }
 }
 
-pub fn propagate_exit(process: &ProcessControlBlock, exception: &runtime::Exception) {
+pub fn propagate_exit(process: &Process, exception: &runtime::Exception) {
     monitor::propagate_exit(process, exception);
     propagate_exit_to_links(process, exception);
 }
 
-pub fn propagate_exit_to_links(process: &ProcessControlBlock, exception: &runtime::Exception) {
+pub fn propagate_exit_to_links(process: &Process, exception: &runtime::Exception) {
     if !is_expected_exception(exception) {
         let tag = atom_unchecked("EXIT");
         let from = process.pid_term();
@@ -126,18 +126,15 @@ pub fn propagate_exit_to_links(process: &ProcessControlBlock, exception: &runtim
 }
 
 pub fn register_in(
-    arc_process_control_block: Arc<ProcessControlBlock>,
+    arc_process: Arc<Process>,
     mut writable_registry: RwLockWriteGuard<HashMap<Atom, Registered>>,
     name: Atom,
 ) -> bool {
-    let mut writable_registered_name = arc_process_control_block.registered_name.write();
+    let mut writable_registered_name = arc_process.registered_name.write();
 
     match *writable_registered_name {
         None => {
-            writable_registry.insert(
-                name,
-                Registered::Process(Arc::downgrade(&arc_process_control_block)),
-            );
+            writable_registry.insert(name, Registered::Process(Arc::downgrade(&arc_process)));
             *writable_registered_name = Some(name);
 
             true
@@ -146,7 +143,7 @@ pub fn register_in(
     }
 }
 
-pub fn init(minimum_heap_size: usize) -> Result<ProcessControlBlock, Alloc> {
+pub fn init(minimum_heap_size: usize) -> Result<Process, Alloc> {
     let init = Atom::try_from_str("init").unwrap();
     let module_function_arity = Arc::new(ModuleFunctionArity {
         module: init,
@@ -157,7 +154,7 @@ pub fn init(minimum_heap_size: usize) -> Result<ProcessControlBlock, Alloc> {
     let heap_size = process::next_heap_size(minimum_heap_size);
     let heap = process::heap(heap_size)?;
 
-    let process = ProcessControlBlock::new(
+    let process = Process::new(
         Default::default(),
         None,
         Arc::clone(&module_function_arity),
@@ -175,7 +172,7 @@ pub trait SchedulerDependentAlloc {
     fn next_reference(&self) -> Result<Term, Alloc>;
 }
 
-impl SchedulerDependentAlloc for ProcessControlBlock {
+impl SchedulerDependentAlloc for Process {
     fn next_reference(&self) -> Result<Term, Alloc> {
         let scheduler_id = self.scheduler_id().unwrap();
         let arc_scheduler = Scheduler::from_id(&scheduler_id).unwrap();
@@ -186,7 +183,7 @@ impl SchedulerDependentAlloc for ProcessControlBlock {
 }
 
 #[cfg(test)]
-pub fn test_init() -> Arc<ProcessControlBlock> {
+pub fn test_init() -> Arc<Process> {
     // During test allow multiple unregistered init processes because in tests, the `Scheduler`s
     // keep getting `Drop`ed as threads end.
 
@@ -201,7 +198,7 @@ pub fn test_init() -> Arc<ProcessControlBlock> {
 }
 
 #[cfg(test)]
-pub fn test(parent_process: &ProcessControlBlock) -> Arc<ProcessControlBlock> {
+pub fn test(parent_process: &Process) -> Arc<Process> {
     let mut options: Options = Default::default();
     options.min_heap_size = Some(16_000);
     let module = test::r#loop::module();

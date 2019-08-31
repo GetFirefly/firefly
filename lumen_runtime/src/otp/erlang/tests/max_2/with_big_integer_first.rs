@@ -78,7 +78,7 @@ fn without_second_number_returns_second() {
 
 fn max<R>(second: R, which: FirstSecond)
 where
-    R: FnOnce(Term, &ProcessControlBlock) -> Term,
+    R: FnOnce(Term, &Process) -> Term,
 {
     super::max(
         |process| process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),

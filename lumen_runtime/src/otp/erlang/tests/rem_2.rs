@@ -132,7 +132,7 @@ fn with_subbinary_dividend_errors_badarith() {
 
 fn with_dividend_errors_badarith<M>(dividend: M)
 where
-    M: FnOnce(&ProcessControlBlock) -> Term,
+    M: FnOnce(&Process) -> Term,
 {
     super::errors_badarith(|process| {
         let dividend = dividend(&process);

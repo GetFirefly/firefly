@@ -46,19 +46,11 @@ commands:
       - build_package:
           package: liblumen_beam
       - build_package:
-          package: liblumen_codegen
-      - build_package:
-          package: liblumen_common
-      - build_package:
           package: liblumen_compiler
       - build_package:
           package: liblumen_core
       - build_package:
-          package: liblumen_diagnostics
-      - build_package:
           package: liblumen_eir_interpreter
-      - build_package:
-          package: liblumen_syntax
       - build_package:
           package: lumen
       - build_package:
@@ -78,13 +70,9 @@ commands:
             - liblumen_alloc_macros
             - liblumen_arena
             - liblumen_beam
-            - liblumen_codegen
-            - liblumen_common
             - liblumen_compiler
             - liblumen_core
-            - liblumen_diagnostics
             - liblumen_eir_interpreter
-            - liblumen_syntax
             - lumen
             - lumen_runtime
             - lumen_web
@@ -184,13 +172,9 @@ jobs:
             - liblumen_alloc_macros
             - liblumen_arena
             - liblumen_beam
-            - liblumen_codegen
-            - liblumen_common
             - liblumen_compiler
             - liblumen_core
-            - liblumen_diagnostics
             - liblumen_eir_interpreter
-            - liblumen_syntax
             - lumen
             - lumen_runtime
             - lumen_web
@@ -249,13 +233,9 @@ jobs:
             - liblumen_alloc_macros
             - liblumen_arena
             - liblumen_beam
-            - liblumen_codegen
-            - liblumen_common
             - liblumen_compiler
             - liblumen_core
-            - liblumen_diagnostics
             - liblumen_eir_interpreter
-            - liblumen_syntax
             - lumen
             - lumen_runtime
             - lumen_web
@@ -349,20 +329,10 @@ workflows:
             - x86_64_linux_build
           package: "liblumen_core"
       - x86_64_linux_test:
-          name: x86_64_linux_liblumen_diagnostics_test
-          requires:
-            - x86_64_linux_build
-          package: "liblumen_diagnostics"
-      - x86_64_linux_test:
           name: x86_64_linux_liblumen_eir_interpreter_test
           requires:
             - x86_64_linux_build
           package: "liblumen_eir_interpreter"
-      - x86_64_linux_test:
-          name: x86_64_linux_liblumen_syntax_test
-          requires:
-            - x86_64_linux_build
-          package: "liblumen_syntax"
       - x86_64_linux_test:
           name: x86_64_linux_lumen_runtime_test
           requires:

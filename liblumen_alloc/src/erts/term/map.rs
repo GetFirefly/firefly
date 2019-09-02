@@ -39,6 +39,12 @@ impl Map {
         Self::from_hash_map(value)
     }
 
+    pub fn put(&self, key: Term, value: Term) -> HashMap<Term, Term> {
+        let mut map = self.value.clone();
+        map.insert(key, value);
+        map
+    }
+
     pub fn get(&self, key: Term) -> Option<Term> {
         self.value.get(&key).copied()
     }

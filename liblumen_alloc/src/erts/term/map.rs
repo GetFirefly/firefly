@@ -81,10 +81,22 @@ impl Map {
     }
 
     pub fn update(&self, key: Term, value: Term) -> Option<HashMap<Term, Term>> {
-        let mut map = self.value.clone();
-        match map.insert(key, value) {
-            Some(_) => Some(map),
-            None => None,
+        if self.is_key(key) {
+            let mut map = self.value.clone();
+            map.insert(key, value);
+            Some(map)
+        } else {
+            None
+        }
+    }
+
+    pub fn put(&self, key: Term, value: Term) -> Option<HashMap<Term, Term>> {
+        if self.get(key).map_or(false, |val| val == value) {
+            None
+        } else {
+            let mut map = self.value.clone();
+            map.insert(key, value);
+            Some(map)
         }
     }
 

@@ -9,13 +9,11 @@ pub fn make_lists() -> NativeModule {
     let mut native = NativeModule::new(Atom::try_from_str("lists").unwrap());
 
     native.add_simple(Atom::try_from_str("keyfind").unwrap(), 3, |_proc, args| {
-        let res = lists::keyfind_3::native(args[0], args[1], args[2]).unwrap();
-        Ok(res)
+        lists::keyfind_3::native(args[0], args[1], args[2])
     });
 
     native.add_simple(Atom::try_from_str("member").unwrap(), 2, |_proc, args| {
-        let res = lists::member_2::native(args[0], args[1]).unwrap();
-        Ok(res)
+        lists::member_2::native(args[0], args[1])
     });
 
     native

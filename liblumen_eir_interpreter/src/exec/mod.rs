@@ -10,7 +10,9 @@ use libeir_ir::{
     BinOp, BinaryEntrySpecifier, Block, LogicOp, MapPutUpdate, OpKind, PrimOpKind, Value, ValueKind,
 };
 
+use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system;
+use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
@@ -269,7 +271,36 @@ impl CallExecutor {
         try_gc(proc, &mut args, &mut |args| match native {
             NativeFunctionKind::Simple(ptr) => match ptr(proc, &args[2..]) {
                 Ok(ret) => Ok(call_closure(proc, args[0], &mut [ret])),
-                Err(()) => panic!(),
+                Err(err) => match err {
+                    Exception::System(err) => return Err(err),
+                    Exception::Runtime(runtime::Exception {
+                        class: runtime::Class::Throw,
+                        reason,
+                        ..
+                    }) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom_unchecked("throw"), reason, atom_unchecked("trace")],
+                    )),
+                    Exception::Runtime(runtime::Exception {
+                        class: runtime::Class::Exit,
+                        reason,
+                        ..
+                    }) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom_unchecked("EXIT"), reason, atom_unchecked("trace")],
+                    )),
+                    Exception::Runtime(runtime::Exception {
+                        class: runtime::Class::Error { .. },
+                        reason,
+                        ..
+                    }) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom_unchecked("error"), reason, atom_unchecked("trace")],
+                    )),
+                },
             },
             NativeFunctionKind::Yielding(ptr) => ptr(proc, args),
         })

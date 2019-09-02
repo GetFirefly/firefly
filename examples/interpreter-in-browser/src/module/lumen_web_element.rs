@@ -1,10 +1,6 @@
-use liblumen_alloc::erts::term::{atom_unchecked, Atom};
+use liblumen_alloc::erts::term::Atom;
 
 use liblumen_eir_interpreter::NativeModule;
-
-macro_rules! trace {
-    ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
-}
 
 pub fn make_lumen_web_element() -> NativeModule {
     let mut native = NativeModule::new(Atom::try_from_str("Elixir.Lumen.Web.Element").unwrap());

@@ -129,6 +129,35 @@ fib(X) -> fib(X - 1) + fib(X - 2).
 }
 
 #[test]
+fn exception_test() {
+    &*VM;
+
+    let arc_scheduler = Scheduler::current();
+    let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    let module = Atom::try_from_str("exception_test").unwrap();
+    let function = Atom::try_from_str("a").unwrap();
+
+    let eir_mod = compile(
+        "
+-module(exception_test).
+
+a() -> 1 + a.
+",
+    );
+
+    VM.modules.write().unwrap().register_erlang_module(eir_mod);
+
+    let res = crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[]);
+
+    assert!(res.result.is_err());
+    if let Err((typ, reason, _trace)) = res.result {
+        assert!(typ == atom_unchecked("error"));
+        assert!(reason == atom_unchecked("badarith"));
+    }
+}
+
+#[test]
 fn fib_gc() {
     &*VM;
 

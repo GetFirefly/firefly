@@ -1,5 +1,6 @@
 #![deny(warnings)]
-mod code;
+
+pub mod code;
 mod exec;
 mod module;
 pub use module::NativeModule;

@@ -5,6 +5,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
+use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::resource::Reference as ResourceReference;
@@ -107,7 +108,7 @@ pub fn call_erlang(
     let return_throw = {
         let mfa = ModuleFunctionArity {
             module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-            function: Atom::try_from_str("return_ok").unwrap(),
+            function: Atom::try_from_str("return_throw").unwrap(),
             arity: 1,
         };
         proc.closure_with_env_from_slice(mfa.into(), return_throw, proc.pid_term(), &[sender_term])
@@ -169,28 +170,56 @@ fn return_ok(arc_process: &Arc<Process>) -> code::Result {
 }
 
 fn return_throw(arc_process: &Arc<Process>) -> code::Result {
-    let _argument_list = arc_process.stack_pop().unwrap();
-    let _closure_term = arc_process.stack_pop().unwrap();
+    let argument_list = arc_process.stack_pop().unwrap();
+    let closure_term = arc_process.stack_pop().unwrap();
 
-    panic!()
+    let mut argument_vec: Vec<Term> = Vec::new();
+    match argument_list.to_typed_term().unwrap() {
+        TypedTerm::Nil => (),
+        TypedTerm::List(argument_cons) => {
+            for result in argument_cons.into_iter() {
+                let element = result.unwrap();
 
-    //let closure: Boxed<Closure> = closure_term.try_into().unwrap();
-    //let sender_any: ResourceReference = closure.env_slice()[0].try_into().unwrap();
-    //let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
+                argument_vec.push(element);
+            }
+        }
+        _ => panic!(),
+    }
 
-    //let class: Atom = class_term.try_into().unwrap();
-    //let class = match class.name() {
-    //    "EXIT" => Class::Exit,
-    //    k => unreachable!("{:?}", k),
-    //};
+    let closure: Boxed<Closure> = closure_term.try_into().unwrap();
+    let sender_any: ResourceReference = closure.env_slice()[0].try_into().unwrap();
+    let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
 
-    //let exc = Exception {
-    //    class,
-    //    reason: reason_term,
-    //    stacktrace: Some(trace_term),
-    //    file: "",
-    //    line: 0,
-    //    column: 0,
-    //};
-    //result_from_exception(arc_process, exc.into())
+    let mut fragment = unsafe { HeapFragment::new_from_word_size(100) }.unwrap();
+    let frag_mut = unsafe { fragment.as_mut() };
+
+    let ret_type = argument_vec[0].clone_to_heap(frag_mut).unwrap();
+    let ret_reason = argument_vec[1].clone_to_heap(frag_mut).unwrap();
+    let ret_trace = argument_vec[2].clone_to_heap(frag_mut).unwrap();
+
+    sender
+        .tx
+        .send(ProcessResult {
+            heap: fragment,
+            result: Err((ret_type, ret_reason, ret_trace)),
+        })
+        .unwrap();
+
+    let class: Atom = argument_vec[0].try_into().unwrap();
+    let class = match class.name() {
+        "EXIT" => runtime::Class::Exit,
+        "throw" => runtime::Class::Throw,
+        "error" => runtime::Class::Error { arguments: None },
+        k => unreachable!("{:?}", k),
+    };
+
+    let exc = runtime::Exception {
+        class,
+        reason: argument_vec[1],
+        stacktrace: Some(argument_vec[2]),
+        file: "",
+        line: 0,
+        column: 0,
+    };
+    code::result_from_exception(arc_process, exc.into())
 }

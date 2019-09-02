@@ -59,6 +59,16 @@ impl Map {
         self.value.len()
     }
 
+    pub fn remove(&self, key: Term) -> Option<HashMap<Term, Term>> {
+        if self.is_key(key) {
+            let mut map = self.value.clone();
+            map.remove(&key);
+            Some(map)
+        } else {
+            None
+        }
+    }
+
     // Private
 
     fn sorted_keys(&self) -> Vec<Term> {

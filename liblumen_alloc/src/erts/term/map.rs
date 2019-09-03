@@ -51,6 +51,10 @@ impl Map {
         self.value.keys().into_iter().copied().collect()
     }
 
+    pub fn values(&self) -> Vec<Term> {
+        self.value.values().into_iter().copied().collect()
+    }
+
     pub fn len(&self) -> usize {
         self.value.len()
     }

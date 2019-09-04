@@ -3,11 +3,24 @@ container:
   cpu: 4
   memory: 12
 
-test_task:
+x86_64_test_task:
   cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
   build_script: cargo build
   test_script: cargo test
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+wasm32_test_task:
+  cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  test_script: |
+    pushd lumen_web
+    wasm-pack test --headless --chrome --firefox
+    popd
+    pushd examples/spawn-chain
+    wasm-pack test --headless --chrome --firefox
+    popd
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 

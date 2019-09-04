@@ -1,5 +1,5 @@
 container:
-  image: rust:latest
+  image: kronicdeth/lumen-development:latest
 
 test_task:
   cargo_cache:

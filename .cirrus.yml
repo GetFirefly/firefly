@@ -4,7 +4,7 @@ container:
   memory: 12
 
 x86_64_test_task:
-  cargo_cache:
+  x86_64_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
   build_script: cargo build
@@ -22,7 +22,7 @@ x86_64_test_task:
     cargo test
     popd
   lumen_runtime_test_script: |
-    pushed lumen_runtime
+    pushd lumen_runtime
     cargo test
     popd
   liblumen_eir_interpreter_test_script: |
@@ -36,7 +36,7 @@ x86_64_test_task:
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 wasm32_test_task:
-  cargo_cache:
+  wasm32_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
   lumen_web_test_script: |

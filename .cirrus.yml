@@ -1,5 +1,7 @@
 container:
   image: kronicdeth/lumen-development:latest
+  cpu: 4
+  memory: 12
 
 test_task:
   cargo_cache:

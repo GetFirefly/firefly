@@ -1,0 +1,11 @@
+container:
+  image: rust:latest
+
+test_task:
+  cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  build_script: cargo build
+  test_script: cargo test
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+

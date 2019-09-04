@@ -17,10 +17,10 @@ wasm32_test_task:
     fingerprint_script: cat Cargo.lock
   test_script: |
     pushd lumen_web
-    wasm-pack test --headless --chrome --firefox
+    wasm-pack test --headless --chrome
     popd
     pushd examples/spawn-chain
-    wasm-pack test --headless --chrome --firefox
+    wasm-pack test --headless --chrome
     popd
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 

@@ -1,6 +1,6 @@
 # Lumen - A new compiler and runtime for BEAM languages
 
-[![CircleCI](https://circleci.com/gh/lumen/lumen.svg?style=svg&circle-token=c53b1f6f7fc193c1bfa9425b404aae690106a804)](https://circleci.com/gh/lumen/lumen)
+[![Build Status](https://api.cirrus-ci.com/github/lumen/lumen.svg)](https://cirrus-ci.com/github/lumen/lumen)
 
 * [Contributing](#contributing)
   * [Tools](#contrib-tools)

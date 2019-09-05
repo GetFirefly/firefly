@@ -46,9 +46,28 @@ wasm32_test_task:
     pushd lumen_web
     wasm-pack test --headless --chrome
     popd
+  examples_spawn_chain_build_script: |
+    pushd examples/spawn-chain
+    wasm-pack build
+    popd
   examples_spawn_chain_test_script: |
     pushd examples/spawn-chain
     wasm-pack test --headless --chrome
     popd
+  examples_spawn_chain_package_script: |
+    pushd examples/spawn-chain
+    pushd www
+    npm install
+    popd
+    pushd pkg
+    sudo npm link
+    popd
+    pushd www
+    sudo npm link spawn-chain
+    npm run build
+    popd
+    popd
+  examples_chain_chain_package_artifacts:
+    path: "examples/spawn-chain/www/dist/*"
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 

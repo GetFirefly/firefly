@@ -3,6 +3,9 @@ container:
   cpu: 4
   memory: 12
 
+check_formatted_task:
+  script: cargo fmt -- --check
+
 x86_64_test_task:
   x86_64_cargo_cache:
     folder: $CARGO_HOME/registry

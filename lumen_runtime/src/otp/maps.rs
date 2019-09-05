@@ -6,6 +6,7 @@ pub mod keys_1;
 pub mod merge_2;
 pub mod remove_2;
 pub mod take_2;
+pub mod update_3;
 pub mod values_1;
 
 use liblumen_alloc::erts::term::Atom;

@@ -80,6 +80,14 @@ impl Map {
         }
     }
 
+    pub fn update(&self, key: Term, value: Term) -> Option<HashMap<Term, Term>> {
+        let mut map = self.value.clone();
+        match map.insert(key, value) {
+            Some(_) => Some(map),
+            None => None,
+        }
+    }
+
     // Private
 
     fn sorted_keys(&self) -> Vec<Term> {

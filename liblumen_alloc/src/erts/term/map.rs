@@ -43,6 +43,17 @@ impl Map {
         self.value.get(&key).copied()
     }
 
+    pub fn take(&self, key: Term) -> Option<(Term, HashMap<Term, Term>)> {
+        if self.is_key(key) {
+            let mut map = self.value.clone();
+            let value = map.remove(&key).unwrap();
+
+            Some((value, map))
+        } else {
+            None
+        }
+    }
+
     pub fn is_key(&self, key: Term) -> bool {
         self.value.contains_key(&key)
     }

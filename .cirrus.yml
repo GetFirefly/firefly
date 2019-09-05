@@ -60,10 +60,10 @@ wasm32_test_task:
     npm install
     popd
     pushd pkg
-    sudo npm link
+    npm link
     popd
     pushd www
-    sudo npm link spawn-chain
+    npm link spawn-chain
     npm run build
     popd
     popd

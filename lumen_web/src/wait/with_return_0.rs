@@ -136,24 +136,6 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 /// the frame that will return to this frame can be added prior to running the process to
 /// prevent a race condition on the `parent_process`'s scheduler running the new child process
 /// when only the `with_return/0` frame is there.
-///
-/// ```
-/// use liblumen_alloc::erts::process::code::stack::frame::Placement;
-///
-/// use lumen_runtime::otp::erlang::self_0;
-/// # use lumen_runtime::process::spawn::options::Options;
-/// use lumen_runtime::registry;
-/// use lumen_runtime::scheduler::{Scheduled, Scheduler};
-///
-/// # let options: Options = Default::default();
-/// let (process, promise) = lumen_web::wait::with_return_0::spawn_unscheduled(options);
-/// self_0::place_frame(promise, Placement::Push);
-///
-/// let arc_process = Scheduler::current().schedule(process);
-/// registry::put_pid_to_process(arc_process);
-///
-/// promise
-/// ```
 fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
     let parent_process = None;
     let process = process::spawn::code(

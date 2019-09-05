@@ -1,0 +1,73 @@
+container:
+  image: kronicdeth/lumen-development:latest
+  cpu: 4
+  memory: 12
+
+check_formatted_task:
+  script: cargo fmt -- --check
+
+x86_64_test_task:
+  x86_64_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  build_script: cargo build
+  # `*_test_script`s in order of crate dependency graph
+  liblumen_arena_test_script: |
+    pushd liblumen_arena
+    cargo test
+    popd
+  liblumen_core_test_script: |
+    pushd liblumen_core
+    cargo test
+    popd
+  liblumen_alloc_test_script: |
+    pushd liblumen_alloc
+    cargo test
+    popd
+  lumen_runtime_test_script: |
+    pushd lumen_runtime
+    cargo test
+    popd
+  liblumen_eir_interpreter_test_script: |
+    pushd liblumen_eir_interpreter
+    cargo test
+    popd
+  examples_spawn_chain_test_script: |
+    pushd examples/spawn-chain
+    cargo test
+    popd
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+wasm32_test_task:
+  wasm32_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  lumen_web_test_script: |
+    pushd lumen_web
+    wasm-pack test --headless --chrome
+    popd
+  examples_spawn_chain_build_script: |
+    pushd examples/spawn-chain
+    wasm-pack build
+    popd
+  examples_spawn_chain_test_script: |
+    pushd examples/spawn-chain
+    wasm-pack test --headless --chrome
+    popd
+  examples_spawn_chain_package_script: |
+    pushd examples/spawn-chain
+    pushd www
+    npm install
+    popd
+    pushd pkg
+    npm link
+    popd
+    pushd www
+    npm link spawn-chain
+    npm run build
+    popd
+    popd
+  examples_chain_chain_package_artifacts:
+    path: "examples/spawn-chain/www/dist/*"
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+

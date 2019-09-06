@@ -14,7 +14,7 @@ use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Boxed, Map, Term};
-use liblumen_alloc::{badkey, badmap, ModuleFunctionArity};
+use liblumen_alloc::{badmap, ModuleFunctionArity};
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -57,7 +57,7 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("update").unwrap()
+    Atom::try_from_str("put").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
@@ -72,9 +72,9 @@ pub fn native(process: &Process, key: Term, value: Term, map: Term) -> exception
     let result_map: Result<Boxed<Map>, _> = map.try_into();
 
     match result_map {
-        Ok(map) => match map.update(key, value) {
+        Ok(boxed_map) => match boxed_map.put(key, value) {
             Some(hash_map) => Ok(process.map_from_hash_map(hash_map)?),
-            None => Err(badkey!(process, key)),
+            None => Ok(map),
         },
         Err(_) => Err(badmap!(process, map)),
     }

@@ -96,7 +96,7 @@ impl Cons {
         self.head.is_none()
     }
 
-    /// Returns true if this cons is the head oflumen_runtime/src/otp/erlang.rs:1818:26
+    /// Returns true if this cons is the head of
     ///a proper list.
     pub fn is_proper(&self) -> bool {
         self.into_iter().all(|result| result.is_ok())

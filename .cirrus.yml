@@ -95,6 +95,6 @@ task:
   install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly
   install_wasm_bindgen_cli_script: cargo +nightly install wasm-bindgen-cli
   install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-  install_chrome_driver_script: brew cask instal chromedriver
+  install_chrome_script: brew cask install google-chrome
   << : *WASM32_TASK_TEMPLATE
 

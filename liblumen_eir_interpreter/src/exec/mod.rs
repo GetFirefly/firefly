@@ -27,9 +27,6 @@ mod r#match;
 macro_rules! trace {
     ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
 }
-//macro_rules! trace {
-//    ($($t:tt)*) => ()
-//}
 
 const VALUE_LIST_MARKER: &str = "eir_value_list_marker_df8gy43h";
 
@@ -644,27 +641,6 @@ impl CallExecutor {
             }
             OpKind::Match { branches } => self::r#match::match_op(self, proc, fun, branches, block),
             OpKind::MapPut { action } => {
-                //let map_read = reads[2];
-                //if let Some(constant) = fun.fun.value_const(map_read) {
-                //    if let ConstKind::Map { keys, .. } = fun.fun.cons().const_kind(constant) {
-                //        if keys.len(&fun.fun.cons().const_pool) == 0 {
-                //            let mut vec = Vec::new();
-
-                //            let mut idx = 3;
-                //            for _ in action.iter() {
-                //                let key = self.make_term(proc, fun, reads[idx])?;
-                //                let val = self.make_term(proc, fun, reads[idx + 1])?;
-                //                idx += 2;
-
-                //                vec.push((key, val));
-                //            }
-
-                //            self.next_args.push(proc.map_from_slice(&vec)?);
-                //            return self.val_call(proc, fun, reads[0]);
-                //        }
-                //    }
-                //}
-
                 let map_term: Boxed<Map> = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
                 let hashmap_ref: &HashMap<Term, Term> = map_term.as_ref();
                 let mut hashmap = hashmap_ref.clone();
@@ -681,7 +657,7 @@ impl CallExecutor {
                         }
                         MapPutUpdate::Update => {
                             if hashmap.contains_key(&key) {
-                                panic!()
+                                unimplemented!()
                             }
                             hashmap.insert(key, val);
                         }

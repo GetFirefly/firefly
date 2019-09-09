@@ -58,22 +58,6 @@ pub fn compile(input: &str) -> Module {
     eir_mod
 }
 
-//#[test]
-//#[ignore]
-//fn nonexistent_function_call() {
-//    &*VM;
-//
-//    let arc_scheduler = Scheduler::current();
-//    let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
-//
-//    let module = Atom::try_from_str("foo").unwrap();
-//    let function = Atom::try_from_str("bar").unwrap();
-//
-//    call_erlang(init_arc_process, module, function, &[])
-//        .err()
-//        .unwrap();
-//}
-
 #[test]
 fn simple_function() {
     &*VM;

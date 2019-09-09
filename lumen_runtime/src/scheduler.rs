@@ -126,7 +126,6 @@ impl Scheduler {
                             Err(exception) => {
                                 match exception {
                                     Exception::Alloc(_inner) => {
-                                        println!("========================================== GC ==============");
                                         match arc_process.garbage_collect(0, &mut []) {
                                             Ok(_freed) => (),
                                             Err(gc_err) => panic!("Gc error: {:?}", gc_err),
@@ -134,12 +133,6 @@ impl Scheduler {
                                     }
                                 }
                             }
-                            //unimplemented!(
-                            //    "{:?} {:?}\n{:?}",
-                            //    arc_process,
-                            //    exception,
-                            //    *arc_process.acquire_heap()
-                            //),
                         }
                     } else {
                         arc_process.reduce()

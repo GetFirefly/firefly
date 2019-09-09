@@ -461,7 +461,7 @@ pub trait HeapAlloc {
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the `iterator` provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
     fn tuple_from_iter<I>(&mut self, iterator: I, len: usize) -> Result<Term, Alloc>
     where
         I: Iterator<Item = Term>,
@@ -491,7 +491,7 @@ pub trait HeapAlloc {
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the slice provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
     /// a slice passed to `tuple_from_slice` to produce nested tuples.
@@ -503,7 +503,7 @@ pub trait HeapAlloc {
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the slice provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
     /// a slice passed to `tuple_from_slice` to produce nested tuples.
@@ -536,7 +536,7 @@ pub trait HeapAlloc {
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the slice provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
@@ -554,7 +554,7 @@ pub trait HeapAlloc {
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the slice provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.

@@ -1,6 +1,4 @@
 use liblumen_alloc::erts::term::Atom;
-//use liblumen_alloc::erts::ModuleFunctionArity;
-//use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use lumen_runtime::otp::lists;
 
 use crate::module::NativeModule;

@@ -247,7 +247,7 @@ fn simple_gc_test(process: Process) {
     let closure_string = "this is a binary";
     let closure_string_term = process.binary_from_str(closure_string).unwrap();
 
-    let creator = Term::NIL;
+    let creator = process.pid();
     let module = Atom::try_from_str("module").unwrap();
     let function = Atom::try_from_str("function").unwrap();
     let arity = 0;

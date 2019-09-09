@@ -296,7 +296,7 @@ impl DoubleEndedIterator for EnvIter {
             None
         } else {
             unsafe {
-                // limit is +1 past he actual elements, so pre-decrement unlike `next`, which
+                // limit is +1 past the actual elements, so pre-decrement unlike `next`, which
                 // post-decrements
                 self.limit = self.limit.offset(-1);
                 self.limit.as_ref().map(|r| *r)

@@ -7,47 +7,72 @@ use libeir_ir::Block;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::exception::runtime;
+use liblumen_alloc::erts::process::code::result_from_exception;
 use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::exec::CallExecutor;
 
-//pub fn return_throw(arc_process: &Arc<Process>) -> Result {
-//    let argument_list = arc_process.stack_pop().unwrap();
-//
-//    panic!("{:?}", argument_list);
-//
-//    //let class: Atom = class_term.try_into().unwrap();
-//    //let class = match class.name() {
-//    //    "EXIT" => Class::Exit,
-//    //    k => unreachable!("{:?}", k),
-//    //};
-//
-//    //let exc = Exception {
-//    //    class,
-//    //    reason: reason_term,
-//    //    stacktrace: Some(trace_term),
-//    //    file: "",
-//    //    line: 0,
-//    //    column: 0,
-//    //};
-//    //result_from_exception(arc_process, exc.into())
-//}
-//
-//pub fn return_ok(arc_process: &Arc<Process>) -> Result {
-//    let argument_list = arc_process.stack_pop().unwrap();
-//
-//    println!("PROCESS EXIT NORMAL WITH: {:?}", argument_list);
-//
-//    arc_process.return_from_call(argument_list)?;
-//    Process::call_code(arc_process)
-//}
-
 pub fn return_clean(arc_process: &Arc<Process>) -> Result {
-    println!("PROCESS EXIT RETURN CLEAN {:?}", arc_process.pid());
     let argument_list = arc_process.stack_pop().unwrap();
     arc_process.return_from_call(argument_list)?;
     Process::call_code(arc_process)
+}
+
+pub fn return_ok(arc_process: &Arc<Process>) -> Result {
+    let argument_list = arc_process.stack_pop().unwrap();
+
+    let mut argument_vec: Vec<Term> = Vec::new();
+    match argument_list.to_typed_term().unwrap() {
+        TypedTerm::Nil => (),
+        TypedTerm::List(argument_cons) => {
+            for result in argument_cons.into_iter() {
+                let element = result.unwrap();
+
+                argument_vec.push(element);
+            }
+        }
+        _ => panic!(),
+    }
+    assert!(argument_vec.len() == 1);
+
+    Ok(arc_process.return_from_call(argument_vec[0])?)
+}
+
+pub fn return_throw(arc_process: &Arc<Process>) -> Result {
+    let argument_list = arc_process.stack_pop().unwrap();
+
+    let mut argument_vec: Vec<Term> = Vec::new();
+    match argument_list.to_typed_term().unwrap() {
+        TypedTerm::Nil => (),
+        TypedTerm::List(argument_cons) => {
+            for result in argument_cons.into_iter() {
+                let element = result.unwrap();
+
+                argument_vec.push(element);
+            }
+        }
+        _ => panic!(),
+    }
+
+    let class: Atom = argument_vec[0].try_into().unwrap();
+    let class = match class.name() {
+        "EXIT" => runtime::Class::Exit,
+        "throw" => runtime::Class::Throw,
+        "error" => runtime::Class::Error { arguments: None },
+        k => unreachable!("{:?}", k),
+    };
+
+    let exc = runtime::Exception {
+        class,
+        reason: argument_vec[1],
+        stacktrace: Some(argument_vec[2]),
+        file: "",
+        line: 0,
+        column: 0,
+    };
+    result_from_exception(arc_process, exc.into())
 }
 
 /// Expects the following on stack:

@@ -85,7 +85,6 @@ impl Options {
             arity,
         });
         let (heap, heap_size) = self.sized_heap()?;
-        crate::system::io::puts(&format!("{:?}", heap));
 
         let process = Process::new(
             priority,

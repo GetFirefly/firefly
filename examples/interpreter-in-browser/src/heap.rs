@@ -3,7 +3,7 @@ use core::ptr::NonNull;
 use wasm_bindgen::prelude::*;
 
 use liblumen_alloc::erts::process::HeapAlloc;
-use liblumen_alloc::erts::term::{AsTerm, Atom, Pid as PidTerm, Term};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Pid as PidTerm, Term};
 use liblumen_alloc::erts::HeapFragment;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::process::spawn::options::Options;
@@ -37,8 +37,7 @@ impl JsHeap {
     }
 
     pub fn atom(&mut self, name: &str) -> usize {
-        let term = Atom::try_from_str(name).unwrap();
-        self.push(unsafe { term.as_term() })
+        self.push(atom_unchecked(name))
     }
 
     pub fn integer(&mut self, number: i32) -> usize {
@@ -58,9 +57,9 @@ impl JsHeap {
 
     pub fn send(&self, pid: Pid, msg: usize) {
         match pid_to_process(&pid.0) {
-            Some(pcb) => {
+            Some(process) => {
                 let term = self.terms[msg];
-                pcb.send_from_other(term).unwrap();
+                process.send_from_other(term).unwrap();
             }
             None => (),
         }
@@ -80,7 +79,7 @@ impl JsHeap {
             };
             proc.closure_with_env_from_slice(
                 mfa.into(),
-                liblumen_eir_interpreter::code::return_clean,
+                liblumen_eir_interpreter::code::return_ok,
                 proc.pid_term(),
                 &[],
             )
@@ -89,12 +88,12 @@ impl JsHeap {
         let return_throw = {
             let mfa = ModuleFunctionArity {
                 module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-                function: Atom::try_from_str("return_clean").unwrap(),
+                function: Atom::try_from_str("return_throw").unwrap(),
                 arity: 3,
             };
             proc.closure_with_env_from_slice(
                 mfa.into(),
-                liblumen_eir_interpreter::code::return_clean,
+                liblumen_eir_interpreter::code::return_throw,
                 proc.pid_term(),
                 &[],
             )
@@ -106,14 +105,14 @@ impl JsHeap {
 
         let arguments = proc
             .list_from_slice(&args_vec)
-        // if not enough memory here, resize `spawn_init` heap
             .unwrap();
 
         let mut options: Options = Default::default();
         options.min_heap_size = Some(heap_size);
 
         let run_arc_process =
-            Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
+            Scheduler::spawn_apply_3(&proc, options, module, function, arguments)
+            .unwrap();
 
         Pid(run_arc_process.pid())
     }

@@ -13,7 +13,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Boxed, Map, Term};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Boxed, Map, Term};
 use liblumen_alloc::{badmap, ModuleFunctionArity};
 
 pub fn place_frame_with_arguments(
@@ -21,11 +21,9 @@ pub fn place_frame_with_arguments(
     placement: Placement,
     key: Term,
     map: Term,
-    default: Term,
 ) -> Result<(), Alloc> {
     process.stack_push(map)?;
     process.stack_push(key)?;
-    process.stack_push(default)?;
     process.place_frame(frame(), placement);
 
     Ok(())
@@ -36,13 +34,12 @@ pub fn place_frame_with_arguments(
 pub(in crate::otp) fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let default = arc_process.stack_pop().unwrap();
     let key = arc_process.stack_pop().unwrap();
     let map = arc_process.stack_pop().unwrap();
 
-    match native(arc_process, key, map, default) {
-        Ok(value) => {
-            arc_process.return_from_call(value)?;
+    match native(arc_process, key, map) {
+        Ok(result) => {
+            arc_process.return_from_call(result)?;
 
             Process::call_code(arc_process)
         }
@@ -57,22 +54,33 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("get").unwrap()
+    Atom::try_from_str("find").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: 3,
+        arity: 2,
     })
 }
 
-pub fn native(process: &Process, key: Term, map: Term, default: Term) -> exception::Result {
+pub fn native(process: &Process, key: Term, map: Term) -> exception::Result {
     let result_map: Result<Boxed<Map>, _> = map.try_into();
 
     match result_map {
-        Ok(map) => Ok(map.get(key).unwrap_or(default).into()),
+        Ok(map) => {
+            let result = match map.get(key) {
+                Some(term) => {
+                    let ok = atom_unchecked("ok");
+
+                    process.tuple_from_slice(&[ok, term]).unwrap()
+                }
+                None => atom_unchecked("error"),
+            };
+
+            Ok(result.into())
+        }
         Err(_) => Err(badmap!(process, map)),
     }
 }

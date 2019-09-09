@@ -123,16 +123,14 @@ impl Scheduler {
                     if !arc_process.is_exiting() {
                         match Process::run(&arc_process) {
                             Ok(()) => (),
-                            Err(exception) => {
-                                match exception {
-                                    Exception::Alloc(_inner) => {
-                                        match arc_process.garbage_collect(0, &mut []) {
-                                            Ok(_freed) => (),
-                                            Err(gc_err) => panic!("Gc error: {:?}", gc_err),
-                                        }
+                            Err(exception) => match exception {
+                                Exception::Alloc(_inner) => {
+                                    match arc_process.garbage_collect(0, &mut []) {
+                                        Ok(_freed) => (),
+                                        Err(gc_err) => panic!("Gc error: {:?}", gc_err),
                                     }
                                 }
-                            }
+                            },
                         }
                     } else {
                         arc_process.reduce()

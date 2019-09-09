@@ -43,12 +43,61 @@ impl Map {
         self.value.get(&key).copied()
     }
 
+    pub fn take(&self, key: Term) -> Option<(Term, HashMap<Term, Term>)> {
+        if self.is_key(key) {
+            let mut map = self.value.clone();
+            let value = map.remove(&key).unwrap();
+
+            Some((value, map))
+        } else {
+            None
+        }
+    }
+
     pub fn is_key(&self, key: Term) -> bool {
         self.value.contains_key(&key)
     }
 
+    pub fn keys(&self) -> Vec<Term> {
+        self.value.keys().into_iter().copied().collect()
+    }
+
+    pub fn values(&self) -> Vec<Term> {
+        self.value.values().into_iter().copied().collect()
+    }
+
     pub fn len(&self) -> usize {
         self.value.len()
+    }
+
+    pub fn remove(&self, key: Term) -> Option<HashMap<Term, Term>> {
+        if self.is_key(key) {
+            let mut map = self.value.clone();
+            map.remove(&key);
+            Some(map)
+        } else {
+            None
+        }
+    }
+
+    pub fn update(&self, key: Term, value: Term) -> Option<HashMap<Term, Term>> {
+        if self.is_key(key) {
+            let mut map = self.value.clone();
+            map.insert(key, value);
+            Some(map)
+        } else {
+            None
+        }
+    }
+
+    pub fn put(&self, key: Term, value: Term) -> Option<HashMap<Term, Term>> {
+        if self.get(key).map_or(false, |val| val == value) {
+            None
+        } else {
+            let mut map = self.value.clone();
+            map.insert(key, value);
+            Some(map)
+        }
     }
 
     // Private

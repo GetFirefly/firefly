@@ -19,13 +19,9 @@ use liblumen_alloc::{badmap, ModuleFunctionArity};
 pub fn place_frame_with_arguments(
     process: &Process,
     placement: Placement,
-    key: Term,
     map: Term,
-    default: Term,
 ) -> Result<(), Alloc> {
     process.stack_push(map)?;
-    process.stack_push(key)?;
-    process.stack_push(default)?;
     process.place_frame(frame(), placement);
 
     Ok(())
@@ -36,13 +32,11 @@ pub fn place_frame_with_arguments(
 pub(in crate::otp) fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let default = arc_process.stack_pop().unwrap();
-    let key = arc_process.stack_pop().unwrap();
     let map = arc_process.stack_pop().unwrap();
 
-    match native(arc_process, key, map, default) {
-        Ok(value) => {
-            arc_process.return_from_call(value)?;
+    match native(arc_process, map) {
+        Ok(keys) => {
+            arc_process.return_from_call(keys)?;
 
             Process::call_code(arc_process)
         }
@@ -57,22 +51,28 @@ fn frame() -> Frame {
 }
 
 fn function() -> Atom {
-    Atom::try_from_str("get").unwrap()
+    Atom::try_from_str("keys").unwrap()
 }
 
 fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: 3,
+        arity: 1,
     })
 }
 
-pub fn native(process: &Process, key: Term, map: Term, default: Term) -> exception::Result {
+fn native(process: &Process, map: Term) -> exception::Result {
     let result_map: Result<Boxed<Map>, _> = map.try_into();
 
     match result_map {
-        Ok(map) => Ok(map.get(key).unwrap_or(default).into()),
+        Ok(map) => {
+            let keys = map.keys();
+            let list = process.list_from_slice(&keys)?;
+
+            Ok(list)
+        }
+
         Err(_) => Err(badmap!(process, map)),
     }
 }

@@ -3,7 +3,7 @@ use super::*;
 use liblumen_alloc::erts::term::atom_unchecked;
 
 #[test]
-fn without_key_returns_default() {
+fn without_key_returns_error_atom() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -23,8 +23,9 @@ fn without_key_returns_default() {
                         )
                     }),
                 |(key, map)| {
-                    let default = atom_unchecked("default");
-                    prop_assert_eq!(native(&arc_process, key, map, default), Ok(default.into()));
+                    let error = atom_unchecked("error");
+
+                    prop_assert_eq!(native(&arc_process, key, map), Ok(error.into()));
 
                     Ok(())
                 },
@@ -34,7 +35,7 @@ fn without_key_returns_default() {
 }
 
 #[test]
-fn with_key_returns_value() {
+fn with_key_returns_success_tuple() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -44,9 +45,11 @@ fn with_key_returns_value() {
                     (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
                 }),
                 |(key, map)| {
-                    let default = atom_unchecked("default");
+                    let ok = atom_unchecked("ok");
                     let value = atom_unchecked("value");
-                    prop_assert_eq!(native(&arc_process, key, map, default), Ok(value.into()));
+                    let success_tuple = arc_process.tuple_from_slice(&[ok, value]).unwrap();
+
+                    prop_assert_eq!(native(&arc_process, key, map), Ok(success_tuple.into()));
 
                     Ok(())
                 },

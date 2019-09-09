@@ -3,7 +3,7 @@ use super::*;
 use liblumen_alloc::erts::term::atom_unchecked;
 
 #[test]
-fn without_key_returns_default() {
+fn without_key_returns_equivalent_map() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -23,8 +23,7 @@ fn without_key_returns_default() {
                         )
                     }),
                 |(key, map)| {
-                    let default = atom_unchecked("default");
-                    prop_assert_eq!(native(&arc_process, key, map, default), Ok(default.into()));
+                    prop_assert_eq!(native(&arc_process, key, map), Ok(map.into()));
 
                     Ok(())
                 },
@@ -34,7 +33,7 @@ fn without_key_returns_default() {
 }
 
 #[test]
-fn with_key_returns_value() {
+fn with_key_returns_new_map() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
@@ -44,9 +43,9 @@ fn with_key_returns_value() {
                     (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
                 }),
                 |(key, map)| {
-                    let default = atom_unchecked("default");
-                    let value = atom_unchecked("value");
-                    prop_assert_eq!(native(&arc_process, key, map, default), Ok(value.into()));
+                    let empty_map = arc_process.map_from_slice(&[]).unwrap();
+
+                    prop_assert_eq!(native(&arc_process, key, map), Ok(empty_map.into()));
 
                     Ok(())
                 },

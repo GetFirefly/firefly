@@ -103,16 +103,13 @@ impl JsHeap {
         let mut args_vec = vec![return_ok, return_throw];
         args_vec.extend(a.iter().map(|v| self.terms[*v]));
 
-        let arguments = proc
-            .list_from_slice(&args_vec)
-            .unwrap();
+        let arguments = proc.list_from_slice(&args_vec).unwrap();
 
         let mut options: Options = Default::default();
         options.min_heap_size = Some(heap_size);
 
         let run_arc_process =
-            Scheduler::spawn_apply_3(&proc, options, module, function, arguments)
-            .unwrap();
+            Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
 
         Pid(run_arc_process.pid())
     }

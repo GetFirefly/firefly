@@ -15,6 +15,10 @@ pub fn make_maps() -> NativeModule {
         maps::is_key_2::native(proc, args[0], args[1])
     });
 
+    native.add_simple(Atom::try_from_str("find").unwrap(), 2, |proc, args| {
+        maps::find_2::native(proc, args[0], args[1])
+    });
+
     native.add_simple(Atom::try_from_str("get").unwrap(), 3, |proc, args| {
         maps::get_3::native(proc, args[0], args[1], args[2])
     });

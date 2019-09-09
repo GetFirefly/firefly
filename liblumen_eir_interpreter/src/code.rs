@@ -4,11 +4,11 @@ use std::sync::Arc;
 use cranelift_entity::EntityRef;
 use libeir_ir::Block;
 
+use liblumen_alloc::erts::exception::runtime;
+use liblumen_alloc::erts::process::code::result_from_exception;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::process::code::result_from_exception;
 use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 

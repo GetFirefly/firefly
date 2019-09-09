@@ -84,6 +84,8 @@ task:
   osx_instance:
     image: high-sierra-base
   name: macOS wasm32
+  env:
+    HOMEBREW_NO_AUTO_UPDATE: 1
   macos_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock

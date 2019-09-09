@@ -58,7 +58,13 @@ task:
   <<: *x86_64_TASK_TEMPLATE
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
-wasm32_task_template: &WASM32_TASK_TEMPLATE
+task:
+  name: Linux wasm32
+  container:
+    image: kronicdeth/lumen-development:latest
+  linux_wasm32_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
   lumen_web_test_script: |
     pushd lumen_web
     wasm-pack test --headless --chrome
@@ -71,15 +77,6 @@ wasm32_task_template: &WASM32_TASK_TEMPLATE
     pushd examples/spawn-chain
     wasm-pack test --headless --chrome
     popd
-
-task:
-  name: Linux wasm32
-  container:
-    image: kronicdeth/lumen-development:latest
-  linux_wasm32_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
-  << : *WASM32_TASK_TEMPLATE
   examples_spawn_chain_package_script: |
     pushd examples/spawn-chain
     pushd www
@@ -112,14 +109,36 @@ task:
   install_wasm_bindgen_cli_script: cargo +nightly install wasm-bindgen-cli
   install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
   install_chrome_script: |
-     brew cask install google-chrome
-     brew cask info google-chrome
+    brew cask install google-chrome
+    brew cask info google-chrome
   install_chrome_driver_script: |
-     wget https://chromedriver.storage.googleapis.com/76.0.3809.126/chromedriver_mac64.zip
-     unzip chromedriver_mac64.zip
-     mv chromedriver /usr/local/bin/
-     rm chromedriver_mac64.zip
-     chromedriver --version
-  << : *WASM32_TASK_TEMPLATE
+    wget https://chromedriver.storage.googleapis.com/76.0.3809.126/chromedriver_mac64.zip
+    unzip chromedriver_mac64.zip
+    mv chromedriver /usr/local/bin/
+    rm chromedriver_mac64.zip
+    chromedriver --version
+  install_firefox_script: |
+    wget https://download-installer.cdn.mozilla.net/pub/firefox/releases/69.0/mac/en-US/Firefox%2069.0.dmg
+    hdiutil attach "Firefox 69.0.dmg"
+    cp -rf /Volumes/Firefox/Firefox.app /Applications
+    hdiutil detach /Volumes/Firefox
+  install_gecko_driver_script: |
+    wget https://github.com/mozilla/geckodriver/releases/download/v0.24.0/geckodriver-v0.24.0-macos.tar.gz
+    tar xvfz geckodriver-v0.24.0-macos.tar.gz
+    mv geckodriver /usr/local/bin/
+    rm geckodriver-v0.24.0-macos.tar.gz
+    geckodriver --version
+  lumen_web_test_script: |
+    pushd lumen_web
+    wasm-pack test --headless --chrome --firefox
+    popd
+  examples_spawn_chain_build_script: |
+    pushd examples/spawn-chain
+    wasm-pack build
+    popd
+  examples_spawn_chain_test_script: |
+    pushd examples/spawn-chain
+    wasm-pack test --headless --chrome --firefox
+    popd
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 

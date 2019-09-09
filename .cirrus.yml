@@ -1,12 +1,13 @@
-container:
-  image: kronicdeth/lumen-development:latest
-  cpu: 4
-  memory: 12
-
 check_formatted_task:
+  container:
+    image: kronicdeth/lumen-development:latest
   script: cargo fmt -- --check
 
 x86_64_test_task:
+  container:
+    image: kronicdeth/lumen-development:latest
+    cpu: 4
+    memory: 12
   x86_64_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
@@ -39,6 +40,8 @@ x86_64_test_task:
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 wasm32_test_task:
+  container:
+    image: kronicdeth/lumen-development:latest
   wasm32_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock

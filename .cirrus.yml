@@ -3,7 +3,7 @@ check_formatted_task:
     image: kronicdeth/lumen-development:latest
   script: cargo fmt -- --check
 
-x86_64_test_task:
+linux_x86_64_test_task:
   container:
     image: kronicdeth/lumen-development:latest
     cpu: 4
@@ -39,12 +39,7 @@ x86_64_test_task:
     popd
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
-wasm32_test_task:
-  container:
-    image: kronicdeth/lumen-development:latest
-  wasm32_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
+wasm32_task_template: &WASM32_TEST_TASK_TEMPLATE
   lumen_web_test_script: |
     pushd lumen_web
     wasm-pack test --headless --chrome
@@ -73,4 +68,20 @@ wasm32_test_task:
   examples_chain_chain_package_artifacts:
     path: "examples/spawn-chain/www/dist/*"
   before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+linux_wasm32_test_task:
+  container:
+    image: kronicdeth/lumen-development:latest
+  linux_wasm32_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  << : *WASM32_TEST_TASK_TEMPLATE
+
+macos_x86_64_test_task:
+  osx_instance:
+    image: mojave-xcode-11
+  macos_wasm32_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  << : *WASM32_TEST_TASK_TEMPLATE
 

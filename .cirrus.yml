@@ -89,5 +89,11 @@ task:
   macos_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
+  install_rustup_script: |
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly
+    echo 'export PATH=/Users/distiller/project/cargo/bin:$PATH' >> $BASH_ENV
+  install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly
+  install_wasm_bindgen_cli_script: cargo +nightly install wasm-bindgen-cli
+  install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
   << : *WASM32_TASK_TEMPLATE
 

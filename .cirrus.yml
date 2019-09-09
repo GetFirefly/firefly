@@ -4,15 +4,7 @@ task:
     image: kronicdeth/lumen-development:latest
   script: cargo fmt -- --check
 
-task:
-  name: Linux x86_64
-  container:
-    image: kronicdeth/lumen-development:latest
-    cpu: 4
-    memory: 12
-  x86_64_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
+x86_64_task_template: &x86_64_TASK_TEMPLATE
   build_script: cargo build
   # `*_test_script`s in order of crate dependency graph
   liblumen_arena_test_script: |
@@ -39,6 +31,31 @@ task:
     pushd examples/spawn-chain
     cargo test
     popd
+
+task:
+  name: Linux x86_64
+  container:
+    image: kronicdeth/lumen-development:latest
+    cpu: 4
+    memory: 12
+  linux_x86_64_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  << : *x86_64_TASK_TEMPLATE
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+task:
+  name: macOS x86_64
+  osx_instance:
+    image: high-sierra-base
+  env:
+    PATH: ${HOME}/.cargo/bin:${PATH}
+  macos_x86_64_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  install_rustup_script: |
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly
+  <<: *x86_64_TASK_TEMPLATE
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 wasm32_task_template: &WASM32_TASK_TEMPLATE
@@ -81,11 +98,10 @@ task:
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
 task:
+  name: macOS wasm32
   osx_instance:
     image: high-sierra-base
-  name: macOS wasm32
   env:
-    HOMEBREW_NO_AUTO_UPDATE: 1
     PATH: ${HOME}/.cargo/bin:${PATH}
   macos_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry

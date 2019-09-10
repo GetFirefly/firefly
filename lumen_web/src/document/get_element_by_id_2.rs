@@ -65,7 +65,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, document: Term, id: Term) -> exception::Result {
+pub fn native(process: &Process, document: Term, id: Term) -> exception::Result {
     let document_document = document_from_term(document)?;
     let id_string: String = id.try_into()?;
 

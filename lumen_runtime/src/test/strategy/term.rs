@@ -152,7 +152,7 @@ fn closure(process: &Process, module: Atom, function: Atom, arity: u8) -> Term {
     };
 
     process
-        .closure(creator, module_function_arity, code, vec![])
+        .closure_with_env_from_slice(module_function_arity, code, creator, &[])
         .unwrap()
 }
 

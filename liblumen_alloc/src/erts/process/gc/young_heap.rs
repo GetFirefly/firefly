@@ -7,7 +7,7 @@ use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use crate::erts::term::{
-    binary_bytes, is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
+    binary_bytes, is_move_marker, Closure, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
 };
 use crate::erts::*;
 use crate::mem::bit_size_of;
@@ -660,6 +660,9 @@ impl YoungHeap {
                     if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.add(1))
+                    } else if term.is_closure_header() {
+                        // Just as for tuples, we need to check elements within the closure env
+                        Some(pos.add(Closure::base_size_words()))
                     } else if term.is_match_context() {
                         let ctx = &mut *(pos as *mut MatchContext);
                         let base = ctx.base();
@@ -743,6 +746,9 @@ impl YoungHeap {
                     if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.add(1))
+                    } else if term.is_closure_header() {
+                        // Just as for tuples, we need to check elements within the closure env
+                        Some(pos.add(Closure::base_size_words()))
                     } else if term.is_match_context() {
                         let ctx = &mut *(pos as *mut MatchContext);
                         let base = ctx.base();
@@ -912,6 +918,7 @@ impl fmt::Debug for YoungHeap {
 mod tests {
     use super::*;
     use core::ptr;
+    use std::sync::Arc;
 
     use crate::erts::process::alloc;
     use crate::erts::term::list::{HeaplessListBuilder, ListBuilder};

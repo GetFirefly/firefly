@@ -3,9 +3,17 @@ use std::sync::Arc;
 
 use libeir_ir::{Function, LiveValues, Module};
 
+use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
+
+macro_rules! trace {
+    ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))
+}
+//macro_rules! trace {
+//    ($($t:tt)*) => ()
+//}
 
 pub enum ResolvedFunction<'a> {
     Native(NativeFunctionKind),
@@ -52,7 +60,7 @@ impl ModuleRegistry {
         function: Atom,
         arity: usize,
     ) -> Option<ResolvedFunction> {
-        println!("LOOKUP {:?}:{:?}/{}", module, function, arity,);
+        trace!("LOOKUP {}:{}/{}", module, function, arity);
         match self.map.get(&module) {
             None => None,
             Some(ModuleType::Erlang(erl)) => erl
@@ -79,7 +87,7 @@ impl ModuleRegistry {
 
 #[derive(Copy, Clone)]
 pub enum NativeFunctionKind {
-    Simple(fn(&Arc<Process>, &[Term]) -> std::result::Result<Term, ()>),
+    Simple(fn(&Arc<Process>, &[Term]) -> std::result::Result<Term, Exception>),
     Yielding(fn(&Arc<Process>, &[Term]) -> Result),
 }
 
@@ -99,7 +107,7 @@ impl NativeModule {
         &mut self,
         name: Atom,
         arity: usize,
-        fun: fn(&Arc<Process>, &[Term]) -> std::result::Result<Term, ()>,
+        fun: fn(&Arc<Process>, &[Term]) -> std::result::Result<Term, Exception>,
     ) {
         self.functions
             .insert((name, arity), NativeFunctionKind::Simple(fun));

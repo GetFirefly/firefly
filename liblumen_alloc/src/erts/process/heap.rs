@@ -49,6 +49,7 @@ impl ProcessHeap {
         }
     }
 
+    /// `need` is specified in words.
     #[inline]
     pub fn garbage_collect(
         &mut self,

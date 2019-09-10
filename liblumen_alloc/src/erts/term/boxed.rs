@@ -19,6 +19,7 @@ use super::{AsTerm, Term};
 /// pointer to a typed term in `Term::to_typed_term`, and otherwise
 /// only being consumed
 #[derive(Debug)]
+#[repr(C)]
 pub struct Boxed<T> {
     term: *mut T,
     literal: bool,

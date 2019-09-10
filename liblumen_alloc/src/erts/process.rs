@@ -41,7 +41,7 @@ use self::code::stack;
 use self::code::stack::frame::{Frame, Placement};
 pub use self::flags::*;
 pub use self::flags::*;
-use self::gc::{GcError, RootSet};
+pub use self::gc::{GcError, RootSet};
 use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::monitor::Monitor;
@@ -475,15 +475,15 @@ impl Process {
         self.acquire_heap().charlist_from_str(s)
     }
 
-    pub fn closure(
+    pub fn closure_with_env_from_slice(
         &self,
-        creator: Term,
-        module_function_arity: Arc<ModuleFunctionArity>,
+        mfa: Arc<ModuleFunctionArity>,
         code: Code,
-        env: Vec<Term>,
+        creator: Term,
+        slice: &[Term],
     ) -> Result<Term, Alloc> {
         self.acquire_heap()
-            .closure(creator, module_function_arity, code, env)
+            .closure_with_env_from_slice(mfa, code, creator, slice)
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
@@ -700,6 +700,16 @@ impl Process {
         self.flags.are_set(ProcessFlags::NeedFullSweep)
     }
 
+    /// Inserts roots from the process into the given root set.
+    /// This includes all process dictionary entries.
+    #[inline]
+    pub fn base_root_set(&self, rootset: &mut RootSet) {
+        for (k, v) in self.dictionary.lock().iter() {
+            rootset.push(k as *const _ as *mut _);
+            rootset.push(v as *const _ as *mut _);
+        }
+    }
+
     /// Performs a garbage collection, using the provided root set
     ///
     /// The result is either `Ok(reductions)`, where `reductions` is the estimated cost
@@ -708,17 +718,15 @@ impl Process {
     /// collection and discovering that a full sweep is needed, rather than doing so automatically,
     /// the decision is left up to the caller to make. Other errors are described in the
     /// `GcError` documentation.
+    ///
+    /// `need` is specified in words.
     #[inline]
-    pub fn garbage_collect(&self, need: usize, roots: &[Term]) -> Result<usize, GcError> {
+    pub fn garbage_collect(&self, need: usize, roots: &mut [Term]) -> Result<usize, GcError> {
         let mut heap = self.heap.lock();
         // The roots passed in here are pointers to the native stack/registers, all other roots
         // we are able to pick up from the current process context
         let mut rootset = RootSet::new(roots);
-        // The process dictionary is also used for roots
-        for (k, v) in self.dictionary.lock().iter() {
-            rootset.push(k as *const _ as *mut _);
-            rootset.push(v as *const _ as *mut _);
-        }
+        self.base_root_set(&mut rootset);
         // Initialize the collector with the given root set
         heap.garbage_collect(self, need, rootset)
     }

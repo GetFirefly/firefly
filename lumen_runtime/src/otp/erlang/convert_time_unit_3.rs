@@ -70,7 +70,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, time: Term, from_unit: Term, to_unit: Term) -> exception::Result {
+pub fn native(process: &Process, time: Term, from_unit: Term, to_unit: Term) -> exception::Result {
     let time_big_int: BigInt = time.try_into()?;
     let from_unit_unit: time::Unit = from_unit.try_into()?;
     let to_unit_unit: time::Unit = to_unit.try_into()?;

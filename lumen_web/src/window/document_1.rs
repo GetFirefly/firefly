@@ -64,7 +64,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, window: Term) -> exception::Result {
+pub fn native(process: &Process, window: Term) -> exception::Result {
     let window_reference: resource::Reference = window.try_into()?;
     let window_window: &Window = window_reference.downcast_ref().ok_or_else(|| badarg!())?;
     let option_document = window_window.document();

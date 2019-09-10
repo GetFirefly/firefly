@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::system::{Alloc, Exception};
 use liblumen_alloc::erts::process::code::Code;
 #[cfg(test)]
 use liblumen_alloc::erts::process::Priority;
@@ -123,12 +123,14 @@ impl Scheduler {
                     if !arc_process.is_exiting() {
                         match Process::run(&arc_process) {
                             Ok(()) => (),
-                            Err(exception) => unimplemented!(
-                                "{:?} {:?}\n{:?}",
-                                arc_process,
-                                exception,
-                                *arc_process.acquire_heap()
-                            ),
+                            Err(exception) => match exception {
+                                Exception::Alloc(_inner) => {
+                                    match arc_process.garbage_collect(0, &mut []) {
+                                        Ok(_freed) => (),
+                                        Err(gc_err) => panic!("Gc error: {:?}", gc_err),
+                                    }
+                                }
+                            },
                         }
                     } else {
                         arc_process.reduce()

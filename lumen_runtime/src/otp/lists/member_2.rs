@@ -62,7 +62,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(element: Term, list: Term) -> exception::Result {
+pub fn native(element: Term, list: Term) -> exception::Result {
     match list.to_typed_term().unwrap() {
         TypedTerm::Nil => Ok(false.into()),
         TypedTerm::List(cons) => {

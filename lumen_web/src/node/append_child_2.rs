@@ -78,7 +78,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(parent: Term, child: Term) -> exception::Result {
+pub fn native(parent: Term, child: Term) -> exception::Result {
     let parent_node = node_from_term(parent)?;
     let child_node = node_from_term(child)?;
 

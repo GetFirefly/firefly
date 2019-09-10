@@ -1,5 +1,6 @@
 use core::alloc::Layout;
 use core::any::Any;
+use core::mem;
 use core::ops::DerefMut;
 use core::ptr::{self, NonNull};
 use core::str::Chars;
@@ -156,24 +157,6 @@ pub trait HeapAlloc {
             }
         } else {
             self.heapbin_from_str(s)
-        }
-    }
-
-    fn closure(
-        &mut self,
-        creator: Term,
-        module_function_arity: Arc<ModuleFunctionArity>,
-        code: Code,
-        env: Vec<Term>,
-    ) -> Result<Term, Alloc> {
-        let closure = Closure::new(module_function_arity, code, creator, env);
-
-        unsafe {
-            let ptr = self.alloc_layout(Layout::new::<Closure>())?.as_ptr() as *mut Closure;
-            ptr::write(ptr, closure);
-            let heap_closure = &*ptr;
-
-            Ok(heap_closure.as_term())
         }
     }
 
@@ -407,10 +390,12 @@ pub trait HeapAlloc {
         let layout = Reference::layout();
         let reference_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Reference };
         let reference = Reference::new(scheduler_id, number);
+
         unsafe {
             // Write header
             ptr::write(reference_ptr, reference);
         }
+
         // Return box to tuple
         let reference = Term::make_boxed(reference_ptr);
 
@@ -476,7 +461,7 @@ pub trait HeapAlloc {
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the `iterator` provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
     fn tuple_from_iter<I>(&mut self, iterator: I, len: usize) -> Result<Term, Alloc>
     where
         I: Iterator<Item = Term>,
@@ -485,14 +470,19 @@ pub trait HeapAlloc {
         let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
         let head_ptr = unsafe { tuple_ptr.add(1) as *mut Term };
         let tuple = Tuple::new(len);
+        let mut iter_len = 0;
         unsafe {
             // Write header
             ptr::write(tuple_ptr, tuple);
             // Write each element
             for (index, element) in iterator.enumerate() {
                 ptr::write(head_ptr.add(index), element);
+
+                iter_len += 1;
+                debug_assert!(index < len);
             }
         }
+        debug_assert!(iter_len == len);
         // Return box to tuple
         Ok(Term::make_boxed(tuple_ptr))
     }
@@ -501,10 +491,10 @@ pub trait HeapAlloc {
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the slice provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
-    /// a slice passed to `make_tuple_from_slice` to produce nested tuples.
+    /// a slice passed to `tuple_from_slice` to produce nested tuples.
     fn tuple_from_slice(&mut self, elements: &[Term]) -> Result<Term, Alloc> {
         self.tuple_from_slices(&[elements])
     }
@@ -513,10 +503,10 @@ pub trait HeapAlloc {
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the slice provided is constructed from either immediate terms, or
-    /// terms which were returned from other constructor functions, e.g. `make_binary_from_str`.
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
-    /// a slice passed to `make_tuple_from_slice` to produce nested tuples.
+    /// a slice passed to `tuple_from_slice` to produce nested tuples.
     fn tuple_from_slices(&mut self, slices: &[&[Term]]) -> Result<Term, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
         let layout = Tuple::layout(len);
@@ -540,6 +530,64 @@ pub trait HeapAlloc {
 
         // Return box to tuple
         Ok(Term::make_boxed(tuple_ptr))
+    }
+
+    /// Constructs a `Closure` from a slice of `Term`
+    ///
+    /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
+    /// it is expected that the slice provided is constructed from either immediate terms, or
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
+    ///
+    /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
+    /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
+    fn closure_with_env_from_slice(
+        &mut self,
+        mfa: Arc<ModuleFunctionArity>,
+        code: Code,
+        creator: Term,
+        slice: &[Term],
+    ) -> Result<Term, Alloc> {
+        self.closure_with_env_from_slices(mfa, code, creator, &[slice])
+    }
+
+    /// Constructs a `Closure` from slices of `Term`
+    ///
+    /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
+    /// it is expected that the slice provided is constructed from either immediate terms, or
+    /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
+    ///
+    /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
+    /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
+    fn closure_with_env_from_slices(
+        &mut self,
+        mfa: Arc<ModuleFunctionArity>,
+        code: Code,
+        creator: Term,
+        slices: &[&[Term]],
+    ) -> Result<Term, Alloc> {
+        let len = slices.iter().map(|slice| slice.len()).sum();
+        let layout = Closure::layout(len);
+        let alloc_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() };
+        let closure_ptr = alloc_ptr as *mut Closure;
+        let head_ptr = unsafe { alloc_ptr.add(Closure::base_size_words()) };
+
+        let closure = Closure::new(mfa, code, creator, len);
+
+        unsafe {
+            // Write header
+            ptr::write(closure_ptr, closure);
+            let mut count = 0;
+
+            // Write each element
+            for slice in slices {
+                for element in *slice {
+                    ptr::write(head_ptr.add(count), *element);
+                    count += 1;
+                }
+            }
+        }
+
+        Ok(Term::make_boxed(closure_ptr))
     }
 }
 impl<A, H> HeapAlloc for H

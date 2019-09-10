@@ -117,7 +117,7 @@ fn monitor_process_registered_name(
         Some(monitored_arc_process) => {
             let reference = process.next_reference()?;
 
-            let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
+            let reference_reference: Boxed<Reference> = reference.try_into().expect("fail here");
             let monitor = Monitor::Name {
                 monitoring_pid: process.pid(),
                 monitored_name: atom,
@@ -158,11 +158,7 @@ fn monitor_process_tuple(
     }
 }
 
-pub(in crate::otp::erlang) fn native(
-    process: &Process,
-    r#type: Term,
-    item: Term,
-) -> exception::Result {
+pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result {
     let type_atom: Atom = r#type.try_into()?;
 
     match type_atom.name() {

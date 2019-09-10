@@ -6,7 +6,7 @@ use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
-    process.closure(process.pid_term(), module_function_arity(), code, vec![])
+    process.closure_with_env_from_slice(module_function_arity(), code, process.pid_term(), &[])
 }
 
 /// defp none_output(_text) do

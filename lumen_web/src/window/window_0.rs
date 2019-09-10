@@ -50,7 +50,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process) -> exception::Result {
+pub fn native(process: &Process) -> exception::Result {
     let option_window = web_sys::window();
 
     option_to_ok_tuple_or_error(process, option_window).map_err(|error| error.into())

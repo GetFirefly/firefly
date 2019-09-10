@@ -6,7 +6,7 @@ use core::ptr;
 use ::alloc::sync::Arc;
 
 use crate::erts::term::list::ListBuilder;
-use crate::erts::term::{follow_moved, is_move_marker, Atom, Cons, HeapBin, Tuple};
+use crate::erts::term::{follow_moved, is_move_marker, Atom, Closure, Cons, HeapBin, Tuple};
 use crate::erts::*;
 
 use super::alloc;
@@ -196,7 +196,8 @@ mod tuple_from_slice {
         };
 
         process
-            .closure(creator, module_function_arity, code, vec![])
+            .acquire_heap()
+            .closure_with_env_from_slices(module_function_arity, code, creator, &[&[]])
             .unwrap()
     }
 }
@@ -241,6 +242,41 @@ fn simple_gc_test(process: Process) {
     assert!(list_term.is_list());
     let list_ptr = list_term.list_val();
 
+    // Allocate a closure with an environment [101, "this is a binary"]
+    let closure_num = Term::make_smallint(101);
+    let closure_string = "this is a binary";
+    let closure_string_term = process.binary_from_str(closure_string).unwrap();
+
+    let creator = process.pid_term();
+    let module = Atom::try_from_str("module").unwrap();
+    let function = Atom::try_from_str("function").unwrap();
+    let arity = 0;
+    let module_function_arity = Arc::new(ModuleFunctionArity {
+        module,
+        function,
+        arity,
+    });
+    let code = |arc_process: &Arc<Process>| {
+        arc_process.wait();
+
+        Ok(())
+    };
+
+    let closure_term = process
+        .acquire_heap()
+        .closure_with_env_from_slices(
+            module_function_arity,
+            code,
+            creator,
+            &[&[closure_num, closure_string_term]],
+        )
+        .unwrap();
+    assert!(closure_term.is_boxed());
+    let closure_term_ref = unsafe { &*(closure_term.boxed_val() as *mut Closure) };
+    assert!(closure_term_ref.env_len == 2);
+    assert!(closure_term_ref.get_env_element(0).is_smallint());
+    assert!(closure_term_ref.get_env_element(1).is_boxed());
+
     // Now, we will simulate updating the greeting of the above tuple with a new one,
     // leaving the original greeting dead, and a target for collection
     let new_greeting_term = process.binary_from_str("goodbye!").unwrap();
@@ -258,11 +294,12 @@ fn simple_gc_test(process: Process) {
     // Grab current heap size
     let peak_size = process.young_heap_used();
     // Run garbage collection, using a pointer to the boxed tuple as our sole root
-    let roots = [tuple_term, list_term];
-    process.garbage_collect(0, &roots).unwrap();
+    let mut roots = [tuple_term, list_term, closure_term];
+    process.garbage_collect(0, &mut roots).unwrap();
     // Grab post-collection size
     let collected_size = process.young_heap_used();
     // We should be missing _exactly_ `greeting` bytes (rounded up to nearest word)
+    dbg!(peak_size, collected_size);
     let reclaimed = peak_size - collected_size;
     let greeting_size = greeting.len() + mem::size_of::<HeapBin>();
     let expected = to_word_size(greeting_size);
@@ -311,6 +348,13 @@ fn simple_gc_test(process: Process) {
     assert!(test_string_term.is_heapbin());
     let test_string = unsafe { &*(test_string_term_ptr as *mut HeapBin) };
     assert_eq!("test", test_string.as_str());
+
+    let closure_root = roots[2];
+    assert!(closure_root.is_boxed());
+    let closure_root_ref = unsafe { &*(closure_root.boxed_val() as *mut Closure) };
+    assert!(closure_root_ref.env_len() == 2);
+    assert!(closure_root_ref.get_env_element(0).is_smallint());
+    assert!(closure_root_ref.get_env_element(1).is_boxed());
 }
 
 fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
@@ -397,8 +441,8 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     // Grab current heap size
     let peak_size = process.young_heap_used();
     // Run first garbage collection
-    let roots = [];
-    process.garbage_collect(0, &roots).unwrap();
+    let mut roots = [];
+    process.garbage_collect(0, &mut roots).unwrap();
 
     // Verify size of garbage collected meets expectation
     let collected_size = process.young_heap_used();
@@ -486,8 +530,8 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     // Run second garbage collection, which should tenure everything except the new term we just
     // allocated
     let second_peak_size = process.young_heap_used();
-    let roots = [];
-    process.garbage_collect(0, &roots).unwrap();
+    let mut roots = [];
+    process.garbage_collect(0, &mut roots).unwrap();
 
     // Verify no garbage was collected, we should have just tenured some data,
     // the only data on the young heap should be a single cons cell

@@ -5,7 +5,7 @@ use core::ptr;
 use liblumen_core::util::pointer::*;
 
 use crate::erts::term::binary_bytes;
-use crate::erts::term::{is_move_marker, Cons, HeapBin, MatchContext, ProcBin, SubBinary};
+use crate::erts::term::{is_move_marker, Closure, Cons, HeapBin, MatchContext, ProcBin, SubBinary};
 use crate::erts::*;
 
 use super::{VirtualBinaryHeap, YoungHeap};
@@ -254,7 +254,11 @@ impl OldHeap {
         // Then copy arityval data to new location
         ptr::copy_nonoverlapping(ptr.add(1), heap_top.add(1), num_elements);
         // In debug, verify that the src and dst are bitwise-equal
-        debug_assert!(compare_bytes(heap_top, ptr, num_elements));
+        debug_assert!(compare_bytes(
+            heap_top as *const u8,
+            ptr as *const u8,
+            num_elements * mem::size_of::<Term>()
+        ));
         // Write a move marker to the original location
         ptr::write(orig, marker);
         // And to `ptr` as well
@@ -334,6 +338,9 @@ impl OldHeap {
                     if term.is_tuple_header() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.add(1))
+                    } else if term.is_closure_header() {
+                        // Just as for tuples, we need to check elements within the closure env
+                        Some(pos.add(Closure::base_size_words()))
                     } else if term.is_match_context() {
                         let ctx = &mut *(pos as *mut MatchContext);
                         let base = ctx.base();

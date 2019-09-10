@@ -9,11 +9,11 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::otp::erlang;
 
 pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, Alloc> {
-    process.closure(
-        process.pid_term(),
+    process.closure_with_env_from_slice(
         module_function_arity(),
         code,
-        vec![output],
+        process.pid_term(),
+        &[output],
     )
 }
 

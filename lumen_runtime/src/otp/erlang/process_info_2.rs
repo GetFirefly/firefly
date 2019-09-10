@@ -64,7 +64,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, pid: Term, item: Term) -> exception::Result {
+pub fn native(process: &Process, pid: Term, item: Term) -> exception::Result {
     let pid_pid: Pid = pid.try_into()?;
     let item_atom: Atom = item.try_into()?;
 

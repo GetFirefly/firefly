@@ -67,7 +67,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(key: Term, one_based_index: Term, tuple_list: Term) -> exception::Result {
+pub fn native(key: Term, one_based_index: Term, tuple_list: Term) -> exception::Result {
     get_by_term_one_based_index_key(tuple_list, one_based_index, key).map(|option| {
         match option {
             Some(_) => true,

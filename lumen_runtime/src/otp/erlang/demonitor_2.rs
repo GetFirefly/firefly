@@ -115,7 +115,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, reference: Term, options: Term) -> exception::Result {
+pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result {
     let reference_reference: Boxed<Reference> = reference.try_into()?;
     let options_options: Options = options.try_into()?;
 

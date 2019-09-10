@@ -1,7 +1,7 @@
 task:
   name: Check Formatted
   container:
-    image: kronicdeth/lumen-development:latest
+    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
   script: cargo fmt -- --check
 
 x86_64_task_template: &x86_64_TASK_TEMPLATE
@@ -35,7 +35,7 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
 task:
   name: Linux x86_64
   container:
-    image: kronicdeth/lumen-development:latest
+    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
     cpu: 4
     memory: 12
   linux_x86_64_cargo_cache:
@@ -61,13 +61,16 @@ task:
 task:
   name: Linux wasm32
   container:
-    image: kronicdeth/lumen-development:latest
+    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
+    memory: 6
   linux_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
+  firefox_version_script: firefox --version
+  gecko_driver_version_script: geckodriver --version
   lumen_web_test_script: |
     pushd lumen_web
-    wasm-pack test --headless --chrome
+    wasm-pack test --headless --chrome --firefox
     popd
   examples_spawn_chain_build_script: |
     pushd examples/spawn-chain
@@ -75,7 +78,7 @@ task:
     popd
   examples_spawn_chain_test_script: |
     pushd examples/spawn-chain
-    wasm-pack test --headless --chrome
+    wasm-pack test --headless --chrome --firefox
     popd
   examples_spawn_chain_package_script: |
     pushd examples/spawn-chain
@@ -142,4 +145,3 @@ task:
     wasm-pack test --headless --chrome --firefox --safari
     popd
   before_cache_script: rm -rf $CARGO_HOME/registry/index
-

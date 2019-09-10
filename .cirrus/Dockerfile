@@ -11,14 +11,13 @@ RUN cargo +nightly install wasm-bindgen-cli
 
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-# Based on https://github.com/circleci/circleci-images/blob/a0d9b6f495404d680decc2de92798223bf4b1738/shared/images/Dockerfile-browsers.template
-
 # install firefox
-#
-RUN FIREFOX_URL="https://download.mozilla.org/?product=firefox-latest-ssl&os=linux64&lang=en-US" \
-  && ACTUAL_URL=$(curl -Ls -o /dev/null -w %{url_effective} $FIREFOX_URL) \
-  && curl --silent --show-error --location --fail --retry 3 --output /tmp/firefox.tar.bz2 $ACTUAL_URL \
-  && tar -xvjf /tmp/firefox.tar.bz2 -C /opt \
+
+ENV FIREFOX_VERSION=69.0
+
+RUN cd /tmp \
+  && wget https://download-installer.cdn.mozilla.net/pub/firefox/releases/${FIREFOX_VERSION}/linux-x86_64/en-US/firefox-${FIREFOX_VERSION}.tar.bz2 \
+  && tar -xvjf /tmp/firefox-${FIREFOX_VERSION}.tar.bz2 -C /opt \
   && ln -s /opt/firefox/firefox /usr/local/bin/firefox \
   && rm -rf /tmp/firefox.* \
   && apt-get update \
@@ -27,14 +26,12 @@ RUN FIREFOX_URL="https://download.mozilla.org/?product=firefox-latest-ssl&os=lin
 
 # install geckodriver
 
-RUN apt-get update \
-      && apt-get install -y jq
+ENV GECKO_DRIVER_VERSION=0.24.0
 
-RUN export GECKODRIVER_LATEST_RELEASE_URL=$(curl https://api.github.com/repos/mozilla/geckodriver/releases/latest | jq -r ".assets[] | select(.name | test(\"linux64\")) | .browser_download_url") \
-     && curl --silent --show-error --location --fail --retry 3 --output /tmp/geckodriver_linux64.tar.gz "$GECKODRIVER_LATEST_RELEASE_URL" \
-     && cd /tmp \
-     && tar xf geckodriver_linux64.tar.gz \
-     && rm -rf geckodriver_linux64.tar.gz \
+RUN cd /tmp \
+     && wget https://github.com/mozilla/geckodriver/releases/download/v${GECKO_DRIVER_VERSION}/geckodriver-v${GECKO_DRIVER_VERSION}-linux64.tar.gz \
+     && tar xf geckodriver-v${GECKO_DRIVER_VERSION}-linux64.tar.gz \
+     && rm -f geckodriver-v${GECKO_DRIVER_VERISON}-linux64.tar.gz \
      && mv geckodriver /usr/local/bin/geckodriver \
      && chmod +x /usr/local/bin/geckodriver \
      && geckodriver --version

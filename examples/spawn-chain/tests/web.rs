@@ -49,11 +49,6 @@ mod run {
         eq_in_the_future(16)
     }
 
-    #[wasm_bindgen_test(async)]
-    fn with_32() -> impl Future<Item = (), Error = JsValue> {
-        eq_in_the_future(32)
-    }
-
     fn eq_in_the_future(n: usize) -> impl Future<Item = (), Error = JsValue> {
         super::eq_in_the_future(run, n)
     }
@@ -89,11 +84,6 @@ mod log_to_console {
         eq_in_the_future(16)
     }
 
-    #[wasm_bindgen_test(async)]
-    fn with_32() -> impl Future<Item = (), Error = JsValue> {
-        eq_in_the_future(32)
-    }
-
     fn eq_in_the_future(n: usize) -> impl Future<Item = (), Error = JsValue> {
         super::eq_in_the_future(log_to_console, n)
     }
@@ -127,11 +117,6 @@ mod log_to_dom {
     #[wasm_bindgen_test(async)]
     fn with_16() -> impl Future<Item = (), Error = JsValue> {
         eq_in_the_future(16)
-    }
-
-    #[wasm_bindgen_test(async)]
-    fn with_32() -> impl Future<Item = (), Error = JsValue> {
-        eq_in_the_future(32)
     }
 
     fn eq_in_the_future(n: usize) -> impl Future<Item = (), Error = JsValue> {

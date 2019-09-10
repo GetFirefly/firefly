@@ -1,15 +1,10 @@
-container:
-  image: kronicdeth/lumen-development:latest
-  cpu: 4
-  memory: 12
-
-check_formatted_task:
+task:
+  name: Check Formatted
+  container:
+    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
   script: cargo fmt -- --check
 
-x86_64_test_task:
-  x86_64_cargo_cache:
-    folder: $CARGO_HOME/registry
-    fingerprint_script: cat Cargo.lock
+x86_64_task_template: &x86_64_TASK_TEMPLATE
   build_script: cargo build
   # `*_test_script`s in order of crate dependency graph
   liblumen_arena_test_script: |
@@ -36,15 +31,46 @@ x86_64_test_task:
     pushd examples/spawn-chain
     cargo test
     popd
-  before_cache_script: rm -rf $CARGO_HOME/registry/index
 
-wasm32_test_task:
-  wasm32_cargo_cache:
+task:
+  name: Linux x86_64
+  container:
+    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
+    cpu: 4
+    memory: 12
+  linux_x86_64_cargo_cache:
     folder: $CARGO_HOME/registry
     fingerprint_script: cat Cargo.lock
+  << : *x86_64_TASK_TEMPLATE
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+task:
+  name: macOS x86_64
+  osx_instance:
+    image: high-sierra-base
+  env:
+    PATH: ${HOME}/.cargo/bin:${PATH}
+  macos_x86_64_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  install_rustup_script: |
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly
+  <<: *x86_64_TASK_TEMPLATE
+  before_cache_script: rm -rf $CARGO_HOME/registry/index
+
+task:
+  name: Linux wasm32
+  container:
+    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
+    memory: 6
+  linux_wasm32_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  firefox_version_script: firefox --version
+  gecko_driver_version_script: geckodriver --version
   lumen_web_test_script: |
     pushd lumen_web
-    wasm-pack test --headless --chrome
+    wasm-pack test --headless --chrome --firefox
     popd
   examples_spawn_chain_build_script: |
     pushd examples/spawn-chain
@@ -52,7 +78,7 @@ wasm32_test_task:
     popd
   examples_spawn_chain_test_script: |
     pushd examples/spawn-chain
-    wasm-pack test --headless --chrome
+    wasm-pack test --headless --chrome --firefox
     popd
   examples_spawn_chain_package_script: |
     pushd examples/spawn-chain
@@ -71,3 +97,51 @@ wasm32_test_task:
     path: "examples/spawn-chain/www/dist/*"
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 
+task:
+  name: macOS wasm32
+  osx_instance:
+    image: high-sierra-base
+  env:
+    PATH: ${HOME}/.cargo/bin:${PATH}
+  macos_wasm32_cargo_cache:
+    folder: $CARGO_HOME/registry
+    fingerprint_script: cat Cargo.lock
+  install_rustup_script: |
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain=nightly
+  install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly
+  install_wasm_bindgen_cli_script: cargo +nightly install wasm-bindgen-cli
+  install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+  install_chrome_script: |
+    brew cask install google-chrome
+    brew cask info google-chrome
+  install_chrome_driver_script: |
+    wget https://chromedriver.storage.googleapis.com/76.0.3809.126/chromedriver_mac64.zip
+    unzip chromedriver_mac64.zip
+    mv chromedriver /usr/local/bin/
+    rm chromedriver_mac64.zip
+    chromedriver --version
+  install_firefox_script: |
+    wget https://download-installer.cdn.mozilla.net/pub/firefox/releases/69.0/mac/en-US/Firefox%2069.0.dmg
+    hdiutil attach "Firefox 69.0.dmg"
+    cp -rf /Volumes/Firefox/Firefox.app /Applications
+    hdiutil detach /Volumes/Firefox
+  install_gecko_driver_script: |
+    wget https://github.com/mozilla/geckodriver/releases/download/v0.24.0/geckodriver-v0.24.0-macos.tar.gz
+    tar xvfz geckodriver-v0.24.0-macos.tar.gz
+    mv geckodriver /usr/local/bin/
+    rm geckodriver-v0.24.0-macos.tar.gz
+    geckodriver --version
+  enable_safari_driver_script: sudo safaridriver --enable
+  lumen_web_test_script: |
+    pushd lumen_web
+    wasm-pack test --headless --chrome --firefox --safari
+    popd
+  examples_spawn_chain_build_script: |
+    pushd examples/spawn-chain
+    wasm-pack build
+    popd
+  examples_spawn_chain_test_script: |
+    pushd examples/spawn-chain
+    wasm-pack test --headless --chrome --firefox --safari
+    popd
+  before_cache_script: rm -rf $CARGO_HOME/registry/index

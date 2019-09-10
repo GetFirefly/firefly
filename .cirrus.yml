@@ -128,9 +128,10 @@ task:
     mv geckodriver /usr/local/bin/
     rm geckodriver-v0.24.0-macos.tar.gz
     geckodriver --version
+  enable_safari_driver_script: sudo safaridriver --enable
   lumen_web_test_script: |
     pushd lumen_web
-    wasm-pack test --headless --chrome --firefox
+    wasm-pack test --headless --chrome --firefox --safari
     popd
   examples_spawn_chain_build_script: |
     pushd examples/spawn-chain
@@ -138,7 +139,7 @@ task:
     popd
   examples_spawn_chain_test_script: |
     pushd examples/spawn-chain
-    wasm-pack test --headless --chrome --firefox
+    wasm-pack test --headless --chrome --firefox --safari
     popd
   before_cache_script: rm -rf $CARGO_HOME/registry/index
 

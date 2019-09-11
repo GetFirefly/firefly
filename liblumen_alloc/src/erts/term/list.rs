@@ -211,7 +211,7 @@ impl CloneToProcess for Cons {
 
         for result in self.into_iter() {
             match result {
-                Ok(element) => vec.push(element),
+                Ok(element) => vec.push(element.clone_to_heap(heap)?),
                 Err(ImproperList {
                     tail: improper_tail,
                 }) => tail = improper_tail,

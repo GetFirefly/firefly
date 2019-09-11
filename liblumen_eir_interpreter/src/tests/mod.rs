@@ -171,7 +171,6 @@ fib(X) -> fib(X - 1) + fib(X - 2).
     assert!(res.result == Ok(int));
 }
 
-#[ignore]
 #[test]
 fn ping_pong() {
     &*VM;
@@ -215,4 +214,81 @@ run() ->
     let res = crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[]);
 
     assert!(res.result == Ok(atom_unchecked("d")));
+}
+
+#[test]
+fn ping_pong_count() {
+    &*VM;
+
+    let arc_scheduler = Scheduler::current();
+    let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    let module = Atom::try_from_str("ping_pong_count").unwrap();
+    let function = Atom::try_from_str("run").unwrap();
+
+    let eir_mod = compile(
+        "
+-module(ping_pong_count).
+
+other_proc({add, A, B}, Ret) -> Ret ! {result, A + B}.
+
+this_proc(0, Acc) ->
+    Acc;
+this_proc(N, Acc) ->
+    spawn(ping_pong_count, other_proc, [{add, 1, Acc}, self()]),
+    receive
+        {result, Res} -> this_proc(N - 1, Res)
+    end.
+
+run(N) -> this_proc(N, 0).
+",
+    );
+
+    VM.modules.write().unwrap().register_erlang_module(eir_mod);
+
+    let int = init_arc_process.integer(10).unwrap();
+    let res =
+        crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[int]);
+
+    println!("{:?}", res.result);
+    //assert!(res.result == Ok(100));
+}
+
+#[ignore]
+#[test]
+fn ping_pong_count_large() {
+    &*VM;
+
+    let arc_scheduler = Scheduler::current();
+    let init_arc_process = arc_scheduler.spawn_init(0).unwrap();
+
+    let module = Atom::try_from_str("ping_pong_count_large").unwrap();
+    let function = Atom::try_from_str("run").unwrap();
+
+    let eir_mod = compile(
+        "
+-module(ping_pong_count_large).
+
+other_proc({add, A, B}, Ret) -> Ret ! {result, A + B}.
+
+this_proc(0, Acc) ->
+    Acc;
+this_proc(N, Acc) ->
+    spawn(ping_pong_count, other_proc, [{add, 1, Acc}, self()]),
+    receive
+        {result, Res} -> this_proc(N - 1, Res)
+    end.
+
+run(N) -> this_proc(N, 0).
+",
+    );
+
+    VM.modules.write().unwrap().register_erlang_module(eir_mod);
+
+    let int = init_arc_process.integer(100).unwrap();
+    let res =
+        crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[int]);
+
+    println!("{:?}", res.result);
+    //assert!(res.result == Ok(100));
 }

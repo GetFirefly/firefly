@@ -195,6 +195,21 @@ impl CallExecutor {
     ) {
         trace!("======== RUN {} ========", proc.pid());
         let modules = vm.modules.read().unwrap();
+
+        // Make sure no non-heap terms make it into the process
+        {
+            let mut heap = proc.acquire_heap();
+            for arg in args.iter() {
+                if arg.is_boxed() {
+                    use liblumen_alloc::erts::process::alloc::HeapAlloc;
+                    if !heap.is_owner(arg.boxed_val()) {
+                        println!("NON HEAP BOXED: {:?}", arg);
+                        panic!();
+                    }
+                }
+            }
+        }
+
         match modules.lookup_function(module, function, arity) {
             None => {
                 self.fun_not_found(proc, args[1], module, function, arity)

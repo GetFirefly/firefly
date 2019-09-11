@@ -171,7 +171,6 @@ fib(X) -> fib(X - 1) + fib(X - 2).
     assert!(res.result == Ok(int));
 }
 
-#[ignore]
 #[test]
 fn ping_pong() {
     &*VM;

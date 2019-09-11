@@ -4,7 +4,8 @@
 
 run() ->
     N = fib(8),
-    lumen_intrinsics:println(N).
+    lumen_intrinsics:println(N),
+    N.
 
 fib(0) -> 0;
 fib(1) -> 1;

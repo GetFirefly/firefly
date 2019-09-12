@@ -6,64 +6,16 @@
 mod test;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
 use crate::registry::pid_to_process;
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Pid, Term};
-use liblumen_alloc::{badarg, AsTerm, ModuleFunctionArity};
+use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Pid, Term};
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    pid: Term,
-    item: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(item)?;
-    process.stack_push(pid)?;
-    process.place_frame(frame(), placement);
+use lumen_runtime_macros::native_implemented_function;
 
-    Ok(())
-}
-
-// Private
-
-fn code(arc_process: &Arc<Process>) -> code::Result {
-    arc_process.reduce();
-
-    let pid = arc_process.stack_pop().unwrap();
-    let item = arc_process.stack_pop().unwrap();
-
-    match native(arc_process, pid, item) {
-        Ok(info) => {
-            arc_process.return_from_call(info)?;
-
-            Process::call_code(arc_process)
-        }
-        Err(exception) => result_from_exception(arc_process, exception),
-    }
-}
-
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
-}
-
-fn function() -> Atom {
-    Atom::try_from_str("process_info").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 2,
-    })
-}
-
+#[native_implemented_function(process_info/2)]
 pub fn native(process: &Process, pid: Term, item: Term) -> exception::Result {
     let pid_pid: Pid = pid.try_into()?;
     let item_atom: Atom = item.try_into()?;
@@ -77,6 +29,8 @@ pub fn native(process: &Process, pid: Term, item: Term) -> exception::Result {
         }
     }
 }
+
+// Private
 
 fn process_info(process: &Process, item: Atom) -> exception::Result {
     match item.name() {

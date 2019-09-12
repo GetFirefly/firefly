@@ -93,12 +93,12 @@ where
         )
         .unwrap();
 
-        erlang::send_2(
+        erlang::send_2::native(
+            &different_thread_process_arc,
             same_thread_pid,
             different_thread_process_arc
                 .tuple_from_slice(&[atom_unchecked("timer_reference"), timer_reference])
                 .unwrap(),
-            &different_thread_process_arc,
         )
         .expect("Different thread could not send to same thread");
 

@@ -1,55 +1,22 @@
-use std::sync::Arc;
+// wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
+// use proptest completely for wasm32
+//
+// See https://github.com/rust-lang/cargo/issues/4866
+#[cfg(all(not(target_arch = "wasm32"), test))]
+mod test;
 
-use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::code::{self, result_from_exception};
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Term};
-use liblumen_alloc::ModuleFunctionArity;
+use liblumen_alloc::erts::term::Term;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    destination: Term,
-    message: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(message)?;
-    process.stack_push(destination)?;
-    process.place_frame(frame(), placement);
+use lumen_runtime_macros::native_implemented_function;
 
-    Ok(())
-}
+use crate::send::{send, Sent};
 
-// Private
-
-fn code(arc_process: &Arc<Process>) -> code::Result {
-    arc_process.reduce();
-
-    let destination = arc_process.stack_pop().unwrap();
-    let message = arc_process.stack_pop().unwrap();
-
-    match super::send_2(destination, message, arc_process) {
-        Ok(sent) => {
-            arc_process.return_from_call(sent)?;
-
-            Process::call_code(arc_process)
-        }
-        Err(exception) => result_from_exception(arc_process, exception),
-    }
-}
-
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
-}
-
-fn function() -> Atom {
-    Atom::try_from_str("send").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 0,
+#[native_implemented_function(send/2)]
+pub fn native(process: &Process, destination: Term, message: Term) -> exception::Result {
+    send(destination, message, Default::default(), process).map(|sent| match sent {
+        Sent::Sent => message,
+        _ => unreachable!(),
     })
 }

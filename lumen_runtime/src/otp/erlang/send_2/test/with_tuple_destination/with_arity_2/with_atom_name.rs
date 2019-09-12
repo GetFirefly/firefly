@@ -16,7 +16,7 @@ fn without_atom_node_errors_badarg() {
                     let destination = arc_process.tuple_from_slice(&[name, node]).unwrap();
 
                     prop_assert_eq!(
-                        erlang::send_2(destination, message, &arc_process),
+                        native(&arc_process, destination, message),
                         Err(badarg!().into())
                     );
 

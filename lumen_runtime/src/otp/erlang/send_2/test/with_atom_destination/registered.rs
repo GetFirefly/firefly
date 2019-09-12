@@ -19,10 +19,7 @@ fn with_same_process_address_process_message_to_mailbox_and_returns_message() {
                     Ok(true.into())
                 );
 
-                prop_assert_eq!(
-                    erlang::send_2(destination, message, &arc_process),
-                    Ok(message)
-                );
+                prop_assert_eq!(native(&arc_process, destination, message), Ok(message));
 
                 prop_assert!(has_process_message(&arc_process, message));
 

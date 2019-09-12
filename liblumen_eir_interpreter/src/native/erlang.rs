@@ -127,14 +127,19 @@ pub fn make_erlang() -> NativeModule {
         |proc, args| erlang::process_flag_2::native(proc, args[0], args[1]),
     );
 
-    native.add_simple(Atom::try_from_str("send").unwrap(), 2, |proc, args| {
-        erlang::send_2(args[0], args[1], proc)
-    });
+    let send_2_module_function_arity = erlang::send_2::module_function_arity();
+    native.add_simple(
+        send_2_module_function_arity.function,
+        send_2_module_function_arity.arity as usize,
+        |proc, args| erlang::send_2::native(proc, args[0], args[1]),
+    );
+
     native.add_simple(Atom::try_from_str("send").unwrap(), 3, |proc, args| {
-        erlang::send_2(args[0], args[1], proc)
+        erlang::send_2::native(proc, args[0], args[1])
     });
+
     native.add_simple(Atom::try_from_str("!").unwrap(), 2, |proc, args| {
-        erlang::send_2(args[0], args[1], proc)
+        erlang::send_2::native(proc, args[0], args[1])
     });
 
     native.add_simple(Atom::try_from_str("-").unwrap(), 2, |proc, args| {

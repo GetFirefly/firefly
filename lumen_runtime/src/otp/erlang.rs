@@ -1287,13 +1287,6 @@ pub fn rem_2(dividend: Term, divisor: Term, process: &Process) -> Result {
     integer_infix_operator!(dividend, divisor, process, %)
 }
 
-pub fn send_2(destination: Term, message: Term, process: &Process) -> Result {
-    send(destination, message, Default::default(), process).map(|sent| match sent {
-        Sent::Sent => message,
-        _ => unreachable!(),
-    })
-}
-
 // `send(destination, message, [nosuspend])` is used in `gen.erl`, which is used by `gen_server.erl`
 // See https://github.com/erlang/otp/blob/8f6d45ddc8b2b12376c252a30b267a822cad171a/lib/stdlib/src/gen.erl#L167
 pub fn send_3(destination: Term, message: Term, options: Term, process: &Process) -> Result {

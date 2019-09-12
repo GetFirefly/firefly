@@ -8,16 +8,11 @@ fn unregistered_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(strategy::term::atom(), strategy::term(arc_process.clone())),
-                |(name, message)| {
-                    let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0()])
-                        .unwrap();
-
+                |(destination, message)| {
                     prop_assert_eq!(
-                        erlang::send_2(destination, message, &arc_process),
+                        native(&arc_process, destination, message),
                         Err(badarg!().into())
                     );
-                    assert_badarg!(erlang::send_2(destination, message, &arc_process));
 
                     Ok(())
                 },

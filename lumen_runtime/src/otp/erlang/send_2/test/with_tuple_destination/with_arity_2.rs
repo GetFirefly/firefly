@@ -1,6 +1,8 @@
+mod with_atom_name;
+
 use super::*;
 
-mod with_atom_name;
+use crate::process::SchedulerDependentAlloc;
 
 #[test]
 fn without_atom_name_errors_badarg() {
@@ -17,7 +19,7 @@ fn without_atom_name_errors_badarg() {
                         .unwrap();
 
                     prop_assert_eq!(
-                        erlang::send_2(destination, message, &arc_process),
+                        native(&arc_process, destination, message),
                         Err(badarg!().into())
                     );
 
@@ -102,6 +104,6 @@ where
             .unwrap();
         let message = atom_unchecked("message");
 
-        assert_badarg!(erlang::send_2(destination, message, process));
+        assert_badarg!(native(process, destination, message));
     })
 }

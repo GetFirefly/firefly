@@ -1,5 +1,6 @@
 //! Mirrors [erlang](http://erlang::org/doc/man/erlang::html) module
 
+pub mod abs_1;
 pub mod add_2;
 pub mod apply_3;
 pub mod binary_to_integer_1;
@@ -31,14 +32,12 @@ pub mod unlink_1;
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod tests;
 
-use core::cmp::Ordering;
 use core::convert::TryInto;
 use core::num::FpCategory;
 
 use alloc::sync::Arc;
 
 use num_bigint::BigInt;
-use num_traits::Zero;
 
 use liblumen_core::locks::MutexGuard;
 
@@ -66,60 +65,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn abs_1(number: Term, process: &Process) -> Result {
-    let option_abs = match number.to_typed_term().unwrap() {
-        TypedTerm::SmallInteger(small_integer) => {
-            let i: isize = small_integer.into();
-
-            if i < 0 {
-                let positive = -i;
-                let abs_number = process.integer(positive)?;
-
-                Some(abs_number)
-            } else {
-                Some(number)
-            }
-        }
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::BigInteger(big_integer) => {
-                let big_int: &BigInt = big_integer.as_ref().into();
-                let zero_big_int: &BigInt = &Zero::zero();
-
-                let abs_number: Term = if big_int < zero_big_int {
-                    let positive_big_int: BigInt = -1 * big_int;
-
-                    process.integer(positive_big_int)?
-                } else {
-                    number
-                };
-
-                Some(abs_number)
-            }
-            TypedTerm::Float(float) => {
-                let f: f64 = float.into();
-
-                let abs_number = match f.partial_cmp(&0.0).unwrap() {
-                    Ordering::Less => {
-                        let positive_f = f.abs();
-
-                        process.float(positive_f).unwrap()
-                    }
-                    _ => number,
-                };
-
-                Some(abs_number)
-            }
-            _ => None,
-        },
-        _ => None,
-    };
-
-    match option_abs {
-        Some(abs) => Ok(abs),
-        None => Err(badarg!().into()),
-    }
-}
 
 /// `and/2` infix operator.
 ///

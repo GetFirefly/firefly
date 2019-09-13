@@ -17,7 +17,6 @@ use crate::test::{
     has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
 };
 
-mod andalso_2;
 mod append_element_2;
 mod are_equal_after_conversion_2;
 mod are_exactly_equal_2;

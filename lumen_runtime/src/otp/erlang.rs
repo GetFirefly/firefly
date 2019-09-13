@@ -3,6 +3,7 @@
 pub mod abs_1;
 pub mod add_2;
 pub mod and_2;
+pub mod andalso_2;
 pub mod apply_3;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
@@ -66,21 +67,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-/// `andalso/2` infix operator.
-///
-/// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
-/// both operands, use `and_2`.
-pub fn andalso_2(boolean: Term, term: Term) -> Result {
-    let boolean_bool: bool = boolean.try_into()?;
-
-    if boolean_bool {
-        Ok(term)
-    } else {
-        // always `false.into()`, but this is faster
-        Ok(boolean)
-    }
-}
 
 pub fn append_element_2(tuple: Term, element: Term, process: &Process) -> Result {
     let internal: Boxed<Tuple> = tuple.try_into()?;

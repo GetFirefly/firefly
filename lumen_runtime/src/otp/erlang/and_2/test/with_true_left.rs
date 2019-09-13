@@ -7,7 +7,7 @@ fn without_boolean_right_errors_badarg() {
             .run(
                 &strategy::term::is_not_boolean(arc_process.clone()),
                 |right| {
-                    prop_assert_eq!(erlang::and_2(true.into(), right), Err(badarg!().into()));
+                    prop_assert_eq!(native(true.into(), right), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -18,10 +18,10 @@ fn without_boolean_right_errors_badarg() {
 
 #[test]
 fn with_false_right_returns_false() {
-    assert_eq!(erlang::and_2(true.into(), false.into()), Ok(false.into()));
+    assert_eq!(native(true.into(), false.into()), Ok(false.into()));
 }
 
 #[test]
 fn with_true_right_returns_true() {
-    assert_eq!(erlang::and_2(true.into(), true.into()), Ok(true.into()));
+    assert_eq!(native(true.into(), true.into()), Ok(true.into()));
 }

@@ -2,6 +2,7 @@
 
 pub mod abs_1;
 pub mod add_2;
+pub mod and_2;
 pub mod apply_3;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
@@ -65,14 +66,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-/// `and/2` infix operator.
-///
-/// **NOTE: NOT SHORT-CIRCUITING!**  Use `andalso/2` for short-circuiting, but it doesn't enforce
-/// that `right` is boolean.
-pub fn and_2(left_boolean: Term, right_boolean: Term) -> Result {
-    boolean_infix_operator!(left_boolean, right_boolean, &)
-}
 
 /// `andalso/2` infix operator.
 ///

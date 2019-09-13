@@ -15,10 +15,7 @@ fn without_local_reference_right_returns_false() {
                         }),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_equal_after_conversion_2(left, right),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -34,10 +31,7 @@ fn with_same_local_reference_right_returns_true() {
             .run(
                 &strategy::term::local_reference(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(
-                        erlang::are_equal_after_conversion_2(operand, operand),
-                        true.into()
-                    );
+                    prop_assert_eq!(native(operand, operand), true.into());
 
                     Ok(())
                 },
@@ -58,10 +52,7 @@ fn with_different_local_reference_right_returns_false() {
                     )
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_equal_after_conversion_2(left, right),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },

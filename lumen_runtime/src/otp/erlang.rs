@@ -4,6 +4,7 @@ pub mod abs_1;
 pub mod add_2;
 pub mod and_2;
 pub mod andalso_2;
+pub mod append_element_2;
 pub mod apply_3;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
@@ -67,13 +68,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn append_element_2(tuple: Term, element: Term, process: &Process) -> Result {
-    let internal: Boxed<Tuple> = tuple.try_into()?;
-    let new_tuple = process.tuple_from_slices(&[&internal[..], &[element]])?;
-
-    Ok(new_tuple)
-}
 
 /// `==/2` infix operator.  Unlike `=:=`, converts between floats and integers.
 pub fn are_equal_after_conversion_2(left: Term, right: Term) -> Term {

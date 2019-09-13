@@ -1,4 +1,15 @@
-use super::*;
+use std::convert::TryInto;
+
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::{Boxed, Tuple};
+
+use crate::otp::erlang::append_element_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_errors_badarg() {
@@ -12,10 +23,7 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple, element)| {
-                prop_assert_eq!(
-                    erlang::append_element_2(tuple, element, &arc_process),
-                    Err(badarg!().into())
-                );
+                prop_assert_eq!(native(&arc_process, tuple, element), Err(badarg!().into()));
 
                 Ok(())
             },
@@ -33,7 +41,7 @@ fn with_tuple_returns_tuple_with_new_element_at_end() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(tuple, element)| {
-                    let result = erlang::append_element_2(tuple, element, &arc_process);
+                    let result = native(&arc_process, tuple, element);
 
                     prop_assert!(result.is_ok(), "{:?}", result);
 

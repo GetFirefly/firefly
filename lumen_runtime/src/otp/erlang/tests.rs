@@ -12,10 +12,9 @@ use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
     count_ones, has_heap_message, has_message, has_process_message, receive_message,
-    registered_name, strategy,
+    registered_name, strategy, total_byte_len,
 };
 
-mod binary_part_2;
 mod binary_part_3;
 mod binary_to_atom_2;
 mod binary_to_existing_atom_2;
@@ -147,18 +146,4 @@ fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Proc
     process
         .tuple_from_slice(&[atom_unchecked(tag), timer_reference, message])
         .unwrap()
-}
-
-fn total_byte_len(term: Term) -> usize {
-    match term.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => heap_binary.total_byte_len(),
-            TypedTerm::SubBinary(subbinary) => subbinary.total_byte_len(),
-            unboxed_typed_term => panic!(
-                "unboxed {:?} does not have a total_byte_len",
-                unboxed_typed_term
-            ),
-        },
-        typed_term => panic!("{:?} does not have a total_byte_len", typed_term),
-    }
 }

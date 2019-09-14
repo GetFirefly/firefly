@@ -13,6 +13,7 @@ pub mod are_not_equal_after_conversion_2;
 pub mod atom_to_binary_2;
 pub mod atom_to_list_1;
 pub mod band_2;
+pub mod binary_part_2;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
@@ -75,29 +76,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Result {
-    let option_result = match start_length.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed_start_length) => {
-            match unboxed_start_length.to_typed_term().unwrap() {
-                TypedTerm::Tuple(tuple) => {
-                    if tuple.len() == 2 {
-                        Some(binary_part_3(binary, tuple[0], tuple[1], process))
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    };
-
-    match option_result {
-        Some(result) => result,
-        None => Err(badarg!().into()),
-    }
-}
 
 pub fn binary_part_3(binary: Term, start: Term, length: Term, process: &Process) -> Result {
     let start_usize: usize = start.try_into()?;

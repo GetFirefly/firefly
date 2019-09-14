@@ -13,6 +13,7 @@ use num_bigint::BigInt;
 
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::binary::MaybePartialByte;
 use liblumen_alloc::erts::term::{atom_unchecked, BigInteger, Boxed, Term, TypedTerm};
 
 pub fn count_ones(term: Term) -> u32 {
@@ -109,4 +110,18 @@ pub fn registered_name() -> Term {
         )
         .as_ref(),
     )
+}
+
+pub fn total_byte_len(term: Term) -> usize {
+    match term.to_typed_term().unwrap() {
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::HeapBinary(heap_binary) => heap_binary.total_byte_len(),
+            TypedTerm::SubBinary(subbinary) => subbinary.total_byte_len(),
+            unboxed_typed_term => panic!(
+                "unboxed {:?} does not have a total_byte_len",
+                unboxed_typed_term
+            ),
+        },
+        typed_term => panic!("{:?} does not have a total_byte_len", typed_term),
+    }
 }

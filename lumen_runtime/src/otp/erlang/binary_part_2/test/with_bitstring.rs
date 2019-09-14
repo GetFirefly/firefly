@@ -17,7 +17,7 @@ fn without_tuple_start_length_errors_badarg() {
             }),
             |(arc_process, binary, start_length)| {
                 prop_assert_eq!(
-                    erlang::binary_part_2(binary, start_length, &arc_process),
+                    native(&arc_process, binary, start_length),
                     Err(badarg!().into())
                 );
 
@@ -45,7 +45,7 @@ fn with_tuple_without_arity_2_errors_badarg() {
                 ),
                 |(binary, start_length)| {
                     prop_assert_eq!(
-                        erlang::binary_part_2(binary, start_length, &arc_process),
+                        native(&arc_process, binary, start_length),
                         Err(badarg!().into())
                     );
 

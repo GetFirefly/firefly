@@ -34,7 +34,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    let result = erlang::binary_part_2(binary, start_length, &arc_process);
+                    let result = native(&arc_process, binary, start_length);
 
                     prop_assert!(result.is_ok());
 
@@ -69,13 +69,9 @@ fn with_size_start_and_negative_size_length_returns_binary() {
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
-                        erlang::binary_part_2(binary, start_length, &arc_process),
-                        Ok(binary)
-                    );
+                    prop_assert_eq!(native(&arc_process, binary, start_length), Ok(binary));
 
-                    let returned_binary =
-                        erlang::binary_part_2(binary, start_length, &arc_process).unwrap();
+                    let returned_binary = native(&arc_process, binary, start_length).unwrap();
 
                     prop_assert_eq!(returned_binary.is_subbinary(), binary.is_subbinary());
 
@@ -103,13 +99,9 @@ fn with_zero_start_and_size_length_returns_binary() {
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
-                        erlang::binary_part_2(binary, start_length, &arc_process),
-                        Ok(binary)
-                    );
+                    prop_assert_eq!(native(&arc_process, binary, start_length), Ok(binary));
 
-                    let returned_binary =
-                        erlang::binary_part_2(binary, start_length, &arc_process).unwrap();
+                    let returned_binary = native(&arc_process, binary, start_length).unwrap();
 
                     prop_assert_eq!(returned_binary.is_subbinary(), binary.is_subbinary());
 

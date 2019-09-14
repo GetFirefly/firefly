@@ -13,7 +13,7 @@ fn without_big_integer_returns_false() {
                         .prop_filter("Right must not be a big integer", |v| !v.is_bigint()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -29,7 +29,7 @@ fn with_same_big_integer_returns_true() {
             .run(
                 &strategy::term::integer::big(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(operand, operand), true.into());
+                    prop_assert_eq!(native(operand, operand), true.into());
 
                     Ok(())
                 },
@@ -51,7 +51,7 @@ fn with_different_big_integer_right_returns_false() {
                         left != right
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },

@@ -13,7 +13,7 @@ fn without_empty_list_returns_false() {
                         .prop_filter("Right must not be empty list", |v| !v.is_nil()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -24,8 +24,5 @@ fn without_empty_list_returns_false() {
 
 #[test]
 fn with_empty_list_right_returns_true() {
-    assert_eq!(
-        erlang::are_exactly_equal_2(Term::NIL, Term::NIL),
-        true.into()
-    );
+    assert_eq!(native(Term::NIL, Term::NIL), true.into());
 }

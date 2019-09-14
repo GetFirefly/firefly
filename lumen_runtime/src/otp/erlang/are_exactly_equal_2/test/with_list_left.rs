@@ -16,7 +16,7 @@ fn without_list_right_returns_false() {
                         .prop_filter("Right must not be list", |v| !v.is_list()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -32,7 +32,7 @@ fn with_same_list_right_returns_true() {
             .run(
                 &strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(operand, operand), true.into());
+                    prop_assert_eq!(native(operand, operand), true.into());
 
                     Ok(())
                 },
@@ -68,7 +68,7 @@ fn with_same_value_list_right_returns_true() {
                         }
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -90,7 +90,7 @@ fn with_different_list_right_returns_false() {
                 })
                 .prop_filter("Lists must be different", |(left, right)| left != right),
             |(left, right)| {
-                prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                prop_assert_eq!(native(left, right), false.into());
 
                 Ok(())
             },

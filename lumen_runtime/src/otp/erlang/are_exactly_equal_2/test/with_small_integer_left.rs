@@ -14,7 +14,7 @@ fn without_small_integer_returns_false() {
                 )
             }),
             |(left, right)| {
-                prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                prop_assert_eq!(native(left, right), false.into());
 
                 Ok(())
             },
@@ -29,7 +29,7 @@ fn with_same_small_integer_right_returns_true() {
             .run(
                 &strategy::term::integer::small(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(operand, operand), true.into());
+                    prop_assert_eq!(native(operand, operand), true.into());
 
                     Ok(())
                 },
@@ -49,7 +49,7 @@ fn with_same_value_small_integer_right_returns_true() {
                     (heap.integer(i).unwrap(), heap.integer(i).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -69,7 +69,7 @@ fn with_different_small_integer_right_returns_false() {
                     (heap.integer(i).unwrap(), heap.integer(i + 1).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },

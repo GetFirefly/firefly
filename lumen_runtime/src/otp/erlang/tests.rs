@@ -17,7 +17,6 @@ use crate::test::{
     has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
 };
 
-mod are_exactly_equal_2;
 mod are_exactly_not_equal_2;
 mod are_not_equal_after_conversion_2;
 mod atom_to_binary_2;

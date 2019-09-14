@@ -14,7 +14,7 @@ fn without_bitstring_right_returns_false() {
                 )
             }),
             |(left, right)| {
-                prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                prop_assert_eq!(native(left, right), false.into());
 
                 Ok(())
             },
@@ -39,7 +39,7 @@ fn with_heap_binary_right_with_same_bytes_returns_true() {
                     },
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -66,7 +66,7 @@ fn with_heap_binary_right_with_different_bytes_returns_false() {
                         (subbinary_term, heap_binary)
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -82,7 +82,7 @@ fn with_same_subbinary_right_returns_true() {
             .run(
                 &strategy::term::binary::sub(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(operand, operand), true.into());
+                    prop_assert_eq!(native(operand, operand), true.into());
 
                     Ok(())
                 },
@@ -150,7 +150,7 @@ fn with_same_value_subbinary_right_returns_true() {
                         },
                     ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -172,7 +172,7 @@ fn with_different_subbinary_right_returns_false() {
                         left != right
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },

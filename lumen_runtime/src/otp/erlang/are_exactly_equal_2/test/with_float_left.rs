@@ -13,7 +13,7 @@ fn without_float_returns_false() {
                         .prop_filter("Right must not be a float", |v| !v.is_float()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -27,7 +27,7 @@ fn with_same_float_returns_true() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::float(arc_process.clone()), |operand| {
-                prop_assert_eq!(erlang::are_exactly_equal_2(operand, operand), true.into());
+                prop_assert_eq!(native(operand, operand), true.into());
 
                 Ok(())
             })
@@ -46,7 +46,7 @@ fn with_same_value_float_right_returns_true() {
                     (heap.float(f).unwrap(), heap.float(f).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -66,7 +66,7 @@ fn with_different_float_right_returns_false() {
                     (heap.float(f).unwrap(), heap.float(f / 2.0 + 1.0).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },

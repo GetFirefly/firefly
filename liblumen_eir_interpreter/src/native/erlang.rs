@@ -33,7 +33,7 @@ pub fn make_erlang() -> NativeModule {
         ))
     });
     native.add_simple(Atom::try_from_str("=:=").unwrap(), 2, |_proc, args| {
-        Ok(erlang::are_exactly_equal_2(args[0], args[1]))
+        Ok(erlang::are_exactly_equal_2::native(args[0], args[1]))
     });
 
     native.add_simple(Atom::try_from_str("spawn_opt").unwrap(), 4, |proc, args| {

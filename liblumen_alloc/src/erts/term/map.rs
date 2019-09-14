@@ -11,7 +11,7 @@ use hashbrown::HashMap;
 
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::HeapAlloc;
-use crate::erts::term::{AsTerm, Boxed, Term, TypeError, TypedTerm};
+use crate::erts::term::{AsTerm, Boxed, Term, Tuple, TypeError, TypedTerm};
 use crate::erts::to_word_size;
 
 #[derive(Clone)]
@@ -37,6 +37,39 @@ impl Map {
         }
 
         Self::from_hash_map(value)
+    }
+
+    pub fn from_list(list: Term) -> Option<HashMap<Term, Term>> {
+        match list.to_typed_term().unwrap() {
+            TypedTerm::Nil => Some(HashMap::new()),
+            TypedTerm::List(cons) => {
+                let mut map = HashMap::new();
+
+                for term_result in cons.into_iter() {
+                    if term_result.is_err() {
+                        return None;
+                    }
+
+                    let result_tuple: Result<Boxed<Tuple>, _> = term_result.unwrap().try_into();
+
+                    match result_tuple {
+                        Ok(tuple) => {
+                            if tuple.len() == 2 {
+                                map.insert(tuple[0], tuple[1]);
+                            } else {
+                                return None;
+                            }
+                        }
+                        _ => {
+                            return None;
+                        }
+                    }
+                }
+
+                Some(map)
+            }
+            _ => None,
+        }
     }
 
     pub fn get(&self, key: Term) -> Option<Term> {

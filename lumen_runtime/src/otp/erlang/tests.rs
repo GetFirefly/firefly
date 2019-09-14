@@ -8,7 +8,6 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::{
     make_pid, next_pid, BigInteger, HeapBin, SmallInteger, SubBinary,
 };
-use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::otp::erlang;
 use crate::process;
@@ -17,7 +16,6 @@ use crate::test::{
     has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
 };
 
-mod are_not_equal_after_conversion_2;
 mod atom_to_binary_2;
 mod atom_to_list_1;
 mod band_2;

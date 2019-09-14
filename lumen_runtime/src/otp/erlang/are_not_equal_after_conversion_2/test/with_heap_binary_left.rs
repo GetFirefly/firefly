@@ -13,10 +13,7 @@ fn without_binary_right_returns_true() {
                         .prop_filter("Right must not be a binary", |v| !v.is_binary()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        true.into()
-                    );
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -32,10 +29,7 @@ fn with_same_heap_binary_right_returns_false() {
             .run(
                 &strategy::term::binary::heap(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(operand, operand),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(operand, operand), false.into());
 
                     Ok(())
                 },
@@ -56,10 +50,7 @@ fn with_same_value_heap_binary_right_returns_false() {
                     )
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -81,10 +72,7 @@ fn with_different_heap_binary_right_returns_true() {
                         left != right
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        true.into()
-                    );
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -110,10 +98,7 @@ fn with_subbinary_right_with_same_bytes_returns_false() {
                     },
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -140,10 +125,7 @@ fn with_subbinary_right_with_different_bytes_returns_true() {
                         (heap_binary, subbinary_term)
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        true.into()
-                    );
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },

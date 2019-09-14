@@ -14,10 +14,7 @@ fn without_map_right_returns_true() {
                 )
             }),
             |(left, right)| {
-                prop_assert_eq!(
-                    erlang::are_not_equal_after_conversion_2(left, right),
-                    true.into()
-                );
+                prop_assert_eq!(native(left, right), true.into());
 
                 Ok(())
             },
@@ -32,10 +29,7 @@ fn with_same_map_right_returns_false() {
             &strategy::process()
                 .prop_flat_map(|arc_process| strategy::term::map(arc_process.clone())),
             |operand| {
-                prop_assert_eq!(
-                    erlang::are_not_equal_after_conversion_2(operand, operand),
-                    false.into()
-                );
+                prop_assert_eq!(native(operand, operand), false.into());
 
                 Ok(())
             },
@@ -65,10 +59,7 @@ fn with_same_value_map_right_returns_false() {
                 })
             }),
             |(left, right)| {
-                prop_assert_eq!(
-                    erlang::are_not_equal_after_conversion_2(left, right),
-                    false.into()
-                );
+                prop_assert_eq!(native(left, right), false.into());
 
                 Ok(())
             },
@@ -88,10 +79,7 @@ fn with_different_map_right_returns_true() {
                     .prop_filter("Maps must be different", |(left, right)| left != right)
             }),
             |(left, right)| {
-                prop_assert_eq!(
-                    erlang::are_not_equal_after_conversion_2(left, right),
-                    true.into()
-                );
+                prop_assert_eq!(native(left, right), true.into());
 
                 Ok(())
             },

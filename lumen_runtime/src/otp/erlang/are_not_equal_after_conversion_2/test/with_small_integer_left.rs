@@ -15,10 +15,7 @@ fn without_small_integer_or_float_returns_true() {
                         }),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        true.into()
-                    );
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -34,10 +31,7 @@ fn with_same_small_integer_right_returns_false() {
             .run(
                 &strategy::term::integer::small(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(operand, operand),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(operand, operand), false.into());
 
                     Ok(())
                 },
@@ -57,10 +51,7 @@ fn with_same_value_small_integer_right_returns_false() {
                     (heap.integer(i).unwrap(), heap.integer(i).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -80,10 +71,7 @@ fn with_different_small_integer_right_returns_true() {
                     (heap.integer(i).unwrap(), heap.integer(i + 1).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        true.into()
-                    );
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -103,10 +91,7 @@ fn with_same_value_float_right_returns_false() {
                     (heap.integer(i).unwrap(), heap.float(i as f64).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -132,10 +117,7 @@ fn with_different_value_float_right_returns_true() {
                     )
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::are_not_equal_after_conversion_2(left, right),
-                        true.into()
-                    );
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },

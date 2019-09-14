@@ -9,6 +9,7 @@ pub mod apply_3;
 pub mod are_equal_after_conversion_2;
 pub mod are_exactly_equal_2;
 pub mod are_exactly_not_equal_2;
+pub mod are_not_equal_after_conversion_2;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
@@ -71,11 +72,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-/// `/=/2` infix operator.  Unlike `=/=`, converts between floats and integers.
-pub fn are_not_equal_after_conversion_2(left: Term, right: Term) -> Term {
-    left.ne(&right).into()
-}
 
 pub fn atom_to_binary_2(atom: Term, encoding: Term, process: &Process) -> Result {
     match atom.to_typed_term().unwrap() {

@@ -13,7 +13,7 @@ fn without_function_right_returns_true() {
                         .prop_filter("Right must not be function", |v| !v.is_closure()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_not_equal_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -29,10 +29,7 @@ fn with_same_function_right_returns_false() {
             .run(
                 &strategy::term::is_function(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(
-                        erlang::are_exactly_not_equal_2(operand, operand),
-                        false.into()
-                    );
+                    prop_assert_eq!(native(operand, operand), false.into());
 
                     Ok(())
                 },
@@ -90,7 +87,7 @@ fn with_same_value_function_right_returns_false() {
                         (left_term, right_term)
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_not_equal_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -153,7 +150,7 @@ fn with_different_function_right_returns_true() {
                         (left_term, right_term)
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::are_exactly_not_equal_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },

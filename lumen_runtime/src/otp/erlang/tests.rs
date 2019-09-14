@@ -16,7 +16,6 @@ use crate::test::{
     has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
 };
 
-mod atom_to_binary_2;
 mod atom_to_list_1;
 mod band_2;
 mod binary_part_2;

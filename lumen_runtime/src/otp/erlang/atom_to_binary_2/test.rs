@@ -1,6 +1,14 @@
-use super::*;
-
+use proptest::arbitrary::any;
+use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::atom_unchecked;
+
+use crate::otp::erlang::atom_to_binary_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_atom_errors_badarg() {
@@ -12,10 +20,7 @@ fn without_atom_errors_badarg() {
                     strategy::term::is_encoding(),
                 ),
                 |(atom, encoding)| {
-                    prop_assert_eq!(
-                        erlang::atom_to_binary_2(atom, encoding, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, atom, encoding), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -34,10 +39,7 @@ fn with_atom_without_encoding_errors_badarg() {
                     strategy::term::is_not_encoding(arc_process.clone()),
                 ),
                 |(atom, encoding)| {
-                    prop_assert_eq!(
-                        erlang::atom_to_binary_2(atom, encoding, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, atom, encoding), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -55,7 +57,7 @@ fn with_atom_with_encoding_atom_returns_name_in_binary() {
                     .prop_map(|(string, encoding)| (atom_unchecked(&string), encoding, string)),
                 |(atom, encoding, string)| {
                     prop_assert_eq!(
-                        erlang::atom_to_binary_2(atom, encoding, &arc_process),
+                        native(&arc_process, atom, encoding),
                         Ok(arc_process.binary_from_bytes(string.as_bytes()).unwrap())
                     );
 

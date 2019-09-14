@@ -1,5 +1,8 @@
 macro_rules! bitwise_infix_operator {
     ($left:ident, $right:ident, $process:ident, $infix:tt) => {{
+        use num_bigint::BigInt;
+
+        use liblumen_alloc::badarith;
         use liblumen_alloc::erts::term::TypedTerm;
 
         match ($left.to_typed_term().unwrap(), $right.to_typed_term().unwrap()) {

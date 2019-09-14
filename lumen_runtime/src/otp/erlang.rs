@@ -12,6 +12,7 @@ pub mod are_exactly_not_equal_2;
 pub mod are_not_equal_after_conversion_2;
 pub mod atom_to_binary_2;
 pub mod atom_to_list_1;
+pub mod band_2;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
@@ -74,11 +75,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-// `band/2` infix operator.
-pub fn band_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {
-    bitwise_infix_operator!(left_integer, right_integer, process, &)
-}
 
 pub fn binary_part_2(binary: Term, start_length: Term, process: &Process) -> Result {
     let option_result = match start_length.to_typed_term().unwrap() {

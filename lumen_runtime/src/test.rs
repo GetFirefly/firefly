@@ -9,9 +9,36 @@ pub mod strategy;
 
 use std::sync::atomic::AtomicUsize;
 
+use num_bigint::BigInt;
+
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::{atom_unchecked, BigInteger, Boxed, Term, TypedTerm};
+
+pub fn count_ones(term: Term) -> u32 {
+    match term.to_typed_term().unwrap() {
+        TypedTerm::SmallInteger(small_integer) => {
+            let i: isize = small_integer.into();
+
+            i.count_ones()
+        }
+        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
+            TypedTerm::BigInteger(big_integer) => count_ones_in_big_integer(big_integer),
+            _ => panic!("Can't count 1s in non-integer"),
+        },
+        _ => panic!("Can't count 1s in non-integer"),
+    }
+}
+
+pub fn count_ones_in_big_integer(big_integer: Boxed<BigInteger>) -> u32 {
+    let big_int: &BigInt = big_integer.as_ref().into();
+
+    big_int
+        .to_signed_bytes_be()
+        .iter()
+        .map(|b| b.count_ones())
+        .sum()
+}
 
 pub fn has_no_message(process: &Process) -> bool {
     process.mailbox.lock().borrow().len() == 0

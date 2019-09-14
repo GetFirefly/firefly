@@ -5,18 +5,16 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::term::{
-    make_pid, next_pid, BigInteger, HeapBin, SmallInteger, SubBinary,
-};
+use liblumen_alloc::erts::term::{make_pid, next_pid, HeapBin, SmallInteger, SubBinary};
 
 use crate::otp::erlang;
 use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
-    has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
+    count_ones, has_heap_message, has_message, has_process_message, receive_message,
+    registered_name, strategy,
 };
 
-mod band_2;
 mod binary_part_2;
 mod binary_part_3;
 mod binary_to_atom_2;
@@ -115,31 +113,6 @@ enum FirstSecond {
 
 fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
     timer_message("cancel_timer", timer_reference, result, process)
-}
-
-fn count_ones(term: Term) -> u32 {
-    match term.to_typed_term().unwrap() {
-        TypedTerm::SmallInteger(small_integer) => {
-            let i: isize = small_integer.into();
-
-            i.count_ones()
-        }
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::BigInteger(big_integer) => count_ones_in_big_integer(big_integer),
-            _ => panic!("Can't count 1s in non-integer"),
-        },
-        _ => panic!("Can't count 1s in non-integer"),
-    }
-}
-
-fn count_ones_in_big_integer(big_integer: Boxed<BigInteger>) -> u32 {
-    let big_int: &BigInt = big_integer.as_ref().into();
-
-    big_int
-        .to_signed_bytes_be()
-        .iter()
-        .map(|b| b.count_ones())
-        .sum()
 }
 
 fn errors_badarg<F>(actual: F)

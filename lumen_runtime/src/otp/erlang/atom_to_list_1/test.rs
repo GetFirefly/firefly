@@ -1,16 +1,21 @@
-use super::*;
-
+use proptest::arbitrary::any;
+use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::{atom_unchecked, Term};
+
+use crate::otp::erlang::atom_to_list_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_atom_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_atom(arc_process.clone()), |atom| {
-                prop_assert_eq!(
-                    erlang::atom_to_list_1(atom, &arc_process),
-                    Err(badarg!().into())
-                );
+                prop_assert_eq!(native(&arc_process, atom), Err(badarg!().into()));
 
                 Ok(())
             })
@@ -32,7 +37,7 @@ fn with_atom_returns_chars_in_list() {
                         .collect();
 
                     prop_assert_eq!(
-                        erlang::atom_to_list_1(atom, &arc_process),
+                        native(&arc_process, atom),
                         Ok(arc_process.list_from_slice(&codepoint_terms).unwrap())
                     );
 

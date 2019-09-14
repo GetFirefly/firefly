@@ -11,6 +11,7 @@ pub mod are_exactly_equal_2;
 pub mod are_exactly_not_equal_2;
 pub mod are_not_equal_after_conversion_2;
 pub mod atom_to_binary_2;
+pub mod atom_to_list_1;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
@@ -73,17 +74,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn atom_to_list_1(atom: Term, process: &Process) -> Result {
-    match atom.to_typed_term().unwrap() {
-        TypedTerm::Atom(atom) => {
-            let chars = atom.name().chars();
-
-            process.list_from_chars(chars).map_err(|error| error.into())
-        }
-        _ => Err(badarg!().into()),
-    }
-}
 
 // `band/2` infix operator.
 pub fn band_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {

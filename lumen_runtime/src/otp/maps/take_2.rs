@@ -65,7 +65,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, key: Term, map: Term) -> exception::Result {
+pub fn native(process: &Process, key: Term, map: Term) -> exception::Result {
     let result_map: Result<Boxed<Map>, _> = map.try_into();
 
     match result_map {

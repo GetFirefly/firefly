@@ -61,7 +61,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, list: Term) -> exception::Result {
+pub fn native(process: &Process, list: Term) -> exception::Result {
     match Map::from_list(list) {
         Some(hash_map) => Ok(process.map_from_hash_map(hash_map)?),
         None => Err(badarg!().into()),

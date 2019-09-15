@@ -42,7 +42,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                     )
                 }),
                 |(binary, start, length)| {
-                    let result = erlang::binary_part_3(binary, start, length, &arc_process);
+                    let result = native(&arc_process, binary, start, length);
 
                     prop_assert!(result.is_ok());
 
@@ -91,12 +91,11 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                         .unwrap();
 
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Ok(expected_returned_binary)
                     );
 
-                    let returned =
-                        erlang::binary_part_3(binary, start, length, &arc_process).unwrap();
+                    let returned = native(&arc_process, binary, start, length).unwrap();
 
                     let returned_subbinary_result: core::result::Result<SubBinary, _> =
                         returned.try_into();
@@ -147,12 +146,11 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
                         .unwrap();
 
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Ok(expected_returned_binary)
                     );
 
-                    let returned =
-                        erlang::binary_part_3(binary, start, length, &arc_process).unwrap();
+                    let returned = native(&arc_process, binary, start, length).unwrap();
 
                     let returned_subbinary_result: core::result::Result<SubBinary, _> =
                         returned.try_into();

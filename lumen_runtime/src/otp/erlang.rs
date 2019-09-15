@@ -14,6 +14,7 @@ pub mod atom_to_binary_2;
 pub mod atom_to_list_1;
 pub mod band_2;
 pub mod binary_part_2;
+pub mod binary_part_3;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
@@ -64,7 +65,7 @@ use liblumen_alloc::erts::term::{
 };
 use liblumen_alloc::{badarg, badarith, badkey, badmap, error, raise, throw};
 
-use crate::binary::{start_length_to_part_range, PartRange, ToTermOptions};
+use crate::binary::ToTermOptions;
 use crate::node;
 use crate::otp;
 use crate::process::SchedulerDependentAlloc;
@@ -76,76 +77,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn binary_part_3(binary: Term, start: Term, length: Term, process: &Process) -> Result {
-    let start_usize: usize = start.try_into()?;
-    let length_isize: isize = length.try_into()?;
-
-    match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed_binary) => match unboxed_binary.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => {
-                let available_byte_count = heap_binary.full_byte_len();
-                let PartRange {
-                    byte_offset,
-                    byte_len,
-                } = start_length_to_part_range(start_usize, length_isize, available_byte_count)?;
-
-                if (byte_offset == 0) && (byte_len == available_byte_count) {
-                    Ok(binary)
-                } else {
-                    process
-                        .subbinary_from_original(binary, byte_offset, 0, byte_len, 0)
-                        .map_err(|error| error.into())
-                }
-            }
-            TypedTerm::ProcBin(process_binary) => {
-                let available_byte_count = process_binary.full_byte_len();
-                let PartRange {
-                    byte_offset,
-                    byte_len,
-                } = start_length_to_part_range(start_usize, length_isize, available_byte_count)?;
-
-                if (byte_offset == 0) && (byte_len == available_byte_count) {
-                    Ok(binary)
-                } else {
-                    process
-                        .subbinary_from_original(binary, byte_offset, 0, byte_len, 0)
-                        .map_err(|error| error.into())
-                }
-            }
-            TypedTerm::SubBinary(subbinary) => {
-                let PartRange {
-                    byte_offset,
-                    byte_len,
-                } = start_length_to_part_range(
-                    start_usize,
-                    length_isize,
-                    subbinary.full_byte_len(),
-                )?;
-
-                // new subbinary is entire subbinary
-                if (subbinary.is_binary())
-                    && (byte_offset == 0)
-                    && (byte_len == subbinary.full_byte_len())
-                {
-                    Ok(binary)
-                } else {
-                    process
-                        .subbinary_from_original(
-                            subbinary.original(),
-                            subbinary.byte_offset() + byte_offset,
-                            subbinary.bit_offset(),
-                            byte_len,
-                            0,
-                        )
-                        .map_err(|error| error.into())
-                }
-            }
-            _ => Err(badarg!().into()),
-        },
-        _ => Err(badarg!().into()),
-    }
-}
 
 pub fn binary_to_atom_2(binary: Term, encoding: Term) -> Result {
     let _: Encoding = encoding.try_into()?;

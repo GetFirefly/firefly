@@ -17,7 +17,7 @@ fn without_integer_start_without_integer_length_errors_badarg() {
                 ),
                 |(binary, start, length)| {
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Err(badarg!().into())
                     );
 
@@ -40,7 +40,7 @@ fn without_integer_start_with_integer_length_errors_badarg() {
                 ),
                 |(binary, start, length)| {
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Err(badarg!().into())
                     );
 
@@ -63,7 +63,7 @@ fn with_integer_start_without_integer_length_errors_badarg() {
                 ),
                 |(binary, start, length)| {
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Err(badarg!().into())
                     );
 
@@ -93,7 +93,7 @@ fn with_negative_start_with_valid_length_errors_badarg() {
                     }),
                 |(binary, start, length)| {
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Err(badarg!().into())
                     );
 
@@ -119,7 +119,7 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
                 }),
                 |(binary, start, length)| {
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Err(badarg!().into())
                     );
 
@@ -151,7 +151,7 @@ fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
                 }),
                 |(binary, start, length)| {
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Err(badarg!().into())
                     );
 
@@ -183,7 +183,7 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
                 }),
                 |(binary, start, length)| {
                     prop_assert_eq!(
-                        erlang::binary_part_3(binary, start, length, &arc_process),
+                        native(&arc_process, binary, start, length),
                         Err(badarg!().into())
                     );
 
@@ -221,7 +221,7 @@ fn with_positive_start_and_negative_length_returns_subbinary() {
                     )
                 }),
                 |(binary, start, length)| {
-                    let result = erlang::binary_part_3(binary, start, length, &arc_process);
+                    let result = native(&arc_process, binary, start, length);
 
                     prop_assert!(result.is_ok());
 

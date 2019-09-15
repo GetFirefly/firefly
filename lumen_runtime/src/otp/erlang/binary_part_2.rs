@@ -21,7 +21,9 @@ pub fn native(process: &Process, binary: Term, start_length: Term) -> exception:
             match unboxed_start_length.to_typed_term().unwrap() {
                 TypedTerm::Tuple(tuple) => {
                     if tuple.len() == 2 {
-                        Some(erlang::binary_part_3(binary, tuple[0], tuple[1], process))
+                        Some(erlang::binary_part_3::native(
+                            process, binary, tuple[0], tuple[1],
+                        ))
                     } else {
                         None
                     }

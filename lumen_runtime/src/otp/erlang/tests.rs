@@ -12,10 +12,9 @@ use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
     count_ones, has_heap_message, has_message, has_process_message, receive_message,
-    registered_name, strategy, total_byte_len,
+    registered_name, strategy,
 };
 
-mod binary_part_3;
 mod binary_to_atom_2;
 mod binary_to_existing_atom_2;
 mod binary_to_float_1;

@@ -16,6 +16,7 @@ pub mod band_2;
 pub mod binary_part_2;
 pub mod binary_part_3;
 pub mod binary_to_atom_2;
+pub mod binary_to_existing_atom_2;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
@@ -61,8 +62,8 @@ use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
 use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
 use liblumen_alloc::erts::term::binary::{Bitstring, IterableBitstring, MaybePartialByte};
 use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Boxed, Cons, Encoding, Float, ImproperList, Map, SmallInteger,
-    Term, Tuple, TypedTerm,
+    atom_unchecked, AsTerm, Atom, Boxed, Cons, Float, ImproperList, Map, SmallInteger, Term, Tuple,
+    TypedTerm,
 };
 use liblumen_alloc::{badarg, badarith, badkey, badmap, error, raise, throw};
 
@@ -78,42 +79,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn binary_to_existing_atom_2(binary: Term, encoding: Term) -> Result {
-    let _: Encoding = encoding.try_into()?;
-
-    match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => {
-                Atom::try_from_latin1_bytes_existing(heap_binary.as_bytes())
-                    .map_err(|error| error.into())
-            }
-            TypedTerm::ProcBin(process_binary) => {
-                Atom::try_from_latin1_bytes_existing(process_binary.as_bytes())
-                    .map_err(|error| error.into())
-            }
-            TypedTerm::SubBinary(subbinary) => {
-                if subbinary.is_binary() {
-                    if subbinary.is_aligned() {
-                        let bytes = unsafe { subbinary.as_bytes() };
-
-                        Atom::try_from_latin1_bytes_existing(bytes)
-                    } else {
-                        let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
-
-                        Atom::try_from_latin1_bytes_existing(&byte_vec)
-                    }
-                    .map_err(|error| error.into())
-                } else {
-                    Err(badarg!().into())
-                }
-            }
-            _ => Err(badarg!().into()),
-        },
-        _ => Err(badarg!().into()),
-    }
-    .map(|atom| unsafe { atom.as_term() })
-}
 
 pub fn binary_to_float_1<'process>(binary: Term, process: &'process Process) -> Result {
     let mut heap: MutexGuard<'process, _> = process.acquire_heap();

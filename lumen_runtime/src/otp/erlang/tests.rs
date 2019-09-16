@@ -15,7 +15,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod error_2;
 mod hd_1;
 mod insert_element_3;
 mod is_alive_0;

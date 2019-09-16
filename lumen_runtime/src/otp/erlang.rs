@@ -43,6 +43,7 @@ pub mod div_2;
 pub mod divide_2;
 pub mod element_2;
 pub mod error_1;
+pub mod error_2;
 pub mod exit_1;
 pub mod is_function_1;
 pub mod is_function_2;
@@ -85,7 +86,7 @@ use liblumen_alloc::erts::term::binary::{Bitstring, IterableBitstring, MaybePart
 use liblumen_alloc::erts::term::{
     atom_unchecked, AsTerm, Atom, Boxed, Cons, ImproperList, Map, Term, Tuple, TypedTerm,
 };
-use liblumen_alloc::{badarg, badarith, badkey, badmap, error, raise, throw};
+use liblumen_alloc::{badarg, badarith, badkey, badmap, raise, throw};
 
 use crate::node;
 use crate::process::SchedulerDependentAlloc;
@@ -99,10 +100,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn error_2(reason: Term, arguments: Term) -> Result {
-    Err(error!(reason, Some(arguments)).into())
-}
 
 pub fn hd_1(list: Term) -> Result {
     let cons: Boxed<Cons> = list.try_into()?;

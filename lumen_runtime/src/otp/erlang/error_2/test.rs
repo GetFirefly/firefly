@@ -1,4 +1,11 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::error;
+
+use crate::otp::erlang::error_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn errors_with_reason_and_arguments() {
@@ -11,7 +18,7 @@ fn errors_with_reason_and_arguments() {
                 ),
                 |(reason, arguments)| {
                     prop_assert_eq!(
-                        erlang::error_2(reason, arguments),
+                        native(reason, arguments),
                         Err(error!(reason, Some(arguments)).into())
                     );
 

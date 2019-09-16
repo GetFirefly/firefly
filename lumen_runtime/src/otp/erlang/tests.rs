@@ -14,7 +14,6 @@ use crate::test::{
     has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
 };
 
-mod bsl_2;
 mod bsr_2;
 mod bxor_2;
 mod byte_size_1;

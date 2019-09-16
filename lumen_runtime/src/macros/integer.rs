@@ -63,6 +63,13 @@ macro_rules! bitwise_infix_operator {
 
 macro_rules! bitshift_infix_operator {
     ($integer:ident, $shift:ident, $process:ident, $positive:tt, $negative:tt) => {{
+        use std::convert::TryInto;
+
+        use num_bigint::BigInt;
+
+        use liblumen_alloc::badarith;
+        use liblumen_alloc::erts::term::TypedTerm;
+
         pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
         let option_shifted = match $integer.to_typed_term().unwrap() {

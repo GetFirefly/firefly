@@ -28,6 +28,7 @@ pub mod bit_size_1;
 pub mod bitstring_to_list_1;
 pub mod bnot_1;
 pub mod bor_2;
+pub mod bsl_2;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -86,11 +87,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-/// `bsl/2` infix operator.
-pub fn bsl_2(integer: Term, shift: Term, process: &Process) -> Result {
-    bitshift_infix_operator!(integer, shift, process, <<, >>)
-}
 
 /// `bsr/2` infix operator.
 pub fn bsr_2(integer: Term, shift: Term, process: &Process) -> Result {

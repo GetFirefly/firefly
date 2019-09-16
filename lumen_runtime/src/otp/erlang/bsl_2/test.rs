@@ -1,9 +1,18 @@
-use super::*;
-
-use proptest::strategy::Strategy;
-
 mod with_big_integer_integer;
 mod with_small_integer_integer;
+
+use num_bigint::BigInt;
+
+use proptest::prop_assert_eq;
+use proptest::strategy::{BoxedStrategy, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarith;
+
+use crate::otp::erlang;
+use crate::otp::erlang::bsl_2::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_integer_integer_errors_badarith() {
@@ -16,7 +25,7 @@ fn without_integer_integer_errors_badarith() {
                 ),
                 |(integer, shift)| {
                     prop_assert_eq!(
-                        erlang::bsl_2(integer, shift, &arc_process),
+                        native(&arc_process, integer, shift),
                         Err(badarith!().into())
                     );
 
@@ -38,7 +47,7 @@ fn with_integer_integer_without_integer_shift_errors_badarith() {
                 ),
                 |(integer, shift)| {
                     prop_assert_eq!(
-                        erlang::bsl_2(integer, shift, &arc_process),
+                        native(&arc_process, integer, shift),
                         Err(badarith!().into())
                     );
 
@@ -58,7 +67,7 @@ fn with_integer_integer_with_zero_shift_returns_same_integer() {
                 |integer| {
                     let shift = arc_process.integer(0).unwrap();
 
-                    prop_assert_eq!(erlang::bsl_2(integer, shift, &arc_process), Ok(integer));
+                    prop_assert_eq!(native(&arc_process, integer, shift), Ok(integer));
 
                     Ok(())
                 },
@@ -77,10 +86,10 @@ fn with_integer_integer_with_integer_shift_is_the_same_as_bsr_with_negated_shift
                     let negated_shift = -1 * shift;
 
                     prop_assert_eq!(
-                        erlang::bsl_2(
+                        native(
+                            &arc_process,
                             integer,
                             arc_process.integer(shift as isize).unwrap(),
-                            &arc_process
                         ),
                         erlang::bsr_2(
                             integer,

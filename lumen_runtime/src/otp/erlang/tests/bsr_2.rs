@@ -82,10 +82,10 @@ fn with_integer_integer_with_integer_shift_is_the_same_as_bsl_with_negated_shift
                             arc_process.integer(shift as isize).unwrap(),
                             &arc_process
                         ),
-                        erlang::bsl_2(
+                        erlang::bsl_2::native(
+                            &arc_process,
                             integer,
                             arc_process.integer(negated_shift as isize).unwrap(),
-                            &arc_process
                         )
                     );
 

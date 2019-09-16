@@ -2,12 +2,15 @@ use super::*;
 
 use num_traits::Num;
 
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::Term;
+
 #[test]
 fn with_negative_without_big_integer_underflow_shifts_right_and_returns_big_integer() {
     with(|integer, process| {
         let shift = process.integer(-1).unwrap();
 
-        let result = erlang::bsl_2(integer, shift, &process);
+        let result = native(&process, integer, shift);
 
         assert!(result.is_ok());
 
@@ -36,7 +39,7 @@ fn with_negative_with_big_integer_underflow_without_small_integer_underflow_shif
     with(|integer, process| {
         let shift = process.integer(-69).unwrap();
 
-        let result = erlang::bsl_2(integer, shift, &process);
+        let result = native(&process, integer, shift);
 
         assert!(result.is_ok());
 
@@ -53,7 +56,7 @@ fn with_negative_with_underflow_returns_zero() {
         let shift = process.integer(-74).unwrap();
 
         assert_eq!(
-            erlang::bsl_2(integer, shift, &process),
+            native(&process, integer, shift),
             Ok(process.integer(0b0).unwrap())
         );
     });
@@ -64,7 +67,7 @@ fn with_positive_returns_big_integer() {
     with(|integer, process| {
         let shift = process.integer(1).unwrap();
 
-        let result = erlang::bsl_2(integer, shift, &process);
+        let result = native(&process, integer, shift);
 
         assert!(result.is_ok());
 

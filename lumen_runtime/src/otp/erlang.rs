@@ -37,6 +37,7 @@ pub mod cancel_timer_2;
 pub mod ceil_1;
 pub mod concatenate_2;
 pub mod convert_time_unit_3;
+pub mod delete_element_2;
 pub mod demonitor_2;
 pub mod exit_1;
 pub mod is_function_1;
@@ -93,32 +94,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn delete_element_2(index: Term, tuple: Term, process: &Process) -> Result {
-    let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let ZeroBasedIndex(index_zero_based): ZeroBasedIndex = index.try_into()?;
-    let initial_len = initial_inner_tuple.len();
-
-    if index_zero_based < initial_len {
-        let smaller_len = initial_len - 1;
-        let smaller_element_iterator =
-            initial_inner_tuple
-                .iter()
-                .enumerate()
-                .filter_map(|(old_index, old_term)| {
-                    if old_index == index_zero_based {
-                        None
-                    } else {
-                        Some(old_term)
-                    }
-                });
-        let smaller_tuple = process.tuple_from_iter(smaller_element_iterator, smaller_len)?;
-
-        Ok(smaller_tuple)
-    } else {
-        Err(badarg!().into())
-    }
-}
 
 /// `div/2` infix operator.  Integer division.
 pub fn div_2(dividend: Term, divisor: Term, process: &Process) -> Result {

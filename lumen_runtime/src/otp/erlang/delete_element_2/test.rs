@@ -1,4 +1,12 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+
+use crate::otp::erlang::delete_element_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_errors_badarg() {
@@ -12,10 +20,7 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple, index)| {
-                prop_assert_eq!(
-                    erlang::delete_element_2(index, tuple, &arc_process),
-                    Err(badarg!().into())
-                );
+                prop_assert_eq!(native(&arc_process, index, tuple,), Err(badarg!().into()));
 
                 Ok(())
             },
@@ -30,10 +35,7 @@ fn with_tuple_without_integer_between_1_and_the_length_inclusive_errors_badarg()
             .run(
                 &strategy::term::tuple::without_index(arc_process.clone()),
                 |(tuple, index)| {
-                    prop_assert_eq!(
-                        erlang::delete_element_2(index, tuple, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, index, tuple), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -52,7 +54,7 @@ fn with_tuple_with_integer_between_1_and_the_length_inclusive_returns_tuple_with
                     element_vec.remove(element_vec_index);
 
                     prop_assert_eq!(
-                        erlang::delete_element_2(index, tuple, &arc_process),
+                        native(&arc_process, index, tuple),
                         Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
                     );
 

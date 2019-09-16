@@ -26,10 +26,7 @@ fn with_tuple_without_integer_between_1_and_the_length_inclusive_errors_badarg()
             .run(
                 &strategy::term::tuple::without_index(arc_process.clone()),
                 |(tuple, index)| {
-                    prop_assert_eq!(
-                        erlang::delete_element_2(index, tuple, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(erlang::element_2(index, tuple), Err(badarg!().into()));
 
                     Ok(())
                 },

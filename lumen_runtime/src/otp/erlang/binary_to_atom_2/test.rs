@@ -1,4 +1,14 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
+use liblumen_alloc::erts::term::binary::IterableBitstring;
+use liblumen_alloc::erts::term::{atom_unchecked, TypedTerm};
+
+use crate::otp::erlang::binary_to_atom_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
@@ -10,10 +20,7 @@ fn without_binary_errors_badarg() {
                     strategy::term::is_encoding(),
                 ),
                 |(binary, encoding)| {
-                    prop_assert_eq!(
-                        erlang::binary_to_atom_2(binary, encoding),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(binary, encoding), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -32,10 +39,7 @@ fn with_binary_without_encoding_errors_badarg() {
                     strategy::term::is_not_encoding(arc_process),
                 ),
                 |(binary, encoding)| {
-                    prop_assert_eq!(
-                        erlang::binary_to_atom_2(binary, encoding),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(binary, encoding), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -70,10 +74,7 @@ fn with_utf8_binary_with_encoding_returns_atom_with_binary_name() {
 
                     let s = std::str::from_utf8(&byte_vec).unwrap();
 
-                    prop_assert_eq!(
-                        erlang::binary_to_atom_2(binary, encoding),
-                        Ok(atom_unchecked(s))
-                    );
+                    prop_assert_eq!(native(binary, encoding), Ok(atom_unchecked(s)));
 
                     Ok(())
                 },

@@ -6,7 +6,7 @@ fn with_float_divisor_without_underflow_or_overflow_returns_float() {
         let divisor = process.float(4.0).unwrap();
 
         assert_eq!(
-            erlang::divide_2(dividend, divisor, &process),
+            native(process, dividend, divisor),
             Ok(process.float(0.5).unwrap())
         );
     })
@@ -19,7 +19,7 @@ fn with_float_divisor_with_underflow_returns_min_float() {
         let divisor = process.float(0.1).unwrap();
 
         assert_eq!(
-            erlang::divide_2(dividend, divisor, &process),
+            native(process, dividend, divisor),
             Ok(process.float(std::f64::MIN).unwrap())
         );
     })
@@ -32,7 +32,7 @@ fn with_float_divisor_with_overflow_returns_max_float() {
         let divisor = process.float(0.1).unwrap();
 
         assert_eq!(
-            erlang::divide_2(dividend, divisor, &process),
+            native(process, dividend, divisor),
             Ok(process.float(std::f64::MAX).unwrap())
         );
     })

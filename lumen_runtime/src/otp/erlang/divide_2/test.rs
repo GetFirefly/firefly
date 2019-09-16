@@ -1,9 +1,18 @@
-use super::*;
-
-use proptest::prop_oneof;
-use proptest::strategy::Strategy;
-
 mod with_float_dividend;
+
+use std::sync::Arc;
+
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq, prop_oneof};
+
+use liblumen_alloc::badarith;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{Term, TypedTerm};
+
+use crate::otp::erlang::divide_2::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_number_dividend_errors_badarith() {
@@ -16,7 +25,7 @@ fn without_number_dividend_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::divide_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 
@@ -38,7 +47,7 @@ fn with_number_dividend_without_number_divisor_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::divide_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 
@@ -60,7 +69,7 @@ fn with_number_dividend_with_zero_divisor_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::divide_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 
@@ -81,7 +90,7 @@ fn with_number_dividend_without_zero_number_divisor_returns_float() {
                     number_is_not_zero(arc_process.clone()),
                 ),
                 |(dividend, divisor)| {
-                    let result = erlang::divide_2(dividend, divisor, &arc_process);
+                    let result = native(&arc_process, dividend, divisor);
 
                     prop_assert!(result.is_ok());
 

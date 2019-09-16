@@ -40,6 +40,7 @@ pub mod convert_time_unit_3;
 pub mod delete_element_2;
 pub mod demonitor_2;
 pub mod div_2;
+pub mod divide_2;
 pub mod exit_1;
 pub mod is_function_1;
 pub mod is_function_2;
@@ -95,22 +96,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-/// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
-/// `float`.
-pub fn divide_2(dividend: Term, divisor: Term, process: &Process) -> Result {
-    let dividend_f64: f64 = dividend.try_into().map_err(|_| badarith!())?;
-    let divisor_f64: f64 = divisor.try_into().map_err(|_| badarith!())?;
-
-    if divisor_f64 == 0.0 {
-        Err(badarith!().into())
-    } else {
-        let quotient_f64 = dividend_f64 / divisor_f64;
-        let quotient_term = process.float(quotient_f64)?;
-
-        Ok(quotient_term)
-    }
-}
 
 pub fn element_2(index: Term, tuple: Term) -> Result {
     let tuple_tuple: Boxed<Tuple> = tuple.try_into()?;

@@ -284,7 +284,7 @@ impl Parse for FunctionArity {
                 if let Ok(_) = input.parse::<Token![=]>() {
                     "/=".to_string()
                 } else {
-                    unimplemented!("parse function name from {:?}", input);
+                    "/".to_string()
                 }
             } else {
                 unimplemented!("parse function name from {:?}", input);

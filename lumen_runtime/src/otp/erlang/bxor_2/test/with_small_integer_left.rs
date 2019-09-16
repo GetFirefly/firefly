@@ -12,7 +12,7 @@ fn with_small_integer_right_returns_small_integer() {
         let right = process.integer(0b1010).unwrap();
 
         assert_eq!(
-            erlang::bxor_2(left, right, &process),
+            native(&process, left, right),
             Ok(process.integer(0b0110).unwrap())
         );
     })
@@ -21,7 +21,7 @@ fn with_small_integer_right_returns_small_integer() {
 #[test]
 fn with_big_integer_right_returns_big_integer() {
     with_process(|process| {
-        let left: Term = process
+        let left = process
             .integer(0b1100_1100_1100_1100_1100_1100_1100_isize)
             .unwrap();
 
@@ -39,7 +39,7 @@ fn with_big_integer_right_returns_big_integer() {
 
         assert!(right.is_bigint());
 
-        let result = erlang::bxor_2(left, right, &process);
+        let result = native(&process, left, right);
 
         assert!(result.is_ok());
 

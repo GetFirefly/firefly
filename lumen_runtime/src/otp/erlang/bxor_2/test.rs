@@ -1,7 +1,16 @@
-use super::*;
-
 mod with_big_integer_left;
 mod with_small_integer_left;
+
+use num_bigint::BigInt;
+
+use proptest::prop_assert_eq;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarith;
+
+use crate::otp::erlang::bxor_2::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_integer_left_errors_badarith() {
@@ -13,10 +22,7 @@ fn without_integer_left_errors_badarith() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::bxor_2(left, right, &arc_process),
-                        Err(badarith!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, left, right), Err(badarith!().into()));
 
                     Ok(())
                 },
@@ -35,10 +41,7 @@ fn without_integer_left_without_integer_right_errors_badarith() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::bxor_2(left, right, &arc_process),
-                        Err(badarith!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, left, right), Err(badarith!().into()));
 
                     Ok(())
                 },
@@ -55,7 +58,7 @@ fn with_same_integer_returns_zero() {
                 &strategy::term::is_integer(arc_process.clone()),
                 |operand| {
                     prop_assert_eq!(
-                        erlang::bxor_2(operand, operand, &arc_process),
+                        native(&arc_process, operand, operand),
                         Ok(arc_process.integer(0).unwrap())
                     );
 

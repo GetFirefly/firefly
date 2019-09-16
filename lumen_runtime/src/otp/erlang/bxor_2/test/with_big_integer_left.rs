@@ -4,16 +4,19 @@ use std::mem::size_of;
 
 use num_traits::Num;
 
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::Term;
+
 #[test]
 fn with_small_integer_right_returns_big_integer() {
     with(|left, process| {
-        let right: Term = process
+        let right = process
             .integer(0b1010_1010_1010_1010_1010_1010_1010)
             .unwrap();
 
         assert!(right.is_smallint());
 
-        let result = erlang::bxor_2(left, right, &process);
+        let result = native(&process, left, right);
 
         assert!(result.is_ok());
 
@@ -38,7 +41,7 @@ fn with_big_integer_right_returns_big_integer() {
 
         assert!(right.is_bigint());
 
-        let result = erlang::bxor_2(left, right, &process);
+        let result = native(&process, left, right);
 
         assert!(result.is_ok());
 

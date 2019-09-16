@@ -20,6 +20,7 @@ pub mod binary_to_existing_atom_2;
 pub mod binary_to_float_1;
 pub mod binary_to_integer_1;
 pub mod binary_to_integer_2;
+pub mod binary_to_list_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -78,15 +79,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn binary_to_list_1(binary: Term, process: &Process) -> Result {
-    let bytes = process.bytes_from_binary(binary)?;
-    let byte_terms = bytes.iter().map(|byte| (*byte).into());
-
-    process
-        .list_from_iter(byte_terms)
-        .map_err(|error| error.into())
-}
 
 /// The one-based indexing for binaries used by this function is deprecated. New code is to use
 /// [crate::otp::binary::bin_to_list] instead. All functions in module [crate::otp::binary]

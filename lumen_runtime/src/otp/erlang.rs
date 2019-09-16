@@ -23,6 +23,7 @@ pub mod binary_to_integer_2;
 pub mod binary_to_list_1;
 pub mod binary_to_list_3;
 pub mod binary_to_term_1;
+pub mod binary_to_term_2;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -69,7 +70,6 @@ use liblumen_alloc::erts::term::{
 };
 use liblumen_alloc::{badarg, badarith, badkey, badmap, error, raise, throw};
 
-use crate::binary::ToTermOptions;
 use crate::node;
 use crate::process::SchedulerDependentAlloc;
 use crate::registry::{self, pid_to_self_or_process};
@@ -80,20 +80,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn binary_to_term_2(binary: Term, options: Term, _process: &Process) -> Result {
-    let _to_term_options: ToTermOptions = options.try_into()?;
-
-    match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(_heap_binary) => unimplemented!(),
-            TypedTerm::ProcBin(_process_binary) => unimplemented!(),
-            TypedTerm::SubBinary(_subbinary) => unimplemented!(),
-            _ => Err(badarg!().into()),
-        },
-        _ => Err(badarg!().into()),
-    }
-}
 
 pub fn bit_size_1(bitstring: Term, process: &Process) -> Result {
     let option_total_bit_len = match bitstring.to_typed_term().unwrap() {

@@ -14,7 +14,7 @@ fn with_binary_encoding_atom_that_does_not_exist_errors_badarg() {
                 &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
                 |binary| {
                     prop_assert_eq!(
-                        erlang::binary_to_term_2(binary, options(&arc_process), &arc_process),
+                        native(&arc_process, binary, options(&arc_process)),
                         Err(badarg!().into())
                     );
 
@@ -40,7 +40,7 @@ fn with_binary_encoding_list_containing_atom_that_does_not_exist_errors_badarg()
                 &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
                 |binary| {
                     prop_assert_eq!(
-                        erlang::binary_to_term_2(binary, options(&arc_process), &arc_process),
+                        native(&arc_process, binary, options(&arc_process)),
                         Err(badarg!().into())
                     );
 
@@ -65,7 +65,7 @@ fn with_binary_encoding_small_tuple_containing_atom_that_does_not_exist_errors_b
                 &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
                 |binary| {
                     prop_assert_eq!(
-                        erlang::binary_to_term_2(binary, options(&arc_process), &arc_process),
+                        native(&arc_process, binary, options(&arc_process)),
                         Err(badarg!().into())
                     );
 
@@ -91,7 +91,7 @@ fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
                 &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
                 |binary| {
                     prop_assert_eq!(
-                        erlang::binary_to_term_2(binary, options(&arc_process), &arc_process),
+                        native(&arc_process, binary, options(&arc_process)),
                         Err(badarg!().into())
                     );
 

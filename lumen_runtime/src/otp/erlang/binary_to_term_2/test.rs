@@ -1,6 +1,16 @@
-use super::*;
-
 mod with_safe;
+
+use proptest::prop_assert_eq;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{atom_unchecked, Term};
+
+use crate::otp::erlang;
+use crate::otp::erlang::binary_to_term_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 #[ignore]
@@ -19,14 +29,14 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
                     let term = atom_unchecked("hello");
 
                     prop_assert_eq!(
-                        erlang::binary_to_term_2(binary, options, &arc_process),
+                        native(&arc_process, binary, options),
                         Ok(arc_process
                             .tuple_from_slice(&[term, arc_process.integer(9).unwrap()])
                             .unwrap())
                     );
 
                     // Using only `used` portion of binary returns the same result
-                    let tuple = erlang::binary_to_term_2(binary, options, &arc_process).unwrap();
+                    let tuple = native(&arc_process, binary, options).unwrap();
                     let used_term =
                         erlang::element_2(arc_process.integer(2).unwrap(), tuple).unwrap();
                     let split_binary_tuple =
@@ -35,17 +45,11 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
                         erlang::element_2(arc_process.integer(1).unwrap(), split_binary_tuple)
                             .unwrap();
 
-                    prop_assert_eq!(
-                        erlang::binary_to_term_2(prefix, options, &arc_process),
-                        Ok(tuple)
-                    );
+                    prop_assert_eq!(native(&arc_process, prefix, options), Ok(tuple));
 
                     // Without used returns only term
 
-                    prop_assert_eq!(
-                        erlang::binary_to_term_2(binary, Term::NIL, &arc_process),
-                        Ok(term)
-                    );
+                    prop_assert_eq!(native(&arc_process, binary, Term::NIL), Ok(term));
 
                     Ok(())
                 },

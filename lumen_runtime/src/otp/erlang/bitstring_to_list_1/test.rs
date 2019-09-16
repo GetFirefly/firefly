@@ -1,6 +1,17 @@
-use super::*;
+use std::convert::TryInto;
 
-use proptest::strategy::Strategy;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
+use liblumen_alloc::erts::term::binary::{IterableBitstring, MaybePartialByte};
+use liblumen_alloc::erts::term::{SubBinary, Term};
+
+use crate::otp::erlang::bitstring_to_list_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
@@ -9,10 +20,7 @@ fn without_bitstring_errors_badarg() {
             .run(
                 &strategy::term::is_not_bitstring(arc_process.clone()),
                 |bitstring| {
-                    prop_assert_eq!(
-                        erlang::bitstring_to_list_1(bitstring, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, bitstring), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -64,10 +72,7 @@ fn with_heap_binary_returns_list_of_integer() {
 
                 let bitstring = arc_process.binary_from_bytes(&byte_vec).unwrap();
 
-                prop_assert_eq!(
-                    erlang::bitstring_to_list_1(bitstring, &arc_process),
-                    Ok(list)
-                );
+                prop_assert_eq!(native(&arc_process, bitstring), Ok(list));
 
                 Ok(())
             })
@@ -124,10 +129,7 @@ fn with_subbinary_without_bit_count_returns_list_of_integer() {
                         len => unimplemented!("len = {:?}", len),
                     };
 
-                    prop_assert_eq!(
-                        erlang::bitstring_to_list_1(bitstring, &arc_process),
-                        Ok(list)
-                    );
+                    prop_assert_eq!(native(&arc_process, bitstring), Ok(list));
 
                     Ok(())
                 },
@@ -209,10 +211,7 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
                         len => unimplemented!("len = {:?}", len),
                     };
 
-                    prop_assert_eq!(
-                        erlang::bitstring_to_list_1(bitstring, &arc_process),
-                        Ok(list)
-                    );
+                    prop_assert_eq!(native(&arc_process, bitstring), Ok(list));
 
                     Ok(())
                 },

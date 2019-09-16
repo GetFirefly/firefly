@@ -27,6 +27,7 @@ pub mod binary_to_term_2;
 pub mod bit_size_1;
 pub mod bitstring_to_list_1;
 pub mod bnot_1;
+pub mod bor_2;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -83,11 +84,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-/// `bor/2` infix operator.
-pub fn bor_2(left_integer: Term, right_integer: Term, process: &Process) -> Result {
-    bitwise_infix_operator!(left_integer, right_integer, process, |)
-}
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 

@@ -11,11 +11,9 @@ use crate::otp::erlang;
 use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
-    count_ones, has_heap_message, has_message, has_process_message, receive_message,
-    registered_name, strategy,
+    has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
 };
 
-mod bor_2;
 mod bsl_2;
 mod bsr_2;
 mod bxor_2;

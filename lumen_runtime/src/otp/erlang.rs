@@ -78,21 +78,6 @@ use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
-pub fn binary_to_integer_1<'process>(binary: Term, process: &'process Process) -> Result {
-    let mut heap = process.acquire_heap();
-    let s: &str = heap.str_from_binary(binary)?;
-    let bytes = s.as_bytes();
-
-    match BigInt::parse_bytes(bytes, 10) {
-        Some(big_int) => {
-            let term = heap.integer(big_int)?;
-
-            Ok(term)
-        }
-        None => Err(badarg!().into()),
-    }
-}
-
 pub fn binary_to_integer_2<'process>(
     binary: Term,
     base: Term,

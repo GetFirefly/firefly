@@ -45,6 +45,7 @@ pub mod element_2;
 pub mod error_1;
 pub mod error_2;
 pub mod exit_1;
+pub mod hd_1;
 pub mod is_function_1;
 pub mod is_function_2;
 pub mod is_map_key_2;
@@ -100,12 +101,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn hd_1(list: Term) -> Result {
-    let cons: Boxed<Cons> = list.try_into()?;
-
-    Ok(cons.head)
-}
 
 pub fn insert_element_3(index: Term, tuple: Term, element: Term, process: &Process) -> Result {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;

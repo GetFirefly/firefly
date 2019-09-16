@@ -1,11 +1,19 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::Term;
+
+use crate::otp::erlang::hd_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(erlang::hd_1(list), Err(badarg!().into()));
+                prop_assert_eq!(native(list), Err(badarg!().into()));
 
                 Ok(())
             })
@@ -15,7 +23,7 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_empty_list_errors_badarg() {
-    assert_eq!(erlang::hd_1(Term::NIL), Err(badarg!().into()));
+    assert_eq!(native(Term::NIL), Err(badarg!().into()));
 }
 
 #[test]
@@ -30,7 +38,7 @@ fn with_list_returns_head() {
                 |(head, tail)| {
                     let list = arc_process.cons(head, tail).unwrap();
 
-                    prop_assert_eq!(erlang::hd_1(list), Ok(head));
+                    prop_assert_eq!(native(list), Ok(head));
 
                     Ok(())
                 },

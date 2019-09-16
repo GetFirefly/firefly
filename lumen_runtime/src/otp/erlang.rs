@@ -21,6 +21,7 @@ pub mod binary_to_float_1;
 pub mod binary_to_integer_1;
 pub mod binary_to_integer_2;
 pub mod binary_to_list_1;
+pub mod binary_to_list_3;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -69,7 +70,6 @@ use liblumen_alloc::{badarg, badarith, badkey, badmap, error, raise, throw};
 
 use crate::binary::ToTermOptions;
 use crate::node;
-use crate::otp;
 use crate::process::SchedulerDependentAlloc;
 use crate::registry::{self, pid_to_self_or_process};
 use crate::send::{self, send, Sent};
@@ -79,35 +79,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-/// The one-based indexing for binaries used by this function is deprecated. New code is to use
-/// [crate::otp::binary::bin_to_list] instead. All functions in module [crate::otp::binary]
-/// consistently use zero-based indexing.
-pub fn binary_to_list_3(binary: Term, start: Term, stop: Term, process: &Process) -> Result {
-    let one_based_start_usize: usize = start.try_into()?;
-
-    if 1 <= one_based_start_usize {
-        let one_based_stop_usize: usize = stop.try_into()?;
-
-        if one_based_start_usize <= one_based_stop_usize {
-            let zero_based_start_usize = one_based_start_usize - 1;
-            let zero_based_stop_usize = one_based_stop_usize - 1;
-
-            let length_usize = zero_based_stop_usize - zero_based_start_usize + 1;
-
-            otp::binary::bin_to_list(
-                binary,
-                process.integer(zero_based_start_usize)?,
-                process.integer(length_usize)?,
-                process,
-            )
-        } else {
-            Err(badarg!().into())
-        }
-    } else {
-        Err(badarg!().into())
-    }
-}
 
 pub fn binary_to_term_1(binary: Term, process: &Process) -> Result {
     binary_to_term_2(binary, Term::NIL, process)

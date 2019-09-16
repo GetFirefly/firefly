@@ -1,7 +1,15 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
 
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::term::Term;
+
+use crate::otp::erlang::binary_to_list_3::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 use crate::test::strategy::NON_EMPTY_RANGE_INCLUSIVE;
-use proptest::strategy::Strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
@@ -14,7 +22,7 @@ fn without_binary_errors_badarg() {
                     let stop = arc_process.integer(1).unwrap();
 
                     prop_assert_eq!(
-                        erlang::binary_to_list_3(binary, start, stop, &arc_process),
+                        native(&arc_process, binary, start, stop),
                         Err(badarg!().into())
                     );
 
@@ -38,7 +46,7 @@ fn with_binary_without_integer_start_errors_badarg() {
                     let stop = arc_process.integer(1).unwrap();
 
                     prop_assert_eq!(
-                        erlang::binary_to_list_3(binary, start, stop, &arc_process),
+                        native(&arc_process, binary, start, stop),
                         Err(badarg!().into())
                     );
 
@@ -61,7 +69,7 @@ fn with_binary_with_integer_start_without_integer_stop_errors_badarg() {
                 ),
                 |(binary, start, stop)| {
                     prop_assert_eq!(
-                        erlang::binary_to_list_3(binary, start, stop, &arc_process),
+                        native(&arc_process, binary, start, stop),
                         Err(badarg!().into())
                     );
 
@@ -147,7 +155,7 @@ fn with_binary_with_start_less_than_or_equal_to_stop_returns_list_of_bytes() {
                     };
 
                     prop_assert_eq!(
-                        erlang::binary_to_list_3(binary, start_term, stop_term, &arc_process),
+                        native(&arc_process, binary, start_term, stop_term),
                         Ok(list)
                     );
 
@@ -188,7 +196,7 @@ fn with_binary_with_start_greater_than_stop_errors_badarg() {
                     };
 
                     prop_assert_eq!(
-                        erlang::binary_to_list_3(binary, start_term, stop_term, &arc_process),
+                        native(&arc_process, binary, start_term, stop_term),
                         Err(badarg!().into())
                     );
 

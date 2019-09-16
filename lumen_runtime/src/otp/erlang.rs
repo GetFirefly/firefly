@@ -48,6 +48,7 @@ pub mod exit_1;
 pub mod hd_1;
 pub mod insert_element_3;
 pub mod is_alive_0;
+pub mod is_atom_1;
 pub mod is_function_1;
 pub mod is_function_2;
 pub mod is_map_key_2;
@@ -103,10 +104,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn is_atom_1(term: Term) -> Term {
-    term.is_atom().into()
-}
 
 pub fn is_binary_1(term: Term) -> Term {
     term.is_binary().into()

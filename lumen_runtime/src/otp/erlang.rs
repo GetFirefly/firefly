@@ -17,6 +17,7 @@ pub mod binary_part_2;
 pub mod binary_part_3;
 pub mod binary_to_atom_2;
 pub mod binary_to_existing_atom_2;
+pub mod binary_to_float_1;
 pub mod binary_to_integer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
@@ -47,13 +48,10 @@ pub mod unlink_1;
 mod tests;
 
 use core::convert::TryInto;
-use core::num::FpCategory;
 
 use alloc::sync::Arc;
 
 use num_bigint::BigInt;
-
-use liblumen_core::locks::MutexGuard;
 
 use liblumen_alloc::erts::exception::runtime::Class;
 use liblumen_alloc::erts::exception::{Exception, Result};
@@ -79,36 +77,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn binary_to_float_1<'process>(binary: Term, process: &'process Process) -> Result {
-    let mut heap: MutexGuard<'process, _> = process.acquire_heap();
-    let s: &str = heap.str_from_binary(binary)?;
-
-    match s.parse::<f64>() {
-        Ok(inner) => {
-            match inner.classify() {
-                FpCategory::Normal | FpCategory::Subnormal =>
-                // unlike Rust, Erlang requires float strings to have a decimal point
-                {
-                    if (inner.fract() == 0.0) & !s.chars().any(|b| b == '.') {
-                        Err(badarg!().into())
-                    } else {
-                        heap.float(inner).map_err(|error| error.into())
-                    }
-                }
-                // Erlang has no support for Nan, +inf or -inf
-                FpCategory::Nan | FpCategory::Infinite => Err(badarg!().into()),
-                FpCategory::Zero => {
-                    // Erlang does not track the difference without +0 and -0.
-                    let zero = inner.abs();
-
-                    heap.float(zero).map_err(|error| error.into())
-                }
-            }
-        }
-        Err(_) => Err(badarg!().into()),
-    }
-}
 
 pub fn binary_to_integer_1<'process>(binary: Term, process: &'process Process) -> Result {
     let mut heap = process.acquire_heap();

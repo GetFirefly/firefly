@@ -1,6 +1,13 @@
-use super::*;
+use proptest::arbitrary::any;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
 
-use proptest::strategy::Strategy;
+use liblumen_alloc::badarg;
+
+use crate::otp::erlang::binary_to_float_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
@@ -9,10 +16,7 @@ fn without_binary_errors_badarg() {
             .run(
                 &strategy::term::is_not_binary(arc_process.clone()),
                 |binary| {
-                    prop_assert_eq!(
-                        erlang::binary_to_float_1(binary, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -33,10 +37,7 @@ fn with_binary_with_integer_errors_badarg() {
                     )
                 }),
                 |binary| {
-                    prop_assert_eq!(
-                        erlang::binary_to_float_1(binary, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -60,7 +61,7 @@ fn with_binary_with_f64_returns_floats() {
                 }),
                 |(f, binary)| {
                     prop_assert_eq!(
-                        erlang::binary_to_float_1(binary, &arc_process),
+                        native(&arc_process, binary),
                         Ok(arc_process.float(f).unwrap())
                     );
 
@@ -79,7 +80,7 @@ fn with_binary_with_less_than_min_f64_errors_badarg() {
                 &strategy::term::binary::containing_bytes("-1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0".as_bytes().to_owned(), arc_process.clone()),
                 |binary| {
                     prop_assert_eq!(
-                        erlang::binary_to_float_1(binary, &arc_process),
+                        native(&arc_process, binary),
                         Err(badarg!().into())
                     );
 
@@ -98,7 +99,7 @@ fn with_binary_with_greater_than_max_f64_errors_badarg() {
                 &strategy::term::binary::containing_bytes("1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0".as_bytes().to_owned(), arc_process.clone()),
                 |binary| {
                     prop_assert_eq!(
-                        erlang::binary_to_float_1(binary, &arc_process),
+                        native(&arc_process, binary),
                         Err(badarg!().into())
                     );
 

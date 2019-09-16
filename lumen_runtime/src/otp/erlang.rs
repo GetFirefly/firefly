@@ -42,6 +42,7 @@ pub mod demonitor_2;
 pub mod div_2;
 pub mod divide_2;
 pub mod element_2;
+pub mod error_1;
 pub mod exit_1;
 pub mod is_function_1;
 pub mod is_function_2;
@@ -98,10 +99,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn error_1(reason: Term) -> Result {
-    Err(error!(reason).into())
-}
 
 pub fn error_2(reason: Term, arguments: Term) -> Result {
     Err(error!(reason, Some(arguments)).into())

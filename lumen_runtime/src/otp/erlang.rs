@@ -34,6 +34,7 @@ pub mod bxor_2;
 pub mod byte_size_1;
 pub mod cancel_timer_1;
 pub mod cancel_timer_2;
+pub mod ceil_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -75,8 +76,7 @@ use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
 use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
 use liblumen_alloc::erts::term::binary::{Bitstring, IterableBitstring, MaybePartialByte};
 use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Boxed, Cons, Float, ImproperList, Map, SmallInteger, Term, Tuple,
-    TypedTerm,
+    atom_unchecked, AsTerm, Atom, Boxed, Cons, ImproperList, Map, Term, Tuple, TypedTerm,
 };
 use liblumen_alloc::{badarg, badarith, badkey, badmap, error, raise, throw};
 
@@ -92,44 +92,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn ceil_1(number: Term, process: &Process) -> Result {
-    let option_ceil = match number.to_typed_term().unwrap() {
-        TypedTerm::SmallInteger(_) => Some(number),
-        TypedTerm::Boxed(boxed) => {
-            match boxed.to_typed_term().unwrap() {
-                TypedTerm::BigInteger(_) => Some(number),
-                TypedTerm::Float(float) => {
-                    let inner: f64 = float.into();
-                    let ceil_inner = inner.ceil();
-
-                    // skip creating a BigInt if float can fit in small integer.
-                    let ceil_term = if (SmallInteger::MIN_VALUE as f64).max(Float::INTEGRAL_MIN)
-                        <= ceil_inner
-                        && ceil_inner <= (SmallInteger::MAX_VALUE as f64).min(Float::INTEGRAL_MAX)
-                    {
-                        process.integer(ceil_inner as isize)?
-                    } else {
-                        let ceil_string = ceil_inner.to_string();
-                        let ceil_bytes = ceil_string.as_bytes();
-                        let big_int = BigInt::parse_bytes(ceil_bytes, 10).unwrap();
-
-                        process.integer(big_int)?
-                    };
-
-                    Some(ceil_term)
-                }
-                _ => None,
-            }
-        }
-        _ => None,
-    };
-
-    match option_ceil {
-        Some(ceil) => Ok(ceil),
-        None => Err(badarg!().into()),
-    }
-}
 
 /// `++/2`
 pub fn concatenate_2(list: Term, term: Term, process: &Process) -> Result {

@@ -152,7 +152,7 @@ where
     let timer_reference_tuple =
         receive_message(&same_thread_process_arc).expect("Cross-thread receive failed");
 
-    let timer_reference = erlang::element_2(
+    let timer_reference = erlang::element_2::native(
         same_thread_process_arc.integer(2).unwrap(),
         timer_reference_tuple,
     )

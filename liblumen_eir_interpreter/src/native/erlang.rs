@@ -249,7 +249,7 @@ pub fn make_erlang() -> NativeModule {
     );
 
     native.add_simple(Atom::try_from_str("element").unwrap(), 2, |_proc, args| {
-        erlang::element_2(args[0], args[1])
+        erlang::element_2::native(args[0], args[1])
     });
 
     native

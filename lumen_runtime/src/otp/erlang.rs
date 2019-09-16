@@ -41,6 +41,7 @@ pub mod delete_element_2;
 pub mod demonitor_2;
 pub mod div_2;
 pub mod divide_2;
+pub mod element_2;
 pub mod exit_1;
 pub mod is_function_1;
 pub mod is_function_2;
@@ -96,14 +97,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn element_2(index: Term, tuple: Term) -> Result {
-    let tuple_tuple: Boxed<Tuple> = tuple.try_into()?;
-
-    tuple_tuple
-        .get_element_from_one_based_term_index(index)
-        .map_err(|error| error.into())
-}
 
 /// `orelse/2` infix operator.
 ///

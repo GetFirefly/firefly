@@ -38,12 +38,14 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
                     // Using only `used` portion of binary returns the same result
                     let tuple = native(&arc_process, binary, options).unwrap();
                     let used_term =
-                        erlang::element_2(arc_process.integer(2).unwrap(), tuple).unwrap();
+                        erlang::element_2::native(arc_process.integer(2).unwrap(), tuple).unwrap();
                     let split_binary_tuple =
                         erlang::split_binary_2(binary, used_term, &arc_process).unwrap();
-                    let prefix =
-                        erlang::element_2(arc_process.integer(1).unwrap(), split_binary_tuple)
-                            .unwrap();
+                    let prefix = erlang::element_2::native(
+                        arc_process.integer(1).unwrap(),
+                        split_binary_tuple,
+                    )
+                    .unwrap();
 
                     prop_assert_eq!(native(&arc_process, prefix, options), Ok(tuple));
 

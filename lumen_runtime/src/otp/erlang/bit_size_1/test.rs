@@ -1,4 +1,15 @@
-use super::*;
+use std::convert::TryInto;
+
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::binary::{Bitstring, MaybePartialByte};
+use liblumen_alloc::erts::term::{Boxed, HeapBin, SmallInteger, SubBinary};
+
+use crate::otp::erlang::bit_size_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
@@ -7,10 +18,7 @@ fn without_bitstring_errors_badarg() {
             .run(
                 &strategy::term::is_not_bitstring(arc_process.clone()),
                 |binary| {
-                    prop_assert_eq!(
-                        erlang::bit_size_1(binary, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -26,7 +34,7 @@ fn with_heap_binary_is_eight_times_byte_count() {
             .run(
                 &strategy::term::binary::heap(arc_process.clone()),
                 |binary| {
-                    let result = erlang::bit_size_1(binary, &arc_process);
+                    let result = native(&arc_process, binary);
 
                     prop_assert!(result.is_ok());
 
@@ -54,7 +62,7 @@ fn with_subbinary_is_eight_times_byte_count_plus_bit_count() {
             .run(
                 &strategy::term::binary::sub(arc_process.clone()),
                 |binary| {
-                    let result = erlang::bit_size_1(binary, &arc_process);
+                    let result = native(&arc_process, binary);
 
                     prop_assert!(result.is_ok());
 

@@ -24,6 +24,7 @@ pub mod binary_to_list_1;
 pub mod binary_to_list_3;
 pub mod binary_to_term_1;
 pub mod binary_to_term_2;
+pub mod bit_size_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -80,23 +81,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn bit_size_1(bitstring: Term, process: &Process) -> Result {
-    let option_total_bit_len = match bitstring.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_bit_len()),
-            TypedTerm::ProcBin(process_binary) => Some(process_binary.total_bit_len()),
-            TypedTerm::SubBinary(subbinary) => Some(subbinary.total_bit_len()),
-            _ => None,
-        },
-        _ => None,
-    };
-
-    match option_total_bit_len {
-        Some(total_bit_len) => Ok(process.integer(total_bit_len)?),
-        None => Err(badarg!().into()),
-    }
-}
 
 /// Returns a list of integers corresponding to the bytes of `bitstring`. If the number of bits in
 /// `bitstring` is not divisible by `8`, the last element of the list is a `bitstring` containing

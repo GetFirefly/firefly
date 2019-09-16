@@ -31,6 +31,7 @@ pub mod bor_2;
 pub mod bsl_2;
 pub mod bsr_2;
 pub mod bxor_2;
+pub mod byte_size_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -89,23 +90,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn byte_size_1(bitstring: Term, process: &Process) -> Result {
-    let option_total_byte_len = match bitstring.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_byte_len()),
-            TypedTerm::ProcBin(process_binary) => Some(process_binary.total_byte_len()),
-            TypedTerm::SubBinary(subbinary) => Some(subbinary.total_byte_len()),
-            _ => None,
-        },
-        _ => None,
-    };
-
-    match option_total_byte_len {
-        Some(total_byte_len) => Ok(process.integer(total_byte_len)?),
-        None => Err(badarg!().into()),
-    }
-}
 
 pub fn cancel_timer_1(timer_reference: Term, process: &Process) -> Result {
     cancel_timer(timer_reference, Default::default(), process)

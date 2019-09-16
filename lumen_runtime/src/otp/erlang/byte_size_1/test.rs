@@ -1,6 +1,12 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
 
-use proptest::strategy::Strategy;
+use liblumen_alloc::badarg;
+
+use crate::otp::erlang::byte_size_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_bitstring_errors_badarg() {
@@ -9,10 +15,7 @@ fn without_bitstring_errors_badarg() {
             .run(
                 &strategy::term::is_not_bitstring(arc_process.clone()),
                 |bitstring| {
-                    prop_assert_eq!(
-                        erlang::byte_size_1(bitstring, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, bitstring), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -34,7 +37,7 @@ fn with_heap_binary_is_byte_count() {
                 }),
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
-                        erlang::byte_size_1(bitstring, &arc_process),
+                        native(&arc_process, bitstring),
                         Ok(arc_process.integer(byte_count).unwrap())
                     );
 
@@ -61,7 +64,7 @@ fn with_subbinary_without_bit_count_is_byte_count() {
                 }),
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
-                        erlang::byte_size_1(bitstring, &arc_process),
+                        native(&arc_process, bitstring),
                         Ok(arc_process.integer(byte_count).unwrap())
                     );
 
@@ -91,7 +94,7 @@ fn with_subbinary_with_bit_count_is_byte_count_plus_one() {
                 }),
                 |(byte_count, bitstring)| {
                     prop_assert_eq!(
-                        erlang::byte_size_1(bitstring, &arc_process),
+                        native(&arc_process, bitstring),
                         Ok(arc_process.integer(byte_count + 1).unwrap())
                     );
 

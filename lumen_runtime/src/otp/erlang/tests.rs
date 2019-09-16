@@ -14,7 +14,6 @@ use crate::test::{
     has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
 };
 
-mod byte_size_1;
 mod cancel_timer_1;
 mod cancel_timer_2;
 mod ceil_1;

@@ -15,7 +15,6 @@ use crate::test::{
     registered_name, strategy,
 };
 
-mod bnot_1;
 mod bor_2;
 mod bsl_2;
 mod bsr_2;

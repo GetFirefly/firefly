@@ -1,6 +1,16 @@
-use super::*;
+use num_bigint::BigInt;
 
 use num_traits::Num;
+
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq};
+
+use liblumen_alloc::badarith;
+use liblumen_alloc::erts::term::TypedTerm;
+
+use crate::otp::erlang::bnot_1::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_integer_errors_badarith() {
@@ -9,10 +19,7 @@ fn without_integer_errors_badarith() {
             .run(
                 &strategy::term::is_not_integer(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(
-                        erlang::bnot_1(operand, &arc_process),
-                        Err(badarith!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, operand), Err(badarith!().into()));
 
                     Ok(())
                 },
@@ -28,7 +35,7 @@ fn with_small_integer_returns_small_integer() {
             .run(
                 &strategy::term::integer::small(arc_process.clone()),
                 |operand| {
-                    let result = erlang::bnot_1(operand, &arc_process);
+                    let result = native(&arc_process, operand);
 
                     prop_assert!(result.is_ok());
 
@@ -48,10 +55,7 @@ fn with_small_integer_inverts_bits() {
     with_process(|process| {
         let integer = process.integer(0b10).unwrap();
 
-        assert_eq!(
-            erlang::bnot_1(integer, &process),
-            Ok(process.integer(-3).unwrap())
-        )
+        assert_eq!(native(&process, integer), Ok(process.integer(-3).unwrap()))
     });
 }
 
@@ -68,7 +72,7 @@ fn with_big_integer_inverts_bits() {
         assert!(integer.is_bigint());
 
         assert_eq!(
-            erlang::bnot_1(integer, &process),
+            native(&process, integer),
             Ok(process
                 .integer(<BigInt as Num>::from_str_radix("-12297829382473034411", 10,).unwrap())
                 .unwrap())
@@ -83,7 +87,7 @@ fn with_big_integer_returns_big_integer() {
             .run(
                 &strategy::term::integer::big(arc_process.clone()),
                 |operand| {
-                    let result = erlang::bnot_1(operand, &arc_process);
+                    let result = native(&arc_process, operand);
 
                     prop_assert!(result.is_ok());
 

@@ -15,7 +15,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod cancel_timer_2;
 mod ceil_1;
 mod concatenate_2;
 mod delete_element_2;
@@ -92,10 +91,6 @@ enum FirstSecond {
     Second,
 }
 
-fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
-    timer_message("cancel_timer", timer_reference, result, process)
-}
-
 fn errors_badarg<F>(actual: F)
 where
     F: FnOnce(&Process) -> Result,
@@ -108,12 +103,6 @@ where
     F: FnOnce(&Process) -> Result,
 {
     with_process(|process| assert_badarith!(actual(&process)))
-}
-
-fn list_term(process: &Process) -> Term {
-    let head_term = atom_unchecked("head");
-
-    process.cons(head_term, Term::NIL).unwrap()
 }
 
 fn read_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {

@@ -16,6 +16,10 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::binary::MaybePartialByte;
 use liblumen_alloc::erts::term::{atom_unchecked, BigInteger, Boxed, Term, TypedTerm};
 
+pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
+    timer_message("cancel_timer", timer_reference, result, process)
+}
+
 pub fn count_ones(term: Term) -> u32 {
     match term.to_typed_term().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
@@ -81,6 +85,12 @@ pub fn has_process_message(process: &Process, data: Term) -> bool {
             }) => message_data == &data,
             _ => false,
         })
+}
+
+pub fn list_term(process: &Process) -> Term {
+    let head_term = atom_unchecked("head");
+
+    process.cons(head_term, Term::NIL).unwrap()
 }
 
 pub fn monitor_count(process: &Process) -> usize {

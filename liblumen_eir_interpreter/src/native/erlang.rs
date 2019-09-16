@@ -12,7 +12,7 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("/").unwrap(), 2, |proc, args| {
-        erlang::div_2(args[0], args[1], proc)
+        erlang::div_2::native(proc, args[0], args[1])
     });
 
     native.add_simple(Atom::try_from_str("<").unwrap(), 2, |_proc, args| {

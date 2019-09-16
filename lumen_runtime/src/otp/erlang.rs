@@ -39,6 +39,7 @@ pub mod concatenate_2;
 pub mod convert_time_unit_3;
 pub mod delete_element_2;
 pub mod demonitor_2;
+pub mod div_2;
 pub mod exit_1;
 pub mod is_function_1;
 pub mod is_function_2;
@@ -94,11 +95,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-/// `div/2` infix operator.  Integer division.
-pub fn div_2(dividend: Term, divisor: Term, process: &Process) -> Result {
-    integer_infix_operator!(dividend, divisor, process, /)
-}
 
 /// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
 /// `float`.

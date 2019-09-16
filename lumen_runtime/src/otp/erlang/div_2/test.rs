@@ -1,7 +1,18 @@
-use super::*;
-
 mod with_big_integer_dividend;
 mod with_small_integer_dividend;
+
+use proptest::prop_assert_eq;
+use proptest::strategy::{BoxedStrategy, Just};
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarith;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{SmallInteger, Term};
+
+use crate::otp::erlang;
+use crate::otp::erlang::div_2::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_integer_dividend_errors_badarith() {
@@ -14,7 +25,7 @@ fn without_integer_dividend_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::div_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 
@@ -36,7 +47,7 @@ fn with_integer_dividend_without_integer_divisor_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::div_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 
@@ -58,7 +69,7 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::div_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 

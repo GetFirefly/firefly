@@ -17,7 +17,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         // flaky
         assert!(!has_message(process, timeout_message));
 
-        let first_result = erlang::cancel_timer_1(timer_reference, process);
+        let first_result = native(process, timer_reference);
 
         assert!(first_result.is_ok());
 
@@ -28,10 +28,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(milliseconds_remaining <= process.integer(half_milliseconds).unwrap());
 
         // again before timeout
-        assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
-        );
+        assert_eq!(native(process, timer_reference), Ok(false.into()));
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
         timer::timeout();
@@ -39,10 +36,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         assert!(!has_message(process, timeout_message));
 
         // again after timeout
-        assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
-        );
+        assert_eq!(native(process, timer_reference), Ok(false.into()));
     })
 }
 
@@ -60,16 +54,10 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
             process.mailbox.lock().borrow()
         );
 
-        assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
-        );
+        assert_eq!(native(process, timer_reference), Ok(false.into()));
 
         // again
-        assert_eq!(
-            erlang::cancel_timer_1(timer_reference, process),
-            Ok(false.into())
-        );
+        assert_eq!(native(process, timer_reference), Ok(false.into()));
     })
 }
 

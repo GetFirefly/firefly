@@ -32,6 +32,7 @@ pub mod bsl_2;
 pub mod bsr_2;
 pub mod bxor_2;
 pub mod byte_size_1;
+pub mod cancel_timer_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -90,10 +91,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn cancel_timer_1(timer_reference: Term, process: &Process) -> Result {
-    cancel_timer(timer_reference, Default::default(), process)
-}
 
 pub fn cancel_timer_2(timer_reference: Term, options: Term, process: &Process) -> Result {
     let cancel_timer_options: timer::cancel::Options = options.try_into()?;

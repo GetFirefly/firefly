@@ -112,6 +112,16 @@ pub fn registered_name() -> Term {
     )
 }
 
+pub fn timeout_message(timer_reference: Term, message: Term, process: &Process) -> Term {
+    timer_message("timeout", timer_reference, message, process)
+}
+
+pub fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
+    process
+        .tuple_from_slice(&[atom_unchecked(tag), timer_reference, message])
+        .unwrap()
+}
+
 pub fn total_byte_len(term: Term) -> usize {
     match term.to_typed_term().unwrap() {
         TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {

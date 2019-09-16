@@ -12,9 +12,9 @@ use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
     has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
+    timeout_message, timer_message,
 };
 
-mod cancel_timer_1;
 mod cancel_timer_2;
 mod ceil_1;
 mod concatenate_2;
@@ -118,14 +118,4 @@ fn list_term(process: &Process) -> Term {
 
 fn read_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
     timer_message("read_timer", timer_reference, result, process)
-}
-
-fn timeout_message(timer_reference: Term, message: Term, process: &Process) -> Term {
-    timer_message("timeout", timer_reference, message, process)
-}
-
-fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
-    process
-        .tuple_from_slice(&[atom_unchecked(tag), timer_reference, message])
-        .unwrap()
 }

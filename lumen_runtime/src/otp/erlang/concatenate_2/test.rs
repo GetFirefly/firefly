@@ -1,7 +1,17 @@
-use super::*;
-
 mod with_empty_list;
 mod with_non_empty_proper_list;
+
+use std::convert::TryInto;
+
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::{Boxed, Cons, ImproperList, Term, TypedTerm};
+
+use crate::otp::erlang::concatenate_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_list_left_errors_badarg() {
@@ -13,10 +23,7 @@ fn without_list_left_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::concatenate_2(left, right, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, left, right,), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -35,10 +42,7 @@ fn with_improper_list_left_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(
-                        erlang::concatenate_2(left, right, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, left, right,), Err(badarg!().into()));
 
                     Ok(())
                 },

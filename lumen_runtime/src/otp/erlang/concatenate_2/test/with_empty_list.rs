@@ -10,7 +10,7 @@ fn returns_right() {
             .run(&strategy::term(arc_process.clone()), |right| {
                 let left = Term::NIL;
 
-                prop_assert_eq!(erlang::concatenate_2(left, right, &arc_process), Ok(right));
+                prop_assert_eq!(native(&arc_process, left, right,), Ok(right));
 
                 Ok(())
             })

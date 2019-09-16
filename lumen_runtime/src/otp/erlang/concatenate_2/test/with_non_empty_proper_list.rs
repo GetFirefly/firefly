@@ -10,7 +10,7 @@ fn without_list_right_returns_improper_list_with_right_as_tail() {
                     strategy::term::is_not_list(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    let result = erlang::concatenate_2(left, right, &arc_process);
+                    let result = native(&arc_process, left, right);
 
                     prop_assert!(result.is_ok());
 
@@ -71,7 +71,7 @@ fn with_improper_list_right_returns_improper_list_with_right_as_tail() {
                     strategy::term::list::improper(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    let result = erlang::concatenate_2(left, right, &arc_process);
+                    let result = native(&arc_process, left, right);
 
                     prop_assert!(result.is_ok());
 
@@ -143,7 +143,7 @@ fn with_list_right_returns_proper_list_with_right_as_tail() {
                     strategy::term::list::non_empty_proper(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    let result = erlang::concatenate_2(left, right, &arc_process);
+                    let result = native(&arc_process, left, right);
 
                     prop_assert!(result.is_ok());
 

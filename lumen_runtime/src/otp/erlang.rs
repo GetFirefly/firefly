@@ -35,6 +35,7 @@ pub mod byte_size_1;
 pub mod cancel_timer_1;
 pub mod cancel_timer_2;
 pub mod ceil_1;
+pub mod concatenate_2;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -92,23 +93,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-/// `++/2`
-pub fn concatenate_2(list: Term, term: Term, process: &Process) -> Result {
-    match list.to_typed_term().unwrap() {
-        TypedTerm::Nil => Ok(term),
-        TypedTerm::List(cons) => match cons
-            .into_iter()
-            .collect::<std::result::Result<Vec<Term>, _>>()
-        {
-            Ok(vec) => process
-                .improper_list_from_slice(&vec, term)
-                .map_err(|error| error.into()),
-            Err(ImproperList { .. }) => Err(badarg!().into()),
-        },
-        _ => Err(badarg!().into()),
-    }
-}
 
 pub fn delete_element_2(index: Term, tuple: Term, process: &Process) -> Result {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;

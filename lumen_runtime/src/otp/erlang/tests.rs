@@ -15,7 +15,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod concatenate_2;
 mod delete_element_2;
 mod div_2;
 mod divide_2;

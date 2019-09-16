@@ -19,6 +19,7 @@ pub mod binary_to_atom_2;
 pub mod binary_to_existing_atom_2;
 pub mod binary_to_float_1;
 pub mod binary_to_integer_1;
+pub mod binary_to_integer_2;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -77,32 +78,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn binary_to_integer_2<'process>(
-    binary: Term,
-    base: Term,
-    process: &'process Process,
-) -> Result {
-    let mut heap = process.acquire_heap();
-    let s: &str = heap.str_from_binary(binary)?;
-    let radix: usize = base.try_into()?;
-
-    if 2 <= radix && radix <= 36 {
-        let bytes = s.as_bytes();
-
-        match BigInt::parse_bytes(bytes, radix as u32) {
-            Some(big_int) => {
-                let term = heap.integer(big_int)?;
-
-                Ok(term)
-            }
-            None => Err(badarg!()),
-        }
-    } else {
-        Err(badarg!())
-    }
-    .map_err(|error| error.into())
-}
 
 pub fn binary_to_list_1(binary: Term, process: &Process) -> Result {
     let bytes = process.bytes_from_binary(binary)?;

@@ -1,7 +1,19 @@
-use super::*;
+use std::sync::Arc;
 
-use proptest::strategy::Strategy;
+use proptest::arbitrary::any;
+use proptest::prop_assert_eq;
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+
 use radix_fmt::radix;
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{Term, TypedTerm};
+
+use crate::otp::erlang::binary_to_integer_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_binary_errors_badarg() {
@@ -13,10 +25,7 @@ fn without_binary_errors_badarg() {
                     term_is_base(arc_process.clone()),
                 ),
                 |(binary, base)| {
-                    prop_assert_eq!(
-                        erlang::binary_to_integer_2(binary, base, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -35,10 +44,7 @@ fn with_binary_without_base_errors_badarg() {
                     term_is_not_base(arc_process.clone()),
                 ),
                 |(binary, base)| {
-                    prop_assert_eq!(
-                        erlang::binary_to_integer_2(binary, base, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -70,7 +76,7 @@ fn with_binary_with_integer_in_base_returns_integers() {
                 }),
                 |(integer, binary, base)| {
                     prop_assert_eq!(
-                        erlang::binary_to_integer_2(binary, base, &arc_process),
+                        native(&arc_process, binary, base),
                         Ok(arc_process.integer(integer).unwrap())
                     );
 
@@ -101,10 +107,7 @@ fn with_binary_without_integer_in_base_errors_badarg() {
                     )
                 }),
                 |(binary, base)| {
-                    prop_assert_eq!(
-                        erlang::binary_to_integer_2(binary, base, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
 
                     Ok(())
                 },

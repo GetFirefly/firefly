@@ -15,7 +15,6 @@ use crate::test::{
     registered_name, strategy,
 };
 
-mod binary_to_integer_2;
 mod binary_to_list_1;
 mod binary_to_list_3;
 mod binary_to_term_1;

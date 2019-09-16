@@ -1,6 +1,17 @@
-use super::*;
+use std::convert::TryInto;
 
-use proptest::strategy::Strategy;
+use num_bigint::BigInt;
+
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::{Boxed, Tuple};
+
+use crate::otp::erlang::insert_element_3::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_errors_badarg() {
@@ -16,7 +27,7 @@ fn without_tuple_errors_badarg() {
             }),
             |(arc_process, tuple, index, element)| {
                 prop_assert_eq!(
-                    erlang::insert_element_3(index, tuple, element, &arc_process),
+                    native(&arc_process, index, tuple, element),
                     Err(badarg!().into())
                 );
 
@@ -54,7 +65,7 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
                 }),
                 |(arc_process, tuple, index, element)| {
                     prop_assert_eq!(
-                        erlang::insert_element_3(index, tuple, element, &arc_process),
+                        native(&arc_process, index, tuple, element),
                         Err(badarg!().into())
                     );
 
@@ -93,7 +104,7 @@ fn with_tuple_with_integer_between_1_and_the_length_plus_1_inclusive_returns_tup
                     element_vec.insert(element_vec_index, element);
 
                     prop_assert_eq!(
-                        erlang::insert_element_3(index, tuple, element, &arc_process),
+                        native(&arc_process, index, tuple, element),
                         Ok(arc_process.tuple_from_slice(&element_vec).unwrap())
                     );
 

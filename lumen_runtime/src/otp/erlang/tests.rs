@@ -15,7 +15,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod insert_element_3;
 mod is_alive_0;
 mod is_atom_1;
 mod is_binary_1;

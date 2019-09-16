@@ -46,6 +46,7 @@ pub mod error_1;
 pub mod error_2;
 pub mod exit_1;
 pub mod hd_1;
+pub mod insert_element_3;
 pub mod is_function_1;
 pub mod is_function_2;
 pub mod is_map_key_2;
@@ -101,31 +102,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn insert_element_3(index: Term, tuple: Term, element: Term, process: &Process) -> Result {
-    let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let ZeroBasedIndex(index_zero_based): ZeroBasedIndex = index.try_into()?;
-
-    let length = initial_inner_tuple.len();
-
-    // can be equal to arity when insertion is at the end
-    if index_zero_based <= length {
-        if index_zero_based == 0 {
-            process.tuple_from_slices(&[&[element], &initial_inner_tuple[..]])
-        } else if index_zero_based < length {
-            process.tuple_from_slices(&[
-                &initial_inner_tuple[..index_zero_based],
-                &[element],
-                &initial_inner_tuple[index_zero_based..],
-            ])
-        } else {
-            process.tuple_from_slices(&[&initial_inner_tuple[..], &[element]])
-        }
-        .map_err(|error| error.into())
-    } else {
-        Err(badarg!().into())
-    }
-}
 
 /// Distribution is not supported at this time.  Always returns `false`.
 pub fn is_alive_0() -> Term {

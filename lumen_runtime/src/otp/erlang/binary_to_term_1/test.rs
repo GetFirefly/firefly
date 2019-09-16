@@ -1,4 +1,13 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{atom_unchecked, Term};
+
+use crate::otp::erlang::binary_to_term_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 #[ignore]
@@ -8,10 +17,7 @@ fn without_binary_errors_badarg() {
             .run(
                 &strategy::term::is_not_binary(arc_process.clone()),
                 |binary| {
-                    prop_assert_eq!(
-                        erlang::binary_to_term_1(binary, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -183,10 +189,7 @@ where
             .run(
                 &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
                 |binary| {
-                    prop_assert_eq!(
-                        erlang::binary_to_term_1(binary, &arc_process),
-                        Ok(term(&arc_process))
-                    );
+                    prop_assert_eq!(native(&arc_process, binary), Ok(term(&arc_process)));
 
                     Ok(())
                 },

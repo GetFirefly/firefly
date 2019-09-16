@@ -22,6 +22,7 @@ pub mod binary_to_integer_1;
 pub mod binary_to_integer_2;
 pub mod binary_to_list_1;
 pub mod binary_to_list_3;
+pub mod binary_to_term_1;
 pub mod convert_time_unit_3;
 pub mod demonitor_2;
 pub mod exit_1;
@@ -79,10 +80,6 @@ use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
 use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-
-pub fn binary_to_term_1(binary: Term, process: &Process) -> Result {
-    binary_to_term_2(binary, Term::NIL, process)
-}
 
 pub fn binary_to_term_2(binary: Term, options: Term, _process: &Process) -> Result {
     let _to_term_options: ToTermOptions = options.try_into()?;

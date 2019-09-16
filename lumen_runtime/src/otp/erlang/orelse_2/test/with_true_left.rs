@@ -28,10 +28,9 @@ fn with_empty_list_right_returns_true() {
 #[test]
 fn with_list_right_returns_true() {
     with_right_returns_true(|process| {
-        let mut heap = process.acquire_heap();
-        heap.cons(heap.integer(0).unwrap(), heap.integer(1).unwrap())
+        process
+            .cons(process.integer(0).unwrap(), process.integer(1).unwrap())
             .unwrap()
-            .unwrap();
     });
 }
 
@@ -88,6 +87,6 @@ where
         let left = true.into();
         let right = right(&process);
 
-        assert_eq!(erlang::orelse_2(left, right), Ok(left));
+        assert_eq!(native(left, right), Ok(left));
     });
 }

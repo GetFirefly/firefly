@@ -50,6 +50,7 @@ pub mod link_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
+pub mod orelse_2;
 pub mod process_flag_2;
 pub mod process_info_2;
 pub mod self_0;
@@ -97,21 +98,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-/// `orelse/2` infix operator.
-///
-/// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
-/// both operands, use `or_2`.
-pub fn orelse_2(boolean: Term, term: Term) -> Result {
-    let boolean_bool: bool = boolean.try_into()?;
-
-    if boolean_bool {
-        // always `true.into()`, but this is faster
-        Ok(boolean)
-    } else {
-        Ok(term)
-    }
-}
 
 pub fn error_1(reason: Term) -> Result {
     Err(error!(reason).into())

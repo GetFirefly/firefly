@@ -10,7 +10,7 @@ fn with_number_atom_reference_function_port_or_pid_returns_true() {
                     strategy::term::number_atom_reference_function_port_or_pid(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::is_greater_than_or_equal_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -94,10 +94,7 @@ fn with_map_list_or_bitstring_returns_false() {
                 )
             }),
             |(left, right)| {
-                prop_assert_eq!(
-                    erlang::is_greater_than_or_equal_2(left, right),
-                    false.into()
-                );
+                prop_assert_eq!(native(left, right), false.into());
 
                 Ok(())
             },

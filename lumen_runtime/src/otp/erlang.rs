@@ -57,6 +57,7 @@ pub mod is_float_1;
 pub mod is_function_1;
 pub mod is_function_2;
 pub mod is_greater_than_2;
+pub mod is_greater_than_or_equal_2;
 pub mod is_map_key_2;
 pub mod link_1;
 pub mod monitor_2;
@@ -110,11 +111,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-/// `>=/2` infix operator.  Floats and integers are converted.
-pub fn is_greater_than_or_equal_2(left: Term, right: Term) -> Term {
-    left.ge(&right).into()
-}
 
 pub fn is_integer_1(term: Term) -> Term {
     term.is_integer().into()

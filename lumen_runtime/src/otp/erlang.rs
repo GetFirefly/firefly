@@ -60,6 +60,7 @@ pub mod is_greater_than_2;
 pub mod is_greater_than_or_equal_2;
 pub mod is_integer_1;
 pub mod is_less_than_2;
+pub mod is_list_1;
 pub mod is_map_key_2;
 pub mod link_1;
 pub mod monitor_2;
@@ -113,10 +114,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn is_list_1(term: Term) -> Term {
-    term.is_list().into()
-}
 
 pub fn is_map_1(term: Term) -> Term {
     term.is_map().into()

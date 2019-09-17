@@ -63,6 +63,7 @@ pub mod is_less_than_2;
 pub mod is_list_1;
 pub mod is_map_1;
 pub mod is_map_key_2;
+pub mod is_number_1;
 pub mod link_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
@@ -115,10 +116,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn is_number_1(term: Term) -> Term {
-    term.is_number().into()
-}
 
 pub fn is_pid_1(term: Term) -> Term {
     term.is_pid().into()

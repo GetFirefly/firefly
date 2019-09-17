@@ -69,6 +69,7 @@ pub mod is_record_2;
 pub mod is_record_3;
 pub mod is_reference_1;
 pub mod is_tuple_1;
+pub mod length_1;
 pub mod link_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
@@ -121,17 +122,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn length_1(list: Term, process: &Process) -> Result {
-    match list.to_typed_term().unwrap() {
-        TypedTerm::Nil => Ok(0.into()),
-        TypedTerm::List(cons) => match cons.count() {
-            Some(count) => Ok(process.integer(count)?),
-            None => Err(badarg!().into()),
-        },
-        _ => Err(badarg!().into()),
-    }
-}
 
 pub fn list_to_atom_1(string: Term) -> Result {
     list_to_string(string).and_then(|s| match Atom::try_from_str(s) {

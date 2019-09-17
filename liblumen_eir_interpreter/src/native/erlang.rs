@@ -197,10 +197,10 @@ pub fn make_erlang() -> NativeModule {
     native.add_simple(
         Atom::try_from_str("is_bitstring").unwrap(),
         1,
-        |_proc, args| Ok(erlang::is_bitstring_1(args[0])),
+        |_proc, args| Ok(erlang::is_bitstring_1::native(args[0])),
     );
     native.add_simple(Atom::try_from_str("is_float").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_bitstring_1(args[0]))
+        Ok(erlang::is_bitstring_1::native(args[0]))
     });
 
     native.add_simple(

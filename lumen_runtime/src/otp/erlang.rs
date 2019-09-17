@@ -68,6 +68,7 @@ pub mod is_pid_1;
 pub mod is_record_2;
 pub mod is_record_3;
 pub mod is_reference_1;
+pub mod is_tuple_1;
 pub mod link_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
@@ -120,10 +121,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn is_tuple_1(term: Term) -> Term {
-    term.is_tuple().into()
-}
 
 pub fn length_1(list: Term, process: &Process) -> Result {
     match list.to_typed_term().unwrap() {

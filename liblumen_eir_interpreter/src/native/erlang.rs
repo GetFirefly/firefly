@@ -189,7 +189,7 @@ pub fn make_erlang() -> NativeModule {
         |_proc, args| Ok(erlang::is_function_1::native(args[0])),
     );
     native.add_simple(Atom::try_from_str("is_tuple").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_tuple_1(args[0]))
+        Ok(erlang::is_tuple_1::native(args[0]))
     });
     native.add_simple(Atom::try_from_str("is_map").unwrap(), 1, |_proc, args| {
         Ok(erlang::is_map_1::native(args[0]))

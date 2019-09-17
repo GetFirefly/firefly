@@ -263,20 +263,22 @@ impl Parse for FunctionArity {
             } else if let Ok(_) = input.parse::<Token![-]>() {
                 "-".to_string()
             } else if let Ok(_) = input.parse::<Token![=]>() {
-                if let Ok(_) = input.parse::<Token![=]>() {
-                    "==".to_string()
+                if let Ok(_) = input.parse::<Token![/]>() {
+                    if let Ok(_) = input.parse::<Token![=]>() {
+                        "=/=".to_string()
+                    } else {
+                        unimplemented!("parse function name from {:?}", input);
+                    }
                 } else if let Ok(_) = input.parse::<Token![:]>() {
                     if let Ok(_) = input.parse::<Token![=]>() {
                         "=:=".to_string()
                     } else {
                         unimplemented!("parse function name from {:?}", input);
                     }
-                } else if let Ok(_) = input.parse::<Token![/]>() {
-                    if let Ok(_) = input.parse::<Token![=]>() {
-                        "=/=".to_string()
-                    } else {
-                        unimplemented!("parse function name from {:?}", input);
-                    }
+                } else if let Ok(_) = input.parse::<Token![<]>() {
+                    "=<".to_string()
+                } else if let Ok(_) = input.parse::<Token![=]>() {
+                    "==".to_string()
                 } else {
                     unimplemented!("parse function name from {:?}", input);
                 }

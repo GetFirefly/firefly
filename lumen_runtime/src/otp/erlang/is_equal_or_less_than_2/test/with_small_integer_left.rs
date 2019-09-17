@@ -61,7 +61,7 @@ fn without_number_returns_true() {
                     strategy::term::is_not_number(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::is_equal_or_less_than_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },

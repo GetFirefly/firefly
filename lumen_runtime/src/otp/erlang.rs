@@ -52,6 +52,7 @@ pub mod is_atom_1;
 pub mod is_binary_1;
 pub mod is_bitstring_1;
 pub mod is_boolean_1;
+pub mod is_equal_or_less_than_2;
 pub mod is_function_1;
 pub mod is_function_2;
 pub mod is_map_key_2;
@@ -107,14 +108,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-/// `=</2` infix operator.  Floats and integers are converted.
-///
-/// **NOTE: `=</2` is not a typo.  Unlike `>=/2`, which has the `=` second, Erlang put the `=` first
-/// for `=</2`, instead of the more common `<=`.
-pub fn is_equal_or_less_than_2(left: Term, right: Term) -> Term {
-    left.le(&right).into()
-}
 
 pub fn is_float_1(term: Term) -> Term {
     term.is_float().into()

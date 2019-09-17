@@ -22,7 +22,7 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::is_greater_than_2(args[0], args[1]))
     });
     native.add_simple(Atom::try_from_str("=<").unwrap(), 2, |_proc, args| {
-        Ok(erlang::is_equal_or_less_than_2(args[0], args[1]))
+        Ok(erlang::is_equal_or_less_than_2::native(args[0], args[1]))
     });
     native.add_simple(Atom::try_from_str(">=").unwrap(), 2, |_proc, args| {
         Ok(erlang::is_greater_than_or_equal_2(args[0], args[1]))

@@ -12,7 +12,7 @@ fn with_number_returns_false() {
                     strategy::term::is_number(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::is_equal_or_less_than_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },
@@ -49,7 +49,7 @@ fn without_number_or_atom_returns_true() {
                         }),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::is_equal_or_less_than_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },

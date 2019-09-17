@@ -15,7 +15,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod is_equal_or_less_than_2;
 mod is_float_1;
 mod is_greater_than_2;
 mod is_greater_than_or_equal_2;

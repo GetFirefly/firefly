@@ -176,7 +176,7 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::is_atom_1::native(args[0]))
     });
     native.add_simple(Atom::try_from_str("is_pid").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_pid_1(args[0]))
+        Ok(erlang::is_pid_1::native(args[0]))
     });
     native.add_simple(
         Atom::try_from_str("is_function").unwrap(),

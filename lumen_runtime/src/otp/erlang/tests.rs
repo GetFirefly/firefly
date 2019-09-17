@@ -15,7 +15,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod is_pid_1;
 mod is_record_2;
 mod is_record_3;
 mod is_reference_1;

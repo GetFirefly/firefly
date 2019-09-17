@@ -1,13 +1,21 @@
-use super::*;
-
+use proptest::arbitrary::any;
+use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::{atom_unchecked, Term};
+
+use crate::otp::erlang::list_to_atom_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(erlang::list_to_atom_1(list), Err(badarg!().into()));
+                prop_assert_eq!(native(list), Err(badarg!().into()));
 
                 Ok(())
             })
@@ -17,7 +25,7 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_empty_list_returns_empty_atom() {
-    assert_eq!(erlang::list_to_atom_1(Term::NIL), Ok(atom_unchecked("")));
+    assert_eq!(native(Term::NIL), Ok(atom_unchecked("")));
 }
 
 #[test]
@@ -27,7 +35,7 @@ fn with_improper_list_errors_badarg() {
             .run(
                 &strategy::term::list::improper(arc_process.clone()),
                 |list| {
-                    prop_assert_eq!(erlang::list_to_atom_1(list), Err(badarg!().into()));
+                    prop_assert_eq!(native(list), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -53,7 +61,7 @@ fn with_non_empty_proper_list_returns_atom() {
                 |(list, string)| {
                     let atom = atom_unchecked(&string);
 
-                    prop_assert_eq!(erlang::list_to_atom_1(list), Ok(atom));
+                    prop_assert_eq!(native(list), Ok(atom));
 
                     Ok(())
                 },

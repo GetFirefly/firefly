@@ -11,10 +11,7 @@ fn without_byte_binary_or_list_element_errors_badarg() {
                 )
                     .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
-                    prop_assert_eq!(
-                        erlang::list_to_binary_1(list, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -39,7 +36,7 @@ fn with_empty_list_returns_1_byte_binary() {
                 |(list, byte)| {
                     let binary = arc_process.binary_from_bytes(&[byte]).unwrap();
 
-                    prop_assert_eq!(erlang::list_to_binary_1(list, &arc_process), Ok(binary));
+                    prop_assert_eq!(native(&arc_process, list), Ok(binary));
 
                     Ok(())
                 },
@@ -56,10 +53,7 @@ fn with_byte_errors_badarg() {
                 &(byte(arc_process.clone()), byte(arc_process.clone()))
                     .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
-                    prop_assert_eq!(
-                        erlang::list_to_binary_1(list, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -81,7 +75,7 @@ fn with_list_without_byte_tail_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_binary_1(iolist, &process),
+            native(process, iolist),
             Ok(process
                 .binary_from_bytes(&[head_byte, tail_head_byte],)
                 .unwrap())
@@ -97,7 +91,7 @@ fn with_heap_binary_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_binary_1(iolist, &process),
+            native(process, iolist),
             Ok(process.binary_from_bytes(&[head_byte, 1, 2]).unwrap())
         );
     })
@@ -116,7 +110,7 @@ fn with_subbinary_without_bitcount_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_binary_1(iolist, &process),
+            native(process, iolist),
             Ok(process.binary_from_bytes(&[head_byte, 255]).unwrap())
         );
     })
@@ -133,10 +127,7 @@ fn with_subbinary_with_bitcount_errors_badarg() {
                 )
                     .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
-                    prop_assert_eq!(
-                        erlang::list_to_binary_1(list, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
 
                     Ok(())
                 },

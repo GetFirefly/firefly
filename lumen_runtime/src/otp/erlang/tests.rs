@@ -5,7 +5,7 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::term::{make_pid, next_pid, SmallInteger, SubBinary};
+use liblumen_alloc::erts::term::{make_pid, next_pid, SmallInteger};
 
 use crate::otp::erlang;
 use crate::process;
@@ -15,7 +15,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod list_to_binary_1;
 mod list_to_bitstring_1;
 mod list_to_pid_1;
 mod list_to_tuple_1;

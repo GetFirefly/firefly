@@ -15,7 +15,7 @@ fn without_list_or_bitstring_returns_true() {
                         }),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::is_greater_than_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -80,7 +80,7 @@ fn with_bitstring_right_returns_false() {
                     strategy::term::is_bitstring(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(erlang::is_greater_than_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },

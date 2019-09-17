@@ -15,7 +15,7 @@ fn without_list_or_bitstring_returns_true() {
                 |right| {
                     let left = Term::NIL;
 
-                    prop_assert_eq!(erlang::is_greater_than_2(left, right), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },
@@ -36,7 +36,7 @@ fn with_non_empty_list_or_bitstring_right_returns_false() {
                 |right| {
                     let left = Term::NIL;
 
-                    prop_assert_eq!(erlang::is_greater_than_2(left, right), false.into());
+                    prop_assert_eq!(native(left, right), false.into());
 
                     Ok(())
                 },

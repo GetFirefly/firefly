@@ -13,7 +13,7 @@ fn with_number_atom_reference_function_port_pid_or_tuple_returns_true() {
                 )
             }),
             |(left, right)| {
-                prop_assert_eq!(erlang::is_greater_than_2(left, right), true.into());
+                prop_assert_eq!(native(left, right), true.into());
 
                 Ok(())
             },
@@ -140,7 +140,7 @@ fn with_list_or_bitstring_returns_false() {
                 )
             }),
             |(left, right)| {
-                prop_assert_eq!(erlang::is_greater_than_2(left, right), false.into());
+                prop_assert_eq!(native(left, right), false.into());
 
                 Ok(())
             },

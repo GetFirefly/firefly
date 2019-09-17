@@ -161,7 +161,7 @@ pub fn make_erlang() -> NativeModule {
         1,
         |_proc, args| {
             assert!(args.len() == 1);
-            Ok(erlang::is_integer_1(args[0]))
+            Ok(erlang::is_integer_1::native(args[0]))
         },
     );
     native.add_simple(Atom::try_from_str("is_list").unwrap(), 1, |_proc, args| {

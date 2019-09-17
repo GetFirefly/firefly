@@ -14,7 +14,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod list_to_pid_1;
 mod list_to_tuple_1;
 mod make_ref_0;
 mod map_get_2;

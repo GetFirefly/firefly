@@ -75,6 +75,7 @@ pub mod list_to_atom_1;
 pub mod list_to_binary_1;
 pub mod list_to_bitstring_1;
 pub mod list_to_existing_atom_1;
+pub mod list_to_pid_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
@@ -124,38 +125,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn list_to_pid_1(string: Term, process: &Process) -> Result {
-    let cons: Boxed<Cons> = string.try_into()?;
-
-    let prefix_tail = skip_char(cons, '<')?;
-    let prefix_tail_cons: Boxed<Cons> = prefix_tail.try_into()?;
-
-    let (node_id, node_tail) = next_decimal(prefix_tail_cons)?;
-    let node_tail_cons: Boxed<Cons> = node_tail.try_into()?;
-
-    let first_separator_tail = skip_char(node_tail_cons, '.')?;
-    let first_separator_tail_cons: Boxed<Cons> = first_separator_tail.try_into()?;
-
-    let (number, number_tail) = next_decimal(first_separator_tail_cons)?;
-    let number_tail_cons: Boxed<Cons> = number_tail.try_into()?;
-
-    let second_separator_tail = skip_char(number_tail_cons, '.')?;
-    let second_separator_tail_cons: Boxed<Cons> = second_separator_tail.try_into()?;
-
-    let (serial, serial_tail) = next_decimal(second_separator_tail_cons)?;
-    let serial_tail_cons: Boxed<Cons> = serial_tail.try_into()?;
-
-    let suffix_tail = skip_char(serial_tail_cons, '>')?;
-
-    if suffix_tail.is_nil() {
-        process
-            .pid_with_node_id(node_id, number, serial)
-            .map_err(|error| error.into())
-    } else {
-        Err(badarg!().into())
-    }
-}
 
 pub fn list_to_tuple_1(list: Term, process: &Process) -> Result {
     match list.to_typed_term().unwrap() {
@@ -799,20 +768,6 @@ fn list_to_string(list: Term) -> std::result::Result<String, Exception> {
     }
 }
 
-fn next_decimal(cons: Boxed<Cons>) -> std::result::Result<(usize, Term), Exception> {
-    next_decimal_digit(cons)
-        .and_then(|(first_digit, first_tail)| rest_decimal_digits(first_digit, first_tail))
-}
-
-fn next_decimal_digit(cons: Boxed<Cons>) -> std::result::Result<(u8, Term), Exception> {
-    let head_char: char = cons.head.try_into()?;
-
-    match head_char.to_digit(10) {
-        Some(digit) => Ok((digit as u8, cons.tail)),
-        None => Err(badarg!().into()),
-    }
-}
-
 fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Process) -> Result {
     match timer_reference.to_typed_term().unwrap() {
         TypedTerm::Boxed(unboxed_timer_reference) => {
@@ -845,44 +800,6 @@ fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Pr
             }
         }
         _ => Err(badarg!().into()),
-    }
-}
-
-fn rest_decimal_digits(
-    first_digit: u8,
-    first_tail: Term,
-) -> std::result::Result<(usize, Term), Exception> {
-    match first_tail.try_into() {
-        Ok(first_tail_cons) => {
-            let mut acc_decimal: usize = first_digit as usize;
-            let mut acc_tail = first_tail;
-            let mut acc_cons: Boxed<Cons> = first_tail_cons;
-
-            while let Ok((digit, tail)) = next_decimal_digit(acc_cons) {
-                acc_decimal = 10 * acc_decimal + (digit as usize);
-                acc_tail = tail;
-
-                match tail.try_into() {
-                    Ok(tail_cons) => acc_cons = tail_cons,
-                    Err(_) => {
-                        break;
-                    }
-                }
-            }
-
-            Ok((acc_decimal, acc_tail))
-        }
-        Err(_) => Ok((first_digit as usize, first_tail)),
-    }
-}
-
-fn skip_char(cons: Boxed<Cons>, skip: char) -> Result {
-    let c: char = cons.head.try_into()?;
-
-    if c == skip {
-        Ok(cons.tail)
-    } else {
-        Err(badarg!().into())
     }
 }
 

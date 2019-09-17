@@ -1,17 +1,21 @@
-use super::*;
-
 use proptest::collection::SizeRange;
+use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::{atom_unchecked, Term};
+
+use crate::otp::erlang::list_to_tuple_1::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(
-                    erlang::list_to_tuple_1(list, &arc_process),
-                    Err(badarg!().into())
-                );
+                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
 
                 Ok(())
             })
@@ -25,7 +29,7 @@ fn with_empty_list_returns_empty_tuple() {
         let list = Term::NIL;
 
         assert_eq!(
-            erlang::list_to_tuple_1(list, &process),
+            native(process, list),
             Ok(process.tuple_from_slice(&[]).unwrap())
         );
     });
@@ -46,7 +50,7 @@ fn with_non_empty_proper_list_returns_tuple() {
                         (list, tuple)
                     }),
                 |(list, tuple)| {
-                    prop_assert_eq!(erlang::list_to_tuple_1(list, &arc_process), Ok(tuple));
+                    prop_assert_eq!(native(&arc_process, list), Ok(tuple));
 
                     Ok(())
                 },
@@ -62,10 +66,7 @@ fn with_improper_list_errors_badarg() {
             .run(
                 &strategy::term::list::improper(arc_process.clone()),
                 |list| {
-                    prop_assert_eq!(
-                        erlang::list_to_tuple_1(list, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -101,7 +102,7 @@ fn with_nested_list_returns_tuple_with_list_element() {
         };
 
         assert_eq!(
-            erlang::list_to_tuple_1(list, &process),
+            native(process, list),
             Ok(process
                 .tuple_from_slice(&[first_element, second_element],)
                 .unwrap())

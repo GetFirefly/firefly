@@ -15,7 +15,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod is_binary_1;
 mod is_bitstring_1;
 mod is_boolean_1;
 mod is_equal_or_less_than_2;

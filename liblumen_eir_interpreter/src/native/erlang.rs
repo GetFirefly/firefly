@@ -170,7 +170,7 @@ pub fn make_erlang() -> NativeModule {
     native.add_simple(
         Atom::try_from_str("is_binary").unwrap(),
         1,
-        |_proc, args| Ok(erlang::is_binary_1(args[0])),
+        |_proc, args| Ok(erlang::is_binary_1::native(args[0])),
     );
     native.add_simple(Atom::try_from_str("is_atom").unwrap(), 1, |_proc, args| {
         Ok(erlang::is_atom_1::native(args[0]))

@@ -1,6 +1,12 @@
-use super::*;
-
+use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+
+use crate::otp::erlang::is_record_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_returns_false() {
@@ -13,7 +19,7 @@ fn without_tuple_returns_false() {
                 )
             }),
             |(tuple, record_tag)| {
-                prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Ok(false.into()));
+                prop_assert_eq!(native(tuple, record_tag), Ok(false.into()));
 
                 Ok(())
             },
@@ -31,10 +37,7 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_not_atom(arc_process.clone()),
                 ),
                 |(tuple, record_tag)| {
-                    prop_assert_eq!(
-                        erlang::is_record_2(tuple, record_tag),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(tuple, record_tag), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -50,7 +53,7 @@ fn with_empty_tuple_with_atom_returns_false() {
             .run(&strategy::term::atom(), |record_tag| {
                 let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
-                prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Ok(false.into()));
+                prop_assert_eq!(native(tuple, record_tag), Ok(false.into()));
 
                 Ok(())
             })
@@ -79,10 +82,7 @@ fn with_non_empty_tuple_without_atom_with_first_element_errors_badarg() {
                         )
                     }),
                 |(tuple, record_tag)| {
-                    prop_assert_eq!(
-                        erlang::is_record_2(tuple, record_tag),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(tuple, record_tag), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -113,7 +113,7 @@ fn with_non_empty_tuple_with_atom_without_record_tag_returns_false() {
                         )
                     }),
                 |(tuple, record_tag)| {
-                    prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Ok(false.into()));
+                    prop_assert_eq!(native(tuple, record_tag), Ok(false.into()));
 
                     Ok(())
                 },
@@ -143,7 +143,7 @@ fn with_non_empty_tuple_with_atom_with_record_tag_returns_ok() {
                         )
                     }),
                 |(tuple, record_tag)| {
-                    prop_assert_eq!(erlang::is_record_2(tuple, record_tag), Ok(true.into()));
+                    prop_assert_eq!(native(tuple, record_tag), Ok(true.into()));
 
                     Ok(())
                 },

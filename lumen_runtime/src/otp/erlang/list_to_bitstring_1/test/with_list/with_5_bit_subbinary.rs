@@ -11,10 +11,7 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
                 )
                     .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
-                    prop_assert_eq!(
-                        erlang::list_to_bitstring_1(list, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -31,10 +28,7 @@ fn with_empty_list_returns_bitstring() {
                 &strategy::term::binary::sub::with_bit_count(5, arc_process.clone())
                     .prop_map(|head| (arc_process.cons(head, Term::NIL).unwrap(), head)),
                 |(list, bitstring)| {
-                    prop_assert_eq!(
-                        erlang::list_to_bitstring_1(list, &arc_process),
-                        Ok(bitstring)
-                    );
+                    prop_assert_eq!(native(&arc_process, list), Ok(bitstring));
 
                     Ok(())
                 },
@@ -49,7 +43,7 @@ fn with_empty_list_returns_binary() {
         let tail = Term::NIL;
         let iolist = process.cons(head, tail).unwrap();
 
-        assert_eq!(erlang::list_to_bitstring_1(iolist, &process), Ok(head));
+        assert_eq!(native(process, iolist), Ok(head));
     })
 }
 
@@ -74,7 +68,7 @@ fn with_proper_list_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(process
                 .subbinary_from_original(
                     process.binary_from_bytes(&[1, 175, 30 << (8 - 5)]).unwrap(),
@@ -96,7 +90,7 @@ fn with_heap_binary_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(bitstring!(1, 175, 247, 29 :: 5, &process))
         );
     })
@@ -113,7 +107,7 @@ fn with_subbinary_with_bit_count_0_returns_binary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(bitstring!(1, 168, 2 :: 5, &process))
         );
     });
@@ -126,7 +120,7 @@ fn with_subbinary_with_bit_count_1_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(bitstring!(1, 168, 5 :: 6, &process))
         );
     });
@@ -139,7 +133,7 @@ fn with_subbinary_with_bit_count_2_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(bitstring!(1, 168, 11 :: 7, &process))
         );
     });
@@ -152,7 +146,7 @@ fn with_subbinary_with_bit_count_3_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(process.binary_from_bytes(&[1, 168, 21]).unwrap())
         );
     });
@@ -165,7 +159,7 @@ fn with_subbinary_with_bit_count_4_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(bitstring!(1, 168, 18, 1 :: 1, &process))
         );
     });
@@ -178,7 +172,7 @@ fn with_subbinary_with_bit_count_5_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(bitstring!(1, 168, 21, 1 :: 2, &process))
         );
     });
@@ -191,7 +185,7 @@ fn with_subbinary_with_bit_count_6_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(bitstring!( 1, 168, 18, 5 :: 3, &process))
         );
     });
@@ -204,7 +198,7 @@ fn with_subbinary_with_bit_count_7_returns_subbinary() {
         let iolist = process.cons(head, tail).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(bitstring!( 1, 168, 21, 5 :: 4, &process)),
         )
     });
@@ -217,7 +211,7 @@ where
     with(|head, process| {
         let iolist = process.cons(head, tail(&process)).unwrap();
 
-        assert_badarg!(erlang::list_to_bitstring_1(iolist, &process));
+        assert_badarg!(native(process, iolist));
     });
 }
 

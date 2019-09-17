@@ -1,19 +1,27 @@
-use super::*;
-
-use proptest::prop_oneof;
-use proptest::strategy::Strategy;
-
 mod with_list;
+
+use std::sync::Arc;
+
+use proptest::arbitrary::any;
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq, prop_oneof};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::Term;
+
+use crate::otp::erlang::list_to_bitstring_1::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(
-                    erlang::list_to_bitstring_1(list, &arc_process),
-                    Err(badarg!().into())
-                );
+                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
 
                 Ok(())
             })
@@ -25,7 +33,7 @@ fn without_list_errors_badarg() {
 fn with_empty_list_returns_empty_binary() {
     with_process(|process| {
         assert_eq!(
-            erlang::list_to_bitstring_1(Term::NIL, &process),
+            native(process, Term::NIL),
             Ok(process.binary_from_bytes(&[]).unwrap())
         );
     });
@@ -65,7 +73,7 @@ fn otp_doctest_returns_binary() {
             .unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(process
                 .binary_from_bytes(&[1, 2, 3, 1, 2, 3, 4, 5, 4, 6],)
                 .unwrap())
@@ -79,7 +87,7 @@ fn with_recursive_lists_of_bitstrings_and_bytes_ending_in_bitstring_or_empty_lis
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&top(arc_process.clone()), |list| {
-                let result = erlang::list_to_bitstring_1(list, &arc_process);
+                let result = native(&arc_process, list);
 
                 prop_assert!(result.is_ok(), "{:?}", result);
 

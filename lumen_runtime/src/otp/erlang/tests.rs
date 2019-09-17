@@ -1,6 +1,5 @@
 use super::*;
 
-use proptest::arbitrary::any;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
@@ -15,7 +14,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod list_to_bitstring_1;
 mod list_to_pid_1;
 mod list_to_tuple_1;
 mod make_ref_0;

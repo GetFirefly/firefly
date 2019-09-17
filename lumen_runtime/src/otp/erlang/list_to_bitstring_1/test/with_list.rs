@@ -19,10 +19,7 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
                 &is_not_byte_bitstring_nor_list(arc_process.clone())
                     .prop_map(|element| arc_process.cons(element, Term::NIL).unwrap()),
                 |list| {
-                    prop_assert_eq!(
-                        erlang::list_to_bitstring_1(list, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -37,7 +34,7 @@ fn with_empty_list_returns_empty_binary() {
         let iolist = process.cons(Term::NIL, Term::NIL).unwrap();
 
         assert_eq!(
-            erlang::list_to_bitstring_1(iolist, &process),
+            native(process, iolist),
             Ok(process.binary_from_bytes(&[]).unwrap())
         );
     })

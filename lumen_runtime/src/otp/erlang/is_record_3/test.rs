@@ -1,6 +1,13 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
 
-use proptest::strategy::Strategy;
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+
+use crate::otp::erlang::is_record_3::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_returns_false() {
@@ -14,10 +21,7 @@ fn without_tuple_returns_false() {
                 )
             }),
             |(tuple, record_tag, size)| {
-                prop_assert_eq!(
-                    erlang::is_record_3(tuple, record_tag, size),
-                    Ok(false.into())
-                );
+                prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
 
                 Ok(())
             },
@@ -36,10 +40,7 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(
-                        erlang::is_record_3(tuple, record_tag, size),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(tuple, record_tag, size), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -63,10 +64,7 @@ fn with_empty_tuple_with_atom_without_non_negative_size_errors_badarg() {
                 |(record_tag, size)| {
                     let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
-                    prop_assert_eq!(
-                        erlang::is_record_3(tuple, record_tag, size),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(tuple, record_tag, size), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -87,10 +85,7 @@ fn with_empty_tuple_with_atom_with_non_negative_size_returns_false() {
                 |(record_tag, size)| {
                     let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
-                    prop_assert_eq!(
-                        erlang::is_record_3(tuple, record_tag, size),
-                        Ok(false.into())
-                    );
+                    prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
 
                     Ok(())
                 },
@@ -137,10 +132,7 @@ fn with_non_empty_tuple_without_record_tag_with_size_returns_false() {
                         },
                     ),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(
-                        erlang::is_record_3(tuple, record_tag, size),
-                        Ok(false.into())
-                    );
+                    prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
 
                     Ok(())
                 },
@@ -175,10 +167,7 @@ fn with_non_empty_tuple_with_record_tag_without_size_returns_false() {
                         )
                     }),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(
-                        erlang::is_record_3(tuple, record_tag, size),
-                        Ok(false.into())
-                    );
+                    prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
 
                     Ok(())
                 },
@@ -210,10 +199,7 @@ fn with_non_empty_tuple_with_record_tag_with_size_returns_true() {
                         )
                     }),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(
-                        erlang::is_record_3(tuple, record_tag, size),
-                        Ok(true.into())
-                    );
+                    prop_assert_eq!(native(tuple, record_tag, size), Ok(true.into()));
 
                     Ok(())
                 },

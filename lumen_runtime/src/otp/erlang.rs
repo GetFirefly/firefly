@@ -66,6 +66,7 @@ pub mod is_map_key_2;
 pub mod is_number_1;
 pub mod is_pid_1;
 pub mod is_record_2;
+pub mod is_record_3;
 pub mod link_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
@@ -118,10 +119,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn is_record_3(term: Term, record_tag: Term, size: Term) -> Result {
-    is_record(term, record_tag, Some(size))
-}
 
 pub fn is_reference_1(term: Term) -> Term {
     match term.to_typed_term().unwrap() {

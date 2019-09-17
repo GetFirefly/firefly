@@ -72,6 +72,7 @@ pub mod is_tuple_1;
 pub mod length_1;
 pub mod link_1;
 pub mod list_to_atom_1;
+pub mod list_to_existing_atom_1;
 pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
@@ -123,13 +124,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn list_to_existing_atom_1(string: Term) -> Result {
-    list_to_string(string).and_then(|s| match Atom::try_from_str_existing(s) {
-        Ok(atom) => unsafe { Ok(atom.as_term()) },
-        Err(_) => Err(badarg!().into()),
-    })
-}
 
 pub fn list_to_binary_1(iolist: Term, process: &Process) -> Result {
     match iolist.to_typed_term().unwrap() {

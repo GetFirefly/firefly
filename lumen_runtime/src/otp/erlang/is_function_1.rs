@@ -5,12 +5,11 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(is_function/1)]
-fn native(term: Term) -> exception::Result {
-    Ok(term.is_function().into())
+pub fn native(term: Term) -> Term {
+    term.is_function().into()
 }

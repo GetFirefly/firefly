@@ -12,7 +12,7 @@ fn without_function_returns_false() {
             .run(
                 &strategy::term::is_not_function(arc_process.clone()),
                 |term| {
-                    prop_assert_eq!(native(term), Ok(false.into()));
+                    prop_assert_eq!(native(term), false.into());
 
                     Ok(())
                 },
@@ -26,7 +26,7 @@ fn with_function_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_function(arc_process.clone()), |term| {
-                prop_assert_eq!(native(term), Ok(true.into()));
+                prop_assert_eq!(native(term), true.into());
 
                 Ok(())
             })

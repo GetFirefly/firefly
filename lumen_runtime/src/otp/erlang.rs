@@ -108,10 +108,6 @@ use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
-pub fn is_function_1(term: Term) -> Term {
-    term.is_function().into()
-}
-
 /// `=</2` infix operator.  Floats and integers are converted.
 ///
 /// **NOTE: `=</2` is not a typo.  Unlike `>=/2`, which has the `=` second, Erlang put the `=` first

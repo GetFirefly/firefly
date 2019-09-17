@@ -14,7 +14,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod make_ref_0;
 mod map_get_2;
 mod map_size_1;
 mod max_2;

@@ -77,6 +77,7 @@ pub mod list_to_bitstring_1;
 pub mod list_to_existing_atom_1;
 pub mod list_to_pid_1;
 pub mod list_to_tuple_1;
+pub mod make_ref_0;
 pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
@@ -115,7 +116,6 @@ use liblumen_alloc::erts::term::{
 use liblumen_alloc::{badarg, badarith, badkey, badmap, raise, throw};
 
 use crate::node;
-use crate::process::SchedulerDependentAlloc;
 use crate::registry::{self, pid_to_self_or_process};
 use crate::send::{self, send, Sent};
 use crate::stacktrace;
@@ -126,10 +126,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn make_ref_0(process: &Process) -> Result {
-    process.next_reference().map_err(|error| error.into())
-}
 
 pub fn map_get_2(key: Term, map: Term, process: &Process) -> Result {
     let result: core::result::Result<Boxed<Map>, _> = map.try_into();
@@ -832,7 +828,7 @@ fn start_timer(
                         &arc_process,
                     )
                     .map_err(|error| error.into()),
-                    None => make_ref_0(&arc_process),
+                    None => make_ref_0::native(&arc_process),
                 }
             }
             _ => Err(badarg!().into()),

@@ -19,7 +19,7 @@ fn with_second_increases_after_2_seconds() {
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 
-        assert_eq!(erlang::is_less_than_2(first, second), true.into());
+        assert!(first < second);
     });
 }
 
@@ -34,7 +34,7 @@ fn with_millisecond_increases_after_2_milliseconds() {
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 
-        assert_eq!(erlang::is_less_than_2(first, second), true.into());
+        assert!(first < second);
     });
 }
 
@@ -49,7 +49,7 @@ fn with_microsecond_increases_after_2_milliseconds() {
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 
-        assert_eq!(erlang::is_less_than_2(first, second), true.into());
+        assert!(first < second);
     });
 }
 
@@ -64,7 +64,7 @@ fn with_nanosecond_increases_after_2_milliseconds() {
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 
-        assert_eq!(erlang::is_less_than_2(first, second), true.into());
+        assert!(first < second);
     });
 }
 
@@ -79,7 +79,7 @@ fn with_native_increases_after_2_native_time_units() {
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 
-        assert_eq!(erlang::is_less_than_2(first, second), true.into());
+        assert!(first < second);
     });
 }
 
@@ -94,6 +94,6 @@ fn with_perf_counter_increases_after_2_perf_counter_ticks() {
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 
-        assert_eq!(erlang::is_less_than_2(first, second), true.into());
+        assert!(first < second);
     });
 }

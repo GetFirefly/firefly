@@ -24,6 +24,6 @@ fn with_positive_increases_after_2_time_units() {
 
         let second = erlang::monotonic_time_1(unit, process).unwrap();
 
-        assert_eq!(erlang::is_less_than_2(first, second), true.into());
+        assert!(first < second);
     });
 }

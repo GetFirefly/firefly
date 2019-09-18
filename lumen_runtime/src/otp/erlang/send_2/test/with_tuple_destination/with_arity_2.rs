@@ -15,7 +15,7 @@ fn without_atom_name_errors_badarg() {
                 ),
                 |(name, message)| {
                     let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0()])
+                        .tuple_from_slice(&[name, erlang::node_0::native()])
                         .unwrap();
 
                     prop_assert_eq!(
@@ -100,7 +100,7 @@ where
 {
     with_process(|process| {
         let destination = process
-            .tuple_from_slice(&[name(process), erlang::node_0()])
+            .tuple_from_slice(&[name(process), erlang::node_0::native()])
             .unwrap();
         let message = atom_unchecked("message");
 

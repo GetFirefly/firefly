@@ -124,7 +124,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
                     first_monitor_reference,
                     r#type(),
                     monitoring_arc_process
-                        .tuple_from_slice(&[first_registered_name, node_0()])
+                        .tuple_from_slice(&[first_registered_name, node_0::native()])
                         .unwrap(),
                     reason
                 ])
@@ -138,7 +138,7 @@ fn when_monitored_process_exits_it_sends_message_for_each_monitor_reference() {
                     second_monitor_reference,
                     r#type(),
                     monitoring_arc_process
-                        .tuple_from_slice(&[second_registered_name, node_0()])
+                        .tuple_from_slice(&[second_registered_name, node_0::native()])
                         .unwrap(),
                     reason
                 ])

@@ -220,7 +220,7 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("node").unwrap(), 0, |_proc, _args| {
-        Ok(erlang::node_0())
+        Ok(erlang::node_0::native())
     });
     native.add_simple(Atom::try_from_str("node").unwrap(), 1, |_proc, _args| {
         Ok(atom_unchecked("nonode@nohost"))

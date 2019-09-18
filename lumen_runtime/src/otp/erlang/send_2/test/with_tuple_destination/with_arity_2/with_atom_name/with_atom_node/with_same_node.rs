@@ -10,7 +10,7 @@ fn unregistered_errors_badarg() {
                 &(strategy::term::atom(), strategy::term(arc_process.clone())),
                 |(name, message)| {
                     let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0()])
+                        .tuple_from_slice(&[name, erlang::node_0::native()])
                         .unwrap();
 
                     prop_assert_eq!(

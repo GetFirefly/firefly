@@ -26,7 +26,7 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
                     monitor_reference,
                     r#type(),
                     monitoring_arc_process
-                        .tuple_from_slice(&[registered_name, node_0()])
+                        .tuple_from_slice(&[registered_name, node_0::native()])
                         .unwrap(),
                     reason
                 ])

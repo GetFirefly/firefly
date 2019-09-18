@@ -87,6 +87,7 @@ pub mod monotonic_time_0;
 pub mod monotonic_time_1;
 pub mod multiply_2;
 pub mod negate_1;
+pub mod node_0;
 pub mod number_or_badarith_1;
 pub mod orelse_2;
 pub mod process_flag_2;
@@ -120,7 +121,6 @@ use liblumen_alloc::erts::term::{
 };
 use liblumen_alloc::{badarg, badarith, raise, throw};
 
-use crate::node;
 use crate::registry::{self, pid_to_self_or_process};
 use crate::send::{self, send, Sent};
 use crate::stacktrace;
@@ -134,10 +134,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn node_0() -> Term {
-    atom_unchecked(node::DEAD)
 }
 
 /// `not/1` prefix operator.

@@ -23,7 +23,7 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_ok() {
                     );
 
                     let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0()])
+                        .tuple_from_slice(&[name, erlang::node_0::native()])
                         .unwrap();
 
                     prop_assert_eq!(
@@ -65,7 +65,7 @@ fn with_locked_adds_heap_message_to_mailbox_and_returns_ok() {
                     let _different_process_heap_lock = different_arc_process.acquire_heap();
 
                     let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0()])
+                        .tuple_from_slice(&[name, erlang::node_0::native()])
                         .unwrap();
 
                     prop_assert_eq!(

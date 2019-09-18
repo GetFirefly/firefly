@@ -94,7 +94,7 @@ fn monitor_process_registered_name(
             Ok(reference)
         }
         None => {
-            let identifier = process.tuple_from_slice(&[process_identifier, node_0()])?;
+            let identifier = process.tuple_from_slice(&[process_identifier, node_0::native()])?;
 
             monitor_process_identifier_noproc(process, identifier)
         }
@@ -112,12 +112,16 @@ fn monitor_process_tuple(
 
         let node = tuple[1];
 
-        if node == node_0() {
+        if node == node_0::native() {
             monitor_process_registered_name(process, registered_name, registered_name_atom)
         } else {
             let _node_atom: Atom = node.try_into()?;
 
-            unimplemented!("node ({:?}) is not the local node ({:?})", node, node_0());
+            unimplemented!(
+                "node ({:?}) is not the local node ({:?})",
+                node,
+                node_0::native()
+            );
         }
     } else {
         Err(badarg!().into())

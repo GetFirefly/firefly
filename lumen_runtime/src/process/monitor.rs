@@ -113,7 +113,7 @@ fn identifier<A: HeapAlloc>(process: &Process, monitor: &Monitor, heap: &mut A) 
         Monitor::Pid { .. } => process.pid_term(),
         Monitor::Name { monitored_name, .. } => {
             let monitored_name_term = unsafe { monitored_name.as_term() };
-            let node_name = node_0();
+            let node_name = node_0::native();
 
             heap.tuple_from_slice(&[monitored_name_term, node_name])
                 .unwrap()

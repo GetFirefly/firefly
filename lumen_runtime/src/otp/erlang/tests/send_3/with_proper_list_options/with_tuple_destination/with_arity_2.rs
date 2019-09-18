@@ -14,7 +14,7 @@ fn without_atom_name_errors_badarg() {
                 ),
                 |(name, message, options)| {
                     let destination = arc_process
-                        .tuple_from_slice(&[name, erlang::node_0()])
+                        .tuple_from_slice(&[name, erlang::node_0::native()])
                         .unwrap();
 
                     prop_assert_eq!(

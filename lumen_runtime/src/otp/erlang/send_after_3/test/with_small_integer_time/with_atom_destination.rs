@@ -18,7 +18,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
                 let time = arc_process.integer(milliseconds).unwrap();
 
-                let result = erlang::send_after_3(time, destination, message, arc_process.clone());
+                let result = native(arc_process.clone(), time, destination, message);
 
                 prop_assert!(
                     result.is_ok(),

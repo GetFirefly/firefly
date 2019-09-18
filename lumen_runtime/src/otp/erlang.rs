@@ -103,6 +103,7 @@ pub mod rem_2;
 pub mod self_0;
 pub mod send_2;
 pub mod send_3;
+pub mod send_after_3;
 pub mod spawn_3;
 pub mod spawn_apply_3;
 pub mod spawn_link_3;
@@ -140,22 +141,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn send_after_3(
-    time: Term,
-    destination: Term,
-    message: Term,
-    arc_process: Arc<Process>,
-) -> Result {
-    start_timer(
-        time,
-        destination,
-        Timeout::Message,
-        message,
-        Default::default(),
-        arc_process,
-    )
 }
 
 pub fn send_after_4(

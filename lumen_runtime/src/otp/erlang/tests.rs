@@ -11,7 +11,6 @@ use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{has_message, registered_name, strategy, timeout_message};
 
-mod send_after_3;
 mod send_after_4;
 mod setelement_3;
 mod size_1;

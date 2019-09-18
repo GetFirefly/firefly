@@ -1,14 +1,18 @@
-use super::*;
-
 // because registry is global and tests are concurrent, there is no way to test for completely
 // empty registry
+
+use liblumen_alloc::erts::term::{atom_unchecked, TypedTerm};
+
+use crate::otp::erlang;
+use crate::otp::erlang::registered_0::native;
+use crate::scheduler::with_process_arc;
 
 #[test]
 fn includes_registered_process_name() {
     with_process_arc(|process_arc| {
         let name = atom_unchecked("registered_process_name");
 
-        let before = erlang::registered_0(&process_arc).unwrap();
+        let before = native(&process_arc).unwrap();
 
         match before.to_typed_term().unwrap() {
             TypedTerm::Nil => (),
@@ -23,7 +27,7 @@ fn includes_registered_process_name() {
             Ok(true.into())
         );
 
-        let after = erlang::registered_0(&process_arc).unwrap();
+        let after = native(&process_arc).unwrap();
 
         match after.to_typed_term().unwrap() {
             TypedTerm::List(after_cons) => assert!(after_cons.contains(name)),

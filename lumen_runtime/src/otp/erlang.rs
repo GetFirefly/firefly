@@ -98,6 +98,7 @@ pub mod raise_3;
 pub mod read_timer_1;
 pub mod read_timer_2;
 pub mod register_2;
+pub mod registered_0;
 pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;
@@ -138,10 +139,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn registered_0(process: &Process) -> Result {
-    registry::names(process)
 }
 
 /// `rem/2` infix operator.  Integer remainder.

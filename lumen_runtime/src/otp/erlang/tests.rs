@@ -13,7 +13,6 @@ use crate::test::{
     has_heap_message, has_message, has_process_message, registered_name, strategy, timeout_message,
 };
 
-mod registered_0;
 mod rem_2;
 mod send_3;
 mod send_after_3;

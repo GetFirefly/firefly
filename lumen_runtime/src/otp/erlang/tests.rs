@@ -9,11 +9,8 @@ use liblumen_alloc::erts::term::next_pid;
 use crate::otp::erlang;
 use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::{
-    has_heap_message, has_message, has_process_message, registered_name, strategy, timeout_message,
-};
+use crate::test::{has_message, registered_name, strategy, timeout_message};
 
-mod send_3;
 mod send_after_3;
 mod send_after_4;
 mod setelement_3;

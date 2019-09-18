@@ -102,6 +102,7 @@ pub mod registered_0;
 pub mod rem_2;
 pub mod self_0;
 pub mod send_2;
+pub mod send_3;
 pub mod spawn_3;
 pub mod spawn_apply_3;
 pub mod spawn_link_3;
@@ -129,7 +130,6 @@ use liblumen_alloc::erts::term::{
 use liblumen_alloc::{badarg, throw};
 
 use crate::registry::{self, pid_to_self_or_process};
-use crate::send::{self, send, Sent};
 use crate::time::monotonic::{self, Milliseconds};
 use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
@@ -140,20 +140,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-// `send(destination, message, [nosuspend])` is used in `gen.erl`, which is used by `gen_server.erl`
-// See https://github.com/erlang/otp/blob/8f6d45ddc8b2b12376c252a30b267a822cad171a/lib/stdlib/src/gen.erl#L167
-pub fn send_3(destination: Term, message: Term, options: Term, process: &Process) -> Result {
-    let send_options: send::Options = options.try_into()?;
-
-    send(destination, message, send_options, process)
-        .map(|sent| match sent {
-            Sent::Sent => "ok",
-            Sent::ConnectRequired => "noconnect",
-            Sent::SuspendRequired => "nosuspend",
-        })
-        .map(|s| atom_unchecked(s))
 }
 
 pub fn send_after_3(

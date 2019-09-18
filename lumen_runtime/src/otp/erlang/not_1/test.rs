@@ -1,4 +1,11 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+
+use crate::otp::erlang::not_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_boolean_errors_badarg() {
@@ -7,7 +14,7 @@ fn without_boolean_errors_badarg() {
             .run(
                 &strategy::term::is_not_boolean(arc_process.clone()),
                 |boolean| {
-                    prop_assert_eq!(erlang::not_1(boolean), Err(badarg!().into()));
+                    prop_assert_eq!(native(boolean), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -18,10 +25,10 @@ fn without_boolean_errors_badarg() {
 
 #[test]
 fn with_false_returns_true() {
-    assert_eq!(erlang::not_1(false.into()), Ok(true.into()));
+    assert_eq!(native(false.into()), Ok(true.into()));
 }
 
 #[test]
 fn with_true_returns_false() {
-    assert_eq!(erlang::not_1(true.into()), Ok(false.into()));
+    assert_eq!(native(true.into()), Ok(false.into()));
 }

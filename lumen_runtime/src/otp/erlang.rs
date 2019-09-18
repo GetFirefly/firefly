@@ -88,6 +88,7 @@ pub mod monotonic_time_1;
 pub mod multiply_2;
 pub mod negate_1;
 pub mod node_0;
+pub mod not_1;
 pub mod number_or_badarith_1;
 pub mod orelse_2;
 pub mod process_flag_2;
@@ -134,14 +135,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-/// `not/1` prefix operator.
-pub fn not_1(boolean: Term) -> Result {
-    let boolean_bool: bool = boolean.try_into()?;
-    let output = !boolean_bool;
-
-    Ok(output.into())
 }
 
 /// `or/2` infix operator.

@@ -1,4 +1,12 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+
+use crate::otp::erlang::setelement_3::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_errors_badarg() {
@@ -14,7 +22,7 @@ fn without_tuple_errors_badarg() {
             }),
             |(arc_process, tuple, index, element)| {
                 prop_assert_eq!(
-                    erlang::setelement_3(index, tuple, element, &arc_process),
+                    native(&arc_process, index, tuple, element),
                     Err(badarg!().into())
                 );
 
@@ -35,7 +43,7 @@ fn with_tuple_without_valid_index_errors_badarg() {
                 ),
                 |((tuple, index), element)| {
                     prop_assert_eq!(
-                        erlang::setelement_3(index, tuple, element, &arc_process),
+                        native(&arc_process, index, tuple, element),
                         Err(badarg!().into())
                     );
 
@@ -59,10 +67,7 @@ fn with_tuple_with_valid_index_returns_tuple_with_index_replaced() {
                     element_vec[element_vec_index] = element;
                     let new_tuple = arc_process.tuple_from_slice(&element_vec).unwrap();
 
-                    prop_assert_eq!(
-                        erlang::setelement_3(index, tuple, element, &arc_process),
-                        Ok(new_tuple)
-                    );
+                    prop_assert_eq!(native(&arc_process, index, tuple, element), Ok(new_tuple));
 
                     Ok(())
                 },

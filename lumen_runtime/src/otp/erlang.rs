@@ -105,6 +105,7 @@ pub mod send_2;
 pub mod send_3;
 pub mod send_after_3;
 pub mod send_after_4;
+pub mod setelement_3;
 pub mod spawn_3;
 pub mod spawn_apply_3;
 pub mod spawn_link_3;
@@ -135,41 +136,12 @@ use crate::registry::{self, pid_to_self_or_process};
 use crate::time::monotonic::{self, Milliseconds};
 use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
-use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn setelement_3(index: Term, tuple: Term, value: Term, process: &Process) -> Result {
-    let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let ZeroBasedIndex(index_zero_based): ZeroBasedIndex = index.try_into()?;
-
-    let length = initial_inner_tuple.len();
-
-    if index_zero_based < length {
-        if index_zero_based == 0 {
-            if 1 < length {
-                process.tuple_from_slices(&[&[value], &initial_inner_tuple[1..]])
-            } else {
-                process.tuple_from_slice(&[value])
-            }
-        } else if index_zero_based < (length - 1) {
-            process.tuple_from_slices(&[
-                &initial_inner_tuple[..index_zero_based],
-                &[value],
-                &initial_inner_tuple[(index_zero_based + 1)..],
-            ])
-        } else {
-            process.tuple_from_slices(&[&initial_inner_tuple[..index_zero_based], &[value]])
-        }
-        .map_err(|error| error.into())
-    } else {
-        Err(badarg!().into())
-    }
 }
 
 pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {

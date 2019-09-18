@@ -1,8 +1,3 @@
-use super::FirstSecond::{First, Second};
-use super::*;
-
-use proptest::strategy::Strategy;
-
 mod with_atom_first;
 mod with_big_integer_first;
 mod with_empty_list_first;
@@ -16,6 +11,13 @@ mod with_map_first;
 mod with_small_integer_first;
 mod with_subbinary_first;
 mod with_tuple_first;
+
+use super::*;
+
+use proptest::strategy::Strategy;
+
+use crate::test::FirstSecond;
+use crate::test::FirstSecond::*;
 
 #[test]
 fn min_is_first_if_first_is_less_than_or_equal_to_second() {

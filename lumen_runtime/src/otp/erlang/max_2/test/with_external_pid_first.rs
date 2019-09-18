@@ -12,7 +12,7 @@ fn with_number_atom_reference_function_port_or_local_pid_returns_first() {
                     ),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), first);
+                    prop_assert_eq!(native(first, second), first);
 
                     Ok(())
                 },
@@ -60,7 +60,7 @@ fn with_tuple_map_list_or_bitstring_returns_second() {
                     strategy::term::tuple_map_list_or_bitstring(arc_process.clone()),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), second.into());
+                    prop_assert_eq!(native(first, second), second.into());
 
                     Ok(())
                 },

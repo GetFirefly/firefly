@@ -15,7 +15,7 @@ fn without_list_or_bitstring_second_returns_first() {
                         }),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), first.into());
+                    prop_assert_eq!(native(first, second), first.into());
 
                     Ok(())
                 },
@@ -80,7 +80,7 @@ fn with_bitstring_second_returns_second() {
                     strategy::term::is_bitstring(arc_process.clone()),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), second);
+                    prop_assert_eq!(native(first, second), second);
 
                     Ok(())
                 },

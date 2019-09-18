@@ -10,7 +10,7 @@ fn with_number_second_returns_first() {
                     strategy::term::is_number(arc_process.clone()),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), first);
+                    prop_assert_eq!(native(first, second), first);
 
                     Ok(())
                 },
@@ -52,7 +52,7 @@ fn without_number_or_atom_returns_second() {
                         }),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), second);
+                    prop_assert_eq!(native(first, second), second);
 
                     Ok(())
                 },

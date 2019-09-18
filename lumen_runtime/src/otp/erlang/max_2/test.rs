@@ -1,8 +1,3 @@
-use super::FirstSecond::{First, Second};
-use super::*;
-
-use proptest::strategy::Strategy;
-
 mod with_atom_first;
 mod with_big_integer_first;
 mod with_empty_list_first;
@@ -17,6 +12,19 @@ mod with_small_integer_first;
 mod with_subbinary_first;
 mod with_tuple_first;
 
+use proptest::prop_assert_eq;
+use proptest::strategy::Strategy;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{atom_unchecked, make_pid, SmallInteger, Term};
+
+use crate::otp::erlang::max_2::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::FirstSecond::*;
+use crate::test::{strategy, FirstSecond};
+
 #[test]
 fn max_is_first_if_first_is_greater_than_or_equal_to_second() {
     with_process_arc(|arc_process| {
@@ -28,7 +36,7 @@ fn max_is_first_if_first_is_greater_than_or_equal_to_second() {
                 )
                     .prop_filter("First must be >= second", |(first, second)| second <= first),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), first);
+                    prop_assert_eq!(native(first, second), first);
 
                     Ok(())
                 },
@@ -48,7 +56,7 @@ fn max_is_second_if_first_is_less_than_second() {
                 )
                     .prop_filter("First must be <= second", |(first, second)| first < second),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), second);
+                    prop_assert_eq!(native(first, second), second);
 
                     Ok(())
                 },
@@ -66,7 +74,7 @@ where
         let first = first(&process);
         let second = second(first, &process);
 
-        let max = erlang::max_2(first, second);
+        let max = native(first, second);
 
         let expected = match which {
             First => first,

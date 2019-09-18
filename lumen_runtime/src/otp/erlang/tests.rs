@@ -14,7 +14,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod max_2;
 mod min_2;
 mod monotonic_time_1;
 mod multiply_2;
@@ -44,11 +43,6 @@ mod tuple_to_list_1;
 mod unregister_1;
 mod whereis_1;
 mod xor_2;
-
-enum FirstSecond {
-    First,
-    Second,
-}
 
 fn errors_badarg<F>(actual: F)
 where

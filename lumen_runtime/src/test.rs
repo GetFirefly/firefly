@@ -145,3 +145,8 @@ pub fn total_byte_len(term: Term) -> usize {
         typed_term => panic!("{:?} does not have a total_byte_len", typed_term),
     }
 }
+
+pub enum FirstSecond {
+    First,
+    Second,
+}

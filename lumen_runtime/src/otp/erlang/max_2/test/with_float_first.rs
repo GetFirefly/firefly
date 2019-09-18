@@ -46,7 +46,7 @@ fn without_number_returns_second() {
                     strategy::term::is_not_number(arc_process.clone()),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::max_2(first, second), second);
+                    prop_assert_eq!(native(first, second), second);
 
                     Ok(())
                 },

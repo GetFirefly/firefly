@@ -80,6 +80,7 @@ pub mod list_to_tuple_1;
 pub mod make_ref_0;
 pub mod map_get_2;
 pub mod map_size_1;
+pub mod max_2;
 pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
@@ -128,15 +129,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-/// `max/2`
-///
-/// Returns the largest of `Term1` and `Term2`. If the terms are equal, `Term1` is returned.
-pub fn max_2(term1: Term, term2: Term) -> Term {
-    // Flip the order because for Rust `max` returns the second argument when equal, but Erlang
-    // returns the first
-    term2.max(term1)
-}
 
 /// `min/2`
 ///

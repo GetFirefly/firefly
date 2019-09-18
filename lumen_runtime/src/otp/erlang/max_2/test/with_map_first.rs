@@ -11,7 +11,7 @@ fn with_number_atom_reference_function_port_pid_or_tuple_second_returns_first() 
                 )
             }),
             |(first, second)| {
-                prop_assert_eq!(erlang::max_2(first, second), first);
+                prop_assert_eq!(native(first, second), first);
 
                 Ok(())
             },
@@ -143,7 +143,7 @@ fn with_list_or_bitstring_second_returns_second() {
                 )
             }),
             |(first, second)| {
-                prop_assert_eq!(erlang::max_2(first, second), second);
+                prop_assert_eq!(native(first, second), second);
 
                 Ok(())
             },

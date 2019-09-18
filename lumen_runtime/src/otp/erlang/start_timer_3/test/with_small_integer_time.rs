@@ -23,7 +23,12 @@ fn without_atom_or_pid_destination_errors_badarg() {
                     let time = arc_process.integer(milliseconds).unwrap();
 
                     prop_assert_eq!(
-                        erlang::start_timer_3(time, destination, message, arc_process.clone()),
+                        erlang::start_timer_3::native(
+                            arc_process.clone(),
+                            time,
+                            destination,
+                            message
+                        ),
                         Err(badarg!().into())
                     );
 

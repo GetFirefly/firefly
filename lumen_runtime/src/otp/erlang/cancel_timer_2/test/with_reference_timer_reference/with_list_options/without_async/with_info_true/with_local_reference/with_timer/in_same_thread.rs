@@ -81,11 +81,11 @@ where
     let milliseconds: u64 = 100;
 
     let message = atom_unchecked("message");
-    let timer_reference = erlang::start_timer_3(
+    let timer_reference = erlang::start_timer_3::native(
+        same_thread_process_arc.clone(),
         same_thread_process_arc.integer(milliseconds).unwrap(),
         unsafe { same_thread_process_arc.pid().as_term() },
         message,
-        same_thread_process_arc.clone(),
     )
     .unwrap();
 

@@ -112,6 +112,7 @@ pub mod spawn_apply_3;
 pub mod spawn_link_3;
 pub mod spawn_opt_4;
 pub mod split_binary_2;
+pub mod start_timer_3;
 pub mod subtract_2;
 pub mod unlink_1;
 
@@ -143,22 +144,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn start_timer_3(
-    time: Term,
-    destination: Term,
-    message: Term,
-    arc_process: Arc<Process>,
-) -> Result {
-    start_timer(
-        time,
-        destination,
-        Timeout::TimeoutTuple,
-        message,
-        Default::default(),
-        arc_process,
-    )
 }
 
 pub fn start_timer_4(

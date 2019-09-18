@@ -21,8 +21,12 @@ fn with_different_process_sends_message_when_timer_expires() {
                         Ok(true.into())
                     );
 
-                    let result =
-                        erlang::start_timer_3(time, destination, message, arc_process.clone());
+                    let result = erlang::start_timer_3::native(
+                        arc_process.clone(),
+                        time,
+                        destination,
+                        message,
+                    );
 
                     prop_assert!(
                         result.is_ok(),
@@ -75,7 +79,8 @@ fn with_same_process_sends_message_when_timer_expires() {
                     Ok(true.into())
                 );
 
-                let result = erlang::start_timer_3(time, destination, message, arc_process.clone());
+                let result =
+                    erlang::start_timer_3::native(arc_process.clone(), time, destination, message);
 
                 prop_assert!(
                     result.is_ok(),

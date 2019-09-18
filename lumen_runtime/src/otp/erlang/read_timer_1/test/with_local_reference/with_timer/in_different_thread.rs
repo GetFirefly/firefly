@@ -79,11 +79,11 @@ where
         let different_thread_process_arc = process::test(&different_thread_same_thread_process_arc);
         let same_thread_pid = unsafe { different_thread_same_thread_process_arc.pid().as_term() };
 
-        let timer_reference = erlang::start_timer_3(
+        let timer_reference = erlang::start_timer_3::native(
+            different_thread_process_arc.clone(),
             different_thread_process_arc.integer(milliseconds).unwrap(),
             same_thread_pid,
             atom_unchecked("different"),
-            different_thread_process_arc.clone(),
         )
         .unwrap();
 

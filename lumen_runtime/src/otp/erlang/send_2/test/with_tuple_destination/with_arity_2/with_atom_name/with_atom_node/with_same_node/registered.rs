@@ -15,7 +15,7 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_message() {
                 let name = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2(name, arc_process.pid_term(), arc_process.clone()),
+                    erlang::register_2::native(arc_process.clone(), name, arc_process.pid_term()),
                     Ok(true.into()),
                     "Cannot register process ({:?}) pid ({:?}) with name ({:?})",
                     arc_process,

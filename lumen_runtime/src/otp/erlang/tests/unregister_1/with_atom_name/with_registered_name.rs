@@ -8,7 +8,7 @@ fn with_same_process_returns_true() {
         let pid_or_port = unsafe { process_arc.pid().as_term() };
 
         assert_eq!(
-            erlang::register_2(name, pid_or_port, process_arc.clone()),
+            erlang::register_2::native(process_arc.clone(), name, pid_or_port),
             Ok(true.into())
         );
 
@@ -38,7 +38,7 @@ fn with_different_process_returns_true() {
         let pid_or_port = unsafe { another_process_arc.pid().as_term() };
 
         assert_eq!(
-            erlang::register_2(name, pid_or_port, process_arc.clone()),
+            erlang::register_2::native(process_arc.clone(), name, pid_or_port),
             Ok(true.into())
         );
 

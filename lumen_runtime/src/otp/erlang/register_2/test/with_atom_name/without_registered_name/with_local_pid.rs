@@ -5,11 +5,7 @@ fn without_process() {
     with_process_arc(|process_arc| {
         let pid_or_port = next_pid();
 
-        assert_badarg!(erlang::register_2(
-            registered_name(),
-            pid_or_port,
-            process_arc
-        ));
+        assert_badarg!(native(process_arc, registered_name(), pid_or_port,));
     });
 }
 
@@ -21,7 +17,7 @@ fn with_same_process() {
         let pid_or_port = unsafe { process_arc.pid().as_term() };
 
         assert_eq!(
-            erlang::register_2(name, pid_or_port, process_arc.clone()),
+            native(process_arc.clone(), name, pid_or_port),
             Ok(true.into())
         );
         assert_eq!(*process_arc.registered_name.read(), Some(name_atom));
@@ -41,7 +37,7 @@ fn with_different_process() {
         let pid_or_port = unsafe { another_process_arc.pid().as_term() };
 
         assert_eq!(
-            erlang::register_2(name, pid_or_port, process_arc),
+            erlang::register_2::native(process_arc, name, pid_or_port),
             Ok(true.into())
         );
 

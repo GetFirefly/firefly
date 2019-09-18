@@ -19,7 +19,7 @@ fn includes_registered_process_name() {
         }
 
         assert_eq!(
-            erlang::register_2(name, process_arc.pid_term(), process_arc.clone()),
+            erlang::register_2::native(process_arc.clone(), name, process_arc.pid_term()),
             Ok(true.into())
         );
 

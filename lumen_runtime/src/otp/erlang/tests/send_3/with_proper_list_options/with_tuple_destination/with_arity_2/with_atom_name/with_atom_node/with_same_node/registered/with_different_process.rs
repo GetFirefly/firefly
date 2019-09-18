@@ -14,10 +14,10 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_ok() {
                     let name = registered_name();
 
                     prop_assert_eq!(
-                        erlang::register_2(
+                        erlang::register_2::native(
+                            arc_process.clone(),
                             name,
                             different_arc_process.pid_term(),
-                            arc_process.clone()
                         ),
                         Ok(true.into())
                     );
@@ -54,10 +54,10 @@ fn with_locked_adds_heap_message_to_mailbox_and_returns_ok() {
                     let name = registered_name();
 
                     prop_assert_eq!(
-                        erlang::register_2(
+                        erlang::register_2::native(
+                            arc_process.clone(),
                             name,
                             different_arc_process.pid_term(),
-                            arc_process.clone()
                         ),
                         Ok(true.into())
                     );

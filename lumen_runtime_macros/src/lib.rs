@@ -6,15 +6,16 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 
-use proc_macro2::{Ident, Span};
+use proc_macro2::Ident;
 
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use syn::parse::{Parse, ParseBuffer};
 use syn::spanned::Spanned;
 use syn::{
-    parse_macro_input, Error, FnArg, ItemFn, LitInt, Pat, PatIdent, PatType, Path, PathSegment,
-    Token, Type, TypePath,
+    parse_macro_input, AngleBracketedGenericArguments, Error, FnArg, GenericArgument, ItemFn,
+    LitInt, Pat, PatIdent, PatType, Path, PathArguments, PathSegment, Token, Type, TypePath,
+    TypeReference,
 };
 
 #[proc_macro_attribute]
@@ -64,14 +65,18 @@ struct Code {
 }
 
 struct Native {
-    uses_process: bool,
-    #[allow(dead_code)]
+    process: Process,
     return_type: ReturnType,
+}
+
+enum Process {
+    Arc,
+    Ref,
+    None,
 }
 
 enum ReturnType {
     Result,
-    #[allow(dead_code)]
     Term,
 }
 
@@ -100,12 +105,77 @@ impl Signatures {
 
         let native_arity = native_argument_ident_vec.len();
 
-        let (native_uses_process, code_argument_ident_vec) = if native_arity
-            == ((arity + 1) as usize)
-        {
-            (true, native_argument_ident_vec[1..].to_vec())
+        let (process, code_argument_ident_vec) = if native_arity == ((arity + 1) as usize) {
+            let process = match native_item_fn.sig.inputs.first().unwrap() {
+                FnArg::Typed(PatType { ty, .. }) => match **ty {
+                    Type::Reference(TypeReference {
+                        elem:
+                            box Type::Path(TypePath {
+                                path: Path { ref segments, .. },
+                                ..
+                            }),
+                        ..
+                    }) => {
+                        let PathSegment { ident, .. } = segments.last().unwrap();
+
+                        match ident.to_string().as_ref() {
+                            "Process" => Process::Ref,
+                            s => unimplemented!(
+                                "Extracting native function process from reference ident like {:?}",
+                                s
+                            ),
+                        }
+                    }
+                    Type::Path(TypePath {
+                        path: Path { ref segments, .. },
+                        ..
+                    }) => {
+                        let PathSegment { ident, arguments } = segments.last().unwrap();
+
+                        match ident.to_string().as_ref() {
+                            "Arc" => match arguments {
+                                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args: punctuated_generic_arguments, .. }) => {
+                                    match punctuated_generic_arguments.len() {
+                                        1 => {
+                                            match punctuated_generic_arguments.first().unwrap() {
+                                                GenericArgument::Type(Type::Path(TypePath { path: Path { segments, .. }, .. })) => {
+                                                    let PathSegment { ident, .. } = segments.last().unwrap();
+
+                                                    match ident.to_string().as_ref() {
+                                                        "Process" => Process::Arc,
+                                                        s => unimplemented!(
+                                                            "Extracting native function process from reference ident like {:?}",
+                                                            s
+                                                        ),
+                                                    }
+                                                }
+                                                generic_argument => unimplemented!("Extracting native function process from argument to Arc like {:?}", generic_argument)
+                                            }
+                                        }
+                                        n => unimplemented!("Extracting native function process from {:?} arguments to Arc like {:?}", n, punctuated_generic_arguments)
+                                    }
+                                }
+                                _ => unimplemented!("Extracting native function process from arguments to Arc like {:?}", arguments),
+                            }
+                            s => unimplemented!(
+                                "Extracting native function process from path ident like {:?}",
+                                s
+                            ),
+                        }
+                    }
+                    _ => {
+                        unimplemented!("Extracting native function process from type like {:?}", ty)
+                    }
+                },
+                input => unimplemented!(
+                    "Extracting native function process from argument like {:?}",
+                    input
+                ),
+            };
+
+            (process, native_argument_ident_vec[1..].to_vec())
         } else if native_arity == (arity as usize) {
-            (false, native_argument_ident_vec)
+            (Process::None, native_argument_ident_vec)
         } else {
             unreachable!(
                 "The Erlang arity of a function should not include the Process argument.  For this native function, an arity of {} is expected if Process is not used or {} if the Process is the first argument",
@@ -122,12 +192,12 @@ impl Signatures {
                     ..
                 }),
             ) => {
-                match segments.last().unwrap() {
-                    PathSegment { ident, .. } => match ident.to_string().as_ref() {
-                        "Result" => ReturnType::Result,
-                        "Term" => ReturnType::Term,
-                        _ => return Err(Error::new(ident.span(), "native function return type is neither Result nor Term"))
-                    }
+                let PathSegment { ident, .. } = segments.last().unwrap();
+
+                match ident.to_string().as_ref() {
+                    "Result" => ReturnType::Result,
+                    "Term" => ReturnType::Term,
+                    _ => return Err(Error::new(ident.span(), "native function return type is neither Result nor Term"))
                 }
             }
             ref output => return Err(Error::new(
@@ -138,7 +208,7 @@ impl Signatures {
 
         Ok(Self {
             native: Native {
-                uses_process: native_uses_process,
+                process,
                 return_type,
             },
             code: Code {
@@ -148,13 +218,41 @@ impl Signatures {
     }
 
     pub fn code(&self) -> proc_macro2::TokenStream {
-        let native_argument_ident = if self.native.uses_process {
-            let mut native_argument_ident_vec = self.code.argument_ident_vec.clone();
-            native_argument_ident_vec.insert(0, Ident::new("arc_process", Span::call_site()));
+        let native_argument_ident: Vec<Box<dyn ToTokens>> = match self.native.process {
+            Process::Arc => {
+                let mut native_argument_vec: Vec<Box<dyn ToTokens>> =
+                    Vec::with_capacity(self.code.argument_ident_vec.len() + 1);
 
-            native_argument_ident_vec
-        } else {
-            self.code.argument_ident_vec.clone()
+                native_argument_vec.push(Box::new(quote! { arc_process.clone() }));
+
+                for ident in self.code.argument_ident_vec.iter() {
+                    native_argument_vec.push(Box::new(ident.clone()))
+                }
+
+                native_argument_vec
+            }
+            Process::Ref => {
+                let mut native_argument_vec: Vec<Box<dyn ToTokens>> =
+                    Vec::with_capacity(self.code.argument_ident_vec.len() + 1);
+
+                native_argument_vec.push(Box::new(quote! { arc_process }));
+
+                for ident in self.code.argument_ident_vec.iter() {
+                    native_argument_vec.push(Box::new(ident.clone()))
+                }
+
+                native_argument_vec
+            }
+            Process::None => {
+                let mut native_argument_vec: Vec<Box<dyn ToTokens>> =
+                    Vec::with_capacity(self.code.argument_ident_vec.len());
+
+                for ident in self.code.argument_ident_vec.iter() {
+                    native_argument_vec.push(Box::new(ident.clone()))
+                }
+
+                native_argument_vec
+            }
         };
 
         let stack_popped_code_argument_ident = &self.code.argument_ident_vec;

@@ -13,10 +13,10 @@ fn errors_badarg() {
                     let destination = registered_name();
 
                     prop_assert_eq!(
-                        erlang::register_2(
+                        erlang::register_2::native(
+                            arc_process.clone(),
                             destination,
                             destination_arc_process.pid_term(),
-                            arc_process.clone()
                         ),
                         Ok(true.into())
                     );

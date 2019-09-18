@@ -12,7 +12,7 @@ fn without_atom_name_errors_badarg() {
                     let name = atom_unchecked("undefined");
 
                     prop_assert_eq!(
-                        erlang::register_2(name, pid_or_port, arc_process.clone()),
+                        native(arc_process.clone(), name, pid_or_port),
                         Err(badarg!().into())
                     );
 
@@ -29,20 +29,20 @@ fn with_registered_name_errors_badarg() {
         let registered_name = atom_unchecked("registered_name");
 
         assert_eq!(
-            erlang::register_2(
+            native(
+                Arc::clone(&registered_process_arc),
                 registered_name,
-                unsafe { registered_process_arc.pid().as_term() },
-                Arc::clone(&registered_process_arc)
+                unsafe { registered_process_arc.pid().as_term() }
             ),
             Ok(true.into())
         );
 
         let unregistered_process_arc = process::test(&registered_process_arc);
 
-        assert_badarg!(erlang::register_2(
+        assert_badarg!(native(
+            unregistered_process_arc.clone(),
             registered_name,
             unregistered_process_arc.pid_term(),
-            unregistered_process_arc
         ));
     });
 }

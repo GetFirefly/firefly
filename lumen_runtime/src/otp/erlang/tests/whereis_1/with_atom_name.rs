@@ -14,7 +14,7 @@ fn with_registered_name_returns_pid() {
         let pid_or_port = unsafe { process_arc.pid().as_term() };
 
         assert_eq!(
-            erlang::register_2(name, pid_or_port, process_arc.clone()),
+            erlang::register_2::native(process_arc.clone(), name, pid_or_port),
             Ok(true.into())
         );
 

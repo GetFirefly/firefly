@@ -13,10 +13,10 @@ fn with_different_process_with_message_sends_message_when_timer_expires() {
                     let destination = registered_name();
 
                     prop_assert_eq!(
-                        erlang::register_2(
+                        erlang::register_2::native(
+                            arc_process.clone(),
                             destination,
                             destination_arc_process.pid_term(),
-                            arc_process.clone()
                         ),
                         Ok(true.into())
                     );
@@ -72,7 +72,11 @@ fn with_same_process_with_message_sends_message_when_timer_expires() {
                 let destination = registered_name();
 
                 prop_assert_eq!(
-                    erlang::register_2(destination, arc_process.pid_term(), arc_process.clone()),
+                    erlang::register_2::native(
+                        arc_process.clone(),
+                        destination,
+                        arc_process.pid_term(),
+                    ),
                     Ok(true.into())
                 );
 

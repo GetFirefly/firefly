@@ -121,7 +121,7 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("register").unwrap(), 2, |proc, args| {
-        erlang::register_2(args[0], args[1], proc.clone())
+        erlang::register_2::native(proc.clone(), args[0], args[1])
     });
     native.add_simple(
         Atom::try_from_str("process_flag").unwrap(),

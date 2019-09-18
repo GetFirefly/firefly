@@ -97,6 +97,7 @@ pub mod process_info_2;
 pub mod raise_3;
 pub mod read_timer_1;
 pub mod read_timer_2;
+pub mod register_2;
 pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;
@@ -137,31 +138,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn register_2(name: Term, pid_or_port: Term, arc_process: Arc<Process>) -> Result {
-    let atom: Atom = name.try_into()?;
-
-    let option_registered: Option<Term> = match atom.name() {
-        "undefined" => None,
-        _ => match pid_or_port.to_typed_term().unwrap() {
-            TypedTerm::Pid(pid) => {
-                pid_to_self_or_process(pid, &arc_process).and_then(|pid_arc_process| {
-                    if registry::put_atom_to_process(atom, pid_arc_process) {
-                        Some(true.into())
-                    } else {
-                        None
-                    }
-                })
-            }
-            _ => None,
-        },
-    };
-
-    match option_registered {
-        Some(registered) => Ok(registered),
-        None => Err(badarg!().into()),
-    }
 }
 
 pub fn registered_0(process: &Process) -> Result {

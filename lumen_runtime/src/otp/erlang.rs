@@ -106,6 +106,7 @@ pub mod send_3;
 pub mod send_after_3;
 pub mod send_after_4;
 pub mod setelement_3;
+pub mod size_1;
 pub mod spawn_3;
 pub mod spawn_apply_3;
 pub mod spawn_link_3;
@@ -142,24 +143,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn size_1(binary_or_tuple: Term, process: &Process) -> Result {
-    let option_size = match binary_or_tuple.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::Tuple(tuple) => Some(tuple.len()),
-            TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.full_byte_len()),
-            TypedTerm::ProcBin(process_binary) => Some(process_binary.full_byte_len()),
-            TypedTerm::SubBinary(subbinary) => Some(subbinary.full_byte_len()),
-            _ => None,
-        },
-        _ => None,
-    };
-
-    match option_size {
-        Some(size) => Ok(process.integer(size)?),
-        None => Err(badarg!().into()),
-    }
 }
 
 pub fn split_binary_2(binary: Term, position: Term, process: &Process) -> Result {

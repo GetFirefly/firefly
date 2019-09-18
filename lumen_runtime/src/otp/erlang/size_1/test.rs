@@ -1,6 +1,14 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
 
-use proptest::strategy::Strategy;
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::binary::Bitstring;
+use liblumen_alloc::erts::term::TypedTerm;
+
+use crate::otp::erlang::size_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_tuple_or_bitstring_errors_badarg() {
@@ -16,7 +24,7 @@ fn without_tuple_or_bitstring_errors_badarg() {
                 )
             }),
             |(arc_process, term)| {
-                prop_assert_eq!(erlang::size_1(term, &arc_process), Err(badarg!().into()));
+                prop_assert_eq!(native(&arc_process, term), Err(badarg!().into()));
 
                 Ok(())
             },
@@ -41,7 +49,7 @@ fn with_tuple_returns_arity() {
                 }),
                 |(size, term)| {
                     prop_assert_eq!(
-                        erlang::size_1(term, &arc_process),
+                        native(&arc_process, term),
                         Ok(arc_process.integer(size).unwrap())
                     );
 
@@ -67,7 +75,7 @@ fn with_bitstring_is_byte_len() {
                 };
 
                 prop_assert_eq!(
-                    erlang::size_1(term, &arc_process),
+                    native(&arc_process, term),
                     Ok(arc_process.integer(full_byte_len).unwrap())
                 );
 

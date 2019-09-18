@@ -11,7 +11,6 @@ use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{has_message, registered_name, strategy, timeout_message};
 
-mod size_1;
 mod split_binary_2;
 mod start_timer_3;
 mod start_timer_4;

@@ -41,7 +41,7 @@ fn with_tuple_returns_arity() {
                 }),
                 |(size, term)| {
                     prop_assert_eq!(
-                        erlang::size_1(term, &arc_process),
+                        erlang::tuple_size_1(term, &arc_process),
                         Ok(arc_process.integer(size).unwrap())
                     );
 

@@ -7,10 +7,7 @@ fn without_timer_returns_false() {
     with_process(|process| {
         let timer_reference = process.next_reference().unwrap();
 
-        assert_eq!(
-            erlang::read_timer_2(timer_reference, OPTIONS, process),
-            Ok(false.into())
-        );
+        assert_eq!(native(process, timer_reference, OPTIONS), Ok(false.into()));
     });
 }
 

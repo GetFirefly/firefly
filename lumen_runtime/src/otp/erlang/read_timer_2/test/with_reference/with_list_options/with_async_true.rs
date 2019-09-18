@@ -8,7 +8,7 @@ fn without_timer_returns_ok_and_sends_read_timer_message() {
         let timer_reference = process.next_reference().unwrap();
 
         assert_eq!(
-            erlang::read_timer_2(timer_reference, options(process), process),
+            native(process, timer_reference, options(process)),
             Ok(atom_unchecked("ok"))
         );
         assert_eq!(

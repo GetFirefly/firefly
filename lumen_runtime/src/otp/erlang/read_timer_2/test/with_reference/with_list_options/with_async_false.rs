@@ -8,12 +8,14 @@ fn without_timer_returns_false() {
         let timer_reference = process.next_reference().unwrap();
 
         assert_eq!(
-            erlang::read_timer_2(timer_reference, options(process), process),
+            native(process, timer_reference, options(process)),
             Ok(false.into())
         );
     });
 }
 
-fn options(_process: &Process) -> Term {
-    Term::NIL
+fn options(process: &Process) -> Term {
+    process
+        .cons(async_option(false, process), Term::NIL)
+        .unwrap()
 }

@@ -1,9 +1,28 @@
-use super::*;
-
-use proptest::prop_oneof;
-use proptest::strategy::Strategy;
-
 mod with_reference;
+
+use std::convert::TryInto;
+use std::sync::Arc;
+
+use proptest::prop_assert_eq;
+use proptest::prop_oneof;
+use proptest::strategy::{BoxedStrategy, Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{
+    atom_unchecked, make_pid, AsTerm, Boxed, SmallInteger, Term, Tuple,
+};
+
+use crate::otp::erlang;
+use crate::otp::erlang::read_timer_2::native;
+use crate::process;
+use crate::process::SchedulerDependentAlloc;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
+use crate::test::{has_message, receive_message, timeout_message, timer_message};
+use crate::time::monotonic::Milliseconds;
+use crate::timer;
 
 #[test]
 fn without_reference_errors_badarg() {
@@ -16,7 +35,7 @@ fn without_reference_errors_badarg() {
                 ),
                 |(timer_reference, options)| {
                     prop_assert_eq!(
-                        erlang::read_timer_2(timer_reference, options, &arc_process),
+                        native(&arc_process, timer_reference, options),
                         Err(badarg!().into())
                     );
 
@@ -38,7 +57,7 @@ fn with_reference_without_list_options_errors_badarg() {
                 ),
                 |(timer_reference, options)| {
                     prop_assert_eq!(
-                        erlang::read_timer_2(timer_reference, options, &arc_process),
+                        native(&arc_process, timer_reference, options),
                         Err(badarg!().into())
                     );
 
@@ -67,4 +86,8 @@ fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         })
     ]
     .boxed()
+}
+
+fn read_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
+    timer_message("read_timer", timer_reference, result, process)
 }

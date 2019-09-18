@@ -11,7 +11,7 @@ fn without_reference_errors_badarg() {
                 ),
                 |(timer_reference, options)| {
                     prop_assert_eq!(
-                        erlang::read_timer_2(timer_reference, options, &arc_process),
+                        native(&arc_process, timer_reference, options),
                         Err(badarg!().into())
                     );
 
@@ -103,6 +103,6 @@ where
         let timer_reference = process.next_reference().unwrap();
         let options = process.cons(option(process), Term::NIL).unwrap();
 
-        assert_badarg!(erlang::read_timer_2(timer_reference, options, process));
+        assert_badarg!(native(process, timer_reference, options));
     });
 }

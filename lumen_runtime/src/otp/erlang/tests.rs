@@ -10,11 +10,9 @@ use crate::otp::erlang;
 use crate::process::{self, SchedulerDependentAlloc};
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
-    has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
-    timeout_message, timer_message,
+    has_heap_message, has_message, has_process_message, registered_name, strategy, timeout_message,
 };
 
-mod read_timer_2;
 mod register_2;
 mod registered_0;
 mod rem_2;
@@ -40,8 +38,4 @@ where
     F: FnOnce(&Process) -> Result,
 {
     with_process(|process| assert_badarith!(actual(&process)))
-}
-
-fn read_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
-    timer_message("read_timer", timer_reference, result, process)
 }

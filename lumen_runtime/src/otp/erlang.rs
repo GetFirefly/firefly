@@ -90,6 +90,7 @@ pub mod negate_1;
 pub mod node_0;
 pub mod not_1;
 pub mod number_or_badarith_1;
+pub mod or_2;
 pub mod orelse_2;
 pub mod process_flag_2;
 pub mod process_info_2;
@@ -135,13 +136,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-/// `or/2` infix operator.
-///
-/// **NOTE: NOT SHORT-CIRCUITING!**
-pub fn or_2(left_boolean: Term, right_boolean: Term) -> Result {
-    boolean_infix_operator!(left_boolean, right_boolean, |)
 }
 
 pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {

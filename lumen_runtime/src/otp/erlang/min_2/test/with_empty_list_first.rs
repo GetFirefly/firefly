@@ -15,7 +15,7 @@ fn without_non_empty_list_or_bitstring_second_returns_second() {
                 |second| {
                     let first = Term::NIL;
 
-                    prop_assert_eq!(erlang::min_2(first, second), second);
+                    prop_assert_eq!(native(first, second), second);
 
                     Ok(())
                 },
@@ -36,7 +36,7 @@ fn with_non_empty_list_or_bitstring_second_returns_first() {
                 |second| {
                     let first = Term::NIL;
 
-                    prop_assert_eq!(erlang::min_2(first, second), first);
+                    prop_assert_eq!(native(first, second), first);
 
                     Ok(())
                 },

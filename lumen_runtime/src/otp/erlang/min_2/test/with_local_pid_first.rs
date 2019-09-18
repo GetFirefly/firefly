@@ -10,7 +10,7 @@ fn with_number_atom_reference_function_or_port_second_returns_second() {
                     strategy::term::number_atom_reference_function_or_port(arc_process),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::min_2(first, second), second);
+                    prop_assert_eq!(native(first, second), second);
 
                     Ok(())
                 },
@@ -57,7 +57,7 @@ fn with_list_or_bitstring_second_returns_first() {
                     strategy::term::tuple_map_list_or_bitstring(arc_process),
                 ),
                 |(first, second)| {
-                    prop_assert_eq!(erlang::min_2(first, second), first);
+                    prop_assert_eq!(native(first, second), first);
 
                     Ok(())
                 },

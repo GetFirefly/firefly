@@ -14,7 +14,7 @@ fn without_non_negative_integer_position_errors_badarg() {
                 ),
                 |(binary, position)| {
                     prop_assert_eq!(
-                        erlang::split_binary_2(binary, position, &arc_process),
+                        native(&arc_process, binary, position),
                         Err(badarg!().into())
                     );
 
@@ -35,7 +35,7 @@ fn with_zero_position_returns_empty_prefix_and_binary() {
                 &strategy::term::is_bitstring(arc_process.clone()),
                 |binary| {
                     prop_assert_eq!(
-                        erlang::split_binary_2(binary, position, &arc_process),
+                        native(&arc_process, binary, position),
                         Ok(arc_process
                             .tuple_from_slice(&[
                                 arc_process.binary_from_bytes(&[]).unwrap(),

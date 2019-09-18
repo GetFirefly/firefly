@@ -40,7 +40,7 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
                     let used_term =
                         erlang::element_2::native(arc_process.integer(2).unwrap(), tuple).unwrap();
                     let split_binary_tuple =
-                        erlang::split_binary_2(binary, used_term, &arc_process).unwrap();
+                        erlang::split_binary_2::native(&arc_process, binary, used_term).unwrap();
                     let prefix = erlang::element_2::native(
                         arc_process.integer(1).unwrap(),
                         split_binary_tuple,

@@ -84,6 +84,7 @@ pub mod max_2;
 pub mod min_2;
 pub mod monitor_2;
 pub mod monotonic_time_0;
+pub mod monotonic_time_1;
 pub mod number_or_badarith_1;
 pub mod orelse_2;
 pub mod process_flag_2;
@@ -133,14 +134,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn monotonic_time_1(unit: Term, process: &Process) -> Result {
-    let unit_unit: crate::time::Unit = unit.try_into()?;
-    let big_int = monotonic::time(unit_unit);
-    let term = process.integer(big_int)?;
-
-    Ok(term)
 }
 
 /// `*/2` infix operator

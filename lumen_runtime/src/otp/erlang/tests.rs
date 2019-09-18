@@ -14,7 +14,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod monotonic_time_1;
 mod multiply_2;
 mod negate_1;
 mod node_0;
@@ -42,13 +41,6 @@ mod tuple_to_list_1;
 mod unregister_1;
 mod whereis_1;
 mod xor_2;
-
-fn errors_badarg<F>(actual: F)
-where
-    F: FnOnce(&Process) -> Result,
-{
-    with_process(|process| assert_badarg!(actual(&process)))
-}
 
 fn errors_badarith<F>(actual: F)
 where

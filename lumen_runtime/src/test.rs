@@ -11,10 +11,13 @@ use std::sync::atomic::AtomicUsize;
 
 use num_bigint::BigInt;
 
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::binary::MaybePartialByte;
 use liblumen_alloc::erts::term::{atom_unchecked, BigInteger, Boxed, Term, TypedTerm};
+
+use crate::scheduler::with_process;
 
 pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
     timer_message("cancel_timer", timer_reference, result, process)
@@ -43,6 +46,13 @@ pub fn count_ones_in_big_integer(big_integer: Boxed<BigInteger>) -> u32 {
         .iter()
         .map(|b| b.count_ones())
         .sum()
+}
+
+pub fn errors_badarg<F>(actual: F)
+where
+    F: FnOnce(&Process) -> exception::Result,
+{
+    with_process(|process| assert_badarg!(actual(&process)))
 }
 
 pub fn has_no_message(process: &Process) -> bool {

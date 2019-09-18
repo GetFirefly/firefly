@@ -18,11 +18,11 @@ fn with_positive_increases_after_2_time_units() {
     with_process(|process| {
         let unit = process.integer(2).unwrap();
 
-        let first = erlang::monotonic_time_1(unit, process).unwrap();
+        let first = native(process, unit).unwrap();
 
         thread::sleep(Duration::from_secs(1));
 
-        let second = erlang::monotonic_time_1(unit, process).unwrap();
+        let second = native(process, unit).unwrap();
 
         assert!(first < second);
     });

@@ -1,9 +1,17 @@
-use super::*;
-
-use proptest::strategy::Strategy;
-
 mod with_atom;
 mod with_small_integer;
+
+use proptest::prop_assert_eq;
+use proptest::strategy::Strategy;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{atom_unchecked, Term};
+
+use crate::otp::erlang::monotonic_time_1::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_atom_or_integer_errors_badarg() {
@@ -15,10 +23,7 @@ fn without_atom_or_integer_errors_badarg() {
                         !(unit.is_integer() || unit.is_atom())
                     }),
                 |unit| {
-                    prop_assert_eq!(
-                        erlang::monotonic_time_1(unit, &arc_process),
-                        Err(badarg!().into())
-                    );
+                    prop_assert_eq!(native(&arc_process, unit,), Err(badarg!().into()));
 
                     Ok(())
                 },
@@ -31,5 +36,5 @@ fn errors_badarg<U>(unit: U)
 where
     U: FnOnce(&Process) -> Term,
 {
-    super::errors_badarg(|process| erlang::monotonic_time_1(unit(&process), process));
+    crate::test::errors_badarg(|process| native(process, unit(process)));
 }

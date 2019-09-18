@@ -7,14 +7,13 @@ use proptest::{prop_assert, prop_assert_eq};
 use liblumen_alloc::erts::term::{make_pid, next_pid, SmallInteger};
 
 use crate::otp::erlang;
-use crate::process;
+use crate::process::{self, SchedulerDependentAlloc};
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
     has_heap_message, has_message, has_process_message, receive_message, registered_name, strategy,
     timeout_message, timer_message,
 };
 
-mod read_timer_1;
 mod read_timer_2;
 mod register_2;
 mod registered_0;

@@ -95,6 +95,7 @@ pub mod orelse_2;
 pub mod process_flag_2;
 pub mod process_info_2;
 pub mod raise_3;
+pub mod read_timer_1;
 pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;
@@ -135,10 +136,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn read_timer_1(timer_reference: Term, process: &Process) -> Result {
-    read_timer(timer_reference, Default::default(), process)
 }
 
 pub fn read_timer_2(timer_reference: Term, options: Term, process: &Process) -> Result {

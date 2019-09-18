@@ -16,16 +16,16 @@ fn without_timeout_returns_milliseconds_remaining() {
         // flaky
         assert!(!has_message(process, timeout_message));
 
-        let first_milliseconds_remaining =
-            erlang::read_timer_1(timer_reference, process).expect("Timer could not be read");
+        let first_milliseconds_remaining = erlang::read_timer_1::native(process, timer_reference)
+            .expect("Timer could not be read");
 
         assert!(first_milliseconds_remaining.is_integer());
         assert!(process.integer(0).unwrap() < first_milliseconds_remaining);
         assert!(first_milliseconds_remaining <= process.integer(milliseconds / 2).unwrap());
 
         // again before timeout
-        let second_milliseconds_remaining =
-            erlang::read_timer_1(timer_reference, process).expect("Timer could not be read");
+        let second_milliseconds_remaining = erlang::read_timer_1::native(process, timer_reference)
+            .expect("Timer could not be read");
 
         assert!(second_milliseconds_remaining.is_integer());
         assert!(second_milliseconds_remaining <= first_milliseconds_remaining);
@@ -36,7 +36,7 @@ fn without_timeout_returns_milliseconds_remaining() {
 
         // again after timeout
         assert_eq!(
-            erlang::read_timer_1(timer_reference, process),
+            erlang::read_timer_1::native(process, timer_reference,),
             Ok(false.into())
         );
     });

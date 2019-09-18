@@ -14,7 +14,6 @@ use crate::test::{
     timeout_message, timer_message,
 };
 
-mod negate_1;
 mod node_0;
 mod not_1;
 mod or_2;

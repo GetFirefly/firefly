@@ -86,6 +86,7 @@ pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod monotonic_time_1;
 pub mod multiply_2;
+pub mod negate_1;
 pub mod number_or_badarith_1;
 pub mod orelse_2;
 pub mod process_flag_2;
@@ -110,8 +111,6 @@ use core::convert::TryInto;
 
 use alloc::sync::Arc;
 
-use num_bigint::BigInt;
-
 use liblumen_alloc::erts::exception::runtime::Class;
 use liblumen_alloc::erts::exception::{Exception, Result};
 use liblumen_alloc::erts::process::Process;
@@ -135,42 +134,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-/// `-/1` prefix operator.
-pub fn negate_1(number: Term, process: &Process) -> Result {
-    let option_negated = match number.to_typed_term().unwrap() {
-        TypedTerm::SmallInteger(small_integer) => {
-            let number_isize: isize = small_integer.into();
-            let negated_isize = -number_isize;
-            let negated_number: Term = process.integer(negated_isize)?;
-
-            Some(negated_number)
-        }
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::BigInteger(big_integer) => {
-                let big_int: &BigInt = big_integer.as_ref().into();
-                let negated_big_int = -big_int;
-                let negated_number = process.integer(negated_big_int)?;
-
-                Some(negated_number)
-            }
-            TypedTerm::Float(float) => {
-                let number_f64: f64 = float.into();
-                let negated_f64: f64 = -number_f64;
-                let negated_number = process.float(negated_f64)?;
-
-                Some(negated_number)
-            }
-            _ => None,
-        },
-        _ => None,
-    };
-
-    match option_negated {
-        Some(negated) => Ok(negated),
-        None => Err(badarith!().into()),
-    }
 }
 
 pub fn node_0() -> Term {

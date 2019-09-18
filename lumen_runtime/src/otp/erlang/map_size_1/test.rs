@@ -1,16 +1,20 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
 
-use proptest::strategy::Strategy;
+use liblumen_alloc::badmap;
+use liblumen_alloc::erts::term::Term;
+
+use crate::otp::erlang::map_size_1::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_map_errors_badmap() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_map(arc_process.clone()), |map| {
-                prop_assert_eq!(
-                    erlang::map_size_1(map, &arc_process),
-                    Err(badmap!(&arc_process, map))
-                );
+                prop_assert_eq!(native(&arc_process, map,), Err(badmap!(&arc_process, map)));
 
                 Ok(())
             })
@@ -43,7 +47,7 @@ fn with_map_returns_number_of_entries() {
                     )
                 }),
             |(arc_process, map, size)| {
-                prop_assert_eq!(erlang::map_size_1(map, &arc_process), Ok(size));
+                prop_assert_eq!(native(&arc_process, map,), Ok(size));
 
                 Ok(())
             },

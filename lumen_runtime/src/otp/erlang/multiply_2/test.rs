@@ -1,8 +1,17 @@
-use super::*;
-
 mod with_big_integer_multiplier;
 mod with_float_multiplier;
 mod with_small_integer_multiplier;
+
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq};
+
+use liblumen_alloc::badarith;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{SmallInteger, Term};
+
+use crate::otp::erlang::multiply_2::native;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_number_multiplier_errors_badarith() {
@@ -15,7 +24,7 @@ fn without_number_multiplier_errors_badarith() {
                 ),
                 |(multiplier, multiplicand)| {
                     prop_assert_eq!(
-                        erlang::multiply_2(multiplier, multiplicand, &arc_process),
+                        native(&arc_process, multiplier, multiplicand),
                         Err(badarith!().into())
                     );
 

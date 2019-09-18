@@ -8,7 +8,7 @@ pub fn make_erlang() -> NativeModule {
     let mut native = NativeModule::new(Atom::try_from_str("erlang").unwrap());
 
     native.add_simple(Atom::try_from_str("*").unwrap(), 2, |proc, args| {
-        erlang::multiply_2(args[0], args[1], proc)
+        erlang::multiply_2::native(proc, args[0], args[1])
     });
 
     native.add_simple(Atom::try_from_str("/").unwrap(), 2, |proc, args| {

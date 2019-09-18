@@ -85,6 +85,7 @@ pub mod min_2;
 pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod monotonic_time_1;
+pub mod multiply_2;
 pub mod number_or_badarith_1;
 pub mod orelse_2;
 pub mod process_flag_2;
@@ -134,11 +135,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-/// `*/2` infix operator
-pub fn multiply_2(multiplier: Term, multiplicand: Term, process: &Process) -> Result {
-    number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)
 }
 
 /// `-/1` prefix operator.

@@ -254,6 +254,8 @@ impl Parse for FunctionArity {
                 ident.to_string()
             } else if let Ok(_) = input.parse::<Token![self]>() {
                 "self".to_string()
+            } else if let Ok(_) = input.parse::<Token![*]>() {
+                "*".to_string()
             } else if let Ok(_) = input.parse::<Token![+]>() {
                 if let Ok(_) = input.parse::<Token![+]>() {
                     "++".to_string()

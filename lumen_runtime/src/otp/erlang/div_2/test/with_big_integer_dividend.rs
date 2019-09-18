@@ -42,7 +42,7 @@ fn with_big_integer_divisor_without_underflow_returns_big_integer() {
 
         assert!(divisor.is_bigint());
 
-        let dividend = erlang::multiply_2(divisor, divisor, &process).unwrap();
+        let dividend = erlang::multiply_2::native(&process, divisor, divisor).unwrap();
 
         let result = native(process, dividend, divisor);
 

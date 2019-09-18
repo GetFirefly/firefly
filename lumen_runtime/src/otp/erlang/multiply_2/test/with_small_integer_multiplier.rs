@@ -11,7 +11,7 @@ fn without_number_multiplicand_errors_badarith() {
                 ),
                 |(multiplier, multiplicand)| {
                     prop_assert_eq!(
-                        erlang::multiply_2(multiplier, multiplicand, &arc_process),
+                        native(&arc_process, multiplier, multiplicand),
                         Err(badarith!().into())
                     );
 
@@ -28,7 +28,7 @@ fn with_small_integer_multiplicand_without_underflow_or_overflow_returns_small_i
         let multiplicand = process.integer(3).unwrap();
 
         assert_eq!(
-            erlang::multiply_2(multiplier, multiplicand, &process),
+            native(process, multiplier, multiplicand),
             Ok(process.integer(6).unwrap())
         );
     })
@@ -41,7 +41,7 @@ fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
 
         assert!(multiplicand.is_smallint());
 
-        let result = erlang::multiply_2(multiplier, multiplicand, &process);
+        let result = native(process, multiplier, multiplicand);
 
         assert!(result.is_ok());
 
@@ -58,7 +58,7 @@ fn with_small_integer_multiplicand_with_overflow_returns_big_integer() {
 
         assert!(multiplicand.is_smallint());
 
-        let result = erlang::multiply_2(multiplier, multiplicand, &process);
+        let result = native(process, multiplier, multiplicand);
 
         assert!(result.is_ok());
 
@@ -78,7 +78,7 @@ fn with_big_integer_multiplicand_returns_big_integer() {
                     strategy::term::integer::big(arc_process.clone()),
                 ),
                 |(multiplier, multiplicand)| {
-                    let result = erlang::multiply_2(multiplier, multiplicand, &arc_process);
+                    let result = native(&arc_process, multiplier, multiplicand);
 
                     prop_assert!(result.is_ok());
 
@@ -99,7 +99,7 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
         let multiplicand = process.float(3.0).unwrap();
 
         assert_eq!(
-            erlang::multiply_2(multiplier, multiplicand, &process),
+            native(process, multiplier, multiplicand),
             Ok(process.float(6.0).unwrap())
         );
     })
@@ -111,7 +111,7 @@ fn with_float_multiplicand_with_underflow_returns_min_float() {
         let multiplicand = process.float(std::f64::MIN).unwrap();
 
         assert_eq!(
-            erlang::multiply_2(multiplier, multiplicand, &process),
+            native(process, multiplier, multiplicand),
             Ok(process.float(std::f64::MIN).unwrap())
         );
     })
@@ -123,7 +123,7 @@ fn with_float_multiplicand_with_overflow_returns_max_float() {
         let multiplicand = process.float(std::f64::MAX).unwrap();
 
         assert_eq!(
-            erlang::multiply_2(multiplier, multiplicand, &process),
+            native(process, multiplier, multiplicand),
             Ok(process.float(std::f64::MAX).unwrap())
         );
     })

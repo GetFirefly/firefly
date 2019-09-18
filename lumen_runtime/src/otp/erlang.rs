@@ -94,6 +94,7 @@ pub mod or_2;
 pub mod orelse_2;
 pub mod process_flag_2;
 pub mod process_info_2;
+pub mod raise_3;
 pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;
@@ -114,18 +115,16 @@ use core::convert::TryInto;
 
 use alloc::sync::Arc;
 
-use liblumen_alloc::erts::exception::runtime::Class;
 use liblumen_alloc::erts::exception::{Exception, Result};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::binary::{Bitstring, MaybePartialByte};
 use liblumen_alloc::erts::term::{
     atom_unchecked, AsTerm, Atom, Boxed, Cons, ImproperList, Term, Tuple, TypedTerm,
 };
-use liblumen_alloc::{badarg, badarith, raise, throw};
+use liblumen_alloc::{badarg, badarith, throw};
 
 use crate::registry::{self, pid_to_self_or_process};
 use crate::send::{self, send, Sent};
-use crate::stacktrace;
 use crate::time::monotonic::{self, Milliseconds};
 use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
@@ -136,18 +135,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn raise_3(class: Term, reason: Term, stacktrace: Term) -> Result {
-    let class_class: Class = class.try_into()?;
-
-    let runtime_exception = if stacktrace::is(stacktrace) {
-        raise!(class_class, reason, Some(stacktrace)).into()
-    } else {
-        badarg!()
-    };
-
-    Err(runtime_exception.into())
 }
 
 pub fn read_timer_1(timer_reference: Term, process: &Process) -> Result {

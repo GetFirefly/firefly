@@ -104,6 +104,7 @@ pub mod self_0;
 pub mod send_2;
 pub mod send_3;
 pub mod send_after_3;
+pub mod send_after_4;
 pub mod spawn_3;
 pub mod spawn_apply_3;
 pub mod spawn_link_3;
@@ -141,25 +142,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn send_after_4(
-    time: Term,
-    destination: Term,
-    message: Term,
-    options: Term,
-    arc_process: Arc<Process>,
-) -> Result {
-    let timer_start_options: timer::start::Options = options.try_into()?;
-
-    start_timer(
-        time,
-        destination,
-        Timeout::Message,
-        message,
-        timer_start_options,
-        arc_process,
-    )
 }
 
 pub fn setelement_3(index: Term, tuple: Term, value: Term, process: &Process) -> Result {

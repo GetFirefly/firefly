@@ -1,6 +1,12 @@
-use super::*;
+use proptest::prop_assert_eq;
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
 
-use proptest::strategy::Strategy;
+use liblumen_alloc::{badkey, badmap};
+
+use crate::otp::erlang::map_get_2::native;
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_map_errors_badmap() {
@@ -13,7 +19,7 @@ fn without_map_errors_badmap() {
                 ),
                 |(map, key)| {
                     prop_assert_eq!(
-                        erlang::map_get_2(key, map, &arc_process),
+                        native(&arc_process, key, map),
                         Err(badmap!(&arc_process, map))
                     );
 
@@ -57,7 +63,7 @@ fn with_map_without_key_errors_badkey() {
                 }),
             |(arc_process, map, key)| {
                 prop_assert_eq!(
-                    erlang::map_get_2(key, map, &arc_process),
+                    native(&arc_process, key, map),
                     Err(badkey!(&arc_process, key))
                 );
 
@@ -84,7 +90,7 @@ fn with_map_with_key_returns_value() {
                         )
                     }),
                 |(map, key, value)| {
-                    prop_assert_eq!(erlang::map_get_2(key, map, &arc_process), Ok(value));
+                    prop_assert_eq!(native(&arc_process, key, map), Ok(value));
 
                     Ok(())
                 },

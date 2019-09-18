@@ -78,6 +78,7 @@ pub mod list_to_existing_atom_1;
 pub mod list_to_pid_1;
 pub mod list_to_tuple_1;
 pub mod make_ref_0;
+pub mod map_get_2;
 pub mod monitor_2;
 pub mod monotonic_time_0;
 pub mod number_or_badarith_1;
@@ -113,7 +114,7 @@ use liblumen_alloc::erts::term::binary::{Bitstring, MaybePartialByte};
 use liblumen_alloc::erts::term::{
     atom_unchecked, AsTerm, Atom, Boxed, Cons, ImproperList, Map, Term, Tuple, TypedTerm,
 };
-use liblumen_alloc::{badarg, badarith, badkey, badmap, raise, throw};
+use liblumen_alloc::{badarg, badarith, badmap, raise, throw};
 
 use crate::node;
 use crate::registry::{self, pid_to_self_or_process};
@@ -126,18 +127,6 @@ use crate::tuple::ZeroBasedIndex;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
-
-pub fn map_get_2(key: Term, map: Term, process: &Process) -> Result {
-    let result: core::result::Result<Boxed<Map>, _> = map.try_into();
-
-    match result {
-        Ok(map_header) => match map_header.get(key) {
-            Some(value) => Ok(value),
-            None => Err(badkey!(process, key)),
-        },
-        Err(_) => Err(badmap!(process, map)),
-    }
-}
 
 pub fn map_size_1(map: Term, process: &Process) -> Result {
     let result: core::result::Result<Boxed<Map>, _> = map.try_into();

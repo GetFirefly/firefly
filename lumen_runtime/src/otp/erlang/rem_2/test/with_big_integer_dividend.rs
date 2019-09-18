@@ -7,7 +7,7 @@ fn with_small_integer_divisor_with_underflow_returns_small_integer() {
 
         assert!(divisor.is_smallint());
 
-        let result = erlang::rem_2(dividend, divisor, &process);
+        let result = native(process, dividend, divisor);
 
         assert!(result.is_ok());
 
@@ -24,7 +24,7 @@ fn with_big_integer_divisor_with_underflow_returns_small_integer() {
         let divisor: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
         assert_eq!(
-            erlang::rem_2(dividend, divisor, &process),
+            native(process, dividend, divisor),
             Ok(process.integer(1).unwrap())
         );
     })
@@ -36,7 +36,7 @@ fn with_big_integer_divisor_without_underflow_returns_big_integer() {
         let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
         let divisor: Term = process.integer(SmallInteger::MAX_VALUE + 2).unwrap();
 
-        assert_eq!(erlang::rem_2(dividend, divisor, &process), Ok(dividend));
+        assert_eq!(native(process, dividend, divisor), Ok(dividend));
     })
 }
 

@@ -4,16 +4,15 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::erts::term::{make_pid, next_pid, SmallInteger};
+use liblumen_alloc::erts::term::next_pid;
 
 use crate::otp::erlang;
-use crate::process::{self, SchedulerDependentAlloc};
+use crate::process;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
     has_heap_message, has_message, has_process_message, registered_name, strategy, timeout_message,
 };
 
-mod rem_2;
 mod send_3;
 mod send_after_3;
 mod send_after_4;
@@ -30,10 +29,3 @@ mod tuple_to_list_1;
 mod unregister_1;
 mod whereis_1;
 mod xor_2;
-
-fn errors_badarith<F>(actual: F)
-where
-    F: FnOnce(&Process) -> Result,
-{
-    with_process(|process| assert_badarith!(actual(&process)))
-}

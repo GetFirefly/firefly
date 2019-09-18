@@ -99,6 +99,7 @@ pub mod read_timer_1;
 pub mod read_timer_2;
 pub mod register_2;
 pub mod registered_0;
+pub mod rem_2;
 pub mod self_0;
 pub mod send_2;
 pub mod spawn_3;
@@ -125,7 +126,7 @@ use liblumen_alloc::erts::term::binary::{Bitstring, MaybePartialByte};
 use liblumen_alloc::erts::term::{
     atom_unchecked, AsTerm, Atom, Boxed, Cons, ImproperList, Term, Tuple, TypedTerm,
 };
-use liblumen_alloc::{badarg, badarith, throw};
+use liblumen_alloc::{badarg, throw};
 
 use crate::registry::{self, pid_to_self_or_process};
 use crate::send::{self, send, Sent};
@@ -139,11 +140,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-/// `rem/2` infix operator.  Integer remainder.
-pub fn rem_2(dividend: Term, divisor: Term, process: &Process) -> Result {
-    integer_infix_operator!(dividend, divisor, process, %)
 }
 
 // `send(destination, message, [nosuspend])` is used in `gen.erl`, which is used by `gen_server.erl`

@@ -11,10 +11,10 @@ fn with_small_integer_divisor_returns_small_integer() {
                 &(strategy::term::integer::small::isize(), divisor()),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::rem_2(
+                        native(
+                            &arc_process,
                             arc_process.integer(dividend).unwrap(),
                             arc_process.integer(divisor).unwrap(),
-                            &arc_process
                         ),
                         Ok(arc_process.integer(dividend % divisor).unwrap())
                     );
@@ -36,7 +36,7 @@ fn with_big_integer_divisor_returns_dividend() {
                     strategy::term::integer::big(arc_process.clone()),
                 ),
                 |(dividend, divisor)| {
-                    prop_assert_eq!(erlang::rem_2(dividend, divisor, &arc_process), Ok(dividend));
+                    prop_assert_eq!(native(&arc_process, dividend, divisor), Ok(dividend));
 
                     Ok(())
                 },

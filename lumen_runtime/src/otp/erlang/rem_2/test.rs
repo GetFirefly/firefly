@@ -1,7 +1,19 @@
-use super::*;
-
 mod with_big_integer_dividend;
 mod with_small_integer_dividend;
+
+use proptest::prop_assert_eq;
+use proptest::strategy::{BoxedStrategy, Just};
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::badarith;
+use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::{atom_unchecked, make_pid, SmallInteger, Term};
+
+use crate::otp::erlang::rem_2::native;
+use crate::process::SchedulerDependentAlloc;
+use crate::scheduler::{with_process, with_process_arc};
+use crate::test::strategy;
 
 #[test]
 fn without_integer_dividend_errors_badarith() {
@@ -14,7 +26,7 @@ fn without_integer_dividend_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::rem_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 
@@ -36,7 +48,7 @@ fn with_integer_dividend_without_integer_divisor_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::rem_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 
@@ -58,7 +70,7 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
                 ),
                 |(dividend, divisor)| {
                     prop_assert_eq!(
-                        erlang::rem_2(dividend, divisor, &arc_process),
+                        native(&arc_process, dividend, divisor),
                         Err(badarith!().into())
                     );
 
@@ -134,10 +146,17 @@ fn with_dividend_errors_badarith<M>(dividend: M)
 where
     M: FnOnce(&Process) -> Term,
 {
-    super::errors_badarith(|process| {
+    errors_badarith(|process| {
         let dividend = dividend(&process);
         let divisor = process.integer(0).unwrap();
 
-        erlang::rem_2(dividend, divisor, &process)
+        native(&process, dividend, divisor)
     });
+}
+
+fn errors_badarith<F>(actual: F)
+where
+    F: FnOnce(&Process) -> exception::Result,
+{
+    with_process(|process| assert_badarith!(actual(&process)))
 }

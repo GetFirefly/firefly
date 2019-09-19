@@ -29,7 +29,7 @@ version = "0.5"
 features = ["nightly"]
 
 [dependencies.intrusive-collections]
-version = "0.7"
+version = "0.8"
 features = ["nightly"]
 
 [dependencies.parking_lot_core]

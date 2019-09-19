@@ -274,7 +274,7 @@ other_proc({add, A, B}, Ret) -> Ret ! {result, A + B}.
 this_proc(0, Acc) ->
     Acc;
 this_proc(N, Acc) ->
-    spawn(ping_pong_count, other_proc, [{add, 1, Acc}, self()]),
+    spawn(ping_pong_count_large, other_proc, [{add, 1, Acc}, self()]),
     receive
         {result, Res} -> this_proc(N - 1, Res)
     end.

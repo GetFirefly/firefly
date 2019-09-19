@@ -11,7 +11,7 @@ fn without_proper_list_subtrahend_errors_badarg() {
                 ),
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
-                        erlang::subtract_list_2(minuend, subtrahend, &arc_process),
+                        native(&arc_process, minuend, subtrahend),
                         Err(badarg!().into())
                     );
 
@@ -38,7 +38,7 @@ fn with_subtrahend_list_returns_minuend_with_first_copy_of_each_element_in_subtr
                     let subtrahend = arc_process.list_from_slice(&[element1]).unwrap();
 
                     prop_assert_eq!(
-                        erlang::subtract_list_2(minuend, subtrahend, &arc_process),
+                        native(&arc_process, minuend, subtrahend),
                         Ok(arc_process.list_from_slice(&[element2, element1]).unwrap())
                     );
 

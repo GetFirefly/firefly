@@ -9,7 +9,6 @@ use crate::process;
 use crate::scheduler::with_process_arc;
 use crate::test::{registered_name, strategy};
 
-mod subtract_list_2;
 mod throw_1;
 mod tl_1;
 mod tuple_size_1;

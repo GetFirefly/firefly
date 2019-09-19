@@ -115,6 +115,7 @@ pub mod split_binary_2;
 pub mod start_timer_3;
 pub mod start_timer_4;
 pub mod subtract_2;
+pub mod subtract_list_2;
 pub mod unlink_1;
 
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
@@ -145,50 +146,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn subtract_list_2(minuend: Term, subtrahend: Term, process: &Process) -> Result {
-    match (
-        minuend.to_typed_term().unwrap(),
-        subtrahend.to_typed_term().unwrap(),
-    ) {
-        (TypedTerm::Nil, TypedTerm::Nil) => Ok(minuend),
-        (TypedTerm::Nil, TypedTerm::List(subtrahend_cons)) => {
-            if subtrahend_cons.is_proper() {
-                Ok(minuend)
-            } else {
-                Err(badarg!().into())
-            }
-        }
-        (TypedTerm::List(minuend_cons), TypedTerm::Nil) => {
-            if minuend_cons.is_proper() {
-                Ok(minuend)
-            } else {
-                Err(badarg!().into())
-            }
-        }
-        (TypedTerm::List(minuend_cons), TypedTerm::List(subtrahend_cons)) => {
-            match minuend_cons
-                .into_iter()
-                .collect::<std::result::Result<Vec<Term>, _>>()
-            {
-                Ok(mut minuend_vec) => {
-                    for result in subtrahend_cons.into_iter() {
-                        match result {
-                            Ok(subtrahend_element) => minuend_vec.remove_item(&subtrahend_element),
-                            Err(ImproperList { .. }) => return Err(badarg!().into()),
-                        };
-                    }
-
-                    process
-                        .list_from_slice(&minuend_vec)
-                        .map_err(|error| error.into())
-                }
-                Err(ImproperList { .. }) => Err(badarg!().into()),
-            }
-        }
-        _ => Err(badarg!().into()),
-    }
 }
 
 pub fn throw_1(reason: Term) -> Result {

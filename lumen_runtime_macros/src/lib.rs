@@ -361,7 +361,11 @@ impl Parse for FunctionArity {
                     "+".to_string()
                 }
             } else if let Ok(_) = input.parse::<Token![-]>() {
-                "-".to_string()
+                if let Ok(_) = input.parse::<Token![-]>() {
+                    "--".to_string()
+                } else {
+                    "-".to_string()
+                }
             } else if let Ok(_) = input.parse::<Token![/]>() {
                 if let Ok(_) = input.parse::<Token![=]>() {
                     "/=".to_string()

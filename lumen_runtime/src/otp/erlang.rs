@@ -121,6 +121,7 @@ pub mod tl_1;
 pub mod tuple_size_1;
 pub mod tuple_to_list_1;
 pub mod unlink_1;
+pub mod unregister_1;
 
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
 // use proptest completely for wasm32
@@ -148,16 +149,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn unregister_1(name: Term) -> Result {
-    let atom: Atom = name.try_into()?;
-
-    if registry::unregister(&atom) {
-        Ok(true.into())
-    } else {
-        Err(badarg!().into())
-    }
 }
 
 pub fn whereis_1(name: Term) -> Result {

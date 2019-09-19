@@ -1,6 +1,5 @@
 use core::alloc::Layout;
 use core::any::Any;
-use core::mem;
 use core::ops::DerefMut;
 use core::ptr::{self, NonNull};
 use core::str::Chars;

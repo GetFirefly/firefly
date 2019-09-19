@@ -1,4 +1,4 @@
-use core::alloc::Layout;
+use core::alloc::{CannotReallocInPlace, Layout};
 use core::mem;
 use core::ptr::NonNull;
 
@@ -44,10 +44,14 @@ pub fn heap(size: usize) -> Result<*mut Term, Alloc> {
 /// Reallocate a process heap, in place
 ///
 /// If reallocating and trying to grow the heap, if the allocation cannot be done
-/// in place, then `Err(Alloc)` will be returned
+/// in place, then `Err(CannotReallocInPlace)` will be returned
 #[inline]
-pub unsafe fn realloc(heap: *mut Term, size: usize, new_size: usize) -> Result<*mut Term, Alloc> {
-    PROC_ALLOC.realloc(heap, size, new_size)
+pub unsafe fn realloc(
+    heap: *mut Term,
+    size: usize,
+    new_size: usize,
+) -> Result<*mut Term, CannotReallocInPlace> {
+    PROC_ALLOC.realloc_in_place(heap, size, new_size)
 }
 
 /// Deallocate a heap previously allocated via `heap`
@@ -153,20 +157,28 @@ impl ProcessHeapAlloc {
     }
 
     #[inline]
-    pub fn realloc(
+    pub fn realloc_in_place(
         &self,
         heap: *mut Term,
         size: usize,
         new_size: usize,
-    ) -> Result<*mut Term, Alloc> {
+    ) -> Result<*mut Term, CannotReallocInPlace> {
         // Nothing to do if the size didn't change
         if size == new_size {
             return Ok(heap);
         }
 
-        // For now we are not going to support realloc_in_place of oversized heaps
+        // For now we are not going to support shrinking via realloc_in_place of oversized heaps.
+        // but we'll allow consumers of this API to believe that the realloc was successful,
+        // this just means that there is now wastage of that unused space. Ideally we would
+        // use mremap or its equivalent to handle this, but due to wide variance in support
+        // and behaviour across platforms, it is easier now to just avoid shrinking. For growth,
+        // consumers will need to do their own remapping by allocating a new heap, etc.
         if size > self.oversized_threshold {
-            return Err(alloc!());
+            if new_size < size {
+                return Ok(heap);
+            }
+            return Err(CannotReallocInPlace);
         }
 
         let layout = self.heap_layout(size);
@@ -176,7 +188,7 @@ impl ProcessHeapAlloc {
             return Ok(heap);
         }
 
-        Err(alloc!())
+        Err(CannotReallocInPlace)
     }
 
     /// Deallocate a process heap, releasing the memory back to the operating system

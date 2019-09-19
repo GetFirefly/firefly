@@ -254,7 +254,6 @@ run(N) -> this_proc(N, 0).
     //assert!(res.result == Ok(100));
 }
 
-#[ignore]
 #[test]
 fn ping_pong_count_large() {
     &*VM;

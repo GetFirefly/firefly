@@ -137,9 +137,10 @@ impl SizeClassAlloc {
         if size_class == new_size_class {
             return Ok(());
         }
-        // Otherwise we definitely can't grow, and saying we shrank
-        // when we really didn't is kind of a no-no, so we'll just
-        // return an error and let the caller decide
+        // Otherwise we definitely can't grow, and we want callers to
+        // decide whether to reallocate or just live within the same
+        // heap when the new size is smaller, rather than shrinking
+        // automatically
         Err(CannotReallocInPlace)
     }
 

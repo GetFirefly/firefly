@@ -197,8 +197,7 @@ impl YoungHeap {
         // Reallocate the heap to shrink it, if the heap is moved, there is a bug
         // in the allocator which must have been introduced in a recent change
         let new_heap = unsafe {
-            process::alloc::realloc(old_start, total_size, new_size)
-                .expect("unable to shrink heap memory for process: realloc failed!")
+            process::alloc::realloc(old_start, total_size, new_size).unwrap_or(old_start)
         };
         assert_eq!(
             new_heap, old_start,
@@ -918,7 +917,6 @@ impl fmt::Debug for YoungHeap {
 mod tests {
     use super::*;
     use core::ptr;
-    use std::sync::Arc;
 
     use crate::erts::process::alloc;
     use crate::erts::term::list::{HeaplessListBuilder, ListBuilder};

@@ -118,6 +118,7 @@ pub mod subtract_2;
 pub mod subtract_list_2;
 pub mod throw_1;
 pub mod tl_1;
+pub mod tuple_size_1;
 pub mod unlink_1;
 
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
@@ -148,13 +149,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn tuple_size_1(tuple: Term, process: &Process) -> Result {
-    let tuple: Boxed<Tuple> = tuple.try_into()?;
-    let size = process.integer(tuple.len())?;
-
-    Ok(size)
 }
 
 pub fn tuple_to_list_1(tuple: Term, process: &Process) -> Result {

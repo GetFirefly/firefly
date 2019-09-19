@@ -44,14 +44,19 @@ open http://localhost:8080
 
 If you don't already have the Lumen dev environment and just want to play with the demo, do these steps, ***then*** continue to the [link package](#link-package) steps.
 
+Uninstall `rust` installed with Homebrew, so you can use `nightly`.
 
 ```
 brew uninstall rust
-brew install rustup
-rustup-init
+```
+
+Install `rustup` to manage your `rust` version.
+
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.cargo/env
-rustup install nightly
-cargo install wasm-pack
+rustup target add wasm32-unknown-unknown --toolchain nightly
+cargo +nightly install wasm-bindgen-cli
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 wasm-pack build
-rustup run nightly wasm-pack build
 ```

@@ -117,6 +117,7 @@ pub mod start_timer_4;
 pub mod subtract_2;
 pub mod subtract_list_2;
 pub mod throw_1;
+pub mod tl_1;
 pub mod unlink_1;
 
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
@@ -134,7 +135,7 @@ use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::{Exception, Result};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Boxed, Cons, ImproperList, Term, Tuple, TypedTerm,
+    atom_unchecked, AsTerm, Atom, Boxed, ImproperList, Term, Tuple, TypedTerm,
 };
 
 use crate::registry::{self, pid_to_self_or_process};
@@ -147,12 +148,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn tl_1(list: Term) -> Result {
-    let cons: Boxed<Cons> = list.try_into()?;
-
-    Ok(cons.tail)
 }
 
 pub fn tuple_size_1(tuple: Term, process: &Process) -> Result {

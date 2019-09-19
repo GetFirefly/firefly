@@ -119,6 +119,7 @@ pub mod subtract_list_2;
 pub mod throw_1;
 pub mod tl_1;
 pub mod tuple_size_1;
+pub mod tuple_to_list_1;
 pub mod unlink_1;
 
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
@@ -135,9 +136,7 @@ use alloc::sync::Arc;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::{Exception, Result};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Boxed, ImproperList, Term, Tuple, TypedTerm,
-};
+use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, ImproperList, Term, TypedTerm};
 
 use crate::registry::{self, pid_to_self_or_process};
 use crate::time::monotonic::{self, Milliseconds};
@@ -149,18 +148,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn tuple_to_list_1(tuple: Term, process: &Process) -> Result {
-    let tuple: Boxed<Tuple> = tuple.try_into()?;
-    let mut heap = process.acquire_heap();
-    let mut acc = Term::NIL;
-
-    for element in tuple.iter().rev() {
-        acc = heap.cons(element, acc)?;
-    }
-
-    Ok(acc)
 }
 
 pub fn unregister_1(name: Term) -> Result {

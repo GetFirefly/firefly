@@ -4,7 +4,7 @@ use super::*;
 fn without_registered_name_returns_undefined() {
     let name = registered_name();
 
-    assert_eq!(erlang::whereis_1(name), Ok(atom_unchecked("undefined")));
+    assert_eq!(native(name), Ok(atom_unchecked("undefined")));
 }
 
 #[test]
@@ -18,6 +18,6 @@ fn with_registered_name_returns_pid() {
             Ok(true.into())
         );
 
-        assert_eq!(erlang::whereis_1(name), Ok(pid_or_port));
+        assert_eq!(native(name), Ok(pid_or_port));
     })
 }

@@ -226,7 +226,7 @@ pub fn make_erlang() -> NativeModule {
         Ok(atom_unchecked("nonode@nohost"))
     });
     native.add_simple(Atom::try_from_str("whereis").unwrap(), 1, |_proc, args| {
-        erlang::whereis_1(args[0])
+        erlang::whereis_1::native(args[0])
     });
 
     native.add_simple(

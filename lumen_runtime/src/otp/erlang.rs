@@ -122,6 +122,7 @@ pub mod tuple_size_1;
 pub mod tuple_to_list_1;
 pub mod unlink_1;
 pub mod unregister_1;
+pub mod whereis_1;
 
 // wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
 // use proptest completely for wasm32
@@ -137,9 +138,9 @@ use alloc::sync::Arc;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::{Exception, Result};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, ImproperList, Term, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, ImproperList, Term, TypedTerm};
 
-use crate::registry::{self, pid_to_self_or_process};
+use crate::registry::pid_to_self_or_process;
 use crate::time::monotonic::{self, Milliseconds};
 use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
@@ -149,19 +150,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-pub fn whereis_1(name: Term) -> Result {
-    let atom: Atom = name.try_into()?;
-
-    let option = registry::atom_to_process(&atom).map(|arc_process| arc_process.pid());
-
-    let term = match option {
-        Some(pid) => unsafe { pid.as_term() },
-        None => atom_unchecked("undefined"),
-    };
-
-    Ok(term)
 }
 
 /// `xor/2` infix operator.

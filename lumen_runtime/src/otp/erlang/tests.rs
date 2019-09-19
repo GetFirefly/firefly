@@ -5,7 +5,6 @@ use proptest::test_runner::{Config, TestRunner};
 
 use crate::otp::erlang;
 use crate::scheduler::with_process_arc;
-use crate::test::{registered_name, strategy};
+use crate::test::strategy;
 
-mod whereis_1;
 mod xor_2;

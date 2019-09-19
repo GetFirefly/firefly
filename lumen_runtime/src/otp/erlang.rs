@@ -123,13 +123,7 @@ pub mod tuple_to_list_1;
 pub mod unlink_1;
 pub mod unregister_1;
 pub mod whereis_1;
-
-// wasm32 proptest cannot be compiled at the same time as non-wasm32 proptest, so disable tests that
-// use proptest completely for wasm32
-//
-// See https://github.com/rust-lang/cargo/issues/4866
-#[cfg(all(not(target_arch = "wasm32"), test))]
-mod tests;
+pub mod xor_2;
 
 use core::convert::TryInto;
 
@@ -150,13 +144,6 @@ pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
 pub fn module() -> Atom {
     Atom::try_from_str("erlang").unwrap()
-}
-
-/// `xor/2` infix operator.
-///
-/// **NOTE: NOT SHORT-CIRCUITING!**
-pub fn xor_2(left_boolean: Term, right_boolean: Term) -> Result {
-    boolean_infix_operator!(left_boolean, right_boolean, ^)
 }
 
 // Private

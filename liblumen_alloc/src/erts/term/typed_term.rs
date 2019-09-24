@@ -811,7 +811,7 @@ impl CloneToProcess for TypedTerm {
             &Self::List(ref inner) => inner.clone_to_process(process),
             &Self::Tuple(ref inner) => inner.clone_to_process(process),
             &Self::Map(ref inner) => inner.clone_to_process(process),
-            &Self::Boxed(ref inner) => inner.clone_to_process(process),
+            &Self::Boxed(ref inner) => inner.to_typed_term().unwrap().clone_to_process(process),
             &Self::Literal(inner) => inner,
             &Self::Pid(inner) => unsafe { inner.as_term() },
             &Self::Port(inner) => unsafe { inner.as_term() },

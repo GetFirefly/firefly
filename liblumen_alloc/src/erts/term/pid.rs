@@ -148,8 +148,14 @@ impl CloneToProcess for ExternalPid {
 }
 
 impl Display for ExternalPid {
-    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        unimplemented!()
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "<{}.{}.{}>",
+            self.node.id(),
+            self.pid.number(),
+            self.pid.serial()
+        )
     }
 }
 

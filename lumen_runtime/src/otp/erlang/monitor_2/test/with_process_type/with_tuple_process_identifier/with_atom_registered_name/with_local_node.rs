@@ -31,5 +31,5 @@ fn without_registered_name_returns_reference_but_immediate_sends_noproc_message(
 }
 
 fn node() -> Term {
-    node_0()
+    node_0::native()
 }

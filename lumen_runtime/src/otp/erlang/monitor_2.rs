@@ -6,68 +6,34 @@
 mod test;
 
 use std::convert::TryInto;
-use std::sync::Arc;
 
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
-use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::{
     atom_unchecked, Atom, Boxed, Pid, Reference, Term, Tuple, TypedTerm,
 };
-use liblumen_alloc::{badarg, ModuleFunctionArity};
+
+use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang::node_0;
 use crate::process::SchedulerDependentAlloc;
 use crate::registry;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    r#type: Term,
-    item: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(item)?;
-    process.stack_push(r#type)?;
-    process.place_frame(frame(), placement);
+#[native_implemented_function(monitor/2)]
+pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result {
+    let type_atom: Atom = r#type.try_into()?;
 
-    Ok(())
-}
-
-// Private
-
-fn code(arc_process: &Arc<Process>) -> code::Result {
-    arc_process.reduce();
-
-    let r#type = arc_process.stack_pop().unwrap();
-    let item = arc_process.stack_pop().unwrap();
-
-    match native(arc_process, r#type, item) {
-        Ok(true_term) => {
-            arc_process.return_from_call(true_term)?;
-
-            Process::call_code(arc_process)
-        }
-        Err(exception) => result_from_exception(arc_process, exception),
+    match type_atom.name() {
+        "port" => unimplemented!(),
+        "process" => monitor_process_identifier(process, item),
+        "time_offset" => unimplemented!(),
+        _ => Err(badarg!().into()),
     }
 }
 
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
-}
-
-fn function() -> Atom {
-    Atom::try_from_str("monitor").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 2,
-    })
-}
+// Private
 
 fn monitor_process_identifier(process: &Process, process_identifier: Term) -> exception::Result {
     match process_identifier.to_typed_term().unwrap() {
@@ -128,7 +94,7 @@ fn monitor_process_registered_name(
             Ok(reference)
         }
         None => {
-            let identifier = process.tuple_from_slice(&[process_identifier, node_0()])?;
+            let identifier = process.tuple_from_slice(&[process_identifier, node_0::native()])?;
 
             monitor_process_identifier_noproc(process, identifier)
         }
@@ -146,26 +112,19 @@ fn monitor_process_tuple(
 
         let node = tuple[1];
 
-        if node == node_0() {
+        if node == node_0::native() {
             monitor_process_registered_name(process, registered_name, registered_name_atom)
         } else {
             let _node_atom: Atom = node.try_into()?;
 
-            unimplemented!("node ({:?}) is not the local node ({:?})", node, node_0());
+            unimplemented!(
+                "node ({:?}) is not the local node ({:?})",
+                node,
+                node_0::native()
+            );
         }
     } else {
         Err(badarg!().into())
-    }
-}
-
-pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result {
-    let type_atom: Atom = r#type.try_into()?;
-
-    match type_atom.name() {
-        "port" => unimplemented!(),
-        "process" => monitor_process_identifier(process, item),
-        "time_offset" => unimplemented!(),
-        _ => Err(badarg!().into()),
     }
 }
 

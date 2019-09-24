@@ -129,7 +129,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
             },
             "self" => match arity {
                 0 => {
-                    erlang::self_0::place_frame(arc_process, Placement::Replace);
+                    erlang::self_0::place_frame_with_arguments(arc_process, Placement::Replace)?;
 
                     Process::call_code(arc_process)
                 }

@@ -41,7 +41,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(before.is_integer());
 
     label_3::place_frame_with_arguments(arc_process, Placement::Replace, before, value)?;
-    monotonic_time_0::place_frame(arc_process, Placement::Push);
+    monotonic_time_0::place_frame_with_arguments(arc_process, Placement::Push)?;
 
     Process::call_code(arc_process)
 }

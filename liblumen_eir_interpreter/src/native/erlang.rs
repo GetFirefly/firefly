@@ -8,30 +8,32 @@ pub fn make_erlang() -> NativeModule {
     let mut native = NativeModule::new(Atom::try_from_str("erlang").unwrap());
 
     native.add_simple(Atom::try_from_str("*").unwrap(), 2, |proc, args| {
-        erlang::multiply_2(args[0], args[1], proc)
+        erlang::multiply_2::native(proc, args[0], args[1])
     });
 
     native.add_simple(Atom::try_from_str("/").unwrap(), 2, |proc, args| {
-        erlang::div_2(args[0], args[1], proc)
+        erlang::div_2::native(proc, args[0], args[1])
     });
 
     native.add_simple(Atom::try_from_str("<").unwrap(), 2, |_proc, args| {
-        Ok(erlang::is_less_than_2(args[0], args[1]))
+        Ok(erlang::is_less_than_2::native(args[0], args[1]))
     });
     native.add_simple(Atom::try_from_str(">").unwrap(), 2, |_proc, args| {
-        Ok(erlang::is_greater_than_2(args[0], args[1]))
+        Ok(erlang::is_greater_than_2::native(args[0], args[1]))
     });
     native.add_simple(Atom::try_from_str("=<").unwrap(), 2, |_proc, args| {
-        Ok(erlang::is_equal_or_less_than_2(args[0], args[1]))
+        Ok(erlang::is_equal_or_less_than_2::native(args[0], args[1]))
     });
     native.add_simple(Atom::try_from_str(">=").unwrap(), 2, |_proc, args| {
-        Ok(erlang::is_greater_than_or_equal_2(args[0], args[1]))
+        Ok(erlang::is_greater_than_or_equal_2::native(args[0], args[1]))
     });
     native.add_simple(Atom::try_from_str("==").unwrap(), 2, |_proc, args| {
-        Ok(erlang::are_equal_after_conversion_2(args[0], args[1]))
+        Ok(erlang::are_equal_after_conversion_2::native(
+            args[0], args[1],
+        ))
     });
     native.add_simple(Atom::try_from_str("=:=").unwrap(), 2, |_proc, args| {
-        Ok(erlang::are_exactly_equal_2(args[0], args[1]))
+        Ok(erlang::are_exactly_equal_2::native(args[0], args[1]))
     });
 
     native.add_simple(Atom::try_from_str("spawn_opt").unwrap(), 4, |proc, args| {
@@ -119,7 +121,7 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("register").unwrap(), 2, |proc, args| {
-        erlang::register_2(args[0], args[1], proc.clone())
+        erlang::register_2::native(proc.clone(), args[0], args[1])
     });
     native.add_simple(
         Atom::try_from_str("process_flag").unwrap(),
@@ -127,14 +129,19 @@ pub fn make_erlang() -> NativeModule {
         |proc, args| erlang::process_flag_2::native(proc, args[0], args[1]),
     );
 
-    native.add_simple(Atom::try_from_str("send").unwrap(), 2, |proc, args| {
-        erlang::send_2(args[0], args[1], proc)
-    });
+    let send_2_module_function_arity = erlang::send_2::module_function_arity();
+    native.add_simple(
+        send_2_module_function_arity.function,
+        send_2_module_function_arity.arity as usize,
+        |proc, args| erlang::send_2::native(proc, args[0], args[1]),
+    );
+
     native.add_simple(Atom::try_from_str("send").unwrap(), 3, |proc, args| {
-        erlang::send_2(args[0], args[1], proc)
+        erlang::send_2::native(proc, args[0], args[1])
     });
+
     native.add_simple(Atom::try_from_str("!").unwrap(), 2, |proc, args| {
-        erlang::send_2(args[0], args[1], proc)
+        erlang::send_2::native(proc, args[0], args[1])
     });
 
     native.add_simple(Atom::try_from_str("-").unwrap(), 2, |proc, args| {
@@ -154,46 +161,46 @@ pub fn make_erlang() -> NativeModule {
         1,
         |_proc, args| {
             assert!(args.len() == 1);
-            Ok(erlang::is_integer_1(args[0]))
+            Ok(erlang::is_integer_1::native(args[0]))
         },
     );
     native.add_simple(Atom::try_from_str("is_list").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_list_1(args[0]))
+        Ok(erlang::is_list_1::native(args[0]))
     });
     native.add_simple(
         Atom::try_from_str("is_binary").unwrap(),
         1,
-        |_proc, args| Ok(erlang::is_binary_1(args[0])),
+        |_proc, args| Ok(erlang::is_binary_1::native(args[0])),
     );
     native.add_simple(Atom::try_from_str("is_atom").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_atom_1(args[0]))
+        Ok(erlang::is_atom_1::native(args[0]))
     });
     native.add_simple(Atom::try_from_str("is_pid").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_pid_1(args[0]))
+        Ok(erlang::is_pid_1::native(args[0]))
     });
     native.add_simple(
         Atom::try_from_str("is_function").unwrap(),
         1,
-        |_proc, args| Ok(erlang::is_function_1(args[0])),
+        |_proc, args| Ok(erlang::is_function_1::native(args[0])),
     );
     native.add_simple(
         Atom::try_from_str("is_function").unwrap(),
         2,
-        |_proc, args| Ok(erlang::is_function_1(args[0])),
+        |_proc, args| Ok(erlang::is_function_1::native(args[0])),
     );
     native.add_simple(Atom::try_from_str("is_tuple").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_tuple_1(args[0]))
+        Ok(erlang::is_tuple_1::native(args[0]))
     });
     native.add_simple(Atom::try_from_str("is_map").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_map_1(args[0]))
+        Ok(erlang::is_map_1::native(args[0]))
     });
     native.add_simple(
         Atom::try_from_str("is_bitstring").unwrap(),
         1,
-        |_proc, args| Ok(erlang::is_bitstring_1(args[0])),
+        |_proc, args| Ok(erlang::is_bitstring_1::native(args[0])),
     );
     native.add_simple(Atom::try_from_str("is_float").unwrap(), 1, |_proc, args| {
-        Ok(erlang::is_bitstring_1(args[0]))
+        Ok(erlang::is_bitstring_1::native(args[0]))
     });
 
     native.add_simple(
@@ -213,13 +220,13 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("node").unwrap(), 0, |_proc, _args| {
-        Ok(erlang::node_0())
+        Ok(erlang::node_0::native())
     });
     native.add_simple(Atom::try_from_str("node").unwrap(), 1, |_proc, _args| {
         Ok(atom_unchecked("nonode@nohost"))
     });
     native.add_simple(Atom::try_from_str("whereis").unwrap(), 1, |_proc, args| {
-        erlang::whereis_1(args[0])
+        erlang::whereis_1::native(args[0])
     });
 
     native.add_simple(
@@ -242,7 +249,7 @@ pub fn make_erlang() -> NativeModule {
     );
 
     native.add_simple(Atom::try_from_str("element").unwrap(), 2, |_proc, args| {
-        erlang::element_2(args[0], args[1])
+        erlang::element_2::native(args[0], args[1])
     });
 
     native

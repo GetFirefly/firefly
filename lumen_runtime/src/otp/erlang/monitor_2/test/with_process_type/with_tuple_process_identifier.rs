@@ -10,7 +10,7 @@ fn without_atom_registered_name_errors_badarg() {
                 &strategy::term::is_not_atom(arc_process.clone()),
                 |registered_name| {
                     let identifier = arc_process
-                        .tuple_from_slice(&[registered_name, node_0()])
+                        .tuple_from_slice(&[registered_name, node_0::native()])
                         .unwrap();
 
                     prop_assert_eq!(

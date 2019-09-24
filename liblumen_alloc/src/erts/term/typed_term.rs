@@ -666,7 +666,7 @@ impl Ord for TypedTerm {
                             _ => unreachable!(),
                         },
                         TypedTerm::Atom(_) | TypedTerm::Pid(_) | TypedTerm::Nil => Greater,
-                        _ => unreachable!(),
+                        _ => unimplemented!("{:?} == {:?}", self, other),
                     },
                     TypedTerm::MatchContext(self_match_context) => match other {
                         _ => unimplemented!(

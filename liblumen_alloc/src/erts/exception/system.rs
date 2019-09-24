@@ -1,6 +1,6 @@
 use core::fmt::{self, Debug};
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Exception {
     Alloc(Alloc),
 }

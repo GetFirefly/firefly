@@ -15,7 +15,7 @@ use crate::erts::term::{
     TypeError,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Exception {
     System(system::Exception),
     Runtime(runtime::Exception),

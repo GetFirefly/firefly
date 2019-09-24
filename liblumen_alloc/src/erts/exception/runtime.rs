@@ -10,7 +10,7 @@ use crate::erts::term::{
     atom_unchecked, index, BoolError, Term, TryIntoIntegerError, TypeError, TypedTerm,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Class {
     Error { arguments: Option<Term> },
     Exit,
@@ -35,8 +35,7 @@ impl TryFrom<Term> for Class {
     }
 }
 
-#[derive(Debug)]
-#[cfg_attr(test, derive(Clone))]
+#[derive(Copy, Clone, Debug)]
 pub struct Exception {
     pub class: Class,
     pub reason: Term,

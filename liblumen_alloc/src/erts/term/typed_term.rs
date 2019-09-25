@@ -581,8 +581,7 @@ impl Ord for TypedTerm {
                             | TypedTerm::ExternalPort(_)
                             | TypedTerm::ExternalPid(_)
                             | TypedTerm::Tuple(_)
-                            | TypedTerm::Map(_)
-                            | TypedTerm::List(_) => Greater,
+                            | TypedTerm::Map(_) => Greater,
                             TypedTerm::HeapBinary(other_heap_binary) => {
                                 self_heap_binary.as_ref().cmp(other_heap_binary.as_ref())
                             }
@@ -600,7 +599,10 @@ impl Ord for TypedTerm {
                                 .reverse(),
                             _ => unreachable!(),
                         },
-                        TypedTerm::Atom(_) | TypedTerm::Pid(_) | TypedTerm::Nil => Greater,
+                        TypedTerm::Atom(_)
+                        | TypedTerm::Pid(_)
+                        | TypedTerm::Nil
+                        | TypedTerm::List(_) => Greater,
                         _ => unreachable!(),
                     },
                     TypedTerm::ProcBin(self_process_binary) => match other {
@@ -615,8 +617,7 @@ impl Ord for TypedTerm {
                             | TypedTerm::ExternalPort(_)
                             | TypedTerm::ExternalPid(_)
                             | TypedTerm::Tuple(_)
-                            | TypedTerm::Map(_)
-                            | TypedTerm::List(_) => Greater,
+                            | TypedTerm::Map(_) => Greater,
                             TypedTerm::HeapBinary(other_heap_binary) => {
                                 self_process_binary.partial_cmp(&other_heap_binary).unwrap()
                             }
@@ -633,7 +634,10 @@ impl Ord for TypedTerm {
                                 .reverse(),
                             _ => unreachable!(),
                         },
-                        TypedTerm::Atom(_) | TypedTerm::Pid(_) | TypedTerm::Nil => Greater,
+                        TypedTerm::Atom(_)
+                        | TypedTerm::Pid(_)
+                        | TypedTerm::Nil
+                        | TypedTerm::List(_) => Greater,
                         _ => unreachable!(),
                     },
                     TypedTerm::SubBinary(self_subbinary) => match other {
@@ -648,8 +652,7 @@ impl Ord for TypedTerm {
                             | TypedTerm::ExternalPort(_)
                             | TypedTerm::ExternalPid(_)
                             | TypedTerm::Tuple(_)
-                            | TypedTerm::Map(_)
-                            | TypedTerm::List(_) => Greater,
+                            | TypedTerm::Map(_) => Greater,
                             TypedTerm::HeapBinary(other_heap_binary) => self_subbinary
                                 .partial_cmp(other_heap_binary.as_ref())
                                 .unwrap(),
@@ -665,8 +668,11 @@ impl Ord for TypedTerm {
                                 .reverse(),
                             _ => unreachable!(),
                         },
-                        TypedTerm::Atom(_) | TypedTerm::Pid(_) | TypedTerm::Nil => Greater,
-                        _ => unreachable!(),
+                        TypedTerm::Atom(_)
+                        | TypedTerm::Pid(_)
+                        | TypedTerm::Nil
+                        | TypedTerm::List(_) => Greater,
+                        _ => unimplemented!("{:?} == {:?}", self_subbinary, other),
                     },
                     TypedTerm::MatchContext(self_match_context) => match other {
                         _ => unimplemented!(
@@ -811,7 +817,7 @@ impl CloneToProcess for TypedTerm {
             &Self::List(ref inner) => inner.clone_to_process(process),
             &Self::Tuple(ref inner) => inner.clone_to_process(process),
             &Self::Map(ref inner) => inner.clone_to_process(process),
-            &Self::Boxed(ref inner) => inner.clone_to_process(process),
+            &Self::Boxed(ref inner) => inner.to_typed_term().unwrap().clone_to_process(process),
             &Self::Literal(inner) => inner,
             &Self::Pid(inner) => unsafe { inner.as_term() },
             &Self::Port(inner) => unsafe { inner.as_term() },

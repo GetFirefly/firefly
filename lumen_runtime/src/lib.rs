@@ -33,6 +33,7 @@ mod binary;
 // `pub` or `examples/spawn-chain`
 pub mod code;
 mod config;
+pub mod future;
 mod logging;
 mod node;
 mod number;

@@ -138,7 +138,7 @@ pub fn is_function_with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStra
         .boxed()
 }
 
-fn closure(process: &Process, module: Atom, function: Atom, arity: u8) -> Term {
+pub fn closure(process: &Process, module: Atom, function: Atom, arity: u8) -> Term {
     let creator = process.pid_term();
     let module_function_arity = Arc::new(ModuleFunctionArity {
         module,

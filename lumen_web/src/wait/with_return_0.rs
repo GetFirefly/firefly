@@ -186,7 +186,7 @@ fn tuple_to_js_value(tuple: &Tuple) -> JsValue {
 }
 
 /// The executor for a `js_sys::Promise` that will be resolved by `code` or rejected when the owning
-/// promise exits and the executor is dropped.
+/// process exits and the executor is dropped.
 struct Executor {
     state: State,
 }

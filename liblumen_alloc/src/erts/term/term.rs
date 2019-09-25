@@ -1666,6 +1666,16 @@ impl TryInto<isize> for Term {
     }
 }
 
+impl TryInto<u8> for Term {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<u8, Self::Error> {
+        let u: u64 = self.try_into()?;
+
+        u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
+    }
+}
+
 impl TryInto<u32> for Term {
     type Error = TryIntoIntegerError;
 

@@ -1,4 +1,5 @@
 use std::cmp::{max, min};
+use std::convert::TryInto;
 use std::num::FpCategory;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -170,6 +171,16 @@ pub fn is_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 pub fn is_map(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     map::intermediate(super::term(arc_process.clone()), size_range(), arc_process)
+}
+
+pub fn is_not_arity(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Term cannot be 0-255", |term| {
+            let result_u8: Result<u8, _> = (*term).try_into();
+
+            result_u8.is_err()
+        })
+        .boxed()
 }
 
 pub fn is_not_atom(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

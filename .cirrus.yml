@@ -47,7 +47,7 @@ task:
 task:
   name: macOS x86_64
   osx_instance:
-    image: high-sierra-base
+    image: mojave-base
   env:
     PATH: ${HOME}/.cargo/bin:${PATH}
   macos_x86_64_cargo_cache:
@@ -100,7 +100,7 @@ task:
 task:
   name: macOS wasm32
   osx_instance:
-    image: high-sierra-base
+    image: mojave-base
   env:
     PATH: ${HOME}/.cargo/bin:${PATH}
   macos_wasm32_cargo_cache:

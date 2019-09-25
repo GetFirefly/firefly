@@ -456,6 +456,20 @@ pub trait HeapAlloc {
         }
     }
 
+    /// Constructs a `Tuple` that needs to be filled with elements and then boxed.
+    fn mut_tuple(&mut self, len: usize) -> Result<&mut Tuple, Alloc> {
+        let layout = Tuple::layout(len);
+        let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
+        let header = Tuple::new(len);
+
+        unsafe {
+            // Write header
+            ptr::write(tuple_ptr, header);
+        }
+
+        Ok(unsafe { &mut *tuple_ptr })
+    }
+
     /// Constructs a `Tuple` from an `Iterator<Item = Term>` and accompanying `len`.
     ///
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
@@ -465,25 +479,23 @@ pub trait HeapAlloc {
     where
         I: Iterator<Item = Term>,
     {
-        let layout = Tuple::layout(len);
-        let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
-        let head_ptr = unsafe { tuple_ptr.add(1) as *mut Term };
-        let tuple = Tuple::new(len);
+        let tuple = self.mut_tuple(len)?;
         let mut iter_len = 0;
-        unsafe {
-            // Write header
-            ptr::write(tuple_ptr, tuple);
-            // Write each element
-            for (index, element) in iterator.enumerate() {
-                ptr::write(head_ptr.add(index), element);
 
-                iter_len += 1;
-                debug_assert!(index < len);
-            }
+        // Write each element
+        for (index, element) in iterator.enumerate() {
+            tuple
+                .set_element_from_zero_based_usize_index(index, element)
+                .unwrap();
+
+            iter_len += 1;
+            debug_assert!(index < len);
         }
+
         debug_assert!(iter_len == len);
+
         // Return box to tuple
-        Ok(Term::make_boxed(tuple_ptr))
+        Ok(Term::make_boxed(tuple as *const Tuple))
     }
 
     /// Constructs a `Tuple` from a slice of `Term`
@@ -508,27 +520,23 @@ pub trait HeapAlloc {
     /// a slice passed to `tuple_from_slice` to produce nested tuples.
     fn tuple_from_slices(&mut self, slices: &[&[Term]]) -> Result<Term, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
-        let layout = Tuple::layout(len);
-        let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
-        let head_ptr = unsafe { tuple_ptr.add(1) as *mut Term };
-        let tuple = Tuple::new(len);
+        let tuple = self.mut_tuple(len)?;
 
-        unsafe {
-            // Write header
-            ptr::write(tuple_ptr, tuple);
-            let mut count = 0;
+        let mut count = 0;
 
-            // Write each element
-            for slice in slices {
-                for element in *slice {
-                    ptr::write(head_ptr.add(count), *element);
-                    count += 1;
-                }
+        // Write each element
+        for slice in slices {
+            for element in *slice {
+                tuple
+                    .set_element_from_zero_based_usize_index(count, *element)
+                    .unwrap();
+
+                count += 1;
             }
         }
 
         // Return box to tuple
-        Ok(Term::make_boxed(tuple_ptr))
+        Ok(Term::make_boxed(tuple as *const Tuple))
     }
 
     /// Constructs a `Closure` from a slice of `Term`

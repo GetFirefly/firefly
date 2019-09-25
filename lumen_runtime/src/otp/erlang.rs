@@ -67,6 +67,7 @@ pub mod is_map_1;
 pub mod is_map_key_2;
 pub mod is_number_1;
 pub mod is_pid_1;
+pub mod is_process_alive_1;
 pub mod is_record_2;
 pub mod is_record_3;
 pub mod is_reference_1;

@@ -8,15 +8,14 @@ use liblumen_alloc::erts::process::{Priority, Process};
 use liblumen_alloc::erts::term::{Atom, Boxed, Cons, Term, Tuple, TypedTerm};
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 
-#[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MaxHeapSize {
     size: Option<usize>,
     kill: Option<bool>,
     error_logger: Option<bool>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum MessageQueueData {
     OnHeap,
     OffHeap,
@@ -42,7 +41,7 @@ impl TryFrom<Term> for MessageQueueData {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Options {
     pub link: bool,
     pub monitor: bool,

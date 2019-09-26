@@ -3,7 +3,7 @@ use core::convert::{TryFrom, TryInto};
 use crate::erts::exception::runtime;
 use crate::erts::term::{Atom, Term, TypedTerm};
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Priority {
     Low,
     Normal,

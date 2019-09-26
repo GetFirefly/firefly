@@ -134,7 +134,7 @@ task:
   enable_safari_driver_script: sudo safaridriver --enable
   lumen_web_test_script: |
     pushd lumen_web
-    wasm-pack test --headless --chrome --firefox --safari
+    wasm-pack test --headless --chrome --firefox
     popd
   examples_spawn_chain_build_script: |
     pushd examples/spawn-chain
@@ -142,6 +142,6 @@ task:
     popd
   examples_spawn_chain_test_script: |
     pushd examples/spawn-chain
-    wasm-pack test --headless --chrome --firefox --safari
+    wasm-pack test --headless --chrome --firefox
     popd
   before_cache_script: rm -rf $CARGO_HOME/registry/index

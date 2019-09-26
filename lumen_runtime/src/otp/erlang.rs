@@ -82,6 +82,7 @@ pub mod list_to_pid_1;
 pub mod list_to_tuple_1;
 pub mod make_ref_0;
 pub mod make_tuple_2;
+pub mod make_tuple_3;
 pub mod map_get_2;
 pub mod map_size_1;
 pub mod max_2;

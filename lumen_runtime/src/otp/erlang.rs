@@ -39,6 +39,7 @@ pub mod ceil_1;
 pub mod concatenate_2;
 pub mod convert_time_unit_3;
 pub mod delete_element_2;
+pub mod demonitor_1;
 pub mod demonitor_2;
 pub mod div_2;
 pub mod divide_2;

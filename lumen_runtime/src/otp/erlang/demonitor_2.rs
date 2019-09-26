@@ -29,7 +29,7 @@ pub fn native(process: &Process, reference: Term, options: Term) -> exception::R
 
 // Private
 
-fn demonitor(
+pub(in crate::otp::erlang) fn demonitor(
     monitoring_process: &Process,
     reference: &Reference,
     Options { flush, info }: Options,

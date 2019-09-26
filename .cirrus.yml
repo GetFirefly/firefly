@@ -47,7 +47,7 @@ task:
 task:
   name: macOS x86_64
   osx_instance:
-    image: high-sierra-base
+    image: mojave-base
   env:
     PATH: ${HOME}/.cargo/bin:${PATH}
   macos_x86_64_cargo_cache:
@@ -100,7 +100,7 @@ task:
 task:
   name: macOS wasm32
   osx_instance:
-    image: high-sierra-base
+    image: mojave-base
   env:
     PATH: ${HOME}/.cargo/bin:${PATH}
   macos_wasm32_cargo_cache:
@@ -134,7 +134,7 @@ task:
   enable_safari_driver_script: sudo safaridriver --enable
   lumen_web_test_script: |
     pushd lumen_web
-    wasm-pack test --headless --chrome --firefox --safari
+    wasm-pack test --headless --chrome --firefox
     popd
   examples_spawn_chain_build_script: |
     pushd examples/spawn-chain
@@ -142,6 +142,6 @@ task:
     popd
   examples_spawn_chain_test_script: |
     pushd examples/spawn-chain
-    wasm-pack test --headless --chrome --firefox --safari
+    wasm-pack test --headless --chrome --firefox
     popd
   before_cache_script: rm -rf $CARGO_HOME/registry/index

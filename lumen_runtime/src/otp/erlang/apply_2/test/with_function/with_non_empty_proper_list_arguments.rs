@@ -1,9 +1,7 @@
 use super::*;
 
-use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use proptest::collection::SizeRange;
 use proptest::strategy::{Just, Strategy};
 
 use liblumen_alloc::badarity;
@@ -11,7 +9,6 @@ use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::process::spawn::options::Options;
 use crate::test::strategy::term::closure;
 
 #[test]
@@ -21,62 +18,30 @@ fn without_arity_errors_badarg() {
             &strategy::process()
                 .prop_flat_map(|arc_process| {
                     (
-                        Just(arc_process),
+                        Just(arc_process.clone()),
                         module_function_arity::module(),
                         module_function_arity::function(),
-                        1_u8..=255_u8,
+                        strategy::term(arc_process.clone()),
+                        strategy::term(arc_process),
                     )
                 })
-                .prop_flat_map(|(arc_process, module, function, arity)| {
-                    (
-                        Just(arc_process.clone()),
-                        Just(module),
-                        Just(function),
-                        Just(arity.clone()),
-                        (Just(arc_process), module_function_arity::arity())
-                            .prop_filter(
-                                "Arguments arity cannot match function arity",
-                                move |(_, list_arity)| *list_arity != arity,
-                            )
-                            .prop_flat_map(|(arc_process, list_arity)| {
-                                let range_inclusive: RangeInclusive<usize> =
-                                    (list_arity as usize)..=(list_arity as usize);
-                                let size_range: SizeRange = range_inclusive.into();
-
-                                (
-                                    Just(arc_process.clone()),
-                                    proptest::collection::vec(
-                                        strategy::term(arc_process.clone()),
-                                        size_range,
-                                    ),
-                                )
-                                    .prop_map(
-                                        |(arc_process, vec)| {
-                                            arc_process.list_from_slice(&vec).unwrap()
-                                        },
-                                    )
-                            }),
-                    )
-                })
-                .prop_map(|(arc_process, module, function, arity, arguments)| {
-                    (
-                        arc_process.clone(),
-                        closure(&arc_process.clone(), module, function, arity),
-                        arguments,
-                    )
-                }),
+                .prop_map(
+                    |(arc_process, module, function, first_argument, second_argument)| {
+                        (
+                            arc_process.clone(),
+                            closure(&arc_process.clone(), module, function, 1),
+                            arc_process
+                                .list_from_slice(&[first_argument, second_argument])
+                                .unwrap(),
+                        )
+                    },
+                ),
             |(arc_process, function, arguments)| {
-                let size_in_words = function.size_in_words() + arguments.size_in_words();
-                let options = Options {
-                    min_heap_size: Some(size_in_words),
-                    ..Default::default()
-                };
-
                 let Ready {
                     arc_process: child_arc_process,
                     result,
                 } = run_until_ready(
-                    options,
+                    Default::default(),
                     |child_process| {
                         let child_function = function.clone_to_process(child_process);
                         let child_arguments = arguments.clone_to_process(child_process);

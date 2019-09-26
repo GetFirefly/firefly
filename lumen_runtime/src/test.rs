@@ -8,6 +8,7 @@ pub mod r#loop;
 pub mod strategy;
 
 use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
 
 use num_bigint::BigInt;
 
@@ -17,7 +18,8 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::binary::MaybePartialByte;
 use liblumen_alloc::erts::term::{atom_unchecked, BigInteger, Boxed, Term, TypedTerm};
 
-use crate::scheduler::with_process;
+use crate::process::spawn::options::Options;
+use crate::scheduler::{with_process, Scheduler};
 
 pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
     timer_message("cancel_timer", timer_reference, result, process)
@@ -109,6 +111,15 @@ pub fn monitor_count(process: &Process) -> usize {
 
 pub fn monitored_count(process: &Process) -> usize {
     process.monitored_pid_by_reference.lock().len()
+}
+
+pub fn process(parent_process: &Process, options: Options) -> Arc<Process> {
+    let module = r#loop::module();
+    let function = r#loop::function();
+    let arguments = vec![];
+    let code = r#loop::code;
+
+    Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()
 }
 
 pub fn receive_message(process: &Process) -> Option<Term> {

@@ -29,7 +29,9 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::layout_to_words;
-use crate::erts::term::{atom_unchecked, pid, reference, Atom, Integer, Pid, ProcBin, Reference};
+use crate::erts::term::{
+    atom_unchecked, pid, reference, Atom, Cons, Integer, Pid, ProcBin, Reference, Tuple,
+};
 
 use super::*;
 
@@ -641,6 +643,27 @@ impl Process {
             // is either an immediate, or already located on the process
             // heap or in a heap fragment.
             Some(value) => *value,
+        }
+    }
+
+    /// Removes all key/value pairs from process dictionary and returns list of the entries.
+    pub fn erase(&self) -> Result<Term, Alloc> {
+        let mut heap = self.heap.lock();
+        let mut dictionary = self.dictionary.lock();
+
+        let len = dictionary.len();
+        let entry_need_in_words = Tuple::need_in_words_from_len(2);
+        let need_in_words = Cons::need_in_words_from_len(len) + len * entry_need_in_words;
+
+        if need_in_words <= heap.heap_available() {
+            let entry_vec: Vec<Term> = dictionary
+                .drain()
+                .map(|(key, value)| heap.tuple_from_slice(&[key, value]).unwrap())
+                .collect();
+
+            Ok(heap.list_from_slice(&entry_vec).unwrap())
+        } else {
+            Err(alloc!())
         }
     }
 

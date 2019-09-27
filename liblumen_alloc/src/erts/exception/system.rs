@@ -11,7 +11,7 @@ impl From<Alloc> for Exception {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy)]
 pub struct Alloc {
     pub file: &'static str,
     pub line: u32,
@@ -21,5 +21,15 @@ pub struct Alloc {
 impl Debug for Alloc {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Alloc at {}:{}:{}", self.file, self.line, self.column)
+    }
+}
+
+impl Eq for Alloc {}
+
+impl PartialEq for Alloc {
+    /// `file`, `line`, and `column` don't count for equality as they are for `Debug` only to help
+    /// track down exceptions.
+    fn eq(&self, _other: &Self) -> bool {
+        true
     }
 }

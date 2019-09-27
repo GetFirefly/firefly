@@ -63,6 +63,18 @@ pub struct Cons {
     pub tail: Term,
 }
 impl Cons {
+    /// The number of bytes for the header and immediate terms or box term pointer to elements
+    /// allocated elsewhere.
+    pub fn need_in_bytes_from_len(len: usize) -> usize {
+        mem::size_of::<Cons>() * len
+    }
+
+    /// The number of words for the header and immediate terms or box term pointer to elements
+    /// allocated elsewhere.
+    pub fn need_in_words_from_len(len: usize) -> usize {
+        to_word_size(Self::need_in_bytes_from_len(len))
+    }
+
     /// Create a new cons cell from a head and tail pointer pair
     #[inline]
     pub fn new(head: Term, tail: Term) -> Self {
@@ -235,7 +247,7 @@ impl CloneToProcess for Cons {
             words += element.size_in_words();
         }
 
-        words += to_word_size(elements * mem::size_of::<Cons>());
+        words += Self::need_in_words_from_len(elements);
         words
     }
 }

@@ -667,12 +667,13 @@ impl Process {
         }
     }
 
-    /// Deletes a key/value pair from the process dictionary
-    pub fn delete(&self, key: Term) -> Term {
+    /// Removes key/value pair from process dictionary and returns value for `key`.  If `key` is not
+    /// there, it returns `:undefined`.
+    pub fn erase_key(&self, key: Term) -> Term {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
 
         match self.dictionary.lock().remove(&key) {
-            None => Term::NIL,
+            None => atom_unchecked("undefined"),
             Some(old_value) => old_value,
         }
     }

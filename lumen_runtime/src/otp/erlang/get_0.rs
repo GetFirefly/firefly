@@ -10,7 +10,7 @@ use liblumen_alloc::erts::process::Process;
 
 use lumen_runtime_macros::native_implemented_function;
 
-#[native_implemented_function(erase/0)]
+#[native_implemented_function(get/0)]
 pub fn native(process: &Process) -> exception::Result {
-    process.erase_entries().map_err(|alloc| alloc.into())
+    process.get_entries().map_err(|alloc| alloc.into())
 }

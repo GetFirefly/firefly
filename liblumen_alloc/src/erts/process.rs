@@ -667,6 +667,23 @@ impl Process {
         }
     }
 
+    /// Returns list of all keys from the process dictionary.
+    pub fn get_keys(&self) -> Result<Term, Alloc> {
+        let mut heap = self.heap.lock();
+        let dictionary = self.dictionary.lock();
+
+        let len = dictionary.len();
+        let need_in_words = Cons::need_in_words_from_len(len);
+
+        if need_in_words <= heap.heap_available() {
+            let entry_vec: Vec<Term> = dictionary.keys().copied().collect();
+
+            Ok(heap.list_from_slice(&entry_vec).unwrap())
+        } else {
+            Err(alloc!())
+        }
+    }
+
     /// Removes all key/value pairs from process dictionary and returns list of the entries.
     pub fn erase_entries(&self) -> Result<Term, Alloc> {
         let mut heap = self.heap.lock();

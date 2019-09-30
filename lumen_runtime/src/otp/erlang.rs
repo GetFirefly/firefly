@@ -105,6 +105,7 @@ pub mod or_2;
 pub mod orelse_2;
 pub mod process_flag_2;
 pub mod process_info_2;
+pub mod put_2;
 pub mod raise_3;
 pub mod read_timer_1;
 pub mod read_timer_2;

@@ -684,6 +684,25 @@ impl Process {
         }
     }
 
+    /// Returns list of all keys from the process dictionary that have `value`.
+    pub fn get_keys_from_value(&self, value: Term) -> Result<Term, Alloc> {
+        let mut heap = self.heap.lock();
+        let dictionary = self.dictionary.lock();
+
+        let key_vec: Vec<Term> = dictionary
+            .iter()
+            .filter_map(|(entry_key, entry_value)| {
+                if entry_value == &value {
+                    Some(*entry_key)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        heap.list_from_slice(&key_vec)
+    }
+
     /// Removes all key/value pairs from process dictionary and returns list of the entries.
     pub fn erase_entries(&self) -> Result<Term, Alloc> {
         let mut heap = self.heap.lock();

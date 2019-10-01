@@ -646,8 +646,29 @@ impl Process {
         }
     }
 
+    /// Returns all key/value pairs from process dictionary
+    pub fn get_entries(&self) -> Result<Term, Alloc> {
+        let mut heap = self.heap.lock();
+        let dictionary = self.dictionary.lock();
+
+        let len = dictionary.len();
+        let entry_need_in_words = Tuple::need_in_words_from_len(2);
+        let need_in_words = Cons::need_in_words_from_len(len) + len * entry_need_in_words;
+
+        if need_in_words <= heap.heap_available() {
+            let entry_vec: Vec<Term> = dictionary
+                .iter()
+                .map(|(key, value)| heap.tuple_from_slice(&[*key, *value]).unwrap())
+                .collect();
+
+            Ok(heap.list_from_slice(&entry_vec).unwrap())
+        } else {
+            Err(alloc!())
+        }
+    }
+
     /// Removes all key/value pairs from process dictionary and returns list of the entries.
-    pub fn erase(&self) -> Result<Term, Alloc> {
+    pub fn erase_entries(&self) -> Result<Term, Alloc> {
         let mut heap = self.heap.lock();
         let mut dictionary = self.dictionary.lock();
 

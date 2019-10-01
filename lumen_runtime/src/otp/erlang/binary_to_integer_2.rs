@@ -17,25 +17,22 @@ use liblumen_alloc::erts::term::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::otp::erlang::base::Base;
+
 #[native_implemented_function(binary_to_integer/2)]
 pub fn native<'process>(process: &'process Process, binary: Term, base: Term) -> exception::Result {
     let mut heap = process.acquire_heap();
     let s: &str = heap.str_from_binary(binary)?;
-    let radix: usize = base.try_into()?;
+    let base: Base = base.try_into()?;
 
-    if 2 <= radix && radix <= 36 {
-        let bytes = s.as_bytes();
+    let bytes = s.as_bytes();
 
-        match BigInt::parse_bytes(bytes, radix as u32) {
-            Some(big_int) => {
-                let term = heap.integer(big_int)?;
+    match BigInt::parse_bytes(bytes, base.radix()) {
+        Some(big_int) => {
+            let term = heap.integer(big_int)?;
 
-                Ok(term)
-            }
-            None => Err(badarg!()),
+            Ok(term)
         }
-    } else {
-        Err(badarg!())
+        None => Err(badarg!().into()),
     }
-    .map_err(|error| error.into())
 }

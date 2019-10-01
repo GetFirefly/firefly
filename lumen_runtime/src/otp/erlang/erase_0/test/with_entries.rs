@@ -19,11 +19,11 @@ fn without_heap_available_does_not_modify_dictionary() {
 
     fill_heap(&arc_process);
 
-    assert_eq!(arc_process.get(key), value);
+    assert_eq!(arc_process.get_value_from_key(key), value);
 
     assert_eq!(native(&arc_process), Err(liblumen_alloc::alloc!().into()));
 
-    assert_eq!(arc_process.get(key), value);
+    assert_eq!(arc_process.get_value_from_key(key), value);
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn with_heap_available_erases_dictionary_and_returns_entries_as_list() {
 
     arc_process.put(key, value).unwrap();
 
-    assert_eq!(arc_process.get(key), value);
+    assert_eq!(arc_process.get_value_from_key(key), value);
 
     let result = native(&arc_process);
 
@@ -60,7 +60,10 @@ fn with_heap_available_erases_dictionary_and_returns_entries_as_list() {
 
     assert_eq!(boxed_cons.tail, Term::NIL);
 
-    assert_eq!(arc_process.get(key), Term::NIL);
+    assert_eq!(
+        arc_process.get_value_from_key(key),
+        atom_unchecked("undefined")
+    );
 }
 
 fn fill_heap(process: &Process) {

@@ -634,11 +634,11 @@ impl Process {
     }
 
     /// Gets a value from the process dictionary using the given key
-    pub fn get(&self, key: Term) -> Term {
+    pub fn get_value_from_key(&self, key: Term) -> Term {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
 
         match self.dictionary.lock().get(&key) {
-            None => Term::NIL,
+            None => undefined(),
             // We can simply copy the term value here, since we know it
             // is either an immediate, or already located on the process
             // heap or in a heap fragment.
@@ -690,11 +690,11 @@ impl Process {
 
     /// Removes key/value pair from process dictionary and returns value for `key`.  If `key` is not
     /// there, it returns `:undefined`.
-    pub fn erase_key(&self, key: Term) -> Term {
+    pub fn erase_value_from_key(&self, key: Term) -> Term {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
 
         match self.dictionary.lock().remove(&key) {
-            None => atom_unchecked("undefined"),
+            None => undefined(),
             Some(old_value) => old_value,
         }
     }
@@ -952,6 +952,10 @@ impl Process {
     pub fn stacktrace(&self) -> stack::Trace {
         self.code_stack.lock().trace()
     }
+}
+
+fn undefined() -> Term {
+    atom_unchecked("undefined")
 }
 
 #[cfg(test)]

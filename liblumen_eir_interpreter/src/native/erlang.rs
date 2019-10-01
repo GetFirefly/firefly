@@ -236,7 +236,7 @@ pub fn make_erlang() -> NativeModule {
     );
 
     native.add_simple(Atom::try_from_str("get").unwrap(), 1, |proc, args| {
-        Ok(proc.get(args[0]))
+        Ok(erlang::get_1::native(proc, args[0]))
     });
     native.add_simple(Atom::try_from_str("put").unwrap(), 2, |proc, args| {
         Ok(proc.put(args[0], args[1])?)

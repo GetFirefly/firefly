@@ -19,7 +19,7 @@ fn without_heap_available_errors_alloc() {
 
     fill_heap(&arc_process);
 
-    assert_eq!(arc_process.get(key), value);
+    assert_eq!(arc_process.get_value_from_key(key), value);
 
     assert_eq!(native(&arc_process), Err(liblumen_alloc::alloc!().into()));
 }
@@ -33,7 +33,7 @@ fn with_heap_available_returns_entries_as_list() {
 
     arc_process.put(key, value).unwrap();
 
-    assert_eq!(arc_process.get(key), value);
+    assert_eq!(arc_process.get_value_from_key(key), value);
 
     let result = native(&arc_process);
 

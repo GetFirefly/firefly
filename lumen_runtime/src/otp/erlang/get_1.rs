@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
-#[native_implemented_function(erase/1)]
+#[native_implemented_function(get/1)]
 pub fn native(process: &Process, key: Term) -> Term {
-    process.erase_value_from_key(key)
+    process.get_value_from_key(key)
 }

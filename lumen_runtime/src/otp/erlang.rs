@@ -55,6 +55,7 @@ pub mod get_keys_0;
 pub mod get_keys_1;
 pub mod hd_1;
 pub mod insert_element_3;
+pub mod integer_to_binary_1;
 pub mod is_alive_0;
 pub mod is_atom_1;
 pub mod is_binary_1;

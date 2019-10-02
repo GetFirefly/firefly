@@ -628,7 +628,7 @@ impl Process {
         };
 
         match self.dictionary.lock().insert(heap_key, heap_value) {
-            None => Ok(Term::NIL),
+            None => Ok(undefined()),
             Some(old_value) => Ok(old_value),
         }
     }

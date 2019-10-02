@@ -969,6 +969,8 @@ impl TryInto<String> for TypedTerm {
             TypedTerm::SubBinary(subbinary) => subbinary.try_into(),
             TypedTerm::ProcBin(process_binary) => process_binary.try_into(),
             TypedTerm::MatchContext(match_context) => match_context.try_into(),
+            TypedTerm::Nil => Ok("".to_string()),
+            TypedTerm::List(boxed_cons) => boxed_cons.try_into(),
             _ => Err(badarg!()),
         }
     }

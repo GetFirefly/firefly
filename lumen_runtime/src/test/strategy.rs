@@ -8,6 +8,7 @@ use liblumen_alloc::erts::{Process, Term};
 
 use crate::process;
 
+pub mod base;
 pub mod byte_vec;
 pub mod module_function_arity;
 pub mod size_range;

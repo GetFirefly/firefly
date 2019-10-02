@@ -24,6 +24,7 @@ log = "0.4"
 lumen_runtime_macros = { path = "../lumen_runtime_macros" }
 num-bigint = "0.2.2"
 num-traits = "0.2.6"
+radix_fmt = "1.0.0"
 
 [dependencies.hashbrown]
 version = "0.5"
@@ -37,9 +38,6 @@ features = ["nightly"]
 git = "https://github.com/KronicDeth/parking_lot.git"
 branch = "wasm32-time_web_sys"
 features = ["nightly"]
-
-[dev-dependencies]
-radix_fmt = "1.0.0"
 
 [target.'cfg(unix)'.dependencies]
 internment = "0.3.6"

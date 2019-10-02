@@ -95,6 +95,12 @@ pub fn function_port_pid_tuple_map_list_or_bitstring(
     .boxed()
 }
 
+pub fn is_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::base::base()
+        .prop_map(move |base| arc_process.integer(base).unwrap())
+        .boxed()
+}
+
 pub fn is_binary(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     prop_oneof![
         binary::heap(arc_process.clone()),
@@ -186,6 +192,21 @@ pub fn is_not_arity(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 pub fn is_not_atom(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Term cannot be an atom", |v| !v.is_atom())
+        .boxed()
+}
+
+pub(crate) fn is_not_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Cannot be a base (2-36)", |term| {
+            match term.to_typed_term().unwrap() {
+                TypedTerm::SmallInteger(small_integer) => {
+                    let integer: isize = small_integer.into();
+
+                    (2 <= integer) && (integer <= 36)
+                }
+                _ => true,
+            }
+        })
         .boxed()
 }
 

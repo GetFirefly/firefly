@@ -3,8 +3,6 @@ use core::convert::TryInto;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
 
-use alloc::string::String;
-
 use num_bigint::{BigInt, Sign};
 
 use crate::borrow::CloneToProcess;
@@ -955,23 +953,6 @@ impl TryInto<isize> for TypedTerm {
             }
             TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             _ => Err(TypeError),
-        }
-    }
-}
-
-impl TryInto<String> for TypedTerm {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        match self {
-            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
-            TypedTerm::HeapBinary(heap_binary) => heap_binary.try_into(),
-            TypedTerm::SubBinary(subbinary) => subbinary.try_into(),
-            TypedTerm::ProcBin(process_binary) => process_binary.try_into(),
-            TypedTerm::MatchContext(match_context) => match_context.try_into(),
-            TypedTerm::Nil => Ok("".to_string()),
-            TypedTerm::List(boxed_cons) => boxed_cons.try_into(),
-            _ => Err(badarg!()),
         }
     }
 }

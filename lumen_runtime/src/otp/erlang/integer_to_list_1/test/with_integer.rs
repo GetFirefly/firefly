@@ -1,6 +1,6 @@
 use super::*;
 
-use std::convert::TryInto;
+use crate::otp::erlang::list_to_string::list_to_string;
 
 #[test]
 fn with_small_integer_returns_list() {
@@ -17,7 +17,7 @@ fn with_small_integer_returns_list() {
 
                 prop_assert!(term.is_list());
 
-                let string: String = term.try_into().unwrap();
+                let string: String = list_to_string(term).unwrap();
 
                 prop_assert_eq!(string, integer_isize.to_string());
 
@@ -42,7 +42,7 @@ fn with_big_integer_returns_list() {
 
                 prop_assert!(term.is_list());
 
-                let string: String = term.try_into().unwrap();
+                let string: String = list_to_string(term).unwrap();
 
                 prop_assert_eq!(string, integer_isize.to_string());
 

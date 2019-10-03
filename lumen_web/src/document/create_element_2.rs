@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
@@ -8,6 +7,8 @@ use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
+
+use lumen_runtime::binary_to_string::binary_to_string;
 
 use crate::document::document_from_term;
 use crate::{error, ok_tuple};
@@ -67,7 +68,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 
 pub fn native(process: &Process, document: Term, tag: Term) -> exception::Result {
     let document_document = document_from_term(document)?;
-    let tag_string: String = tag.try_into()?;
+    let tag_string: String = binary_to_string(tag)?;
 
     match document_document.create_element(&tag_string) {
         Ok(element) => ok_tuple(process, Box::new(element)),

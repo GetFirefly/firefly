@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
@@ -8,6 +7,8 @@ use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
+
+use lumen_runtime::binary_to_string::binary_to_string;
 
 use crate::{element, error, ok};
 
@@ -70,8 +71,8 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 pub fn native(process: &Process, element_term: Term, name: Term, value: Term) -> exception::Result {
     let element = element::from_term(element_term)?;
 
-    let name_string: String = name.try_into()?;
-    let value_string: String = value.try_into()?;
+    let name_string: String = binary_to_string(name)?;
+    let value_string: String = binary_to_string(value)?;
 
     match element.set_attribute(&name_string, &value_string) {
         Ok(()) => Ok(ok()),

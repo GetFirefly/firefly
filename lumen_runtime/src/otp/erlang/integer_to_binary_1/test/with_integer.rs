@@ -1,7 +1,6 @@
 use super::*;
 
-use std::convert::TryInto;
-
+use crate::binary_to_string::binary_to_string;
 use crate::otp::erlang::binary_to_integer_1;
 
 #[test]
@@ -19,7 +18,7 @@ fn with_small_integer_returns_binary() {
 
                 prop_assert!(term.is_binary());
 
-                let string: String = term.try_into().unwrap();
+                let string: String = binary_to_string(term).unwrap();
 
                 prop_assert_eq!(string, integer_isize.to_string());
 
@@ -44,7 +43,7 @@ fn with_big_integer_returns_binary() {
 
                 prop_assert!(term.is_binary());
 
-                let string: String = term.try_into().unwrap();
+                let string: String = binary_to_string(term).unwrap();
 
                 prop_assert_eq!(string, integer_isize.to_string());
 

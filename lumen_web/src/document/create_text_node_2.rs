@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
@@ -10,6 +9,7 @@ use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::document::document_from_term;
+use lumen_runtime::binary_to_string::binary_to_string;
 
 /// ```elixir
 /// text = Lumen.Web.Document.create_text_node(document, data)
@@ -63,7 +63,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 
 pub fn native(process: &Process, document: Term, data: Term) -> exception::Result {
     let document_document = document_from_term(document)?;
-    let data_string: String = data.try_into()?;
+    let data_string: String = binary_to_string(data)?;
 
     let text = document_document.create_text_node(&data_string);
     let text_box = Box::new(text);

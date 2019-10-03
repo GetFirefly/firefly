@@ -91,6 +91,7 @@ pub mod list_to_binary_1;
 pub mod list_to_bitstring_1;
 pub mod list_to_existing_atom_1;
 pub mod list_to_pid_1;
+mod list_to_string;
 pub mod list_to_tuple_1;
 pub mod make_ref_0;
 pub mod make_tuple_2;
@@ -132,6 +133,7 @@ pub mod spawn_opt_4;
 pub mod split_binary_2;
 pub mod start_timer_3;
 pub mod start_timer_4;
+mod string_to_integer;
 pub mod subtract_2;
 pub mod subtract_list_2;
 pub mod throw_1;
@@ -148,9 +150,9 @@ use core::convert::TryInto;
 use alloc::sync::Arc;
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::{Exception, Result};
+use liblumen_alloc::erts::exception::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, ImproperList, Term, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
 
 use crate::registry::pid_to_self_or_process;
 use crate::time::monotonic::{self, Milliseconds};
@@ -246,24 +248,6 @@ fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> Result {
             _ => Ok(false.into()),
         },
         _ => Ok(false.into()),
-    }
-}
-
-fn list_to_string(list: Term) -> std::result::Result<String, Exception> {
-    match list.to_typed_term().unwrap() {
-        TypedTerm::Nil => Ok("".to_owned()),
-        TypedTerm::List(cons) => cons
-            .into_iter()
-            .map(|result| match result {
-                Ok(term) => {
-                    let c: char = term.try_into()?;
-
-                    Ok(c)
-                }
-                Err(ImproperList { .. }) => Err(badarg!().into()),
-            })
-            .collect::<std::result::Result<String, Exception>>(),
-        _ => Err(badarg!().into()),
     }
 }
 

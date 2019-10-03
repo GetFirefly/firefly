@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::{AsTerm, Atom, Term};
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::otp::erlang::list_to_string;
+use crate::otp::erlang::list_to_string::list_to_string;
 
 #[native_implemented_function(list_to_atom/1)]
 pub fn native(string: Term) -> exception::Result {

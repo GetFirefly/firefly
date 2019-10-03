@@ -90,6 +90,7 @@ pub mod list_to_atom_1;
 pub mod list_to_binary_1;
 pub mod list_to_bitstring_1;
 pub mod list_to_existing_atom_1;
+pub mod list_to_integer_1;
 pub mod list_to_pid_1;
 mod list_to_string;
 pub mod list_to_tuple_1;

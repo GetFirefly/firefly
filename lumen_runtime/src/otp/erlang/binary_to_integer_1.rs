@@ -12,11 +12,11 @@ use liblumen_alloc::erts::term::Term;
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::binary_to_string::binary_to_string;
-use crate::otp::erlang::string_to_integer::string_to_integer;
+use crate::otp::erlang::string_to_integer::decimal_string_to_integer;
 
 #[native_implemented_function(binary_to_integer/1)]
 pub fn native(process: &Process, binary: Term) -> exception::Result {
     let string: String = binary_to_string(binary)?;
 
-    string_to_integer(process, &string)
+    decimal_string_to_integer(process, &string)
 }

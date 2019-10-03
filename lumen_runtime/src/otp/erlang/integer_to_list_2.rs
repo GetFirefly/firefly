@@ -11,13 +11,13 @@ use liblumen_alloc::erts::term::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::otp::erlang::integer_to_string::decimal_integer_to_string;
+use crate::otp::erlang::integer_to_string::base_integer_to_string;
 
-#[native_implemented_function(integer_to_binary/1)]
-pub fn native(process: &Process, integer: Term) -> exception::Result {
-    decimal_integer_to_string(integer).and_then(|string| {
+#[native_implemented_function(integer_to_binary/2)]
+pub fn native(process: &Process, integer: Term, base: Term) -> exception::Result {
+    base_integer_to_string(base, integer).and_then(|string| {
         process
-            .binary_from_str(&string)
+            .charlist_from_str(&string)
             .map_err(|alloc| alloc.into())
     })
 }

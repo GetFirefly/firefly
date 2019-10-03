@@ -11,11 +11,11 @@ use liblumen_alloc::erts::term::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::otp::erlang::integer_to_string::integer_to_string;
+use crate::otp::erlang::integer_to_string::decimal_integer_to_string;
 
 #[native_implemented_function(integer_to_list/1)]
 pub fn native(process: &Process, integer: Term) -> exception::Result {
-    integer_to_string(integer).and_then(|string| {
+    decimal_integer_to_string(integer).and_then(|string| {
         process
             .list_from_chars(string.chars())
             .map_err(|alloc| alloc.into())

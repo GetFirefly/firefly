@@ -7,6 +7,7 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::term::{AsTerm, Boxed, Term, TypeError, TypedTerm};
 use crate::erts::{to_word_size, HeapAlloc, StackAlloc};
@@ -328,6 +329,23 @@ impl TryFrom<TypedTerm> for Boxed<Cons> {
             TypedTerm::List(cons) => Ok(cons),
             _ => Err(TypeError),
         }
+    }
+}
+
+impl TryInto<String> for Boxed<Cons> {
+    type Error = runtime::Exception;
+
+    fn try_into(self) -> Result<String, Self::Error> {
+        self.into_iter()
+            .map(|result| match result {
+                Ok(element) => {
+                    let result_char: Result<char, _> = element.try_into().map_err(|_| badarg!());
+
+                    result_char
+                }
+                Err(_) => Err(badarg!()),
+            })
+            .collect()
     }
 }
 

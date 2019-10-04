@@ -59,6 +59,7 @@ pub mod insert_element_3;
 pub mod integer_to_binary_1;
 pub mod integer_to_binary_2;
 pub mod integer_to_list_1;
+pub mod integer_to_list_2;
 mod integer_to_string;
 pub mod is_alive_0;
 pub mod is_atom_1;

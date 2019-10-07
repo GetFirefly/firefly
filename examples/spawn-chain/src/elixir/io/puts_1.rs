@@ -1,7 +1,5 @@
-use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
@@ -10,6 +8,7 @@ use liblumen_alloc::erts::term::Term;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
+use lumen_runtime::binary_to_string::binary_to_string;
 use lumen_runtime::system;
 
 pub fn place_frame_with_arguments(
@@ -30,7 +29,7 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let elixir_string = arc_process.stack_pop().unwrap();
 
-    match elixir_string.try_into(): Result<String, runtime::Exception> {
+    match binary_to_string(elixir_string) {
         Ok(string) => {
             // NOT A DEBUGGING LOG
             system::io::puts(&string);

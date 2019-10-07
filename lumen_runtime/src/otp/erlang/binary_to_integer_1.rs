@@ -5,23 +5,18 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
-use num_bigint::BigInt;
-
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::binary_to_string::binary_to_string;
+use crate::otp::erlang::string_to_integer::string_to_integer;
+
 #[native_implemented_function(binary_to_integer/1)]
 pub fn native(process: &Process, binary: Term) -> exception::Result {
-    let string: String = binary.try_into()?;
+    let string: String = binary_to_string(binary)?;
 
-    match BigInt::parse_bytes(string.as_bytes(), 10) {
-        Some(big_int) => process.integer(big_int).map_err(|error| error.into()),
-        None => Err(badarg!().into()),
-    }
+    string_to_integer(process, &string)
 }

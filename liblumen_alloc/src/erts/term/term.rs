@@ -6,8 +6,6 @@ use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ptr;
 
-use alloc::string::String;
-
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
@@ -1734,14 +1732,6 @@ impl TryInto<BigInt> for Term {
             Some(big_int) => Ok(big_int),
             None => Err(TypeError),
         }
-    }
-}
-
-impl TryInto<String> for Term {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        self.to_typed_term().unwrap().try_into()
     }
 }
 

@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use wasm_bindgen::JsCast;
@@ -12,6 +11,8 @@ use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::erts::ModuleFunctionArity;
+
+use lumen_runtime::binary_to_string::binary_to_string;
 
 use crate::{error, html_form_element, ok};
 
@@ -70,7 +71,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 
 fn native(process: &Process, html_form_element_term: Term, name: Term) -> exception::Result {
     let html_form_element_term = html_form_element::from_term(html_form_element_term)?;
-    let name_string: String = name.try_into()?;
+    let name_string: String = binary_to_string(name)?;
 
     let object = html_form_element_term.get_with_name(&name_string);
     let result_html_input_element: Result<HtmlInputElement, _> = object.dyn_into();

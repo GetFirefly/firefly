@@ -1,7 +1,6 @@
 use super::*;
 
-use std::convert::TryInto;
-
+use crate::otp::erlang::list_to_string::list_to_string;
 use proptest::arbitrary::any;
 use proptest::strategy::{Just, Strategy};
 
@@ -64,7 +63,7 @@ fn with_negative_integer_returns_list_in_base_with_negative_sign_in_front_of_non
                 let positive_isize = -1 * negative_isize;
                 let positive_integer = arc_process.integer(positive_isize).unwrap();
                 let positive_list = native(&arc_process, positive_integer, base).unwrap();
-                let positive_string: String = positive_list.try_into().unwrap();
+                let positive_string: String = list_to_string(positive_list).unwrap();
                 let expected_negative_string = format!("-{}", positive_string);
                 let expected_negative_list = arc_process
                     .charlist_from_str(&expected_negative_string)

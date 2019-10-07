@@ -30,6 +30,7 @@ extern crate lazy_static;
 mod macros;
 
 mod binary;
+pub mod binary_to_string;
 // `pub` or `examples/spawn-chain`
 pub mod code;
 mod config;

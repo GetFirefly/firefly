@@ -1,9 +1,8 @@
 use super::*;
 
-use std::convert::TryInto;
-
 use proptest::arbitrary::any;
 
+use crate::binary_to_string::binary_to_string;
 use crate::otp::erlang::binary_to_integer_2;
 
 #[test]
@@ -63,7 +62,7 @@ fn with_negative_integer_returns_binary_in_base_with_negative_sign_in_front_of_n
                     let positive_isize = -1 * negative_isize;
                     let positive_integer = arc_process.integer(positive_isize).unwrap();
                     let positive_binary = native(&arc_process, positive_integer, base).unwrap();
-                    let positive_string: String = positive_binary.try_into().unwrap();
+                    let positive_string: String = binary_to_string(positive_binary).unwrap();
                     let expected_negative_string = format!("-{}", positive_string);
                     let expected_negative_binary = arc_process
                         .binary_from_str(&expected_negative_string)

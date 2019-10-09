@@ -50,6 +50,8 @@ pub mod erase_1;
 pub mod error_1;
 pub mod error_2;
 pub mod exit_1;
+pub mod float_to_binary_1;
+mod float_to_string;
 pub mod get_0;
 pub mod get_1;
 pub mod get_keys_0;

@@ -53,6 +53,7 @@ pub mod exit_1;
 pub mod float_to_binary_1;
 pub mod float_to_binary_2;
 pub mod float_to_list_1;
+pub mod float_to_list_2;
 mod float_to_string;
 pub mod get_0;
 pub mod get_1;

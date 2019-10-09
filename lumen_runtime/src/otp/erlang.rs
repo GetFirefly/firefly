@@ -151,6 +151,7 @@ pub mod subtract_2;
 pub mod subtract_list_2;
 pub mod throw_1;
 pub mod tl_1;
+pub mod trunc_1;
 pub mod tuple_size_1;
 pub mod tuple_to_list_1;
 pub mod unlink_1;

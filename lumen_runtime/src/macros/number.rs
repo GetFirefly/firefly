@@ -111,3 +111,29 @@ macro_rules! number_infix_operator {
         }
     }};
 }
+
+macro_rules! number_to_integer {
+    ($f:ident) => {
+        use liblumen_alloc::badarg;
+        use liblumen_alloc::erts::exception;
+        use liblumen_alloc::erts::process::Process;
+        use liblumen_alloc::erts::term::Term;
+
+        use lumen_runtime_macros::native_implemented_function;
+
+        use crate::otp::erlang::number_to_integer::{f64_to_integer, NumberToInteger};
+
+        #[native_implemented_function($f/1)]
+        pub fn native(process: &Process, number: Term) -> exception::Result {
+            match number.into() {
+                NumberToInteger::Integer(integer) => Ok(integer),
+                NumberToInteger::F64(f) => {
+                    let ceiling = f.$f();
+
+                    f64_to_integer(process, ceiling)
+                }
+                NumberToInteger::NotANumber => Err(badarg!().into()),
+            }
+        }
+    };
+}

@@ -130,6 +130,7 @@ pub mod read_timer_2;
 pub mod register_2;
 pub mod registered_0;
 pub mod rem_2;
+pub mod round_1;
 pub mod self_0;
 pub mod send_2;
 pub mod send_3;

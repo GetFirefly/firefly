@@ -5,7 +5,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarg;
 
-use crate::otp::erlang::float_to_binary_1::native;
+use crate::otp::erlang::float_to_list_1::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
 

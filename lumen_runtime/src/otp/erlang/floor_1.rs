@@ -14,14 +14,14 @@ use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang::number_to_integer::{f64_to_integer, NumberToInteger};
 
-#[native_implemented_function(ceil/1)]
+#[native_implemented_function(floor/1)]
 pub fn native(process: &Process, number: Term) -> exception::Result {
     match number.into() {
         NumberToInteger::Integer(integer) => Ok(integer),
         NumberToInteger::F64(f) => {
-            let ceiling = f.ceil();
+            let floor = f.floor();
 
-            f64_to_integer(process, ceiling)
+            f64_to_integer(process, floor)
         }
         NumberToInteger::NotANumber => Err(badarg!().into()),
     }

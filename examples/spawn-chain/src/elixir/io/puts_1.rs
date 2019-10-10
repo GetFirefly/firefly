@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
@@ -27,25 +28,28 @@ pub fn place_frame_with_arguments(
 // Private
 
 fn code(arc_process: &Arc<Process>) -> code::Result {
+    arc_process.reduce();
+
     let elixir_string = arc_process.stack_pop().unwrap();
 
     match binary_to_string(elixir_string) {
         Ok(string) => {
             // NOT A DEBUGGING LOG
             system::io::puts(&string);
-            arc_process.reduce();
 
             let ok = atom_unchecked("ok");
             arc_process.return_from_call(ok)?;
 
             Process::call_code(arc_process)
         }
-        Err(exception) => {
-            arc_process.reduce();
-            arc_process.exception(exception);
+        Err(exception) => match exception {
+            Exception::Runtime(runtime_exception) => {
+                arc_process.exception(runtime_exception);
 
-            Ok(())
-        }
+                Ok(())
+            }
+            Exception::System(system_exception) => return Err(system_exception),
+        },
     }
 }
 

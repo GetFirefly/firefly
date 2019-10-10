@@ -1,14 +1,13 @@
 use super::*;
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Term};
 
+use crate::otp::erlang::charlist_to_string::charlist_to_string;
 use crate::otp::erlang::float_to_list_1;
 
 #[test]
@@ -254,14 +253,6 @@ fn exponent_is_at_least_2_digits() {
             },
         )
         .unwrap();
-}
-
-fn charlist_to_string(list: Term) -> Result<String, runtime::Exception> {
-    match list.to_typed_term().unwrap() {
-        TypedTerm::Nil => Ok("".to_string()),
-        TypedTerm::List(boxed_cons) => boxed_cons.try_into(),
-        _ => Err(badarg!()),
-    }
 }
 
 fn digits(arc_process: Arc<Process>) -> BoxedStrategy<Term> {

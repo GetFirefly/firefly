@@ -26,6 +26,8 @@ extern crate cfg_if;
 #[macro_use]
 extern crate lazy_static;
 
+extern crate chrono;
+
 #[macro_use]
 mod macros;
 

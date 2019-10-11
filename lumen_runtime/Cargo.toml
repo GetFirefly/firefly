@@ -25,6 +25,7 @@ lumen_runtime_macros = { path = "../lumen_runtime_macros" }
 num-bigint = "0.2.2"
 num-traits = "0.2.6"
 radix_fmt = "1.0.0"
+chrono = "0.4"
 
 [dependencies.hashbrown]
 version = "0.5"

@@ -8,6 +8,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::term::{atom_unchecked, Term, TypedTerm};
 use liblumen_alloc::{badarg, Process};
 
+pub mod datetime;
 pub mod monotonic;
 
 pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {

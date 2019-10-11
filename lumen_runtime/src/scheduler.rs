@@ -230,7 +230,7 @@ impl Scheduler {
         options: Options,
         module: Atom,
         function: Atom,
-        arguments: Vec<Term>,
+        arguments: &[Term],
         code: Code,
     ) -> Result<Arc<Process>, Alloc> {
         let process = process::spawn::code(

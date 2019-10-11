@@ -8,6 +8,6 @@ cfg_if::cfg_if! {
   }
 }
 
-pub fn utc_now() -> ((i32, i32, i32), (i32, i32, i32)) {
-    utc_now()
+pub fn utc_now() -> [usize; 6] {
+    return get_utc_now();
 }

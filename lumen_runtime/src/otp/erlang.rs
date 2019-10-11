@@ -139,6 +139,7 @@ pub mod send_after_3;
 pub mod send_after_4;
 pub mod setelement_3;
 pub mod size_1;
+pub mod spawn_1;
 pub mod spawn_3;
 pub mod spawn_apply_3;
 pub mod spawn_link_3;

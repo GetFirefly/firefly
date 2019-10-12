@@ -11,3 +11,7 @@ cfg_if::cfg_if! {
 pub fn utc_now() -> [usize; 6] {
     get_utc_now()
 }
+
+pub fn local_now() -> [usize; 6] {
+    get_local_now()
+}

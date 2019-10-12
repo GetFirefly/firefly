@@ -156,6 +156,7 @@ pub mod tl_1;
 pub mod trunc_1;
 pub mod tuple_size_1;
 pub mod tuple_to_list_1;
+pub mod universaltime_0;
 pub mod unlink_1;
 pub mod unregister_1;
 pub mod whereis_1;

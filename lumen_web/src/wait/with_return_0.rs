@@ -143,7 +143,7 @@ fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
         options,
         super::module(),
         function(),
-        vec![],
+        &[],
         code,
     )?;
 

@@ -18,22 +18,7 @@ use liblumen_alloc::{badarg, badarity};
 
 use liblumen_alloc::ModuleFunctionArity;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    function: Term,
-    arguments: Term,
-) -> Result<(), Alloc> {
-    process.stack_push(arguments)?;
-    process.stack_push(function)?;
-    process.place_frame(frame(), placement);
-
-    Ok(())
-}
-
-// Private
-
-fn code(arc_process: &Arc<Process>) -> code::Result {
+pub fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let function = arc_process.stack_pop().unwrap();
@@ -93,18 +78,37 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     }
 }
 
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
-}
-
-fn function() -> Atom {
+pub fn function() -> Atom {
     Atom::try_from_str("apply").unwrap()
 }
 
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
+pub fn module() -> Atom {
+    super::module()
+}
+
+pub fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
-        module: super::module(),
+        module: module(),
         function: function(),
         arity: 2,
     })
+}
+
+pub fn place_frame_with_arguments(
+    process: &Process,
+    placement: Placement,
+    function: Term,
+    arguments: Term,
+) -> Result<(), Alloc> {
+    process.stack_push(arguments)?;
+    process.stack_push(function)?;
+    process.place_frame(frame(), placement);
+
+    Ok(())
+}
+
+// Private
+
+fn frame() -> Frame {
+    Frame::new(module_function_arity(), code)
 }

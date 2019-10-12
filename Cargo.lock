@@ -821,6 +821,7 @@ dependencies = [
  "im 12.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "internment 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "intrusive-collections 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "js-sys 0.3.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.62 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_alloc 0.1.0",

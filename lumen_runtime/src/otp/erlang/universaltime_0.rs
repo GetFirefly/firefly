@@ -21,7 +21,7 @@ pub fn native(process: &Process) -> exception::Result {
         process.integer(now[5])?,
     ])?;
 
-    return process
+    process
         .tuple_from_slice(&[date_tuple, time_tuple])
-        .map_err(|error| error.into());
+        .map_err(|error| error.into())
 }

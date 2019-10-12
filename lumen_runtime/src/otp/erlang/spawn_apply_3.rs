@@ -19,10 +19,10 @@ pub(in crate::otp::erlang) fn native(
     let function_atom: Atom = function.try_into()?;
 
     if arguments.is_proper_list() {
-        let arc_process =
+        let child_arc_process =
             Scheduler::spawn_apply_3(process, options, module_atom, function_atom, arguments)?;
 
-        Ok(arc_process.pid_term())
+        Ok(child_arc_process.pid_term())
     } else {
         Err(badarg!().into())
     }

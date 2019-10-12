@@ -113,7 +113,7 @@ fn run_through(n: usize) {
         options,
         Atom::try_from_str("Elixir.ChainTest").unwrap(),
         Atom::try_from_str("inspect").unwrap(),
-        vec![],
+        &[],
         inspect_code,
     )
     .unwrap();

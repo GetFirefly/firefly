@@ -127,7 +127,7 @@ where
 
 fn spawn_unscheduled(options: Options) -> Result<(Process, Arc<Mutex<Future>>), Alloc> {
     let parent_process = None;
-    let arguments = vec![];
+    let arguments = &[];
     let process = process::spawn::code(
         parent_process,
         options,

@@ -52,7 +52,7 @@ pub fn code(
     options: Options,
     module: Atom,
     function: Atom,
-    arguments: Vec<Term>,
+    arguments: &[Term],
     code: Code,
 ) -> Result<Process, Alloc> {
     let arity = arguments.len() as u8;

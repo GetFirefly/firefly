@@ -203,7 +203,7 @@ pub fn test(parent_process: &Process) -> Arc<Process> {
     options.min_heap_size = Some(16_000);
     let module = test::r#loop::module();
     let function = test::r#loop::function();
-    let arguments = vec![];
+    let arguments = &[];
     let code = test::r#loop::code;
 
     Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()

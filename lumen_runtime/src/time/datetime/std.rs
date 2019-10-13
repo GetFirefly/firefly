@@ -1,15 +1,5 @@
 use chrono::prelude::*;
 
-pub fn get_local_date() -> [usize; 3] {
-    let datetime: [usize; 6] = get_local_now();
-    [datetime[0], datetime[1], datetime[2]]
-}
-
-pub fn get_local_time() -> [usize; 3] {
-    let datetime: [usize; 6] = get_local_now();
-    [datetime[3], datetime[4], datetime[5]]
-}
-
 pub fn get_local_now() -> [usize; 6] {
     datetime_to_array(Local::now())
 }

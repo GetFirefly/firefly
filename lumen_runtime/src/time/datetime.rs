@@ -15,3 +15,11 @@ pub fn utc_now() -> [usize; 6] {
 pub fn local_now() -> [usize; 6] {
     get_local_now()
 }
+
+pub fn local_date() -> [usize; 3] {
+    get_local_date()
+}
+
+pub fn local_time() -> [usize; 3] {
+    get_local_time()
+}

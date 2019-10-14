@@ -68,7 +68,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
 
                 match *parent_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(atom_unchecked("normal")));
+                        prop_assert_eq!(exception, &exit!(atom_unchecked("not_normal")));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(

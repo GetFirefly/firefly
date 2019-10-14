@@ -1,5 +1,6 @@
 use super::*;
 
+#[path = "w_e_f/w_a.rs"]
 mod with_arity;
 
 #[test]

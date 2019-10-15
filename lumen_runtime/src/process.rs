@@ -11,10 +11,10 @@ use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
-use liblumen_alloc::erts::process::{self, Process};
+use liblumen_alloc::erts::process::{self, Process, ProcessHeap};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, Tuple, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::HeapFragment;
+use liblumen_alloc::{CloneToProcess, HeapFragment};
 
 use crate::code;
 #[cfg(test)]
@@ -85,6 +85,7 @@ pub fn propagate_exit_to_links(process: &Process, exception: &runtime::Exception
         let tag = atom_unchecked("EXIT");
         let from = process.pid_term();
         let reason = exception.reason;
+        let reason_word_size = reason.size_in_words();
         let exit_message_elements: &[Term] = &[tag, from, reason];
         let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);
 
@@ -94,35 +95,71 @@ pub fn propagate_exit_to_links(process: &Process, exception: &runtime::Exception
                     match linked_pid_arc_process.try_acquire_heap() {
                         Some(ref mut linked_pid_heap) => {
                             if exit_message_word_size <= linked_pid_heap.heap_available() {
-                                let linked_pid_data = linked_pid_heap
-                                    .tuple_from_slice(exit_message_elements)
-                                    .unwrap();
-
-                                linked_pid_arc_process.send_from_self(linked_pid_data);
+                                send_self_exit_message(
+                                    &linked_pid_arc_process,
+                                    linked_pid_heap,
+                                    exit_message_elements,
+                                );
                             } else {
-                                let (heap_fragment_data, heap_fragment) =
-                                    HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
-
-                                linked_pid_arc_process
-                                    .send_heap_message(heap_fragment, heap_fragment_data);
+                                send_heap_exit_message(
+                                    &linked_pid_arc_process,
+                                    exit_message_elements,
+                                );
                             }
                         }
                         None => {
-                            let (heap_fragment_data, heap_fragment) =
-                                HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
-
-                            linked_pid_arc_process
-                                .send_heap_message(heap_fragment, heap_fragment_data);
+                            send_heap_exit_message(&linked_pid_arc_process, exit_message_elements);
                         }
                     }
                 } else {
                     // only tell the linked process to exit.  When it is run by its scheduler, it
                     // will go through propagating its own exit.
-                    linked_pid_arc_process.exit();
+                    match linked_pid_arc_process.try_acquire_heap() {
+                        Some(ref mut linked_pid_heap) => {
+                            if reason_word_size <= linked_pid_heap.heap_available() {
+                                exit_in_heap(&linked_pid_arc_process, linked_pid_heap, reason);
+                            } else {
+                                exit_in_heap_fragment(&linked_pid_arc_process, reason);
+                            }
+                        }
+                        None => {
+                            exit_in_heap_fragment(&linked_pid_arc_process, reason);
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+fn send_self_exit_message(
+    process: &Process,
+    heap: &mut ProcessHeap,
+    exit_message_elements: &[Term],
+) {
+    let data = heap.tuple_from_slice(exit_message_elements).unwrap();
+
+    process.send_from_self(data);
+}
+
+fn send_heap_exit_message(process: &Process, exit_message_elements: &[Term]) {
+    let (heap_fragment_data, heap_fragment) =
+        HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
+
+    process.send_heap_message(heap_fragment, heap_fragment_data);
+}
+
+fn exit_in_heap(process: &Process, heap: &mut ProcessHeap, reason: Term) {
+    let data = reason.clone_to_heap(heap).unwrap();
+
+    process.exit(data);
+}
+
+fn exit_in_heap_fragment(process: &Process, reason: Term) {
+    let (heap_fragment_data, mut heap_fragment) = reason.clone_to_fragment().unwrap();
+
+    process.attach_fragment(unsafe { heap_fragment.as_mut() });
+    process.exit(heap_fragment_data);
 }
 
 pub fn register_in(

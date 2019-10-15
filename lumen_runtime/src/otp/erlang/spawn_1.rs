@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::Term;
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang::apply_2;
-use crate::scheduler::Scheduler;
+use crate::scheduler::{Scheduler, Spawned};
 
 #[native_implemented_function(spawn/1)]
 pub fn native(process: &Process, function: Term) -> exception::Result {
@@ -22,7 +22,10 @@ pub fn native(process: &Process, function: Term) -> exception::Result {
 
         // The :badarity error is raised in the child process and not in the parent process, so the
         // child process must be running the equivalent of `apply(functon, [])`.
-        let child_arc_process = Scheduler::spawn_code(
+        let Spawned {
+            arc_process: child_arc_process,
+            ..
+        } = Scheduler::spawn_code(
             process,
             Default::default(),
             apply_2::module(),

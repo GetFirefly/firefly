@@ -7,11 +7,12 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Cons, Tuple};
 
 use crate::process;
+use crate::scheduler::Spawned;
 
 #[test]
 fn without_heap_available_errors_alloc() {
     let init_arc_process = process::test_init();
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let key = atom_unchecked("key");
     let value = atom_unchecked("value");
 
@@ -27,7 +28,7 @@ fn without_heap_available_errors_alloc() {
 #[test]
 fn with_heap_available_returns_entries_as_list() {
     let init_arc_process = process::test_init();
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let key = atom_unchecked("key");
     let value = atom_unchecked("value");
 

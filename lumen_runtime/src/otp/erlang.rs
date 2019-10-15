@@ -146,6 +146,7 @@ pub mod spawn_3;
 pub mod spawn_apply_3;
 pub mod spawn_link_1;
 pub mod spawn_link_3;
+pub mod spawn_monitor_1;
 pub mod spawn_opt_4;
 pub mod split_binary_2;
 pub mod start_timer_3;

@@ -8,7 +8,7 @@ use liblumen_alloc::erts::HeapFragment;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::registry::pid_to_process;
-use lumen_runtime::scheduler::Scheduler;
+use lumen_runtime::scheduler::{Scheduler, Spawned};
 
 #[wasm_bindgen]
 pub struct Pid(PidTerm);
@@ -108,8 +108,10 @@ impl JsHeap {
         let mut options: Options = Default::default();
         options.min_heap_size = Some(heap_size);
 
-        let run_arc_process =
-            Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
+        let Spawned {
+            arc_process: run_arc_process,
+            ..
+        } = Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
 
         Pid(run_arc_process.pid())
     }

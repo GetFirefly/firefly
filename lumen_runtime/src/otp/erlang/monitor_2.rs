@@ -18,7 +18,7 @@ use liblumen_alloc::erts::term::{
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang::node_0;
-use crate::process::SchedulerDependentAlloc;
+use crate::process::{self, SchedulerDependentAlloc};
 use crate::registry;
 
 #[native_implemented_function(monitor/2)]
@@ -59,16 +59,7 @@ fn monitor_process_identifier_noproc(process: &Process, identifier: Term) -> exc
 fn monitor_process_pid(process: &Process, process_identifier: Term, pid: Pid) -> exception::Result {
     match registry::pid_to_process(&pid) {
         Some(monitored_arc_process) => {
-            let reference = process.next_reference()?;
-
-            let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
-            let monitor = Monitor::Pid {
-                monitoring_pid: process.pid(),
-            };
-            process.monitor(reference_reference.clone(), monitored_arc_process.pid());
-            monitored_arc_process.monitored(reference_reference.clone(), monitor);
-
-            Ok(reference)
+            process::monitor(process, &monitored_arc_process).map_err(|alloc| alloc.into())
         }
         None => monitor_process_identifier_noproc(process, process_identifier),
     }

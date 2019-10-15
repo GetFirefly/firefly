@@ -17,6 +17,7 @@ use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
 use liblumen_alloc::erts::term::{resource, Atom, Pid, SmallInteger, Term, Tuple, TypedTerm};
 
 use lumen_runtime::process::spawn::options::Options;
+use lumen_runtime::process::spawn::Spawned;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::{process, registry};
 
@@ -137,8 +138,11 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 /// prevent a race condition on the `parent_process`'s scheduler running the new child process
 /// when only the `with_return/0` frame is there.
 fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
+    assert!(!options.link, "Cannot link without a parent process");
+    assert!(!options.monitor, "Cannot monitor without a parent process");
+
     let parent_process = None;
-    let process = process::spawn::code(
+    let Spawned { process, .. } = process::spawn::code(
         parent_process,
         options,
         super::module(),

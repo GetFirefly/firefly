@@ -7,6 +7,7 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::erts::term::{Boxed, Cons};
 
 use crate::process;
+use crate::scheduler::Spawned;
 
 #[test]
 fn without_value_returns_empty_list() {
@@ -130,7 +131,7 @@ fn with_value_returns_keys_with_value_in_list() {
 #[test]
 fn doc_test() {
     let init_arc_process = process::test_init();
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let one = arc_process.integer(1).unwrap();
     let value = arc_process
         .tuple_from_slice(&[one, arc_process.integer(2).unwrap()])

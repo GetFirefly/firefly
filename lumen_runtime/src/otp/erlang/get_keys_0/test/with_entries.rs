@@ -7,11 +7,12 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Cons};
 
 use crate::process;
+use crate::scheduler::Spawned;
 
 #[test]
 fn without_heap_available_does_not_modify_dictionary() {
     let init_arc_process = process::test_init();
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let key = atom_unchecked("key");
     let value = atom_unchecked("value");
 
@@ -29,7 +30,7 @@ fn without_heap_available_does_not_modify_dictionary() {
 #[test]
 fn with_heap_available_returns_entries_as_list() {
     let init_arc_process = process::test_init();
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let key = atom_unchecked("key");
     let value = atom_unchecked("value");
 
@@ -59,7 +60,7 @@ fn with_heap_available_returns_entries_as_list() {
 #[test]
 fn doc_test() {
     let init_arc_process = process::test_init();
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let animal = atom_unchecked("animal");
 
     let dog = atom_unchecked("dog");

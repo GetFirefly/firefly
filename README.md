@@ -41,6 +41,8 @@ You will also need to install the `wasm-bindgen** command-line tools:
 
     cargo +nightly install wasm-bindgen-cli
 
+Finally we will need `wasm-pack`. It is needed to build the examples and get up and running. Follow their installation instructions from [the wasm-pack repository](https://github.com/rustwasm/wasm-pack).
+
 #### LLVM
 
 Now that Rust is setup and ready to go, you will also need LLVM for building the compiler.

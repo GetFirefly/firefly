@@ -41,9 +41,15 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                 prop_assert!(result.is_ok());
 
-                let result_boxed_tuple: Result<Boxed<Tuple>, _> = result.unwrap().try_into();
+                let returned = result.unwrap();
 
-                prop_assert!(result_boxed_tuple.is_ok());
+                let result_boxed_tuple: Result<Boxed<Tuple>, _> = returned.try_into();
+
+                prop_assert!(
+                    result_boxed_tuple.is_ok(),
+                    "Returned ({:?}) is not a tuple",
+                    returned
+                );
 
                 let boxed_tuple = result_boxed_tuple.unwrap();
 

@@ -349,6 +349,19 @@ pub struct Spawned {
     pub connection: Connection,
 }
 
+impl Spawned {
+    pub fn to_term(&self, process: &Process) -> Result<Term, Alloc> {
+        let pid_term = self.arc_process.pid_term();
+
+        match self.connection.monitor_reference {
+            Some(monitor_reference) => process
+                .tuple_from_slice(&[pid_term, monitor_reference])
+                .map_err(|alloc| alloc.into()),
+            None => Ok(pid_term),
+        }
+    }
+}
+
 thread_local! {
   static SCHEDULER: Arc<Scheduler> = Scheduler::registered();
 }

@@ -3,7 +3,6 @@
 //! Sometimes the host will exaggerate the number of CPUs it contains, due to hyperthreading,
 //! or similar techniques, employed by the processor. This defines the distinction between
 //! logical and physical CPUs/cores.
-//!
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
@@ -198,9 +197,11 @@ fn get_num_cpus() -> usize {
     }
 
     unsafe {
-        let mut sysinfo: SYSTEM_INFO = std::mem::uninitialized();
-        GetSystemInfo(&mut sysinfo);
-        sysinfo.dwNumberOfProcessors as usize
+        let mut maybe_uninit_system_info = std::mem::MaybeUninit::uninit();
+        GetSystemInfo(maybe_uninit_system_info.as_mut_ptr());
+        let system_info = maybe_uninit_system_info.assume_init();
+
+        system_info.dwNumberOfProcessors as usize
     }
 }
 

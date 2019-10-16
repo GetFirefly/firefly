@@ -860,6 +860,7 @@ dependencies = [
  "liblumen_alloc 0.1.0",
  "liblumen_core 0.1.0",
  "lumen_runtime 0.1.0",
+ "lumen_runtime_macros 0.1.0",
  "wasm-bindgen 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen-futures 0.3.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen-test 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)",

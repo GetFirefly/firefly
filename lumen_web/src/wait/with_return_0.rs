@@ -7,7 +7,9 @@ use wasm_bindgen::JsValue;
 
 use js_sys::{Function, Promise};
 
-use web_sys::{Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node, Text};
+use web_sys::{
+    Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node, Text, WebSocket,
+};
 
 use liblumen_core::locks::Mutex;
 
@@ -116,6 +118,10 @@ fn resource_reference_to_js_value(resource_reference: resource::Reference) -> Js
         let text: &Text = resource_reference.downcast_ref().unwrap();
 
         text.into()
+    } else if resource_type_id == TypeId::of::<WebSocket>() {
+        let web_socket: &WebSocket = resource_reference.downcast_ref().unwrap();
+
+        web_socket.into()
     } else {
         unimplemented!("Convert {:?} to JsValue", resource_reference);
     }

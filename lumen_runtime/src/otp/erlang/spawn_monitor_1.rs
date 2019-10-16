@@ -12,8 +12,16 @@ use liblumen_alloc::erts::term::Term;
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang::spawn_apply_1;
+use crate::process::spawn::options::Options;
 
-#[native_implemented_function(spawn/1)]
+#[native_implemented_function(spawn_monitor/1)]
 pub fn native(process: &Process, function: Term) -> exception::Result {
-    spawn_apply_1::native(process, Default::default(), function)
+    spawn_apply_1::native(
+        process,
+        Options {
+            monitor: true,
+            ..Default::default()
+        },
+        function,
+    )
 }

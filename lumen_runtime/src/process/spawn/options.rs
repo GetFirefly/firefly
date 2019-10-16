@@ -8,6 +8,15 @@ use liblumen_alloc::erts::process::{Priority, Process};
 use liblumen_alloc::erts::term::{Atom, Boxed, Cons, Term, Tuple, TypedTerm};
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 
+use crate::process;
+
+#[must_use]
+pub struct Connection {
+    pub linked: bool,
+    #[must_use]
+    pub monitor_reference: Option<Term>,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct MaxHeapSize {
     size: Option<usize>,
@@ -56,14 +65,31 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn connect(&self, parent_process: Option<&Process>, child_process: &Process) {
-        if self.link {
-            parent_process.unwrap().link(child_process)
-        }
+    pub fn connect(
+        &self,
+        parent_process: Option<&Process>,
+        child_process: &Process,
+    ) -> Result<Connection, Alloc> {
+        let linked = if self.link {
+            parent_process.unwrap().link(child_process);
 
-        if self.monitor {
-            unimplemented!()
-        }
+            true
+        } else {
+            false
+        };
+
+        let monitor_reference = if self.monitor {
+            let reference = process::monitor(parent_process.unwrap(), child_process)?;
+
+            Some(reference)
+        } else {
+            None
+        };
+
+        Ok(Connection {
+            linked,
+            monitor_reference,
+        })
     }
 
     /// Creates a new process with the memory and priority options.

@@ -3,6 +3,8 @@ pub mod spawn;
 
 use alloc::sync::Arc;
 
+use std::convert::TryInto;
+
 use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLockWriteGuard;
@@ -12,15 +14,17 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::{self, Process, ProcessHeap};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, Boxed, Reference, Term, Tuple, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::{CloneToProcess, HeapFragment};
+use liblumen_alloc::{CloneToProcess, HeapFragment, Monitor};
 
 use crate::code;
 #[cfg(test)]
 use crate::process::spawn::options::Options;
 use crate::registry::*;
 use crate::scheduler::Scheduler;
+#[cfg(test)]
+use crate::scheduler::Spawned;
 use crate::system;
 #[cfg(test)]
 use crate::test;
@@ -73,6 +77,19 @@ pub fn log_exit(process: &Process, exception: &runtime::Exception) {
         )),
         _ => unimplemented!("{:?}", exception),
     }
+}
+
+pub fn monitor(process: &Process, monitored_process: &Process) -> Result<Term, Alloc> {
+    let reference = process.next_reference()?;
+
+    let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
+    let monitor = Monitor::Pid {
+        monitoring_pid: process.pid(),
+    };
+    process.monitor(reference_reference.clone(), monitored_process.pid());
+    monitored_process.monitored(reference_reference.clone(), monitor);
+
+    Ok(reference)
 }
 
 pub fn propagate_exit(process: &Process, exception: &runtime::Exception) {
@@ -243,5 +260,12 @@ pub fn test(parent_process: &Process) -> Arc<Process> {
     let arguments = &[];
     let code = test::r#loop::code;
 
-    Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap()
+    let Spawned {
+        arc_process: child_arc_process,
+        connection,
+    } = Scheduler::spawn_code(parent_process, options, module, function, arguments, code).unwrap();
+    assert!(!connection.linked);
+    assert!(connection.monitor_reference.is_none());
+
+    child_arc_process
 }

@@ -11,7 +11,7 @@ use crate::otp::erlang;
 use crate::otp::erlang::start_timer_3::native;
 use crate::scheduler::with_process_arc;
 use crate::test::{has_message, registered_name, strategy, timeout_message};
-use crate::time::monotonic::Milliseconds;
+use crate::time::Milliseconds;
 use crate::{process, timer};
 
 // BigInt is not tested because it would take too long and would always count as `long_term` for the

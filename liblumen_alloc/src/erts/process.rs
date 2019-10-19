@@ -44,7 +44,7 @@ use self::code::stack::frame::{Frame, Placement};
 pub use self::flags::*;
 pub use self::flags::*;
 pub use self::gc::{GcError, RootSet};
-use self::heap::ProcessHeap;
+pub use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::monitor::Monitor;
 pub use self::priority::Priority;
@@ -850,7 +850,7 @@ impl Process {
 
         let code_result = match option_code {
             Some(code) => code(arc_process),
-            None => Ok(arc_process.exit()),
+            None => Ok(arc_process.exit_normal()),
         };
 
         arc_process.stop_running();
@@ -882,9 +882,13 @@ impl Process {
         self.run_reductions.fetch_add(1, Ordering::AcqRel);
     }
 
-    pub fn exit(&self) {
+    pub fn exit(&self, reason: Term) {
         self.reduce();
-        self.exception(exit!(atom_unchecked("normal")));
+        self.exception(exit!(reason));
+    }
+
+    pub fn exit_normal(&self) {
+        self.exit(atom_unchecked("normal"))
     }
 
     pub fn is_exiting(&self) -> bool {

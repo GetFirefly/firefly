@@ -51,7 +51,6 @@ xorshift = "0.1"
 internment = "0.3.6"
 proptest = "0.9.3"
 rand = "0.6"
-signal-hook = "0.1"
 xorshift = "0.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

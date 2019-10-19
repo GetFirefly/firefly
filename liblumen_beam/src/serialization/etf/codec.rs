@@ -1,4 +1,4 @@
-mod aux;
+mod auxiliary;
 
 use std::io::Write;
 
@@ -237,7 +237,7 @@ impl<R: std::io::Read> Decoder<R> {
         Ok(Term::from(BitBinary::from((buf, tail_bits_size))))
     }
     fn decode_pid_ext(&mut self) -> DecodeResult {
-        let node = self.decode_term().and_then(aux::term_into_atom)?;
+        let node = self.decode_term().and_then(auxiliary::term_into_atom)?;
         Ok(Term::from(Pid {
             node,
             id: self.reader.read_u32::<BigEndian>()?,
@@ -259,7 +259,7 @@ impl<R: std::io::Read> Decoder<R> {
         }))
     }
     fn decode_reference_ext(&mut self) -> DecodeResult {
-        let node = self.decode_term().and_then(aux::term_into_atom)?;
+        let node = self.decode_term().and_then(auxiliary::term_into_atom)?;
         Ok(Term::from(Reference {
             node,
             id: vec![self.reader.read_u32::<BigEndian>()?],
@@ -268,7 +268,7 @@ impl<R: std::io::Read> Decoder<R> {
     }
     fn decode_new_reference_ext(&mut self) -> DecodeResult {
         let id_count = self.reader.read_u16::<BigEndian>()? as usize;
-        let node = self.decode_term().and_then(aux::term_into_atom)?;
+        let node = self.decode_term().and_then(auxiliary::term_into_atom)?;
         let creation = self.reader.read_u8()?;
         let mut id = Vec::with_capacity(id_count);
         for _ in 0..id_count {
@@ -277,11 +277,11 @@ impl<R: std::io::Read> Decoder<R> {
         Ok(Term::from(Reference { node, id, creation }))
     }
     fn decode_export_ext(&mut self) -> DecodeResult {
-        let module = self.decode_term().and_then(aux::term_into_atom)?;
-        let function = self.decode_term().and_then(aux::term_into_atom)?;
-        let arity = self
-            .decode_term()
-            .and_then(|t| aux::term_into_ranged_integer(t, 0..0xFF))? as u8;
+        let module = self.decode_term().and_then(auxiliary::term_into_atom)?;
+        let function = self.decode_term().and_then(auxiliary::term_into_atom)?;
+        let arity =
+            self.decode_term()
+                .and_then(|t| auxiliary::term_into_ranged_integer(t, 0..0xFF))? as u8;
         Ok(Term::from(ExternalFun {
             module,
             function,
@@ -290,10 +290,14 @@ impl<R: std::io::Read> Decoder<R> {
     }
     fn decode_fun_ext(&mut self) -> DecodeResult {
         let num_free = self.reader.read_u32::<BigEndian>()?;
-        let pid = self.decode_term().and_then(aux::term_into_pid)?;
-        let module = self.decode_term().and_then(aux::term_into_atom)?;
-        let index = self.decode_term().and_then(aux::term_into_fix_integer)?;
-        let uniq = self.decode_term().and_then(aux::term_into_fix_integer)?;
+        let pid = self.decode_term().and_then(auxiliary::term_into_pid)?;
+        let module = self.decode_term().and_then(auxiliary::term_into_atom)?;
+        let index = self
+            .decode_term()
+            .and_then(auxiliary::term_into_fix_integer)?;
+        let uniq = self
+            .decode_term()
+            .and_then(auxiliary::term_into_fix_integer)?;
         let mut vars = Vec::with_capacity(num_free as usize);
         for _ in 0..num_free {
             vars.push(self.decode_term()?);
@@ -313,10 +317,14 @@ impl<R: std::io::Read> Decoder<R> {
         self.reader.read_exact(&mut uniq)?;
         let index = self.reader.read_u32::<BigEndian>()?;
         let num_free = self.reader.read_u32::<BigEndian>()?;
-        let module = self.decode_term().and_then(aux::term_into_atom)?;
-        let old_index = self.decode_term().and_then(aux::term_into_fix_integer)?;
-        let old_uniq = self.decode_term().and_then(aux::term_into_fix_integer)?;
-        let pid = self.decode_term().and_then(aux::term_into_pid)?;
+        let module = self.decode_term().and_then(auxiliary::term_into_atom)?;
+        let old_index = self
+            .decode_term()
+            .and_then(auxiliary::term_into_fix_integer)?;
+        let old_uniq = self
+            .decode_term()
+            .and_then(auxiliary::term_into_fix_integer)?;
+        let pid = self.decode_term().and_then(auxiliary::term_into_pid)?;
         let mut vars = Vec::with_capacity(num_free as usize);
         for _ in 0..num_free {
             vars.push(self.decode_term()?);
@@ -340,11 +348,11 @@ impl<R: std::io::Read> Decoder<R> {
         let mut buf = [0; 31];
         self.reader.read_exact(&mut buf)?;
         let float_str = std::str::from_utf8(&mut buf)
-            .or_else(|e| aux::invalid_data_error(e.to_string()))?
+            .or_else(|e| auxiliary::invalid_data_error(e.to_string()))?
             .trim_end_matches(0 as char);
         let value = float_str
             .parse::<f32>()
-            .or_else(|e| aux::invalid_data_error(e.to_string()))?;
+            .or_else(|e| auxiliary::invalid_data_error(e.to_string()))?;
         Ok(Term::from(Float::from(value as f64)))
     }
     fn decode_small_integer_ext(&mut self) -> DecodeResult {
@@ -360,7 +368,7 @@ impl<R: std::io::Read> Decoder<R> {
         let sign = self.reader.read_u8()?;
         self.buf.resize(count, 0);
         self.reader.read_exact(&mut self.buf)?;
-        let value = BigInt::from_bytes_le(aux::byte_to_sign(sign)?, &self.buf);
+        let value = BigInt::from_bytes_le(auxiliary::byte_to_sign(sign)?, &self.buf);
         Ok(Term::from(BigInteger { value }))
     }
     fn decode_large_big_ext(&mut self) -> DecodeResult {
@@ -368,37 +376,37 @@ impl<R: std::io::Read> Decoder<R> {
         let sign = self.reader.read_u8()?;
         self.buf.resize(count, 0);
         self.reader.read_exact(&mut self.buf)?;
-        let value = BigInt::from_bytes_le(aux::byte_to_sign(sign)?, &self.buf);
+        let value = BigInt::from_bytes_le(auxiliary::byte_to_sign(sign)?, &self.buf);
         Ok(Term::from(BigInteger { value }))
     }
     fn decode_atom_ext(&mut self) -> DecodeResult {
         let len = self.reader.read_u16::<BigEndian>()?;
         self.buf.resize(len as usize, 0);
         self.reader.read_exact(&mut self.buf)?;
-        let name = aux::latin1_bytes_to_string(&self.buf)?;
+        let name = auxiliary::latin1_bytes_to_string(&self.buf)?;
         Ok(Term::from(Atom { name }))
     }
     fn decode_small_atom_ext(&mut self) -> DecodeResult {
         let len = self.reader.read_u8()?;
         self.buf.resize(len as usize, 0);
         self.reader.read_exact(&mut self.buf)?;
-        let name = aux::latin1_bytes_to_string(&self.buf)?;
+        let name = auxiliary::latin1_bytes_to_string(&self.buf)?;
         Ok(Term::from(Atom { name }))
     }
     fn decode_atom_utf8_ext(&mut self) -> DecodeResult {
         let len = self.reader.read_u16::<BigEndian>()?;
         self.buf.resize(len as usize, 0);
         self.reader.read_exact(&mut self.buf)?;
-        let name =
-            std::str::from_utf8(&self.buf).or_else(|e| aux::invalid_data_error(e.to_string()))?;
+        let name = std::str::from_utf8(&self.buf)
+            .or_else(|e| auxiliary::invalid_data_error(e.to_string()))?;
         Ok(Term::from(Atom::from(name)))
     }
     fn decode_small_atom_utf8_ext(&mut self) -> DecodeResult {
         let len = self.reader.read_u8()?;
         self.buf.resize(len as usize, 0);
         self.reader.read_exact(&mut self.buf)?;
-        let name =
-            std::str::from_utf8(&self.buf).or_else(|e| aux::invalid_data_error(e.to_string()))?;
+        let name = std::str::from_utf8(&self.buf)
+            .or_else(|e| auxiliary::invalid_data_error(e.to_string()))?;
         Ok(Term::from(Atom::from(name)))
     }
 }
@@ -556,7 +564,7 @@ impl<W: std::io::Write> Encoder<W> {
         } else {
             return Err(EncodeError::TooLargeInteger(x.clone()));
         }
-        self.writer.write_u8(aux::sign_to_byte(sign))?;
+        self.writer.write_u8(auxiliary::sign_to_byte(sign))?;
         self.writer.write_all(&bytes)?;
         Ok(())
     }

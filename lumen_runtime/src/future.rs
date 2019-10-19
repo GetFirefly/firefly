@@ -10,7 +10,8 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::{resource, Atom};
 
 use crate::process;
-use crate::process::spawn::options::Options;
+use crate::process::spawn;
+use crate::process::spawn::options::{Connection, Options};
 use crate::registry;
 use crate::scheduler::Scheduler;
 use crate::time::monotonic::time_in_milliseconds;
@@ -24,10 +25,18 @@ pub fn run_until_ready<PlaceFrameWithArguments>(
 where
     PlaceFrameWithArguments: Fn(&Process) -> Result<(), Alloc>,
 {
+    assert!(!options.link);
+    assert!(!options.monitor);
+
     let Spawned {
         arc_process,
         arc_mutex_future,
+        connection,
     } = spawn(options, place_frame_with_arguments)?;
+
+    assert!(!connection.linked);
+    assert!(connection.monitor_reference.is_none());
+
     let scheduler = Scheduler::current();
     let end = time_in_milliseconds() + timeout;
 
@@ -113,7 +122,13 @@ fn spawn<PlaceFrameWithArguments>(
 where
     PlaceFrameWithArguments: Fn(&Process) -> Result<(), Alloc>,
 {
-    let (process, arc_mutex_future) = spawn_unscheduled(options)?;
+    let (
+        spawn::Spawned {
+            process,
+            connection,
+        },
+        arc_mutex_future,
+    ) = spawn_unscheduled(options)?;
 
     place_frame_with_arguments(&process)?;
 
@@ -123,13 +138,14 @@ where
     Ok(Spawned {
         arc_process,
         arc_mutex_future,
+        connection,
     })
 }
 
-fn spawn_unscheduled(options: Options) -> Result<(Process, Arc<Mutex<Future>>), Alloc> {
+fn spawn_unscheduled(options: Options) -> Result<(spawn::Spawned, Arc<Mutex<Future>>), Alloc> {
     let parent_process = None;
     let arguments = &[];
-    let process = process::spawn::code(
+    let spawned = process::spawn::code(
         parent_process,
         options,
         module(),
@@ -140,10 +156,11 @@ fn spawn_unscheduled(options: Options) -> Result<(Process, Arc<Mutex<Future>>), 
 
     let arc_mutex_future = Arc::new(Mutex::new(Default::default()));
 
+    let process = &spawned.process;
     let future_resource_reference = process.resource(Box::new(arc_mutex_future.clone()))?;
     process.stack_push(future_resource_reference)?;
 
-    Ok((process, arc_mutex_future))
+    Ok((spawned, arc_mutex_future))
 }
 
 enum Future {
@@ -172,4 +189,5 @@ impl Default for Future {
 struct Spawned {
     arc_process: Arc<Process>,
     arc_mutex_future: Arc<Mutex<Future>>,
+    connection: Connection,
 }

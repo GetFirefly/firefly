@@ -1,5 +1,6 @@
 use super::*;
 
+#[path = "with_loaded_module/w_e_f.rs"]
 mod with_exported_function;
 
 #[test]

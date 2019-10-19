@@ -3,6 +3,7 @@ use super::*;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 
 use crate::process;
+use crate::scheduler::Spawned;
 
 #[test]
 fn different_processes_have_different_pids() {
@@ -12,7 +13,10 @@ fn different_processes_have_different_pids() {
     let parent_arc_process = process::test_init();
 
     let first_process_arguments = parent_arc_process.list_from_slice(&[normal]).unwrap();
-    let first_process = Scheduler::spawn_apply_3(
+    let Spawned {
+        arc_process: first_arc_process,
+        ..
+    } = Scheduler::spawn_apply_3(
         &parent_arc_process,
         Default::default(),
         erlang,
@@ -22,8 +26,11 @@ fn different_processes_have_different_pids() {
     .unwrap();
 
     let second_process_arguments = parent_arc_process.list_from_slice(&[normal]).unwrap();
-    let second_process = Scheduler::spawn_apply_3(
-        &first_process,
+    let Spawned {
+        arc_process: second_arc_process,
+        ..
+    } = Scheduler::spawn_apply_3(
+        &first_arc_process,
         Default::default(),
         erlang,
         exit,
@@ -31,5 +38,5 @@ fn different_processes_have_different_pids() {
     )
     .unwrap();
 
-    assert_ne!(first_process.pid_term(), second_process.pid_term());
+    assert_ne!(first_arc_process.pid_term(), second_arc_process.pid_term());
 }

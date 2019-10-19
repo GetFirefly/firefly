@@ -10,7 +10,7 @@ use liblumen_alloc::erts::term::{AsTerm, Atom, Term, TypedTerm};
 use liblumen_alloc::CloneToProcess;
 
 use crate::otp::erlang;
-use crate::process::spawn::options::Options;
+use crate::process::spawn::options::{Connection, Options};
 
 /// Spawns a process with arguments for `apply(module, function, arguments)` on its stack.
 ///
@@ -22,7 +22,7 @@ pub fn apply_3(
     module: Atom,
     function: Atom,
     arguments: Term,
-) -> Result<Process, Alloc> {
+) -> Result<Spawned, Alloc> {
     let arity = arity(arguments);
 
     let child_process = options.spawn(Some(parent_process), module, function, arity)?;
@@ -40,9 +40,12 @@ pub fn apply_3(
     )?;
 
     // Connect after placing frame, so that any logging can show the `Frame`s when connections occur
-    options.connect(Some(&parent_process), &child_process);
+    let connection = options.connect(Some(&parent_process), &child_process)?;
 
-    Ok(child_process)
+    Ok(Spawned {
+        process: child_process,
+        connection,
+    })
 }
 
 /// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
@@ -54,7 +57,7 @@ pub fn code(
     function: Atom,
     arguments: &[Term],
     code: Code,
-) -> Result<Process, Alloc> {
+) -> Result<Spawned, Alloc> {
     let arity = arguments.len() as u8;
 
     let child_process = options.spawn(parent_process, module, function, arity)?;
@@ -68,9 +71,18 @@ pub fn code(
     child_process.push_frame(frame);
 
     // Connect after placing frame, so that any logging can show the `Frame`s when connections occur
-    options.connect(parent_process, &child_process);
+    let connection = options.connect(parent_process, &child_process)?;
 
-    Ok(child_process)
+    Ok(Spawned {
+        process: child_process,
+        connection,
+    })
+}
+
+pub struct Spawned {
+    pub process: Process,
+    #[must_use]
+    pub connection: Connection,
 }
 
 // Private

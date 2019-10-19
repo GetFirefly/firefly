@@ -9,8 +9,7 @@
 //!
 //! - [`org.elixir_lang.beam.chunk.Chunk` in IntelliJ Elixir](https://github.
 //!   com/KronicDeth/intellij-elixir/blob/master/src/org/elixir_lang/beam/chunk/Chunk.java) in Java.
-//!
-mod aux;
+mod auxiliary;
 
 use std::io::Cursor;
 use std::io::Read;
@@ -60,10 +59,10 @@ pub trait Chunk {
     where
         Self: Sized,
     {
-        let header = aux::Header::decode(&mut reader)?;
+        let header = auxiliary::Header::decode(&mut reader)?;
         let mut buf = vec![0; header.data_size as usize];
         reader.read_exact(&mut buf)?;
-        for _ in 0..aux::padding_size(header.data_size) {
+        for _ in 0..auxiliary::padding_size(header.data_size) {
             reader.read_u8()?;
         }
 
@@ -81,9 +80,9 @@ pub trait Chunk {
     fn encode<W: Write>(&self, mut writer: W) -> Result<()> {
         let mut buf = Vec::new();
         self.encode_data(&mut buf)?;
-        aux::Header::new(self.id(), buf.len() as u32).encode(&mut writer)?;
+        auxiliary::Header::new(self.id(), buf.len() as u32).encode(&mut writer)?;
         writer.write_all(&buf)?;
-        for _ in 0..aux::padding_size(buf.len() as u32) {
+        for _ in 0..auxiliary::padding_size(buf.len() as u32) {
             writer.write_u8(0)?;
         }
         Ok(())
@@ -167,9 +166,9 @@ impl Chunk for AtomChunk {
     {
         // This chunk can be either Atom or AtU8
         let unicode;
-        match aux::check_chunk_id(id, b"Atom") {
+        match auxiliary::check_chunk_id(id, b"Atom") {
             Err(_) => {
-                aux::check_chunk_id(id, b"AtU8")?;
+                auxiliary::check_chunk_id(id, b"AtU8")?;
                 unicode = true;
             }
             Ok(_) => unicode = false,
@@ -257,7 +256,7 @@ impl Chunk for CodeChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"Code")?;
+        auxiliary::check_chunk_id(id, b"Code")?;
         let mut code = CodeChunk {
             info_size: reader.read_u32::<BigEndian>()?,
             version: reader.read_u32::<BigEndian>()?,
@@ -308,7 +307,7 @@ impl Chunk for StrTChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"StrT")?;
+        auxiliary::check_chunk_id(id, b"StrT")?;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
         Ok(StrTChunk { strings: buf })
@@ -351,7 +350,7 @@ impl Chunk for ImpTChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"ImpT")?;
+        auxiliary::check_chunk_id(id, b"ImpT")?;
         let count = reader.read_u32::<BigEndian>()? as usize;
         let mut imports = Vec::with_capacity(count);
         for _ in 0..count {
@@ -408,7 +407,7 @@ impl Chunk for ExpTChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"ExpT")?;
+        auxiliary::check_chunk_id(id, b"ExpT")?;
         let count = reader.read_u32::<BigEndian>()? as usize;
         let mut exports = Vec::with_capacity(count);
         for _ in 0..count {
@@ -462,7 +461,7 @@ impl Chunk for LitTChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"LitT")?;
+        auxiliary::check_chunk_id(id, b"LitT")?;
         let _uncompressed_size = reader.read_u32::<BigEndian>()?;
         let mut decoder = zlib::Decoder::new(reader)?;
 
@@ -529,7 +528,7 @@ impl Chunk for LocTChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"LocT")?;
+        auxiliary::check_chunk_id(id, b"LocT")?;
         let count = reader.read_u32::<BigEndian>()? as usize;
         let mut locals = Vec::with_capacity(count);
         for _ in 0..count {
@@ -582,7 +581,7 @@ impl Chunk for FunTChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"FunT")?;
+        auxiliary::check_chunk_id(id, b"FunT")?;
         let count = reader.read_u32::<BigEndian>()? as usize;
         let mut functions = Vec::with_capacity(count);
         for _ in 0..count {
@@ -634,7 +633,7 @@ impl Chunk for AttrChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"Attr")?;
+        auxiliary::check_chunk_id(id, b"Attr")?;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
         Ok(AttrChunk { term: buf })
@@ -665,7 +664,7 @@ impl Chunk for CInfChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"CInf")?;
+        auxiliary::check_chunk_id(id, b"CInf")?;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
         Ok(CInfChunk { term: buf })
@@ -700,7 +699,7 @@ impl Chunk for AbstChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"Abst")?;
+        auxiliary::check_chunk_id(id, b"Abst")?;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
         Ok(AbstChunk { term: buf })
@@ -745,7 +744,7 @@ impl Chunk for DbgiChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"Dbgi")?;
+        auxiliary::check_chunk_id(id, b"Dbgi")?;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
         Ok(DbgiChunk { term: buf })
@@ -794,7 +793,7 @@ impl Chunk for DocsChunk {
     where
         Self: Sized,
     {
-        aux::check_chunk_id(id, b"Docs")?;
+        auxiliary::check_chunk_id(id, b"Docs")?;
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
         Ok(DocsChunk { term: buf })

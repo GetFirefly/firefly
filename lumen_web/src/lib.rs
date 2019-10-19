@@ -25,7 +25,8 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{atom_unchecked, Term};
 
 use lumen_runtime::scheduler::Scheduler;
-use lumen_runtime::time::monotonic::{time_in_milliseconds, Milliseconds};
+use lumen_runtime::time::monotonic::time_in_milliseconds;
+use lumen_runtime::time::Milliseconds;
 
 use crate::window::add_event_listener;
 

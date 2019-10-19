@@ -10,6 +10,17 @@ use liblumen_alloc::{badarg, Process};
 
 pub mod datetime;
 pub mod monotonic;
+pub mod system;
+
+// Must be at least a `u64` because `u32` is only ~49 days (`(1 << 32)`)
+pub type Milliseconds = u64;
+pub type Source = fn() -> Milliseconds;
+
+pub const MILLISECONDS_PER_SECOND: u64 = 1_000;
+pub const MICROSECONDS_PER_MILLISECOND: u64 = 1_000;
+pub const NANOSECONDS_PER_MICROSECOND: u64 = 1_000;
+pub const NANOSECONDS_PER_MILLISECONDS: u64 =
+    NANOSECONDS_PER_MICROSECOND * MICROSECONDS_PER_MILLISECOND;
 
 pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
     if from_unit == to_unit {

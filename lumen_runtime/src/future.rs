@@ -14,7 +14,8 @@ use crate::process::spawn;
 use crate::process::spawn::options::{Connection, Options};
 use crate::registry;
 use crate::scheduler::Scheduler;
-use crate::time::monotonic::{time_in_milliseconds, Milliseconds};
+use crate::time::monotonic::time_in_milliseconds;
+use crate::time::Milliseconds;
 
 pub fn run_until_ready<PlaceFrameWithArguments>(
     options: Options,

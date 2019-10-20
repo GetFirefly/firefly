@@ -18,7 +18,7 @@ use crate::scheduler::{with_process, with_process_arc};
 use crate::test::{
     cancel_timer_message, has_message, list_term, receive_message, strategy, timeout_message,
 };
-use crate::time::monotonic::Milliseconds;
+use crate::time::Milliseconds;
 use crate::{process, timer};
 
 #[test]

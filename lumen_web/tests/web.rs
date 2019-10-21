@@ -11,6 +11,8 @@ mod element;
 mod math;
 #[path = "./web/node.rs"]
 mod node;
+#[path = "./web/web_socket.rs"]
+mod web_socket;
 
 extern crate wasm_bindgen_test;
 

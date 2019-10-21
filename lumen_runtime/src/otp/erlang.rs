@@ -162,6 +162,8 @@ pub mod system_time_0;
 pub mod system_time_1;
 pub mod throw_1;
 pub mod time_0;
+pub mod time_offset_0;
+pub mod time_offset_1;
 pub mod tl_1;
 pub mod trunc_1;
 pub mod tuple_size_1;

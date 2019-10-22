@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5fef9d4d2df623f09b333031452afbf442ce1a79d858a7d348c9568546e90837 # shrinks to Term(Boxed(0x10fb66430 => Term(-576460752303423491)))

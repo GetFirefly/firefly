@@ -1,5 +1,5 @@
 use core::fmt::{self, Display};
-use core::sync::atomic::{self, AtomicUsize};
+use core::sync::atomic::{self, AtomicU32};
 
 use lazy_static::lazy_static;
 
@@ -11,7 +11,7 @@ pub fn next() -> ID {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct ID(usize);
+pub struct ID(u32);
 
 impl Display for ID {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -19,6 +19,18 @@ impl Display for ID {
     }
 }
 
+impl From<u32> for ID {
+    fn from(u: u32) -> Self {
+        Self(u)
+    }
+}
+
+impl Into<u32> for ID {
+    fn into(self) -> u32 {
+        self.0
+    }
+}
+
 lazy_static! {
-    static ref ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
+    static ref ID_COUNTER: AtomicU32 = AtomicU32::new(0);
 }

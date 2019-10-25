@@ -167,7 +167,7 @@ impl Closure {
         erts::to_word_size(ClosureLayout::base_size())
     }
 
-    pub fn from_raw_term(term: *mut Term) -> Boxed<Self> {
+    pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
         let header = &*(term as *mut Header<Closure>);
         let arity = header.arity();
 
@@ -234,6 +234,12 @@ impl Closure {
         &self.env
     }
 
+    /// Returns a mutable slice containing the closure environment.
+    #[inline]
+    pub fn env_slice_mut(&mut self) -> &mut [Term] {
+        &mut self.env
+    }
+
     /// Iterator over the terms in the closure environment.
     #[inline]
     pub fn env_iter<'a>(&'a self) -> slice::Iter<'a, Term> {
@@ -253,14 +259,12 @@ impl CloneToProcess for Closure {
     where
         A: ?Sized + HeapAlloc,
     {
-        unsafe {
-            let mfa = self.module_function_arity.clone();
-            let code = self.code;
-            let creator = self.creator;
-            let ptr = Self::from_slice(heap, mfa, code, creator, &self.env)?;
+        let mfa = self.module_function_arity.clone();
+        let code = self.code;
+        let creator = self.creator;
+        let ptr = Self::from_slice(heap, mfa, code, creator, &self.env)?;
 
-            Ok(ptr.into())
-        }
+        Ok(ptr.into())
     }
 
     fn size_in_words(&self) -> usize {

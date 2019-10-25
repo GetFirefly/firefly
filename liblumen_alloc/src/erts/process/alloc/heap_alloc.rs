@@ -416,8 +416,8 @@ pub trait HeapAlloc {
     }
 
     /// Constructs a `Tuple` that needs to be filled with elements and then boxed.
-    fn mut_tuple(&mut self, len: usize) -> Result<&mut Tuple, Alloc> {
-        Tuple::new(self, len).map(|nn| nn.as_mut())
+    fn mut_tuple(&mut self, len: usize) -> Result<Boxed<Tuple>, Alloc> {
+        Tuple::new(self, len)
     }
 
     /// Constructs a `Tuple` from an `Iterator<Item = Term>` and accompanying `len`.
@@ -429,25 +429,24 @@ pub trait HeapAlloc {
     where
         I: Iterator<Item = Term>,
     {
-        let tuple_ptr = Tuple::new(self, len)?;
-        let mut elements_ptr = unsafe {
-            tuple_ptr
-                .as_ref()
-                .elements()
-                .as_mut_ptr()
-        };
+        let mut tuple_box = Tuple::new(self, len)?;
+        let tuple_ref = tuple_box.as_mut();
+        let elements = tuple_ref.elements_mut();
+        let mut elements_ptr = elements.as_mut_ptr();
 
         // Write each element
         let mut count = 0;
         for (index, element) in iterator.enumerate() {
             assert!(index < len, "unexpected out of bounds access in tuple_from_iter: len = {}, index = {}", len, index);
-            elements_ptr.write(element);
-            elements_ptr = elements_ptr.offset(1);
+            unsafe {
+                elements_ptr.write(element);
+                elements_ptr = elements_ptr.offset(1);
+            }
             count += 1;
         }
         debug_assert_eq!(len, count, "expected number of elements in iterator to match provided length");
 
-        Ok(tuple_ptr)
+        Ok(tuple_box)
     }
 
     /// Constructs a `Tuple` from a slice of `Term`
@@ -472,13 +471,12 @@ pub trait HeapAlloc {
     /// a slice passed to `tuple_from_slice` to produce nested tuples.
     fn tuple_from_slices(&mut self, slices: &[&[Term]]) -> Result<Boxed<Tuple>, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
-        let tuple_ptr = Tuple::new(self, len)?;
+        let mut tuple_box = Tuple::new(self, len)?;
 
         unsafe {
-            let mut elements_ptr = tuple_ptr
-                .as_ref()
-                .elements()
-                .as_mut_ptr();
+            let tuple_ref = tuple_box.as_mut();
+            let elements = tuple_ref.elements_mut();
+            let mut elements_ptr = elements.as_mut_ptr();
 
             // Write each element
             for slice in slices {
@@ -489,7 +487,7 @@ pub trait HeapAlloc {
             }
         }
 
-        Ok(tuple_ptr)
+        Ok(tuple_box)
     }
 
     /// Constructs a `Closure` from a slice of `Term`
@@ -526,13 +524,12 @@ pub trait HeapAlloc {
         slices: &[&[Term]],
     ) -> Result<Boxed<Closure>, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
-        let closure_ptr = Closure::new(self, mfa, code, creator, len)?;
+        let mut closure_box = Closure::new(self, mfa, code, creator, len)?;
 
         unsafe {
-            let mut env_ptr = closure_ptr
-                .as_ref()
-                .env_slice()
-                .as_mut_ptr();
+            let closure_ref = closure_box.as_mut();
+            let env_slice = closure_ref.env_slice_mut();
+            let mut env_ptr = env_slice.as_mut_ptr();
 
             // Write each element
             for slice in slices {
@@ -543,7 +540,7 @@ pub trait HeapAlloc {
             }
         }
 
-        Ok(closure_ptr)
+        Ok(closure_box)
     }
 }
 impl<A, H> HeapAlloc for H

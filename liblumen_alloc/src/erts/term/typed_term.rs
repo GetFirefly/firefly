@@ -291,6 +291,14 @@ impl PartialEq<TypedTerm> for TypedTerm {
                 TypedTerm::ExternalPid(rhs) => lhs.eq(rhs),
                 _ => false,
             },
+            TypedTerm::ExternalPort(lhs) => match other {
+                TypedTerm::ExternalPort(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::ExternalReference(lhs) => match other {
+                TypedTerm::ExternalReference(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
             TypedTerm::Tuple(lhs) => match other {
                 TypedTerm::Tuple(rhs) => lhs.eq(rhs),
                 _ => false,
@@ -329,6 +337,14 @@ impl PartialEq<TypedTerm> for TypedTerm {
                 TypedTerm::ProcBin(rhs) => lhs.eq(rhs),
                 TypedTerm::BinaryLiteral(rhs) => lhs.eq(rhs),
                 TypedTerm::SubBinary(rhs) => lhs.eq(rhs),
+                TypedTerm::MatchContext(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::MatchContext(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.eq(rhs),
+                TypedTerm::ProcBin(rhs) => lhs.eq(rhs),
+                TypedTerm::BinaryLiteral(rhs) => lhs.eq(rhs),
+                TypedTerm::SubBinary(rhs) => rhs.eq(lhs),
                 TypedTerm::MatchContext(rhs) => lhs.eq(rhs),
                 _ => false,
             },
@@ -392,7 +408,7 @@ impl Ord for TypedTerm {
                     .partial_cmp(rhs)
                     .unwrap(),
                 TypedTerm::BigInteger(rhs) => lhs
-                    .partial_cmp(lhs)
+                    .partial_cmp(rhs)
                     .unwrap(),
                 _ => Less,
             },
@@ -426,6 +442,20 @@ impl Ord for TypedTerm {
                         .as_ref()
                         .partial_cmp(rhs)
                         .unwrap(),
+                TypedTerm::Atom(_) => Greater,
+                _ => Less,
+            },
+            TypedTerm::ExternalReference(lhs) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
+                TypedTerm::Reference(rhs) => rhs
+                        .as_ref()
+                        .partial_cmp(lhs)
+                        .unwrap()
+                        .reverse(),
+                TypedTerm::ExternalReference(rhs) => lhs
+                    .partial_cmp(rhs)
+                    .unwrap(),
                 TypedTerm::Atom(_) => Greater,
                 _ => Less,
             },
@@ -576,6 +606,8 @@ impl Ord for TypedTerm {
             },
             TypedTerm::Port(lhs) =>
                 unimplemented!("Port {:?} cmp {:?}", lhs, other),
+            TypedTerm::ExternalPort(lhs) =>
+                unimplemented!("ExternalPort {:?} cmp {:?}", lhs, other),
             TypedTerm::Pid(lhs) => match other {
                 TypedTerm::SmallInteger(_) => Greater,
                 TypedTerm::Float(_)
@@ -620,6 +652,8 @@ impl Ord for TypedTerm {
                 TypedTerm::List(rhs) => lhs.as_ref().cmp(rhs),
                 _ => Less,
             },
+            TypedTerm::ResourceReference(lhs) =>
+                unimplemented!("ResourceReference {:?} cmp {:?}", lhs, other),
         }
     }
 }

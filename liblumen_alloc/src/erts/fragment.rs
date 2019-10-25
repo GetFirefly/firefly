@@ -111,18 +111,18 @@ impl HeapFragment {
     /// Creates a new `HeapFragment` that can hold a tuple
     pub fn tuple_from_slice(elements: &[Term]) -> Result<(Term, NonNull<HeapFragment>), Alloc> {
         // Make sure we have a fragment of the appropriate size
-        let heap_fragment_ptr = unsafe {
+        let mut heap_fragment_box = unsafe {
             let (layout, _) = Tuple::layout_for(elements);
             Self::new(layout)?
         };
-        let heap_fragment = heap_fragment_ptr.as_mut();
+        let heap_fragment_ref = unsafe { heap_fragment_box.as_mut() };
 
         // Then allocate the new tuple in the fragment using the provided elements
-        let ptr = Tuple::from_slice(heap_fragment, elements)?;
+        let ptr = Tuple::from_slice(heap_fragment_ref, elements)?;
         // Encode the tuple pointer into a box
         let term = ptr.as_ptr().into();
 
-        Ok((term, heap_fragment_ptr))
+        Ok((term, heap_fragment_box))
     }
 }
 impl Drop for HeapFragment {

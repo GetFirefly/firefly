@@ -38,7 +38,6 @@ use super::*;
 
 use self::code::stack;
 use self::code::stack::frame::{Frame, Placement};
-use self::heap::ProcessHeap;
 
 pub use self::alloc::heap_alloc::{self, HeapAlloc};
 pub use self::alloc::{
@@ -386,7 +385,7 @@ impl Process {
     }
 
     pub fn pid_term(&self) -> Term {
-        unsafe { self.pid().encode().unwrap() }
+        self.pid().encode().unwrap()
     }
 
     // Send

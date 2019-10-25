@@ -168,6 +168,7 @@ impl BinaryFlags {
     const FLAG_IS_LATIN1_BIN: usize = 2;
     const FLAG_IS_UTF8_BIN: usize = 3;
     const FLAG_IS_LITERAL: usize = 4;
+    #[allow(unused)]
     const FLAG_MASK: usize = 0b111;
     const BIN_TYPE_MASK: usize = 0b011;
 

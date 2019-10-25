@@ -105,7 +105,7 @@ impl Into<BigInt> for BigInteger {
 }
 impl Into<BigInt> for Boxed<BigInteger> {
     fn into(self) -> BigInt {
-        self.as_ref().value
+        self.as_ref().value.clone()
     }
 }
 impl<'a> Into<&'a BigInt> for &'a BigInteger {

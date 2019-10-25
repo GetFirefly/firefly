@@ -117,7 +117,7 @@ impl Clone for Reference {
             .fetch_add(1, atomic::Ordering::AcqRel);
 
         Self {
-            header: self.header,
+            header: self.header.clone(),
             resource: self.resource,
         }
     }
@@ -133,7 +133,7 @@ impl CloneToProcess for Reference {
         let ptr = unsafe {
             let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
             ptr.write(Self {
-                header: self.header,
+                header: self.header.clone(),
                 resource: self.resource,
             });
 

@@ -183,6 +183,7 @@ impl SubBinary {
                     max_bit_offset
                 ))
             }
+            t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
 
@@ -254,7 +255,7 @@ impl CloneToProcess for SubBinary {
         match self.original.follow_moved().decode().unwrap() {
             // For ref-counted binaries and those that are already on the process heap,
             // we just need to copy the sub binary header, not the binary as well
-            TypedTerm::ProcBin(bin) => {
+            TypedTerm::ProcBin(_bin) => {
                 // Allocate space for header and copy it
                 unsafe {
                     let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;

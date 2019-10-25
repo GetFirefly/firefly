@@ -159,7 +159,10 @@ macro_rules! impl_aligned_try_into {
             type Error = runtime::Exception;
 
             fn try_into(self) -> Result<String, Self::Error> {
-                (*self).try_into()
+                match str::from_utf8(self.as_bytes()) {
+                    Ok(s) => Ok(s.to_owned()),
+                    Err(_) => Err(badarg!()),
+                }
             }
         }
 
@@ -175,8 +178,9 @@ macro_rules! impl_aligned_try_into {
         impl TryInto<Vec<u8>> for &$t {
             type Error = runtime::Exception;
 
+            #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-                (*self).try_into()
+                Ok(self.as_bytes().to_vec())
             }
         }
     }

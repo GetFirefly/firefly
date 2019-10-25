@@ -1,14 +1,12 @@
 use core::fmt::{self, Debug, Display};
 use core::hash::Hash;
 
-use liblumen_core::offset_of;
-
 use crate::erts::term::prelude::*;
 
 use super::Tag;
 
 pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self> + Ord + Hash + Send {
-    type Word: Debug + fmt::Binary;
+    type Word: Clone + Copy + PartialEq + Eq + Debug + fmt::Binary;
 
     fn as_usize(self) -> usize;
 
@@ -42,19 +40,25 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
             // NOTE: This happens with a few other types as well, so if you see this pattern,
             // the reasoning is the same for each case
             Tag::Tuple => {
-                let header = ptr.cast::<Header<Tuple>>().as_ref();
-                let arity = header.arity();
-                Ok(TypedTerm::Tuple(Tuple::from_raw_parts(ptr.as_ptr() as *mut u8, arity)))
+                let arity = ptr.cast::<Header<Tuple>>()
+                    .as_ref()
+                    .arity();
+                let tuple = unsafe { Tuple::from_raw_parts(ptr.as_ptr() as *mut u8, arity) };
+                Ok(TypedTerm::Tuple(tuple))
             }
             Tag::Closure => {
-                let header = ptr.cast::<Header<Closure>>().as_ref();
-                let arity = header.arity();
-                Ok(TypedTerm::Closure(Closure::from_raw_parts(ptr.as_ptr() as *mut u8, arity)))
+                let arity = ptr.cast::<Header<Closure>>()
+                    .as_ref()
+                    .arity();
+                let closure = unsafe { Closure::from_raw_parts(ptr.as_ptr() as *mut u8, arity) };
+                Ok(TypedTerm::Closure(closure))
             }
             Tag::HeapBinary => {
-                let header = ptr.cast::<Header<HeapBin>>().as_ref();
-                let arity = header.arity();
-                Ok(TypedTerm::HeapBinary(HeapBin::from_raw_parts(ptr.as_ptr() as *mut u8, arity)))
+                let arity = ptr.cast::<Header<HeapBin>>()
+                    .as_ref()
+                    .arity();
+                let bin = unsafe { HeapBin::from_raw_parts(ptr.as_ptr() as *mut u8, arity) };
+                Ok(TypedTerm::HeapBinary(bin))
             }
             #[cfg(not(target_arch = "x86_64"))]
             Tag::Float => Ok(TypedTerm::Float(ptr.cast::<Float>())),
@@ -66,10 +70,12 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
                     Some(false) => Ok(TypedTerm::ProcBin(ptr.cast::<ProcBin>())),
                     Some(true) => Ok(TypedTerm::BinaryLiteral(ptr.cast::<BinaryLiteral>())),
                     None => {
-                        let offset = offset_of!(BinaryLiteral, flags);
-                        debug_assert_eq!(offset, offset_of!(ProcBin, inner));
-                        let flags_ptr = (self as *const _ as *const u8).offset(offset as isize) as *const BinaryFlags;
-                        let flags = *flags_ptr;
+                        let offset = BinaryLiteral::flags_offset();
+                        debug_assert_eq!(offset, ProcBin::inner_offset());
+                        let flags_ptr = unsafe { 
+                            (self as *const _ as *const u8).offset(offset as isize) as *const BinaryFlags 
+                        };
+                        let flags = unsafe { *flags_ptr };
                         if flags.is_literal() {
                             Ok(TypedTerm::BinaryLiteral(ptr.cast::<BinaryLiteral>()))
                         } else {
@@ -95,7 +101,7 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
     /// typechecked as a header type.
     #[inline]
     unsafe fn decode_header_unchecked(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> TypedTerm {
-        match self.decode_header(tag, literal) {
+        match self.decode_header(tag.clone(), literal) {
             Ok(term) => term,
             Err(_) => panic!("invalid type tag: {:?}", tag)
         }

@@ -15,18 +15,18 @@ pub trait BitIterator: Iterator<Item = u8> {}
 
 /// This iterable iterates over the bytes between a pair of offsets in a given binary
 #[derive(Debug)]
-pub struct FullByteIter<'a, T: ?Sized + IndexByte> {
-    bin: &'a T,
+pub struct FullByteIter<T: ?Sized + IndexByte> {
+    bin: Boxed<T>,
     base_byte_offset: usize,
     bit_offset: u8,
     current_byte_offset: usize,
     max_byte_offset: usize,
 }
 
-impl<'a, T: ?Sized + IndexByte> FullByteIter<'a, T> {
+impl<T: ?Sized + IndexByte> FullByteIter<T> {
     pub fn new(bin: Boxed<T>, base_byte_offset: usize, bit_offset: u8, current_byte_offset: usize, max_byte_offset: usize) -> Self {
         Self {
-            bin: bin.as_ref(),
+            bin,
             base_byte_offset,
             bit_offset,
             current_byte_offset,
@@ -50,10 +50,10 @@ impl<'a, T: ?Sized + IndexByte> FullByteIter<'a, T> {
         }
     }
 }
-impl<'a, T> ByteIterator<'a> for FullByteIter<'a, T> where T: ?Sized + IndexByte {}
-impl<'a, T> ExactSizeIterator for FullByteIter<'a, T> where T: ?Sized + IndexByte {}
-impl<'a, T> FusedIterator for FullByteIter<'a, T> where T: ?Sized + IndexByte {}
-impl<'a, T> DoubleEndedIterator for FullByteIter<'a, T>
+impl<'a, T> ByteIterator<'a> for FullByteIter<T> where T: ?Sized + IndexByte {}
+impl<T> ExactSizeIterator for FullByteIter<T> where T: ?Sized + IndexByte {}
+impl<T> FusedIterator for FullByteIter<T> where T: ?Sized + IndexByte {}
+impl<T> DoubleEndedIterator for FullByteIter<T>
 where
     T: ?Sized + IndexByte,
 {
@@ -68,7 +68,7 @@ where
         }
     }
 }
-impl<'a, T> Iterator for FullByteIter<'a, T>
+impl<T> Iterator for FullByteIter<T>
 where
     T: ?Sized + IndexByte,
 {
@@ -100,6 +100,7 @@ pub struct BitsIter {
     max_bit_offset: u8,
 }
 impl BitsIter {
+    #[allow(unused)]
     #[inline]
     pub fn new(byte: u8) -> Self {
         Self::new_with_max(byte, 8)
@@ -132,18 +133,18 @@ impl Iterator for BitsIter {
 
 /// This iterable iterates over the bits between a pair of byte/bit offsets
 #[derive(Debug)]
-pub struct PartialByteBitIter<'a, T: ?Sized + IndexByte> {
-    bin: &'a T,
+pub struct PartialByteBitIter<T: ?Sized + IndexByte> {
+    bin: Boxed<T>,
     current_byte_offset: usize,
     current_bit_offset: u8,
     max_byte_offset: usize,
     max_bit_offset: u8,
 }
-impl<'a, T: ?Sized + IndexByte> PartialByteBitIter<'a, T> {
+impl<T: ?Sized + IndexByte> PartialByteBitIter<T> {
     #[inline]
     pub fn new(bin: Boxed<T>, current_byte_offset: usize, current_bit_offset: u8, max_byte_offset: usize, max_bit_offset: u8) -> Self {
         Self {
-            bin: bin.as_ref(),
+            bin,
             current_byte_offset,
             current_bit_offset,
             max_byte_offset,
@@ -151,8 +152,8 @@ impl<'a, T: ?Sized + IndexByte> PartialByteBitIter<'a, T> {
         }
     }
 }
-impl<'a, T> BitIterator for PartialByteBitIter<'a, T> where T: ?Sized + IndexByte {}
-impl<'a, T> Iterator for PartialByteBitIter<'a, T>
+impl<T> BitIterator for PartialByteBitIter<T> where T: ?Sized + IndexByte {}
+impl<T> Iterator for PartialByteBitIter<T>
 where
     T: ?Sized + IndexByte,
 {

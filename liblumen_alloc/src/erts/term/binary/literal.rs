@@ -4,6 +4,8 @@ use core::slice;
 use core::iter;
 use core::str;
 
+use liblumen_core::offset_of;
+
 use crate::borrow::CloneToProcess;
 use crate::erts::HeapAlloc;
 use crate::erts::exception::system::Alloc;
@@ -43,6 +45,11 @@ pub struct BinaryLiteral {
     bytes: *mut u8,
 }
 impl BinaryLiteral {
+    #[inline]
+    pub fn flags_offset() -> usize {
+        offset_of!(BinaryLiteral, flags)
+    }
+
     #[inline]
     pub fn from_raw_bytes(bytes: *mut u8, size: usize, encoding: Option<Encoding>) -> Self {
         let flags = BinaryFlags::new_literal(encoding.unwrap_or(Encoding::Raw))

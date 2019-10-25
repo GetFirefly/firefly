@@ -156,7 +156,7 @@ impl RawTerm {
     }
 
     #[inline]
-    unsafe fn decode_float(self) -> Float {
+    fn decode_float(self) -> Float {
         debug_assert!(self.0 >= MIN_DOUBLE);
         Float::new(f64::from_bits(self.0 - MIN_DOUBLE))
     }
@@ -187,6 +187,7 @@ impl Repr for RawTerm {
                     FLAG_HEAPBIN => Tag::HeapBinary,
                     FLAG_SUBBINARY => Tag::SubBinary,
                     FLAG_MATCH_CTX => Tag::MatchContext,
+                    tag => Tag::Unknown(tag),
                 },
                 // External types have a subtag of 2 bits, but only 3 combinations are used
                 FLAG_EXTERNAL => match term & SUBTAG_MASK {
@@ -666,8 +667,8 @@ impl fmt::Debug for RawTerm {
             }
             header => {
                 match self.decode_header(header, None) {
-                    Ok(term) => write!(f, "Term({:?})", term),
-                    Err(err) => write!(f, "InvalidHeader(tag: {:?})", header)
+                    Ok(term) => write!(f, "Term({:?})", &term),
+                    Err(err) => write!(f, "InvalidHeader(tag: {:?})", &header)
                 }
             }
         }

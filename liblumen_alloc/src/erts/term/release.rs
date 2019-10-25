@@ -26,10 +26,9 @@ impl<T> Release for T where T: Encoded {
             return;
         }
 
-        let term = self.decode().unwrap();
         match self.decode() {
             // Ensure we walk tuples and release all their elements
-            Ok(TypedTerm::Tuple(nn)) => {
+            Ok(TypedTerm::Tuple(mut nn)) => {
                 for element in nn.as_mut().iter() {
                     element.release()
                 }

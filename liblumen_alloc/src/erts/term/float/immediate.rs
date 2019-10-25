@@ -37,14 +37,14 @@ impl Float {
     // NOTE: This is here to provide API parity with packed floats,
     // which are wrapped in `Boxed` in the `TypedTerm` enum
     #[inline(always)]
-    pub fn as_ref(self) -> &'static Self {
-        &self
+    pub fn as_ref<'a>(&'a self) -> &'a Self {
+        self
     }
 }
 
 impl CloneToProcess for Float {
     #[inline]
-    fn clone_to_process(&self, process: &Process) -> Term {
+    fn clone_to_process(&self, _process: &Process) -> Term {
         self.encode().unwrap()
     }
 

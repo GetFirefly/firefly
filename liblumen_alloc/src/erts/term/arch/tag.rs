@@ -1,14 +1,22 @@
 use core::fmt;
 
-#[derive(PartialEq, Eq)]
-pub enum Tag<T> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Tag<T> 
+where
+    T: Clone + Copy + PartialEq + Eq,
+{
+    #[allow(unused)]
     Atom,
+    #[allow(unused)]
     Pid,
+    #[allow(unused)]
     Port,
+    #[allow(unused)]
     SmallInteger,
     BigInteger,
     Float,
     Tuple,
+    #[allow(unused)]
     List,
     Map,
     Closure,
@@ -21,6 +29,7 @@ pub enum Tag<T> {
     ExternalReference,
     Reference,
     ResourceReference,
+    #[allow(unused)]
     Nil,
     None,
     Box,
@@ -30,7 +39,7 @@ pub enum Tag<T> {
 
 impl<T> fmt::Debug for Tag<T>
 where
-    T: fmt::Debug + fmt::Binary,
+    T: Clone + Copy + PartialEq + Eq + fmt::Debug + fmt::Binary,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use Tag::*;

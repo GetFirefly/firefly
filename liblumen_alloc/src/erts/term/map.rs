@@ -171,7 +171,7 @@ impl crate::borrow::CloneToProcess for Map {
 
         // Clone to ensure `value` remains valid if caller is dropped
         let heap_self = Self {
-            header: self.header,
+            header: self.header.clone(),
             value: heap_value,
         };
 

@@ -7,6 +7,7 @@ use core::iter;
 use core::sync::atomic::{self, AtomicUsize};
 
 use intrusive_collections::LinkedListLink;
+use liblumen_core::offset_of;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
@@ -90,10 +91,12 @@ impl IndexByte for ProcBinInner {
 }
 impl Debug for ProcBinInner {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ptr = unsafe { self.as_byte_ptr() };
+        let len = self.data.len();
         f.debug_struct("ProcBinInner")
             .field("refc", &self.refc)
             .field("flags", &self.flags)
-            .field("data", &format!("bytes={},address={:p}", self.data.len(), self.as_byte_ptr()))
+            .field("data", &format!("bytes={},address={:p}", len, ptr))
             .finish()
     }
 }
@@ -111,6 +114,11 @@ pub struct ProcBin {
     pub link: LinkedListLink,
 }
 impl ProcBin {
+    #[inline]
+    pub fn inner_offset() -> usize {
+        offset_of!(ProcBin, inner)
+    }
+
     /// Creates a new procbin from a str slice, by copying it to the heap
     pub fn from_str(s: &str) -> Result<Self, Alloc> {
         let encoding = Encoding::from_str(s);
@@ -211,7 +219,7 @@ impl Clone for ProcBin {
         self.inner().refc.fetch_add(1, atomic::Ordering::AcqRel);
 
         Self {
-            header: self.header,
+            header: self.header.clone(),
             inner: self.inner,
             link: LinkedListLink::new(),
         }
@@ -243,7 +251,7 @@ impl CloneToProcess for ProcBin {
             ptr::write(
                 ptr,
                 Self {
-                    header: self.header,
+                    header: self.header.clone(),
                     inner: self.inner,
                     link: LinkedListLink::new(),
                 },

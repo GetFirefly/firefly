@@ -187,6 +187,12 @@ impl Tuple {
         &self.elements
     }
 
+    /// Returns a mutable slice containing the tuple elements
+    #[inline]
+    pub fn elements_mut(&mut self) -> &mut [Term] {
+        &mut self.elements
+    }
+
     /// Sets an element in the tuple, returns `Ok(())` if successful,
     /// otherwise returns `Err(IndexErr)` if the given index is invalid
     pub fn set_element_from_one_based_term_index(

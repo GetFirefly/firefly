@@ -307,7 +307,7 @@ impl YoungHeap {
                     // The boxed value is on the stack immediately following the box
                     let val = unsafe { *ptr };
                     assert!(val.is_header());
-                    let skip = val.arity();
+                    let skip = unsafe { val.arity() };
                     pos = unsafe { pos.add(skip) };
                 } else {
                     assert!(
@@ -497,7 +497,7 @@ impl YoungHeap {
         if header.is_subbinary() {
             let bin = &*(ptr as *mut SubBinary);
             // Convert to HeapBin if applicable
-            if let Ok((bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
+            if let Ok((_bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
                 // Save space for box
                 let dst = heap_top.add(1);
                 // Create box pointing to new destination

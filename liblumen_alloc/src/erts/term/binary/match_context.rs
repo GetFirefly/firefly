@@ -43,17 +43,26 @@ impl MatchBuffer {
 
         let (base, full_byte_bit_len, byte_offset, bit_offset, partial_byte_bit_len) =
             match original.decode().unwrap() {
-                TypedTerm::ProcBin(bin) =>
-                    (bin.as_byte_ptr(), bin.full_byte_len() * 8, 0, 0, 0),
-                TypedTerm::BinaryLiteral(bin) =>
-                    (bin.as_byte_ptr(), bin.full_byte_len() * 8, 0, 0, 0),
+                TypedTerm::ProcBin(bin_ptr) => {
+                    let bin = bin_ptr.as_ref();
+                    let ptr = unsafe { bin.as_byte_ptr() };
+                    (ptr, bin.full_byte_len() * 8, 0, 0, 0)
+                }
+                TypedTerm::BinaryLiteral(bin_ptr) => {
+                    let bin = bin_ptr.as_ref();
+                    let ptr = unsafe { bin.as_byte_ptr() };
+                    (ptr, bin.full_byte_len() * 8, 0, 0, 0)
+                }
                 TypedTerm::HeapBinary(bin_ptr) => {
                     let bin = bin_ptr.as_ref();
-                    (bin.as_byte_ptr(), bin.full_byte_len() * 8, 0, 0, 0)
+                    let ptr = unsafe { bin.as_byte_ptr() };
+                    (ptr, bin.full_byte_len() * 8, 0, 0, 0)
                 }
-                TypedTerm::SubBinary(bin) => {
+                TypedTerm::SubBinary(bin_ptr) => {
+                    let bin = bin_ptr.as_ref();
+                    let ptr = unsafe { bin.as_byte_ptr() };
                     (
-                        bin.as_byte_ptr(),
+                        ptr,
                         bin.full_byte_len() * 8,
                         bin.byte_offset(),
                         bin.bit_offset(),
@@ -190,6 +199,7 @@ impl MatchContext {
                     max_bit_offset
                 ))
             }
+            t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
 
@@ -256,7 +266,7 @@ impl CloneToProcess for MatchContext {
         let layout = Layout::new::<Self>();
         let size = layout.size();
         match self.buffer.original.decode().unwrap() {
-            TypedTerm::BinaryLiteral(bin) => {
+            TypedTerm::BinaryLiteral(_bin) => {
                 unsafe {
                     // Allocate space for header and copy it
                     let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
@@ -264,7 +274,7 @@ impl CloneToProcess for MatchContext {
                     Ok(ptr.into())
                 }
             }
-            TypedTerm::ProcBin(bin) => {
+            TypedTerm::ProcBin(_bin) => {
                 unsafe {
                     // Allocate space for header and copy it
                     let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
@@ -286,8 +296,9 @@ impl CloneToProcess for MatchContext {
                     let bin_size = bin.size();
                     let new_bin = bin.clone_to_heap(heap)?;
                     let new_bin_ptr: *mut Term = new_bin.dyn_cast();
-                    let new_bin_ref = HeapBin::from_raw_parts(new_bin_ptr as *mut u8, bin_size).as_ref();
-                    let old_bin_ptr = bin.as_byte_ptr();
+                    let new_bin_box = unsafe { HeapBin::from_raw_parts(new_bin_ptr as *mut u8, bin_size) };
+                    let new_bin_ref = new_bin_box.as_ref();
+                    let old_bin_ptr = unsafe { bin.as_byte_ptr() };
                     let old_bin_base = self.buffer.base;
                     let base_offset = distance_absolute(old_bin_ptr, old_bin_base);
                     unsafe {

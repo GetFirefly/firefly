@@ -80,7 +80,7 @@ impl<T: ?Sized> Boxed<T> {
     /// Casts to a pointer of another type.
     #[inline(always)]
     pub const fn cast<U>(self) -> Boxed<U> {
-        Self(unsafe { self.0.cast() })
+        Self(self.0.cast())
     }
 }
 impl<T: ?Sized> Clone for Boxed<T> {

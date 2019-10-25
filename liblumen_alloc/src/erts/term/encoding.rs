@@ -63,17 +63,6 @@ pub trait Boxable<T: Encoded> {}
 /// This is a marker trait for boxed terms which are stored as literals
 pub trait Literal<T: Encoded> : Boxable<T> {}
 
-/// This function is a convenience for obtaining terms encoded
-/// for the current target platform, avoiding the need to
-/// fully specify the type signature of the desired encoding.
-pub fn encode<T, E>(value: &T) -> Result<E, TermEncodingError>
-where
-    E: Encoded,
-    T: Encode<E>,
-{
-    value.encode()
-}
-
 /// Boxable terms require a header term to be built during
 /// construction of the type, which specifies the type and
 /// size in words of the non-header portion of the data
@@ -90,6 +79,7 @@ pub struct Header<T: ?Sized> {
 }
 impl<T: Sized> Header<T> {
     /// Returns the statically known base size (in bytes) of any value of type `T`
+    #[allow(unused)]
     #[inline]
     fn static_size() -> usize {
         mem::size_of::<T>()
@@ -117,7 +107,7 @@ impl<T: ?Sized> Header<T> {
     /// Returns the size in words of the value this header represents, not including the header
     #[inline]
     pub fn arity(&self) -> usize {
-        self.value.arity()
+        unsafe { self.value.arity() }
     }
 
     #[inline]

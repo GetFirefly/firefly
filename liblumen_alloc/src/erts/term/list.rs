@@ -455,7 +455,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
                     // as an immediate, but to return a `Boxed<Cons>` we need a value to
                     // point to
                     let first_ptr = self.alloc_cell(Term::NIL, Term::NIL)?;
-                    Ok(Boxed::new_unchecked(first_ptr))
+                    Ok(unsafe { Boxed::new_unchecked(first_ptr) })
                 }
                 // Non-empty list
                 Some(last) => {
@@ -476,7 +476,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
                         current.tail = cdr.into();
                     }
                     // Return a reference to the first cell of the list
-                    Ok(Boxed::new_unchecked(self.first))
+                    Ok(unsafe { Boxed::new_unchecked(self.first) })
                 }
             }
         }
@@ -513,7 +513,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
                         let cdr = self.alloc_cell(current.tail, cadr)?;
                         current.tail = cdr.into();
                     }
-                    Ok(Boxed::new_unchecked(self.first))
+                    Ok(unsafe { Boxed::new_unchecked(self.first) })
                 }
             }
         }
@@ -644,7 +644,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                         cell.tail = Term::NIL;
                     }
                 }
-                Ok(Boxed::new_unchecked(first_ptr))
+                Ok(unsafe { Boxed::new_unchecked(first_ptr) })
             }
         }
     }
@@ -687,7 +687,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                         cell.tail = term;
                     }
                 }
-                Ok(Boxed::new_unchecked(first_ptr))
+                Ok(unsafe { Boxed::new_unchecked(first_ptr) })
             }
         }
     }

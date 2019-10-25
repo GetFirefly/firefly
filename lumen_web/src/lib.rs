@@ -8,6 +8,7 @@ pub mod html_input_element;
 pub mod math;
 pub mod node;
 pub mod wait;
+pub mod web_socket;
 pub mod window;
 
 use std::any::Any;
@@ -17,7 +18,7 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-use web_sys::Window;
+use web_sys::{DomException, Window};
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
@@ -25,7 +26,8 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::scheduler::Scheduler;
-use lumen_runtime::time::monotonic::{time_in_milliseconds, Milliseconds};
+use lumen_runtime::time::monotonic::time_in_milliseconds;
+use lumen_runtime::time::Milliseconds;
 
 use crate::window::add_event_listener;
 
@@ -64,6 +66,26 @@ fn add_submit_listener(window: &Window) {
 
 fn error() -> Term {
     Atom::str_to_term("error")
+}
+
+fn error_tuple(process: &Process, js_value: JsValue) -> Result<Term, Alloc> {
+    let error = error();
+    let dom_exception = js_value.dyn_ref::<DomException>().unwrap();
+
+    match dom_exception.name().as_ref() {
+        "SyntaxError" => {
+            let tag = atom_unchecked("syntax");
+            let message = process.binary_from_str(&dom_exception.message())?;
+            let reason = process.tuple_from_slice(&[tag, message])?;
+
+            process.tuple_from_slice(&[error, reason])
+        }
+        name => unimplemented!(
+            "Converting {} DomException: {}",
+            name,
+            dom_exception.message()
+        ),
+    }
 }
 
 fn ok() -> Term {

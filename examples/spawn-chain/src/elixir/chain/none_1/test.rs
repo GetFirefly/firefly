@@ -3,6 +3,7 @@ use super::*;
 use std::sync::Once;
 
 use lumen_runtime::process::spawn::options::Options;
+use lumen_runtime::process::spawn::Spawned;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::{process, registry};
 
@@ -108,12 +109,12 @@ fn run_through(n: usize) {
     let parent_process = None;
     let mut options: Options = Default::default();
     options.min_heap_size = Some(100 + 5 * n);
-    let process = process::spawn::code(
+    let Spawned { process, .. } = process::spawn::code(
         parent_process,
         options,
         Atom::try_from_str("Elixir.ChainTest").unwrap(),
         Atom::try_from_str("inspect").unwrap(),
-        vec![],
+        &[],
         inspect_code,
     )
     .unwrap();

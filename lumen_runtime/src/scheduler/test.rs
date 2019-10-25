@@ -35,7 +35,7 @@ fn scheduler_does_run_exiting_process() {
         assert!(scheduler.run_through(&arc_process));
         assert!(scheduler.is_run_queued(&arc_process));
 
-        arc_process.exit();
+        arc_process.exit_normal();
 
         assert!(scheduler.is_run_queued(&arc_process));
         assert!(!scheduler.run_through(&arc_process));

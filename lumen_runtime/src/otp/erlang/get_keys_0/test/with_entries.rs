@@ -4,14 +4,15 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{Atom, Boxed, Cons};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
+use crate::scheduler::Spawned;
 
 #[test]
 fn without_heap_available_does_not_modify_dictionary() {
     let init_arc_process = process::test_init();
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let key = Atom::str_to_term("key");
     let value = Atom::str_to_term("value");
 
@@ -29,7 +30,7 @@ fn without_heap_available_does_not_modify_dictionary() {
 #[test]
 fn with_heap_available_returns_entries_as_list() {
     let init_arc_process = process::test_init();
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let key = Atom::str_to_term("key");
     let value = Atom::str_to_term("value");
 
@@ -59,8 +60,13 @@ fn with_heap_available_returns_entries_as_list() {
 #[test]
 fn doc_test() {
     let init_arc_process = process::test_init();
+<<<<<<< HEAD
     let arc_process = crate::test::process(&init_arc_process, Default::default());
     let animal = Atom::str_to_term("animal");
+=======
+    let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
+    let animal = atom_unchecked("animal");
+>>>>>>> origin/develop
 
     let dog = Atom::str_to_term("dog");
     arc_process

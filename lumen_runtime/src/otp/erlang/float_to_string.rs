@@ -84,6 +84,16 @@ impl From<OptionsBuilder> for Options {
     }
 }
 
+impl TryFrom<Term> for Options {
+    type Error = runtime::Exception;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        let options_builder: OptionsBuilder = term.try_into()?;
+
+        Ok(options_builder.into())
+    }
+}
+
 pub struct ScientificDigits(u8);
 
 impl ScientificDigits {
@@ -130,8 +140,25 @@ fn float_term_to_f64(float_term: Term) -> Result<f64, runtime::Exception> {
     }
 }
 
-fn float_to_decimal_string(f: f64, digits: DecimalDigits, _compact: bool) -> String {
-    format!("{:0.*e}", digits.into(), f)
+fn float_to_decimal_string(f: f64, digits: DecimalDigits, compact: bool) -> String {
+    let uncompacted = format!("{:0.*}", digits.into(), f);
+
+    if compact {
+        let parts: Vec<&str> = uncompacted.splitn(2, ".").collect();
+
+        if parts.len() == 2 {
+            let fractional_part_without_trailing_zeros = parts[1].trim_end_matches('0');
+
+            format!(
+                "{}.{:0<1}",
+                parts[0], fractional_part_without_trailing_zeros
+            )
+        } else {
+            uncompacted
+        }
+    } else {
+        uncompacted
+    }
 }
 
 fn float_to_scientific_string(f: f64, digits: ScientificDigits) -> String {
@@ -236,6 +263,6 @@ impl TryFrom<Term> for OptionsBuilder {
             }
         }
 
-        Ok(options_builder.into())
+        Ok(options_builder)
     }
 }

@@ -6,6 +6,8 @@
 #![feature(allocator_api)]
 #![feature(bind_by_move_pattern_guards)]
 #![feature(exact_size_is_empty)]
+// For `lumen_runtime::otp::erlang::term_to_binary`
+#![feature(float_to_from_bytes)]
 #![feature(fn_traits)]
 // For `lumen_runtime::reference::count
 #![feature(integer_atomics)]
@@ -25,6 +27,8 @@ extern crate alloc;
 extern crate cfg_if;
 #[macro_use]
 extern crate lazy_static;
+
+extern crate chrono;
 
 #[macro_use]
 mod macros;

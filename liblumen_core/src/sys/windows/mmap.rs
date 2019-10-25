@@ -1,21 +1,20 @@
-use core::ptr::{self, NonNull};
+use core::alloc::{AllocErr, Layout};
 use core::mem;
-use core::alloc::{Layout, AllocErr};
+use core::ptr::{self, NonNull};
 
 use winapi::um::errhandlingapi::GetLastError;
-use winapi::um::memoryapi::{VirtualAlloc, VirtualFree, VirtualQuery, OfferVirtualMemory};
 use winapi::um::memoryapi::VmOfferPriorityVeryLow;
-use winapi::um::winnt::{MEM_COMMIT, MEM_DECOMMIT, MEM_RESERVE, MEM_RELEASE};
+use winapi::um::memoryapi::{OfferVirtualMemory, VirtualAlloc, VirtualFree, VirtualQuery};
+use winapi::um::winnt::{MEM_COMMIT, MEM_DECOMMIT, MEM_RELEASE, MEM_RESERVE};
 use winapi::um::winnt::{PAGE_NOACCESS, PAGE_READWRITE};
 
-use crate::sys::sysconf;
 use crate::alloc::alloc_utils;
+use crate::sys::sysconf;
 
 /// Requests a new memory mapping from the OS.
 ///
 /// If `hint_ptr` is not a null pointer, it will be used to hint to the OS
 /// where we would like the region mapped.
-/// 
 // While Windows makes a distinction between allocation granularity and page size (see
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms724958(v=vs.85).aspx),
 // VirtualAlloc only cares about allocation granularity for the pointer argument, not the size.
@@ -35,8 +34,13 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
         // Alignment smaller than the system page size requires no
         // special work, as mmap aligns to the system page size by
         // default so all valid smaller alignments are automatically fulfilled
-        let ptr = VirtualAlloc(ptr::null_mut(), layout.size(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-        return NonNull::new(ptr as *mut u8).ok_or(AllocErr)
+        let ptr = VirtualAlloc(
+            ptr::null_mut(),
+            layout.size(),
+            MEM_COMMIT | MEM_RESERVE,
+            PAGE_READWRITE,
+        );
+        return NonNull::new(ptr as *mut u8).ok_or(AllocErr);
     }
 
     // We have to handle alignment ourselves, so we reserve a larger region
@@ -73,10 +77,10 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
 pub unsafe fn commit(ptr: *mut u8, size: usize) {
     let result = VirtualAlloc(ptr as *mut _, size, MEM_COMMIT, PAGE_READWRITE) as *mut u8;
     assert_ne!(
-        result, 
-        ptr::null_mut(), 
-        "VirtualAlloc({:?}, {}) failed to commit reserved region (error: {})", 
-        ptr, 
+        result,
+        ptr::null_mut(),
+        "VirtualAlloc({:?}, {}) failed to commit reserved region (error: {})",
+        ptr,
         size,
         result as usize
     );
@@ -90,13 +94,20 @@ pub unsafe fn commit(ptr: *mut u8, size: usize) {
 #[inline]
 pub unsafe fn decommit(ptr: *mut u8, size: usize) {
     let result = VirtualFree(ptr as *mut _, size, MEM_DECOMMIT);
-    assert_ne!(result, 0, "decommit({:?}, {}) failed with {}", ptr, size, GetLastError());
+    assert_ne!(
+        result,
+        0,
+        "decommit({:?}, {}) failed with {}",
+        ptr,
+        size,
+        GetLastError()
+    );
 }
 
 /// Releases a memory region back to the OS
 #[inline]
 pub unsafe fn unmap(ptr: *mut u8, layout: Layout) {
-    use winapi::um::winnt::PMEMORY_BASIC_INFORMATION;
+    use winapi::um::winnt::MEMORY_BASIC_INFORMATION;
 
     let page_size = sysconf::pagesize();
     let align = layout.align();
@@ -112,21 +123,37 @@ pub unsafe fn unmap(ptr: *mut u8, layout: Layout) {
     // VirtualAlloc, which will not be `ptr`, as that was the
     // aligned pointer we returned originally. We use VirtualQuery
     // to look up the unaligned pointer
-    let info: PMEMORY_BASIC_INFORMATION = mem::uninitialized();
-    let info_size = mem::size_of::<PMEMORY_BASIC_INFORMATION>();
-    let alloc_ptr = VirtualQuery(ptr as *mut _, info, info_size);
-    assert_eq!(alloc_ptr as usize, info_size, "VirtualQuery({:?}) failed with {}", ptr, GetLastError());
-    VirtualFree((*info).AllocationBase as *mut _, 0, MEM_RELEASE);
+    let mut maybe_uninit_basic_information = mem::MaybeUninit::uninit();
+    let basic_information_size = mem::size_of::<MEMORY_BASIC_INFORMATION>();
+    let written_size = VirtualQuery(
+        ptr as _,
+        maybe_uninit_basic_information.as_mut_ptr(),
+        basic_information_size,
+    );
+    assert_eq!(
+        written_size,
+        basic_information_size,
+        "VirtualQuery({:?}) failed with {}",
+        ptr,
+        GetLastError()
+    );
+    let basic_information = maybe_uninit_basic_information.assume_init();
+    VirtualFree(basic_information.AllocationBase, 0, MEM_RELEASE);
 }
 
 /// Remap the memory mapping given by `ptr` and `old_size` to one with size `new_size`.
 /// No guarantee is made that the new mapping will be remain in place
-/// 
+///
 /// NOTE: Windows can't unmap a portion of a previous mapping, so shrinking is not supported,
-/// instead we currently just return the given pointer without making any changes, except decommitting
-/// the extra memory to ensure the pages are not used and are not consuming physical memory
+/// instead we currently just return the given pointer without making any changes, except
+/// decommitting the extra memory to ensure the pages are not used and are not consuming physical
+/// memory
 #[inline]
-pub unsafe fn remap(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn remap(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     let old_size = layout.size();
     let page_size = sysconf::pagesize();
 
@@ -162,7 +189,11 @@ pub unsafe fn remap(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<Non
     remap_fallback(ptr, layout, new_size)
 }
 
-unsafe fn remap_fallback(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+unsafe fn remap_fallback(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     use core::cmp;
 
     // Create new mapping

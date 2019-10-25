@@ -23,7 +23,8 @@ pub struct Closure {
     header: Header<Closure>,
     creator: Term, // pid of creator process, possible to be either Pid or ExternalPid
     module_function_arity: Arc<ModuleFunctionArity>,
-    code: Code, // pointer to function entry
+    /// Pointer to function entry
+    pub code: Code,
     pub env_len: usize,
     env: [Term]
 }

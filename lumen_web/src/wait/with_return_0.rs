@@ -7,7 +7,9 @@ use wasm_bindgen::JsValue;
 
 use js_sys::{Function, Promise};
 
-use web_sys::{Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node, Text};
+use web_sys::{
+    Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node, Text, WebSocket,
+};
 
 use liblumen_core::locks::Mutex;
 
@@ -16,6 +18,7 @@ use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::process::spawn::options::Options;
+use lumen_runtime::process::spawn::Spawned;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::{process, registry};
 
@@ -114,6 +117,10 @@ fn resource_reference_to_js_value(resource_reference: resource::Reference) -> Js
         let text: &Text = resource_reference.downcast_ref().unwrap();
 
         text.into()
+    } else if resource_type_id == TypeId::of::<WebSocket>() {
+        let web_socket: &WebSocket = resource_reference.downcast_ref().unwrap();
+
+        web_socket.into()
     } else {
         unimplemented!("Convert {:?} to JsValue", resource_reference);
     }
@@ -136,13 +143,16 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 /// prevent a race condition on the `parent_process`'s scheduler running the new child process
 /// when only the `with_return/0` frame is there.
 fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
+    assert!(!options.link, "Cannot link without a parent process");
+    assert!(!options.monitor, "Cannot monitor without a parent process");
+
     let parent_process = None;
-    let process = process::spawn::code(
+    let Spawned { process, .. } = process::spawn::code(
         parent_process,
         options,
         super::module(),
         function(),
-        vec![],
+        &[],
         code,
     )?;
 

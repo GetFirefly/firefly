@@ -1,9 +1,9 @@
-use super::*;
-
 mod with_arity;
 
+use super::*;
+
 #[test]
-fn without_arity_when_run_exits_undef_and_parent_exits() {
+fn without_arity_when_run_exits_undef_and_sends_exit_message_to_parent() {
     let parent_arc_process = process::test_init();
     let arc_scheduler = Scheduler::current();
 
@@ -11,10 +11,10 @@ fn without_arity_when_run_exits_undef_and_parent_exits() {
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
     let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.decode() };
+    let module = unsafe { module_atom.as_term() };
 
     let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.decode() };
+    let function = unsafe { function_atom.as_term() };
 
     // erlang.+/1 and erlang.+/2 exists so use 3 for invalid arity
     let arguments = parent_arc_process
@@ -25,28 +25,33 @@ fn without_arity_when_run_exits_undef_and_parent_exits() {
         ])
         .unwrap();
 
-    let result = native(
-        &parent_arc_process,
-        module,
-        function,
-        arguments,
-        options(&parent_arc_process),
-    );
+    let result = native(&parent_arc_process, module, function, arguments);
 
     assert!(result.is_ok());
 
-    let child_pid = result.unwrap();
-    let child_pid_result_pid: core::result::Result<Pid, _> = child_pid.try_into();
+    let returned = result.unwrap();
+    let result_boxed_tuple: Result<Boxed<Tuple>, _> = returned.try_into();
 
-    assert!(child_pid_result_pid.is_ok());
+    assert!(result_boxed_tuple.is_ok());
 
-    let child_pid_pid = child_pid_result_pid.unwrap();
+    let boxed_tuple: Boxed<Tuple> = result_boxed_tuple.unwrap();
+
+    let child_pid_term = boxed_tuple[0];
+    let child_result_pid: Result<Pid, _> = child_pid_term.try_into();
+
+    assert!(child_result_pid.is_ok());
+
+    let child_pid = child_result_pid.unwrap();
+
+    let monitor_reference = boxed_tuple[1];
+
+    assert!(monitor_reference.is_reference());
 
     let run_queue_length_after = arc_scheduler.run_queue_len(priority);
 
     assert_eq!(run_queue_length_after, run_queue_length_before + 1);
 
-    let child_arc_process = pid_to_process(&child_pid_pid).unwrap();
+    let child_arc_process = pid_to_process(&child_pid).unwrap();
 
     assert!(arc_scheduler.run_through(&child_arc_process));
     assert!(!arc_scheduler.run_through(&child_arc_process));
@@ -69,5 +74,24 @@ fn without_arity_when_run_exits_undef_and_parent_exits() {
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
 
-    assert!(child_arc_process.is_exiting())
+    assert!(!parent_arc_process.is_exiting());
+
+    let tag = atom_unchecked("DOWN");
+    let reason = match undef!(&parent_arc_process, module, function, arguments) {
+        Exception::Runtime(runtime_exception) => runtime_exception.reason,
+        _ => unreachable!("parent process out-of-memory"),
+    };
+
+    assert!(has_message(
+        &parent_arc_process,
+        parent_arc_process
+            .tuple_from_slice(&[
+                tag,
+                monitor_reference,
+                atom_unchecked("process"),
+                child_pid_term,
+                reason
+            ])
+            .unwrap()
+    ));
 }

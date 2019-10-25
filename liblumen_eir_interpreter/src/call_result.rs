@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{HeapFragment, ModuleFunctionArity};
 
 use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::Scheduler;
+use lumen_runtime::scheduler::{Scheduler, Spawned};
 use lumen_runtime::system;
 
 /// A sort of ghetto-future used to get the result from a process
@@ -122,8 +122,10 @@ pub fn call_erlang(
     let options: Options = Default::default();
     //options.min_heap_size = Some(100_000);
 
-    let run_arc_process =
-        Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
+    let Spawned {
+        arc_process: run_arc_process,
+        ..
+    } = Scheduler::spawn_apply_3(&proc, options, module, function, arguments).unwrap();
 
     ProcessResultReceiver {
         process: run_arc_process,

@@ -21,7 +21,8 @@ use liblumen_alloc::Process;
 
 use crate::registry;
 use crate::scheduler::{Scheduled, Scheduler};
-use crate::time::monotonic::{self, Milliseconds};
+use crate::time::monotonic;
+use crate::time::Milliseconds;
 
 pub fn cancel(timer_reference: &Reference) -> Option<Milliseconds> {
     timer_reference

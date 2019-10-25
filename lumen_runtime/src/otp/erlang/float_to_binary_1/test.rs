@@ -15,8 +15,8 @@ fn without_float_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term::is_not_float(arc_process.clone()),
-                |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+                |float| {
+                    prop_assert_eq!(native(&arc_process, float), Err(badarg!().into()));
 
                     Ok(())
                 },

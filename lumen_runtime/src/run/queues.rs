@@ -78,7 +78,7 @@ impl Queues {
             }
             PushBack => {
                 if arc_process.code_stack_len() == 0 {
-                    arc_process.exit();
+                    arc_process.exit_normal();
                     Some(arc_process)
                 } else {
                     self.enqueue(arc_process);

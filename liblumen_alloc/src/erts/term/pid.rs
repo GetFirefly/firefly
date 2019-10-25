@@ -14,7 +14,6 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::term::prelude::*;
 use crate::erts::{HeapAlloc, Node};
-use crate::mem::bit_size_of;
 
 lazy_static! {
     static ref RW_LOCK_COUNTER: RwLock<Counter> = Default::default();
@@ -27,9 +26,12 @@ impl Pid {
     const NUMBER_BIT_COUNT: u8 = 15;
     const NUMBER_MASK: usize = 0b111_1111_1111_1111;
 
+    // The serial bit count is always 13 bits even though more could fit because they must be able
+    // to fit in the PID_EXT and NEW_PID_EXT external term formats.
+    const SERIAL_BIT_COUNT: u8 = 13;
     const SERIAL_BIT_COUNT: u8 =
         (bit_size_of::<usize>() - (Self::NUMBER_BIT_COUNT as usize) - 7) as u8;
-    const SERIAL_MASK: usize = !Self::NUMBER_MASK;
+    const SERIAL_MASK: usize = (0b1_1111_1111_1111) << Self::NUMBER_BIT_COUNT;
 
     pub const NUMBER_MAX: usize = (1 << (Self::NUMBER_BIT_COUNT as usize)) - 1;
     pub const SERIAL_MAX: usize = (1 << (Self::SERIAL_BIT_COUNT as usize)) - 1;
@@ -82,12 +84,15 @@ impl Pid {
         }
     }
 
-    pub fn number(self) -> usize {
-        self.0 & Self::NUMBER_MASK
-    }
+    /// Never exceeds 15 significant bits to remain compatible with `PID_EXT` and
+    /// `NEW_PID_EXT` external term formats.
+    pub fn number(&self) -> u16 {
+        (self.0 & Self::NUMBER_MASK) as u16
 
-    pub fn serial(&self) -> usize {
-        (self.0 & Self::SERIAL_MASK) >> Self::NUMBER_BIT_COUNT
+    /// Never exceeds 15 significant bits to remain compatible with `PID_EXT` and `NEW_PID_EXT`
+    /// external term formats.
+    pub fn serial(&self) -> u16 {
+        ((self.0 & Self::SERIAL_MASK) >> Self::NUMBER_BIT_COUNT) as u16
     }
 
     #[inline(always)]

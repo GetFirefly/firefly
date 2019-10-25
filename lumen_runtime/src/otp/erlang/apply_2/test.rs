@@ -29,7 +29,6 @@ fn without_function_errors_badarg() {
                     } = run_until_ready(
                         Default::default(),
                         |child_process| {
-                            eprintln!("function = {:?}", function);
                             let child_function = function.clone_to_process(child_process);
                             let child_arguments = Term::NIL;
 

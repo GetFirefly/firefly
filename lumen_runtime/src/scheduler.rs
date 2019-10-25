@@ -19,7 +19,8 @@ pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
-use crate::process::spawn::options::Options;
+use crate::process::spawn;
+use crate::process::spawn::options::{Connection, Options};
 use crate::registry::put_pid_to_process;
 use crate::run::{self, Run};
 use crate::timer::Hierarchy;
@@ -212,15 +213,20 @@ impl Scheduler {
         module: Atom,
         function: Atom,
         arguments: Term,
-    ) -> Result<Arc<Process>, Alloc> {
-        let process =
-            process::spawn::apply_3(parent_process, options, module, function, arguments)?;
+    ) -> Result<Spawned, Alloc> {
+        let spawn::Spawned {
+            process,
+            connection,
+        } = process::spawn::apply_3(parent_process, options, module, function, arguments)?;
         let arc_scheduler = parent_process.scheduler().unwrap();
         let arc_process = arc_scheduler.schedule(process);
 
         put_pid_to_process(&arc_process);
 
-        Ok(arc_process)
+        Ok(Spawned {
+            arc_process,
+            connection,
+        })
     }
 
     /// Spawns a process with `arguments` on its stack and `code` run with those arguments instead
@@ -230,10 +236,13 @@ impl Scheduler {
         options: Options,
         module: Atom,
         function: Atom,
-        arguments: Vec<Term>,
+        arguments: &[Term],
         code: Code,
-    ) -> Result<Arc<Process>, Alloc> {
-        let process = process::spawn::code(
+    ) -> Result<Spawned, Alloc> {
+        let spawn::Spawned {
+            process,
+            connection,
+        } = process::spawn::code(
             Some(parent_process),
             options,
             module,
@@ -246,7 +255,10 @@ impl Scheduler {
 
         put_pid_to_process(&arc_process);
 
-        Ok(arc_process)
+        Ok(Spawned {
+            arc_process,
+            connection,
+        })
     }
 
     pub fn spawn_init(
@@ -328,6 +340,25 @@ impl Drop for Scheduler {
 impl PartialEq for Scheduler {
     fn eq(&self, other: &Scheduler) -> bool {
         self.id == other.id
+    }
+}
+
+pub struct Spawned {
+    pub arc_process: Arc<Process>,
+    #[must_use]
+    pub connection: Connection,
+}
+
+impl Spawned {
+    pub fn to_term(&self, process: &Process) -> Result<Term, Alloc> {
+        let pid_term = self.arc_process.pid_term();
+
+        match self.connection.monitor_reference {
+            Some(monitor_reference) => process
+                .tuple_from_slice(&[pid_term, monitor_reference])
+                .map_err(|alloc| alloc.into()),
+            None => Ok(pid_term),
+        }
     }
 }
 

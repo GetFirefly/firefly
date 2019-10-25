@@ -8,7 +8,7 @@ use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::process::spawn::options::Options;
-use lumen_runtime::scheduler::Scheduler;
+use lumen_runtime::scheduler::{Scheduler, Spawned};
 use lumen_runtime::system;
 
 use super::module::ModuleRegistry;
@@ -58,7 +58,10 @@ impl VMState {
         let mut options: Options = Default::default();
         options.min_heap_size = Some(4 + 1000 * 2);
 
-        let run_arc_process = Scheduler::spawn_apply_3(
+        let Spawned {
+            arc_process: run_arc_process,
+            ..
+        } = Scheduler::spawn_apply_3(
             &init_arc_process,
             options,
             module,

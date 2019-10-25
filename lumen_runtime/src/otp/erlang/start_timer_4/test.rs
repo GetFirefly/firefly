@@ -16,7 +16,7 @@ use crate::otp::erlang;
 use crate::otp::erlang::start_timer_4::native;
 use crate::scheduler::with_process_arc;
 use crate::test::{has_message, registered_name, strategy};
-use crate::time::monotonic::Milliseconds;
+use crate::time::Milliseconds;
 use crate::{process, timer};
 
 #[test]

@@ -9,5 +9,5 @@ use crate::node;
 
 #[native_implemented_function(node/0)]
 pub fn native() -> Term {
-    Atom::str_to_term(node::DEAD)
+    node::term()
 }

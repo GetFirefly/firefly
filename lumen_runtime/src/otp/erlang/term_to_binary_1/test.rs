@@ -1,6 +1,6 @@
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::scheduler;
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Pid, Reference, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::term_to_binary_1::native;
 use crate::scheduler::with_process;
@@ -196,7 +196,7 @@ fn with_positive_i32_small_integer_returns_integer_ext() {
 fn with_empty_atom_returns_atom_ext() {
     with_process(|process| {
         assert_eq!(
-            native(process, atom_unchecked("")),
+            native(process, Atom::str_to_term("")),
             Ok(process
                 .binary_from_bytes(&[VERSION_NUMBER, ATOM_EXT, 0, 0])
                 .unwrap())
@@ -335,7 +335,7 @@ fn with_improper_list_returns_list_ext() {
             native(
                 process,
                 process
-                    .improper_list_from_slice(&[atom_unchecked("hd")], atom_unchecked("tl"))
+                    .improper_list_from_slice(&[Atom::str_to_term("hd")], Atom::str_to_term("tl"))
                     .unwrap()
             ),
             Ok(process
@@ -606,9 +606,9 @@ fn non_empty_map_returns_map_ext() {
                 process,
                 process
                     .map_from_slice(&[(
-                        atom_unchecked("k"),
+                        Atom::str_to_term("k"),
                         process
-                            .map_from_slice(&[(atom_unchecked("v_k"), atom_unchecked("v_v"))])
+                            .map_from_slice(&[(Atom::str_to_term("v_k"), Atom::str_to_term("v_v"))])
                             .unwrap()
                     )])
                     .unwrap()
@@ -628,7 +628,7 @@ fn non_empty_map_returns_map_ext() {
 fn with_small_utf8_atom_returns_small_atom_utf8_ext() {
     with_process(|process| {
         assert_eq!(
-            native(process, atom_unchecked("😈")),
+            native(process, Atom::str_to_term("😈")),
             Ok(process
                 .binary_from_bytes(&[131, 119, 4, 240, 159, 152, 136])
                 .unwrap())
@@ -649,7 +649,7 @@ const STRING_EXT: u8 = 107;
 const BINARY_EXT: u8 = 109;
 
 fn non_empty_atom_term() -> Term {
-    atom_unchecked("atom")
+    Atom::str_to_term("atom")
 }
 
 fn non_empty_atom_byte_vec() -> Vec<u8> {

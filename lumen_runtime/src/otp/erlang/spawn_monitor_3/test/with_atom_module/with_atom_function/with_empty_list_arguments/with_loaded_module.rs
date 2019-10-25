@@ -3,7 +3,7 @@ mod with_exported_function;
 use super::*;
 
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::term::{Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::test::has_message;
 
@@ -75,7 +75,7 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
+    let tag = Atom::str_to_term("DOWN");
     let reason = match undef!(&parent_arc_process, module, function, arguments) {
         Exception::Runtime(runtime_exception) => runtime_exception.reason,
         _ => unreachable!("parent process out-of-memory"),
@@ -87,7 +87,7 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                Atom::str_to_term("process"),
                 child_pid_term,
                 reason
             ])

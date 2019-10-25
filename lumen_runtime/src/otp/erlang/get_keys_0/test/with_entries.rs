@@ -65,7 +65,7 @@ fn doc_test() {
     let animal = Atom::str_to_term("animal");
 =======
     let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
-    let animal = atom_unchecked("animal");
+    let animal = Atom::str_to_term("animal");
 >>>>>>> origin/develop
 
     let dog = Atom::str_to_term("dog");

@@ -118,8 +118,6 @@ mod tuple_from_slice {
 
     use core::convert::TryInto;
 
-    use crate::erts::term::prelude::{Boxed, SmallInteger, Tuple};
-
     #[test]
     fn without_elements() {
         let process = process();
@@ -202,6 +200,7 @@ mod tuple_from_slice {
 }
 
 fn simple_gc_test(process: Process) {
+
     // Allocate an `{:ok, "hello world"}` tuple
     // First, the `ok` atom, an immediate, is super easy
     let ok = unsafe { Atom::try_from_str("ok").unwrap().decode() };
@@ -229,7 +228,6 @@ fn simple_gc_test(process: Process) {
     let string_term_unboxed = unsafe { *string_term_ptr };
     assert!(string_term_unboxed.is_heapbin());
     let string_term_heap_bin = unsafe { &*(string_term_ptr as *mut HeapBin) };
-    use crate::erts::term::Bitstring;
     assert_eq!(string_term_heap_bin.full_byte_len(), 4);
     assert_eq!("test", string_term_heap_bin.as_str());
 

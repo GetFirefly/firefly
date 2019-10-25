@@ -8,7 +8,7 @@ use std::sync::Arc;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::TypedTerm;
+use liblumen_alloc::erts::term::prelude::TypedTerm;
 
 #[test]
 fn without_valid_option_errors_badarg() {

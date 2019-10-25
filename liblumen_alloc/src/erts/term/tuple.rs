@@ -355,7 +355,6 @@ mod tests {
 
     use crate::erts::process::{default_heap, Priority, Process};
     use crate::erts::scheduler;
-    use crate::erts::term::Tuple;
     use crate::erts::ModuleFunctionArity;
 
     mod get_element_from_zero_based_usize_index {

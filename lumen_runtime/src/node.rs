@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::{AsTerm, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub const DEAD: &str = "nonode@nohost";
 

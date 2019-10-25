@@ -7,7 +7,7 @@ use proptest::strategy::Strategy;
 
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarity, exit};
 
 use crate::process;
@@ -91,7 +91,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
                     }
                 }
 
-                let tag = atom_unchecked("DOWN");
+                let tag = Atom::str_to_term("DOWN");
                 let reason = match badarity!(&parent_arc_process, function, Term::NIL) {
                     Exception::Runtime(runtime_exception) => runtime_exception.reason,
                     _ => unreachable!("parent process out-of-memory"),
@@ -103,7 +103,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
                         .tuple_from_slice(&[
                             tag,
                             monitor_reference,
-                            atom_unchecked("process"),
+                            Atom::str_to_term("process"),
                             child_pid_term,
                             reason
                         ])
@@ -118,6 +118,6 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
 
 fn options(process: &Process) -> Term {
     process
-        .list_from_slice(&[atom_unchecked("link"), atom_unchecked("monitor")])
+        .list_from_slice(&[Atom::str_to_term("link"), Atom::str_to_term("monitor")])
         .unwrap()
 }

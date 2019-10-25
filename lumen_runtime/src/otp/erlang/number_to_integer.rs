@@ -2,7 +2,7 @@ use num_bigint::BigInt;
 
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Float, SmallInteger, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub enum NumberToInteger {
     NotANumber,

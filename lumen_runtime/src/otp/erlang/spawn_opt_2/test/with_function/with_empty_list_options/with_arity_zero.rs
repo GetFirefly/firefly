@@ -3,7 +3,7 @@ use super::*;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::exit;
 
@@ -24,7 +24,7 @@ fn without_environment_runs_function_in_child_process() {
                             arity: 0,
                         });
                         let code = |arc_process: &Arc<Process>| {
-                            arc_process.return_from_call(atom_unchecked("ok"))?;
+                            arc_process.return_from_call(Atom::str_to_term("ok"))?;
 
                             Ok(())
                         };
@@ -54,7 +54,7 @@ fn without_environment_runs_function_in_child_process() {
 
                     match *child_arc_process.status.read() {
                         Status::Exiting(ref exception) => {
-                            prop_assert_eq!(exception, &exit!(atom_unchecked("normal")));
+                            prop_assert_eq!(exception, &exit!(Atom::str_to_term("normal")));
                         }
                         ref status => {
                             return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -102,7 +102,7 @@ fn with_environment_runs_function_in_child_process() {
                                 module_function_arity,
                                 code,
                                 creator,
-                                &[atom_unchecked("first"), atom_unchecked("second")],
+                                &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
                             .unwrap()
                     }),
@@ -131,8 +131,8 @@ fn with_environment_runs_function_in_child_process() {
                                 exception,
                                 &exit!(child_arc_process
                                     .list_from_slice(&[
-                                        atom_unchecked("first"),
-                                        atom_unchecked("second")
+                                        Atom::str_to_term("first"),
+                                        Atom::str_to_term("second")
                                     ])
                                     .unwrap())
                             );

@@ -72,7 +72,7 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
+    let tag = Atom::str_to_term("DOWN");
     let reason = match undef!(&parent_arc_process, module, function, arguments) {
         Exception::Runtime(runtime_exception) => runtime_exception.reason,
         _ => unreachable!("parent process out-of-memory"),
@@ -84,7 +84,7 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                Atom::str_to_term("process"),
                 child_pid_term,
                 reason
             ])

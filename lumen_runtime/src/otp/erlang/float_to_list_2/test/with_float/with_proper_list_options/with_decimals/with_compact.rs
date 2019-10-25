@@ -1,6 +1,6 @@
 use super::*;
 
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 #[test]
 fn trailing_zeros_are_truncated() {
@@ -101,6 +101,6 @@ fn with_no_fractional_part_still_has_zero_after_decimal_point() {
 
 fn options(process: &Process, digits: u8) -> Term {
     process
-        .list_from_slice(&[option(process, digits), atom_unchecked("compact")])
+        .list_from_slice(&[option(process, digits), Atom::str_to_term("compact")])
         .unwrap()
 }

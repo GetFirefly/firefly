@@ -8,12 +8,7 @@ use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
-use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use liblumen_alloc::erts::term::{
-    Atom, Bitstring, Cons, ImproperList, IterableBitstring, MaybePartialByte, Term, TypeError,
-    TypedTerm,
-};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::node;
 use hashbrown::HashMap;

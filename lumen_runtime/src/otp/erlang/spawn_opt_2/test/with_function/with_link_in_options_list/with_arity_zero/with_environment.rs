@@ -3,7 +3,7 @@ use super::*;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::exit;
 
@@ -40,7 +40,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                                 module_function_arity,
                                 code,
                                 creator,
-                                &[atom_unchecked("first"), atom_unchecked("second")],
+                                &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
                             .unwrap(),
                     )
@@ -69,8 +69,8 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                             exception,
                             &exit!(child_arc_process
                                 .list_from_slice(&[
-                                    atom_unchecked("first"),
-                                    atom_unchecked("second")
+                                    Atom::str_to_term("first"),
+                                    Atom::str_to_term("second")
                                 ])
                                 .unwrap())
                         );
@@ -89,8 +89,8 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                             exception,
                             &exit!(child_arc_process
                                 .list_from_slice(&[
-                                    atom_unchecked("first"),
-                                    atom_unchecked("second")
+                                    Atom::str_to_term("first"),
+                                    Atom::str_to_term("second")
                                 ])
                                 .unwrap())
                         );
@@ -143,8 +143,8 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
                                 code,
                                 creator,
                                 &[
-                                    atom_unchecked("shutdown"),
-                                    atom_unchecked("shutdown_reason"),
+                                    Atom::str_to_term("shutdown"),
+                                    Atom::str_to_term("shutdown_reason"),
                                 ],
                             )
                             .unwrap(),
@@ -174,8 +174,8 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
                             exception,
                             &exit!(child_arc_process
                                 .tuple_from_slice(&[
-                                    atom_unchecked("shutdown"),
-                                    atom_unchecked("shutdown_reason")
+                                    Atom::str_to_term("shutdown"),
+                                    Atom::str_to_term("shutdown_reason")
                                 ])
                                 .unwrap())
                         );

@@ -696,7 +696,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::erts::term::SmallInteger;
+    use crate::erts::term::prelude::SmallInteger;
 
     mod clone_to_heap {
         use super::*;

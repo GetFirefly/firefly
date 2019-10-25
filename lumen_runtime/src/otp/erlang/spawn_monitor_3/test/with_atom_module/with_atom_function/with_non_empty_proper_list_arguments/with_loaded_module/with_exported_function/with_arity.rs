@@ -1,6 +1,6 @@
 use super::*;
 
-use liblumen_alloc::erts::term::{Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::test::has_message;
 
@@ -55,7 +55,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
     assert_eq!(child_arc_process.code_stack_len(), 0);
     assert_eq!(child_arc_process.current_module_function_arity(), None);
 
-    let reason = atom_unchecked("normal");
+    let reason = Atom::str_to_term("normal");
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
@@ -66,7 +66,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
+    let tag = Atom::str_to_term("DOWN");
 
     assert!(has_message(
         &parent_arc_process,
@@ -74,7 +74,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                Atom::str_to_term("process"),
                 child_pid_term,
                 reason
             ])
@@ -97,7 +97,7 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
     let function = unsafe { function_atom.as_term() };
 
     // not a number
-    let number = atom_unchecked("zero");
+    let number = Atom::str_to_term("zero");
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
     let result = native(&parent_arc_process, module, function, arguments);
@@ -150,8 +150,8 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
-    let reason = atom_unchecked("badarith");
+    let tag = Atom::str_to_term("DOWN");
+    let reason = Atom::str_to_term("badarith");
 
     assert!(has_message(
         &parent_arc_process,
@@ -159,7 +159,7 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                Atom::str_to_term("process"),
                 child_pid_term,
                 reason
             ])

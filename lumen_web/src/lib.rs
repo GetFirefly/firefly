@@ -74,7 +74,7 @@ fn error_tuple(process: &Process, js_value: JsValue) -> Result<Term, Alloc> {
 
     match dom_exception.name().as_ref() {
         "SyntaxError" => {
-            let tag = atom_unchecked("syntax");
+            let tag = Atom::str_to_term("syntax");
             let message = process.binary_from_str(&dom_exception.message())?;
             let reason = process.tuple_from_slice(&[tag, message])?;
 

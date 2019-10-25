@@ -8,7 +8,7 @@ use proptest::strategy::Strategy;
 use liblumen_alloc::badarity;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
 use crate::scheduler::Scheduler;
@@ -74,7 +74,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
 
                 prop_assert!(!parent_arc_process.is_exiting());
 
-                let tag = atom_unchecked("DOWN");
+                let tag = Atom::str_to_term("DOWN");
                 let reason = match badarity!(&parent_arc_process, function, Term::NIL) {
                     Exception::Runtime(runtime_exception) => runtime_exception.reason,
                     _ => unreachable!("parent process out-of-memory"),
@@ -86,7 +86,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
                         .tuple_from_slice(&[
                             tag,
                             monitor_reference,
-                            atom_unchecked("process"),
+                            Atom::str_to_term("process"),
                             child_pid_term,
                             reason
                         ])
@@ -100,7 +100,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
 }
 
 fn option() -> Term {
-    atom_unchecked("monitor")
+    Atom::str_to_term("monitor")
 }
 
 fn options(process: &Process) -> Term {

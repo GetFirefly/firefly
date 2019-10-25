@@ -1,7 +1,7 @@
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::apply_2;
 use crate::process::spawn::options::Options;

@@ -37,7 +37,7 @@ fn options(abs: Term, process: &Process) -> Term {
     process
         .cons(
             process
-                .tuple_from_slice(&[atom_unchecked("abs"), abs])
+                .tuple_from_slice(&[Atom::str_to_term("abs"), abs])
                 .unwrap(),
             Term::NIL,
         )

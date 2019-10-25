@@ -1,21 +1,18 @@
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
 
-use crate::erts::term::binary::aligned_binary;
-use crate::erts::term::binary::match_context::MatchContext;
-use crate::erts::term::binary::sub::SubBinary;
-use crate::erts::term::binary::IterableBitstring;
+use crate::erts::term::prelude::Boxed;
+
+use super::aligned_binary;
+use super::prelude::{MatchContext, SubBinary};
 
 pub trait MaybeAlignedMaybeBinary {
-    type Iter: Iterator<Item = u8>;
-
-    unsafe fn as_bytes(&self) -> &[u8];
+    /// This function will
+    unsafe fn as_bytes_unchecked(&self) -> &[u8];
 
     fn is_aligned(&self) -> bool;
 
     fn is_binary(&self) -> bool;
-
-    fn partial_byte_bit_iter(&self) -> Self::Iter;
 }
 
 macro_rules! display {
@@ -24,7 +21,7 @@ macro_rules! display {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 if self.is_binary() {
                     if self.is_aligned() {
-                        aligned_binary::display(unsafe { self.as_bytes() }, f)
+                        aligned_binary::display(unsafe { self.as_bytes_unchecked() }, f)
                     } else {
                         let bytes: Vec<u8> = self.full_byte_iter().collect();
 
@@ -100,13 +97,13 @@ macro_rules! partial_eq {
             fn eq(&self, other: &$o) -> bool {
                 if self.is_binary() && other.is_binary() {
                     if self.is_aligned() && other.is_aligned() {
-                        unsafe { self.as_bytes().eq(other.as_bytes()) }
+                        unsafe { self.as_bytes_unchecked().eq(other.as_bytes_unchecked()) }
                     } else {
                         self.full_byte_iter().eq(other.full_byte_iter())
                     }
                 } else {
                     let bytes_equal = if self.is_aligned() && other.is_aligned() {
-                        unsafe { self.as_bytes().eq(other.as_bytes()) }
+                        unsafe { self.as_bytes_unchecked().eq(other.as_bytes_unchecked()) }
                     } else {
                         self.full_byte_iter().eq(other.full_byte_iter())
                     };
@@ -116,6 +113,12 @@ macro_rules! partial_eq {
                             .eq(other.partial_byte_bit_iter())
                     }
                 }
+            }
+        }
+        impl PartialEq<Boxed<$o>> for $s {
+            #[inline]
+            fn eq(&self, other: &Boxed<$o>) -> bool {
+                self.eq(other.as_ref())
             }
         }
     };
@@ -133,13 +136,13 @@ macro_rules! ord {
             fn cmp(&self, other: &Self) -> core::cmp::Ordering {
                 if self.is_binary() && other.is_binary() {
                     if self.is_aligned() && other.is_aligned() {
-                        unsafe { self.as_bytes().cmp(other.as_bytes()) }
+                        unsafe { self.as_bytes_unchecked().cmp(other.as_bytes_unchecked()) }
                     } else {
                         self.full_byte_iter().cmp(other.full_byte_iter())
                     }
                 } else {
                     let bytes_ordering = if self.is_aligned() && other.is_aligned() {
-                        unsafe { self.as_bytes().cmp(other.as_bytes()) }
+                        unsafe { self.as_bytes_unchecked().cmp(other.as_bytes_unchecked()) }
                     } else {
                         self.full_byte_iter().cmp(other.full_byte_iter())
                     };

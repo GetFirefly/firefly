@@ -16,13 +16,13 @@ fn with_different_node_returns_nosuspend() {
                 );
 
                 let destination = arc_process
-                    .tuple_from_slice(&[name, atom_unchecked("node@example.com")])
+                    .tuple_from_slice(&[name, Atom::str_to_term("node@example.com")])
                     .unwrap();
                 let options = options(&arc_process);
 
                 prop_assert_eq!(
                     native(&arc_process, destination, message, options),
-                    Ok(atom_unchecked("nosuspend"))
+                    Ok(Atom::str_to_term("nosuspend"))
                 );
 
                 Ok(())

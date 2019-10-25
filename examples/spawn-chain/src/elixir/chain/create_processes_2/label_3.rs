@@ -3,7 +3,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 /// ```elixir
 /// # pushed to stack: (final_answer)
@@ -27,7 +27,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok = arc_process.stack_pop().unwrap();
-    assert_eq!(ok, atom_unchecked("ok"));
+    assert_eq!(ok, Atom::str_to_term("ok"));
     let final_answer = arc_process.stack_pop().unwrap();
     assert!(final_answer.is_integer());
 

@@ -7,8 +7,9 @@ use proptest::collection::SizeRange;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-use liblumen_alloc::erts::term::{Boxed, Term, Tuple};
 use liblumen_alloc::erts::Process;
+
+use super::*;
 
 pub fn intermediate(
     element: BoxedStrategy<Term>,

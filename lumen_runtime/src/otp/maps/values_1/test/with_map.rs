@@ -1,8 +1,5 @@
 use super::*;
 
-use liblumen_alloc::erts::term::atom_unchecked;
-use liblumen_alloc::Term;
-
 #[test]
 fn returns_empty_list_of_values() {
     with_process_arc(|arc_process| {
@@ -18,7 +15,7 @@ fn returns_list_of_values() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(strategy::term(arc_process.clone())).prop_map(|value| {
-                    let key = atom_unchecked("key");
+                    let key = Atom::str_to_term("key");
 
                     (
                         arc_process.list_from_slice(&[value]).unwrap(),

@@ -1,7 +1,7 @@
 // because registry is global and tests are concurrent, there is no way to test for completely
 // empty registry
 
-use liblumen_alloc::erts::term::{atom_unchecked, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::registered_0::native;
@@ -10,7 +10,7 @@ use crate::scheduler::with_process_arc;
 #[test]
 fn includes_registered_process_name() {
     with_process_arc(|process_arc| {
-        let name = atom_unchecked("registered_process_name");
+        let name = Atom::str_to_term("registered_process_name");
 
         let before = native(&process_arc).unwrap();
 

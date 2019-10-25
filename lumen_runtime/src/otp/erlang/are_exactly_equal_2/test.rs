@@ -23,8 +23,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::binary::IterableBitstring;
-use liblumen_alloc::erts::term::{make_pid, AsTerm, SmallInteger, SubBinary, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::otp::erlang::are_exactly_equal_2::native;

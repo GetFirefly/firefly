@@ -8,8 +8,7 @@ use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::{Process, Status};
-use liblumen_alloc::erts::term::resource::Reference as ResourceReference;
-use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{HeapFragment, ModuleFunctionArity};
 
 use lumen_runtime::process::spawn::options::Options;

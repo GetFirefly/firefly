@@ -6,7 +6,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 /// Generates an integer between 0 and (exclusive_max - 1).

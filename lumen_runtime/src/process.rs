@@ -12,7 +12,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::{self, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::HeapFragment;
 
@@ -82,7 +82,7 @@ pub fn propagate_exit(process: &Process, exception: &runtime::Exception) {
 
 pub fn propagate_exit_to_links(process: &Process, exception: &runtime::Exception) {
     if !is_expected_exception(exception) {
-        let tag = atom_unchecked("EXIT");
+        let tag = Atom::str_to_term("EXIT");
         let from = process.pid_term();
         let reason = exception.reason;
         let exit_message_elements: &[Term] = &[tag, from, reason];

@@ -22,7 +22,7 @@ use web_sys::Window;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::time::monotonic::{time_in_milliseconds, Milliseconds};
@@ -63,11 +63,11 @@ fn add_submit_listener(window: &Window) {
 }
 
 fn error() -> Term {
-    atom_unchecked("error")
+    Atom::str_to_term("error")
 }
 
 fn ok() -> Term {
-    atom_unchecked("ok")
+    Atom::str_to_term("ok")
 }
 
 fn ok_tuple(process: &Process, value: Box<dyn Any>) -> Result<Term, Alloc> {

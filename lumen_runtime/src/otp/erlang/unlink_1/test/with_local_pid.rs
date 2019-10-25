@@ -1,7 +1,7 @@
 use super::*;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::{atom_unchecked, next_pid};
+use liblumen_alloc::erts::term::prelude::{Atom, Pid};
 
 use crate::otp::erlang;
 use crate::process;
@@ -23,7 +23,7 @@ fn with_non_existent_pid_returns_true() {
     with_process(|process| {
         let link_count_before = link_count(process);
 
-        assert_eq!(native(process, next_pid()), Ok(true.into()));
+        assert_eq!(native(process, Pid::next_term()), Ok(true.into()));
 
         assert_eq!(link_count(process), link_count_before);
     });
@@ -84,7 +84,7 @@ fn when_a_linked_then_unlinked_process_exits_the_process_does_not_exit() {
         erlang::exit_1::place_frame_with_arguments(
             &other_arc_process,
             Placement::Replace,
-            atom_unchecked("normal"),
+            Atom::str_to_term("normal"),
         )
         .unwrap();
 
@@ -115,7 +115,7 @@ fn when_the_process_exits_the_linked_and_then_unlinked_process_exits_too() {
         erlang::exit_1::place_frame_with_arguments(
             &arc_process,
             Placement::Replace,
-            atom_unchecked("normal"),
+            Atom::str_to_term("normal"),
         )
         .unwrap();
 

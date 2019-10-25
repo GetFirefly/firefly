@@ -3,8 +3,7 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::binary::Bitstring;
-use liblumen_alloc::erts::term::TypedTerm;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::size_1::native;
 use crate::scheduler::with_process_arc;

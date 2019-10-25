@@ -8,7 +8,7 @@ use proptest::{prop_assert, prop_assert_eq, prop_oneof};
 
 use liblumen_alloc::badarith;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::{Term, TypedTerm};
 
 use crate::otp::erlang::divide_2::native;
 use crate::scheduler::{with_process, with_process_arc};

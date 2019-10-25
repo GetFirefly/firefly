@@ -21,17 +21,17 @@ fn with_number_atom_reference_function_or_port_returns_true() {
 
 #[test]
 fn with_greater_local_pid_right_returns_true() {
-    is_greater_than_or_equal(|_, _| make_pid(0, 0).unwrap(), true);
+    is_greater_than_or_equal(|_, _| Pid::make_term(0, 0).unwrap(), true);
 }
 
 #[test]
 fn with_same_value_local_pid_right_returns_true() {
-    is_greater_than_or_equal(|_, _| make_pid(0, 1).unwrap(), true);
+    is_greater_than_or_equal(|_, _| Pid::make_term(0, 1).unwrap(), true);
 }
 
 #[test]
 fn with_greater_local_pid_right_returns_false() {
-    is_greater_than_or_equal(|_, _| make_pid(1, 1).unwrap(), false);
+    is_greater_than_or_equal(|_, _| Pid::make_term(1, 1).unwrap(), false);
 }
 
 #[test]
@@ -65,5 +65,5 @@ fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::is_greater_than_or_equal(|_| make_pid(0, 1).unwrap(), right, expected);
+    super::is_greater_than_or_equal(|_| Pid::make_term(0, 1).unwrap(), right, expected);
 }

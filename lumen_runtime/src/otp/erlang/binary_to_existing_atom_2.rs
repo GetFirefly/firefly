@@ -9,10 +9,7 @@ use std::convert::TryInto;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
-use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use liblumen_alloc::erts::term::binary::IterableBitstring;
-use liblumen_alloc::erts::term::{AsTerm, Atom, Encoding, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -50,5 +47,5 @@ pub fn native(binary: Term, encoding: Term) -> exception::Result {
         },
         _ => Err(badarg!().into()),
     }
-    .map(|atom| unsafe { atom.as_term() })
+    .map(|atom| unsafe { atom.decode() })
 }

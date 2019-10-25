@@ -5,7 +5,7 @@ use std::mem::size_of;
 use num_traits::Num;
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;(
 
 #[test]
 fn with_small_integer_right_returns_big_integer() {

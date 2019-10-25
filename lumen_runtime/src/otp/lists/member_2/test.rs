@@ -5,13 +5,11 @@ use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::lists::member_2::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
-
-use liblumen_alloc::erts::term::atom_unchecked;
 
 #[test]
 fn with_empty_list_returns_false() {

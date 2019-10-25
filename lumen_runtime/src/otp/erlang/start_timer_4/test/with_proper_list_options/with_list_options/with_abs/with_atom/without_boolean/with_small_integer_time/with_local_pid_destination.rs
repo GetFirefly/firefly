@@ -67,7 +67,7 @@ fn without_process_errors_badarg() {
                 ),
                 |(milliseconds, message, options)| {
                     let time = arc_process.integer(milliseconds).unwrap();
-                    let destination = next_pid();
+                    let destination = Pid::next_term();
 
                     prop_assert_eq!(
                         native(arc_process.clone(), time, destination, message, options),

@@ -3,79 +3,64 @@ macro_rules! number_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::TypedTerm;
+        use liblumen_alloc::erts::term::prelude::TypedTerm;
 
         use $crate::number::Operands::*;
 
-        let operands = match ($left.to_typed_term().unwrap(), $right.to_typed_term().unwrap()) {
+        let operands = match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
                 let left_isize = left_small_integer.into();
                 let right_isize = right_small_integer.into();
 
                 ISizes(left_isize, right_isize)
             }
-            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::Boxed(right_unboxed)) => {
-                match right_unboxed.to_typed_term().unwrap() {
-                    TypedTerm::BigInteger(right_big_integer) => {
-                        let left_big_int: BigInt = left_small_integer.into();
-                        let right_big_int: &BigInt = right_big_integer.as_ref().into();
+            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::BigInteger(right_big_integer)) => {
+                let left_big_int: BigInt = left_small_integer.into();
+                let right_big_int: &BigInt = right_big_integer.as_ref().into();
 
-                        BigInts(left_big_int, right_big_int.clone())
-                    }
-                    TypedTerm::Float(right_float) => {
-                        let left_f64: f64 = left_small_integer.into();
-                        let right_f64 = right_float.into();
-
-                        Floats(left_f64, right_f64)
-                    }
-                    _ => Bad
-                }
+                BigInts(left_big_int, right_big_int.clone())
             }
-            (TypedTerm::Boxed(left_unboxed), TypedTerm::SmallInteger(right_small_integer)) => {
-                match left_unboxed.to_typed_term().unwrap() {
-                    TypedTerm::BigInteger(left_big_integer) => {
-                        let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                        let right_big_int: BigInt = right_small_integer.into();
+            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::Float(right_float)) => {
+                let left_f64: f64 = left_small_integer.into();
+                let right_f64 = right_float.into();
 
-                        BigInts(left_big_int.clone(), right_big_int)
-                    }
-                    TypedTerm::Float(left_float) => {
-                        let left_f64 = left_float.into();
-                        let right_f64: f64 = right_small_integer.into();
-
-                        Floats(left_f64, right_f64)
-                    }
-                    _ => Bad
-                }
+                Floats(left_f64, right_f64)
             }
-            (TypedTerm::Boxed(left_unboxed), TypedTerm::Boxed(right_unboxed)) => {
-                match (left_unboxed.to_typed_term().unwrap(), right_unboxed.to_typed_term().unwrap()) {
-                    (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
-                        let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                        let right_big_int: &BigInt = right_big_integer.as_ref().into();
+            (TypedTerm::BigInteger(left_big_integer), TypedTerm::SmallInteger(right_small_integer)) => {
+                let left_big_int: &BigInt = left_big_integer.as_ref().into();
+                let right_big_int: BigInt = right_small_integer.into();
 
-                        BigInts(left_big_int.clone(), right_big_int.clone())
-                    }
-                    (TypedTerm::BigInteger(left_big_integer), TypedTerm::Float(right_float)) => {
-                        let left_f64: f64 = left_big_integer.into();
-                        let right_f64 = right_float.into();
+                BigInts(left_big_int.clone(), right_big_int)
+            }
+            (TypedTerm::Float(left_float), TypedTerm::SmallInteger(right_small_integer)) => {
+                let left_f64 = left_float.into();
+                let right_f64: f64 = right_small_integer.into();
 
-                        Floats(left_f64, right_f64)
-                    }
-                    (TypedTerm::Float(left_float), TypedTerm::BigInteger(right_big_integer)) => {
-                        let left_f64 = left_float.into();
-                        let right_f64: f64 = right_big_integer.into();
+                Floats(left_f64, right_f64)
+            }
+            (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
+                let left_big_int: &BigInt = left_big_integer.as_ref().into();
+                let right_big_int: &BigInt = right_big_integer.as_ref().into();
 
-                        Floats(left_f64, right_f64)
-                    }
-                    (TypedTerm::Float(left_float), TypedTerm::Float(right_float)) => {
-                        let left_f64 = left_float.into();
-                        let right_f64 = right_float.into();
+                BigInts(left_big_int.clone(), right_big_int.clone())
+            }
+            (TypedTerm::BigInteger(left_big_integer), TypedTerm::Float(right_float)) => {
+                let left_f64: f64 = left_big_integer.into();
+                let right_f64 = right_float.into();
 
-                        Floats(left_f64, right_f64)
-                    }
-                    _ => Bad,
-                }
+                Floats(left_f64, right_f64)
+            }
+            (TypedTerm::Float(left_float), TypedTerm::BigInteger(right_big_integer)) => {
+                let left_f64 = left_float.into();
+                let right_f64: f64 = right_big_integer.into();
+
+                Floats(left_f64, right_f64)
+            }
+            (TypedTerm::Float(left_float), TypedTerm::Float(right_float)) => {
+                let left_f64 = left_float.into();
+                let right_f64 = right_float.into();
+
+                Floats(left_f64, right_f64)
             }
             _ => Bad
         };

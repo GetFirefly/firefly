@@ -10,7 +10,7 @@ use libeir_syntax_erl::ast::Module as ErlAstModule;
 use libeir_syntax_erl::lower_module;
 use libeir_syntax_erl::{Parse, ParseConfig, Parser};
 
-use liblumen_alloc::erts::term::{atom_unchecked, Atom};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::scheduler::Scheduler;
 
@@ -79,7 +79,7 @@ run() -> yay.
     VM.modules.write().unwrap().register_erlang_module(eir_mod);
 
     let res = crate::call_result::call_run_erlang(init_arc_process, module, function, &[]);
-    assert!(res.result == Ok(atom_unchecked("yay")));
+    assert!(res.result == Ok(Atom::str_to_term("yay")));
 }
 
 #[test]
@@ -136,8 +136,8 @@ a() -> 1 + a.
 
     assert!(res.result.is_err());
     if let Err((typ, reason, _trace)) = res.result {
-        assert!(typ == atom_unchecked("error"));
-        assert!(reason == atom_unchecked("badarith"));
+        assert!(typ == Atom::str_to_term("error"));
+        assert!(reason == Atom::str_to_term("badarith"));
     }
 }
 
@@ -213,7 +213,7 @@ run() ->
 
     let res = crate::call_result::call_run_erlang(init_arc_process.clone(), module, function, &[]);
 
-    assert!(res.result == Ok(atom_unchecked("d")));
+    assert!(res.result == Ok(Atom::str_to_term("d")));
 }
 
 #[test]

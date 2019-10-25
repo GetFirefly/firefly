@@ -4,7 +4,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 
 use super::label_4;
@@ -41,7 +41,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(ok_body.is_tuple(), "ok_body ({:?}) is not a tuple", ok_body);
     let ok_body_tuple: Boxed<Tuple> = ok_body.try_into().unwrap();
     assert_eq!(ok_body_tuple.len(), 2);
-    assert_eq!(ok_body_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_body_tuple[0], Atom::str_to_term("ok"));
     let body = ok_body_tuple[1];
     assert!(body.is_resource_reference());
 

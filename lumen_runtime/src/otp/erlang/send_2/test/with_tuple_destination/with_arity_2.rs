@@ -66,7 +66,7 @@ fn with_float_name_errors_badarg() {
 
 #[test]
 fn with_local_pid_name_errors_badarg() {
-    with_name_errors_badarg(|_| make_pid(0, 1).unwrap());
+    with_name_errors_badarg(|_| Pid::make_term(0, 1).unwrap());
 }
 
 #[test]
@@ -102,7 +102,7 @@ where
         let destination = process
             .tuple_from_slice(&[name(process), erlang::node_0::native()])
             .unwrap();
-        let message = atom_unchecked("message");
+        let message = Atom::str_to_term("message");
 
         assert_badarg!(native(process, destination, message));
     })

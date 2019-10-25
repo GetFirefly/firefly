@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use liblumen_eir_interpreter::NativeModule;
 

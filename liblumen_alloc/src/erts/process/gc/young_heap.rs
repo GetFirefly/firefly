@@ -1,15 +1,15 @@
 use core::fmt;
 use core::mem;
+use core::slice;
 use core::ptr::{self, NonNull};
 
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 
+use crate::erts::*;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
-use crate::erts::term::{
-    binary_bytes, is_move_marker, Closure, Cons, HeapBin, MatchContext, ProcBin, SubBinary,
-};
-use crate::erts::*;
+use crate::erts::term::prelude::*;
+use crate::erts::string::Encoding;
 use crate::mem::bit_size_of;
 
 use super::*;
@@ -76,7 +76,7 @@ impl HeapAlloc for YoungHeap {
     }
 
     #[inline]
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized {
         self.contains(ptr) || self.vheap.contains(ptr)
     }
 }
@@ -262,7 +262,7 @@ impl YoungHeap {
     /// Returns true if the given pointer points into this heap
     #[allow(unused)]
     #[inline]
-    pub fn contains<T>(&self, term: *const T) -> bool {
+    pub fn contains<T>(&self, term: *const T) -> bool where T: ?Sized {
         in_area(term, self.start, self.top)
     }
 
@@ -300,14 +300,14 @@ impl YoungHeap {
                 // contain the size in words of the data, which we can use to skip over to the next
                 // term. In the case where the value resides on the heap, we can treat the box like
                 // an immediate
-                let ptr = term.boxed_val();
+                let ptr: *mut Term = term.dyn_cast();
                 last = pos;
                 pos = unsafe { pos.add(1) };
                 if ptr == pos {
                     // The boxed value is on the stack immediately following the box
                     let val = unsafe { *ptr };
                     assert!(val.is_header());
-                    let skip = val.arityval();
+                    let skip = val.arity();
                     pos = unsafe { pos.add(skip) };
                 } else {
                     assert!(
@@ -327,7 +327,7 @@ impl YoungHeap {
                 // introduces unnecessary complexity to lay out cons cells in memory
                 // where the head term is larger than one word. This constraint also
                 // makes allocating lists on the stack easier to reason about.
-                let ptr = term.list_val() as *mut Cons;
+                let ptr: *mut Cons = term.dyn_cast();
                 let mut next_ptr = pos as *mut Cons;
                 // If true, the first cell is correctly laid out contiguously with the list term
                 if ptr == next_ptr {
@@ -347,7 +347,7 @@ impl YoungHeap {
                         );
                         if cons.tail.is_non_empty_list() {
                             // The list continues, we need to check where it continues on the stack
-                            let next_cons = cons.tail.list_val();
+                            let next_cons: *mut Cons = cons.tail.dyn_cast();
                             if next_cons == next_ptr {
                                 // Yep, it is on the stack, contiguous with this cell
                                 cons = unsafe { *next_ptr };
@@ -366,7 +366,7 @@ impl YoungHeap {
                             break;
                         } else if cons.tail.is_boxed() {
                             // We've hit the end of an improper list, update `pos` and break out
-                            let box_ptr = cons.tail.boxed_val();
+                            let box_ptr: *mut Term = cons.tail.dyn_cast();
                             assert!(!in_area(box_ptr, next_ptr as *const Term, self.stack_end), "invalid stack-allocated list, elements must be an immediate or box");
                             pos = next_ptr as *mut Term;
                             break;
@@ -403,7 +403,7 @@ impl YoungHeap {
 
     /// Returns true if the given ProcBin is on this heap's virtual binary heap
     #[inline]
-    pub fn virtual_heap_contains<T>(&self, term: *const T) -> bool {
+    pub fn virtual_heap_contains<T>(&self, term: *const T) -> bool where T: ?Sized {
         self.vheap.contains(term)
     }
 
@@ -449,19 +449,7 @@ impl YoungHeap {
         while (pos as usize) < (self.top as usize) {
             let prev_pos = pos;
             let term = unsafe { *pos };
-            if term.is_boxed() {
-                if let Some(new_pos) = fun(self, term, pos) {
-                    pos = new_pos;
-                } else {
-                    break;
-                }
-            } else if term.is_non_empty_list() {
-                if let Some(new_pos) = fun(self, term, pos) {
-                    pos = new_pos;
-                } else {
-                    break;
-                }
-            } else if term.is_header() {
+            if term.is_boxed() || term.is_non_empty_list() || term.is_header() {
                 if let Some(new_pos) = fun(self, term, pos) {
                     pos = new_pos;
                 } else {
@@ -506,37 +494,35 @@ impl YoungHeap {
         // is too large to build a heap binary, then the original must be a ProcBin,
         // so we don't need to worry about it being collected out from under us
         // TODO: Handle other subtype cases, see erl_gc.h:60
-        if header.is_subbinary_header() {
+        if header.is_subbinary() {
             let bin = &*(ptr as *mut SubBinary);
             // Convert to HeapBin if applicable
-            if let Ok((bin_header, bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
+            if let Ok((bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
                 // Save space for box
                 let dst = heap_top.add(1);
                 // Create box pointing to new destination
-                let val = Term::make_boxed(dst);
+                let val: Term = dst.into();
                 ptr::write(heap_top, val);
-                let dst = dst as *mut HeapBin;
-                let new_bin_ptr = dst.add(1) as *mut u8;
-                // Copy referenced part of binary to heap
-                ptr::copy_nonoverlapping(bin_ptr, new_bin_ptr, bin_size);
-                // Write heapbin header
-                ptr::write(dst, HeapBin::from_raw_parts(bin_header, bin_flags));
+                // Allocate HeapBin at destination
+                let bytes = slice::from_raw_parts(bin_ptr, bin_size);
+                let bin = HeapBin::copy_slice_to(dst as *mut u8, bytes, Encoding::Raw);
                 // Write a move marker to the original location
-                let marker = Term::make_boxed(heap_top);
+                let marker: Term = heap_top.into();
                 ptr::write(orig, marker);
                 // Update `ptr` as well
                 ptr::write(ptr, marker);
-                // Update top pointer
-                self.top = new_bin_ptr.add(bin_size) as *mut Term;
+                // Update top pointer by offseting pointer past end of new HeapBin
+                let size = mem::size_of_val(bin.as_ref());
+                self.top = (dst as *mut u8).offset(size as isize) as *mut Term;
                 // We're done
-                return 1 + to_word_size(mem::size_of::<HeapBin>() + bin_size);
+                return 1 + to_word_size(size);
             }
         }
 
-        let num_elements = header.arityval();
+        let num_elements = header.arity();
         let moved = num_elements + 1;
 
-        let marker = Term::make_boxed(heap_top);
+        let marker: Term = heap_top.into();
         // Write the term header to the location pointed to by the boxed term
         ptr::write(heap_top, header);
         // Write the move marker to the original location
@@ -563,7 +549,7 @@ impl YoungHeap {
         let location = self.top as *mut Cons;
         ptr::write(location, cons);
         // New list value
-        let list = Term::make_list(location);
+        let list = location.into();
         // Redirect original reference
         ptr::write(orig, list);
         // Store forwarding indicator/address
@@ -594,10 +580,9 @@ impl YoungHeap {
         self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
             unsafe {
                 if term.is_boxed() {
-                    let ptr = term.boxed_val();
+                    let ptr: *mut Term = term.dyn_cast();
                     let boxed = *ptr;
-                    if is_move_marker(boxed) {
-                        assert!(boxed.is_boxed());
+                    if boxed.is_boxed() {
                         // Overwrite move marker with "real" boxed term
                         ptr::write(pos, boxed);
                     } else if in_area(ptr, mature, mature_end) {
@@ -615,7 +600,7 @@ impl YoungHeap {
                             // Then add the procbin to the old gen virtual heap
                             let marker = *ptr;
                             assert!(marker.is_boxed());
-                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
                             let bin = &*bin_ptr;
                             old.virtual_alloc(bin);
                         } else {
@@ -632,7 +617,7 @@ impl YoungHeap {
                             // Then add the procbin to the new virtual heap
                             let marker = *ptr;
                             assert!(marker.is_boxed());
-                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
                             let bin = &*bin_ptr;
                             heap.virtual_alloc(bin);
                         } else {
@@ -642,7 +627,7 @@ impl YoungHeap {
                     }
                     Some(pos.add(1))
                 } else if term.is_non_empty_list() {
-                    let ptr = term.list_val();
+                    let ptr: *mut Cons = term.dyn_cast();
                     let cons = *ptr;
                     if cons.is_move_marker() {
                         // Overwrite move marker with "real" list term
@@ -656,10 +641,10 @@ impl YoungHeap {
                     }
                     Some(pos.add(1))
                 } else if term.is_header() {
-                    if term.is_tuple_header() {
+                    if term.is_tuple() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.add(1))
-                    } else if term.is_closure_header() {
+                    } else if term.is_function() {
                         // Just as for tuples, we need to check elements within the closure env
                         Some(pos.add(Closure::base_size_words()))
                     } else if term.is_match_context() {
@@ -667,22 +652,23 @@ impl YoungHeap {
                         let base = ctx.base();
                         let orig = ctx.orig();
                         let orig_term = *orig;
-                        let ptr = orig_term.boxed_val();
+                        let ptr: *mut Term = orig_term.dyn_cast();
                         let bin = *ptr;
-                        if is_move_marker(bin) {
+                        if bin.is_boxed() {
+                            // `orig` was a move marker
                             ptr::write(orig, bin);
-                            ptr::write(base, binary_bytes(bin));
+                            ptr::write(base, bin.as_binary_ptr());
                         } else if in_area(ptr, mature, mature_end) {
                             // Move to old generation
                             old.move_into(orig, ptr, bin);
-                            ptr::write(base, binary_bytes(bin));
+                            ptr::write(base, bin.as_binary_ptr());
                         } else if !orig_term.is_literal() && !old.contains(ptr) {
                             heap.move_into(orig, ptr, bin);
-                            ptr::write(base, binary_bytes(bin));
+                            ptr::write(base, bin.as_binary_ptr());
                         }
-                        Some(pos.add(1 + (term.arityval())))
+                        Some(pos.add(1 + term.arity()))
                     } else {
-                        Some(pos.add(1 + (term.arityval())))
+                        Some(pos.add(1 + term.arity()))
                     }
                 } else {
                     Some(pos.add(1))
@@ -698,10 +684,9 @@ impl YoungHeap {
         self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
             unsafe {
                 if term.is_boxed() {
-                    let ptr = term.boxed_val();
+                    let ptr: *mut Term = term.dyn_cast();
                     let boxed = *ptr;
-                    if is_move_marker(boxed) {
-                        assert!(boxed.is_boxed());
+                    if boxed.is_boxed() {
                         // Overwrite move marker with "real" boxed term
                         ptr::write(pos, boxed);
                     } else if !term.is_literal() {
@@ -718,7 +703,7 @@ impl YoungHeap {
                             // Then add the procbin to the new virtual heap
                             let marker = *ptr;
                             assert!(marker.is_boxed());
-                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
                             let bin = &*bin_ptr;
                             heap.virtual_alloc(bin);
                         } else {
@@ -729,7 +714,7 @@ impl YoungHeap {
                     // Move past box pointer to next term
                     Some(pos.add(1))
                 } else if term.is_non_empty_list() {
-                    let ptr = term.list_val();
+                    let ptr: *mut Cons = term.dyn_cast();
                     let cons = *ptr;
                     if cons.is_move_marker() {
                         assert!(cons.tail.is_non_empty_list());
@@ -742,10 +727,10 @@ impl YoungHeap {
                     // Move past list pointer to next term
                     Some(pos.add(1))
                 } else if term.is_header() {
-                    if term.is_tuple_header() {
+                    if term.is_tuple() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.add(1))
-                    } else if term.is_closure_header() {
+                    } else if term.is_function() {
                         // Just as for tuples, we need to check elements within the closure env
                         Some(pos.add(Closure::base_size_words()))
                     } else if term.is_match_context() {
@@ -753,18 +738,19 @@ impl YoungHeap {
                         let base = ctx.base();
                         let orig = ctx.orig();
                         let orig_term = *orig;
-                        let ptr = orig_term.boxed_val();
+                        let ptr: *mut Term = orig_term.dyn_cast();
                         let bin = *ptr;
-                        if is_move_marker(bin) {
+                        if bin.is_boxed() {
+                            // `orig` was a move marker
                             ptr::write(orig, bin);
-                            ptr::write(base, binary_bytes(bin));
+                            ptr::write(base, bin.as_binary_ptr());
                         } else if !orig_term.is_literal() {
                             heap.move_into(orig, ptr, bin);
-                            ptr::write(base, binary_bytes(bin));
+                            ptr::write(base, bin.as_binary_ptr());
                         }
-                        Some(pos.add(1 + (term.arityval())))
+                        Some(pos.add(1 + term.arity()))
                     } else {
-                        Some(pos.add(1 + (term.arityval())))
+                        Some(pos.add(1 + term.arity()))
                     }
                 } else {
                     Some(pos.add(1))
@@ -855,12 +841,7 @@ impl fmt::Debug for YoungHeap {
             unsafe {
                 let term = &*pos;
 
-                let arityval = if term.has_no_arity() {
-                    0
-                } else {
-                    assert!(term.is_header());
-                    term.arityval()
-                };
+                let skip = term.sizeof();
 
                 f.write_fmt(format_args!(
                     "  {:?}: {:0bit_len$b} {:?}\n",
@@ -869,7 +850,7 @@ impl fmt::Debug for YoungHeap {
                     term,
                     bit_len = (bit_size_of::<usize>())
                 ))?;
-                pos = pos.add(1 + arityval);
+                pos = pos.add(1 + skip);
             }
         }
         f.write_str("  ==== END HEAP ====\n")?;
@@ -892,12 +873,7 @@ impl fmt::Debug for YoungHeap {
             unsafe {
                 let term = &*pos;
 
-                let arityval = if term.has_no_arity() {
-                    0
-                } else {
-                    assert!(term.is_header());
-                    term.arityval()
-                };
+                let skip = term.sizeof();
 
                 f.write_fmt(format_args!(
                     "  {:?}: {:0bit_len$b} {:?}\n",
@@ -906,7 +882,7 @@ impl fmt::Debug for YoungHeap {
                     term,
                     bit_len = (bit_size_of::<usize>())
                 ))?;
-                pos = pos.add(1 + arityval);
+                pos = pos.add(1 + skip);
             }
         }
         f.write_str("]\n")
@@ -982,7 +958,7 @@ mod tests {
 
         // Allocate the list `[101, :foo]` on the stack
         let num = Term::make_smallint(101);
-        let foo = unsafe { Atom::try_from_str("foo").unwrap().as_term() };
+        let foo = unsafe { Atom::try_from_str("foo").unwrap().decode() };
         let _list_term = HeaplessListBuilder::new(&mut yh)
             .push(num)
             .push(foo)

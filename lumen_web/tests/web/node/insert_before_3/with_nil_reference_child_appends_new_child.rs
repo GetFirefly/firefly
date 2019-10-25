@@ -11,7 +11,7 @@ pub mod label_5;
 #[path = "./with_nil_reference_child_appends_new_child/label_6.rs"]
 pub mod label_6;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 fn function() -> Atom {
     Atom::try_from_str("insert_before_3_with_nil_reference_child_appends_new_child").unwrap()

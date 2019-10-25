@@ -3,7 +3,7 @@ use core::result::Result;
 
 use num_bigint::BigInt;
 
-use liblumen_alloc::erts::term::{list, Atom, Boxed, Cons, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn is(term: Term) -> bool {
     match term.to_typed_term().unwrap() {

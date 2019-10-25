@@ -13,7 +13,7 @@ use web_sys::{Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement,
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{resource, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.Node").unwrap()

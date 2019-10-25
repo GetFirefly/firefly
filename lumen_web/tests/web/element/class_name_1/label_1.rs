@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, resource, Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 
 use web_sys::Window;
@@ -38,7 +38,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     );
     let ok_window_tuple: Boxed<Tuple> = ok_window.try_into().unwrap();
     assert_eq!(ok_window_tuple.len(), 2);
-    assert_eq!(ok_window_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_window_tuple[0], Atom::str_to_term("ok"));
     let window = ok_window_tuple[1];
     let window_reference: resource::Reference = window.try_into().unwrap();
     let _: &Window = window_reference.downcast_ref().unwrap();

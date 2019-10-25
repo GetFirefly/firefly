@@ -10,14 +10,14 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
     with_timer(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
 
-        let message = atom_unchecked("different");
+        let message = Atom::str_to_term("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
         assert!(!has_message(process, timeout_message));
 
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
 
         let received_message = receive_message(process).unwrap();
@@ -29,7 +29,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
 
         let received_tuple = received_tuple_result.unwrap();
 
-        assert_eq!(received_tuple[0], atom_unchecked("cancel_timer"));
+        assert_eq!(received_tuple[0], Atom::str_to_term("cancel_timer"));
         assert_eq!(received_tuple[1], timer_reference);
 
         let milliseconds_remaining = received_tuple[2];
@@ -45,7 +45,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         // again before timeout
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(receive_message(process), Some(false_cancel_timer_message));
 
@@ -56,7 +56,7 @@ fn without_timeout_returns_milliseconds_remaining_and_does_not_send_timeout_mess
         // again after timeout
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(receive_message(process), Some(false_cancel_timer_message))
     });
@@ -68,7 +68,7 @@ fn with_timeout_returns_ok_after_timeout_message_was_sent() {
         timeout_after_half(milliseconds, barrier);
         timeout_after_half(milliseconds, barrier);
 
-        let message = atom_unchecked("different");
+        let message = Atom::str_to_term("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
         assert_eq!(receive_message(process), Some(timeout_message));
@@ -77,14 +77,14 @@ fn with_timeout_returns_ok_after_timeout_message_was_sent() {
 
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(receive_message(process), Some(cancel_timer_message));
 
         // again
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(receive_message(process), Some(cancel_timer_message));
     });
@@ -105,13 +105,13 @@ where
 
     let different_thread = thread::spawn(move || {
         let different_thread_process_arc = process::test(&different_thread_same_thread_process_arc);
-        let same_thread_pid = unsafe { different_thread_same_thread_process_arc.pid().as_term() };
+        let same_thread_pid = unsafe { different_thread_same_thread_process_arc.pid().encode() };
 
         let timer_reference = erlang::start_timer_3::native(
             different_thread_process_arc.clone(),
             different_thread_process_arc.integer(milliseconds).unwrap(),
             same_thread_pid,
-            atom_unchecked("different"),
+            Atom::str_to_term("different"),
         )
         .unwrap();
 
@@ -119,7 +119,7 @@ where
             &different_thread_process_arc,
             same_thread_pid,
             different_thread_process_arc
-                .tuple_from_slice(&[atom_unchecked("timer_reference"), timer_reference])
+                .tuple_from_slice(&[Atom::str_to_term("timer_reference"), timer_reference])
                 .unwrap(),
         )
         .expect("Different thread could not send to same thread");

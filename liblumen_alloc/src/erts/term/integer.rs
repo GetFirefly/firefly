@@ -12,7 +12,14 @@ use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ops::*;
 
-use crate::erts::{AsTerm, Term};
+use super::prelude::Boxed;
+
+/// This error type is used to indicate that a value cannot be converted to an integer
+#[derive(Debug)]
+pub enum TryIntoIntegerError {
+    Type,
+    OutOfRange,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TryFromIntError;
@@ -242,6 +249,14 @@ impl PartialEq<BigInteger> for Integer {
         }
     }
 }
+impl<T> PartialEq<Boxed<T>> for Integer
+where
+    Integer: PartialEq<T>,
+{
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        self.eq(other.as_ref())
+    }
+}
 impl Eq for Integer {}
 impl Ord for Integer {
     #[inline]
@@ -278,6 +293,14 @@ impl PartialOrd<BigInteger> for Integer {
         }
     }
 }
+impl<T> PartialOrd<Boxed<T>> for Integer
+where
+    Integer: PartialOrd<T>,
+{
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        self.partial_cmp(other.as_ref())
+    }
+}
 impl Debug for Integer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -301,14 +324,6 @@ impl Hash for Integer {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         unwrap_integer_self!(self => value => { value.hash(state) })
-    }
-}
-unsafe impl AsTerm for Integer {
-    unsafe fn as_term(&self) -> Term {
-        match self {
-            &Self::Small(ref i) => i.as_term(),
-            &Self::Big(ref i) => i.as_term(),
-        }
     }
 }
 

@@ -10,7 +10,7 @@ use std::convert::TryInto;
 use liblumen_alloc::badmap;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Map, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -22,11 +22,11 @@ pub fn native(process: &Process, key: Term, map: Term) -> exception::Result {
         Ok(map) => {
             let result = match map.get(key) {
                 Some(term) => {
-                    let ok = atom_unchecked("ok");
+                    let ok = Atom::str_to_term("ok");
 
                     process.tuple_from_slice(&[ok, term]).unwrap()
                 }
-                None => atom_unchecked("error"),
+                None => Atom::str_to_term("error"),
             };
 
             Ok(result.into())

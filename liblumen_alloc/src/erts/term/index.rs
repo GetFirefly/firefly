@@ -1,28 +1,21 @@
 use core::convert::{TryFrom, TryInto};
-use core::fmt::{self, Display};
+use core::fmt;
 
-use crate::erts::term::{BigInteger, Boxed, SmallInteger, Term, TryIntoIntegerError, TypedTerm};
+use super::prelude::*;
 
-pub fn try_from_one_based_term_to_zero_based_usize(index_term: Term) -> Result<usize, Error> {
-    let index_one_based: OneBased = index_term.try_into()?;
-    let index_zero_based: ZeroBased = index_one_based.into();
-
-    Ok(index_zero_based.into())
-}
-
+/// This error type is produced when an index is invalid, either due
+/// to type or range
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Error {
+pub enum IndexError {
     BadArgument,
     OutOfBounds { len: usize, index: usize },
 }
-
-impl Error {
+impl IndexError {
     pub fn new(index: usize, len: usize) -> Self {
         Self::OutOfBounds { len, index }
     }
 }
-
-impl Display for Error {
+impl fmt::Display for IndexError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::OutOfBounds { len, index } => {
@@ -32,67 +25,111 @@ impl Display for Error {
         }
     }
 }
-
-impl From<TryIntoIntegerError> for Error {
+impl From<TryIntoIntegerError> for IndexError {
     fn from(_: TryIntoIntegerError) -> Self {
         Self::BadArgument
     }
 }
-
-pub struct OneBased(usize);
-
-impl TryFrom<Boxed<BigInteger>> for OneBased {
-    type Error = Error;
-
-    fn try_from(boxed_big_integer: Boxed<BigInteger>) -> Result<Self, Self::Error> {
-        let u: usize = boxed_big_integer.try_into()?;
-
-        Ok(OneBased(u))
+impl From<core::num::TryFromIntError> for IndexError {
+    fn from(_: core::num::TryFromIntError) -> Self {
+        Self::BadArgument
     }
 }
 
-impl TryFrom<SmallInteger> for OneBased {
-    type Error = Error;
-
-    fn try_from(small_integer: SmallInteger) -> Result<Self, Self::Error> {
-        match small_integer.try_into() {
-            Ok(u) if 0 < u => Ok(OneBased(u)),
-            _ => Err(Error::BadArgument),
+/// Represents indices which start at 1 and progress upwards
+#[repr(transparent)]
+pub struct OneBasedIndex(usize);
+impl OneBasedIndex {
+    #[inline]
+    pub fn new(i: usize) -> Result<Self, IndexError> {
+        if i > 0 {
+            Ok(Self(i))
+        } else {
+            Err(IndexError::BadArgument)
         }
     }
 }
+/*
+impl TryFrom<BigInteger> for OneBasedIndex {
+    type Error = IndexError;
 
-impl TryFrom<Term> for OneBased {
-    type Error = Error;
+    fn try_from(n: BigInteger) -> Result<Self, Self::Error> {
+        Self::new(n.into())
+    }
+}
+impl TryFrom<Boxed<BigInteger>> for OneBasedIndex {
+    type Error = IndexError;
+
+    fn try_from(n: Boxed<BigInteger>) -> Result<Self, Self::Error> {
+        Self::new(n.into())
+    }
+}
+*/
+impl TryFrom<SmallInteger> for OneBasedIndex {
+    type Error = IndexError;
+
+    fn try_from(n: SmallInteger) -> Result<Self, Self::Error> {
+        Self::new(n.try_into()?)
+    }
+}
+impl TryFrom<Term> for OneBasedIndex {
+    type Error = IndexError;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+        term.decode().unwrap().try_into()
     }
 }
+impl TryFrom<TypedTerm> for OneBasedIndex {
+    type Error = IndexError;
 
-impl TryFrom<TypedTerm> for OneBased {
-    type Error = Error;
-
-    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
-        match typed_term {
-            TypedTerm::SmallInteger(small_integer) => small_integer.try_into(),
-            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
-            TypedTerm::BigInteger(big_integer) => big_integer.try_into(),
-            _ => Err(Error::BadArgument),
+    fn try_from(term: TypedTerm) -> Result<Self, Self::Error> {
+        match term {
+            TypedTerm::SmallInteger(n) => n.try_into().map_err(|_| IndexError::BadArgument),
+            //TypedTerm::BigInteger(n) => Self::new((*n.as_ref()).into()),
+            _ => Err(IndexError::BadArgument),
         }
     }
 }
-
-pub struct ZeroBased(usize);
-
-impl From<OneBased> for ZeroBased {
-    fn from(one_based: OneBased) -> ZeroBased {
-        ZeroBased(one_based.0 - 1)
+impl Into<usize> for OneBasedIndex {
+    fn into(self) -> usize {
+        self.0
     }
 }
 
-impl Into<usize> for ZeroBased {
-    fn into(self: ZeroBased) -> usize {
+/// Represents indices which start at 0 and progress upwards
+#[repr(transparent)]
+pub struct ZeroBasedIndex(usize);
+impl ZeroBasedIndex {
+    #[inline]
+    pub fn new(i: usize) -> Self {
+        Self(i)
+    }
+}
+impl TryFrom<Term> for ZeroBasedIndex {
+    type Error = IndexError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        term.decode().unwrap().try_into()
+    }
+}
+impl TryFrom<TypedTerm> for ZeroBasedIndex {
+    type Error = IndexError;
+
+    fn try_from(term: TypedTerm) -> Result<Self, Self::Error> {
+        match term {
+            TypedTerm::SmallInteger(n) => Ok(Self::new(n.try_into().map_err(|_| IndexError::BadArgument)?)),
+            //TypedTerm::BigInteger(n) => Ok(Self::new(n.try_into().map_err(|_| IndexError::BadArgument)?)),
+            _ => Err(IndexError::BadArgument)
+        }
+    }
+}
+impl From<OneBasedIndex> for ZeroBasedIndex {
+    fn from(i: OneBasedIndex) -> ZeroBasedIndex {
+        Self(i.0 - 1)
+    }
+}
+impl Into<usize> for ZeroBasedIndex {
+    fn into(self) -> usize {
         self.0
     }
 }

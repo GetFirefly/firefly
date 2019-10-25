@@ -1,7 +1,7 @@
 use proptest::arbitrary::any;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::test::strategy::term::NON_EXISTENT_ATOM_PREFIX;
 

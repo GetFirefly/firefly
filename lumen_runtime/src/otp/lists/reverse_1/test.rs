@@ -4,7 +4,7 @@ use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;(
 
 use crate::otp::lists::reverse_1::native;
 use crate::scheduler::with_process_arc;

@@ -8,7 +8,7 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::badarith;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, make_pid, SmallInteger, Term};
+use liblumen_alloc::erts::term::prelude::{SmallInteger, Term};
 
 use crate::otp::erlang::rem_2::native;
 use crate::process::SchedulerDependentAlloc;
@@ -83,7 +83,7 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
 
 #[test]
 fn with_atom_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| atom_unchecked("dividend"));
+    with_dividend_errors_badarith(|_| Atom::str_to_term("dividend"));
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn with_list_dividend_errors_badarith() {
 
 #[test]
 fn with_local_pid_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|_| make_pid(0, 1).unwrap());
+    with_dividend_errors_badarith(|_| Pid::make_term(0, 1).unwrap());
 }
 
 #[test]

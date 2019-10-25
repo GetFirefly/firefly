@@ -1,10 +1,10 @@
 use super::*;
 
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 #[test]
 fn without_true_or_false_is_false() {
-    let term = atom_unchecked("atom");
+    let term = Atom::str_to_term("atom");
 
     assert_eq!(native(term), false.into());
 }

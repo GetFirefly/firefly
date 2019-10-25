@@ -8,7 +8,7 @@ mod test;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -21,8 +21,8 @@ pub fn native(name: Term) -> exception::Result {
     let option = registry::atom_to_process(&atom).map(|arc_process| arc_process.pid());
 
     let term = match option {
-        Some(pid) => unsafe { pid.as_term() },
-        None => atom_unchecked("undefined"),
+        Some(pid) => unsafe { pid.decode() },
+        None => Atom::str_to_term("undefined"),
     };
 
     Ok(term)

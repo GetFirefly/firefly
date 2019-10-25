@@ -6,7 +6,7 @@ use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::{AsTerm, Atom};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::unregister_1::native;

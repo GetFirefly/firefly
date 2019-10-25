@@ -11,7 +11,7 @@ use crate::registry::pid_to_process;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Pid, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -25,7 +25,7 @@ pub fn native(process: &Process, pid: Term, item: Term) -> exception::Result {
     } else {
         match pid_to_process(&pid_pid) {
             Some(pid_arc_process) => process_info(&pid_arc_process, item_atom),
-            None => Ok(atom_unchecked("undefined")),
+            None => Ok(Atom::str_to_term("undefined")),
         }
     }
 }
@@ -74,8 +74,8 @@ fn process_info(process: &Process, item: Atom) -> exception::Result {
 fn registered_name(process: &Process) -> exception::Result {
     match *process.registered_name.read() {
         Some(registered_name) => {
-            let tag = atom_unchecked("registered_name");
-            let value = unsafe { registered_name.as_term() };
+            let tag = Atom::str_to_term("registered_name");
+            let value = registered_name.encode();
 
             process
                 .tuple_from_slice(&[tag, value])

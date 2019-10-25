@@ -7,9 +7,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{
-    atom_unchecked, make_pid, AsTerm, Boxed, SmallInteger, Term, Tuple,
-};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::cancel_timer_2::native;

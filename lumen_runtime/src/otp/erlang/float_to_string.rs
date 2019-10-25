@@ -2,7 +2,7 @@ use std::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn float_to_string(float: Term, options: Options) -> Result<String, runtime::Exception> {
     // `TryInto<f64> for Term` will convert integer terms to f64 too, which we don't want

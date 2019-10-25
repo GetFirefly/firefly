@@ -47,7 +47,7 @@ fn does_not_flush_existing_message() {
         let monitor_reference =
             monitor_2::native(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
 
-        let reason = atom_unchecked("normal");
+        let reason = Atom::str_to_term("normal");
         exit_1::place_frame_with_arguments(&monitored_arc_process, Placement::Replace, reason)
             .unwrap();
 
@@ -56,7 +56,7 @@ fn does_not_flush_existing_message() {
         assert!(monitored_arc_process.is_exiting());
         assert!(!monitoring_arc_process.is_exiting());
 
-        let tag = atom_unchecked("DOWN");
+        let tag = Atom::str_to_term("DOWN");
 
         assert!(has_message(
             &monitoring_arc_process,
@@ -92,8 +92,8 @@ fn prevents_future_messages() {
         let monitor_reference =
             monitor_2::native(&monitoring_arc_process, r#type(), monitored_pid_term).unwrap();
 
-        let reason = atom_unchecked("normal");
-        let tag = atom_unchecked("DOWN");
+        let reason = Atom::str_to_term("normal");
+        let tag = Atom::str_to_term("DOWN");
 
         assert!(!has_message(
             &monitoring_arc_process,

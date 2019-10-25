@@ -15,7 +15,7 @@ use hashbrown::HashMap;
 use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::term::{atom_unchecked, reference, Atom, Reference, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::CloneToProcess;
 use liblumen_alloc::Process;
 
@@ -145,7 +145,7 @@ impl Hierarchy {
         let (heap_fragment_message, heap_fragment) = match timeout {
             Timeout::Message => process_message.clone_to_fragment()?,
             Timeout::TimeoutTuple => {
-                let tag = atom_unchecked("timeout");
+                let tag = Atom::str_to_term("timeout");
                 let process_tuple =
                     process.tuple_from_slice(&[tag, process_reference, process_message])?;
 

@@ -2,8 +2,9 @@ use core::alloc::Layout;
 use core::ops::DerefMut;
 use core::ptr::NonNull;
 
+use crate::erts;
 use crate::erts::exception::system::Alloc;
-use crate::erts::{self, Term};
+use crate::erts::term::prelude::Term;
 
 pub trait StackAlloc {
     /// Perform a stack allocation of `size` words to hold a single term.

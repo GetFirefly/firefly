@@ -6,7 +6,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{Boxed, Closure, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir::chain::create_processes_2::label_3;
 

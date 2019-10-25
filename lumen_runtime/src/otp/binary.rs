@@ -2,10 +2,7 @@ use core::convert::TryInto;
 use core::ops::Range;
 
 use liblumen_alloc::erts::exception::Result;
-use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
-use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use liblumen_alloc::erts::term::binary::IterableBitstring;
-use liblumen_alloc::erts::term::{Bitstring, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
 
 use crate::binary::start_length_to_part_range;
@@ -65,7 +62,7 @@ pub fn bin_to_list(binary: Term, position: Term, length: Term, process: &Process
                 let byte_iter = byte_slice.iter();
                 let byte_term_iter = byte_iter.map(|byte| (*byte).into());
 
-                let list = process_control_block.list_from_iter(byte_term_iter)?;
+                let list = process.list_from_iter(byte_term_iter)?;
 
                 Ok(list)
             }

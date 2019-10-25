@@ -54,7 +54,7 @@ fn with_same_value_function_right_returns_false() {
 
                             Ok(())
                         };
-                        let creator = unsafe { arc_process.pid().as_term() };
+                        let creator = unsafe { arc_process.pid().decode() };
 
                         let left_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
@@ -107,7 +107,7 @@ fn with_different_function_right_returns_true() {
                     strategy::module_function_arity::arity(),
                 )
                     .prop_map(move |(module, function, arity)| {
-                        let creator = unsafe { arc_process.pid().as_term() };
+                        let creator = unsafe { arc_process.pid().decode() };
 
                         let left_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,

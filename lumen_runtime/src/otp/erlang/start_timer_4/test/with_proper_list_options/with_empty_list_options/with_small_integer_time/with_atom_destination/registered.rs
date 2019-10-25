@@ -34,7 +34,7 @@ fn with_different_process_sends_message_when_timer_expires() {
                     prop_assert!(timer_reference.is_local_reference());
 
                     let timeout_message = arc_process
-                        .tuple_from_slice(&[atom_unchecked("timeout"), timer_reference, message])
+                        .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
                         .unwrap();
 
                     prop_assert!(!has_message(&destination_arc_process, timeout_message));
@@ -90,7 +90,7 @@ fn with_same_process_sends_message_when_timer_expires() {
                 prop_assert!(timer_reference.is_local_reference());
 
                 let timeout_message = arc_process
-                    .tuple_from_slice(&[atom_unchecked("timeout"), timer_reference, message])
+                    .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
                     .unwrap();
 
                 prop_assert!(!has_message(&arc_process, timeout_message));

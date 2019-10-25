@@ -4,7 +4,7 @@ use std::convert::TryInto;
 
 use proptest::strategy::{Just, Strategy};
 
-use liblumen_alloc::erts::term::{Boxed, Cons};
+use liblumen_alloc::erts::term::prelude::{Boxed, Cons};
 
 use crate::process;
 
@@ -139,17 +139,17 @@ fn doc_test() {
         .tuple_from_slice(&[one, arc_process.integer(3).unwrap()])
         .unwrap();
 
-    let mary = atom_unchecked("mary");
+    let mary = Atom::str_to_term("mary");
     arc_process.put(mary, value).unwrap();
-    let had = atom_unchecked("had");
+    let had = Atom::str_to_term("had");
     arc_process.put(had, value).unwrap();
-    let a = atom_unchecked("a");
+    let a = Atom::str_to_term("a");
     arc_process.put(a, value).unwrap();
-    let little = atom_unchecked("little");
+    let little = Atom::str_to_term("little");
     arc_process.put(little, value).unwrap();
-    let dog = atom_unchecked("dog");
+    let dog = Atom::str_to_term("dog");
     arc_process.put(dog, other_value).unwrap();
-    let lamb = atom_unchecked("lamb");
+    let lamb = Atom::str_to_term("lamb");
     arc_process.put(lamb, value).unwrap();
 
     let list = native(&arc_process, value).unwrap();

@@ -5,8 +5,8 @@ use core::ops::*;
 
 use num_bigint::BigInt;
 
-use crate::erts::term::{Float, TypeError, TypedTerm};
-use crate::erts::{AsTerm, Term};
+use crate::erts::term::arch::{MIN_SMALLINT_VALUE, MAX_SMALLINT_VALUE};
+use crate::erts::term::prelude::*;
 
 use super::*;
 
@@ -15,8 +15,8 @@ use super::*;
 #[repr(transparent)]
 pub struct SmallInteger(pub(in crate::erts::term) isize);
 impl SmallInteger {
-    pub const MIN_VALUE: isize = Term::MIN_SMALLINT_VALUE;
-    pub const MAX_VALUE: isize = Term::MAX_SMALLINT_VALUE;
+    pub const MIN_VALUE: isize = MIN_SMALLINT_VALUE;
+    pub const MAX_VALUE: isize = MAX_SMALLINT_VALUE;
 
     /// Create new `SmallInteger` from an `isize` value, returning `Err`
     /// if the value is out of range
@@ -46,12 +46,7 @@ impl SmallInteger {
         Self(i)
     }
 }
-unsafe impl AsTerm for SmallInteger {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_smallint(self.0)
-    }
-}
+
 impl From<u8> for SmallInteger {
     fn from(n: u8) -> Self {
         unsafe { Self::new_unchecked(n as isize) }
@@ -137,6 +132,25 @@ impl TryFrom<isize> for SmallInteger {
 impl Into<isize> for SmallInteger {
     fn into(self) -> isize {
         self.0
+    }
+}
+#[cfg(target_pointer_width = "64")]
+impl Into<i32> for SmallInteger {
+    fn into(self) -> i32 {
+        self.0 as i32
+    }
+}
+#[cfg(target_pointer_width = "32")]
+impl TryInto<i32> for SmallInteger {
+    type Error = TryFromIntError;
+
+    fn try_into(self) -> Result<Self, Self::Error> {
+        self.0.try_into()
+    }
+}
+impl Into<i64> for SmallInteger {
+    fn into(self) -> i64 {
+        self.0 as i64
     }
 }
 impl Into<f64> for SmallInteger {
@@ -307,7 +321,7 @@ smallint_bitop_trait_impl!(BitXor, bitxor);
 impl PartialEq<Float> for SmallInteger {
     #[inline]
     fn eq(&self, other: &Float) -> bool {
-        (self.0 as f64).eq(&other.value)
+        (self.0 as f64).eq(&other.value())
     }
 }
 impl PartialEq<BigInteger> for SmallInteger {
@@ -331,10 +345,20 @@ impl PartialEq<isize> for SmallInteger {
         self.0.eq(other)
     }
 }
+impl<T> PartialEq<Boxed<T>> for SmallInteger
+where
+    T: PartialEq<SmallInteger>,
+{
+    #[inline]
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+
 impl PartialOrd<Float> for SmallInteger {
     #[inline]
     fn partial_cmp(&self, other: &Float) -> Option<Ordering> {
-        (self.0 as f64).partial_cmp(&other.value)
+        (self.0 as f64).partial_cmp(&other.value())
     }
 }
 impl PartialOrd<BigInteger> for SmallInteger {
@@ -343,12 +367,13 @@ impl PartialOrd<BigInteger> for SmallInteger {
         Some(BigInt::from(self.0 as i64).cmp(&other.value))
     }
 }
-
-impl TryFrom<Term> for SmallInteger {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+impl<T> PartialOrd<Boxed<T>> for SmallInteger
+where
+    T: PartialOrd<SmallInteger>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
 

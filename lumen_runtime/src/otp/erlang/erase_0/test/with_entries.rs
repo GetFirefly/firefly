@@ -4,7 +4,7 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Cons, Tuple};
+use liblumen_alloc::erts::term::prelude::{Atom, Boxed, Cons, Tuple};
 
 use crate::process;
 
@@ -12,8 +12,8 @@ use crate::process;
 fn without_heap_available_does_not_modify_dictionary() {
     let init_arc_process = process::test_init();
     let arc_process = crate::test::process(&init_arc_process, Default::default());
-    let key = atom_unchecked("key");
-    let value = atom_unchecked("value");
+    let key = Atom::str_to_term("key");
+    let value = Atom::str_to_term("value");
 
     arc_process.put(key, value).unwrap();
 
@@ -30,8 +30,8 @@ fn without_heap_available_does_not_modify_dictionary() {
 fn with_heap_available_erases_dictionary_and_returns_entries_as_list() {
     let init_arc_process = process::test_init();
     let arc_process = crate::test::process(&init_arc_process, Default::default());
-    let key = atom_unchecked("key");
-    let value = atom_unchecked("value");
+    let key = Atom::str_to_term("key");
+    let value = Atom::str_to_term("value");
 
     arc_process.put(key, value).unwrap();
 
@@ -62,7 +62,7 @@ fn with_heap_available_erases_dictionary_and_returns_entries_as_list() {
 
     assert_eq!(
         arc_process.get_value_from_key(key),
-        atom_unchecked("undefined")
+        Atom::str_to_term("undefined")
     );
 }
 
@@ -70,6 +70,6 @@ fn fill_heap(process: &Process) {
     {
         let mut heap = process.acquire_heap();
 
-        while let Ok(_) = heap.cons(atom_unchecked("hd"), atom_unchecked("tl")) {}
+        while let Ok(_) = heap.cons(Atom::str_to_term("hd"), Atom::str_to_term("tl")) {}
     }
 }

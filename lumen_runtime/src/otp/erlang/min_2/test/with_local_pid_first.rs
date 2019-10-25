@@ -21,7 +21,7 @@ fn with_number_atom_reference_function_or_port_second_returns_second() {
 
 #[test]
 fn with_lesser_local_pid_second_returns_second() {
-    min(|_, _| make_pid(0, 0).unwrap(), Second);
+    min(|_, _| Pid::make_term(0, 0).unwrap(), Second);
 }
 
 #[test]
@@ -31,12 +31,12 @@ fn with_same_local_pid_second_returns_first() {
 
 #[test]
 fn with_same_value_local_pid_second_returns_first() {
-    min(|_, _| make_pid(0, 1).unwrap(), First);
+    min(|_, _| Pid::make_term(0, 1).unwrap(), First);
 }
 
 #[test]
 fn with_greater_local_pid_second_returns_first() {
-    min(|_, _| make_pid(1, 1).unwrap(), First);
+    min(|_, _| Pid::make_term(1, 1).unwrap(), First);
 }
 
 #[test]
@@ -70,5 +70,5 @@ fn min<R>(second: R, which: FirstSecond)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::min(|_| make_pid(0, 1).unwrap(), second, which);
+    super::min(|_| Pid::make_term(0, 1).unwrap(), second, which);
 }

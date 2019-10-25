@@ -2,7 +2,7 @@ use super::*;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::registry;
 use crate::test::registered_name;

@@ -1,15 +1,26 @@
 #![allow(unused)]
+use std::mem;
+use std::collections::{HashMap, HashSet};
+
+use num_bigint::BigInt;
+
+use inkwell::AddressSpace;
 use inkwell::context::Context;
 use inkwell::module::Module as LLVMModule;
 use inkwell::module::Linkage;
 use inkwell::values::*;
-use inkwell::types::{IntType, BasicType};
+use inkwell::types::{IntType, BasicType, ArrayType};
 use inkwell::targets::Target;
+use inkwell::builder::Builder;
+use inkwell::attributes::{Attribute, AttributeLoc};
+use inkwell::basic_block::BasicBlock;
 
-use libeir_ir::{Module, FunctionIdent, Function};
-use libeir_ir::{ConstantContainer, Const, ConstValue, ConstValueKind};
+use libeir_ir::{Module, Block, FunctionIdent, Function};
+use libeir_ir::{Const, ConstKind};
+use libeir_ir::AtomicTerm;
 
-use liblumen_alloc::erts::term::constants;
+use liblumen_alloc::erts::term::Term;
+use liblumen_core::sys::sysconfg::MIN_ALIGN;
 
 use super::{Result, CodeGenError, Config};
 
@@ -92,7 +103,7 @@ fn declare_builtins(ctx: &Context,
     let mask = match int_ty.get_bit_width() {
         32 => MASK_PRIMARY_32 | MASK_LITERAL_32,
         64 => MASK_PRIMARY_64 | MASK_LITERAL_64,
-        bw => panic!("unsupported target bit width ({})!", bw);
+        bw => panic!("unsupported target bit width ({})!", bw)
     };
     let mask_val = int_ty.const_int(mask, /*signextend*/false);
     let ret_val = builder.build_call(ptrmask, &[boxed_ptr_val, mask_val], "llvm.unbox")
@@ -139,14 +150,13 @@ fn function(name: &FunctionIdent,
 
     // Lift all constants into the global constant pool
     for val in fun.iter_constants() {
-        let constant = fun.value_constant(val).unwrap();
-        let constant_value = fun.constant_container.const_value(constant);
-        let constant_kind = fun.constant_container.const_value_kind(constant_value);
+        let constant = fun.value_const(val).unwrap();
+        let constant_kind = fun.constant_container.const_kind(constant);
         define_constant(constant, constant_value, constant_kind, int_ty, ctx, module);
     }
 
     // Extract the lowering metadata for the function
-    let lowering = libeir_lowerutil::analyze(fun);
+    let lowering = libeir_lowerutils::analyze(fun);
     assert!(lowering.block_modes[entry_block].is_fun(), "entry block must be a function block");
 
     let block_graph = fun.block_graph();
@@ -352,11 +362,12 @@ fn lower_block(block: &Block,
     }
 }
 
-fn define_constant(constant: Const, value: ConstValue, kind: ConstValueKind, int_ty: IntType, ctx: &Context, module: &LLVMModule) {
+fn define_constant(constant: Const, kind: ConstKind, int_ty: IntType, ctx: &Context, module: &LLVMModule) {
     use inkwell::AddressSpace;
+    use liblumen_alloc::erts::term::arch::{arch64, arch32};
 
     match kind {
-        ConstValueKind::Atomic(AtomicTerm::Nil) => {
+        ConstKind::Atomic(AtomicTerm::Nil) => {
             if module.get_global("NIL").is_none() {
                 let nil_value = match int_ty.get_bit_width() {
                     32 => arch32::FLAG_NIL,
@@ -366,6 +377,7 @@ fn define_constant(constant: Const, value: ConstValue, kind: ConstValueKind, int
                 let const_val = int_ty.const_int(nil_value, false);
                 let global = module.add_global(int_ty, Some(AddressSpace::Const), "NIL");
                 global.set_initializer(const_val);
+                global.set_alignment(8);
             }
             return;
         }
@@ -378,7 +390,7 @@ fn define_constant(constant: Const, value: ConstValue, kind: ConstValueKind, int
         //     with the atoms in that array
         //   - Last but not least, replace all usages of each atom global with the calculated 
         //     atom id (derived from the index in the seed array)
-        ConstValueKind::Atomic(AtomicTerm::Atom(ref a)) => {
+        ConstKind::Atomic(AtomicTerm::Atom(ref a)) => {
             let i8_ty = ctx.i8_type();
             let value = a.value();
             let bytes = value
@@ -392,11 +404,12 @@ fn define_constant(constant: Const, value: ConstValue, kind: ConstValueKind, int
             global.set_initializer(value);
         }
         // All other atomics are handled uniformly
-        ConstValueKind::Atomic(atomic) => {
-            let name = format!("const{}", value.as_u32());
+        ConstKind::Atomic(atomic) => {
+            let name = format!("const{}", constant.as_u32());
             let (const_ty, const_val) = atomic_term_to_ty(atomic, int_ty, ctx);
             let global = module.add_global(const_ty, Some(AddressSpace::Const), name);
             global.set_initializer(const_val);
+            global.set_alignment(MIN_ALIGN);
             return;
         }
     }

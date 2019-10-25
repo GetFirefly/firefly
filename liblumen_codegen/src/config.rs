@@ -1,9 +1,10 @@
-use core::fmt;
-use core::ops::AsRef;
+use std::fmt;
+use std::convert::AsRef;
+use std::path::{Path, PathBuf};
 
 use super::llvm;
 use super::llvm::enums::*;
-use super::llvm::target::{Target, TargetMachine};
+use super::llvm::target::{Target, TargetData, TargetMachine};
 
 use super::{Result, CodeGenError};
 
@@ -30,7 +31,7 @@ impl ConfigBuilder {
         match llvm::target::from_triple(s) {
             Err(err) => Err(CodeGenError::InvalidTarget(err.to_string())),
             Ok(target) => {
-                let build_dir = Self::default_build_dir();
+                let build_dir = Self::default_build_dir(s);
                 Ok(Self {
                     target_triple: s.to_string(),
                     target_features: "".to_owned(),
@@ -47,10 +48,10 @@ impl ConfigBuilder {
         }
     }
 
-    fn default_build_dir() -> PathBuf {
+    fn default_build_dir(triple: &str) -> PathBuf {
         let cwd = std::env::current_dir()
             .expect("The current directory is inaccessible!");
-        let target_dir = &format!("_build/lumen/target/{}", s);
+        let target_dir = &format!("_build/lumen/target/{}", triple);
         cwd.join(Path::new(target_dir))
     }
 
@@ -108,12 +109,12 @@ impl ConfigBuilder {
 impl fmt::Debug for ConfigBuilder {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ConfigBuilder")
-            .field("target_triple", &self.target_triple),
-            .field("target_features", &self.target_features),
-            .field("target_cpu", &self.target_cpu),
-            .field("opt_level", &self.opt_level),
-            .field("relocation_mode", &self.relocation_mode),
-            .field("code_model", &self.code_model),
+            .field("target_triple", &self.target_triple)
+            .field("target_features", &self.target_features)
+            .field("target_cpu", &self.target_cpu)
+            .field("opt_level", &self.opt_level)
+            .field("relocation_mode", &self.relocation_mode)
+            .field("code_model", &self.code_model)
             .field("output_type", &self.output_type)
             .field("build_dir", &self.build_dir)
             .field("output_dir", &self.output_dir)
@@ -147,12 +148,12 @@ pub struct Config {
     opt_level: OptimizationLevel,
     relocation_mode: RelocMode,
     code_model: CodeModel,
-    output_type: OutputType::Assembly,
+    output_type: OutputType,
     build_dir: PathBuf,
     output_dir: PathBuf,
 }
 impl Config {
-    pub(in super) fn new(target_config: TargetConfig) -> Result<Self> {
+    pub(in super) fn new(target_config: ConfigBuilder) -> Result<Self> {
         let triple = target_config.target_triple;
         let cpu = target_config.target_cpu;
         let features = target_config.target_features;
@@ -161,7 +162,7 @@ impl Config {
         let code_model = target_config.code_model;
         let output_type = target_config.output_type;
         let target = target_config.target;
-        let target_machine = target.create_target_machine(
+        let machine = target.create_target_machine(
             triple.as_str(), 
             cpu.as_str(), 
             features.as_str(), 
@@ -169,9 +170,10 @@ impl Config {
             relocation_mode, 
             code_model
         );
-        match target_machine {
+        match machine {
             None => Err(CodeGenError::no_target_machine(triple, cpu, features)),
             Some(target_machine) => {
+                let target_data = target_machine.get_target_data();
                 Self {
                     target,
                     target_machine,

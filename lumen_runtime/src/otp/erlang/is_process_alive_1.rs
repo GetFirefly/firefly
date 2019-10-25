@@ -9,7 +9,7 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Pid, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::registry::pid_to_process;
 use lumen_runtime_macros::native_implemented_function;

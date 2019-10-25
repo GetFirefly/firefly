@@ -1,6 +1,10 @@
 use core::fmt;
 use core::str;
+use core::convert::{TryFrom, TryInto};
+
 use alloc::string::String;
+
+use super::term::prelude::{Term, TypedTerm, Atom, Encoded};
 
 /// Represents the original encoding of a binary
 ///
@@ -19,6 +23,48 @@ impl Encoding {
             Self::Latin1
         } else {
             Self::Utf8
+        }
+    }
+}
+// Support converting from atom terms to `Encoding` type
+impl TryFrom<Term> for Encoding {
+    type Error = InvalidEncodingNameError;
+
+    fn try_from(term: Term) -> Result<Self, Self::Error> {
+        match term.decode() {
+            Ok(TypedTerm::Atom(a)) => a.try_into(),
+            _ => Err(InvalidEncodingNameError::InvalidType(term)),
+        }
+    }
+}
+// Support converting from atom terms to `Encoding` type
+impl TryFrom<Atom> for Encoding {
+    type Error = InvalidEncodingNameError;
+
+    fn try_from(term: Atom) -> Result<Self, Self::Error> {
+        match term.name() {
+            "unicode" | "utf8" => Ok(Self::Utf8),
+            "latin1" => Ok(Self::Latin1),
+            name => Err(InvalidEncodingNameError::InvalidEncoding(name))
+        }
+    }
+}
+
+/// Represents an error that occurs when converting an atom encoding name to an `Encoding`
+pub enum InvalidEncodingNameError {
+    InvalidType(Term),
+    InvalidEncoding(&'static str),
+}
+impl fmt::Display for InvalidEncodingNameError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use InvalidEncodingNameError::*;
+        match self {
+            InvalidType(term) => write!(f, "Encoding ({:#?}) is not an atom", term),
+            InvalidEncoding(name) => write!(
+                f,
+                "Invalid encoding name, '{}' is not one of the supported values (latin1, unicode, or utf8)",
+                name
+            ),
         }
     }
 }

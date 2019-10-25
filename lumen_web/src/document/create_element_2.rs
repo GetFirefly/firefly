@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::binary_to_string::binary_to_string;
@@ -73,7 +73,7 @@ pub fn native(process: &Process, document: Term, tag: Term) -> exception::Result
     match document_document.create_element(&tag_string) {
         Ok(element) => ok_tuple(process, Box::new(element)),
         Err(_) => {
-            let tag_tag = atom_unchecked("tag");
+            let tag_tag = Atom::str_to_term("tag");
             let reason = process.tuple_from_slice(&[tag_tag, tag])?;
 
             let error = error();

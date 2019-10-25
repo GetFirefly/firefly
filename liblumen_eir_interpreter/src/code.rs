@@ -9,7 +9,7 @@ use liblumen_alloc::erts::process::code::result_from_exception;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::exec::CallExecutor;

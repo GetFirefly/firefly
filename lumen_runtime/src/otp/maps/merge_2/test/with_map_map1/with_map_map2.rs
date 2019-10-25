@@ -5,7 +5,7 @@ use std::convert::TryInto;
 use proptest::prop_assert;
 use proptest::strategy::Just;
 
-use liblumen_alloc::erts::term::{Boxed, Map};
+use liblumen_alloc::erts::term::prelude::{Boxed, Map};
 
 #[test]
 fn with_same_key_in_map1_and_map2_uses_value_from_map2() {

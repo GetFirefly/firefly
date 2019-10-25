@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use lumen_runtime::otp::erlang;
 
@@ -31,11 +31,11 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     erlang::spawn_opt_4::place_frame_with_arguments(
         arc_process,
         Placement::Replace,
-        atom_unchecked("Elixir.Chain"),
-        atom_unchecked("dom"),
+        Atom::str_to_term("Elixir.Chain"),
+        Atom::str_to_term("dom"),
         arc_process.list_from_slice(&[n])?,
         arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
-            atom_unchecked("min_heap_size"),
+            Atom::str_to_term("min_heap_size"),
             arc_process.integer(79 + n_usize * 5)?,
         ])?])?,
     )?;

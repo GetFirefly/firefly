@@ -7,7 +7,7 @@ mod test;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, error};
 
 use lumen_runtime_macros::native_implemented_function;
@@ -27,7 +27,7 @@ fn native(process: &Process, pid_or_port: Term) -> exception::Result {
 
                         Ok(true.into())
                     }
-                    None => Err(error!(atom_unchecked("noproc")).into()),
+                    None => Err(error!(Atom::str_to_term("noproc")).into()),
                 }
             }
         }

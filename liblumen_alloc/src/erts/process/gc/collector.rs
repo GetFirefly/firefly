@@ -9,7 +9,7 @@ use super::*;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc;
 use crate::erts::process::ProcessHeap;
-use crate::erts::term::{is_move_marker, ProcBin};
+use crate::erts::term::prelude::*;
 use crate::erts::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -135,9 +135,9 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                 let root: *mut Term = *(root as *const _);
                 let term = *root;
                 if term.is_boxed() {
-                    let ptr = term.boxed_val();
+                    let ptr: *mut Term = term.dyn_cast();
                     let boxed = *ptr;
-                    if is_move_marker(boxed) {
+                    if boxed.is_boxed() {
                         // Replace the boxed move marker with the "real" box
                         assert!(boxed.is_boxed());
                         ptr::write(root, boxed);
@@ -155,7 +155,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                             // Then add the procbin to the new virtual heap
                             let marker = *ptr;
                             assert!(marker.is_boxed());
-                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
                             let bin = &*bin_ptr;
                             new_heap.virtual_alloc(bin);
                         } else {
@@ -164,7 +164,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                         }
                     }
                 } else if term.is_non_empty_list() {
-                    let ptr = term.list_val();
+                    let ptr: *mut Cons = term.dyn_cast();
                     let cons = *ptr;
                     if cons.is_move_marker() {
                         // Replace the move marker with the "real" value
@@ -366,9 +366,9 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
             let root: *mut Term = *(root as *const _);
             let term = *root;
             if term.is_boxed() {
-                let ptr = term.boxed_val();
+                let ptr: *mut Term = term.dyn_cast();
                 let boxed = *ptr;
-                if is_move_marker(boxed) {
+                if boxed.is_boxed() {
                     // Replace the boxed move marker with the "real" box
                     assert!(boxed.is_boxed());
                     ptr::write(root, boxed);
@@ -384,7 +384,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                         // Then add the procbin to the new virtual heap
                         let marker = *ptr;
                         assert!(marker.is_boxed());
-                        let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                        let bin_ptr: *mut ProcBin = marker.dyn_cast();
                         let bin = &*bin_ptr;
                         self.heap.old.virtual_alloc(bin);
                     } else {
@@ -401,7 +401,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                         // Then add the procbin to the new virtual heap
                         let marker = *ptr;
                         assert!(marker.is_boxed());
-                        let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                        let bin_ptr: *mut ProcBin = marker.dyn_cast();
                         let bin = &*bin_ptr;
                         new_young.virtual_alloc(bin);
                     } else {
@@ -410,7 +410,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
                     }
                 }
             } else if term.is_non_empty_list() {
-                let ptr = term.list_val();
+                let ptr: *mut Cons = term.dyn_cast();
                 let cons = *ptr;
                 if cons.is_move_marker() {
                     // Replace the move marker with the "real" value

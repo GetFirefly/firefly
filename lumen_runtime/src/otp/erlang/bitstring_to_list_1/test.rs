@@ -5,9 +5,7 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use liblumen_alloc::erts::term::binary::{IterableBitstring, MaybePartialByte};
-use liblumen_alloc::erts::term::{SubBinary, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::bitstring_to_list_1::native;
 use crate::scheduler::with_process_arc;

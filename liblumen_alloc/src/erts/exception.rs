@@ -7,13 +7,10 @@ use core::num::TryFromIntError;
 
 use crate::erts::process::alloc::heap_alloc::MakePidError;
 use crate::erts::process::Process;
-use crate::erts::term::atom::AtomError;
-use crate::erts::term::atom::EncodingError;
-use crate::erts::term::list::ImproperList;
-use crate::erts::term::{
-    index, BoolError, BytesFromBinaryError, StrFromBinaryError, Term, TryIntoIntegerError,
-    TypeError,
-};
+
+use super::term::index::IndexError;
+use super::term::prelude::*;
+use super::string::InvalidEncodingNameError;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Exception {
@@ -129,8 +126,8 @@ impl From<BytesFromBinaryError> for Exception {
     }
 }
 
-impl From<EncodingError> for Exception {
-    fn from(encoding_error: EncodingError) -> Self {
+impl From<InvalidEncodingNameError> for Exception {
+    fn from(encoding_error: InvalidEncodingNameError) -> Self {
         Self::Runtime(encoding_error.into())
     }
 }
@@ -147,17 +144,17 @@ impl From<ImproperList> for Exception {
     }
 }
 
-impl From<index::Error> for Exception {
-    fn from(index_error: index::Error) -> Self {
+impl From<IndexError> for Exception {
+    fn from(index_error: IndexError) -> Self {
         Self::Runtime(index_error.into())
     }
 }
 
 impl From<MakePidError> for Exception {
-    fn from(make_pid_errror: MakePidError) -> Self {
+    fn from(make_pid_error: MakePidError) -> Self {
         use MakePidError::*;
 
-        match make_pid_errror {
+        match make_pid_error {
             Number | Serial => Self::Runtime(badarg!().into()),
             Alloc(error) => Self::System(error.into()),
         }

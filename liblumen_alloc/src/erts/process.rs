@@ -26,31 +26,30 @@ use intrusive_collections::{LinkedList, UnsafeRef};
 use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
+use crate::erts;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
-use crate::erts::process::alloc::layout_to_words;
-use crate::erts::term::{
-    atom_unchecked, pid, reference, Atom, Cons, Integer, Pid, ProcBin, Reference, Tuple,
-};
+use crate::erts::process::alloc::heap_alloc::MakePidError;
+use crate::erts::process::code::Code;
+use crate::erts::term::prelude::*;
+use crate::erts::term::reference;
 
 use super::*;
+
+use self::code::stack;
+use self::code::stack::frame::{Frame, Placement};
+use self::heap::ProcessHeap;
 
 pub use self::alloc::heap_alloc::{self, HeapAlloc};
 pub use self::alloc::{
     default_heap, heap, next_heap_size, StackAlloc, StackPrimitives, VirtualAlloc,
 };
-use self::code::stack;
-use self::code::stack::frame::{Frame, Placement};
 pub use self::flags::*;
 pub use self::flags::*;
 pub use self::gc::{GcError, RootSet};
-use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::monitor::Monitor;
 pub use self::priority::Priority;
-use crate::erts::process::alloc::heap_alloc::MakePidError;
-use crate::erts::process::code::Code;
-use crate::erts::term::BytesFromBinaryError;
 
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
 cfg_if::cfg_if! {
@@ -127,7 +126,7 @@ impl Process {
     ) -> Self {
         let heap = ProcessHeap::new(heap, heap_size);
         let off_heap = SpinLock::new(LinkedList::new(HeapFragmentAdapter::new()));
-        let pid = pid::next();
+        let pid = Pid::next();
 
         Self {
             flags: AtomicProcessFlags::new(ProcessFlags::Default),
@@ -237,7 +236,7 @@ impl Process {
     /// Same as `alloc_nofrag`, but takes a `Layout` rather than the size in words
     #[inline]
     pub unsafe fn alloc_nofrag_layout(&self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
-        let words = layout_to_words(layout);
+        let words = erts::to_word_size(layout.size());
         self.alloc_nofrag(words)
     }
 
@@ -386,7 +385,7 @@ impl Process {
     }
 
     pub fn pid_term(&self) -> Term {
-        unsafe { self.pid().as_term() }
+        unsafe { self.pid().encode().unwrap() }
     }
 
     // Send
@@ -486,6 +485,7 @@ impl Process {
     ) -> Result<Term, Alloc> {
         self.acquire_heap()
             .closure_with_env_from_slice(mfa, code, creator, slice)
+            .map(|term_ptr| term_ptr.into())
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
@@ -564,7 +564,9 @@ impl Process {
         scheduler_id: scheduler::ID,
         number: reference::Number,
     ) -> Result<Term, Alloc> {
-        self.acquire_heap().reference(scheduler_id, number)
+        self.acquire_heap()
+            .reference(scheduler_id, number)
+            .map(|ref_ptr| ref_ptr.into())
     }
 
     pub fn resource(&self, value: Box<dyn Any>) -> Result<Term, Alloc> {
@@ -579,28 +581,36 @@ impl Process {
         full_byte_len: usize,
         partial_byte_bit_len: u8,
     ) -> Result<Term, Alloc> {
-        self.acquire_heap().subbinary_from_original(
-            original,
-            byte_offset,
-            bit_offset,
-            full_byte_len,
-            partial_byte_bit_len,
-        )
+        self.acquire_heap()
+            .subbinary_from_original(
+                original,
+                byte_offset,
+                bit_offset,
+                full_byte_len,
+                partial_byte_bit_len,
+            )
+            .map(|sub_ptr| sub_ptr.into())
     }
 
     pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> Result<Term, Alloc>
     where
         I: Iterator<Item = Term>,
     {
-        self.acquire_heap().tuple_from_iter(iterator, len)
+        self.acquire_heap()
+            .tuple_from_iter(iterator, len)
+            .map(|tup_ptr| tup_ptr.into())
     }
 
     pub fn tuple_from_slice(&self, slice: &[Term]) -> Result<Term, Alloc> {
-        self.acquire_heap().tuple_from_slice(slice)
+        self.acquire_heap()
+            .tuple_from_slice(slice)
+            .map(|tup_ptr| tup_ptr.into())
     }
 
     pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> Result<Term, Alloc> {
-        self.acquire_heap().tuple_from_slices(slices)
+        self.acquire_heap()
+            .tuple_from_slices(slices)
+            .map(|tup_ptr| tup_ptr.into())
     }
 
     // Process Dictionary
@@ -652,13 +662,17 @@ impl Process {
         let dictionary = self.dictionary.lock();
 
         let len = dictionary.len();
-        let entry_need_in_words = Tuple::need_in_words_from_len(2);
+        let entry_need = Tuple::layout_for_len(2);
+        let entry_need_in_words = erts::to_word_size(entry_need.size());
         let need_in_words = Cons::need_in_words_from_len(len) + len * entry_need_in_words;
 
         if need_in_words <= heap.heap_available() {
             let entry_vec: Vec<Term> = dictionary
                 .iter()
-                .map(|(key, value)| heap.tuple_from_slice(&[*key, *value]).unwrap())
+                .map(|(key, value)| heap
+                     .tuple_from_slice(&[*key, *value])
+                     .unwrap()
+                     .into())
                 .collect();
 
             Ok(heap.list_from_slice(&entry_vec).unwrap())
@@ -709,13 +723,17 @@ impl Process {
         let mut dictionary = self.dictionary.lock();
 
         let len = dictionary.len();
-        let entry_need_in_words = Tuple::need_in_words_from_len(2);
+        let entry_need = Tuple::layout_for_len(2);
+        let entry_need_in_words = erts::to_word_size(entry_need.size());
         let need_in_words = Cons::need_in_words_from_len(len) + len * entry_need_in_words;
 
         if need_in_words <= heap.heap_available() {
             let entry_vec: Vec<Term> = dictionary
                 .drain()
-                .map(|(key, value)| heap.tuple_from_slice(&[key, value]).unwrap())
+                .map(|(key, value)| heap
+                     .tuple_from_slice(&[key, value])
+                     .unwrap()
+                     .into())
                 .collect();
 
             Ok(heap.list_from_slice(&entry_vec).unwrap())
@@ -814,7 +832,7 @@ impl Process {
 
     /// Returns true if the given pointer belongs to memory owned by this process
     #[inline]
-    pub fn is_owner<T>(&self, ptr: *const T) -> bool {
+    pub fn is_owner<T>(&self, ptr: *const T) -> bool where T: ?Sized {
         let mut heap = self.heap.lock();
         if heap.is_owner(ptr) {
             return true;
@@ -884,7 +902,7 @@ impl Process {
 
     pub fn exit(&self) {
         self.reduce();
-        self.exception(exit!(atom_unchecked("normal")));
+        self.exception(exit!(Atom::str_to_term("normal")));
     }
 
     pub fn is_exiting(&self) -> bool {
@@ -990,8 +1008,9 @@ impl Process {
     }
 }
 
+#[inline]
 fn undefined() -> Term {
-    atom_unchecked("undefined")
+    Atom::str_to_term("undefined")
 }
 
 #[cfg(test)]

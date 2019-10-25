@@ -1,7 +1,7 @@
 use core::convert::{TryFrom, TryInto};
 
 use crate::erts::exception::runtime;
-use crate::erts::term::{Atom, Term, TypedTerm};
+use crate::erts::term::prelude::{Atom, Term, TypedTerm, Encoded};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Priority {
@@ -35,7 +35,7 @@ impl TryFrom<Term> for Priority {
     type Error = runtime::Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+        term.decode().unwrap().try_into()
     }
 }
 

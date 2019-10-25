@@ -4,7 +4,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, resource, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 
 use web_sys::Element;
@@ -42,7 +42,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok = arc_process.stack_pop().unwrap();
-    assert_eq!(ok, atom_unchecked("ok"));
+    assert_eq!(ok, Atom::str_to_term("ok"));
 
     let document = arc_process.stack_pop().unwrap();
     assert!(document.is_resource_reference());

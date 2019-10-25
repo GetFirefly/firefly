@@ -22,5 +22,5 @@ fn without_monitor_returns_true() {
 }
 
 fn options(process: &Process) -> Term {
-    process.list_from_slice(&[atom_unchecked("flush")]).unwrap()
+    process.list_from_slice(&[Atom::str_to_term("flush")]).unwrap()
 }

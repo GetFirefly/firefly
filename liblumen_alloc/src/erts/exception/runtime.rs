@@ -4,11 +4,9 @@ use core::result::Result;
 
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::Process;
-use crate::erts::term::atom::{AtomError, EncodingError};
-use crate::erts::term::list::ImproperList;
-use crate::erts::term::{
-    atom_unchecked, index, BoolError, Term, TryIntoIntegerError, TypeError, TypedTerm,
-};
+use crate::erts::string::InvalidEncodingNameError;
+use crate::erts::term::index::IndexError;
+use crate::erts::term::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Class {
@@ -23,7 +21,7 @@ impl TryFrom<Term> for Class {
     fn try_from(term: Term) -> Result<Class, Exception> {
         use self::Class::*;
 
-        match term.to_typed_term().unwrap() {
+        match term.decode().unwrap() {
             TypedTerm::Atom(atom) => match atom.name() {
                 "error" => Ok(Error { arguments: None }),
                 "exit" => Ok(Exit),
@@ -75,7 +73,7 @@ impl Exception {
         line: u32,
         column: u32,
     ) -> Result<Self, Alloc> {
-        let tag = atom_unchecked("badfun");
+        let tag = Atom::str_to_term("badfun");
         let reason = process.tuple_from_slice(&[tag, function])?;
 
         let error = Self::error(reason, None, None, file, line, column);
@@ -90,7 +88,7 @@ impl Exception {
         line: u32,
         column: u32,
     ) -> Result<Self, Alloc> {
-        let tag = atom_unchecked("badkey");
+        let tag = Atom::str_to_term("badkey");
         let reason = process.tuple_from_slice(&[tag, key])?;
         let error = Self::error(reason, None, None, file, line, column);
 
@@ -104,7 +102,7 @@ impl Exception {
         line: u32,
         column: u32,
     ) -> Result<Self, Alloc> {
-        let tag = atom_unchecked("badmap");
+        let tag = Atom::str_to_term("badmap");
         let reason = process.tuple_from_slice(&[tag, map])?;
         let error = Self::error(reason, None, None, file, line, column);
 
@@ -143,11 +141,11 @@ impl Exception {
     // Private
 
     fn badarg_reason() -> Term {
-        atom_unchecked("badarg")
+        Atom::str_to_term("badarg")
     }
 
     fn badarith_reason() -> Term {
-        atom_unchecked("badarith")
+        Atom::str_to_term("badarith")
     }
 
     fn badarity_reason(process: &Process, function: Term, arguments: Term) -> Result<Term, Alloc> {
@@ -157,7 +155,7 @@ impl Exception {
     }
 
     fn badarity_tag() -> Term {
-        atom_unchecked("badarity")
+        Atom::str_to_term("badarity")
     }
 
     fn error(
@@ -191,7 +189,7 @@ impl Exception {
     }
 
     fn undef_reason() -> Term {
-        atom_unchecked("undef")
+        Atom::str_to_term("undef")
     }
 
     fn undef_stacktrace(
@@ -227,8 +225,8 @@ impl From<BoolError> for Exception {
     }
 }
 
-impl From<EncodingError> for Exception {
-    fn from(_: EncodingError) -> Self {
+impl From<InvalidEncodingNameError> for Exception {
+    fn from(_: InvalidEncodingNameError) -> Self {
         badarg!()
     }
 }
@@ -239,8 +237,8 @@ impl From<ImproperList> for Exception {
     }
 }
 
-impl From<index::Error> for Exception {
-    fn from(_: index::Error) -> Self {
+impl From<IndexError> for Exception {
+    fn from(_: IndexError) -> Self {
         badarg!()
     }
 }
@@ -292,11 +290,9 @@ mod tests {
         use super::Class::*;
         use super::*;
 
-        use crate::erts::term::atom_unchecked;
-
         #[test]
         fn without_arguments_stores_none() {
-            let reason = atom_unchecked("badarg");
+            let reason = Atom::str_to_term("badarg");
 
             let error = error!(reason);
 
@@ -306,7 +302,7 @@ mod tests {
 
         #[test]
         fn without_arguments_stores_some() {
-            let reason = atom_unchecked("badarg");
+            let reason = Atom::str_to_term("badarg");
             let arguments = Term::NIL;
 
             let error = error!(reason, Some(arguments));

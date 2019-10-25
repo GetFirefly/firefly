@@ -6,7 +6,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, make_pid, SmallInteger, Term};
+use liblumen_alloc::erts::term::prelude::{SmallInteger, Term};
 
 use crate::otp::erlang::orelse_2::native;
 use crate::process::SchedulerDependentAlloc;

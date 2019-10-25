@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use liblumen_core::locks::RwLock;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{AsTerm, Atom, Pid, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{HeapAlloc, Process};
 
 use crate::process;
@@ -26,7 +26,7 @@ pub fn names(process: &Process) -> exception::Result {
     let mut heap = process.acquire_heap();
 
     for name in RW_LOCK_REGISTERED_BY_NAME.read().keys() {
-        let name_term = unsafe { name.as_term() };
+        let name_term = name.encode();
 
         acc = heap.cons(name_term, acc)?
     }

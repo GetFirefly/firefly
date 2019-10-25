@@ -3,7 +3,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::elixir::r#enum::reduce_range_dec_4;
@@ -34,15 +34,15 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     match enumerable.to_typed_term().unwrap() {
         TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
             TypedTerm::Map(map) => {
-                match map.get(atom_unchecked("__struct__")) {
+                match map.get(Atom::str_to_term("__struct__")) {
                     Some(struct_name) => {
-                        if struct_name == atom_unchecked("Elixir.Range") {
+                        if struct_name == Atom::str_to_term("Elixir.Range") {
                             // This assumes no one was cheeky and messed with the map
                             // representation of the struct
-                            let first_key = atom_unchecked("first");
+                            let first_key = Atom::str_to_term("first");
                             let first = map.get(first_key).unwrap();
 
-                            let last_key = atom_unchecked("last");
+                            let last_key = Atom::str_to_term("last");
                             let last = map.get(last_key).unwrap();
 
                             arc_process.reduce();

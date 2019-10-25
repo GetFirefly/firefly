@@ -3,7 +3,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::elixir::chain::dom_output_1::label_5;
 

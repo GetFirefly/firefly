@@ -5,9 +5,10 @@ use num_bigint::BigInt;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
 
 use crate::test::strategy;
+
+use super::*;
 
 pub fn is_one_based(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     (1_usize..std::usize::MAX)

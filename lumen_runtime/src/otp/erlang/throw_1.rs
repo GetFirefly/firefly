@@ -6,7 +6,7 @@
 mod test;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;(
 use liblumen_alloc::throw;
 
 use lumen_runtime_macros::native_implemented_function;

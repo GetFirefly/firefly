@@ -5,7 +5,7 @@ use libeir_ir::FunctionIdent;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{Process, Status};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::Scheduler;
@@ -77,7 +77,7 @@ impl VMState {
                         reason,
                         ..
                     } => {
-                        if *reason != atom_unchecked("normal") {
+                        if *reason != Atom::str_to_term("normal") {
                             panic!("Process exited: {:?}", reason);
                         } else {
                             panic!("yay!");

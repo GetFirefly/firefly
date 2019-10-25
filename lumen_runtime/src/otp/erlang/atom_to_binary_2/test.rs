@@ -4,7 +4,7 @@ use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::atom_to_binary_2::native;
 use crate::scheduler::with_process_arc;
@@ -54,7 +54,7 @@ fn with_atom_with_encoding_atom_returns_name_in_binary() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(any::<String>(), strategy::term::is_encoding())
-                    .prop_map(|(string, encoding)| (atom_unchecked(&string), encoding, string)),
+                    .prop_map(|(string, encoding)| (Atom::str_to_term(&string), encoding, string)),
                 |(atom, encoding, string)| {
                     prop_assert_eq!(
                         native(&arc_process, atom, encoding),

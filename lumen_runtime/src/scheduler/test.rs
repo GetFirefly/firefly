@@ -1,7 +1,7 @@
 mod spawn_apply_3;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::exit_1;
 use crate::scheduler::{with_process_arc, Scheduler};
@@ -12,7 +12,7 @@ fn scheduler_does_not_requeue_exiting_process() {
         exit_1::place_frame_with_arguments(
             &arc_process,
             Placement::Replace,
-            atom_unchecked("normal"),
+            Atom::str_to_term("normal"),
         )
         .unwrap();
 

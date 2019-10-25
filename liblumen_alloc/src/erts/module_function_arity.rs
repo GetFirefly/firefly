@@ -1,6 +1,6 @@
 use core::fmt::{self, Display};
 
-use crate::erts::term::Atom;
+use crate::erts::term::prelude::Atom;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModuleFunctionArity {

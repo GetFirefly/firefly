@@ -1,250 +1,217 @@
 use core::alloc::Layout;
-use core::cmp;
 use core::convert::{TryFrom, TryInto};
-use core::mem;
 use core::ptr;
 use core::slice;
 use core::str;
+use core::iter;
 
 use alloc::borrow::ToOwned;
 use alloc::string::String;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::{self, HeapAlloc};
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::term::Term;
-use crate::erts::term::{to_word_size, AsTerm, Boxed, TypeError, TypedTerm};
 use crate::erts::string::Encoding;
-use crate::erts::HeapAlloc;
+use crate::erts::term::prelude::*;
+use crate::erts::term::encoding::Header;
 
-use super::aligned_binary::AlignedBinary;
-use super::constants::*;
-use super::{ProcBin, BinaryLiteral};
-use super::{Bitstring, Original};
+use super::prelude::*;
 
 
 /// Process heap allocated binary, smaller than 64 bytes
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[repr(C)]
 pub struct HeapBin {
-    pub(super) header: Term,
-    flags: usize,
+    header: Header<HeapBin>,
+    flags: BinaryFlags,
+    data: [u8]
 }
-
 impl HeapBin {
     pub const MAX_SIZE: usize = 64;
-    // The size of the extra fields in bytes
-    const EXTRA_BYTE_LEN: usize = mem::size_of::<Self>() - mem::size_of::<usize>();
 
-    /// Create a new `HeapBin` header which will point to a binary of size `size`
-    #[inline]
-    pub fn new(size: usize) -> Self {
-        let words = to_word_size(size) + to_word_size(Self::EXTRA_BYTE_LEN);
-        Self {
-            header: Term::make_header(words, Term::FLAG_HEAPBIN),
-            flags: size | FLAG_IS_RAW_BIN,
-        }
-    }
-
-    /// Like `new`, but for latin1-encoded binaries
-    #[inline]
-    pub fn new_latin1(size: usize) -> Self {
-        let words = to_word_size(size) + to_word_size(Self::EXTRA_BYTE_LEN);
-        Self {
-            header: Term::make_header(words, Term::FLAG_HEAPBIN),
-            flags: size | FLAG_IS_LATIN1_BIN,
-        }
-    }
-    /// Like `new`, but for utf8-encoded binaries
-    #[inline]
-    pub fn new_utf8(size: usize) -> Self {
-        let words = to_word_size(size) + to_word_size(Self::EXTRA_BYTE_LEN);
-        Self {
-            header: Term::make_header(words, Term::FLAG_HEAPBIN),
-            flags: size | FLAG_IS_UTF8_BIN,
-        }
-    }
-
-    #[inline]
-    pub(in crate::erts) fn from_raw_parts(header: Term, flags: usize) -> Self {
-        Self { header, flags }
-    }
-
-    /// Returns true if this binary is a raw binary
-    #[inline]
-    pub fn is_raw(&self) -> bool {
-        self.flags & BIN_TYPE_MASK == FLAG_IS_RAW_BIN
-    }
-
-    /// Returns true if this binary is a Latin-1 binary
-    #[inline]
-    pub fn is_latin1(&self) -> bool {
-        self.flags & BIN_TYPE_MASK == FLAG_IS_LATIN1_BIN
-    }
-
-    /// Returns true if this binary is a UTF-8 binary
-    #[inline]
-    pub fn is_utf8(&self) -> bool {
-        self.flags & BIN_TYPE_MASK == FLAG_IS_UTF8_BIN
-    }
-
-    /// Returns a `Encoding` representing the encoding type of this binary
-    #[inline]
-    pub fn encoding(&self) -> Encoding {
-        super::encoding_from_flags(self.flags)
-    }
-
-    /// Returns the size of just the binary data of this HeapBin in bytes
-    #[inline]
-    pub fn size(&self) -> usize {
-        self.flags & !FLAG_MASK
-    }
-
-    /// Returns a raw pointer to the binary data underlying this `HeapBin`
+    /// Constructs a reference to a `HeapBin` given a pointer to
+    /// the memory containing the struct and the length of its variable-length
+    /// data
     ///
-    /// # Safety
+    /// # Implementation Details
     ///
-    /// This is only intended for use by garbage collection, in order to
-    /// update match context references. You should use `as_bytes` instead,
-    /// as it produces a byte slice which is safe to work with, whereas the
-    /// pointer returned here is not
-    #[inline]
-    pub(crate) fn bytes(&self) -> *mut u8 {
-        unsafe { (self as *const Self).add(1) as *mut u8 }
-    }
-
-    /// Get a `Layout` describing the necessary layout to allocate a `HeapBin` for the given string
-    #[inline]
-    pub fn layout(input: &str) -> Layout {
-        let size = mem::size_of::<Self>() + input.len();
-        unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
-    }
-
-    /// Get a `Layout` describing the necessary layout to allocate a `HeapBin` for the given byte
-    /// slice
-    #[inline]
-    pub fn layout_bytes(input: &[u8]) -> Layout {
-        let size = mem::size_of::<Self>() + input.len();
-        unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
-    }
-
-    /// Reifies a `HeapBin` from a raw, untagged, pointer
-    #[inline]
-    pub unsafe fn from_raw(term: *mut HeapBin) -> Self {
-        let hb = &*term;
-        hb.clone()
-    }
-
-    /// Converts this binary to a `&str` slice.
+    /// You should note that this struct is a dynamically-sized type (DST), and
+    /// as such, the rules around how you can use it is far more restrictive
+    /// than a typical statically sized struct. Notably, you can only ever
+    /// construct a reference to a HeapBin, you can't create a HeapBin directly;
+    /// clearly this seems like a chicken and egg problem since it is mostly
+    /// meaningless to construct references to things you can't create in the
+    /// first place.
     ///
-    /// This conversion does not move the string, it can be considered as
-    /// creating a new reference with a lifetime attached to that of `self`.
+    /// So you may be asking "how the hell does this even work?!", which is a
+    /// great question! Luckily it has a fairly straightforward, yet mind-bendy
+    /// explanation:
+    ///
+    /// If we redefined `HeapBin` as `HeapBin<T>`, where the `data` field has
+    /// type `T`, then we could say that the structural layout of `[HeapBin<u8>; 1]`
+    /// is equivalent to that of `HeapBin<[u8; 1]>`. This should make intuitive
+    /// sense, as the variable-length part of the structure occurs at the end, and
+    /// the layout of `[T; 1]` is equivalent to the layout of `T` itself.
+    ///
+    /// So given this structural equivalence, the second piece of the puzzle is
+    /// found in unsizing coercions performed by Rust. If we create a slice from
+    /// a pointer to the memory where the `HeapBin` is allocated, and the length
+    /// of the variable-sized component of that `HeapBin`; and then cast that
+    /// slice to a `*const HeapBin` - Rust will treat this as a coercion to an
+    /// unsized type, due to the fact that the `HeapBin` struct contains an unsized
+    /// field, and it is the last field in the struct [1].
+    ///
+    /// In effect, the pointer of our first slice acts as the base pointer for the
+    /// struct, and the layout rules for the sized fields are as you would expect.
+    /// Where things get confusing is that the length we gave to `slice::from_raw_parts`
+    /// is used as the length of the unsized slice at the end (i.e. the `data` field);
+    /// this is due to the unsizing coercion performed by Rust.
+    ///
+    /// - [1](https://github.com/rust-lang/rfcs/blob/master/text/0982-dst-coercion.md)
+    /// - [2](http://doc.rust-lang.org/1.38.0/std/marker/trait.Unsize.html)
     #[inline]
-    pub fn as_str<'a>(&'a self) -> &'a str {
-        assert!(
-            self.is_latin1() || self.is_utf8(),
-            "cannot convert a binary containing non-UTF-8/non-ASCII characters to &str"
-        );
+    pub(in crate::erts::term) unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
+        // Invariants of slice::from_raw_parts.
+        assert!(!ptr.is_null());
+        assert!(len <= isize::max_value() as usize);
+
+        let slice = core::slice::from_raw_parts(ptr as *const (), len);
+        Boxed::new_unchecked(slice as *const [()] as *mut Self)
+    }
+
+    /// Reifies a reference to a `HeapBin` from a pointer to `Term`
+    ///
+    /// It is expected that the `Term` on the other end is the header
+    #[inline]
+    pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
+        let header = &*(term as *mut Header<HeapBin>);
+        let arity = header.arity();
+
+        Self::from_raw_parts(term as *const u8, arity)
+    }
+
+    /// Creates a new `HeapBin` from a str slice, by copying it to the heap
+    pub fn from_str<A>(heap: &mut A, s: &str) -> Result<Boxed<Self>, Alloc> 
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        let encoding = Encoding::from_str(s);
+
+        Self::from_slice(heap, s.as_bytes(), encoding)
+    }
+
+    /// Creates a new `HeapBin` from a byte slice, by copying it to the heap
+    pub fn from_slice<A>(heap: &mut A, s: &[u8], encoding: Encoding) -> Result<Boxed<Self>, Alloc> 
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        let (layout, flags_offset, data_offset) = Self::layout_for(s);
+
         unsafe {
-            let bytes = slice::from_raw_parts(self.bytes(), self.full_byte_len());
-            str::from_utf8_unchecked(bytes)
+            match heap.alloc_layout(layout) {
+                Ok(non_null) => {
+                    Ok(Self::copy_slice_to_internal(non_null.as_ptr() as *mut u8, s, encoding, flags_offset, data_offset))
+                }
+                Err(_) => Err(alloc!()),
+            }
         }
+    }
+
+    /// Creates a new `HeapBin` at `dst` by copying the given slice.
+    ///
+    /// This function is very unsafe, and is currently only used in the garbage collector when
+    /// moving data that gets copied into a heap-allocated binary
+    pub(in crate::erts) unsafe fn copy_slice_to(dst: *mut u8, s: &[u8], encoding: Encoding) -> Boxed<Self> {
+        let (_layout, flags_offset, data_offset) = Self::layout_for(s);
+
+        Self::copy_slice_to_internal(dst, s, encoding, flags_offset, data_offset)
+    }
+
+    // This function handles the low-level parts of creating a `HeapBin` at the given pointer
+    #[inline]
+    unsafe fn copy_slice_to_internal(dst: *mut u8, s: &[u8], encoding: Encoding, flags_offset: usize, data_offset: usize) -> Boxed<Self> {
+        let len = s.len();
+        // Write header
+        let header = Header::from_arity(len);
+        ptr::write(dst as *mut Header<HeapBin>, header);
+        let flags_ptr = dst.offset(flags_offset as isize) as *mut BinaryFlags;
+        ptr::write(flags_ptr, BinaryFlags::new(encoding));
+        let data_ptr = dst.offset(data_offset as isize);
+        ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, len);
+
+        Self::from_raw_parts(dst, len)
+    }
+
+    fn layout_for(s: &[u8]) -> (Layout, usize, usize) {
+        let (base_layout, flags_offset) = Layout::new::<Term>()
+            .extend(Layout::new::<usize>())
+            .unwrap();
+        let (unpadded_layout, data_offset) = base_layout
+            .extend(Layout::for_value(s))
+            .unwrap();
+        // We pad to alignment so that the Layout produced here
+        // matches that returned by `Layout::for_value` on the
+        // final `HeapBin`
+        let layout = unpadded_layout
+            .pad_to_align()
+            .unwrap();
+
+        (layout, flags_offset, data_offset)
+    }
+
+    #[inline]
+    pub fn full_byte_iter<'a>(&'a self) -> iter::Copied<slice::Iter<'a, u8>> {
+        self.data.iter().copied()
     }
 }
 
 impl Bitstring for HeapBin {
+    #[inline]
     fn full_byte_len(&self) -> usize {
-        self.flags & !FLAG_MASK
+        self.data.len()
+    }
+
+    #[inline]
+    unsafe fn as_byte_ptr(&self) -> *mut u8 {
+        self.data.as_ptr() as *mut u8
+    }
+}
+
+impl Binary for HeapBin {
+    #[inline]
+    fn flags(&self) -> &BinaryFlags {
+        &self.flags
     }
 }
 
 impl AlignedBinary for HeapBin {
-    fn as_bytes(&self) -> &[u8] {
-        unsafe { slice::from_raw_parts(self.bytes(), self.full_byte_len()) }
-    }
-}
-
-impl AlignedBinary for Boxed<HeapBin> {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_ref().as_bytes()
-    }
-}
-
-impl Original for HeapBin {
-    fn byte(&self, index: usize) -> u8 {
-        let full_byte_len = self.full_byte_len();
-
-        assert!(
-            index < full_byte_len,
-            "index ({}) >= full_byte_len ({})",
-            index,
-            full_byte_len
-        );
-
-        unsafe { *self.bytes().add(index) }
-    }
-}
-
-unsafe impl AsTerm for HeapBin {
     #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self as *const Self)
+    fn as_bytes(&self) -> &[u8] {
+        &self.data
+    }
+}
+
+impl IndexByte for HeapBin {
+    #[inline]
+    fn byte(&self, index: usize) -> u8 {
+        self.data[index]
     }
 }
 
 impl CloneToProcess for HeapBin {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
-        let bin_size = self.full_byte_len();
-        let words = self.size_in_words();
-        unsafe {
-            // Allocate space for header + binary
-            let ptr = heap.alloc(words)?.as_ptr() as *mut Self;
-            // Copy header
-            ptr::copy_nonoverlapping(self as *const Self, ptr, mem::size_of::<Self>());
-            // Copy binary
-            let bin_ptr = ptr.add(1) as *mut u8;
-            ptr::copy_nonoverlapping(self.bytes(), bin_ptr, bin_size);
-            // Return term
-            Ok(Term::make_boxed(ptr))
-        }
+    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc> 
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        let encoding = self.encoding();
+        let ptr = HeapBin::from_slice(heap, &self.data, encoding)?;
+        Ok(ptr.into())
     }
 
     fn size_in_words(&self) -> usize {
-        to_word_size(self.size() + mem::size_of::<Self>())
-    }
-}
-
-impl Eq for HeapBin {}
-
-impl PartialEq<ProcBin> for Boxed<HeapBin> {
-    fn eq(&self, other: &ProcBin) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<BinaryLiteral> for Boxed<HeapBin> {
-    fn eq(&self, other: &BinaryLiteral) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialOrd<ProcBin> for Boxed<HeapBin> {
-    fn partial_cmp(&self, other: &ProcBin) -> Option<cmp::Ordering> {
-        other.partial_cmp(self).map(|ordering| ordering.reverse())
-    }
-}
-
-impl PartialOrd<BinaryLiteral> for Boxed<HeapBin> {
-    fn partial_cmp(&self, other: &BinaryLiteral) -> Option<cmp::Ordering> {
-        other.partial_cmp(self).map(|ordering| ordering.reverse())
-    }
-}
-
-impl TryFrom<Term> for Boxed<HeapBin> {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+        let layout = Layout::for_value(self);
+        erts::to_word_size(layout.size())
     }
 }
 
@@ -253,14 +220,13 @@ impl TryFrom<TypedTerm> for Boxed<HeapBin> {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
-            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
-            TypedTerm::HeapBinary(heap_binary) => Ok(heap_binary),
+            TypedTerm::HeapBinary(bin_ptr) => Ok(bin_ptr),
             _ => Err(TypeError),
         }
     }
 }
 
-impl TryInto<String> for Boxed<HeapBin> {
+impl TryInto<String> for &HeapBin {
     type Error = runtime::Exception;
 
     fn try_into(self) -> Result<String, Self::Error> {
@@ -271,9 +237,10 @@ impl TryInto<String> for Boxed<HeapBin> {
     }
 }
 
-impl TryInto<Vec<u8>> for Boxed<HeapBin> {
+impl TryInto<Vec<u8>> for &HeapBin {
     type Error = runtime::Exception;
 
+    #[inline]
     fn try_into(self) -> Result<Vec<u8>, Self::Error> {
         Ok(self.as_bytes().to_vec())
     }

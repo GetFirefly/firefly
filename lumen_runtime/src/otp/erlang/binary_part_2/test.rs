@@ -8,8 +8,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
-use liblumen_alloc::erts::term::binary::{Bitstring, IterableBitstring};
-use liblumen_alloc::erts::term::{Boxed, SubBinary, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::binary_part_2::native;
 use crate::scheduler::with_process_arc;

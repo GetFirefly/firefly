@@ -4,7 +4,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 /// ```elixir
 /// # label 2
@@ -31,7 +31,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok = arc_process.stack_pop().unwrap();
-    assert_eq!(ok, atom_unchecked("ok"));
+    assert_eq!(ok, Atom::str_to_term("ok"));
     let time_value = arc_process.stack_pop().unwrap();
 
     arc_process.return_from_call(time_value)?;

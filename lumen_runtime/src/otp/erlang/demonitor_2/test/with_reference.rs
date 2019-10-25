@@ -8,7 +8,7 @@ use super::*;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::exit_1;
 use crate::process;
@@ -76,5 +76,5 @@ fn unknown_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 fn r#type() -> Term {
-    atom_unchecked("process")
+    Atom::str_to_term("process")
 }

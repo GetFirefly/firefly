@@ -156,7 +156,7 @@ use alloc::sync::Arc;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::registry::pid_to_self_or_process;
 use crate::time::monotonic::{self, Milliseconds};
@@ -192,18 +192,18 @@ fn cancel_timer(
 
                         if options.r#async {
                             let cancel_timer_message = heap.tuple_from_slice(&[
-                                atom_unchecked("cancel_timer"),
+                                Atom::str_to_term("cancel_timer"),
                                 timer_reference,
                                 canceled_term,
                             ])?;
                             process.send_from_self(cancel_timer_message);
 
-                            atom_unchecked("ok")
+                            Atom::str_to_term("ok")
                         } else {
                             canceled_term
                         }
                     } else {
-                        atom_unchecked("ok")
+                        Atom::str_to_term("ok")
                     };
 
                     Ok(term)
@@ -270,13 +270,13 @@ fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Pr
 
                     let term = if options.r#async {
                         let read_timer_message = heap.tuple_from_slice(&[
-                            atom_unchecked("read_timer"),
+                            Atom::str_to_term("read_timer"),
                             timer_reference,
                             read_term,
                         ])?;
                         process.send_from_self(read_timer_message);
 
-                        atom_unchecked("ok")
+                        Atom::str_to_term("ok")
                     } else {
                         read_term
                     };

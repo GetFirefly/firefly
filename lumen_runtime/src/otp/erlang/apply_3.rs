@@ -13,8 +13,7 @@ use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::Process;
 #[cfg(test)]
-use liblumen_alloc::erts::term::TypedTerm;
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 
 #[cfg(test)]

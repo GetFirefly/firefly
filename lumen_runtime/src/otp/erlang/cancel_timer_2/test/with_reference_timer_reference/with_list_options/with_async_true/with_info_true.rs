@@ -21,12 +21,12 @@ fn with_big_integer_timer_reference_errors_badarg() {
 
 #[test]
 fn with_atom_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|_| atom_unchecked("atom"));
+    with_timer_reference_errors_badarg(|_| Atom::str_to_term("atom"));
 }
 
 #[test]
 fn with_local_pid_timer_reference_errors_badarg() {
-    with_timer_reference_errors_badarg(|_| make_pid(0, 0).unwrap());
+    with_timer_reference_errors_badarg(|_| Pid::make_term(0, 0).unwrap());
 }
 
 #[test]

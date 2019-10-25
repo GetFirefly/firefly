@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
 use liblumen_alloc::erts::process::{Priority, Process};
-use liblumen_alloc::erts::term::{Atom, Boxed, Cons, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 
 #[derive(Clone, Copy, Debug)]

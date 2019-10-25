@@ -6,7 +6,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{AsTerm, Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::CloneToProcess;
 
 use crate::otp::erlang;
@@ -27,8 +27,8 @@ pub fn apply_3(
 
     let child_process = options.spawn(Some(parent_process), module, function, arity)?;
 
-    let module_term = unsafe { module.as_term() };
-    let function_term = unsafe { function.as_term() };
+    let module_term = module.encode();
+    let function_term = function.encode();
     let heap_arguments = arguments.clone_to_process(&child_process);
 
     erlang::apply_3::place_frame_with_arguments(

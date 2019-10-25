@@ -4,7 +4,7 @@ use libeir_ir::{BasicType, Block, MatchKind, PrimOpKind};
 
 use liblumen_alloc::erts::exception::system;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::TypedTerm;
+use liblumen_alloc::erts::term::prelude::TypedTerm;
 
 use super::{CallExecutor, OpResult};
 use crate::module::ErlangFunction;

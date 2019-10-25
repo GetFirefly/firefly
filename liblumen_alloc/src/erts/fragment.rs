@@ -1,5 +1,6 @@
 use core::alloc::Layout;
 use core::ptr::{self, NonNull};
+use core::mem;
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
@@ -7,7 +8,7 @@ use intrusive_collections::{LinkedListLink, UnsafeRef};
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::{layout_from_word_size, Term, Tuple};
+use crate::erts::term::prelude::*;
 use crate::std_alloc;
 
 use super::HeapAlloc;
@@ -42,8 +43,8 @@ impl RawFragment {
 
     /// Returns true if the given pointer is contained within this fragment
     #[inline]
-    pub fn contains<T>(&self, ptr: *const T) -> bool {
-        let ptr = ptr as usize;
+    pub fn contains<T>(&self, ptr: *const T) -> bool where T: ?Sized {
+        let ptr = ptr as *const () as usize;
         let start = self.data as usize;
         let end = unsafe { self.data.add(self.size) } as usize;
         start <= ptr && ptr <= end
@@ -74,7 +75,7 @@ impl HeapFragment {
 
     /// Returns true if the given pointer is contained within this fragment
     #[inline]
-    pub fn contains<T>(&self, ptr: *const T) -> bool {
+    pub fn contains<T>(&self, ptr: *const T) -> bool where T: ?Sized {
         self.raw.contains(ptr)
     }
 
@@ -99,19 +100,29 @@ impl HeapFragment {
     }
 
     pub unsafe fn new_from_word_size(word_size: usize) -> Result<NonNull<Self>, Alloc> {
-        let layout = layout_from_word_size(word_size);
+        let byte_size = word_size * mem::size_of::<Term>();
+        let align = mem::align_of::<Term>();
+
+        let layout = Layout::from_size_align_unchecked(byte_size, align);
 
         Self::new(layout)
     }
 
     /// Creates a new `HeapFragment` that can hold a tuple
     pub fn tuple_from_slice(elements: &[Term]) -> Result<(Term, NonNull<HeapFragment>), Alloc> {
-        let need_in_words = Tuple::need_in_words_from_elements(elements);
-        let mut non_null_heap_fragment = unsafe { Self::new_from_word_size(need_in_words)? };
-        let heap_fragment = unsafe { non_null_heap_fragment.as_mut() };
-        let term = Tuple::clone_to_heap_from_elements(heap_fragment, elements)?;
+        // Make sure we have a fragment of the appropriate size
+        let heap_fragment_ptr = unsafe {
+            let (layout, _) = Tuple::layout_for(elements);
+            Self::new(layout)?
+        };
+        let heap_fragment = heap_fragment_ptr.as_mut();
 
-        Ok((term, non_null_heap_fragment))
+        // Then allocate the new tuple in the fragment using the provided elements
+        let ptr = Tuple::from_slice(heap_fragment, elements)?;
+        // Encode the tuple pointer into a box
+        let term = ptr.as_ptr().into();
+
+        Ok((term, heap_fragment_ptr))
     }
 }
 impl Drop for HeapFragment {
@@ -152,7 +163,7 @@ impl HeapAlloc for HeapFragment {
     }
 
     /// Returns true if the given pointer is owned by this process/heap
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized {
         in_area(ptr, self.raw.data, self.top)
     }
 }

@@ -1,7 +1,7 @@
 use core::alloc::Layout;
 use core::any::Any;
 use core::ops::DerefMut;
-use core::ptr::{self, NonNull};
+use core::ptr::NonNull;
 use core::str::Chars;
 
 use alloc::sync::Arc;
@@ -12,21 +12,16 @@ use hashbrown::HashMap;
 use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
+use crate::{ModuleFunctionArity, VirtualAlloc};
+use crate::erts;
+use crate::scheduler;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::Code;
 use crate::erts::string::Encoding;
-use crate::erts::term::binary::aligned_binary::AlignedBinary;
-use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use crate::erts::term::binary::IterableBitstring;
-use crate::erts::term::reference::{self, Reference};
-use crate::erts::term::resource;
-use crate::erts::term::{
-    make_pid, pid, AsTerm, BytesFromBinaryError, Closure, Cons, ExternalPid, Float,
-    HeapBin, Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
-};
-use crate::{erts, ModuleFunctionArity};
-use crate::{scheduler, VirtualAlloc};
+use crate::erts::term::reference;
+use crate::erts::term::pid;
+use crate::erts::term::prelude::*;
 
 /// A trait, like `Alloc`, specifically for allocation of terms on a process heap
 pub trait HeapAlloc {
@@ -44,7 +39,7 @@ pub trait HeapAlloc {
     }
 
     /// Returns true if the given pointer is owned by this process/heap
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool;
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized;
 
     /// Constructs a binary from the given byte slice, and associated with the given process
     ///
@@ -70,17 +65,17 @@ pub trait HeapAlloc {
         if len > 64 {
             match self.procbin_from_bytes(bytes) {
                 Err(error) => Err(error),
-                Ok(term) => {
+                Ok(bin_ptr) => {
                     // Add the binary to the process's virtual binary heap
-                    let bin_ptr = term.boxed_val() as *mut ProcBin;
-                    let bin = unsafe { &*bin_ptr };
+                    let bin = bin_ptr.as_ref();
                     self.virtual_alloc(bin);
 
-                    Ok(term)
+                    Ok(bin_ptr.into())
                 }
             }
         } else {
             self.heapbin_from_bytes(bytes)
+                .map(|nn| nn.into())
         }
     }
 
@@ -94,35 +89,32 @@ pub trait HeapAlloc {
     where
         Self: VirtualAlloc,
     {
-        match binary.to_typed_term().unwrap() {
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::HeapBinary(heap_binary) => {
-                    Ok(unsafe { bytes::inherit_lifetime(heap_binary.as_bytes()) })
-                }
-                TypedTerm::ProcBin(process_binary) => {
-                    Ok(unsafe { bytes::inherit_lifetime(process_binary.as_bytes()) })
-                }
-                TypedTerm::BinaryLiteral(process_binary) => {
-                    Ok(unsafe { bytes::inherit_lifetime(process_binary.as_bytes()) })
-                }
-                TypedTerm::SubBinary(subbinary) => {
-                    if subbinary.is_binary() {
-                        if subbinary.bit_offset() == 0 {
-                            Ok(unsafe { bytes::inherit_lifetime(subbinary.as_bytes()) })
-                        } else {
-                            let aligned_byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
-                            let aligned = self
-                                .binary_from_bytes(&aligned_byte_vec)
-                                .map_err(|error| BytesFromBinaryError::Alloc(error))?;
-
-                            self.bytes_from_binary(aligned)
-                        }
+        match binary.decode().unwrap() {
+            TypedTerm::HeapBinary(bin_ptr) => {
+                Ok(unsafe { bytes::inherit_lifetime(bin_ptr.as_ref().as_bytes()) })
+            }
+            TypedTerm::ProcBin(bin) => {
+                Ok(unsafe { bytes::inherit_lifetime(bin.as_bytes()) })
+            }
+            TypedTerm::BinaryLiteral(bin) => {
+                Ok(unsafe { bytes::inherit_lifetime(bin.as_bytes()) })
+            }
+            TypedTerm::SubBinary(bin) => {
+                if bin.is_binary() {
+                    if bin.bit_offset() == 0 {
+                        Ok(unsafe { bytes::inherit_lifetime(bin.as_bytes_unchecked()) })
                     } else {
-                        Err(BytesFromBinaryError::NotABinary)
+                        let aligned_byte_vec: Vec<u8> = bin.full_byte_iter().collect();
+                        let aligned = self
+                            .binary_from_bytes(&aligned_byte_vec)
+                            .map_err(|error| BytesFromBinaryError::Alloc(error))?;
+
+                        self.bytes_from_binary(aligned)
                     }
+                } else {
+                    Err(BytesFromBinaryError::NotABinary)
                 }
-                _ => Err(BytesFromBinaryError::Type),
-            },
+            }
             _ => Err(BytesFromBinaryError::Type),
         }
     }
@@ -150,16 +142,16 @@ pub trait HeapAlloc {
         if len > HeapBin::MAX_SIZE {
             match self.procbin_from_str(s) {
                 Err(error) => Err(error),
-                Ok(term) => {
+                Ok(bin_ptr) => {
                     // Add the binary to the process's virtual binary heap
-                    let bin_ptr = term.boxed_val() as *mut ProcBin;
-                    let bin = unsafe { &*bin_ptr };
+                    let bin = bin_ptr.as_ref();
                     self.virtual_alloc(bin);
-                    Ok(term)
+                    Ok(bin_ptr.into())
                 }
             }
         } else {
             self.heapbin_from_str(s)
+                .map(|nn| nn.into())
         }
     }
 
@@ -169,10 +161,9 @@ pub trait HeapAlloc {
 
         unsafe {
             let ptr = self.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons;
-            ptr::write(ptr, cons);
-            let heap_cons = &*ptr;
+            ptr.write(cons);
 
-            Ok(heap_cons.as_term())
+            Ok(ptr.into())
         }
     }
 
@@ -183,7 +174,7 @@ pub trait HeapAlloc {
         serial: usize,
     ) -> Result<Term, MakePidError>
     where
-        Self: core::marker::Sized,
+        Self: Sized,
     {
         let external_pid = ExternalPid::with_node_id(node_id, number, serial)?;
         let heap_external_pid = external_pid.clone_to_heap(self)?;
@@ -191,68 +182,35 @@ pub trait HeapAlloc {
         Ok(heap_external_pid)
     }
 
+    #[cfg(target_arch = "x86_64")]
+    fn float(&mut self, f: f64) -> Result<Term, Alloc> {
+        Ok(Float::new(f).encode().unwrap())
+    }
+
+    #[cfg(not(target_arch = "x86_64"))]
     fn float(&mut self, f: f64) -> Result<Term, Alloc> {
         let float = Float::new(f);
 
         unsafe {
             let ptr = self.alloc_layout(Layout::new::<Float>())?.as_ptr() as *mut Float;
-            ptr::write(ptr, float);
-            let process_float = &*ptr;
+            ptr.write(float);
 
-            Ok(process_float.as_term())
+            Ok(ptr.into())
         }
     }
 
     /// Constructs a heap-allocated binary from the given byte slice, and associated with the given
     /// process
-    fn heapbin_from_bytes(&mut self, s: &[u8]) -> Result<Term, Alloc> {
-        let len = s.len();
-
-        unsafe {
-            // Allocates space on the process heap for the header + data
-            let header_ptr = self.alloc_layout(HeapBin::layout_bytes(s))?.as_ptr() as *mut HeapBin;
-            // Pointer to start of binary data
-            let bin_ptr = header_ptr.add(1) as *mut u8;
-            // Construct the right header based on whether input string is only ASCII or includes
-            // UTF8
-            let header = HeapBin::new(len);
-            // Write header
-            ptr::write(header_ptr, header);
-            // Copy binary data to destination
-            ptr::copy_nonoverlapping(s.as_ptr(), bin_ptr, len);
-            // Return a box term that points to the header
-            let result = Term::make_boxed(header_ptr);
-
-            Ok(result)
-        }
+    #[inline]
+    fn heapbin_from_bytes(&mut self, s: &[u8]) -> Result<Boxed<HeapBin>, Alloc> {
+        HeapBin::from_slice(self, s, Encoding::Raw)
     }
 
     /// Constructs a heap-allocated binary from the given string, and associated with the given
     /// process
-    fn heapbin_from_str(&mut self, s: &str) -> Result<Term, Alloc> {
-        let len = s.len();
-
-        unsafe {
-            // Allocates space on the process heap for the header + data
-            let header_ptr = self.alloc_layout(HeapBin::layout(s))?.as_ptr() as *mut HeapBin;
-            // Pointer to start of binary data
-            let bin_ptr = header_ptr.add(1) as *mut u8;
-            // Construct the right header based on whether input string is only ASCII or includes
-            // UTF8
-            let header = if s.is_ascii() {
-                HeapBin::new_latin1(len)
-            } else {
-                HeapBin::new_utf8(len)
-            };
-            // Write header
-            ptr::write(header_ptr, header);
-            // Copy binary data to destination
-            ptr::copy_nonoverlapping(s.as_ptr(), bin_ptr, len);
-            // Return a box term that points to the header
-            let result = Term::make_boxed(header_ptr);
-
-            Ok(result)
-        }
+    #[inline]
+    fn heapbin_from_str(&mut self, s: &str) -> Result<Boxed<HeapBin>, Alloc> {
+        HeapBin::from_str(self, s)
     }
 
     fn improper_list_from_iter<I>(&mut self, iter: I, last: Term) -> Result<Term, Alloc>
@@ -280,17 +238,17 @@ pub trait HeapAlloc {
     /// else a heap-allocated big integer for larger values.
     fn integer<I: Into<Integer>>(&mut self, i: I) -> Result<Term, Alloc>
     where
-        Self: core::marker::Sized,
+        Self: Sized,
     {
         match i.into() {
-            Integer::Small(small) => Ok(unsafe { small.as_term() }),
+            Integer::Small(small) => Ok(small.into()),
             Integer::Big(big) => big.clone_to_heap(self),
         }
     }
 
     fn charlist_from_str(&mut self, s: &str) -> Result<Term, Alloc>
     where
-        Self: core::marker::Sized,
+        Self: Sized,
     {
         self.list_from_chars(s.chars())
     }
@@ -298,7 +256,7 @@ pub trait HeapAlloc {
     /// Constructs a list from the chars and associated with the given process.
     fn list_from_chars(&mut self, chars: Chars) -> Result<Term, Alloc>
     where
-        Self: core::marker::Sized,
+        Self: Sized,
     {
         let mut acc = Term::NIL;
 
@@ -325,7 +283,7 @@ pub trait HeapAlloc {
     /// Constructs a map and associated with the given process.
     fn map_from_hash_map(&mut self, hash_map: HashMap<Term, Term>) -> Result<Term, Alloc>
     where
-        Self: core::marker::Sized,
+        Self: Sized,
     {
         Map::from_hash_map(hash_map).clone_to_heap(self)
     }
@@ -333,7 +291,7 @@ pub trait HeapAlloc {
     /// Constructs a map and associated with the given process.
     fn map_from_slice(&mut self, slice: &[(Term, Term)]) -> Result<Term, Alloc>
     where
-        Self: core::marker::Sized,
+        Self: Sized,
     {
         Map::from_slice(slice).clone_to_heap(self)
     }
@@ -346,10 +304,13 @@ pub trait HeapAlloc {
         serial: usize,
     ) -> Result<Term, MakePidError>
     where
-        Self: core::marker::Sized,
+        Self: Sized,
     {
         if node_id == 0 {
-            make_pid(number, serial).map_err(|error| error.into())
+            let pid = Pid::new(number, serial)?
+                .encode()
+                .unwrap();
+            Ok(pid)
         } else {
             self.external_pid_with_node_id(node_id, number, serial)
         }
@@ -357,31 +318,30 @@ pub trait HeapAlloc {
 
     /// Constructs a reference-counted binary from the given byte slice, and associated with the
     /// given process
-    fn procbin_from_bytes(&mut self, s: &[u8]) -> Result<Term, Alloc> {
+    fn procbin_from_bytes(&mut self, s: &[u8]) -> Result<Boxed<ProcBin>, Alloc> {
         // Allocates on global heap
         let bin = ProcBin::from_slice(s, Encoding::Raw)?;
-        // Allocates space on the process heap for the header
-        let header_ptr = unsafe { self.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
-        // Write the header to the process heap
-        unsafe { ptr::write(header_ptr as *mut ProcBin, bin) };
-        // Returns a box term that points to the header
-        let result = Term::make_boxed(header_ptr);
-        Ok(result)
+        unsafe {
+            // Allocates space on the process heap for the header
+            let ptr = self.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() as *mut ProcBin;
+            // Write the header to the process heap
+            ptr.write(bin);
+            Ok(Boxed::new_unchecked(ptr))
+        }
     }
 
     /// Constructs a reference-counted binary from the given string, and associated with the given
     /// process
-    fn procbin_from_str(&mut self, s: &str) -> Result<Term, Alloc> {
+    fn procbin_from_str(&mut self, s: &str) -> Result<Boxed<ProcBin>, Alloc> {
         // Allocates on global heap
         let bin = ProcBin::from_str(s)?;
-        // Allocates space on the process heap for the header
-        let header_ptr = unsafe { self.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() };
-        // Write the header to the process heap
-        unsafe { ptr::write(header_ptr as *mut ProcBin, bin) };
-        // Returns a box term that points to the header
-        let result = Term::make_boxed(header_ptr);
-
-        Ok(result)
+        unsafe {
+            // Allocates space on the process heap for the header
+            let ptr = self.alloc_layout(Layout::new::<ProcBin>())?.as_ptr() as *mut ProcBin;
+            // Write the header to the process heap
+            ptr.write(bin);
+            Ok(Boxed::new_unchecked(ptr))
+        }
     }
 
     /// Creates a `Reference` with the given `number` associated with the Process.
@@ -389,27 +349,23 @@ pub trait HeapAlloc {
         &mut self,
         scheduler_id: scheduler::ID,
         number: reference::Number,
-    ) -> Result<Term, Alloc> {
+    ) -> Result<Boxed<Reference>, Alloc> {
         let layout = Reference::layout();
         let reference_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Reference };
         let reference = Reference::new(scheduler_id, number);
 
         unsafe {
             // Write header
-            ptr::write(reference_ptr, reference);
+            reference_ptr.write(reference);
+            Ok(Boxed::new_unchecked(reference_ptr))
         }
-
-        // Return box to tuple
-        let reference = Term::make_boxed(reference_ptr);
-
-        Ok(reference)
     }
 
     fn resource(&mut self, value: Box<dyn Any>) -> Result<Term, Alloc>
     where
-        Self: core::marker::Sized,
+        Self: Sized,
     {
-        resource::Reference::new(value)?.clone_to_heap(self)
+        ResourceReference::new(value)?.clone_to_heap(self)
     }
 
     /// Either returns a `&str` to the pre-existing bytes in the heap binary, process binary, or
@@ -429,7 +385,7 @@ pub trait HeapAlloc {
 
     /// Constructs a subbinary from the given original, and associated with the given process.
     ///
-    /// Original must be a heap binary or a process binary.  To take the subbinary of a subbinary,
+    /// `original` must be a heap binary or a process binary.  To take the subbinary of a subbinary,
     /// use the first subbinary's original instead and combine the offsets.
     ///
     /// NOTE: If allocation fails for some reason, `Err(Alloc)` is returned, this usually
@@ -442,7 +398,7 @@ pub trait HeapAlloc {
         bit_offset: u8,
         full_byte_len: usize,
         partial_byte_bit_len: u8,
-    ) -> Result<Term, Alloc> {
+    ) -> Result<Boxed<SubBinary>, Alloc> {
         let subbinary = SubBinary::from_original(
             original,
             byte_offset,
@@ -453,25 +409,15 @@ pub trait HeapAlloc {
 
         unsafe {
             let ptr = self.alloc_layout(Layout::new::<SubBinary>())?.as_ptr() as *mut SubBinary;
-            ptr::write(ptr, subbinary);
-            let process_subbinary = &*ptr;
+            ptr.write(subbinary);
 
-            Ok(process_subbinary.as_term())
+            Ok(Boxed::new_unchecked(ptr))
         }
     }
 
     /// Constructs a `Tuple` that needs to be filled with elements and then boxed.
     fn mut_tuple(&mut self, len: usize) -> Result<&mut Tuple, Alloc> {
-        let layout = Tuple::layout(len);
-        let tuple_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Tuple };
-        let header = Tuple::new(len);
-
-        unsafe {
-            // Write header
-            ptr::write(tuple_ptr, header);
-        }
-
-        Ok(unsafe { &mut *tuple_ptr })
+        Tuple::new(self, len).map(|nn| nn.as_mut())
     }
 
     /// Constructs a `Tuple` from an `Iterator<Item = Term>` and accompanying `len`.
@@ -479,27 +425,29 @@ pub trait HeapAlloc {
     /// Be aware that this does not allocate non-immediate terms in `elements` on the process heap,
     /// it is expected that the `iterator` provided is constructed from either immediate terms, or
     /// terms which were returned from other constructor functions, e.g. `binary_from_str`.
-    fn tuple_from_iter<I>(&mut self, iterator: I, len: usize) -> Result<Term, Alloc>
+    fn tuple_from_iter<I>(&mut self, iterator: I, len: usize) -> Result<Boxed<Tuple>, Alloc>
     where
         I: Iterator<Item = Term>,
     {
-        let tuple = self.mut_tuple(len)?;
-        let mut iter_len = 0;
+        let tuple_ptr = Tuple::new(self, len)?;
+        let mut elements_ptr = unsafe {
+            tuple_ptr
+                .as_ref()
+                .elements()
+                .as_mut_ptr()
+        };
 
         // Write each element
+        let mut count = 0;
         for (index, element) in iterator.enumerate() {
-            tuple
-                .set_element_from_zero_based_usize_index(index, element)
-                .unwrap();
-
-            iter_len += 1;
-            debug_assert!(index < len);
+            assert!(index < len, "unexpected out of bounds access in tuple_from_iter: len = {}, index = {}", len, index);
+            elements_ptr.write(element);
+            elements_ptr = elements_ptr.offset(1);
+            count += 1;
         }
+        debug_assert_eq!(len, count, "expected number of elements in iterator to match provided length");
 
-        debug_assert!(iter_len == len);
-
-        // Return box to tuple
-        Ok(Term::make_boxed(tuple as *const Tuple))
+        Ok(tuple_ptr)
     }
 
     /// Constructs a `Tuple` from a slice of `Term`
@@ -510,8 +458,8 @@ pub trait HeapAlloc {
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
     /// a slice passed to `tuple_from_slice` to produce nested tuples.
-    fn tuple_from_slice(&mut self, elements: &[Term]) -> Result<Term, Alloc> {
-        self.tuple_from_slices(&[elements])
+    fn tuple_from_slice(&mut self, elements: &[Term]) -> Result<Boxed<Tuple>, Alloc> {
+        Tuple::from_slice(self, elements)
     }
 
     /// Constructs a `Tuple` from slices of `Term`
@@ -522,25 +470,26 @@ pub trait HeapAlloc {
     ///
     /// The resulting `Term` is a box pointing to the tuple header, and can itself be used in
     /// a slice passed to `tuple_from_slice` to produce nested tuples.
-    fn tuple_from_slices(&mut self, slices: &[&[Term]]) -> Result<Term, Alloc> {
+    fn tuple_from_slices(&mut self, slices: &[&[Term]]) -> Result<Boxed<Tuple>, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
-        let tuple = self.mut_tuple(len)?;
+        let tuple_ptr = Tuple::new(self, len)?;
 
-        let mut count = 0;
+        unsafe {
+            let mut elements_ptr = tuple_ptr
+                .as_ref()
+                .elements()
+                .as_mut_ptr();
 
-        // Write each element
-        for slice in slices {
-            for element in *slice {
-                tuple
-                    .set_element_from_zero_based_usize_index(count, *element)
-                    .unwrap();
-
-                count += 1;
+            // Write each element
+            for slice in slices {
+                for element in *slice {
+                    elements_ptr.write(*element);
+                    elements_ptr = elements_ptr.offset(1);
+                }
             }
         }
 
-        // Return box to tuple
-        Ok(Term::make_boxed(tuple as *const Tuple))
+        Ok(tuple_ptr)
     }
 
     /// Constructs a `Closure` from a slice of `Term`
@@ -557,8 +506,8 @@ pub trait HeapAlloc {
         code: Code,
         creator: Term,
         slice: &[Term],
-    ) -> Result<Term, Alloc> {
-        self.closure_with_env_from_slices(mfa, code, creator, &[slice])
+    ) -> Result<Boxed<Closure>, Alloc> {
+        Closure::from_slice(self, mfa, code, creator, slice)
     }
 
     /// Constructs a `Closure` from slices of `Term`
@@ -575,30 +524,26 @@ pub trait HeapAlloc {
         code: Code,
         creator: Term,
         slices: &[&[Term]],
-    ) -> Result<Term, Alloc> {
+    ) -> Result<Boxed<Closure>, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
-        let layout = Closure::layout(len);
-        let alloc_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() };
-        let closure_ptr = alloc_ptr as *mut Closure;
-        let head_ptr = unsafe { alloc_ptr.add(Closure::base_size_words()) };
-
-        let closure = Closure::new(mfa, code, creator, len);
+        let closure_ptr = Closure::new(self, mfa, code, creator, len)?;
 
         unsafe {
-            // Write header
-            ptr::write(closure_ptr, closure);
-            let mut count = 0;
+            let mut env_ptr = closure_ptr
+                .as_ref()
+                .env_slice()
+                .as_mut_ptr();
 
             // Write each element
             for slice in slices {
                 for element in *slice {
-                    ptr::write(head_ptr.add(count), *element);
-                    count += 1;
+                    env_ptr.write(*element);
+                    env_ptr = env_ptr.offset(1);
                 }
             }
         }
 
-        Ok(Term::make_boxed(closure_ptr))
+        Ok(closure_ptr)
     }
 }
 impl<A, H> HeapAlloc for H
@@ -616,7 +561,7 @@ where
         self.deref_mut().alloc_layout(layout)
     }
 
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized {
         self.deref_mut().is_owner(ptr)
     }
 }

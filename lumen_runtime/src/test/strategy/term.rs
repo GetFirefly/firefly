@@ -9,8 +9,8 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Float, SmallInteger, Term, TypedTerm};
 use liblumen_alloc::erts::{ModuleFunctionArity, Process};
+use liblumen_alloc::erts::term::prelude::*;
 
 use super::{module_function_arity, size_range};
 
@@ -32,7 +32,7 @@ pub fn atom() -> BoxedStrategy<Term> {
         .prop_filter("Reserved for existing/safe atom tests", |s| {
             !s.starts_with(NON_EXISTENT_ATOM_PREFIX)
         })
-        .prop_map(|s| atom_unchecked(&s))
+        .prop_map(|s| Atom::str_to_term(&s))
         .boxed()
 }
 
@@ -119,9 +119,9 @@ pub fn is_boolean() -> BoxedStrategy<Term> {
 
 pub fn is_encoding() -> BoxedStrategy<Term> {
     prop_oneof![
-        Just(atom_unchecked("latin1")),
-        Just(atom_unchecked("unicode")),
-        Just(atom_unchecked("utf8"))
+        Just(Atom::str_to_term("latin1")),
+        Just(Atom::str_to_term("unicode")),
+        Just(Atom::str_to_term("utf8"))
     ]
     .boxed()
 }

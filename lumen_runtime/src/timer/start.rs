@@ -2,7 +2,7 @@ use core::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::runtime::Exception;
-use liblumen_alloc::erts::term::{Atom, Boxed, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub struct Options {
     pub reference_frame: ReferenceFrame,

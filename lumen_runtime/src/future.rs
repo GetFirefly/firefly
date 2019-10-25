@@ -7,7 +7,7 @@ use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::{Process, Status};
-use liblumen_alloc::erts::term::{resource, Atom};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
 use crate::process::spawn::options::Options;

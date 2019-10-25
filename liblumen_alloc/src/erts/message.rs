@@ -1,5 +1,5 @@
 use crate::erts::fragment;
-use crate::erts::term::Term;
+use crate::erts::term::prelude::Term;
 
 use intrusive_collections::UnsafeRef;
 

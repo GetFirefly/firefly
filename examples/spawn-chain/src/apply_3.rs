@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir;
 

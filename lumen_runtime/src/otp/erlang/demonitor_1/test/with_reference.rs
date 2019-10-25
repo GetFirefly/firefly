@@ -3,7 +3,7 @@ mod with_monitor;
 use super::*;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::exit_1;
 use crate::otp::erlang::monitor_2;

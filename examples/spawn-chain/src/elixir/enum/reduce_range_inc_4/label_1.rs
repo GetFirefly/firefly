@@ -4,7 +4,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir::r#enum::reduce_range_inc_4::label_2;
 

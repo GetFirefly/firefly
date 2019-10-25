@@ -5,9 +5,10 @@ use core::ptr;
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedList, LinkedListLink, UnsafeRef};
 
-use super::{OldHeap, YoungHeap};
-use crate::erts::term::{Bitstring, ProcBin};
 use crate::erts::*;
+use crate::erts::term::prelude::*;
+
+use super::{OldHeap, YoungHeap};
 
 intrusive_adapter!(pub ProcBinAdapter = UnsafeRef<ProcBin>: ProcBin { link: LinkedListLink });
 
@@ -61,10 +62,10 @@ impl VirtualBinaryHeap {
 
     /// Returns true if the given pointer belongs to a binary on the virtual heap
     #[inline]
-    pub fn contains<T>(&self, ptr: *const T) -> bool {
+    pub fn contains<T>(&self, ptr: *const T) -> bool where T: ?Sized {
         self.bins
             .iter()
-            .any(|bin_ref| ptr == bin_ref as *const _ as *const T)
+            .any(|bin_ref| ptr as *const () == bin_ref as *const _ as *const ())
     }
 
     /// Adds the given `ProcBin` to the virtual binary heap
@@ -74,7 +75,7 @@ impl VirtualBinaryHeap {
     /// the binary is not leaked
     #[inline]
     pub fn push(&mut self, bin: &ProcBin) -> Term {
-        let term = unsafe { bin.as_term() };
+        let term = bin.into();
         let full_byte_len = bin.full_byte_len();
         self.bins
             .push_front(unsafe { UnsafeRef::from_raw(bin as *const _ as *mut ProcBin) });

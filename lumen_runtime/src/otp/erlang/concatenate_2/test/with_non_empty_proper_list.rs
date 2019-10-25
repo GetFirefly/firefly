@@ -23,7 +23,7 @@ fn without_list_right_returns_improper_list_with_right_as_tail() {
                     let concatenated_cons = concatenated_result_cons.unwrap();
                     let mut concatenated_iter = concatenated_cons.into_iter();
 
-                    match left.to_typed_term().unwrap() {
+                    match left.decode().unwrap() {
                         TypedTerm::Nil => {
                             prop_assert_eq!(
                                 concatenated_iter.next(),

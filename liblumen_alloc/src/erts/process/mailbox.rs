@@ -7,7 +7,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::message::{self, Message};
 use crate::erts::process::Process;
-use crate::erts::term::Term;
+use crate::erts::term::prelude::Term;
 
 #[derive(Debug)]
 pub struct Mailbox {

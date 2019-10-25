@@ -6,7 +6,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::otp::timer;
@@ -43,8 +43,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     label_1::place_frame_with_arguments(arc_process, Placement::Replace, output, n)?;
 
-    let module = atom_unchecked("Elixir.Chain");
-    let function = atom_unchecked("create_processes");
+    let module = Atom::str_to_term("Elixir.Chain");
+    let function = Atom::str_to_term("create_processes");
     let arguments = arc_process.list_from_slice(&[n, output])?;
     timer::tc_3::place_frame_with_arguments(
         arc_process,

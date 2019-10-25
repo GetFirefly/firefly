@@ -5,7 +5,7 @@ use num_traits::Zero;
 
 use liblumen_alloc::erts::exception::runtime::Exception;
 use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::term::{atom_unchecked, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
 
 pub mod monotonic;
@@ -64,12 +64,12 @@ impl Unit {
     pub fn to_term(&self, process: &Process) -> Result<Term, Alloc> {
         match self {
             Unit::Hertz(hertz) => process.integer(*hertz),
-            Unit::Second => Ok(atom_unchecked("second")),
-            Unit::Millisecond => Ok(atom_unchecked("millisecond")),
-            Unit::Microsecond => Ok(atom_unchecked("microsecond")),
-            Unit::Nanosecond => Ok(atom_unchecked("nanosecond")),
-            Unit::Native => Ok(atom_unchecked("native")),
-            Unit::PerformanceCounter => Ok(atom_unchecked("perf_counter")),
+            Unit::Second => Ok(Atom::str_to_term("second")),
+            Unit::Millisecond => Ok(Atom::str_to_term("millisecond")),
+            Unit::Microsecond => Ok(Atom::str_to_term("microsecond")),
+            Unit::Nanosecond => Ok(Atom::str_to_term("nanosecond")),
+            Unit::Native => Ok(Atom::str_to_term("native")),
+            Unit::PerformanceCounter => Ok(Atom::str_to_term("perf_counter")),
         }
     }
 }

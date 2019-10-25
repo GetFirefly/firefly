@@ -4,7 +4,7 @@ use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::list_to_tuple_1::native;
 use crate::scheduler::{with_process, with_process_arc};
@@ -79,12 +79,12 @@ fn with_improper_list_errors_badarg() {
 fn with_nested_list_returns_tuple_with_list_element() {
     with_process(|process| {
         // erlang doc: `[share, ['Ericsson_B', 163]]`
-        let first_element = atom_unchecked("share");
+        let first_element = Atom::str_to_term("share");
 
         let (second_element, list) = {
             let second_element = process
                 .cons(
-                    atom_unchecked("Ericsson_B"),
+                    Atom::str_to_term("Ericsson_B"),
                     process
                         .cons(process.integer(163).unwrap(), Term::NIL)
                         .unwrap(),

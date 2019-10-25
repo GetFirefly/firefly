@@ -15,8 +15,7 @@ use num_bigint::BigInt;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::binary::MaybePartialByte;
-use liblumen_alloc::erts::term::{atom_unchecked, BigInteger, Boxed, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process::spawn::options::Options;
 use crate::scheduler::{with_process, Scheduler};
@@ -100,7 +99,7 @@ pub fn has_process_message(process: &Process, data: Term) -> bool {
 }
 
 pub fn list_term(process: &Process) -> Term {
-    let head_term = atom_unchecked("head");
+    let head_term = Atom::str_to_term("head");
 
     process.cons(head_term, Term::NIL).unwrap()
 }
@@ -134,7 +133,7 @@ pub fn receive_message(process: &Process) -> Option<Term> {
 static REGISTERED_NAME_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 pub fn registered_name() -> Term {
-    atom_unchecked(
+    Atom::str_to_term(
         format!(
             "registered{}",
             REGISTERED_NAME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
@@ -149,7 +148,7 @@ pub fn timeout_message(timer_reference: Term, message: Term, process: &Process) 
 
 pub fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &Process) -> Term {
     process
-        .tuple_from_slice(&[atom_unchecked(tag), timer_reference, message])
+        .tuple_from_slice(&[Atom::str_to_term(tag), timer_reference, message])
         .unwrap()
 }
 

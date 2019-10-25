@@ -4,8 +4,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::binary::{Bitstring, MaybePartialByte};
-use liblumen_alloc::erts::term::{Boxed, HeapBin, SmallInteger, SubBinary};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::bit_size_1::native;
 use crate::scheduler::with_process_arc;

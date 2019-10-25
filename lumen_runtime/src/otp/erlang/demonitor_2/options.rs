@@ -2,7 +2,7 @@ use std::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::term::{Atom, Boxed, Cons, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub struct Options {
     pub flush: bool,
@@ -51,7 +51,7 @@ impl TryFrom<Term> for Options {
     type Error = runtime::Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+        term.decode().unwrap().try_into()
     }
 }
 

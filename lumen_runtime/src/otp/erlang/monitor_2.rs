@@ -11,9 +11,7 @@ use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::{Monitor, Process};
-use liblumen_alloc::erts::term::{
-    atom_unchecked, Atom, Boxed, Pid, Reference, Term, Tuple, TypedTerm,
-};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -129,7 +127,7 @@ fn monitor_process_tuple(
 }
 
 fn noproc_message(process: &Process, reference: Term, identifier: Term) -> Result<Term, Alloc> {
-    let noproc = atom_unchecked("noproc");
+    let noproc = Atom::str_to_term("noproc");
 
     down_message(process, reference, identifier, noproc)
 }
@@ -140,8 +138,8 @@ fn down_message(
     identifier: Term,
     info: Term,
 ) -> Result<Term, Alloc> {
-    let down = atom_unchecked("DOWN");
-    let r#type = atom_unchecked("process");
+    let down = Atom::str_to_term("DOWN");
+    let r#type = Atom::str_to_term("process");
 
     process.tuple_from_slice(&[down, reference, r#type, identifier, info])
 }

@@ -1,80 +1,99 @@
 use core::alloc::Layout;
-use core::cmp;
-use core::convert::TryInto;
 use core::fmt::{self, Debug};
-use core::mem;
 use core::ptr::{self, NonNull};
 use core::slice;
 use core::str;
+use core::iter;
 use core::sync::atomic::{self, AtomicUsize};
-
-use alloc::borrow::ToOwned;
-use alloc::string::String;
 
 use intrusive_collections::LinkedListLink;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::Process;
-use crate::erts::term::binary::heap::HeapBin;
-use crate::erts::term::binary::sub::{Original, SubBinary};
-use crate::erts::term::{arity_of, AsTerm, Boxed, MatchContext, Term};
 use crate::erts::HeapAlloc;
+use crate::erts::string::Encoding;
+use crate::erts::term::prelude::{Term, Boxed, Cast};
+use crate::erts::term::encoding::Header;
 
-use super::aligned_binary::AlignedBinary;
-use super::constants::*;
-use super::{BinaryLiteral, HeapBin, Original, SubBinary, MatchContext, Bitstring};
+use super::prelude::*;
 
 /// This is the header written alongside all procbin binaries in the heap,
-/// it owns the refcount and has the pointer to the data and its size
+/// it owns the refcount and the raw binary data
+///
+/// NOTE: It is critical that if you add fields to this struct, that you adjust
+/// the implementation of `base_layout` and `ProcBin::from_slice`, as they must
+/// manually calculate the data layout due to the fact that `ProcBinInner` is a
+/// dynamically-sized type
 #[repr(C)]
 pub struct ProcBinInner {
     refc: AtomicUsize,
-    flags: usize,
-    bytes: *mut u8,
+    flags: BinaryFlags,
+    data: [u8]
 }
 impl ProcBinInner {
+    /// Constructs a reference to a `ProcBinInner` given a pointer to
+    /// the memory containing the struct and the length of its variable-length
+    /// data
+    ///
+    /// NOTE: For more information about how this works, see the detailed
+    /// explanation in the function docs for `HeapBin::from_raw_parts`
     #[inline]
-    fn bytes(&self) -> *mut u8 {
-        self.bytes
+    fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
+        // Invariants of slice::from_raw_parts.
+        assert!(!ptr.is_null());
+        assert!(len <= isize::max_value() as usize);
+
+        unsafe {
+            let slice = core::slice::from_raw_parts(ptr as *const (), len);
+            Boxed::new_unchecked(slice as *const [()] as *mut Self)
+        }
     }
 
     #[inline]
-    fn full_byte_len(&self) -> usize {
-        self.flags & !FLAG_MASK
+    fn as_bytes(&self) -> &[u8] {
+        &self.data
     }
 
+    /// Produces the base layout for this struct, before the
+    /// dynamically sized data is factored in.
+    ///
+    /// Returns the base layout + the offset of the flags field
     #[inline]
-    fn encoding(&self) -> Encoding {
-        super::encoding_from_flags(self.flags)
-    }
-
-    /// Returns true if this binary is a raw binary
-    #[inline]
-    fn is_raw(&self) -> bool {
-        self.flags & BIN_TYPE_MASK == FLAG_IS_RAW_BIN
-    }
-
-    /// Returns true if this binary is a Latin-1 binary
-    #[inline]
-    fn is_latin1(&self) -> bool {
-        self.flags & BIN_TYPE_MASK == FLAG_IS_LATIN1_BIN
-    }
-
-    /// Returns true if this binary is a UTF-8 binary
-    #[inline]
-    fn is_utf8(&self) -> bool {
-        self.flags & BIN_TYPE_MASK == FLAG_IS_UTF8_BIN
+    fn base_layout() -> (Layout, usize) {
+        Layout::new::<AtomicUsize>()
+            .extend(Layout::new::<BinaryFlags>())
+            .unwrap()
     }
 }
+impl Bitstring for ProcBinInner {
+    #[inline]
+    fn full_byte_len(&self) -> usize {
+        self.data.len()
+    }
 
+    #[inline]
+    unsafe fn as_byte_ptr(&self) -> *mut u8 {
+        self.data.as_ptr() as *mut u8
+    }
+}
+impl Binary for ProcBinInner {
+    #[inline]
+    fn flags(&self) -> &BinaryFlags {
+        &self.flags
+    }
+}
+impl IndexByte for ProcBinInner {
+    fn byte(&self, index: usize) -> u8 {
+        self.data[index]
+    }
+}
 impl Debug for ProcBinInner {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ProcBinInner")
             .field("refc", &self.refc)
-            .field("flags", &format_args!("{:#b}", self.flags))
-            .field("bytes", &self.bytes)
+            .field("flags", &self.flags)
+            .field("data", &format!("bytes={},address={:p}", self.data.len(), self.as_byte_ptr()))
             .finish()
     }
 }
@@ -87,87 +106,11 @@ impl Debug for ProcBinInner {
 #[derive(Debug)]
 #[repr(C)]
 pub struct ProcBin {
-    pub(super) header: Term,
-    pub(crate) inner: NonNull<ProcBinInner>,
+    header: Header<ProcBin>,
+    inner: NonNull<ProcBinInner>,
     pub link: LinkedListLink,
 }
 impl ProcBin {
-    /// Given a raw pointer to the ProcBin, reborrows and clones it into a new reference.
-    ///
-    /// # Safety
-    ///
-    /// This function is unsafe due to dereferencing a raw pointer, but it is expected that
-    /// this is only ever called with a valid `ProcBin` pointer anyway. The primary risk
-    /// with obtaining a `ProcBin` via this function is if you leak it somehow, rather than
-    /// letting its `Drop` implementation run. Doing so will leave the reference count greater
-    /// than 1 forever, meaning memory will never get deallocated.
-    ///
-    /// NOTE: This does not copy the binary, it only obtains a new `ProcBin`, which is
-    /// itself a reference to a binary held by a `ProcBinInner`.
-    pub unsafe fn from_raw(term: *mut ProcBin) -> Self {
-        let bin = &*term;
-        bin.clone()
-    }
-
-    /// Converts `self` into a raw pointer
-    ///
-    /// # Safety
-    ///
-    /// This operation leaks `self` and skips decrementing the reference count,
-    /// so it is essential that the resulting pointer is dereferenced at least once
-    /// directly, or by using `from_raw_noincrement`, in order to ensure that the
-    /// reference count is properly decremented, and the underlying memory is properly
-    /// freed.
-    ///
-    /// This function is intended for internal use only, specifically when initially
-    /// creating a `ProcBin` and creating a boxed `Term` from the resulting pointer.
-    /// This is the only time where we want to avoid dropping the value and decrementing
-    /// the reference count, since the `ProcBin` is still referenced, it has just been lowered
-    /// to a "primitive" value and placed on a process heap.
-    #[allow(unused)]
-    pub(crate) unsafe fn into_raw(self) -> *mut ProcBin {
-        let ptr = &self as *const _ as *mut _;
-        mem::forget(self);
-        ptr
-    }
-
-    /// Returns true if this binary is a raw binary
-    #[inline]
-    pub fn is_raw(&self) -> bool {
-        self.inner().is_raw()
-    }
-
-    /// Returns true if this binary is a Latin-1 binary
-    #[inline]
-    pub fn is_latin1(&self) -> bool {
-        self.inner().is_latin1()
-    }
-
-    /// Returns true if this binary is a UTF-8 binary
-    #[inline]
-    pub fn is_utf8(&self) -> bool {
-        self.inner().is_utf8()
-    }
-
-    /// Returns a `Encoding` representing the encoding type of this binary
-    #[inline]
-    pub fn encoding(&self) -> Encoding {
-        self.inner().encoding()
-    }
-
-    /// Returns a raw pointer to the binary data underlying this `ProcBin`
-    ///
-    /// # Safety
-    ///
-    /// This is only intended for use by garbage collection, in order to
-    /// update match context references. You should use `as_bytes` instead,
-    /// as it produces a byte slice which is safe to work with, whereas the
-    /// pointer returned here is not
-    #[inline]
-    pub(crate) fn bytes(&self) -> *mut u8 {
-        self.inner().bytes()
-    }
-
     /// Creates a new procbin from a str slice, by copying it to the heap
     pub fn from_str(s: &str) -> Result<Self, Alloc> {
         let encoding = Encoding::from_str(s);
@@ -179,54 +122,40 @@ impl ProcBin {
     pub fn from_slice(s: &[u8], encoding: Encoding) -> Result<Self, Alloc> {
         use liblumen_core::sys::alloc as sys_alloc;
 
-        let full_byte_len = s.len();
-        let (layout, offset) = Layout::new::<ProcBinInner>()
-            .extend(unsafe {
-                Layout::from_size_align_unchecked(full_byte_len, mem::align_of::<u8>())
-            })
+        let (base_layout, flags_offset) = ProcBinInner::base_layout();
+        let (unpadded_layout, data_offset) = base_layout
+            .extend(Layout::for_value(s))
+            .unwrap();
+        // We pad to alignment so that the Layout produced here
+        // matches that returned by `Layout::for_value` on the
+        // final `ProcBinInner`
+        let layout = unpadded_layout
+            .pad_to_align()
             .unwrap();
 
         unsafe {
             match sys_alloc::alloc(layout) {
                 Ok(non_null) => {
-                    let ptr = non_null.as_ptr();
-                    let inner_ptr = ptr as *mut ProcBinInner;
-                    let bytes = ptr.add(offset);
+                    let len = s.len();
 
-                    inner_ptr.write(ProcBinInner {
-                        refc: AtomicUsize::new(1),
-                        flags: full_byte_len | super::encoding_to_flags(encoding),
-                        bytes,
-                    });
-                    ptr::copy_nonoverlapping(s.as_ptr(), bytes, full_byte_len);
+                    let ptr: *mut u8 = non_null.as_ptr();
+                    ptr::write(ptr as *mut AtomicUsize, AtomicUsize::new(1));
+                    let flags_ptr = ptr.offset(flags_offset as isize) as *mut BinaryFlags;
+                    let flags = BinaryFlags::new(encoding)
+                        .set_size(len);
+                    ptr::write(flags_ptr, flags);
+                    let data_ptr = ptr.offset(data_offset as isize);
+                    ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, len);
 
+                    let inner = ProcBinInner::from_raw_parts(ptr, len);
                     Ok(Self {
-                        header: Term::make_header(arity_of::<Self>(), Term::FLAG_PROCBIN),
-                        inner: NonNull::new_unchecked(inner_ptr),
+                        header: Default::default(),
+                        inner: inner.into(),
                         link: LinkedListLink::new(),
                     })
                 }
                 Err(_) => Err(alloc!()),
             }
-        }
-    }
-
-    /// Converts this binary to a `&str` slice.
-    ///
-    /// This conversion does not move the string, it can be considered as
-    /// creating a new reference with a lifetime attached to that of `self`.
-    ///
-    /// Due to the fact that the lifetime of the `&str` cannot outlive the
-    /// `ProcBin`, this does not require incrementing the reference count.
-    #[allow(unused)]
-    pub fn as_str<'a>(&'a self) -> &'a str {
-        assert!(
-            self.is_latin1() || self.is_utf8(),
-            "cannot convert a binary containing non-UTF-8/non-ASCII characters to &str"
-        );
-        unsafe {
-            let bytes = self.as_bytes();
-            str::from_utf8_unchecked(bytes)
         }
     }
 
@@ -240,40 +169,39 @@ impl ProcBin {
     unsafe fn drop_slow(&self) {
         use liblumen_core::sys::alloc as sys_alloc;
 
-        // Destroy the data at this time, even though we may not free the box
-        // allocation itself (there may still be weak pointers lying around).
-
         if self.inner().refc.fetch_sub(1, atomic::Ordering::Release) == 1 {
             atomic::fence(atomic::Ordering::Acquire);
-            let bytes = self.inner().bytes();
-            let size = self.inner().full_byte_len();
-            sys_alloc::free(
-                bytes,
-                Layout::from_size_align_unchecked(size, mem::align_of::<usize>()),
-            );
+            let inner = self.inner.as_ref();
+            let layout = Layout::for_value(&inner);
+            sys_alloc::free(inner as *const _ as *mut u8, layout);
         }
     }
-}
 
-unsafe impl AsTerm for ProcBin {
     #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self as *const Self)
+    pub fn full_byte_iter<'a>(&'a self) -> iter::Copied<slice::Iter<'a, u8>> {
+        self.inner().as_bytes().iter().copied()
     }
 }
-
-impl AlignedBinary for ProcBin {
-    fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            let inner = self.inner();
-            slice::from_raw_parts(inner.bytes(), inner.full_byte_len())
-        }
-    }
-}
-
 impl Bitstring for ProcBin {
+    #[inline]
     fn full_byte_len(&self) -> usize {
         self.inner().full_byte_len()
+    }
+
+    #[inline]
+    unsafe fn as_byte_ptr(&self) -> *mut u8 {
+        self.inner().as_byte_ptr()
+    }
+}
+impl Binary for ProcBin {
+    #[inline]
+    fn flags(&self) -> &BinaryFlags {
+        self.inner().flags()
+    }
+}
+impl AlignedBinary for ProcBin {
+    fn as_bytes(&self) -> &[u8] {
+        self.inner().as_bytes()
     }
 }
 
@@ -294,7 +222,7 @@ impl CloneToProcess for ProcBin {
     fn clone_to_process(&self, process: &Process) -> Term {
         let mut heap = process.acquire_heap();
         let boxed = self.clone_to_heap(&mut heap).unwrap();
-        let ptr = boxed.boxed_val() as *mut Self;
+        let ptr: *mut Self = boxed.dyn_cast();
         self.inner().refc.fetch_add(1, atomic::Ordering::AcqRel);
         // Reify a reference to the newly written clone, and push it
         // on to the process virtual heap
@@ -303,7 +231,10 @@ impl CloneToProcess for ProcBin {
         boxed
     }
 
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    where
+        A: ?Sized + HeapAlloc,
+    {
         unsafe {
             // Allocate space for the header
             let layout = Layout::new::<Self>();
@@ -318,7 +249,7 @@ impl CloneToProcess for ProcBin {
                 },
             );
             // Reify result term
-            Ok(Term::make_boxed(ptr))
+            Ok(ptr.into())
         }
     }
 }
@@ -367,95 +298,8 @@ impl Drop for ProcBin {
     }
 }
 
-impl Eq for ProcBin {}
-
-impl Original for ProcBin {
+impl IndexByte for ProcBin {
     fn byte(&self, index: usize) -> u8 {
-        let inner = self.inner();
-        let full_byte_len = inner.full_byte_len();
-
-        assert!(
-            index < full_byte_len,
-            "index ({}) >= full_byte_len ({})",
-            index,
-            full_byte_len
-        );
-
-        unsafe { *inner.bytes().add(index) }
-    }
-}
-
-impl PartialEq<BinaryLiteral> for ProcBin {
-    fn eq(&self, other: &BinaryLiteral) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<Boxed<HeapBin>> for ProcBin {
-    fn eq(&self, other: &Boxed<HeapBin>) -> bool {
-        self.eq(other.as_ref())
-    }
-}
-
-impl PartialEq<MatchContext> for ProcBin {
-    fn eq(&self, other: &MatchContext) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialEq<SubBinary> for ProcBin {
-    fn eq(&self, other: &SubBinary) -> bool {
-        other.eq(self)
-    }
-}
-
-impl PartialOrd<BinaryLiteral> for ProcBin {
-    fn partial_cmp(&self, other: &BinaryLiteral) -> Option<core::cmp::Ordering> {
-        self.as_bytes().partial_cmp(other.as_bytes())
-    }
-}
-
-impl PartialOrd<HeapBin> for ProcBin {
-    /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-    /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-    fn partial_cmp(&self, other: &HeapBin) -> Option<core::cmp::Ordering> {
-        self.as_bytes().partial_cmp(other.as_bytes())
-    }
-}
-
-impl PartialOrd<Boxed<HeapBin>> for ProcBin {
-    fn partial_cmp(&self, other: &Boxed<HeapBin>) -> Option<cmp::Ordering> {
-        self.partial_cmp(other.as_ref())
-    }
-}
-
-impl PartialOrd<MatchContext> for ProcBin {
-    fn partial_cmp(&self, other: &MatchContext) -> Option<cmp::Ordering> {
-        other.partial_cmp(self).map(|ordering| ordering.reverse())
-    }
-}
-
-impl PartialOrd<SubBinary> for ProcBin {
-    fn partial_cmp(&self, other: &SubBinary) -> Option<cmp::Ordering> {
-        other.partial_cmp(self).map(|ordering| ordering.reverse())
-    }
-}
-
-impl TryInto<String> for ProcBin {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        match str::from_utf8(self.as_bytes()) {
-            Ok(s) => Ok(s.to_owned()),
-            Err(_) => Err(badarg!()),
-        }
-    }
-}
-
-impl TryInto<Vec<u8>> for ProcBin {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        Ok(self.as_bytes().to_vec())
+        self.inner().byte(index)
     }
 }

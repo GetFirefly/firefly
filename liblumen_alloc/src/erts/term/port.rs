@@ -6,7 +6,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::{HeapAlloc, Node};
 
-use super::{AsTerm, Term};
+use super::prelude::{Term, Header, Boxed};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -17,12 +17,10 @@ impl Port {
     pub unsafe fn from_raw(port: usize) -> Self {
         Self(port)
     }
-}
 
-unsafe impl AsTerm for Port {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_port(self.0)
+    #[inline(always)]
+    pub fn as_usize(self) -> usize {
+        self.0
     }
 }
 
@@ -33,8 +31,23 @@ impl Display for Port {
 }
 
 impl PartialEq<ExternalPort> for Port {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, _other: &ExternalPort) -> bool {
+        false
+    }
+}
+impl<T> PartialEq<Boxed<T>> for Port
+where
+    T: PartialEq<Port>,
+{
+    #[inline]
+    default fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+impl PartialEq<Boxed<ExternalPort>> for Port {
+    #[inline(always)]
+    fn eq(&self, _other: &Boxed<ExternalPort>) -> bool {
         false
     }
 }
@@ -44,35 +57,31 @@ impl PartialOrd<ExternalPort> for Port {
         self.partial_cmp(&other.port)
     }
 }
+impl<T> PartialOrd<Boxed<T>> for Port
+where
+    T: PartialOrd<Port>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<cmp::Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
+    }
+}
 
+#[derive(Debug)]
+#[repr(C)]
 pub struct ExternalPort {
-    header: Term,
+    header: Header<ExternalPort>,
     node: Node,
     next: *mut u8,
     port: Port,
 }
 
-unsafe impl AsTerm for ExternalPort {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self)
-    }
-}
-
 impl CloneToProcess for ExternalPort {
-    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, _heap: &mut A) -> Result<Term, Alloc>
+    where
+        A: ?Sized + HeapAlloc,
+    {
         unimplemented!()
-    }
-}
-
-impl Debug for ExternalPort {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ExternalPort")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("node", &self.node)
-            .field("next", &self.next)
-            .field("port", &self.port)
-            .finish()
     }
 }
 
@@ -89,14 +98,23 @@ impl Hash for ExternalPort {
     }
 }
 
-impl PartialEq<ExternalPort> for ExternalPort {
+impl PartialEq for ExternalPort {
     #[inline]
     fn eq(&self, other: &ExternalPort) -> bool {
         self.node == other.node && self.port == other.port
     }
 }
+impl<T> PartialEq<Boxed<T>> for ExternalPort
+where
+    T: PartialEq<ExternalPort>,
+{
+    #[inline]
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
 
-impl PartialOrd<ExternalPort> for ExternalPort {
+impl PartialOrd for ExternalPort {
     #[inline]
     fn partial_cmp(&self, other: &ExternalPort) -> Option<cmp::Ordering> {
         use cmp::Ordering;
@@ -104,5 +122,14 @@ impl PartialOrd<ExternalPort> for ExternalPort {
             Some(Ordering::Equal) => self.port.partial_cmp(&other.port),
             result => result,
         }
+    }
+}
+impl<T> PartialOrd<Boxed<T>> for ExternalPort
+where
+    T: PartialOrd<ExternalPort>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<cmp::Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }

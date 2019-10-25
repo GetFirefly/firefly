@@ -12,10 +12,10 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
 
     // Typo
     let module_atom = Atom::try_from_str("erlan").unwrap();
-    let module = unsafe { module_atom.as_term() };
+    let module = unsafe { module_atom.decode() };
 
     let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let function = unsafe { function_atom.decode() };
 
     let arguments = parent_arc_process
         .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)

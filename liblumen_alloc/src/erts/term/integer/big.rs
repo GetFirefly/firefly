@@ -1,5 +1,6 @@
+use core::alloc::Layout;
 use core::cmp::Ordering;
-use core::fmt::{self, Debug, Display};
+use core::fmt;
 use core::hash::{self, Hash};
 use core::mem;
 use core::ops::*;
@@ -10,56 +11,61 @@ use num_traits::cast::ToPrimitive;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::{AsTerm, Boxed, Float, Term, TryIntoIntegerError};
-use crate::erts::{to_word_size, HeapAlloc};
+use crate::erts::HeapAlloc;
+use crate::erts::term::prelude::*;
 
 use super::*;
 
 /// Represents big integer terms.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct BigInteger {
-    header: Term,
+    header: Header<BigInteger>,
     pub(crate) value: BigInt,
 }
 impl BigInteger {
     /// Creates a new BigInteger from a BigInt value
     #[inline]
     pub fn new(value: BigInt) -> Self {
-        let header = Term::make_bigint_header(&value);
-        Self { header, value }
-    }
-}
-unsafe impl AsTerm for BigInteger {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self as *const Self)
-    }
-}
-impl CloneToProcess for BigInteger {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
-        let size = mem::size_of_val(self);
-        let size_in_words = to_word_size(size);
-        let ptr = unsafe { heap.alloc(size_in_words)?.as_ptr() };
-
-        // the `Vec<u32>` `data` in the `BigUInt` that is the `data` in `self` is not copied by
-        // `ptr::copy_nonoverlapping`, so clone `self` first to make a disconnected `Vec<u32>`
-        // that can't be dropped if `self` is dropped.
-        //
-        // It would be better if we could allocate directly on the `heap`, but until `BigInt`
-        // supports setting the allocator, which only happens when `Vec` does, we can't.
-        let heap_clone = self.clone();
-
-        unsafe {
-            ptr::copy_nonoverlapping(&heap_clone as *const _ as *const u8, ptr as *mut u8, size);
+        Self {
+            header: Default::default(),
+            value,
         }
+    }
+}
 
-        // make sure the heap_clone `Vec<u32>` address is not dropped
-        mem::forget(heap_clone);
+impl fmt::Display for BigInteger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
 
-        let boxed = Term::make_boxed(ptr);
+impl CloneToProcess for BigInteger {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        let layout = Layout::for_value(self);
+        let size = layout.size();
 
-        Ok(boxed)
+        let ptr = unsafe {
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
+            // the `Vec<u32>` `data` in the `BigUInt` that is the `data` in `self` is not copied by
+            // `ptr::copy_nonoverlapping`, so clone `self` first to make a disconnected `Vec<u32>`
+            // that can't be dropped if `self` is dropped.
+            //
+            // It would be better if we could allocate directly on the `heap`, but until `BigInt`
+            // supports setting the allocator, which only happens when `Vec` does, we can't.
+            let heap_clone = self.clone();
+            ptr::copy_nonoverlapping(&heap_clone as *const _ as *const u8, ptr as *mut u8, size);
+
+            // Make sure the heap_clone `Vec<u32>` address is not dropped
+            mem::forget(heap_clone);
+
+            ptr
+        };
+
+        Ok(ptr.into())
     }
 }
 impl From<SmallInteger> for BigInteger {
@@ -97,6 +103,11 @@ impl Into<BigInt> for BigInteger {
         self.value
     }
 }
+impl Into<BigInt> for Boxed<BigInteger> {
+    fn into(self) -> BigInt {
+        self.as_ref().value
+    }
+}
 impl<'a> Into<&'a BigInt> for &'a BigInteger {
     fn into(self) -> &'a BigInt {
         &self.value
@@ -120,16 +131,31 @@ impl Into<f64> for Boxed<BigInteger> {
         self.as_ref().into()
     }
 }
+impl Into<usize> for Boxed<BigInteger> {
+    fn into(self) -> usize {
+        let u: u64 = self.try_into().unwrap();
+        u.try_into().unwrap()
+    }
+}
+impl TryInto<u64> for Boxed<BigInteger> {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<u64, Self::Error> {
+        let big_int: &BigInt = self.as_ref().into();
+
+        match big_int.to_u64() {
+            Some(self_u64) => self_u64
+                .try_into()
+                .map_err(|_| TryIntoIntegerError::OutOfRange),
+            None => Err(TryIntoIntegerError::OutOfRange),
+        }
+    }
+}
 impl Eq for BigInteger {}
 impl PartialEq for BigInteger {
     #[inline]
     fn eq(&self, other: &BigInteger) -> bool {
         self.value.eq(&other.value)
-    }
-}
-impl PartialEq<Boxed<BigInteger>> for BigInteger {
-    fn eq(&self, other: &Boxed<BigInteger>) -> bool {
-        self.eq(other.as_ref())
     }
 }
 impl PartialEq<SmallInteger> for BigInteger {
@@ -138,19 +164,9 @@ impl PartialEq<SmallInteger> for BigInteger {
         self.value == BigInt::from(other.0 as i64)
     }
 }
-impl PartialEq<SmallInteger> for Boxed<BigInteger> {
-    fn eq(&self, other: &SmallInteger) -> bool {
-        self.as_ref().eq(other)
-    }
-}
 impl PartialEq<Float> for BigInteger {
     fn eq(&self, other: &Float) -> bool {
         self.partial_cmp(other) == Some(Ordering::Equal)
-    }
-}
-impl PartialEq<Float> for Boxed<BigInteger> {
-    fn eq(&self, other: &Float) -> bool {
-        self.as_ref().eq(other)
     }
 }
 impl PartialEq<usize> for BigInteger {
@@ -171,6 +187,17 @@ impl PartialEq<f64> for BigInteger {
         self.value.eq(&(*other as usize).into())
     }
 }
+impl<T> PartialEq<Boxed<T>> for BigInteger
+where
+    T: PartialEq<BigInteger>,
+{
+    #[inline]
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+
+
 impl Ord for BigInteger {
     #[inline]
     fn cmp(&self, other: &BigInteger) -> Ordering {
@@ -183,20 +210,10 @@ impl PartialOrd for BigInteger {
         Some(self.cmp(other))
     }
 }
-impl PartialOrd<Boxed<BigInteger>> for BigInteger {
-    fn partial_cmp(&self, other: &Boxed<BigInteger>) -> Option<Ordering> {
-        self.partial_cmp(other.as_ref())
-    }
-}
 impl PartialOrd<SmallInteger> for BigInteger {
     #[inline]
     fn partial_cmp(&self, other: &SmallInteger) -> Option<Ordering> {
         self.partial_cmp(&other.0)
-    }
-}
-impl PartialOrd<SmallInteger> for Boxed<BigInteger> {
-    fn partial_cmp(&self, other: &SmallInteger) -> Option<Ordering> {
-        self.as_ref().partial_cmp(other)
     }
 }
 impl PartialOrd<Float> for BigInteger {
@@ -205,7 +222,7 @@ impl PartialOrd<Float> for BigInteger {
         use Sign::*;
 
         let self_big_int = &self.value;
-        let other_f64 = other.value;
+        let other_f64 = other.value();
 
         let ordering = match self_big_int.sign() {
             Minus => {
@@ -289,11 +306,6 @@ impl PartialOrd<Float> for BigInteger {
         Some(ordering)
     }
 }
-impl PartialOrd<Float> for Boxed<BigInteger> {
-    fn partial_cmp(&self, other: &Float) -> Option<Ordering> {
-        self.as_ref().partial_cmp(other)
-    }
-}
 impl PartialOrd<usize> for BigInteger {
     #[inline]
     fn partial_cmp(&self, other: &usize) -> Option<Ordering> {
@@ -312,19 +324,16 @@ impl PartialOrd<f64> for BigInteger {
         self.value.partial_cmp(&(*other as usize).into())
     }
 }
-impl Debug for BigInteger {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BigInteger")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("value", &self.value)
-            .finish()
+impl<T> PartialOrd<Boxed<T>> for BigInteger
+where
+    T: PartialOrd<BigInteger>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
-impl Display for BigInteger {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
+
 impl Hash for BigInteger {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -381,30 +390,6 @@ impl Shr<usize> for BigInteger {
     }
 }
 
-impl TryInto<u64> for Boxed<BigInteger> {
-    type Error = TryIntoIntegerError;
-
-    fn try_into(self) -> Result<u64, Self::Error> {
-        let big_int: &BigInt = self.as_ref().into();
-
-        match big_int.to_u64() {
-            Some(self_u64) => self_u64
-                .try_into()
-                .map_err(|_| TryIntoIntegerError::OutOfRange),
-            None => Err(TryIntoIntegerError::OutOfRange),
-        }
-    }
-}
-
-impl TryInto<usize> for Boxed<BigInteger> {
-    type Error = TryIntoIntegerError;
-
-    fn try_into(self) -> Result<usize, Self::Error> {
-        let u: u64 = self.try_into()?;
-
-        u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
-    }
-}
 
 fn f64_cmp_f64(left: f64, right: f64) -> Ordering {
     match left.partial_cmp(&right) {

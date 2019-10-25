@@ -2,9 +2,7 @@ use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
-use liblumen_alloc::erts::term::binary::IterableBitstring;
-use liblumen_alloc::erts::term::{atom_unchecked, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::binary_to_atom_2::native;
 use crate::scheduler::with_process_arc;
@@ -58,26 +56,17 @@ fn with_utf8_binary_with_encoding_returns_atom_with_binary_name() {
                     strategy::term::is_encoding(),
                 ),
                 |(binary, encoding)| {
-                    let byte_vec: Vec<u8> = match binary.to_typed_term().unwrap() {
-                        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                            TypedTerm::HeapBinary(heap_binary) => heap_binary.as_bytes().to_vec(),
-                            TypedTerm::SubBinary(subbinary) => subbinary.full_byte_iter().collect(),
-                            TypedTerm::ProcBin(process_binary) => {
-                                process_binary.as_bytes().to_vec()
-                            }
-                            TypedTerm::BinaryLiteral(process_binary) => {
-                                process_binary.as_bytes().to_vec()
-                            }
-                            unboxed_typed_term => {
-                                panic!("unboxed_typed_term = {:?}", unboxed_typed_term)
-                            }
-                        },
+                    let byte_vec: Vec<u8> = match binary.decode().unwrap() {
+                        TypedTerm::HeapBinary(heap_binary) => heap_binary.as_bytes().to_vec(),
+                        TypedTerm::SubBinary(subbinary) => subbinary.full_byte_iter().collect(),
+                        TypedTerm::ProcBin(process_binary) => process_binary.as_bytes().to_vec(),
+                        TypedTerm::BinaryLiteral(process_binary) => process_binary.as_bytes().to_vec(),
                         typed_term => panic!("typed_term = {:?}", typed_term),
                     };
 
                     let s = std::str::from_utf8(&byte_vec).unwrap();
 
-                    prop_assert_eq!(native(binary, encoding), Ok(atom_unchecked(s)));
+                    prop_assert_eq!(native(binary, encoding), Ok(Atom::str_to_term(s)));
 
                     Ok(())
                 },

@@ -9,7 +9,7 @@ fn without_atom_name_errors_badarg() {
             .run(
                 &strategy::term::pid_or_port(arc_process.clone()),
                 |pid_or_port| {
-                    let name = atom_unchecked("undefined");
+                    let name = Atom::str_to_term("undefined");
 
                     prop_assert_eq!(
                         native(arc_process.clone(), name, pid_or_port),
@@ -26,13 +26,13 @@ fn without_atom_name_errors_badarg() {
 #[test]
 fn with_registered_name_errors_badarg() {
     with_process_arc(|registered_process_arc| {
-        let registered_name = atom_unchecked("registered_name");
+        let registered_name = Atom::str_to_term("registered_name");
 
         assert_eq!(
             native(
                 Arc::clone(&registered_process_arc),
                 registered_name,
-                unsafe { registered_process_arc.pid().as_term() }
+                unsafe { registered_process_arc.pid().decode() }
             ),
             Ok(true.into())
         );

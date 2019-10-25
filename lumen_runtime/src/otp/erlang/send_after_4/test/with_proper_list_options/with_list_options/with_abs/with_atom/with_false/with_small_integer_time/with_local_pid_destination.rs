@@ -97,7 +97,7 @@ fn without_process_sends_nothing_when_timer_expires() {
             }),
             |(milliseconds, arc_process, message)| {
                 let time = arc_process.integer(milliseconds).unwrap();
-                let destination = next_pid();
+                let destination = Pid::next_term();
                 let options = options(&arc_process);
 
                 let result = native(arc_process.clone(), time, destination, message, options);

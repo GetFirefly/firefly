@@ -19,3 +19,4 @@ pub mod alloc;
 pub mod locks;
 pub mod sys;
 pub mod util;
+pub mod cmp;

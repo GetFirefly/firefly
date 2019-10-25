@@ -1,7 +1,7 @@
 use core::ptr::NonNull;
 
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::{ProcBin, Term};
+use crate::erts::term::prelude::{ProcBin, Term};
 
 use super::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
 use super::gc::*;
@@ -76,7 +76,7 @@ impl HeapAlloc for ProcessHeap {
     }
 
     #[inline]
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool {
+    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized {
         if self.young.contains(ptr) || self.old.contains(ptr) {
             return true;
         }

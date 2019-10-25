@@ -1,45 +1,186 @@
 use core::alloc::Layout;
 use core::cmp::Ordering;
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
-use core::mem;
+use core::ptr;
+use core::slice;
 
 use alloc::sync::Arc;
-
-use super::{to_word_size, AsTerm, Term};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
 use crate::erts::process::Process;
-use crate::erts::term::{arity_of, Boxed, TypeError, TypedTerm};
-use crate::erts::{HeapAlloc, ModuleFunctionArity};
+use crate::erts::term::prelude::{Header, Encoded};
+use crate::erts::{self, HeapAlloc, ModuleFunctionArity};
+
+use super::prelude::{TypeError, Term, TypedTerm, Boxed};
 
 #[repr(C)]
 pub struct Closure {
-    header: Term,
+    header: Header<Closure>,
     creator: Term, // pid of creator process, possible to be either Pid or ExternalPid
     module_function_arity: Arc<ModuleFunctionArity>,
     code: Code, // pointer to function entry
     pub env_len: usize,
+    env: [Term]
+}
+
+#[derive(Clone, Copy)]
+struct ClosureLayout {
+    layout: Layout,
+    creator_offset: usize,
+    mfa_offset: usize,
+    code_offset: usize,
+    env_offset: usize,
+}
+impl ClosureLayout {
+    fn base_size() -> usize {
+        let (layout, _creator_offset) = Layout::new::<Header<Closure>>()
+            .extend(Layout::new::<Term>())
+            .unwrap();
+        let (layout, _mfa_offset) = layout
+            .extend(Layout::new::<Arc<ModuleFunctionArity>>())
+            .unwrap();
+        let (layout, _code_offset) = layout
+            .extend(Layout::new::<Code>())
+            .unwrap();
+        layout.size()
+    }
+
+    fn for_code_and_env(code: &Code, env: &[Term]) -> Self {
+        let (layout, creator_offset) = Layout::new::<Header<Closure>>()
+            .extend(Layout::new::<Term>())
+            .unwrap();
+        let (layout, mfa_offset) = layout
+            .extend(Layout::new::<Arc<ModuleFunctionArity>>())
+            .unwrap();
+        let (layout, code_offset) = layout
+            .extend(Layout::for_value(code))
+            .unwrap();
+        let (layout, env_offset) = layout
+            .extend(Layout::for_value(env))
+            .unwrap();
+
+        let layout = layout.pad_to_align().unwrap();
+
+        Self {
+            layout,
+            creator_offset,
+            mfa_offset,
+            code_offset,
+            env_offset,
+        }
+    }
+
+    fn for_code_and_env_len(code: &Code, env_len: usize) -> Self {
+        unsafe {
+            let ptr = ptr::null_mut() as *mut Term;
+            let arr = core::slice::from_raw_parts(ptr as *const (), env_len);
+            let env = &*(arr as *const [()] as *mut [Term]);
+            Self::for_code_and_env(code, env)
+        }
+    }
 }
 
 impl Closure {
-    pub fn new(
-        module_function_arity: Arc<ModuleFunctionArity>,
-        code: Code,
-        creator: Term,
-        env_len: usize,
-    ) -> Self {
-        Self {
-            header: Term::make_header(arity_of::<Self>() + env_len, Term::FLAG_CLOSURE),
-            creator,
-            module_function_arity,
-            code,
-            env_len,
+    /// Constructs a new `Closure` with an env of size `len` using `heap`
+    ///
+    /// The constructed closure will contain an environment of invalid words until
+    /// individual elements are written, this is intended for cases where we don't
+    /// already have a slice of elements to construct a tuple from
+    pub fn new<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env_len: usize) -> Result<Boxed<Self>, Alloc> 
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        let closure_layout = ClosureLayout::for_code_and_env_len(&code, env_len);
+        let layout = closure_layout.layout.clone();
+
+        let header = Header::from_arity(env_len);
+        unsafe {
+            // Allocate space for closure
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut u8;
+            let header_ptr = ptr as *mut Header<Self>;
+            // Write header
+            header_ptr.write(header);
+            // Construct pointer to each field and write the corresponding value
+            let creator_ptr = ptr.offset(closure_layout.creator_offset as isize) as *mut Term;
+            creator_ptr.write(creator);
+            let mfa_ptr = ptr.offset(closure_layout.mfa_offset as isize) as *mut Arc<ModuleFunctionArity>;
+            mfa_ptr.write(mfa);
+            let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Code;
+            code_ptr.write(code);
+            // Construct actual Tuple reference
+            Ok(Self::from_raw_parts(ptr, env_len))
         }
+    }
+
+    pub fn from_slice<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env: &[Term]) -> Result<Boxed<Self>, Alloc> 
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        let closure_layout = ClosureLayout::for_code_and_env(&code, env);
+        let layout = closure_layout.layout.clone();
+
+        // The result of calling this will be a Tuple with everything located
+        // contiguously in memory
+        let arity = env.len();
+        let header = Header::from_arity(arity);
+        unsafe {
+            // Allocate space for tuple and immediate elements
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut u8;
+            // Write tuple header
+            let header_ptr = ptr as *mut Header<Self>;
+            header_ptr.write(header);
+            // Construct pointer to each field and write the corresponding value
+            let creator_ptr = ptr.offset(closure_layout.creator_offset as isize) as *mut Term;
+            creator_ptr.write(creator);
+            let mfa_ptr = ptr.offset(closure_layout.mfa_offset as isize) as *mut Arc<ModuleFunctionArity>;
+            mfa_ptr.write(mfa);
+            let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Code;
+            code_ptr.write(code);
+            // Construct pointer to first env element
+            let mut env_ptr = (ptr as *mut u8).offset(closure_layout.env_offset as isize) as *mut Term;
+            // Walk original slice of terms and copy them into new memory region,
+            // copying boxed terms recursively as necessary
+            for element in env {
+                if element.is_immediate() {
+                    env_ptr.write(*element);
+                } else {
+                    // Recursively call clone_to_heap, and then write the box header here
+                    let boxed = element.clone_to_heap(heap)?;
+                    env_ptr.write(boxed);
+                }
+
+                env_ptr = env_ptr.offset(1);
+            }
+            // Construct actual Tuple reference
+            Ok(Self::from_raw_parts(ptr as *mut u8, arity))
+        }
+    }
+
+    #[inline]
+    pub fn base_size_words() -> usize {
+        erts::to_word_size(ClosureLayout::base_size())
+    }
+
+    pub fn from_raw_term(term: *mut Term) -> Boxed<Self> {
+        let header = &*(term as *mut Header<Closure>);
+        let arity = header.arity();
+
+        Self::from_raw_parts(term as *const u8, arity)
+    }
+
+    #[inline]
+    pub(in super) unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
+        // Invariants of slice::from_raw_parts.
+        assert!(!ptr.is_null());
+        assert!(len <= isize::max_value() as usize);
+
+        let slice = core::slice::from_raw_parts(ptr as *const (), len);
+        Boxed::new_unchecked(slice as *const [()] as *mut Self)
     }
 
     pub fn arity(&self) -> u8 {
@@ -73,118 +214,63 @@ impl Closure {
     }
 
     fn push_env_to_stack(&self, process: &Process) -> Result<(), Alloc> {
-        for term in self.env_slice().iter().rev() {
+        for term in self.env.iter().rev() {
             process.stack_push(*term)?;
         }
 
         Ok(())
     }
 
-    /// Returns the pointer to the head of the closure environment
-    pub fn env_head(&self) -> *const Term {
-        unsafe { ((self as *const Closure) as *const Term).add(Self::base_size_words()) }
-    }
-
     /// Returns the length of the closure environment in terms.
+    #[inline]
     pub fn env_len(&self) -> usize {
-        self.env_len
+        self.env.len()
     }
 
     /// Returns a slice containing the closure environment.
+    #[inline]
     pub fn env_slice(&self) -> &[Term] {
-        unsafe { core::slice::from_raw_parts(self.env_head(), self.env_len()) }
+        &self.env
     }
 
     /// Iterator over the terms in the closure environment.
-    pub fn env_iter(&self) -> EnvIter {
-        EnvIter::new(self)
+    #[inline]
+    pub fn env_iter<'a>(&'a self) -> slice::Iter<'a, Term> {
+        self.env.iter()
     }
 
     /// Gets an element from the environment directly by index.
     /// Panics if outside of bounds.
+    #[inline]
     pub fn get_env_element(&self, idx: usize) -> Term {
-        self.env_slice()[idx]
-    }
-
-    #[inline]
-    pub fn layout(env_len: usize) -> Layout {
-        let size = Self::need_in_bytes_from_env_len(env_len);
-        unsafe { Layout::from_size_align_unchecked(size, mem::align_of::<Term>()) }
-    }
-
-    /// The number of bytes for the header and immediate terms or box term pointer to elements
-    /// allocated elsewhere.
-    pub fn need_in_bytes_from_env_len(env_len: usize) -> usize {
-        Closure::base_size() + (env_len * mem::size_of::<Term>())
-    }
-
-    /// The number of words for the header and immediate terms or box term pointer to elements
-    /// allocated elsewhere.
-    pub fn need_in_words_from_env_len(env_len: usize) -> usize {
-        to_word_size(Self::need_in_bytes_from_env_len(env_len))
-    }
-
-    /// Since we are storing terms directly following the closure header, we need the pointer
-    /// following the base to meet the alignment requirements for Term.
-    pub fn base_size() -> usize {
-        use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
-
-        round_up_to_multiple_of(mem::size_of::<Self>(), mem::align_of::<Term>())
-    }
-
-    pub fn base_size_words() -> usize {
-        to_word_size(Self::base_size())
-    }
-}
-
-unsafe impl AsTerm for Closure {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self as *const Self)
+        self.env[idx]
     }
 }
 
 impl CloneToProcess for Closure {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc> 
+    where
+        A: ?Sized + HeapAlloc,
+    {
         unsafe {
-            let len = self.env_len();
-            let words = Self::need_in_words_from_env_len(len);
+            let mfa = self.module_function_arity.clone();
+            let code = self.code;
+            let creator = self.creator;
+            let ptr = Self::from_slice(heap, mfa, code, creator, &self.env)?;
 
-            let base_ptr = heap.alloc(words)?.as_ptr() as *mut Term;
-            let closure_ptr = base_ptr as *mut Self;
-            // Write header
-            closure_ptr.write(Closure::new(
-                self.module_function_arity.clone(),
-                self.code,
-                self.creator,
-                len,
-            ));
-
-            // Write the elements
-            let mut element_ptr = base_ptr.offset(Self::base_size_words() as isize);
-            for element in self.env_iter() {
-                if element.is_immediate() {
-                    element_ptr.write(element);
-                } else {
-                    let boxed = element.clone_to_heap(heap)?;
-                    element_ptr.write(boxed);
-                }
-
-                element_ptr = element_ptr.offset(1);
-            }
-
-            Ok(Term::make_boxed(closure_ptr))
+            Ok(ptr.into())
         }
     }
+
     fn size_in_words(&self) -> usize {
-        Self::need_in_words_from_env_len(self.env_len())
+        erts::to_word_size(Layout::for_value(self).size())
     }
 }
 
 impl Debug for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Closure")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
+            .field("header", &self.header)
             .field("code", &(self.code as usize))
             .field("module_function_arity", &self.module_function_arity)
             .field("creator", &self.creator)
@@ -232,18 +318,28 @@ impl PartialEq for Closure {
             && ((self.code as usize) == (other.code as usize))
     }
 }
+impl<T> PartialEq<Boxed<T>> for Closure
+where
+    T: ?Sized + PartialEq<Closure>,
+{
+    #[inline]
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
 
 impl PartialOrd for Closure {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
-
-impl TryFrom<Term> for Boxed<Closure> {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+impl<T> PartialOrd<Boxed<T>> for Closure
+where
+    T: ?Sized + PartialOrd<Closure>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
 
@@ -252,55 +348,8 @@ impl TryFrom<TypedTerm> for Boxed<Closure> {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
-            TypedTerm::Boxed(boxed_closure) => boxed_closure.to_typed_term().unwrap().try_into(),
             TypedTerm::Closure(closure) => Ok(closure),
             _ => Err(TypeError),
-        }
-    }
-}
-
-pub struct EnvIter {
-    pointer: *const Term,
-    limit: *const Term,
-}
-
-impl EnvIter {
-    pub fn new(closure: &Closure) -> Self {
-        let pointer = closure.env_head();
-        let limit = unsafe { pointer.add(closure.env_len()) };
-
-        Self { pointer, limit }
-    }
-}
-
-impl Iterator for EnvIter {
-    type Item = Term;
-
-    fn next(&mut self) -> Option<Term> {
-        if self.pointer == self.limit {
-            None
-        } else {
-            let old_pointer = self.pointer;
-
-            unsafe {
-                self.pointer = self.pointer.add(1);
-                old_pointer.as_ref().map(|r| *r)
-            }
-        }
-    }
-}
-
-impl DoubleEndedIterator for EnvIter {
-    fn next_back(&mut self) -> Option<Term> {
-        if self.pointer == self.limit {
-            None
-        } else {
-            unsafe {
-                // limit is +1 past the actual elements, so pre-decrement unlike `next`, which
-                // post-decrements
-                self.limit = self.limit.offset(-1);
-                self.limit.as_ref().map(|r| *r)
-            }
         }
     }
 }

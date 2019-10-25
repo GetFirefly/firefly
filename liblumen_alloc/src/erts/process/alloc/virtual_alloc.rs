@@ -1,6 +1,6 @@
 use core::ops::DerefMut;
 
-use crate::erts::term::{ProcBin, Term};
+use crate::erts::term::prelude::{ProcBin, Term};
 
 pub trait VirtualAlloc {
     /// Attaches a ProcBin to virtual binary heap

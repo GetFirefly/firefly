@@ -2,7 +2,7 @@ use std::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 // 2-36
 pub struct Base(u8);

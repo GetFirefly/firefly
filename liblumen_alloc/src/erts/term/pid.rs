@@ -1,5 +1,6 @@
+use core::alloc::Layout;
 use core::cmp;
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 use core::default::Default;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
@@ -11,21 +12,43 @@ use lazy_static::lazy_static;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
-use crate::erts::term::{arity_of, AsTerm, Term, TypeError, TypedTerm};
+use crate::erts::term::prelude::*;
 use crate::erts::{HeapAlloc, Node};
 use crate::mem::bit_size_of;
 
-/// Generates the next `Pid`.  `Pid`s are not reused for the lifetime of the VM.
-pub fn next() -> Pid {
-    let mut writable_counter = RW_LOCK_COUNTER.write();
-
-    writable_counter.next()
+lazy_static! {
+    static ref RW_LOCK_COUNTER: RwLock<Counter> = Default::default();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Pid(usize);
 impl Pid {
+    const NUMBER_BIT_COUNT: u8 = 15;
+    const NUMBER_MASK: usize = 0b111_1111_1111_1111;
+
+    const SERIAL_BIT_COUNT: u8 =
+        (bit_size_of::<usize>() - (Self::NUMBER_BIT_COUNT as usize) - 7) as u8;
+    const SERIAL_MASK: usize = !Self::NUMBER_MASK;
+
+    pub const NUMBER_MAX: usize = (1 << (Self::NUMBER_BIT_COUNT as usize)) - 1;
+    pub const SERIAL_MAX: usize = (1 << (Self::SERIAL_BIT_COUNT as usize)) - 1;
+    pub const SIZE_IN_WORDS: usize = 1;
+
+    /// Generates the next `Pid`.
+    ///
+    /// `Pid`s are not reused for the lifetime of the VM.
+    pub fn next() -> Pid {
+        let mut writable_counter = RW_LOCK_COUNTER.write();
+
+        writable_counter.next()
+    }
+
+    /// Same as `next`, but directly encodes to `Term`
+    pub fn next_term() -> Term {
+        Self::next().encode().unwrap()
+    }
+
     /// Given a the raw pid value (as a usize), reifies it into a `Pid`
     #[inline]
     pub unsafe fn from_raw(pid: usize) -> Self {
@@ -35,6 +58,16 @@ impl Pid {
     pub fn new(number: usize, serial: usize) -> Result<Pid, OutOfRange> {
         Self::check(number, serial)
             .map(|(number, serial)| unsafe { Self::new_unchecked(number, serial) })
+    }
+
+    unsafe fn new_unchecked(number: usize, serial: usize) -> Pid {
+        Self::from_raw((serial << (Self::NUMBER_BIT_COUNT as usize)) | number)
+    }
+
+    /// Same as `new`, but directly encodes to `Term`
+    pub fn make_term(number: usize, serial: usize) -> Result<Term, OutOfRange> {
+        let pid = Self::new(number, serial)?;
+        Ok(pid.encode().unwrap())
     }
 
     pub fn check(number: usize, serial: usize) -> Result<(usize, usize), OutOfRange> {
@@ -49,11 +82,7 @@ impl Pid {
         }
     }
 
-    unsafe fn new_unchecked(number: usize, serial: usize) -> Pid {
-        Self::from_raw((serial << (Self::NUMBER_BIT_COUNT as usize)) | number)
-    }
-
-    pub fn number(&self) -> usize {
+    pub fn number(self) -> usize {
         self.0 & Self::NUMBER_MASK
     }
 
@@ -61,22 +90,9 @@ impl Pid {
         (self.0 & Self::SERIAL_MASK) >> Self::NUMBER_BIT_COUNT
     }
 
-    const NUMBER_BIT_COUNT: u8 = 15;
-    const NUMBER_MASK: usize = 0b111_1111_1111_1111;
-    pub const NUMBER_MAX: usize = (1 << (Self::NUMBER_BIT_COUNT as usize)) - 1;
-
-    const SERIAL_BIT_COUNT: u8 =
-        (bit_size_of::<usize>() - (Self::NUMBER_BIT_COUNT as usize) - 7) as u8;
-    const SERIAL_MASK: usize = !Self::NUMBER_MASK;
-    pub const SERIAL_MAX: usize = (1 << (Self::SERIAL_BIT_COUNT as usize)) - 1;
-
-    pub const SIZE_IN_WORDS: usize = 1;
-}
-
-unsafe impl AsTerm for Pid {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_pid(self.0)
+    #[inline(always)]
+    pub fn as_usize(self) -> usize {
+        self.0
     }
 }
 
@@ -87,8 +103,23 @@ impl Display for Pid {
 }
 
 impl PartialEq<ExternalPid> for Pid {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, _other: &ExternalPid) -> bool {
+        false
+    }
+}
+impl<T> PartialEq<Boxed<T>> for Pid
+where
+    T: PartialEq<Pid>,
+{
+    #[inline]
+    default fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+impl PartialEq<Boxed<ExternalPid>> for Pid {
+    #[inline(always)]
+    fn eq(&self, _other: &Boxed<ExternalPid>) -> bool {
         false
     }
 }
@@ -98,9 +129,20 @@ impl PartialOrd<ExternalPid> for Pid {
         self.partial_cmp(&other.pid)
     }
 }
+impl<T> PartialOrd<Boxed<T>> for Pid
+where
+    T: PartialOrd<Pid>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<cmp::Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
+    }
+}
 
+#[derive(Debug)]
+#[repr(C)]
 pub struct ExternalPid {
-    header: Term,
+    header: Header<ExternalPid>,
     node: Node,
     next: *mut u8, // off heap header
     pid: Pid,
@@ -118,10 +160,9 @@ impl ExternalPid {
 
     fn new(node: Node, number: usize, serial: usize) -> Result<Self, OutOfRange> {
         let pid = Pid::new(number, serial)?;
-        let header = Term::make_header(arity_of::<Self>(), Term::FLAG_EXTERN_PID);
 
         Ok(Self {
-            header,
+            header: Default::default(),
             node,
             next: ptr::null_mut(),
             pid,
@@ -129,20 +170,17 @@ impl ExternalPid {
     }
 }
 
-unsafe impl AsTerm for ExternalPid {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self as *const Self)
-    }
-}
-
 impl CloneToProcess for ExternalPid {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    where
+        A: ?Sized + HeapAlloc,
+    {
         unsafe {
-            let ptr = heap.alloc(self.size_in_words())?.as_ptr() as *mut Self;
+            let layout = Layout::new::<Self>();
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
             ptr::copy_nonoverlapping(self as *const Self, ptr, 1);
 
-            Ok(Term::make_boxed(ptr))
+            Ok(ptr.into())
         }
     }
 }
@@ -159,12 +197,26 @@ impl Display for ExternalPid {
     }
 }
 
-impl Eq for ExternalPid {}
-
 impl Hash for ExternalPid {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.node.hash(state);
         self.pid.hash(state);
+    }
+}
+
+impl Eq for ExternalPid {}
+impl PartialEq for ExternalPid {
+    fn eq(&self, other: &ExternalPid) -> bool {
+        self.node == other.node && self.pid == other.pid
+    }
+}
+impl<T> PartialEq<Boxed<T>> for ExternalPid
+where
+    T: PartialEq<ExternalPid>,
+{
+    #[inline]
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
     }
 }
 
@@ -175,34 +227,18 @@ impl Ord for ExternalPid {
             .then_with(|| self.pid.cmp(&other.pid))
     }
 }
-
-impl PartialEq<ExternalPid> for ExternalPid {
-    fn eq(&self, other: &ExternalPid) -> bool {
-        self.node == other.node && self.pid == other.pid
-    }
-}
-
-impl PartialOrd<ExternalPid> for ExternalPid {
+impl PartialOrd for ExternalPid {
     fn partial_cmp(&self, other: &ExternalPid) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
-impl fmt::Debug for ExternalPid {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ExternalPid")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("node", &self.node)
-            .field("next", &self.next)
-            .field("pid", &self.pid)
-            .finish()
-    }
-}
-
-impl TryFrom<Term> for Pid {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+impl<T> PartialOrd<Boxed<T>> for ExternalPid
+where
+    T: PartialOrd<ExternalPid>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<cmp::Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
 
@@ -252,10 +288,6 @@ impl Counter {
 
         local_pid
     }
-}
-
-lazy_static! {
-    static ref RW_LOCK_COUNTER: RwLock<Counter> = Default::default();
 }
 
 #[cfg(test)]

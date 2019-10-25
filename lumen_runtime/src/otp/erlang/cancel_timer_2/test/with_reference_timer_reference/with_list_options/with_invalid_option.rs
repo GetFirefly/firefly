@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn with_atom_option_errors_badarg() {
-    with_option_errors_badarg(|_| atom_unchecked("unsupported"));
+    with_option_errors_badarg(|_| Atom::str_from_term("unsupported"));
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn with_float_option_errors_badarg() {
 
 #[test]
 fn with_local_pid_option_errors_badarg() {
-    with_option_errors_badarg(|_| make_pid(0, 1).unwrap());
+    with_option_errors_badarg(|_| Pid::make_term(0, 1).unwrap());
 }
 
 #[test]

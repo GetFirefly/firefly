@@ -16,7 +16,7 @@ use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Boxed, Map, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::module::{ErlangFunction, NativeFunctionKind, ResolvedFunction};
@@ -267,9 +267,9 @@ impl CallExecutor {
         arity: usize,
     ) -> Result {
         panic!("Undef: {} {} {}", module, function, arity);
-        //let exit_atom = atom_unchecked("EXIT");
-        //let undef_atom = atom_unchecked("undef");
-        //let trace_atom = atom_unchecked("trace");
+        //let exit_atom = Atom::str_to_term("EXIT");
+        //let undef_atom = Atom::str_to_term("undef");
+        //let trace_atom = Atom::str_to_term("trace");
         //self.call_closure(proc, throw_cont, &[exit_atom, undef_atom, trace_atom])
     }
 
@@ -292,7 +292,7 @@ impl CallExecutor {
                     }) => Ok(call_closure(
                         proc,
                         args[1],
-                        &mut [atom_unchecked("throw"), reason, atom_unchecked("trace")],
+                        &mut [Atom::str_to_term("throw"), reason, Atom::str_to_term("trace")],
                     )),
                     Exception::Runtime(runtime::Exception {
                         class: runtime::Class::Exit,
@@ -301,7 +301,7 @@ impl CallExecutor {
                     }) => Ok(call_closure(
                         proc,
                         args[1],
-                        &mut [atom_unchecked("EXIT"), reason, atom_unchecked("trace")],
+                        &mut [Atom::str_to_term("EXIT"), reason, Atom::str_to_term("trace")],
                     )),
                     Exception::Runtime(runtime::Exception {
                         class: runtime::Class::Error { .. },
@@ -310,7 +310,7 @@ impl CallExecutor {
                     }) => Ok(call_closure(
                         proc,
                         args[1],
-                        &mut [atom_unchecked("error"), reason, atom_unchecked("trace")],
+                        &mut [Atom::str_to_term("error"), reason, Atom::str_to_term("trace")],
                     )),
                 },
             },
@@ -365,7 +365,7 @@ impl CallExecutor {
         const_val: Const,
     ) -> std::result::Result<Term, system::Exception> {
         let res = match fun.fun.cons().const_kind(const_val) {
-            ConstKind::Atomic(AtomicTerm::Atom(atom)) => Ok(atom_unchecked(&atom.0.as_str())),
+            ConstKind::Atomic(AtomicTerm::Atom(atom)) => Ok(Atom::str_to_term(&atom.0.as_str())),
             ConstKind::Atomic(AtomicTerm::Int(int)) => Ok(proc.integer(int.0)?),
             ConstKind::Atomic(AtomicTerm::Binary(bin)) => Ok(proc.binary_from_bytes(&bin.0)?),
             ConstKind::Tuple { entries } => {
@@ -457,7 +457,7 @@ impl CallExecutor {
                             .map(|r| self.make_term(proc, fun, *r))
                             .collect();
                         let mut vec = terms?;
-                        vec.insert(0, atom_unchecked(VALUE_LIST_MARKER));
+                        vec.insert(0, Atom::str_to_term(VALUE_LIST_MARKER));
                         let term = proc.tuple_from_slice(&vec)?;
                         Ok(term)
                     }
@@ -687,7 +687,7 @@ impl CallExecutor {
 
                 let timeout = self.make_term(proc, fun, reads[1])?;
                 // Only infinity supported
-                assert!(timeout == atom_unchecked("infinity"));
+                assert!(timeout == Atom::str_to_term("infinity"));
 
                 proc.mailbox.lock().borrow_mut().recv_start();
 

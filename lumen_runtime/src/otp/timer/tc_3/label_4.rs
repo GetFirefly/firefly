@@ -3,7 +3,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::convert_time_unit_3;
 use crate::otp::timer::tc_3::label_5;
@@ -42,8 +42,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         arc_process,
         Placement::Push,
         duration,
-        atom_unchecked("native"),
-        atom_unchecked("microsecond"),
+        Atom::str_to_term("native"),
+        Atom::str_to_term("microsecond"),
     )?;
 
     Process::call_code(arc_process)

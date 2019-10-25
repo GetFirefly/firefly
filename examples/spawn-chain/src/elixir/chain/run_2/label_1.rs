@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Boxed, Closure, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir::chain::run_2::label_2;
 

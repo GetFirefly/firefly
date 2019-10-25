@@ -16,7 +16,7 @@ use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::SizeClass;
 
 use crate::erts::exception::system::Alloc;
-use crate::erts::Term;
+use crate::erts::term::prelude::Term;
 use crate::SizeClassAlloc;
 
 // The global process heap allocator

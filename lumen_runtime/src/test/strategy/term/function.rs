@@ -5,8 +5,9 @@ use num_bigint::BigInt;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::{Term, TypedTerm};
 use liblumen_alloc::erts::Process;
+
+use super::*;
 
 pub fn module() -> BoxedStrategy<Term> {
     super::atom()

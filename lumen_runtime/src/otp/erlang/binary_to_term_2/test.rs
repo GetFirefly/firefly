@@ -5,7 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang;
 use crate::otp::erlang::binary_to_term_2::native;
@@ -26,7 +26,7 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
                 &strategy::term::binary::containing_bytes(byte_vec, arc_process.clone()),
                 |binary| {
                     let options = options(&arc_process);
-                    let term = atom_unchecked("hello");
+                    let term = Atom::str_to_term("hello");
 
                     prop_assert_eq!(
                         native(&arc_process, binary, options),
@@ -60,6 +60,6 @@ fn with_used_with_binary_returns_how_many_bytes_were_consumed_along_with_term() 
     });
 
     fn options(process: &Process) -> Term {
-        process.cons(atom_unchecked("used"), Term::NIL).unwrap()
+        process.cons(Atom::str_to_term("used"), Term::NIL).unwrap()
     }
 }

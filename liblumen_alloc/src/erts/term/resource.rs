@@ -2,7 +2,7 @@
 /// converted to a normal Term.
 use core::alloc::Layout;
 use core::any::{Any, TypeId};
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ptr::NonNull;
@@ -12,9 +12,9 @@ use liblumen_core::sys;
 
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::heap_alloc::HeapAlloc;
-use crate::erts::term::term::Term;
-use crate::erts::term::{arity_of, AsTerm, TypeError, TypedTerm};
 use crate::CloneToProcess;
+
+use super::prelude::{TypeError, TypedTerm, Term, Header, Boxed};
 
 pub struct Resource {
     reference_count: AtomicUsize,
@@ -69,21 +69,15 @@ impl Display for Resource {
 /// A reference to `Resource`
 #[repr(C)]
 pub struct Reference {
-    header: Term,
+    header: Header<Reference>,
     resource: NonNull<Resource>,
 }
 
 impl Reference {
-    pub unsafe fn from_raw(ptr: *mut Self) -> Self {
-        let reference = &*ptr;
-
-        reference.clone()
-    }
-
     pub fn new(value: Box<dyn Any>) -> Result<Self, Alloc> {
         let resource = Resource::alloc(value)?;
         let reference = Self {
-            header: Term::make_header(arity_of::<Self>(), Term::FLAG_RESOURCE_REFERENCE),
+            header: Default::default(),
             resource,
         };
 
@@ -116,12 +110,6 @@ impl Reference {
     }
 }
 
-unsafe impl AsTerm for Reference {
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self)
-    }
-}
-
 impl Clone for Reference {
     fn clone(&self) -> Self {
         self.resource()
@@ -136,7 +124,10 @@ impl Clone for Reference {
 }
 
 impl CloneToProcess for Reference {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    where
+        A: ?Sized + HeapAlloc,
+    {
         let layout = Layout::new::<Self>();
 
         let ptr = unsafe {
@@ -149,16 +140,14 @@ impl CloneToProcess for Reference {
             ptr
         };
 
-        let boxed = Term::make_boxed(ptr);
-
-        Ok(boxed)
+        Ok(ptr.into())
     }
 }
 
 impl Debug for Reference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Reference")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
+            .field("header", &self.header)
             .field(
                 "resource",
                 &format_args!("{:p} => {:?}", self.resource, unsafe {
@@ -186,21 +175,20 @@ impl PartialEq for Reference {
         self.resource == other.resource
     }
 }
-
-impl TryFrom<Term> for Reference {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+impl<T> PartialEq<Boxed<T>> for Reference
+where
+    T: PartialEq<Reference>,
+{
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
     }
 }
 
-impl TryFrom<TypedTerm> for Reference {
+impl TryFrom<TypedTerm> for Boxed<Reference> {
     type Error = TypeError;
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
-            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             TypedTerm::ResourceReference(reference) => Ok(reference),
             _ => Err(TypeError),
         }

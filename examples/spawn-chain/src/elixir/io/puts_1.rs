@@ -4,8 +4,8 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom};
+use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::binary_to_string::binary_to_string;
@@ -35,7 +35,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             system::io::puts(&string);
             arc_process.reduce();
 
-            let ok = atom_unchecked("ok");
+            let ok = Atom::str_to_term("ok");
             arc_process.return_from_call(ok)?;
 
             Process::call_code(arc_process)

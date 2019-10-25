@@ -3,7 +3,7 @@ use core::ptr::NonNull;
 use wasm_bindgen::prelude::*;
 
 use liblumen_alloc::erts::process::HeapAlloc;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Pid as PidTerm, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::HeapFragment;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::process::spawn::options::Options;
@@ -37,7 +37,7 @@ impl JsHeap {
     }
 
     pub fn atom(&mut self, name: &str) -> usize {
-        self.push(atom_unchecked(name))
+        self.push(Atom::str_to_term(name))
     }
 
     pub fn integer(&mut self, number: i32) -> usize {

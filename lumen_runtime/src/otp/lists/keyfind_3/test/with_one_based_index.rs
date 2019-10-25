@@ -3,8 +3,6 @@ mod with_proper_non_empty_list;
 
 use super::*;
 
-use liblumen_alloc::erts::term::atom_unchecked;
-
 #[test]
 fn with_empty_tuple_list_returns_false() {
     with_process_arc(|arc_process| {

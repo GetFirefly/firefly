@@ -35,8 +35,8 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
 }
 
 fn valid_options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    let noconnect = atom_unchecked("noconnect");
-    let nosuspend = atom_unchecked("nosuspend");
+    let noconnect = Atom::str_to_term("noconnect");
+    let nosuspend = Atom::str_to_term("nosuspend");
 
     prop_oneof![
         Just(empty::OPTIONS),

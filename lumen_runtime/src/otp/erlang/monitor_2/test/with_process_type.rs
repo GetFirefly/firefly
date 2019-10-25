@@ -7,7 +7,6 @@ use super::*;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom};
 
 use crate::otp::erlang::{exit_1, node_0};
 use crate::process;
@@ -54,5 +53,5 @@ fn is_not_process_identifier(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 fn r#type() -> Term {
-    atom_unchecked("process")
+    Atom::str_to_term("process")
 }

@@ -3,9 +3,7 @@ use std::convert::TryInto;
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::{Monitor, Process};
-use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Boxed, Pid, Reference, Term, Tuple,
-};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Message;
 use liblumen_alloc::{CloneToProcess, HeapFragment};
 
@@ -85,7 +83,7 @@ fn down<A: HeapAlloc>(
 ) -> Term {
     let tag = down_tag();
     let reference_term = reference.clone_to_heap(heap).unwrap();
-    let r#type = atom_unchecked("process");
+    let r#type = Atom::str_to_term("process");
     let identifier = identifier(process, monitor, heap);
     let heap_info = info.clone_to_heap(heap).unwrap();
 
@@ -105,14 +103,14 @@ fn down_need_in_words(monitor: &Monitor, info: Term) -> usize {
 }
 
 fn down_tag() -> Term {
-    atom_unchecked("DOWN")
+    Atom::str_to_term("DOWN")
 }
 
 fn identifier<A: HeapAlloc>(process: &Process, monitor: &Monitor, heap: &mut A) -> Term {
     match monitor {
         Monitor::Pid { .. } => process.pid_term(),
         Monitor::Name { monitored_name, .. } => {
-            let monitored_name_term = unsafe { monitored_name.as_term() };
+            let monitored_name_term = monitored_name.encode();
             let node_name = node_0::native();
 
             heap.tuple_from_slice(&[monitored_name_term, node_name])

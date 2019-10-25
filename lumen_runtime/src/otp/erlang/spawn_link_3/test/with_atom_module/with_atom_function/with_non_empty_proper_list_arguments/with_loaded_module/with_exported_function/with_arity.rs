@@ -9,10 +9,10 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
     let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.as_term() };
+    let module = unsafe { module_atom.decode() };
 
     let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let function = unsafe { function_atom.decode() };
 
     let number = parent_arc_process.integer(0).unwrap();
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
@@ -42,7 +42,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
 
     match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(atom_unchecked("normal")));
+            assert_eq!(runtime_exception, &exit!(Atom::str_to_term("normal")));
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
@@ -57,13 +57,13 @@ fn without_valid_arguments_when_run_exits_and_parent_exits() {
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
     let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.as_term() };
+    let module = unsafe { module_atom.decode() };
 
     let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let function = unsafe { function_atom.decode() };
 
     // not a number
-    let number = atom_unchecked("zero");
+    let number = Atom::str_to_term("zero");
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
     let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);

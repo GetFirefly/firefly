@@ -9,7 +9,7 @@ fn without_timer_returns_ok_and_sends_cancel_timer_message() {
 
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
         assert_eq!(
             receive_message(process),

@@ -8,7 +8,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, make_pid, SmallInteger, Term};
+use liblumen_alloc::erts::term::prelude::{SmallInteger, Term};
 
 use crate::otp::erlang;
 use crate::otp::erlang::send_2::native;

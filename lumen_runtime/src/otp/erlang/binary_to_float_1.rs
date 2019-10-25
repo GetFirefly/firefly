@@ -13,7 +13,7 @@ use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;(
 
 use lumen_runtime_macros::native_implemented_function;
 

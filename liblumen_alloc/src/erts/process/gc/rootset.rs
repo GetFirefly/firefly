@@ -2,7 +2,7 @@ use core::slice;
 
 use alloc::vec::Vec;
 
-use crate::erts::Term;
+use crate::erts::term::prelude::{Term, Encoded};
 
 /// This struct contains the set of roots which are to be scanned during garbage collection
 ///
@@ -40,17 +40,12 @@ impl RootSet {
         while (pos as usize) < (end as usize) {
             let term = unsafe { *pos };
 
-            pos = if term.has_no_arity() {
+            if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
                 self.0.push(pos);
+            }
 
-                unsafe { pos.add(1) }
-            } else {
-                assert!(term.is_header());
-
-                let skip = 1 + term.arityval();
-
-                unsafe { pos.add(skip) }
-            };
+            let skip = term.sizeof();
+            pos = unsafe { pos.add(skip) };
         }
     }
 

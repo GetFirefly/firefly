@@ -1,36 +1,31 @@
-#[macro_use]
-pub mod macros;
-
 //mod linker;
 mod llvm;
 mod lower;
 mod config;
 
-use core::fmt;
+use std::path::PathBuf;
 
-use failure::{Error, Fail};
-use inkwell::targets::Target;
+use thiserror::Error;
+pub use anyhow::Result;
 
 use libeir_ir::Module;
 
 pub use self::llvm::enums::{OptimizationLevel, RelocMode, CodeModel, OutputType};
 pub use self::config::{ConfigBuilder, Config};
 
-pub type Result<T> = core::result::Result<T, Error>;
-
 /// Represents an error which occurs during code generation
-#[derive(Fail, Debug)]
+#[derive(Error, Debug)]
 pub enum CodeGenError {
-    #[fail(display = "invalid target: {}", _0)]
+    #[error("invalid target: {0}")]
     InvalidTarget(String),
 
-    #[fail(display = "invalid codegen input: {}", _0)]
+    #[error("invalid codegen input: {0}")]
     ValidationError(String),
 
-    #[fail(display = "linker error: {}", _0)]
+    #[error("linker error: {0}")]
     LinkerError(String),
 
-    #[fail(display = "llvm error: {}", _0)]
+    #[error("llvm error: {0}")]
     LLVMError(String),
 }
 impl CodeGenError {

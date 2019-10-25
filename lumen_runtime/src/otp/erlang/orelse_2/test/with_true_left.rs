@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn with_atom_right_returns_true() {
-    with_right_returns_true(|mut _process| atom_unchecked("right"));
+    with_right_returns_true(|mut _process| Atom::str_to_term("right"));
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn with_float_right_returns_true() {
 
 #[test]
 fn with_local_pid_right_returns_true() {
-    with_right_returns_true(|_| make_pid(0, 1).unwrap());
+    with_right_returns_true(|_| Pid::make_term(0, 1).unwrap());
 }
 
 #[test]

@@ -1,12 +1,13 @@
 use core::fmt;
 use core::mem;
 use core::ptr;
+use core::slice;
 
 use liblumen_core::util::pointer::*;
 
-use crate::erts::term::binary_bytes;
-use crate::erts::term::{is_move_marker, Closure, Cons, HeapBin, MatchContext, ProcBin, SubBinary};
 use crate::erts::*;
+use crate::erts::term::prelude::*;
+use crate::erts::string::Encoding;
 
 use super::{VirtualBinaryHeap, YoungHeap};
 
@@ -101,7 +102,7 @@ impl OldHeap {
 
     /// Returns true if the given ProcBin is on this heap's virtual binary heap
     #[inline]
-    pub fn virtual_heap_contains<T>(&self, term: *const T) -> bool {
+    pub fn virtual_heap_contains<T>(&self, term: *const T) -> bool where T: ?Sized {
         self.vheap.contains(term)
     }
 
@@ -119,7 +120,7 @@ impl OldHeap {
 
     /// Returns true if the given pointer points into this heap
     #[inline]
-    pub fn contains<T>(&self, term: *const T) -> bool {
+    pub fn contains<T>(&self, term: *const T) -> bool where T: ?Sized {
         in_area(term, self.start, self.top)
     }
 
@@ -143,7 +144,7 @@ impl OldHeap {
     /// ```rust,ignore
     /// self.walk(|heap, term, pos| {
     ///     if term.is_tuple() {
-    ///         let arity = term.arityval();
+    ///         let arity = term.arity();
     ///         # ...
     ///         return Some(unsafe { pos.add(arity + 1) });
     ///     }
@@ -216,37 +217,35 @@ impl OldHeap {
         // is too large to build a heap binary, then the original must be a ProcBin,
         // so we don't need to worry about it being collected out from under us
         // TODO: Handle other subtype cases, see erl_gc.h:60
-        if header.is_subbinary_header() {
+        if header.is_subbinary() {
             let bin = &*(ptr as *mut SubBinary);
             // Convert to HeapBin if applicable
-            if let Ok((bin_header, bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
+            if let Ok((bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
                 // Save space for box
                 let dst = heap_top.add(1);
                 // Create box pointing to new destination
-                let val = Term::make_boxed(dst);
+                let val: Term = dst.into();
                 ptr::write(heap_top, val);
-                let dst = dst as *mut HeapBin;
-                let new_bin_ptr = dst.add(1) as *mut u8;
-                // Copy referenced part of binary to heap
-                ptr::copy_nonoverlapping(bin_ptr, new_bin_ptr, bin_size);
-                // Write heapbin header
-                ptr::write(dst, HeapBin::from_raw_parts(bin_header, bin_flags));
+                // Allocate HeapBin at destination
+                let bytes = slice::from_raw_parts(bin_ptr, bin_size);
+                let bin = HeapBin::copy_slice_to(dst as *mut u8, bytes, Encoding::Raw);
                 // Write a move marker to the original location
-                let marker = Term::make_boxed(heap_top);
+                let marker: Term = heap_top.into();
                 ptr::write(orig, marker);
                 // Update `ptr` as well
                 ptr::write(ptr, marker);
-                // Update top pointer
-                self.top = new_bin_ptr.add(bin_size) as *mut Term;
+                // Update top pointer by offseting pointer past end of new HeapBin
+                let size = mem::size_of_val(bin.as_ref());
+                self.top = (dst as *mut u8).offset(size as isize) as *mut Term;
                 // We're done
-                return 1 + to_word_size(mem::size_of::<HeapBin>() + bin_size);
+                return 1 + to_word_size(size);
             }
         }
 
-        let num_elements = header.arityval();
+        let num_elements = header.arity();
         let moved = num_elements + 1;
 
-        let marker = Term::make_boxed(heap_top);
+        let marker: Term = heap_top.into();
         // Write the term header to the location pointed to by the boxed term
         ptr::write(heap_top, header);
         // Move `ptr` to the first arityval
@@ -278,7 +277,7 @@ impl OldHeap {
         let location = self.top as *mut Cons;
         ptr::write(location, cons);
         // New list value
-        let list = Term::make_list(location);
+        let list = location.into();
         // Redirect original reference
         ptr::write(orig, list);
         // Store forwarding indicator/address
@@ -298,9 +297,9 @@ impl OldHeap {
         self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
             unsafe {
                 if term.is_boxed() {
-                    let ptr = term.boxed_val();
+                    let ptr: *mut Term = term.dyn_cast();
                     let boxed = *ptr;
-                    if is_move_marker(boxed) {
+                    if boxed.is_boxed() {
                         assert!(boxed.is_boxed());
                         // Overwrite move marker with "real" boxed term
                         ptr::write(pos, boxed);
@@ -314,7 +313,7 @@ impl OldHeap {
                             // Then add the procbin to the new virtual heap
                             let marker = *ptr;
                             assert!(marker.is_boxed());
-                            let bin_ptr = marker.boxed_val() as *mut ProcBin;
+                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
                             let bin = &*bin_ptr;
                             heap.virtual_alloc(bin);
                         } else {
@@ -324,7 +323,7 @@ impl OldHeap {
                     }
                     Some(pos.add(1))
                 } else if term.is_non_empty_list() {
-                    let ptr = term.list_val();
+                    let ptr: *mut Cons = term.dyn_cast();
                     let cons = *ptr;
                     if cons.is_move_marker() {
                         // Overwrite move marker with "real" list term
@@ -335,10 +334,10 @@ impl OldHeap {
                     }
                     Some(pos.add(1))
                 } else if term.is_header() {
-                    if term.is_tuple_header() {
+                    if term.is_tuple() {
                         // We need to check all elements, so we just skip over the tuple header
                         Some(pos.add(1))
-                    } else if term.is_closure_header() {
+                    } else if term.is_function() {
                         // Just as for tuples, we need to check elements within the closure env
                         Some(pos.add(Closure::base_size_words()))
                     } else if term.is_match_context() {
@@ -346,18 +345,19 @@ impl OldHeap {
                         let base = ctx.base();
                         let orig = ctx.orig();
                         let orig_term = *orig;
-                        let ptr = orig_term.boxed_val();
+                        let ptr: *mut Term = orig_term.dyn_cast();
                         let bin = *ptr;
-                        if is_move_marker(bin) {
+                        if bin.is_boxed() {
+                            // `orig` was a move marker
                             ptr::write(orig, bin);
-                            ptr::write(base, binary_bytes(bin));
+                            ptr::write(base, bin.as_binary_ptr());
                         } else if !orig_term.is_literal() && !heap.contains(ptr) {
                             heap.move_into(orig, ptr, bin);
-                            ptr::write(base, binary_bytes(bin));
+                            ptr::write(base, bin.as_binary_ptr());
                         }
-                        Some(pos.add(1 + term.arityval()))
+                        Some(pos.add(1 + term.arity()))
                     } else {
-                        Some(pos.add(1 + term.arityval()))
+                        Some(pos.add(1 + term.arity()))
                     }
                 } else {
                     Some(pos.add(1))
@@ -397,12 +397,12 @@ impl fmt::Debug for OldHeap {
         while pos < self.top {
             unsafe {
                 let term = &*pos;
-                if term.is_immediate() || term.is_boxed() || term.is_non_empty_list() {
+                if term.is_immediate() || term.is_boxed() || term.is_literal() || term.is_non_empty_list() {
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.add(1);
                 } else {
                     assert!(term.is_header());
-                    let arityval = term.arityval();
+                    let arityval = term.arity();
                     f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
                     pos = pos.add(1 + arityval);
                 }

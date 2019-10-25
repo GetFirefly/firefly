@@ -2,7 +2,7 @@ use super::*;
 
 use liblumen_alloc::error;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::{atom_unchecked, next_pid};
+use liblumen_alloc::erts::term::prelude::{Atom, Pid};
 
 use crate::otp::erlang;
 use crate::process;
@@ -25,8 +25,8 @@ fn with_non_existent_pid_errors_noproc() {
         let link_count_before = link_count(process);
 
         assert_eq!(
-            native(process, next_pid()),
-            Err(error!(atom_unchecked("noproc")).into())
+            native(process, Pid::next_term()),
+            Err(error!(Atom::str_to_term("noproc")).into())
         );
 
         assert_eq!(link_count(process), link_count_before);
@@ -86,7 +86,7 @@ fn when_a_linked_process_exits_normal_the_process_does_not_exit() {
         erlang::exit_1::place_frame_with_arguments(
             &other_arc_process,
             Placement::Replace,
-            atom_unchecked("normal"),
+            Atom::str_to_term("normal"),
         )
         .unwrap();
 
@@ -115,7 +115,7 @@ fn when_a_linked_process_exits_shutdown_the_process_does_not_exit() {
         erlang::exit_1::place_frame_with_arguments(
             &other_arc_process,
             Placement::Replace,
-            atom_unchecked("shutdown"),
+            Atom::str_to_term("shutdown"),
         )
         .unwrap();
 
@@ -141,8 +141,8 @@ fn when_a_linked_process_exits_with_shutdown_tuple_the_process_does_not_exit() {
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
 
-        let tag = atom_unchecked("shutdown");
-        let shutdown_reason = atom_unchecked("test");
+        let tag = Atom::str_to_term("shutdown");
+        let shutdown_reason = Atom::str_to_term("test");
         let reason = other_arc_process
             .tuple_from_slice(&[tag, shutdown_reason])
             .unwrap();
@@ -174,7 +174,7 @@ fn when_a_linked_process_exits_unexpected_the_process_does_not_exit() {
         erlang::exit_1::place_frame_with_arguments(
             &other_arc_process,
             Placement::Replace,
-            atom_unchecked("abnormal"),
+            Atom::str_to_term("abnormal"),
         )
         .unwrap();
 
@@ -203,7 +203,7 @@ fn when_the_process_exits_unexpected_linked_processes_exit_too() {
         erlang::exit_1::place_frame_with_arguments(
             &arc_process,
             Placement::Replace,
-            atom_unchecked("abnormal"),
+            Atom::str_to_term("abnormal"),
         )
         .unwrap();
 

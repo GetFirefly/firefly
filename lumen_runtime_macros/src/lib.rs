@@ -336,8 +336,8 @@ impl FunctionArity {
         let function = &self.function;
 
         quote! {
-            fn function() -> liblumen_alloc::erts::term::Atom {
-                liblumen_alloc::erts::term::Atom::try_from_str(#function).unwrap()
+            fn function() -> liblumen_alloc::erts::term::prelude::Atom {
+                liblumen_alloc::erts::term::prelude::Atom::try_from_str(#function).unwrap()
             }
         }
     }

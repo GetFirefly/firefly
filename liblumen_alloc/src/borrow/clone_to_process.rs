@@ -1,8 +1,9 @@
-use core::mem;
 use core::ptr::NonNull;
+use core::alloc::Layout;
 
 use crate::erts::exception::system::Alloc;
-use crate::erts::{self, HeapAlloc, HeapFragment, Process, Term};
+use crate::erts::{self, HeapAlloc, HeapFragment, Process};
+use crate::erts::term::prelude::Term;
 
 /// This trait represents cloning, like `Clone`, but specifically
 /// in the context of terms which need to be cloned into the heap
@@ -38,7 +39,8 @@ pub trait CloneToProcess {
     /// using the given heap. If cloning requires allocation that exceeds
     /// the amount of memory available, this returns `Err(Alloc)`, otherwise
     /// it returns `Ok(Term)`
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc>;
+    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+        where A: ?Sized + HeapAlloc;
 
     /// Returns boxed copy of this value and the heap fragment it was allocated into
     ///
@@ -53,6 +55,6 @@ pub trait CloneToProcess {
 
     /// Returns the size in words needed to allocate this value
     fn size_in_words(&self) -> usize {
-        erts::to_word_size(mem::size_of_val(self))
+        erts::to_word_size(Layout::for_value(self).size())
     }
 }

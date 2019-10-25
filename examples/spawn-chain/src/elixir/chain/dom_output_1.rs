@@ -16,7 +16,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {

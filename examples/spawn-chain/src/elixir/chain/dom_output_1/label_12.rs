@@ -4,7 +4,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -37,7 +37,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_tbody_tuple: Boxed<Tuple> = ok_tbody.try_into().unwrap();
     assert_eq!(ok_tbody_tuple.len(), 2);
-    assert_eq!(ok_tbody_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_tbody_tuple[0], Atom::str_to_term("ok"));
     let tbody = ok_tbody_tuple[1];
     assert!(tbody.is_resource_reference());
 

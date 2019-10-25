@@ -3,7 +3,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::binary_to_term_1::native;
 use crate::scheduler::with_process_arc;
@@ -32,7 +32,7 @@ fn with_binary_encoding_atom_returns_atom() {
     with_binary_returns_term(
         // :erlang.term_to_binary(:atom)
         vec![131, 100, 0, 4, 97, 116, 111, 109],
-        |_| atom_unchecked("atom"),
+        |_| Atom::str_to_term("atom"),
     );
 }
 
@@ -57,7 +57,7 @@ fn with_binary_encoding_list_returns_list() {
         |process| {
             process
                 .cons(
-                    atom_unchecked("zero"),
+                    Atom::str_to_term("zero"),
                     process
                         .cons(process.integer(1).unwrap(), Term::NIL)
                         .unwrap(),
@@ -105,7 +105,7 @@ fn with_binary_encoding_small_tuple_returns_tuple() {
         vec![131, 104, 2, 100, 0, 4, 122, 101, 114, 111, 97, 1],
         |process| {
             process
-                .tuple_from_slice(&[atom_unchecked("zero"), process.integer(1).unwrap()])
+                .tuple_from_slice(&[Atom::str_to_term("zero"), process.integer(1).unwrap()])
                 .unwrap()
         },
     );
@@ -176,7 +176,7 @@ fn with_binary_encoding_small_atom_utf8_returns_atom() {
     with_binary_returns_term(
         // :erlang.term_to_binary(:"😈")
         vec![131, 119, 4, 240, 159, 152, 136],
-        |_| atom_unchecked("😈"),
+        |_| Atom::str_to_term("😈"),
     );
 }
 

@@ -85,7 +85,7 @@ fn without_process_sends_nothing_when_timer_expires() {
             .run(
                 &(milliseconds(), strategy::term(arc_process.clone())),
                 |(milliseconds, message)| {
-                    let destination = next_pid();
+                    let destination = Pid::next_term();
 
                     let time = arc_process.integer(milliseconds).unwrap();
 

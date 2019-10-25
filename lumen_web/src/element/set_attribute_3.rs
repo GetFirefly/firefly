@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::binary_to_string::binary_to_string;
@@ -78,7 +78,7 @@ pub fn native(process: &Process, element_term: Term, name: Term, value: Term) ->
         Ok(()) => Ok(ok()),
         // InvalidCharacterError JsValue
         Err(_) => {
-            let name_tag = atom_unchecked("name");
+            let name_tag = Atom::str_to_term("name");
             let reason = process.tuple_from_slice(&[name_tag, name])?;
 
             let error = error();

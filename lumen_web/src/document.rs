@@ -12,7 +12,7 @@ use web_sys::Document;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{resource, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 // Private
 

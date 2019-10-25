@@ -68,11 +68,11 @@ where
     let same_thread_process_arc = process::test(&process::test_init());
     let milliseconds: u64 = 100;
 
-    let message = atom_unchecked("message");
+    let message = Atom::str_to_term("message");
     let timer_reference = erlang::start_timer_3::native(
         same_thread_process_arc.clone(),
         same_thread_process_arc.integer(milliseconds).unwrap(),
-        unsafe { same_thread_process_arc.pid().as_term() },
+        unsafe { same_thread_process_arc.pid().decode() },
         message,
     )
     .unwrap();

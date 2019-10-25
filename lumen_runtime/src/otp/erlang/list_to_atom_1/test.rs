@@ -4,7 +4,7 @@ use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::list_to_atom_1::native;
 use crate::scheduler::with_process_arc;
@@ -25,7 +25,7 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_empty_list_returns_empty_atom() {
-    assert_eq!(native(Term::NIL), Ok(atom_unchecked("")));
+    assert_eq!(native(Term::NIL), Ok(Atom::str_to_term("")));
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn with_non_empty_proper_list_returns_atom() {
                     (list, string)
                 }),
                 |(list, string)| {
-                    let atom = atom_unchecked(&string);
+                    let atom = Atom::str_to_term(&string);
 
                     prop_assert_eq!(native(list), Ok(atom));
 

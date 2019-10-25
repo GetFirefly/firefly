@@ -8,7 +8,7 @@ use web_sys::{Event, HtmlFormElement};
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, resource, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::otp::erlang;
@@ -54,8 +54,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                     Some(lumen_submit_module_string) => {
                         match html_form_element.get_attribute("data-lumen-submit-function") {
                             Some(lumen_submit_function_string) => {
-                                let module = atom_unchecked(&lumen_submit_module_string);
-                                let function = atom_unchecked(&lumen_submit_function_string);
+                                let module = Atom::str_to_term(&lumen_submit_module_string);
+                                let function = Atom::str_to_term(&lumen_submit_function_string);
                                 let arguments = arc_process.list_from_slice(&[event])?;
 
                                 erlang::apply_3::place_frame_with_arguments(
@@ -69,7 +69,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                             None => {
                                 let error_tuple = arc_process.tuple_from_slice(&[
                                     error(),
-                                    atom_unchecked("data-lumen-submit-function"),
+                                    Atom::str_to_term("data-lumen-submit-function"),
                                 ])?;
                                 arc_process.return_from_call(error_tuple)?;
                             }
@@ -77,13 +77,13 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                     }
                     None => {
                         // A form not being managed by lumen, so ignore
-                        arc_process.return_from_call(atom_unchecked("ignore"))?;
+                        arc_process.return_from_call(Atom::str_to_term("ignore"))?;
                     }
                 }
             }
             Err(_) => {
                 // Only form submission is supported at this time, so ignore
-                arc_process.return_from_call(atom_unchecked("ignore"))?;
+                arc_process.return_from_call(Atom::str_to_term("ignore"))?;
             }
         }
     }

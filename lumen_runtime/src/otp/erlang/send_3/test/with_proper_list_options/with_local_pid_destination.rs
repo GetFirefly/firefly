@@ -12,11 +12,11 @@ fn without_process_errors_badarg() {
                     valid_options(arc_process.clone()),
                 ),
                 |(message, options)| {
-                    let destination = next_pid();
+                    let destination = Pid::next_term();
 
                     prop_assert_eq!(
                         native(&arc_process, destination, message, options),
-                        Ok(atom_unchecked("ok"))
+                        Ok(Atom::str_to_term("ok"))
                     );
 
                     Ok(())
@@ -40,7 +40,7 @@ fn with_same_process_adds_process_message_to_mailbox_and_returns_ok() {
 
                     prop_assert_eq!(
                         native(&arc_process, destination, message, options),
-                        Ok(atom_unchecked("ok"))
+                        Ok(Atom::str_to_term("ok"))
                     );
 
                     prop_assert!(has_process_message(&arc_process, message));

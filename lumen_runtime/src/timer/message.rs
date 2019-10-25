@@ -1,6 +1,6 @@
 use core::ptr::NonNull;
 
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;(
 
 #[derive(Debug)]
 pub struct HeapFragment {

@@ -9,7 +9,7 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::node::node_from_term;
@@ -101,7 +101,7 @@ fn native(process: &Process, parent: Term, old_child: Term, new_child: Term) -> 
                     name
                 ),
             };
-            let reason = atom_unchecked(reason_name);
+            let reason = Atom::str_to_term(reason_name);
             let error_tuple = process.tuple_from_slice(&[error(), reason])?;
 
             Ok(error_tuple)

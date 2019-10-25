@@ -11,11 +11,11 @@ fn without_exported_function_when_run_exits_undef_and_parent_does_not_exit() {
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
     let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.as_term() };
+    let module = unsafe { module_atom.decode() };
 
     // Typo
     let function_atom = Atom::try_from_str("sel").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let function = unsafe { function_atom.decode() };
 
     let arguments = Term::NIL;
 

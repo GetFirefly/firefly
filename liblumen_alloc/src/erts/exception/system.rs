@@ -5,8 +5,14 @@ pub enum Exception {
     Alloc(Alloc),
 }
 
+impl From<core::convert::Infallible> for Exception {
+    fn from(_: core::convert::Infallible) -> Self {
+        unreachable!()
+    }
+}
+
 impl From<Alloc> for Exception {
-    fn from(alloc: Alloc) -> Exception {
+    fn from(alloc: Alloc) -> Self {
         Exception::Alloc(alloc)
     }
 }

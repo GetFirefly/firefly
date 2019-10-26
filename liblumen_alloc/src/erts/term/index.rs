@@ -25,6 +25,11 @@ impl fmt::Display for IndexError {
         }
     }
 }
+impl From<core::convert::Infallible> for IndexError {
+    fn from(_: core::convert::Infallible) -> Self {
+        unreachable!()
+    }
+}
 impl From<TryIntoIntegerError> for IndexError {
     fn from(_: TryIntoIntegerError) -> Self {
         Self::BadArgument

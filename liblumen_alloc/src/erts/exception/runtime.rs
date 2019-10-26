@@ -213,6 +213,12 @@ impl Exception {
 
 impl Eq for Exception {}
 
+impl From<core::convert::Infallible> for Exception {
+    fn from(_: core::convert::Infallible) -> Self {
+        unreachable!()
+    }
+}
+
 impl From<AtomError> for Exception {
     fn from(_: AtomError) -> Self {
         badarg!()

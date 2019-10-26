@@ -220,7 +220,7 @@ fn cancel_timer(
                         timer_reference,
                         canceled_term,
                     ])?;
-                    process.send_from_self(cancel_timer_message.encode());
+                    process.send_from_self(cancel_timer_message.encode().unwrap());
 
                     Atom::str_to_term("ok")
                 } else {
@@ -290,7 +290,7 @@ fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Pr
                     timer_reference,
                     read_term,
                 ])?;
-                process.send_from_self(read_timer_message.encode());
+                process.send_from_self(read_timer_message.encode().unwrap());
 
                 Atom::str_to_term("ok")
             } else {

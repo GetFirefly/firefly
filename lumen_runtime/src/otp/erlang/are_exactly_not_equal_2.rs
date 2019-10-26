@@ -5,7 +5,7 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -14,5 +14,5 @@ use lumen_runtime_macros::native_implemented_function;
 pub fn native(left: Term, right: Term) -> Term {
     let left = left.decode().unwrap();
     let right = right.decode().unwrap();
-    left.exactly_ne(&right).into()
+    left.exact_ne(&right).into()
 }

@@ -178,6 +178,38 @@ macro_rules! impl_term_conversions {
                 self.decode().unwrap().try_into()
             }
         }
+
+        impl TryInto<Boxed<Tuple>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<Tuple>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Boxed<Cons>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<Cons>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Boxed<Map>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<Map>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Boxed<Closure>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<Closure>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
     }
 }
 

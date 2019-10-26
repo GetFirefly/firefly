@@ -7,5 +7,5 @@ pub fn atom() -> Atom {
 }
 
 pub fn term() -> Term {
-    unsafe { atom().as_term() }
+    unsafe { atom().encode().unwrap() }
 }

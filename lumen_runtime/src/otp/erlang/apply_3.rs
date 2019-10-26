@@ -12,9 +12,8 @@ use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::Process;
-#[cfg(test)]
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
+use liblumen_alloc::erts::term::prelude::*;
 
 #[cfg(test)]
 use crate::otp::erlang;

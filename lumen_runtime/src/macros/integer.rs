@@ -3,7 +3,7 @@ macro_rules! bitwise_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::prelude::TypedTerm;
+        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
 
         match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
@@ -130,7 +130,7 @@ macro_rules! integer_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::prelude::TypedTerm;
+        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
 
         match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {

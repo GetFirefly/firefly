@@ -22,6 +22,8 @@ use core::fmt;
 
 // This module provides a limited set of exported types/traits for convenience
 pub mod prelude {
+    pub use liblumen_core::cmp::ExactEq;
+
     // Export the platform term representation
     pub use super::arch::RawTerm as Term;
     pub use super::release::Release;

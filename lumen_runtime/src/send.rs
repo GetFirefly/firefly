@@ -20,12 +20,12 @@ pub fn send(
             send_to_name(destination_atom, message, options, process)
         }
         TypedTerm::Tuple(tuple_box) => {
-            if tuple.len() == 2 {
-                let name = tuple[0];
+            if tuple_box.len() == 2 {
+                let name = tuple_box[0];
 
                 match name.decode().unwrap() {
                     TypedTerm::Atom(name_atom) => {
-                        let node = tuple[1];
+                        let node = tuple_box[1];
 
                         match node.decode().unwrap() {
                             TypedTerm::Atom(node_atom) => match node_atom.name() {

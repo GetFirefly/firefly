@@ -108,7 +108,7 @@ fn tuple_is_item(tuple: Boxed<Tuple>) -> bool {
                 // {M, F, arity | args}
                 TypedTerm::Atom(_) => tuple[1].is_atom() && is_arity_or_arguments(tuple[2]),
                 // {function, args, location}
-                TypedTerm::Closure(_) => term.is_location(tuple[2]),
+                TypedTerm::Closure(_) => term_is_location(tuple[2]),
                 _ => false,
             }
         }

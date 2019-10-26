@@ -3,26 +3,18 @@ mod compiler;
 use std::process;
 
 use clap::{crate_description, crate_name, crate_version};
-use clap::{App, Arg, SubCommand};
-use failure::Error;
+use clap::{App, Arg, SubCommand, ArgMatches};
 
 use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
 use liblumen_compiler::CompilerError;
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     human_panic::setup_panic!();
 
     let emitter = StandardStreamEmitter::new(ColorChoice::Auto);
 
     // Get current working directory
-    let cwd = match std::env::current_dir() {
-        Ok(path) => path,
-        Err(err) => {
-            emitter.error(err.into()).unwrap();
-            process::exit(2);
-        }
-    };
-
+    let cwd = std::env::current_dir()?;
     let output_dir = cwd.join("_build/target");
 
     // Build argument parser
@@ -105,33 +97,29 @@ fn main() {
         )
         .get_matches();
 
-    // Dispatch commands
-    let result: Result<(), Error> = match matches.subcommand() {
+    // Handle success/failure
+    if let Err(err) = self::dispatch(matches) {
+        match err.downcast_ref::<CompilerError>() {
+            Some(CompilerError::Parser { codemap, errs }) => {
+                let emitter = emitter.set_codemap(codemap.clone());
+                for err in errs.iter() {
+                    emitter
+                        .diagnostic(&err)
+                        .expect("stdout failed");
+                }
+                process::exit(2);
+            }
+            _ => return Err(err),
+        }
+    }
+
+    Ok(())
+}
+
+#[inline]
+fn dispatch(matches: ArgMatches) -> anyhow::Result<()> {
+    match matches.subcommand() {
         ("compile", Some(args)) => compiler::dispatch(&args),
         _ => Ok(()),
-    };
-
-    // Handle success/failure
-    match result {
-        Err(err) => {
-            match err.downcast::<CompilerError>() {
-                Ok(CompilerError::Parser { codemap, errs }) => {
-                    let emitter = emitter.set_codemap(codemap);
-                    for err in errs.iter() {
-                        emitter
-                            .diagnostic(&err.to_diagnostic())
-                            .expect("stdout failed");
-                    }
-                }
-                Ok(err) => {
-                    emitter.error(err.into()).unwrap();
-                }
-                Err(err) => {
-                    emitter.error(err).unwrap();
-                }
-            }
-            process::exit(2);
-        }
-        _ => return,
-    };
+    }
 }

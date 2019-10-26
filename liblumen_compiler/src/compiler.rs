@@ -1,11 +1,12 @@
+#![allow(unused)]
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use failure::{format_err, Error};
+use anyhow::Result;
 
-use libeir_diagnostics::emitter::{cyan, green, green_bold, white, yellow, yellow_bold};
+use libeir_diagnostics::emitter::{cyan, white, yellow, yellow_bold};
 use libeir_diagnostics::{ColorSpec, Emitter, NullEmitter, StandardStreamEmitter};
 use libeir_diagnostics::{Diagnostic, Severity};
 
@@ -15,11 +16,10 @@ use libeir_ir::Module;
 use libeir_passes::PassManager;
 use libeir_syntax_erl::{ParseConfig, Parser};
 
-pub use super::config::{CompilerMode, CompilerSettings, Verbosity};
-pub use super::errors::CompilerError;
+use super::errors::CompilerError;
+use super::config::{FileType, Verbosity, CompilerSettings};
 
 /// The result produced by compiler functions
-pub type CompileResult = Result<(), Error>;
 
 pub struct CompilationInfo {
     num_modules: usize,
@@ -58,19 +58,19 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&mut self) -> Result<(), Error> {
+    pub fn compile(&mut self) -> Result<()> {
         unimplemented!()
     }
 
     // Parses all modules into a map. The map uses the module name symbol
     // as the key, and the AST for the module as the value.
-    fn parse_modules(&mut self) -> Result<HashMap<Ident, Module>, Error> {
+    fn parse_modules(&mut self) -> Result<HashMap<Ident, Module>> {
         use walkdir::{DirEntry, WalkDir};
 
         let mut parser = Parser::new(self.config.clone().into());
 
-        let extension = match self.config.mode {
-            CompilerMode::Erlang => "erl",
+        let extension = match self.config.file_type {
+            FileType::Erlang => "erl",
         };
 
         fn is_hidden(entry: &DirEntry) -> bool {
@@ -103,8 +103,8 @@ impl Compiler {
             let entry = entry.unwrap();
             let file = entry.path();
 
-            let mut module = match self.config.mode {
-                CompilerMode::Erlang => self.parse_erl(&mut parser, file)?,
+            let mut module = match self.config.file_type {
+                FileType::Erlang => self.parse_erl(&mut parser, file)?,
             };
 
             modules.insert(module.name.clone(), module);
@@ -114,7 +114,7 @@ impl Compiler {
     }
 
     // Compiles a .erl file to Erlang AST
-    fn parse_erl(&self, parser: &mut Parser, file: &Path) -> Result<Module, Error> {
+    fn parse_erl(&self, parser: &mut Parser, file: &Path) -> Result<Module> {
         use libeir_syntax_erl::ast;
         match parser.parse_file::<&Path, ast::Module>(file) {
             Ok(ast) => {
@@ -133,7 +133,7 @@ impl Compiler {
             }
             Err(errs) => Err(CompilerError::Parser {
                 codemap: self.config.codemap.clone(),
-                errs,
+                errs: errs.iter().map(|e| e.to_diagnostic()).collect(),
             }
             .into()),
         }

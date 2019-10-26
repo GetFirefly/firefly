@@ -10,7 +10,6 @@ members = [
   "liblumen_alloc",
   "liblumen_alloc_macros",
   "liblumen_beam",
-  "liblumen_codegen",
   "liblumen_compiler",
   "liblumen_core",
   "liblumen_eir_interpreter",

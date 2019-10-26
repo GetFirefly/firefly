@@ -64,12 +64,9 @@ fn with_bitstring_is_byte_len() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_bitstring(arc_process.clone()), |term| {
-                let full_byte_len = match term.to_typed_term().unwrap() {
-                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                        TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
-                        TypedTerm::SubBinary(subbinary) => subbinary.full_byte_len(),
-                        _ => unreachable!(),
-                    },
+                let full_byte_len = match term.decode().unwrap() {
+                    TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
+                    TypedTerm::SubBinary(subbinary) => subbinary.full_byte_len(),
                     _ => unreachable!(),
                 };
 

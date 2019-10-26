@@ -14,7 +14,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(list_to_tuple/1)]
 pub fn native(process: &Process, list: Term) -> exception::Result {
-    match list.to_typed_term().unwrap() {
+    match list.decode().unwrap() {
         TypedTerm::Nil => process.tuple_from_slices(&[]).map_err(|error| error.into()),
         TypedTerm::List(cons) => {
             let vec: Vec<Term> = cons.into_iter().collect::<std::result::Result<_, _>>()?;

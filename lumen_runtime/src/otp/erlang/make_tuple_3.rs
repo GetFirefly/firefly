@@ -36,8 +36,8 @@ pub fn native(
             .unwrap();
     }
 
-    match init_list.to_typed_term().unwrap() {
-        TypedTerm::Nil => Ok(Term::make_boxed(tuple as *const Tuple)),
+    match init_list.decode().unwrap() {
+        TypedTerm::Nil => Ok(tuple.encode()),
         TypedTerm::List(boxed_cons) => {
             for result in boxed_cons.into_iter() {
                 match result {
@@ -56,7 +56,7 @@ pub fn native(
                 }
             }
 
-            Ok(Term::make_boxed(tuple as *const Tuple))
+            Ok(tuple.encode())
         }
         _ => Err(badarg!().into()),
     }

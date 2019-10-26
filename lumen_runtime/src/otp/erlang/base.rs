@@ -24,7 +24,7 @@ impl TryFrom<Term> for Base {
     type Error = runtime::Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+        term.decode().unwrap().try_into()
     }
 }
 

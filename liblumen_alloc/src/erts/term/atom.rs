@@ -137,6 +137,20 @@ impl Atom {
     }
 }
 
+impl From<bool> for Atom {
+    #[inline]
+    fn from(b: bool) -> Self {
+        // NOTE: We can make these assumptions because the AtomTable
+        // is initialized in a deterministic way - it is critical that
+        // if the initialization changes that these values get updated
+        if b {
+            unsafe { Atom::from_id(0) }
+        } else {
+            unsafe { Atom::from_id(1) }
+        }
+    }
+}
+
 impl Display for Atom {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(":'")?;
@@ -291,6 +305,8 @@ impl AtomTable {
 }
 impl Default for AtomTable {
     fn default() -> Self {
+        // Do not change the order of these atoms without updating any `From`
+        // impls that may take advantage of the static order, i.e. From<bool>
         let atoms = &["true", "false", "undefined", "nil", "ok", "error"];
         AtomTable::new(atoms)
     }

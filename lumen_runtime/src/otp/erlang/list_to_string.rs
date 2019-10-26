@@ -5,7 +5,7 @@ use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::term::prelude::*;
 
 pub fn list_to_string(list: Term) -> Result<String, Exception> {
-    match list.to_typed_term().unwrap() {
+    match list.decode().unwrap() {
         TypedTerm::Nil => Ok("".to_owned()),
         TypedTerm::List(cons) => cons
             .into_iter()

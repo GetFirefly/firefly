@@ -13,7 +13,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(member/2)]
 pub fn native(element: Term, list: Term) -> exception::Result {
-    match list.to_typed_term().unwrap() {
+    match list.decode().unwrap() {
         TypedTerm::Nil => Ok(false.into()),
         TypedTerm::List(cons) => {
             for result in cons.into_iter() {

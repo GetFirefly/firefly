@@ -50,31 +50,25 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     //   fun.(first, acc)
     // end
     if first == last {
-        match reducer.to_typed_term().unwrap() {
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::Closure(closure) => {
-                    if closure.arity() == 2 {
-                        closure.place_frame_with_arguments(
-                            arc_process,
-                            Placement::Replace,
-                            vec![first, acc],
-                        )?;
+        match reducer.decode().unwrap() {
+            TypedTerm::Closure(closure) => {
+                if closure.arity() == 2 {
+                    closure.place_frame_with_arguments(
+                        arc_process,
+                        Placement::Replace,
+                        vec![first, acc],
+                    )?;
 
-                        Process::call_code(arc_process)
-                    } else {
-                        let argument_list = arc_process.list_from_slice(&[first, acc])?;
+                    Process::call_code(arc_process)
+                } else {
+                    let argument_list = arc_process.list_from_slice(&[first, acc])?;
 
-                        result_from_exception(
-                            arc_process,
-                            liblumen_alloc::badarity!(arc_process, reducer, argument_list),
-                        )
-                    }
+                    result_from_exception(
+                        arc_process,
+                        liblumen_alloc::badarity!(arc_process, reducer, argument_list),
+                    )
                 }
-                _ => result_from_exception(
-                    arc_process,
-                    liblumen_alloc::badfun!(arc_process, reducer),
-                ),
-            },
+            }
             _ => result_from_exception(arc_process, liblumen_alloc::badfun!(arc_process, reducer)),
         }
     }

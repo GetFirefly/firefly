@@ -14,7 +14,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(reverse/2)]
 pub fn native(process: &Process, list: Term, tail: Term) -> exception::Result {
-    match list.to_typed_term().unwrap() {
+    match list.decode().unwrap() {
         TypedTerm::Nil => Ok(tail),
         TypedTerm::List(cons) => {
             let mut reversed = tail;

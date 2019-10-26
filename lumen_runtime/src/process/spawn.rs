@@ -88,7 +88,7 @@ pub struct Spawned {
 // Private
 
 fn arity(arguments: Term) -> u8 {
-    match arguments.to_typed_term().unwrap() {
+    match arguments.decode().unwrap() {
         TypedTerm::Nil => 0,
         TypedTerm::List(cons) => cons.count().unwrap().try_into().unwrap(),
         _ => {

@@ -17,6 +17,7 @@ use liblumen_alloc::erts::process::Priority;
 use liblumen_alloc::erts::process::{Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::term::reference;
 
 use crate::process;
 use crate::process::spawn;

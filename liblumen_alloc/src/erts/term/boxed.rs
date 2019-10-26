@@ -11,7 +11,7 @@ use super::encoding::{self, Boxable};
 /// Represents boxed terms.
 ///
 /// A `Boxed<T>` is designed around being reified from a raw
-/// pointer to a typed term in `Term::to_typed_term`, and otherwise
+/// pointer to a typed term with `Encoded::decode`, and otherwise
 /// only being consumed
 #[repr(transparent)]
 pub struct Boxed<T: ?Sized>(NonNull<T>);

@@ -11,10 +11,9 @@ use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::term::index::ZeroBasedIndex;
 
 use lumen_runtime_macros::native_implemented_function;
-
-use crate::tuple::ZeroBasedIndex;
 
 #[native_implemented_function(setelement/3)]
 pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result {

@@ -30,7 +30,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
         Ok(function_boxed_closure) => {
             let mut argument_vec = Vec::new();
 
-            match arguments.to_typed_term().unwrap() {
+            match arguments.decode().unwrap() {
                 TypedTerm::Nil => (),
                 TypedTerm::List(argument_boxed_cons) => {
                     for result in argument_boxed_cons.into_iter() {

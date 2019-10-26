@@ -166,19 +166,16 @@ impl Options {
     }
 
     fn try_put_option_from_term(&mut self, term: Term) -> bool {
-        match term.to_typed_term().unwrap() {
+        match term.decode().unwrap() {
             TypedTerm::Atom(atom) => self.try_put_option_from_atom(atom),
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::Tuple(tuple) => self.try_put_option_from_tuple(&tuple),
-                _ => false,
-            },
+            TypedTerm::Tuple(tuple) => self.try_put_option_from_tuple(&tuple),
             _ => false,
         }
     }
 
     fn try_put_option_from_tuple(&mut self, tuple: &Tuple) -> bool {
         tuple.len() == 2 && {
-            match tuple[0].to_typed_term().unwrap() {
+            match tuple[0].decode().unwrap() {
                 TypedTerm::Atom(atom) => match atom.name() {
                     "fullsweep_after" => match tuple[1].try_into() {
                         Ok(fullsweep_after) => {
@@ -274,7 +271,7 @@ impl TryFrom<Term> for Options {
     type Error = Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        match term.to_typed_term().unwrap() {
+        match term.decode().unwrap() {
             TypedTerm::Nil => Ok(Default::default()),
             TypedTerm::List(cons) => cons.try_into(),
             _ => Err(badarg!().into()),

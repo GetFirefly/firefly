@@ -31,60 +31,57 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let initial = arc_process.stack_pop().unwrap();
     let reducer = arc_process.stack_pop().unwrap();
 
-    match enumerable.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::Map(map) => {
-                match map.get(Atom::str_to_term("__struct__")) {
-                    Some(struct_name) => {
-                        if struct_name == Atom::str_to_term("Elixir.Range") {
-                            // This assumes no one was cheeky and messed with the map
-                            // representation of the struct
-                            let first_key = Atom::str_to_term("first");
-                            let first = map.get(first_key).unwrap();
+    match enumerable.decode().unwrap() {
+        TypedTerm::Map(map) => {
+            match map.get(Atom::str_to_term("__struct__")) {
+                Some(struct_name) => {
+                    if struct_name == Atom::str_to_term("Elixir.Range") {
+                        // This assumes no one was cheeky and messed with the map
+                        // representation of the struct
+                        let first_key = Atom::str_to_term("first");
+                        let first = map.get(first_key).unwrap();
 
-                            let last_key = Atom::str_to_term("last");
-                            let last = map.get(last_key).unwrap();
+                        let last_key = Atom::str_to_term("last");
+                        let last = map.get(last_key).unwrap();
 
-                            arc_process.reduce();
+                        arc_process.reduce();
 
-                            if first <= last {
-                                reduce_range_inc_4::place_frame_with_arguments(
-                                    arc_process,
-                                    Placement::Replace,
-                                    first,
-                                    last,
-                                    initial,
-                                    reducer,
-                                )?;
-                            } else {
-                                reduce_range_dec_4::place_frame_with_arguments(
-                                    arc_process,
-                                    Placement::Replace,
-                                    first,
-                                    last,
-                                    initial,
-                                    reducer,
-                                )?;
-                            }
-
-                            Process::call_code(arc_process)
+                        if first <= last {
+                            reduce_range_inc_4::place_frame_with_arguments(
+                                arc_process,
+                                Placement::Replace,
+                                first,
+                                last,
+                                initial,
+                                reducer,
+                            )?;
                         } else {
-                            arc_process.reduce();
-                            arc_process.exception(liblumen_alloc::badarg!());
-
-                            Ok(())
+                            reduce_range_dec_4::place_frame_with_arguments(
+                                arc_process,
+                                Placement::Replace,
+                                first,
+                                last,
+                                initial,
+                                reducer,
+                            )?;
                         }
-                    }
-                    None => {
+
+                        Process::call_code(arc_process)
+                    } else {
                         arc_process.reduce();
                         arc_process.exception(liblumen_alloc::badarg!());
 
                         Ok(())
                     }
                 }
+                None => {
+                    arc_process.reduce();
+                    arc_process.exception(liblumen_alloc::badarg!());
+
+                    Ok(())
+                }
             }
-            _ => unimplemented!(),
-        },
+        }
         _ => {
             arc_process.reduce();
             arc_process.exception(liblumen_alloc::badarg!());

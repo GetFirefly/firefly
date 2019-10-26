@@ -12,13 +12,10 @@ pub enum NumberToInteger {
 
 impl From<Term> for NumberToInteger {
     fn from(number: Term) -> Self {
-        match number.to_typed_term().unwrap() {
+        match number.decode().unwrap() {
             TypedTerm::SmallInteger(_) => Self::Integer(number),
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::BigInteger(_) => Self::Integer(number),
-                TypedTerm::Float(float) => Self::F64(float.into()),
-                _ => Self::NotANumber,
-            },
+            TypedTerm::BigInteger(_) => Self::Integer(number),
+            TypedTerm::Float(float) => Self::F64(float.into()),
             _ => Self::NotANumber,
         }
     }

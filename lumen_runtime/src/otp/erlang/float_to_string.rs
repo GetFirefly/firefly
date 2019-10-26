@@ -131,11 +131,8 @@ impl TryFrom<Term> for ScientificDigits {
 // Private
 
 fn float_term_to_f64(float_term: Term) -> Result<f64, runtime::Exception> {
-    match float_term.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::Float(float) => Ok(float.into()),
-            _ => Err(badarg!()),
-        },
+    match float_term.decode().unwrap() {
+        TypedTerm::Float(float) => Ok(float.into()),
         _ => Err(badarg!()),
     }
 }
@@ -196,7 +193,7 @@ struct OptionsBuilder {
 
 impl OptionsBuilder {
     fn put_option_term(&mut self, option: Term) -> Result<&OptionsBuilder, runtime::Exception> {
-        match option.to_typed_term().unwrap() {
+        match option.decode().unwrap() {
             TypedTerm::Atom(atom) => match atom.name() {
                 "compact" => {
                     self.compact = true;
@@ -205,30 +202,27 @@ impl OptionsBuilder {
                 }
                 _ => Err(badarg!()),
             },
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::Tuple(tuple) => {
-                    if tuple.len() == 2 {
-                        let atom: Atom = tuple[0].try_into()?;
+            TypedTerm::Tuple(tuple) => {
+                if tuple.len() == 2 {
+                    let atom: Atom = tuple[0].try_into()?;
 
-                        match atom.name() {
-                            "decimals" => {
-                                self.digits = Digits::Decimal(tuple[1].try_into()?);
+                    match atom.name() {
+                        "decimals" => {
+                            self.digits = Digits::Decimal(tuple[1].try_into()?);
 
-                                Ok(self)
-                            }
-                            "scientific" => {
-                                self.digits = Digits::Scientific(tuple[1].try_into()?);
-
-                                Ok(self)
-                            }
-                            _ => Err(badarg!()),
+                            Ok(self)
                         }
-                    } else {
-                        Err(badarg!())
+                        "scientific" => {
+                            self.digits = Digits::Scientific(tuple[1].try_into()?);
+
+                            Ok(self)
+                        }
+                        _ => Err(badarg!()),
                     }
+                } else {
+                    Err(badarg!())
                 }
-                _ => Err(badarg!()),
-            },
+            }
             _ => Err(badarg!()),
         }
     }
@@ -251,7 +245,7 @@ impl TryFrom<Term> for OptionsBuilder {
         let mut options_term = term;
 
         loop {
-            match options_term.to_typed_term().unwrap() {
+            match options_term.decode().unwrap() {
                 TypedTerm::Nil => break,
                 TypedTerm::List(cons) => {
                     options_builder.put_option_term(cons.head)?;

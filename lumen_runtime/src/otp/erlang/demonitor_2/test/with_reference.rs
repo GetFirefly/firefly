@@ -64,7 +64,7 @@ fn with_unknown_option_errors_badarg() {
 fn unknown_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter("Option cannot be flush or info", |option| {
-            match option.to_typed_term().unwrap() {
+            match option.decode().unwrap() {
                 TypedTerm::Atom(atom) => match atom.name() {
                     "flush" | "info" => false,
                     _ => true,

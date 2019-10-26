@@ -142,7 +142,7 @@ fn call_closure(proc: &Arc<Process>, mut closure: Term, args: &mut [Term]) {
         call_closure_inner(
             proc,
             **closure_term,
-            closure_term.to_typed_term().unwrap(),
+            closure_term.decode().unwrap(),
             args,
         )
     })
@@ -169,7 +169,7 @@ fn call_closure_inner(
             Ok(())
         }
         TypedTerm::Boxed(boxed) => {
-            call_closure_inner(proc, closure_term, boxed.to_typed_term().unwrap(), args)
+            call_closure_inner(proc, closure_term, boxed.decode().unwrap(), args)
         }
         t => panic!("CALL TO: {:?}", t),
     }
@@ -562,21 +562,15 @@ impl CallExecutor {
             OpKind::UnpackValueList(num) => {
                 assert!(reads.len() == 2);
                 let term = self.make_term(proc, fun, reads[1])?;
-                match term.to_typed_term().unwrap() {
-                    TypedTerm::Boxed(inner) => match inner.to_typed_term().unwrap() {
-                        TypedTerm::Tuple(items) => match items[0].to_typed_term().unwrap() {
-                            TypedTerm::Atom(atom) if atom.name() == VALUE_LIST_MARKER => {
-                                assert!(items.len() - 1 == *num);
-                                for item in items.iter().skip(1) {
-                                    self.next_args.push(item);
-                                }
-                                self.val_call(proc, fun, reads[0])
+                match term.decode().unwrap() {
+                    TypedTerm::Tuple(items) => match items[0].decode().unwrap() {
+                        TypedTerm::Atom(atom) if atom.name() == VALUE_LIST_MARKER => {
+                            assert!(items.len() - 1 == *num);
+                            for item in items.iter().skip(1) {
+                                self.next_args.push(item);
                             }
-                            _ => {
-                                self.next_args.push(term);
-                                self.val_call(proc, fun, reads[0])
-                            }
-                        },
+                            self.val_call(proc, fun, reads[0])
+                        }
                         _ => {
                             self.next_args.push(term);
                             self.val_call(proc, fun, reads[0])

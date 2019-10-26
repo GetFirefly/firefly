@@ -16,7 +16,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(list_to_bitstring/1)]
 pub fn native(process: &Process, iolist: Term) -> exception::Result {
-    match iolist.to_typed_term().unwrap() {
+    match iolist.decode().unwrap() {
         TypedTerm::Nil | TypedTerm::List(_) => {
             let mut byte_vec: Vec<u8> = Vec::new();
             let mut partial_byte_bit_count = 0;
@@ -24,7 +24,7 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result {
             let mut stack: Vec<Term> = vec![iolist];
 
             while let Some(top) = stack.pop() {
-                match top.to_typed_term().unwrap() {
+                match top.decode().unwrap() {
                     TypedTerm::SmallInteger(small_integer) => {
                         let top_byte = small_integer.try_into()?;
 
@@ -54,51 +54,48 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result {
 
                         stack.push(boxed_cons.head);
                     }
-                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                        TypedTerm::HeapBinary(heap_binary) => {
-                            if partial_byte_bit_count == 0 {
-                                byte_vec.extend_from_slice(heap_binary.as_bytes());
-                            } else {
-                                for byte in heap_binary.as_bytes() {
-                                    partial_byte |= byte >> partial_byte_bit_count;
-                                    byte_vec.push(partial_byte);
+                    TypedTerm::HeapBinary(heap_binary) => {
+                        if partial_byte_bit_count == 0 {
+                            byte_vec.extend_from_slice(heap_binary.as_bytes());
+                        } else {
+                            for byte in heap_binary.as_bytes() {
+                                partial_byte |= byte >> partial_byte_bit_count;
+                                byte_vec.push(partial_byte);
 
-                                    partial_byte = byte << (8 - partial_byte_bit_count);
-                                }
+                                partial_byte = byte << (8 - partial_byte_bit_count);
                             }
                         }
-                        TypedTerm::SubBinary(subbinary) => {
-                            if partial_byte_bit_count == 0 {
-                                if subbinary.is_aligned() {
-                                    byte_vec.extend(unsafe { subbinary.as_bytes() });
+                    }
+                    TypedTerm::SubBinary(subbinary) => {
+                        if partial_byte_bit_count == 0 {
+                            if subbinary.is_aligned() {
+                                byte_vec.extend(unsafe { subbinary.as_bytes_unchecked() });
+                            } else {
+                                byte_vec.extend(subbinary.full_byte_iter());
+                            }
+                        } else {
+                            for byte in subbinary.full_byte_iter() {
+                                partial_byte |= byte >> partial_byte_bit_count;
+                                byte_vec.push(partial_byte);
+
+                                partial_byte = byte << (8 - partial_byte_bit_count);
+                            }
+                        }
+
+                        if !subbinary.is_binary() {
+                            for bit in subbinary.partial_byte_bit_iter() {
+                                partial_byte |= bit << (7 - partial_byte_bit_count);
+
+                                if partial_byte_bit_count == 7 {
+                                    byte_vec.push(partial_byte);
+                                    partial_byte_bit_count = 0;
+                                    partial_byte = 0;
                                 } else {
-                                    byte_vec.extend(subbinary.full_byte_iter());
-                                }
-                            } else {
-                                for byte in subbinary.full_byte_iter() {
-                                    partial_byte |= byte >> partial_byte_bit_count;
-                                    byte_vec.push(partial_byte);
-
-                                    partial_byte = byte << (8 - partial_byte_bit_count);
-                                }
-                            }
-
-                            if !subbinary.is_binary() {
-                                for bit in subbinary.partial_byte_bit_iter() {
-                                    partial_byte |= bit << (7 - partial_byte_bit_count);
-
-                                    if partial_byte_bit_count == 7 {
-                                        byte_vec.push(partial_byte);
-                                        partial_byte_bit_count = 0;
-                                        partial_byte = 0;
-                                    } else {
-                                        partial_byte_bit_count += 1;
-                                    }
+                                    partial_byte_bit_count += 1;
                                 }
                             }
                         }
-                        _ => return Err(badarg!().into()),
-                    },
+                    }
                     _ => return Err(badarg!().into()),
                 }
             }

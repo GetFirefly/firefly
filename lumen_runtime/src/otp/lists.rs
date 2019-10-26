@@ -9,6 +9,7 @@ pub mod reverse_2;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::term::index::OneBasedIndex;
 use liblumen_alloc::{badarg, exception};
 
 /// Generalizes `keyfind_3`, so it can be used for `keyfind_3` or `keymember_3`
@@ -28,7 +29,7 @@ fn get_by_zero_based_usize_index_key(
     zero_based_index: usize,
     key: Term,
 ) -> Result<Option<Term>, exception::Exception> {
-    match list.to_typed_term().unwrap() {
+    match list.decode().unwrap() {
         TypedTerm::Nil => Ok(None),
         TypedTerm::List(cons) => {
             cons_get_by_zero_based_usize_index_key(cons, zero_based_index, key)

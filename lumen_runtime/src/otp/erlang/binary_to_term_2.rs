@@ -20,13 +20,10 @@ use crate::binary::ToTermOptions;
 pub fn native(_process: &Process, binary: Term, options: Term) -> exception::Result {
     let _to_term_options: ToTermOptions = options.try_into()?;
 
-    match binary.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(_heap_binary) => unimplemented!(),
-            TypedTerm::ProcBin(_process_binary) => unimplemented!(),
-            TypedTerm::SubBinary(_subbinary) => unimplemented!(),
-            _ => Err(badarg!().into()),
-        },
+    match binary.decode().unwrap() {
+        TypedTerm::HeapBinary(_heap_binary) => unimplemented!(),
+        TypedTerm::ProcBin(_process_binary) => unimplemented!(),
+        TypedTerm::SubBinary(_subbinary) => unimplemented!(),
         _ => Err(badarg!().into()),
     }
 }

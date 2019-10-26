@@ -30,7 +30,7 @@ macro_rules! badmap {
 #[macro_export]
 macro_rules! undef {
     ($process:expr, $module:expr, $function:expr, $arguments:expr) => {{
-        use $crate::erts::Term;
+        use $crate::erts::term::prelude::Term;
 
         $crate::undef!($process, $module, $function, $arguments, Term::NIL)
     }};

@@ -20,7 +20,7 @@ pub fn term_to_binary(process: &Process, term: Term, _options: Options) -> excep
     let mut byte_vec: Vec<u8> = vec![VERSION_NUMBER];
 
     while let Some(front_term) = stack.pop_front() {
-        match front_term.to_typed_term().unwrap() {
+        match front_term.decode().unwrap() {
             TypedTerm::Atom(atom) => {
                 byte_vec.extend_from_slice(&atom_to_byte_vec(atom));
             }
@@ -84,131 +84,128 @@ pub fn term_to_binary(process: &Process, term: Term, _options: Options) -> excep
                     append_big_int(&mut byte_vec, &small_integer_big_int);
                 }
             }
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::BigInteger(big_integer) => {
-                    let big_int: &BigInt = big_integer.as_ref().into();
+            TypedTerm::BigInteger(big_integer) => {
+                let big_int: &BigInt = big_integer.as_ref().into();
 
-                    append_big_int(&mut byte_vec, big_int);
+                append_big_int(&mut byte_vec, big_int);
+            }
+            TypedTerm::Float(float) => {
+                let float_f64: f64 = float.into();
+
+                byte_vec.push(NEW_FLOAT_EXT);
+                byte_vec.extend_from_slice(&float_f64.to_be_bytes());
+            }
+            TypedTerm::HeapBinary(heap_bin) => {
+                byte_vec.push(BINARY_EXT);
+
+                let len_usize = heap_bin.full_byte_len();
+                append_usize_as_u32(&mut byte_vec, len_usize);
+
+                byte_vec.extend_from_slice(heap_bin.as_bytes());
+            }
+            TypedTerm::Map(map) => {
+                byte_vec.push(MAP_EXT);
+
+                let len_usize = map.len();
+                append_usize_as_u32(&mut byte_vec, len_usize);
+
+                let hash_map: &HashMap<_, _> = map.as_ref();
+
+                for (key, value) in hash_map.iter() {
+                    stack.push_front(*value);
+                    stack.push_front(*key);
                 }
-                TypedTerm::Float(float) => {
-                    let float_f64: f64 = float.into();
-
-                    byte_vec.push(NEW_FLOAT_EXT);
-                    byte_vec.extend_from_slice(&float_f64.to_be_bytes());
-                }
-                TypedTerm::HeapBinary(heap_bin) => {
-                    byte_vec.push(BINARY_EXT);
-
-                    let len_usize = heap_bin.full_byte_len();
-                    append_usize_as_u32(&mut byte_vec, len_usize);
-
-                    byte_vec.extend_from_slice(heap_bin.as_bytes());
-                }
-                TypedTerm::Map(map) => {
-                    byte_vec.push(MAP_EXT);
-
-                    let len_usize = map.len();
-                    append_usize_as_u32(&mut byte_vec, len_usize);
-
-                    let hash_map: &HashMap<_, _> = map.as_ref();
-
-                    for (key, value) in hash_map.iter() {
-                        stack.push_front(*value);
-                        stack.push_front(*key);
-                    }
-                }
-                TypedTerm::MatchContext(match_context) => {
-                    if match_context.is_binary() {
-                        if match_context.is_aligned() {
-                            append_binary_bytes(&mut byte_vec, unsafe { match_context.as_bytes() });
-                        } else {
-                            unimplemented!()
-                        }
+            }
+            TypedTerm::MatchContext(match_context) => {
+                if match_context.is_binary() {
+                    if match_context.is_aligned() {
+                        append_binary_bytes(&mut byte_vec, unsafe { match_context.as_bytes_unchecked() });
                     } else {
                         unimplemented!()
                     }
+                } else {
+                    unimplemented!()
                 }
-                TypedTerm::ProcBin(proc_bin) => {
+            }
+            TypedTerm::ProcBin(proc_bin) => {
+                byte_vec.push(BINARY_EXT);
+
+                let len_usize = proc_bin.full_byte_len();
+                append_usize_as_u32(&mut byte_vec, len_usize);
+
+                byte_vec.extend_from_slice(proc_bin.as_bytes());
+            }
+            TypedTerm::Reference(reference) => {
+                let scheduler_id_u32: u32 = reference.scheduler_id().into();
+                let number: u64 = reference.number().into();
+
+                byte_vec.push(NEWER_REFERENCE_EXT);
+
+                let u32_byte_len = mem::size_of::<u32>();
+                let len_usize = (mem::size_of::<u32>() + mem::size_of::<u64>()) / u32_byte_len;
+                // > Len - A 16-bit big endian unsigned integer not larger than 3.
+                assert!(len_usize <= NEWER_REFERENCE_EXT_MAX_U32_LEN);
+                append_usize_as_u16(&mut byte_vec, len_usize);
+
+                byte_vec.extend_from_slice(&atom_to_byte_vec(node::atom()));
+
+                let creation_u32 = CREATION as u32;
+                byte_vec.extend_from_slice(&creation_u32.to_be_bytes());
+
+                byte_vec.extend_from_slice(&scheduler_id_u32.to_be_bytes());
+                byte_vec.extend_from_slice(&number.to_be_bytes());
+            }
+            TypedTerm::SubBinary(subbinary) => {
+                if subbinary.is_binary() {
                     byte_vec.push(BINARY_EXT);
 
-                    let len_usize = proc_bin.full_byte_len();
+                    let len_usize = subbinary.full_byte_len();
                     append_usize_as_u32(&mut byte_vec, len_usize);
 
-                    byte_vec.extend_from_slice(proc_bin.as_bytes());
-                }
-                TypedTerm::Reference(reference) => {
-                    let scheduler_id_u32: u32 = reference.scheduler_id().into();
-                    let number: u64 = reference.number().into();
-
-                    byte_vec.push(NEWER_REFERENCE_EXT);
-
-                    let u32_byte_len = mem::size_of::<u32>();
-                    let len_usize = (mem::size_of::<u32>() + mem::size_of::<u64>()) / u32_byte_len;
-                    // > Len - A 16-bit big endian unsigned integer not larger than 3.
-                    assert!(len_usize <= NEWER_REFERENCE_EXT_MAX_U32_LEN);
-                    append_usize_as_u16(&mut byte_vec, len_usize);
-
-                    byte_vec.extend_from_slice(&atom_to_byte_vec(node::atom()));
-
-                    let creation_u32 = CREATION as u32;
-                    byte_vec.extend_from_slice(&creation_u32.to_be_bytes());
-
-                    byte_vec.extend_from_slice(&scheduler_id_u32.to_be_bytes());
-                    byte_vec.extend_from_slice(&number.to_be_bytes());
-                }
-                TypedTerm::SubBinary(subbinary) => {
-                    if subbinary.is_binary() {
-                        byte_vec.push(BINARY_EXT);
-
-                        let len_usize = subbinary.full_byte_len();
-                        append_usize_as_u32(&mut byte_vec, len_usize);
-
-                        if subbinary.is_aligned() {
-                            byte_vec.extend_from_slice(unsafe { subbinary.as_bytes() });
-                        } else {
-                            byte_vec.extend(subbinary.full_byte_iter());
-                        }
+                    if subbinary.is_aligned() {
+                        byte_vec.extend_from_slice(unsafe { subbinary.as_bytes_unchecked() });
                     } else {
-                        byte_vec.push(BIT_BINARY_EXT);
-
-                        let len_usize = subbinary.total_byte_len();
-                        append_usize_as_u32(&mut byte_vec, len_usize);
-
-                        let bits_u8 = subbinary.partial_byte_bit_len();
-                        byte_vec.push(bits_u8);
-
-                        if subbinary.is_aligned() {
-                            byte_vec.extend_from_slice(unsafe { subbinary.as_bytes() });
-                        } else {
-                            byte_vec.extend(subbinary.full_byte_iter());
-                        }
-
-                        let mut last_byte: u8 = 0;
-
-                        for (index, bit) in subbinary.partial_byte_bit_iter().enumerate() {
-                            last_byte |= bit << (7 - index);
-                        }
-
-                        byte_vec.push(last_byte);
+                        byte_vec.extend(subbinary.full_byte_iter());
                     }
-                }
-                TypedTerm::Tuple(tuple) => {
-                    let len_usize = tuple.len();
+                } else {
+                    byte_vec.push(BIT_BINARY_EXT);
 
-                    if len_usize <= SMALL_TUPLE_EXT_MAX_LEN {
-                        byte_vec.push(SMALL_TUPLE_EXT);
-                        byte_vec.push(len_usize as u8);
+                    let len_usize = subbinary.total_byte_len();
+                    append_usize_as_u32(&mut byte_vec, len_usize);
+
+                    let bits_u8 = subbinary.partial_byte_bit_len();
+                    byte_vec.push(bits_u8);
+
+                    if subbinary.is_aligned() {
+                        byte_vec.extend_from_slice(unsafe { subbinary.as_bytes_unchecked() });
                     } else {
-                        byte_vec.push(LARGE_TUPLE_EXT);
-                        append_usize_as_u32(&mut byte_vec, len_usize);
+                        byte_vec.extend(subbinary.full_byte_iter());
                     }
 
-                    for element in tuple.iter().rev() {
-                        stack.push_front(element);
+                    let mut last_byte: u8 = 0;
+
+                    for (index, bit) in subbinary.partial_byte_bit_iter().enumerate() {
+                        last_byte |= bit << (7 - index);
                     }
+
+                    byte_vec.push(last_byte);
                 }
-                _ => unimplemented!("term_to_binary({:?})", front_term),
-            },
+            }
+            TypedTerm::Tuple(tuple) => {
+                let len_usize = tuple.len();
+
+                if len_usize <= SMALL_TUPLE_EXT_MAX_LEN {
+                    byte_vec.push(SMALL_TUPLE_EXT);
+                    byte_vec.push(len_usize as u8);
+                } else {
+                    byte_vec.push(LARGE_TUPLE_EXT);
+                    append_usize_as_u32(&mut byte_vec, len_usize);
+                }
+
+                for element in tuple.iter().rev() {
+                    stack.push_front(element);
+                }
+            }
             _ => unimplemented!("term_to_binary({:?})", front_term),
         };
     }
@@ -458,7 +455,7 @@ impl Default for Options {
 
 impl Options {
     fn put_option_term(&mut self, option: Term) -> Result<&Self, runtime::Exception> {
-        match option.to_typed_term().unwrap() {
+        match option.decode().unwrap() {
             TypedTerm::Atom(atom) => match atom.name() {
                 "compressed" => {
                     self.compression = Default::default();
@@ -467,30 +464,27 @@ impl Options {
                 }
                 _ => Err(badarg!()),
             },
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::Tuple(tuple) => {
-                    if tuple.len() == 2 {
-                        let atom: Atom = tuple[0].try_into()?;
+            TypedTerm::Tuple(tuple) => {
+                if tuple.len() == 2 {
+                    let atom: Atom = tuple[0].try_into()?;
 
-                        match atom.name() {
-                            "compressed" => {
-                                self.compression = tuple[1].try_into()?;
+                    match atom.name() {
+                        "compressed" => {
+                            self.compression = tuple[1].try_into()?;
 
-                                Ok(self)
-                            }
-                            "minor_version" => {
-                                self.minor_version = tuple[1].try_into()?;
-
-                                Ok(self)
-                            }
-                            _ => Err(badarg!()),
+                            Ok(self)
                         }
-                    } else {
-                        Err(badarg!())
+                        "minor_version" => {
+                            self.minor_version = tuple[1].try_into()?;
+
+                            Ok(self)
+                        }
+                        _ => Err(badarg!()),
                     }
+                } else {
+                    Err(badarg!())
                 }
-                _ => Err(badarg!()),
-            },
+            }
             _ => Err(badarg!()),
         }
     }
@@ -504,7 +498,7 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.to_typed_term().unwrap() {
+            match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
                     options.put_option_term(cons.head)?;

@@ -166,17 +166,14 @@ fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
 }
 
 fn term_to_js_value(term: Term) -> JsValue {
-    match term.to_typed_term().unwrap() {
+    match term.decode().unwrap() {
         TypedTerm::Atom(atom) => atom_to_js_value(atom),
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => aligned_binary_to_js_value(heap_binary),
-            TypedTerm::ProcBin(process_binary) => aligned_binary_to_js_value(process_binary),
-            TypedTerm::ResourceReference(resource_reference) => {
-                resource_reference_to_js_value(resource_reference)
-            }
-            TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
-            _ => unimplemented!("Convert {:?} to JsValue", term),
-        },
+        TypedTerm::HeapBinary(heap_binary) => aligned_binary_to_js_value(heap_binary),
+        TypedTerm::ProcBin(process_binary) => aligned_binary_to_js_value(process_binary),
+        TypedTerm::ResourceReference(resource_reference) => {
+            resource_reference_to_js_value(resource_reference)
+        }
+        TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
         TypedTerm::Pid(pid) => pid_to_js_value(pid),
         TypedTerm::SmallInteger(small_integer) => small_integer_to_js_value(small_integer),
         _ => unimplemented!("Convert {:?} to JsValue", term),

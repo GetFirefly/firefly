@@ -2,7 +2,7 @@ use core::convert::{TryFrom, TryInto};
 use core::result::Result;
 
 use liblumen_alloc::erts::exception::{runtime, Exception};
-use liblumen_alloc::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
 
 use crate::node;
@@ -15,45 +15,40 @@ pub fn send(
     options: Options,
     process: &Process,
 ) -> Result<Sent, Exception> {
-    match destination.to_typed_term().unwrap() {
+    match destination.decode().unwrap() {
         TypedTerm::Atom(destination_atom) => {
             send_to_name(destination_atom, message, options, process)
         }
-        TypedTerm::Boxed(unboxed_destination) => {
-            match unboxed_destination.to_typed_term().unwrap() {
-                TypedTerm::Tuple(tuple) => {
-                    if tuple.len() == 2 {
-                        let name = tuple[0];
+        TypedTerm::Tuple(tuple_box) => {
+            if tuple.len() == 2 {
+                let name = tuple[0];
 
-                        match name.to_typed_term().unwrap() {
-                            TypedTerm::Atom(name_atom) => {
-                                let node = tuple[1];
+                match name.decode().unwrap() {
+                    TypedTerm::Atom(name_atom) => {
+                        let node = tuple[1];
 
-                                match node.to_typed_term().unwrap() {
-                                    TypedTerm::Atom(node_atom) => match node_atom.name() {
-                                        node::DEAD => {
-                                            send_to_name(name_atom, message, options, process)
-                                        }
-                                        _ => {
-                                            if !options.connect {
-                                                Ok(Sent::ConnectRequired)
-                                            } else if !options.suspend {
-                                                Ok(Sent::SuspendRequired)
-                                            } else {
-                                                unimplemented!("distribution")
-                                            }
-                                        }
-                                    },
-                                    _ => Err(badarg!().into()),
+                        match node.decode().unwrap() {
+                            TypedTerm::Atom(node_atom) => match node_atom.name() {
+                                node::DEAD => {
+                                    send_to_name(name_atom, message, options, process)
                                 }
-                            }
+                                _ => {
+                                    if !options.connect {
+                                        Ok(Sent::ConnectRequired)
+                                    } else if !options.suspend {
+                                        Ok(Sent::SuspendRequired)
+                                    } else {
+                                        unimplemented!("distribution")
+                                    }
+                                }
+                            },
                             _ => Err(badarg!().into()),
                         }
-                    } else {
-                        Err(badarg!().into())
                     }
+                    _ => Err(badarg!().into()),
                 }
-                _ => Err(badarg!().into()),
+            } else {
+                Err(badarg!().into())
             }
         }
         TypedTerm::Pid(destination_pid) => {
@@ -131,7 +126,7 @@ impl TryFrom<Term> for Options {
         let mut options_term = term;
 
         loop {
-            match options_term.to_typed_term().unwrap() {
+            match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
                     options.put_option_term(cons.head)?;

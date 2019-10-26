@@ -94,7 +94,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let future_term = arc_process.stack_pop().unwrap();
     assert!(future_term.is_resource_reference());
 
-    let future_resource_reference: resource::Reference = future_term.try_into().unwrap();
+    let future_resource_reference: ResourceReference = future_term.try_into().unwrap();
     let future_mutex: &Arc<Mutex<Future>> = future_resource_reference.downcast_ref().unwrap();
 
     future_mutex.lock().ready(Ready {

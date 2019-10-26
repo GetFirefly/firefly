@@ -24,7 +24,7 @@ pub fn return_ok(arc_process: &Arc<Process>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -44,7 +44,7 @@ pub fn return_throw(arc_process: &Arc<Process>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -84,7 +84,7 @@ pub fn interpreter_mfa_code(arc_process: &Arc<Process>) -> Result {
     let mfa = arc_process.current_module_function_arity().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -128,7 +128,7 @@ pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
     let block = Block::new(block_id);
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -166,7 +166,7 @@ pub fn apply(arc_process: &Arc<Process>) -> Result {
     let function: Atom = function_term.try_into().unwrap();
 
     let arity;
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => panic!(),
         TypedTerm::List(argument_cons) => arity = argument_cons.into_iter().count() - 2,
         _ => panic!(),

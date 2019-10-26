@@ -48,39 +48,33 @@ pub fn match_op(
                 assert!(branch_args.len() == 1);
                 let key = exec.make_term(proc, fun, branch_args[0]).unwrap();
 
-                match unpack_term.to_typed_term().unwrap() {
-                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                        TypedTerm::Map(map) => {
-                            if let Some(val) = map.get(key) {
-                                exec.next_args.push(val);
-                                return exec.val_call(proc, fun, *branch);
-                            }
+                match unpack_term.decode().unwrap() {
+                    TypedTerm::Map(map) => {
+                        if let Some(val) = map.get(key) {
+                            exec.next_args.push(val);
+                            return exec.val_call(proc, fun, *branch);
                         }
-                        _ => unreachable!(),
-                    },
+                    }
                     _ => unreachable!(),
                 }
             }
             MatchKind::Tuple(arity) => {
                 assert!(branch_args.len() == 0);
 
-                match unpack_term.to_typed_term().unwrap() {
-                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                        TypedTerm::Tuple(tup) => {
-                            if tup.len() == *arity {
-                                exec.next_args.extend(tup.iter());
-                                return exec.val_call(proc, fun, *branch);
-                            }
+                match unpack_term.decode().unwrap() {
+                    TypedTerm::Tuple(tup) => {
+                        if tup.len() == *arity {
+                            exec.next_args.extend(tup.iter());
+                            return exec.val_call(proc, fun, *branch);
                         }
-                        _ => (),
-                    },
+                    }
                     _ => (),
                 }
             }
             MatchKind::ListCell => {
                 assert!(branch_args.len() == 0);
 
-                match unpack_term.to_typed_term().unwrap() {
+                match unpack_term.decode().unwrap() {
                     TypedTerm::List(cons) => {
                         exec.next_args.push(cons.head);
                         exec.next_args.push(cons.tail);

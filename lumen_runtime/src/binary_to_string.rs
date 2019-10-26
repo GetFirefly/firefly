@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::runtime;
+use liblumen_alloc::erts::exception::runtime::Exception;
 use liblumen_alloc::erts::term::prelude::*;
 
 pub fn binary_to_string(binary: Term) -> Result<String, Exception> {

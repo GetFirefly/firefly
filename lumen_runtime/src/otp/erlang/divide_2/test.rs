@@ -108,20 +108,17 @@ fn with_number_dividend_without_zero_number_divisor_returns_float() {
 fn number_is_not_zero(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term::is_number(arc_process)
         .prop_filter("Number must not be zero", |number| {
-            match number.to_typed_term().unwrap() {
+            match number.decode().unwrap() {
                 TypedTerm::SmallInteger(small_integer) => {
                     let i: isize = small_integer.into();
 
                     i != 0
                 }
-                TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                    TypedTerm::Float(float) => {
-                        let f: f64 = float.into();
+                TypedTerm::Float(float) => {
+                    let f: f64 = float.into();
 
-                        f != 0.0
-                    }
-                    _ => true,
-                },
+                    f != 0.0
+                }
                 _ => true,
             }
         })

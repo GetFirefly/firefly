@@ -93,11 +93,8 @@ fn with_big_integer_returns_big_integer() {
 
                     let inverted = result.unwrap();
 
-                    match inverted.to_typed_term().unwrap() {
-                        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                            TypedTerm::BigInteger(_) => prop_assert!(true),
-                            _ => prop_assert!(false),
-                        },
+                    match inverted.decode().unwrap() {
+                        TypedTerm::BigInteger(_) => prop_assert!(true),
                         _ => prop_assert!(false),
                     }
 

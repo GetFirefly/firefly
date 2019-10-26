@@ -24,16 +24,13 @@ pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Proce
 }
 
 pub fn count_ones(term: Term) -> u32 {
-    match term.to_typed_term().unwrap() {
+    match term.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
             let i: isize = small_integer.into();
 
             i.count_ones()
         }
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::BigInteger(big_integer) => count_ones_in_big_integer(big_integer),
-            _ => panic!("Can't count 1s in non-integer"),
-        },
+        TypedTerm::BigInteger(big_integer) => count_ones_in_big_integer(big_integer),
         _ => panic!("Can't count 1s in non-integer"),
     }
 }
@@ -152,15 +149,9 @@ pub fn timer_message(tag: &str, timer_reference: Term, message: Term, process: &
 }
 
 pub fn total_byte_len(term: Term) -> usize {
-    match term.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => heap_binary.total_byte_len(),
-            TypedTerm::SubBinary(subbinary) => subbinary.total_byte_len(),
-            unboxed_typed_term => panic!(
-                "unboxed {:?} does not have a total_byte_len",
-                unboxed_typed_term
-            ),
-        },
+    match term.decode().unwrap() {
+        TypedTerm::HeapBinary(heap_binary) => heap_binary.total_byte_len(),
+        TypedTerm::SubBinary(subbinary) => subbinary.total_byte_len(),
         typed_term => panic!("{:?} does not have a total_byte_len", typed_term),
     }
 }

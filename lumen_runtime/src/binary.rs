@@ -88,7 +88,7 @@ impl TryFrom<Term> for ToTermOptions {
         let mut options_term = term;
 
         loop {
-            match options_term.to_typed_term().unwrap() {
+            match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
                     options.put_option_term(cons.head)?;

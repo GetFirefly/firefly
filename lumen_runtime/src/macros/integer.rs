@@ -5,7 +5,7 @@ macro_rules! bitwise_infix_operator {
         use liblumen_alloc::badarith;
         use liblumen_alloc::erts::term::prelude::TypedTerm;
 
-        match ($left.to_typed_term().unwrap(), $right.to_typed_term().unwrap()) {
+        match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();
@@ -57,7 +57,7 @@ macro_rules! bitshift_infix_operator {
 
         pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
-        let option_shifted = match $integer.to_typed_term().unwrap() {
+        let option_shifted = match $integer.decode().unwrap() {
             TypedTerm::SmallInteger(integer_small_integer) => {
                 let integer_isize: isize = integer_small_integer.into();
                 let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
@@ -132,7 +132,7 @@ macro_rules! integer_infix_operator {
         use liblumen_alloc::badarith;
         use liblumen_alloc::erts::term::prelude::TypedTerm;
 
-        match ($left.to_typed_term().unwrap(), $right.to_typed_term().unwrap()) {
+        match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();

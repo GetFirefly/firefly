@@ -16,7 +16,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(atom_to_binary/2)]
 pub fn native(process: &Process, atom: Term, encoding: Term) -> exception::Result {
-    match atom.to_typed_term().unwrap() {
+    match atom.decode().unwrap() {
         TypedTerm::Atom(atom) => {
             let _: Encoding = encoding.try_into()?;
             let binary = process.binary_from_str(atom.name())?;

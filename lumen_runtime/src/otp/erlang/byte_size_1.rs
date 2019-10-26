@@ -14,13 +14,10 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(byte_size/1)]
 pub fn native(process: &Process, bitstring: Term) -> exception::Result {
-    let option_total_byte_len = match bitstring.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_byte_len()),
-            TypedTerm::ProcBin(process_binary) => Some(process_binary.total_byte_len()),
-            TypedTerm::SubBinary(subbinary) => Some(subbinary.total_byte_len()),
-            _ => None,
-        },
+    let option_total_byte_len = match bitstring.decode().unwrap() {
+        TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_byte_len()),
+        TypedTerm::ProcBin(process_binary) => Some(process_binary.total_byte_len()),
+        TypedTerm::SubBinary(subbinary) => Some(subbinary.total_byte_len()),
         _ => None,
     };
 

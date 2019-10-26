@@ -20,8 +20,34 @@ pub enum BoolError {
 macro_rules! impl_term_conversions {
     ($raw:ty) => {
         impl From<crate::erts::term::prelude::SmallInteger> for $raw {
+            #[inline]
             fn from(i: crate::erts::term::prelude::SmallInteger) -> Self {
                 i.encode().unwrap()
+            }
+        }
+
+        impl From<u8> for $raw {
+            #[inline]
+            fn from(i: u8) -> Self {
+                i.encode().unwrap()
+            }
+        }
+
+        impl From<bool> for $raw {
+            #[inline]
+            fn from(i: u8) -> Self {
+                let atom: Atom = i.into();
+                atom.encode().unwrap()
+            }
+        }
+
+        impl From<Boxed<T>> for $raw
+        where
+            T: Encode,
+        {
+            #[inline]
+            fn from(boxed: Boxed<T>) -> Self {
+                boxed.encode().unwrap()
             }
         }
 

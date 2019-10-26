@@ -23,7 +23,7 @@ pub fn native(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> excep
 
     let option_registered: Option<Term> = match atom.name() {
         "undefined" => None,
-        _ => match pid_or_port.to_typed_term().unwrap() {
+        _ => match pid_or_port.decode().unwrap() {
             TypedTerm::Pid(pid) => {
                 registry::pid_to_self_or_process(pid, &arc_process).and_then(|pid_arc_process| {
                     if registry::put_atom_to_process(atom, pid_arc_process) {

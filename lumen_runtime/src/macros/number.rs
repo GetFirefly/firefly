@@ -3,7 +3,7 @@ macro_rules! number_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::prelude::TypedTerm;
+        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
 
         use $crate::number::Operands::*;
 

@@ -14,7 +14,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(length/1)]
 pub fn native(process: &Process, list: Term) -> exception::Result {
-    match list.to_typed_term().unwrap() {
+    match list.decode().unwrap() {
         TypedTerm::Nil => Ok(0.into()),
         TypedTerm::List(cons) => match cons.count() {
             Some(count) => Ok(process.integer(count)?),

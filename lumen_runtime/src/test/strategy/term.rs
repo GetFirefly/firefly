@@ -198,7 +198,7 @@ pub fn is_not_atom(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 pub(crate) fn is_not_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Cannot be a base (2-36)", |term| {
-            match term.to_typed_term().unwrap() {
+            match term.decode().unwrap() {
                 TypedTerm::SmallInteger(small_integer) => {
                     let integer: isize = small_integer.into();
 
@@ -288,7 +288,7 @@ pub fn is_not_encoding(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter(
             "Must either not be an atom or not be an atom encoding atom",
-            |term| match term.to_typed_term().unwrap() {
+            |term| match term.decode().unwrap() {
                 TypedTerm::Atom(atom) => match atom.name() {
                     "latin1" | "unicode" | "utf8" => false,
                     _ => true,

@@ -190,4 +190,10 @@ impl From<TypeError> for Exception {
     }
 }
 
+impl From<core::convert::Infallible> for Exception {
+    fn from(_: core::convert::Infallible) -> Self {
+        unreachable!()
+    }
+}
+
 pub type Result = core::result::Result<Term, Exception>;

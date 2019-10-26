@@ -11,10 +11,9 @@ use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::term::index::ZeroBasedIndex;
 
 use lumen_runtime_macros::native_implemented_function;
-
-use crate::tuple::ZeroBasedIndex;
 
 /// `delete_element/2`
 #[native_implemented_function(delete_element/2)]
@@ -33,7 +32,7 @@ pub fn native(process: &Process, index: Term, tuple: Term) -> exception::Result 
                     if old_index == index_zero_based {
                         None
                     } else {
-                        Some(old_term)
+                        Some(&old_term)
                     }
                 });
         let smaller_tuple = process.tuple_from_iter(smaller_element_iterator, smaller_len)?;

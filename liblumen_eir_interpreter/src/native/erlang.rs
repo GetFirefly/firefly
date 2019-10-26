@@ -37,7 +37,7 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("spawn_opt").unwrap(), 4, |proc, args| {
-        match args[3].to_typed_term().unwrap() {
+        match args[3].decode().unwrap() {
             TypedTerm::List(cons) => {
                 let mut iter = cons.into_iter();
                 assert!(iter.next() == Some(Ok(Atom::str_to_term("link").into())));

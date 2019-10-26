@@ -37,15 +37,12 @@ fn is_not_process_identifier(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter(
             "Process identifier cannot be a pid, atom, or {atom, atom}",
-            |process_identifier| match process_identifier.to_typed_term().unwrap() {
+            |process_identifier| match process_identifier.decode().unwrap() {
                 TypedTerm::Atom(_) | TypedTerm::Pid(_) => false,
-                TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                    TypedTerm::ExternalPid(_) => false,
-                    TypedTerm::Tuple(tuple) => {
-                        tuple.len() != 2 || !(tuple[0].is_atom() && tuple[1].is_atom())
-                    }
-                    _ => true,
-                },
+                TypedTerm::ExternalPid(_) => false,
+                TypedTerm::Tuple(tuple) => {
+                    tuple.len() != 2 || !(tuple[0].is_atom() && tuple[1].is_atom())
+                }
                 _ => true,
             },
         )

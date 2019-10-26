@@ -105,7 +105,7 @@ impl TryFrom<Term> for Unit {
     type Error = Exception;
 
     fn try_from(term: Term) -> Result<Unit, Exception> {
-        match term.to_typed_term().unwrap() {
+        match term.decode().unwrap() {
             TypedTerm::SmallInteger(small_integer) => {
                 let hertz: usize = small_integer.try_into()?;
 
@@ -115,14 +115,11 @@ impl TryFrom<Term> for Unit {
                     Err(badarg!())
                 }
             }
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::BigInteger(big_integer) => {
-                    let big_integer_usize: usize = big_integer.try_into()?;
+            TypedTerm::BigInteger(big_integer) => {
+                let big_integer_usize: usize = big_integer.try_into()?;
 
-                    Ok(Unit::Hertz(big_integer_usize))
-                }
-                _ => Err(badarg!()),
-            },
+                Ok(Unit::Hertz(big_integer_usize))
+            }
             TypedTerm::Atom(atom) => {
                 let term_string = atom.name();
                 let mut result = Err(badarg!());

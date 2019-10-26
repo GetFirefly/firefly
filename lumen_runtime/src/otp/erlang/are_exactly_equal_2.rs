@@ -12,5 +12,7 @@ use lumen_runtime_macros::native_implemented_function;
 /// `=:=/2` infix operator.  Unlike `==`, does not convert between floats and integers.
 #[native_implemented_function(=:=/2)]
 pub fn native(left: Term, right: Term) -> Term {
+    let left = left.decode().unwrap();
+    let right = right.decode().unwrap();
     left.exactly_eq(&right).into()
 }

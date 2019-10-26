@@ -16,6 +16,7 @@ use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::term::reference;
 use liblumen_alloc::CloneToProcess;
 use liblumen_alloc::Process;
 

@@ -34,14 +34,11 @@ pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result 
 // Private
 
 fn monitor_process_identifier(process: &Process, process_identifier: Term) -> exception::Result {
-    match process_identifier.to_typed_term().unwrap() {
+    match process_identifier.decode().unwrap() {
         TypedTerm::Atom(atom) => monitor_process_registered_name(process, process_identifier, atom),
         TypedTerm::Pid(pid) => monitor_process_pid(process, process_identifier, pid),
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::ExternalPid(_) => unimplemented!(),
-            TypedTerm::Tuple(tuple) => monitor_process_tuple(process, process_identifier, &tuple),
-            _ => Err(badarg!().into()),
-        },
+        TypedTerm::ExternalPid(_) => unimplemented!(),
+        TypedTerm::Tuple(tuple) => monitor_process_tuple(process, process_identifier, &tuple),
         _ => Err(badarg!().into()),
     }
 }

@@ -14,7 +14,7 @@ fn includes_registered_process_name() {
 
         let before = native(&process_arc).unwrap();
 
-        match before.to_typed_term().unwrap() {
+        match before.decode().unwrap() {
             TypedTerm::Nil => (),
             TypedTerm::List(before_cons) => {
                 assert!(!before_cons.contains(name));
@@ -29,7 +29,7 @@ fn includes_registered_process_name() {
 
         let after = native(&process_arc).unwrap();
 
-        match after.to_typed_term().unwrap() {
+        match after.decode().unwrap() {
             TypedTerm::List(after_cons) => assert!(after_cons.contains(name)),
             typed_term => panic!("Wrong TypedTerm ({:?})", typed_term),
         }

@@ -16,13 +16,13 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(list_to_binary/1)]
 pub fn native(process: &Process, iolist: Term) -> exception::Result {
-    match iolist.to_typed_term().unwrap() {
+    match iolist.decode().unwrap() {
         TypedTerm::Nil | TypedTerm::List(_) => {
             let mut byte_vec: Vec<u8> = Vec::new();
             let mut stack: Vec<Term> = vec![iolist];
 
             while let Some(top) = stack.pop() {
-                match top.to_typed_term().unwrap() {
+                match top.decode().unwrap() {
                     TypedTerm::SmallInteger(small_integer) => {
                         let top_byte = small_integer.try_into()?;
 
@@ -44,23 +44,20 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result {
 
                         stack.push(boxed_cons.head);
                     }
-                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                        TypedTerm::HeapBinary(heap_binary) => {
-                            byte_vec.extend_from_slice(heap_binary.as_bytes());
-                        }
-                        TypedTerm::SubBinary(subbinary) => {
-                            if subbinary.is_binary() {
-                                if subbinary.is_aligned() {
-                                    byte_vec.extend(unsafe { subbinary.as_bytes() });
-                                } else {
-                                    byte_vec.extend(subbinary.full_byte_iter());
-                                }
+                    TypedTerm::HeapBinary(heap_binary) => {
+                        byte_vec.extend_from_slice(heap_binary.as_bytes());
+                    }
+                    TypedTerm::SubBinary(subbinary) => {
+                        if subbinary.is_binary() {
+                            if subbinary.is_aligned() {
+                                byte_vec.extend(unsafe { subbinary.as_bytes() });
                             } else {
-                                return Err(badarg!().into());
+                                byte_vec.extend(subbinary.full_byte_iter());
                             }
+                        } else {
+                            return Err(badarg!().into());
                         }
-                        _ => return Err(badarg!().into()),
-                    },
+                    }
                     _ => return Err(badarg!().into()),
                 }
             }

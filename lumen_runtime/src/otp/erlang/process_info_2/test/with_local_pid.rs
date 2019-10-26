@@ -26,7 +26,7 @@ fn without_supported_item_errors_badarg() {
 fn unsupported_item(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter("Item cannot be supported", |item| {
-            match item.to_typed_term().unwrap() {
+            match item.decode().unwrap() {
                 TypedTerm::Atom(atom) => match atom.name() {
                     "registered_name" => false,
                     _ => true,

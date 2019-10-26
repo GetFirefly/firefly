@@ -138,7 +138,7 @@ fn return_ok(arc_process: &Arc<Process>) -> code::Result {
     let closure_term = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -175,7 +175,7 @@ fn return_throw(arc_process: &Arc<Process>) -> code::Result {
     let closure_term = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {

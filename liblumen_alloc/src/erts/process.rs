@@ -32,7 +32,6 @@ use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::heap_alloc::MakePidError;
 use crate::erts::process::code::Code;
 use crate::erts::term::prelude::*;
-use crate::erts::term::reference;
 
 use super::*;
 
@@ -555,14 +554,14 @@ impl Process {
             .pid_with_node_id(node_id, number, serial)
     }
 
-    pub fn reference(&self, number: reference::Number) -> Result<Term, Alloc> {
+    pub fn reference(&self, number: ReferenceNumber) -> Result<Term, Alloc> {
         self.reference_from_scheduler(self.scheduler_id.lock().unwrap(), number)
     }
 
     pub fn reference_from_scheduler(
         &self,
         scheduler_id: scheduler::ID,
-        number: reference::Number,
+        number: ReferenceNumber,
     ) -> Result<Term, Alloc> {
         self.acquire_heap()
             .reference(scheduler_id, number)

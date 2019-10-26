@@ -43,7 +43,7 @@ pub mod prelude {
     pub use super::map::Map;
     pub use super::pid::{Pid, ExternalPid};
     pub use super::port::{Port, ExternalPort};
-    pub use super::reference::{Reference, ExternalReference};
+    pub use super::reference::{Reference, ExternalReference, ReferenceNumber};
     pub use super::tuple::Tuple;
     // Give resource::Reference a name to distinguish it from the standard Reference term
     pub use super::resource::Reference as ResourceReference;

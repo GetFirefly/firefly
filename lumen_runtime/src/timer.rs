@@ -16,7 +16,6 @@ use liblumen_core::locks::Mutex;
 
 use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::term::reference;
 use liblumen_alloc::CloneToProcess;
 use liblumen_alloc::Process;
 
@@ -78,7 +77,7 @@ pub struct Hierarchy {
     soon: Wheel,
     later: Wheel,
     long_term: Slot,
-    timer_by_reference_number: HashMap<reference::Number, Weak<Timer>>,
+    timer_by_reference_number: HashMap<ReferenceNumber, Weak<Timer>>,
 }
 
 impl Hierarchy {
@@ -89,7 +88,7 @@ impl Hierarchy {
     const LATER_TOTAL_MILLISECONDS: Milliseconds =
         Self::LATER_MILLISECONDS_PER_SLOT * (Wheel::LENGTH as Milliseconds);
 
-    fn cancel(&mut self, timer_reference_number: reference::Number) -> Option<Milliseconds> {
+    fn cancel(&mut self, timer_reference_number: ReferenceNumber) -> Option<Milliseconds> {
         self.timer_by_reference_number
             .remove(&timer_reference_number)
             .and_then(|weak_timer| weak_timer.upgrade())
@@ -126,7 +125,7 @@ impl Hierarchy {
         }
     }
 
-    fn read(&self, timer_reference_number: reference::Number) -> Option<Milliseconds> {
+    fn read(&self, timer_reference_number: ReferenceNumber) -> Option<Milliseconds> {
         self.timer_by_reference_number
             .get(&timer_reference_number)
             .and_then(|weak_timer| weak_timer.upgrade())
@@ -357,7 +356,7 @@ pub enum Timeout {
 struct Timer {
     // Can't be a `Boxed` `LocalReference` `Term` because those are boxed and the original Process
     // could GC the unboxed `LocalReference` `Term`.
-    reference_number: reference::Number,
+    reference_number: ReferenceNumber,
     monotonic_time_milliseconds: Milliseconds,
     destination: Destination,
     message_heap: Mutex<message::HeapFragment>,
@@ -436,7 +435,7 @@ enum Position {
 struct Slot(Vec<Arc<Timer>>);
 
 impl Slot {
-    fn cancel(&mut self, reference_number: reference::Number) -> Option<Arc<Timer>> {
+    fn cancel(&mut self, reference_number: ReferenceNumber) -> Option<Arc<Timer>> {
         self.0
             .iter()
             .position(|timer_rc| timer_rc.reference_number == reference_number)
@@ -531,7 +530,7 @@ impl Wheel {
     fn cancel(
         &mut self,
         slot_index: SlotIndex,
-        reference_number: reference::Number,
+        reference_number: ReferenceNumber,
     ) -> Option<Arc<Timer>> {
         self.slots[slot_index as usize].cancel(reference_number)
     }

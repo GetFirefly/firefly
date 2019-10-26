@@ -19,7 +19,6 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::Code;
 use crate::erts::string::Encoding;
-use crate::erts::term::reference;
 use crate::erts::term::pid;
 use crate::erts::term::prelude::*;
 
@@ -348,7 +347,7 @@ pub trait HeapAlloc {
     fn reference(
         &mut self,
         scheduler_id: scheduler::ID,
-        number: reference::Number,
+        number: ReferenceNumber,
     ) -> Result<Boxed<Reference>, Alloc> {
         let layout = Reference::layout();
         let reference_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() as *mut Reference };

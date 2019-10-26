@@ -17,7 +17,6 @@ use liblumen_alloc::erts::process::Priority;
 use liblumen_alloc::erts::process::{Process, Status};
 pub use liblumen_alloc::erts::scheduler::{id, ID};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::term::reference;
 
 use crate::process;
 use crate::process::spawn;
@@ -75,7 +74,7 @@ impl Scheduler {
         })
     }
 
-    pub fn next_reference_number(&self) -> reference::Number {
+    pub fn next_reference_number(&self) -> ReferenceNumber {
         self.reference_count.fetch_add(1, Ordering::SeqCst)
     }
 

@@ -12,19 +12,19 @@ use crate::erts::{scheduler, HeapAlloc, Node};
 
 use super::prelude::{Term, TypeError, TypedTerm, Boxed, Header};
 
-pub type Number = u64;
+pub type ReferenceNumber = u64;
 
 #[derive(Debug, Clone, Copy, Eq)]
 #[repr(C)]
 pub struct Reference {
     header: Header<Reference>,
     scheduler_id: scheduler::ID,
-    number: Number,
+    number: ReferenceNumber,
 }
 
 impl Reference {
     /// Create a new `Reference` struct
-    pub fn new(scheduler_id: scheduler::ID, number: Number) -> Self {
+    pub fn new(scheduler_id: scheduler::ID, number: ReferenceNumber) -> Self {
         Self {
             header: Default::default(),
             scheduler_id,
@@ -49,7 +49,7 @@ impl Reference {
         self.scheduler_id
     }
 
-    pub fn number(&self) -> Number {
+    pub fn number(&self) -> ReferenceNumber {
         self.number
     }
 }

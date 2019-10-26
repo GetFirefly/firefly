@@ -7,7 +7,7 @@ mod test;
 
 use liblumen_alloc::badarith;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::Term;(
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 

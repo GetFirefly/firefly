@@ -3,7 +3,7 @@ mod with_entries;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::term::prelude::Term;(
+use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::get_keys_1::native;
 use crate::scheduler::with_process_arc;

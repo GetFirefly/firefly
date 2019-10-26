@@ -5,7 +5,7 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::term::prelude::Term;(
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 

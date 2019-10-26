@@ -5,7 +5,7 @@ use num_bigint::BigInt;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;(
+use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::base::Base;
 

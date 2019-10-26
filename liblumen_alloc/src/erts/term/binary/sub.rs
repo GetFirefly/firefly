@@ -1,18 +1,13 @@
 use core::alloc::Layout;
-use core::convert::{TryFrom, TryInto};
-use core::str;
+use core::convert::TryFrom;
 use core::slice;
 use core::mem;
 use core::ptr;
 
-use alloc::borrow::ToOwned;
-use alloc::string::String;
-use alloc::vec::Vec;
 use alloc::boxed::Box;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
-use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
@@ -385,60 +380,5 @@ impl TryFrom<TypedTerm> for Boxed<SubBinary> {
             TypedTerm::SubBinary(subbinary) => Ok(subbinary),
             _ => Err(TypeError),
         }
-    }
-}
-
-impl TryInto<String> for SubBinary {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        if self.is_binary() {
-            if self.is_aligned() {
-                let bytes = unsafe { self.as_bytes_unchecked() };
-
-                match str::from_utf8(bytes) {
-                    Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!()),
-                }
-            } else {
-                let byte_vec: Vec<u8> = self.full_byte_iter().collect();
-
-                String::from_utf8(byte_vec).map_err(|_| badarg!())
-            }
-        } else {
-            Err(badarg!())
-        }
-    }
-}
-
-impl TryInto<String> for &SubBinary {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        (*self).try_into()
-    }
-}
-
-impl TryInto<Vec<u8>> for SubBinary {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        if self.is_binary() {
-            if self.is_aligned() {
-                Ok(unsafe { self.as_bytes_unchecked() }.to_vec())
-            } else {
-                Ok(self.full_byte_iter().collect())
-            }
-        } else {
-            Err(badarg!())
-        }
-    }
-}
-
-impl TryInto<Vec<u8>> for &SubBinary {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        (*self).try_into()
     }
 }

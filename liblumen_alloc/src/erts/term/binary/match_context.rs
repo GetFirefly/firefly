@@ -1,18 +1,13 @@
 use core::alloc::Layout;
-use core::convert::TryInto;
 use core::ptr;
 use core::slice;
-use core::str;
 
-use alloc::borrow::ToOwned;
-use alloc::string::String;
 use alloc::boxed::Box;
 
 use liblumen_core::util::pointer::distance_absolute;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::HeapAlloc;
-use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::term::prelude::{Term, TypedTerm, Cast, Header, Encoded};
 
@@ -355,57 +350,5 @@ impl MaybePartialByte for MatchContext {
 
     fn total_byte_len(&self) -> usize {
         (self.buffer.bit_len + (8 - 1)) / 8
-    }
-}
-
-impl TryInto<String> for MatchContext {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        if self.is_binary() {
-            if self.is_aligned() {
-                match str::from_utf8(unsafe { self.as_bytes_unchecked() }) {
-                    Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!()),
-                }
-            } else {
-                String::from_utf8(self.full_byte_iter().collect()).map_err(|_| badarg!())
-            }
-        } else {
-            Err(badarg!())
-        }
-    }
-}
-
-impl TryInto<String> for &MatchContext {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        (*self).try_into()
-    }
-}
-
-impl TryInto<Vec<u8>> for MatchContext {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        if self.is_binary() {
-            if self.is_aligned() {
-                Ok(unsafe { self.as_bytes_unchecked() }.to_owned())
-            } else {
-                Ok(self.full_byte_iter().collect())
-            }
-        } else {
-            Err(badarg!())
-        }
-    }
-}
-
-impl TryInto<Vec<u8>> for &MatchContext {
-    type Error = runtime::Exception;
-
-    #[inline]
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        (*self).try_into()
     }
 }

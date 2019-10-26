@@ -1,7 +1,13 @@
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
+use core::convert::TryInto;
+use core::str;
+
+use alloc::string::String;
+use alloc::vec::Vec;
 
 use crate::erts::term::prelude::Boxed;
+use crate::erts::exception::runtime;
 
 use super::aligned_binary;
 use super::prelude::{MatchContext, SubBinary};
@@ -165,3 +171,84 @@ macro_rules! ord {
 
 ord!(SubBinary);
 ord!(MatchContext);
+
+macro_rules! impl_maybe_aligned_try_into {
+    ($t:ty) => {
+        impl TryInto<String> for $t {
+            type Error = runtime::Exception;
+
+            #[inline]
+            fn try_into(self) -> Result<String, Self::Error> {
+                (&self).try_into()
+            }
+        }
+
+        impl TryInto<String> for &$t {
+            type Error = runtime::Exception;
+
+            fn try_into(self) -> Result<String, Self::Error> {
+                if self.is_binary() {
+                    if self.is_aligned() {
+                        match str::from_utf8(unsafe { self.as_bytes_unchecked() }) {
+                            Ok(s) => Ok(s.to_owned()),
+                            Err(_) => Err(badarg!()),
+                        }
+                    } else {
+                        let byte_vec: Vec<u8> = self.full_byte_iter().collect();
+
+                        String::from_utf8(byte_vec).map_err(|_| badarg!())
+                    }
+                } else {
+                    Err(badarg!())
+                }
+            }
+        }
+
+        impl TryInto<String> for Boxed<$t> {
+            type Error = runtime::Exception;
+
+            #[inline]
+            fn try_into(self) -> Result<String, Self::Error> {
+                self.as_ref().try_into()
+            }
+        }
+
+        impl TryInto<Vec<u8>> for $t {
+            type Error = runtime::Exception;
+
+            #[inline]
+            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+                (&self).try_into()
+            }
+        }
+
+        impl TryInto<Vec<u8>> for &$t {
+            type Error = runtime::Exception;
+
+            #[inline]
+            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+                if self.is_binary() {
+                    if self.is_aligned() {
+                        Ok(unsafe { self.as_bytes_unchecked().to_vec() })
+                    } else {
+                        Ok(self.full_byte_iter().collect())
+                    }
+                } else {
+                    Err(badarg!())
+                }
+            }
+        }
+
+        impl TryInto<Vec<u8>> for Boxed<$t> {
+            type Error = runtime::Exception;
+
+            #[inline]
+            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+                self.as_ref().try_into()
+            }
+        }
+    }
+}
+
+impl_maybe_aligned_try_into!(MatchContext);
+impl_maybe_aligned_try_into!(SubBinary);

@@ -311,3 +311,21 @@ impl IndexByte for ProcBin {
         self.inner().byte(index)
     }
 }
+
+/// Given a raw pointer to the ProcBin, reborrows and clones it into a new reference.
+///
+/// # Safety
+///
+/// This function is unsafe due to dereferencing a raw pointer, but it is expected that
+/// this is only ever called with a valid `ProcBin` pointer anyway. The primary risk
+/// with obtaining a `ProcBin` via this function is if you leak it somehow, rather than
+/// letting its `Drop` implementation run. Doing so will leave the reference count greater
+/// than 1 forever, meaning memory will never get deallocated.
+///
+/// NOTE: This does not copy the binary, it only obtains a new `ProcBin`, which is
+/// itself a reference to a binary held by a `ProcBinInner`.
+impl From<Boxed<ProcBin>> for ProcBin {
+    fn from(boxed: Boxed<ProcBin>) -> Self {
+        boxed.as_ref().clone()
+    }
+}

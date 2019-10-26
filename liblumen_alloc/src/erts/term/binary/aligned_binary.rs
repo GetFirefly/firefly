@@ -132,6 +132,43 @@ macro_rules! impl_aligned_binary {
                 self.as_bytes().partial_cmp(other.as_ref().as_bytes())
             }
         }
+
+        impl TryInto<String> for &$t {
+            type Error = runtime::Exception;
+
+            fn try_into(self) -> Result<String, Self::Error> {
+                match str::from_utf8(self.as_bytes()) {
+                    Ok(s) => Ok(s.to_owned()),
+                    Err(_) => Err(badarg!()),
+                }
+            }
+        }
+
+        impl TryInto<String> for Boxed<$t> {
+            type Error = runtime::Exception;
+
+            fn try_into(self) -> Result<String, Self::Error> {
+                self.as_ref().try_into()
+            }
+        }
+
+        impl TryInto<Vec<u8>> for &$t {
+            type Error = runtime::Exception;
+
+            #[inline]
+            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+                Ok(self.as_bytes().to_vec())
+            }
+        }
+
+        impl TryInto<Vec<u8>> for Boxed<$t> {
+            type Error = runtime::Exception;
+
+            #[inline]
+            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+                self.as_ref().try_into()
+            }
+        }
     }
 }
 
@@ -140,8 +177,8 @@ impl_aligned_binary!(ProcBin);
 impl_aligned_binary!(BinaryLiteral);
 
 // We can't make this part of `impl_aligned_binary` because
-// we can't implement TryInto for dynamically-sized types,
-// so we implement them seperately.
+// we can't implement TryInto directly for dynamically-sized types,
+// only through references, so we implement them seperately.
 macro_rules! impl_aligned_try_into {
     ($t:ty) => {
         impl TryInto<String> for $t {
@@ -155,27 +192,7 @@ macro_rules! impl_aligned_try_into {
             }
         }
 
-        impl TryInto<String> for &$t {
-            type Error = runtime::Exception;
-
-            fn try_into(self) -> Result<String, Self::Error> {
-                match str::from_utf8(self.as_bytes()) {
-                    Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!()),
-                }
-            }
-        }
-
         impl TryInto<Vec<u8>> for $t {
-            type Error = runtime::Exception;
-
-            #[inline]
-            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-                Ok(self.as_bytes().to_vec())
-            }
-        }
-
-        impl TryInto<Vec<u8>> for &$t {
             type Error = runtime::Exception;
 
             #[inline]

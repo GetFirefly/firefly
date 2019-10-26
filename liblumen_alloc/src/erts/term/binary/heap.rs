@@ -1,16 +1,12 @@
 use core::alloc::Layout;
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 use core::ptr;
 use core::slice;
 use core::str;
 use core::iter;
 
-use alloc::borrow::ToOwned;
-use alloc::string::String;
-
 use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
-use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
@@ -223,25 +219,5 @@ impl TryFrom<TypedTerm> for Boxed<HeapBin> {
             TypedTerm::HeapBinary(bin_ptr) => Ok(bin_ptr),
             _ => Err(TypeError),
         }
-    }
-}
-
-impl TryInto<String> for &HeapBin {
-    type Error = runtime::Exception;
-
-    fn try_into(self) -> Result<String, Self::Error> {
-        match str::from_utf8(self.as_bytes()) {
-            Ok(s) => Ok(s.to_owned()),
-            Err(_) => Err(badarg!()),
-        }
-    }
-}
-
-impl TryInto<Vec<u8>> for &HeapBin {
-    type Error = runtime::Exception;
-
-    #[inline]
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-        Ok(self.as_bytes().to_vec())
     }
 }

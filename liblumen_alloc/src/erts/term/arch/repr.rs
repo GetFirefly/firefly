@@ -64,7 +64,7 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
             Tag::Float => Ok(TypedTerm::Float(ptr.cast::<Float>())),
             Tag::BigInteger => Ok(TypedTerm::BigInteger(ptr.cast::<BigInteger>())),
             Tag::Reference => Ok(TypedTerm::Reference(ptr.cast::<Reference>())),
-            Tag::ResourceReference => Ok(TypedTerm::ResourceReference(ptr.cast::<ResourceReference>())),
+            Tag::ResourceReference => Ok(TypedTerm::ResourceReference(ptr.cast::<Resource>())),
             Tag::ProcBin => {
                 match literal {
                     Some(false) => Ok(TypedTerm::ProcBin(ptr.cast::<ProcBin>())),

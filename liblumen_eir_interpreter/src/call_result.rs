@@ -152,7 +152,8 @@ fn return_ok(arc_process: &Arc<Process>) -> code::Result {
     assert!(argument_vec.len() == 1);
 
     let closure: Boxed<Closure> = closure_term.try_into().unwrap();
-    let sender_any: ResourceReference = closure.env_slice()[0].try_into().unwrap();
+    let sender_resource: Boxed<Resource> = closure.env_slice()[0].try_into().unwrap();
+    let send_any: Resource = sender_resource.into();
     let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
 
     let mut fragment = unsafe { HeapFragment::new_from_word_size(100) }.unwrap();
@@ -188,7 +189,8 @@ fn return_throw(arc_process: &Arc<Process>) -> code::Result {
     }
 
     let closure: Boxed<Closure> = closure_term.try_into().unwrap();
-    let sender_any: ResourceReference = closure.env_slice()[0].try_into().unwrap();
+    let sender_resource: Boxed<Resource> = closure.env_slice()[0].try_into().unwrap();
+    let sender_any: Resource = sender_resource.into();
     let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
 
     let mut fragment = unsafe { HeapFragment::new_from_word_size(100) }.unwrap();

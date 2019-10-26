@@ -47,8 +47,6 @@ pub mod prelude {
     pub use super::port::{Port, ExternalPort};
     pub use super::reference::{Reference, ExternalReference, ReferenceNumber};
     pub use super::tuple::Tuple;
-    // Give resource::Reference a name to distinguish it from the standard Reference term
-    pub use super::resource::Reference as ResourceReference;
     pub use super::resource::Resource;
     // Re-export the binary type prelude
     pub use super::binary::prelude::*;

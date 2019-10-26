@@ -41,7 +41,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok_document_tuple.len(), 2);
     assert_eq!(ok_document_tuple[0], Atom::str_to_term("ok"));
     let document = ok_document_tuple[1];
-    let document_reference: resource::Reference = document.try_into().unwrap();
+    let document_ref_boxed: Boxed<Resource> = document.try_into().unwrap();
+    let document_reference: Resource = document_ref_boxed.into();
     let _: &Document = document_reference.downcast_ref().unwrap();
 
     label_3::place_frame_with_arguments(arc_process, Placement::Replace, document)?;

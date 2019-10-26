@@ -42,7 +42,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok_window_tuple.len(), 2);
     assert_eq!(ok_window_tuple[0], Atom::str_to_term("ok"));
     let window = ok_window_tuple[1];
-    let window_reference: resource::Reference = window.try_into().unwrap();
+    let window_ref_boxed: Boxed<Resource> = window.try_into().unwrap();
+    let window_reference: Resource = window_ref_boxed.into();
     let _: &Window = window_reference.downcast_ref().unwrap();
 
     label_2::place_frame(arc_process, Placement::Replace);

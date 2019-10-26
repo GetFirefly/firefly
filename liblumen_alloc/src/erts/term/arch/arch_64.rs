@@ -261,7 +261,7 @@ impl_boxable!(Reference, RawTerm);
 impl_boxable!(ExternalPid, RawTerm);
 impl_boxable!(ExternalPort, RawTerm);
 impl_boxable!(ExternalReference, RawTerm);
-impl_boxable!(ResourceReference, RawTerm);
+impl_boxable!(Resource, RawTerm);
 impl_boxable!(Tuple, RawTerm);
 impl_boxable!(Map, RawTerm);
 impl_boxable!(Closure, RawTerm);

@@ -12,7 +12,8 @@ use liblumen_alloc::erts::term::prelude::*;
 // Private
 
 fn from_term(term: Term) -> Result<&'static Event, exception::Exception> {
-    let event_reference: resource::Reference = term.try_into()?;
+    let boxed: Boxed<Resource> = term.try_into()?;
+    let event_reference: Resource = term.into();
 
     match event_reference.downcast_ref() {
         Some(event) => {

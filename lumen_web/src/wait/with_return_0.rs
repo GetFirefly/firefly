@@ -62,10 +62,10 @@ fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let return_term = arc_process.stack_pop().unwrap();
     let executor_term = arc_process.stack_pop().unwrap();
-    assert!(executor_term.is_resource_reference());
 
-    let executor_resource_reference: resource::Reference = executor_term.try_into().unwrap();
-    let executor_mutex: &Mutex<Executor> = executor_resource_reference.downcast_ref().unwrap();
+    let executor_resource_boxed: Boxed<Resource> = executor_term.try_into().unwrap();
+    let executor_resource: Resource = executor_resource_boxed.into();
+    let executor_mutex: &Mutex<Executor> = executor_resource.downcast_ref().unwrap();
     executor_mutex.lock().resolve(return_term);
 
     arc_process.remove_last_frame();
@@ -86,7 +86,7 @@ fn pid_to_js_value(pid: Pid) -> JsValue {
     array.into()
 }
 
-fn resource_reference_to_js_value(resource_reference: resource::Reference) -> JsValue {
+fn resource_reference_to_js_value(resource_reference: Resource) -> JsValue {
     let resource_type_id = resource_reference.type_id();
 
     if resource_type_id == TypeId::of::<Document>() {
@@ -170,8 +170,8 @@ fn term_to_js_value(term: Term) -> JsValue {
         TypedTerm::Atom(atom) => atom_to_js_value(atom),
         TypedTerm::HeapBinary(heap_binary) => aligned_binary_to_js_value(heap_binary),
         TypedTerm::ProcBin(process_binary) => aligned_binary_to_js_value(process_binary),
-        TypedTerm::ResourceReference(resource_reference) => {
-            resource_reference_to_js_value(resource_reference)
+        TypedTerm::ResourceReference(resource_reference) => 
+            resource_reference_to_js_value(resource_reference.into())
         }
         TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
         TypedTerm::Pid(pid) => pid_to_js_value(pid),

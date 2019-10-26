@@ -48,7 +48,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok_child_tuple.len(), 2);
     assert_eq!(ok_child_tuple[0], Atom::str_to_term("ok"));
     let child = ok_child_tuple[1];
-    let child_reference: resource::Reference = child.try_into().unwrap();
+    let child_ref_boxed: Boxed<Resource> = child.try_into().unwrap();
+    let child_reference: Resource = child_ref_boxed.into();
     let _: &Element = child_reference.downcast_ref().unwrap();
 
     let body = arc_process.stack_pop().unwrap();

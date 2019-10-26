@@ -45,7 +45,7 @@ pub enum TypedTerm {
     #[cfg(not(target_arch = "x86_64"))]
     Float(Boxed<Float>),
     Atom(Atom),
-    ResourceReference(Boxed<ResourceReference>),
+    ResourceReference(Boxed<Resource>),
     BinaryLiteral(Boxed<BinaryLiteral>),
     ProcBin(Boxed<ProcBin>),
     HeapBinary(Boxed<HeapBin>),

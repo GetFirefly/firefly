@@ -15,7 +15,8 @@ use liblumen_alloc::erts::term::prelude::*;
 // Private
 
 fn from_term(term: Term) -> Result<&'static HtmlFormElement, exception::Exception> {
-    let resource_reference: resource::Reference = term.try_into()?;
+    let boxed: Boxed<Resource> = term.try_into()?;
+    let resource_reference: Resource = boxed.into();
 
     let resource_type_id = resource_reference.type_id();
 

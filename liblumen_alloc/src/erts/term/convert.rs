@@ -171,6 +171,24 @@ macro_rules! impl_term_conversions {
             }
         }
 
+        impl TryInto<Boxed<Resource>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<Resource>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+
+        impl TryInto<Resource> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Resource, Self::Error> {
+                let boxed: Boxed<Resource> = self.try_into()?;
+                Ok(boxed.into())
+            }
+        }
+
         impl TryInto<Boxed<Reference>> for $raw {
             type Error = TypeError;
 

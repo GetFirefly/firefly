@@ -51,7 +51,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(parent.is_resource_reference());
 
     let existing_child = arc_process.stack_pop().unwrap();
-    let existing_child_reference: resource::Reference = existing_child.try_into().unwrap();
+    let existing_child_ref = Boxed<Resource> = existing_child.try_into().unwrap();
+    let existing_child_reference: Resource = existing_child_ref.into();
     let _: &Element = existing_child_reference.downcast_ref().unwrap();
 
     label_5::place_frame_with_arguments(arc_process, Placement::Replace, document, parent)?;

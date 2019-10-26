@@ -77,7 +77,8 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
 }
 
 fn native(window: Term, event: Term, module: Term, function: Term) -> exception::Result {
-    let window_reference: resource::Reference = window.try_into()?;
+    let boxed: Boxed<Resource> = window.try_into()?;
+    let window_reference: Resource = boxed.into();
     let window_window: &Window = window_reference.downcast_ref().ok_or_else(|| badarg!())?;
 
     let event_atom: Atom = event.try_into()?;

@@ -12,7 +12,8 @@ use liblumen_alloc::erts::term::prelude::*;
 // Private
 
 fn from_term(term: Term) -> Result<&'static HtmlInputElement, exception::Exception> {
-    let html_input_element_reference: resource::Reference = term.try_into()?;
+    let boxed: Boxed<Resource> = term.try_into()?;
+    let html_input_element_reference: Resource = term.into();
 
     match html_input_element_reference.downcast_ref() {
         Some(html_input_element) => {

@@ -11,7 +11,6 @@ use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
 use crate::erts::exception::system::Alloc;
 
-use super::resource;
 use super::prelude::*;
 use super::arch::Word;
 
@@ -167,7 +166,7 @@ impl StaticHeader for ExternalPid { const TAG: Word = Term::HEADER_EXTERN_PID; }
 impl StaticHeader for ExternalPort { const TAG: Word = Term::HEADER_EXTERN_PORT; }
 impl StaticHeader for ExternalReference { const TAG: Word = Term::HEADER_EXTERN_REF; }
 impl StaticHeader for Reference { const TAG: Word = Term::HEADER_REFERENCE; }
-impl StaticHeader for resource::Reference { const TAG: Word = Term::HEADER_RESOURCE_REFERENCE; }
+impl StaticHeader for Resource { const TAG: Word = Term::HEADER_RESOURCE_REFERENCE; }
 impl StaticHeader for BinaryLiteral { const TAG: Word = Term::HEADER_BINARY_LITERAL; }
 impl StaticHeader for ProcBin { const TAG: Word = Term::HEADER_PROCBIN; }
 impl StaticHeader for SubBinary { const TAG: Word = Term::HEADER_SUBBINARY; }
@@ -295,7 +294,7 @@ pub trait Encoded: Sized + Copy + Send + PartialEq<Self> + PartialOrd<Self> + Or
     fn is_local_reference(self) -> bool;
     /// Returns `true` if the encoded value is the header of a `ExternalReference`
     fn is_remote_reference(self) -> bool;
-    /// Returns `true` if the encoded value is the header of a `resource::Reference`
+    /// Returns `true` if the encoded value is the header of a `Resource`
     fn is_resource_reference(self) -> bool;
     /// Returns `true` if the encoded value is the header of a `ProcBin`
     fn is_procbin(self) -> bool;

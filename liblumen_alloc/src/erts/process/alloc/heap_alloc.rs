@@ -364,7 +364,7 @@ pub trait HeapAlloc {
     where
         Self: Sized,
     {
-        ResourceReference::new(value)?.clone_to_heap(self)
+        Ok(Resource::from_value(self, value)?.into())
     }
 
     /// Either returns a `&str` to the pre-existing bytes in the heap binary, process binary, or

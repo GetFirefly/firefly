@@ -42,7 +42,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     // `.unwrap` on both of these because `on_submit_1` should only be called by code controlled
     // by us and it is a bug in `lumen_web` if these don't succeed
-    let event_reference: resource::Reference = event.try_into().unwrap();
+    let boxed: Boxed<Resource> = event.try_into().unwrap();
+    let event_reference: Resource = boxed.into();
     let event_event: &Event = event_reference.downcast_ref().unwrap();
 
     if let Some(event_target) = event_event.target() {

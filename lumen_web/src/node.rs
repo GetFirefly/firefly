@@ -20,7 +20,8 @@ fn module() -> Atom {
 }
 
 fn node_from_term(term: Term) -> Result<&'static Node, exception::Exception> {
-    let resource_reference: resource::Reference = term.try_into()?;
+    let boxed: Boxed<Resource> = term.try_into()?;
+    let resource_reference: Resource = term.into();
 
     let resource_type_id = resource_reference.type_id();
 

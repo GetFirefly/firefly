@@ -4,11 +4,10 @@ use core::alloc::Layout;
 use core::any::{Any, TypeId};
 use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display};
-use core::hash::{Hash, Hasher};
-use core::ptr::NonNull;
+use core::ptr::{self, NonNull};
 use core::sync::atomic::{self, AtomicUsize};
 
-use liblumen_core::sys;
+use liblumen_core::sys::alloc as sys_alloc;
 
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::heap_alloc::HeapAlloc;
@@ -16,46 +15,145 @@ use crate::CloneToProcess;
 
 use super::prelude::{TypeError, TypedTerm, Term, Header, Boxed};
 
+/// A reference-counting smart pointer to a resource handle which
+/// can be stored as a term
+#[repr(C)]
 pub struct Resource {
-    reference_count: AtomicUsize,
-    value: Box<dyn Any>,
+    header: Header<Resource>,
+    inner: NonNull<ResourceInner>,
 }
-
 impl Resource {
-    fn alloc(value: Box<dyn Any>) -> Result<NonNull<Self>, Alloc> {
+    pub fn new(value: Box<dyn Any>) -> Result<Self, Alloc> {
+        let inner = ResourceInner::new(value)?;
+        Ok(Self {
+            header: Default::default(),
+            inner,
+        })
+    }
+
+    pub fn from_value<A>(heap: &mut A, value: Box<dyn Any>) -> Result<Boxed<Self>, Alloc>
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        let resource = Self::new(value)?;
         let layout = Layout::new::<Self>();
 
         unsafe {
-            match sys::alloc::alloc(layout) {
-                Ok(non_null_u8) => {
-                    let resource_ptr = non_null_u8.as_ptr() as *mut Self;
-                    resource_ptr.write(Self {
-                        reference_count: Default::default(),
-                        value,
-                    });
+            let ptr = heap.alloc_layout(layout)?
+                .cast::<Self>()
+                .as_ptr();
+            ptr.write(resource);
 
-                    let non_null_resource = NonNull::new_unchecked(resource_ptr);
-
-                    Ok(non_null_resource)
-                }
-                Err(_) => Err(alloc!()),
-            }
+            Ok(Boxed::new_unchecked(ptr))
         }
     }
 
+    #[inline]
+    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
+        self.value().downcast_ref()
+    }
+
+    #[inline]
+    pub fn type_id(&self) -> TypeId {
+        self.inner().resource.type_id()
+    }
+
+    #[inline]
     pub fn value(&self) -> &dyn Any {
-        self.value.as_ref()
+        self.inner().resource.as_ref()
+    }
+
+    #[inline]
+    fn inner(&self) -> &ResourceInner {
+        unsafe { self.inner.as_ref() }
+    }
+
+    // Non-inlined part of `drop`.
+    #[inline(never)]
+    unsafe fn drop_slow(&self) {
+        if self.inner().reference_count.fetch_sub(1, atomic::Ordering::Release) == 1 {
+            atomic::fence(atomic::Ordering::Acquire);
+            let inner = self.inner.as_ref();
+            let layout = Layout::for_value(&inner);
+            sys_alloc::free(inner as *const _ as *mut u8, layout);
+        }
+    }
+}
+
+impl core::hash::Hash for Resource {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state)
+    }
+}
+
+impl PartialEq for Resource {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+impl<T> PartialEq<Boxed<T>> for Resource
+where
+    T: PartialEq<Resource>,
+{
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+
+impl Clone for Resource {
+    #[inline]
+    fn clone(&self) -> Self {
+        self.inner().reference_count.fetch_add(1, atomic::Ordering::AcqRel);
+
+        Self {
+            header: self.header.clone(),
+            inner: self.inner,
+        }
+    }
+}
+
+impl CloneToProcess for Resource {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        self.inner().reference_count.fetch_add(1, atomic::Ordering::AcqRel);
+        unsafe {
+            // Allocate space for the header
+            let layout = Layout::new::<Self>();
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
+            // Write the binary header with an empty link
+            ptr::write(
+                ptr,
+                Self {
+                    header: self.header.clone(),
+                    inner: self.inner,
+                },
+            );
+            // Reify result term
+            Ok(ptr.into())
+        }
+    }
+}
+
+impl Drop for Resource {
+    fn drop(&mut self) {
+        if self.inner().reference_count.fetch_sub(1, atomic::Ordering::Release) != 1 {
+            return;
+        }
+        atomic::fence(atomic::Ordering::Acquire);
+        // The refcount is now zero, so we are freeing the memory
+        unsafe {
+            self.drop_slow();
+        }
     }
 }
 
 impl Debug for Resource {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Resource")
-            .field("reference_count", &self.reference_count)
-            .field(
-                "value",
-                &format_args!("Any with {:?}", self.value.type_id()),
-            )
+            .field("header", &self.header)
+            .field("inner", &format_args!("{:p} => {:?}", self.inner, self.value()))
             .finish()
     }
 }
@@ -66,131 +164,78 @@ impl Display for Resource {
     }
 }
 
-/// A reference to `Resource`
+/// Given a raw pointer to the Resource, reborrows and clones it into a new reference.
+///
+/// # Safety
+///
+/// This function is unsafe due to dereferencing a raw pointer, but it is expected that
+/// this is only ever called with a valid `Resource` pointer anyway. The primary risk
+/// with obtaining a `Resource` via this function is if you leak it somehow, rather than
+/// letting its `Drop` implementation run. Doing so will leave the reference count greater
+/// than 1 forever, meaning memory will never get deallocated.
+///
+/// NOTE: This does not copy the underlying value, it only obtains a new `Resource`, which is
+/// itself a reference to a value held by a `ResourceInner`.
+impl From<Boxed<Resource>> for Resource {
+    #[inline]
+    fn from(boxed: Boxed<Resource>) -> Self {
+        boxed.as_ref().clone()
+    }
+}
+
+impl TryFrom<TypedTerm> for Boxed<Resource> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::ResourceReference(resource) => Ok(resource),
+            _ => Err(TypeError),
+        }
+    }
+}
+
+
+/// A wrapper around a boxed resource value that contains a reference count,
+/// similar to `ProcBinInner`
 #[repr(C)]
-pub struct Reference {
-    header: Header<Reference>,
-    resource: NonNull<Resource>,
+pub struct ResourceInner {
+    reference_count: AtomicUsize,
+    resource: Box<dyn Any>,
 }
-
-impl Reference {
-    pub fn new(value: Box<dyn Any>) -> Result<Self, Alloc> {
-        let resource = Resource::alloc(value)?;
-        let reference = Self {
-            header: Default::default(),
-            resource,
-        };
-
-        unsafe {
-            resource
-                .as_ref()
-                .reference_count
-                .fetch_add(1, atomic::Ordering::SeqCst);
-        }
-
-        Ok(reference)
-    }
-
-    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-        self.value().downcast_ref()
-    }
-
-    pub fn type_id(&self) -> TypeId {
-        self.value().type_id()
-    }
-
-    pub fn value(&self) -> &dyn Any {
-        self.resource().value()
-    }
-
-    // Private
-
-    fn resource(&self) -> &Resource {
-        unsafe { self.resource.as_ref() }
-    }
-}
-
-impl Clone for Reference {
-    fn clone(&self) -> Self {
-        self.resource()
-            .reference_count
-            .fetch_add(1, atomic::Ordering::AcqRel);
-
-        Self {
-            header: self.header.clone(),
-            resource: self.resource,
-        }
-    }
-}
-
-impl CloneToProcess for Reference {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
-    where
-        A: ?Sized + HeapAlloc,
-    {
+impl ResourceInner {
+    fn new(resource: Box<dyn Any>) -> Result<NonNull<Self>, Alloc> {
         let layout = Layout::new::<Self>();
 
-        let ptr = unsafe {
-            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
+        unsafe {
+            let ptr = sys_alloc::alloc(layout)
+                .map_err(|_| alloc!())?
+                .cast::<Self>()
+                .as_ptr();
+
             ptr.write(Self {
-                header: self.header.clone(),
-                resource: self.resource,
+                reference_count: Default::default(),
+                resource,
             });
 
-            ptr
-        };
-
-        Ok(ptr.into())
+            Ok(NonNull::new_unchecked(ptr))
+        }
     }
 }
 
-impl Debug for Reference {
+impl Debug for ResourceInner {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Reference")
-            .field("header", &self.header)
+        f.debug_struct("ResourceInner")
+            .field("reference_count", &self.reference_count)
             .field(
                 "resource",
-                &format_args!("{:p} => {:?}", self.resource, unsafe {
-                    self.resource.as_ref()
-                }),
+                &format_args!("Any with {:?}", self.resource.type_id()),
             )
             .finish()
     }
 }
 
-impl Display for Reference {
+impl Display for ResourceInner {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.resource())
-    }
-}
-
-impl Hash for Reference {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.resource.hash(state);
-    }
-}
-
-impl PartialEq for Reference {
-    fn eq(&self, other: &Self) -> bool {
-        self.resource == other.resource
-    }
-}
-impl<T> PartialEq<Boxed<T>> for Reference
-where
-    T: PartialEq<Reference>,
-{
-    fn eq(&self, other: &Boxed<T>) -> bool {
-        other.as_ref().eq(self)
-    }
-}
-
-impl TryFrom<TypedTerm> for Boxed<Reference> {
-    type Error = TypeError;
-
-    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
-        match typed_term {
-            TypedTerm::ResourceReference(reference) => Ok(reference),
-            _ => Err(TypeError),
-        }
+        write!(f, "{:?}", self)
     }
 }

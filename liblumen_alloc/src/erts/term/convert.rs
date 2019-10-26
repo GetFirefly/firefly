@@ -3,7 +3,7 @@ use core::convert::{From, TryInto};
 use crate::erts::exception::runtime;
 
 use super::integer::TryIntoIntegerError;
-use super::prelude::{TypedTerm, Encode, Encoded};
+use super::prelude::*;
 use super::arch::{arch_32, arch_64, arch_x86_64};
 
 /// This error type is used to indicate a type conversion error
@@ -19,9 +19,9 @@ pub enum BoolError {
 
 macro_rules! impl_term_conversions {
     ($raw:ty) => {
-        impl From<crate::erts::term::prelude::SmallInteger> for $raw {
+        impl From<SmallInteger> for $raw {
             #[inline]
-            fn from(i: crate::erts::term::prelude::SmallInteger) -> Self {
+            fn from(i: SmallInteger) -> Self {
                 i.encode().unwrap()
             }
         }
@@ -35,18 +35,18 @@ macro_rules! impl_term_conversions {
 
         impl From<bool> for $raw {
             #[inline]
-            fn from(i: u8) -> Self {
-                let atom: Atom = i.into();
+            fn from(b: bool) -> Self {
+                let atom: Atom = b.into();
                 atom.encode().unwrap()
             }
         }
 
-        impl From<Boxed<T>> for $raw
+        impl<T> From<Boxed<T>> for $raw
         where
-            T: Encode,
+            T: Encode<$raw>,
         {
             #[inline]
-            fn from(boxed: Boxed<T>) -> Self {
+            default fn from(boxed: Boxed<T>) -> Self {
                 boxed.encode().unwrap()
             }
         }
@@ -159,6 +159,22 @@ macro_rules! impl_term_conversions {
             type Error = runtime::Exception;
 
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Atom> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Atom, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Boxed<Reference>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<Reference>, Self::Error> {
                 self.decode().unwrap().try_into()
             }
         }

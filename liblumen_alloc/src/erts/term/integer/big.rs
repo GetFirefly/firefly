@@ -113,6 +113,11 @@ impl<'a> Into<&'a BigInt> for &'a BigInteger {
         &self.value
     }
 }
+impl Into<f64> for Boxed<BigInteger> {
+    fn into(self) -> f64 {
+        self.as_ref().into()
+    }
+}
 impl Into<f64> for &BigInteger {
     fn into(self) -> f64 {
         let (sign, bytes) = self.value.to_bytes_be();
@@ -126,22 +131,35 @@ impl Into<f64> for &BigInteger {
         }
     }
 }
-impl Into<f64> for Boxed<BigInteger> {
-    fn into(self) -> f64 {
-        self.as_ref().into()
+impl TryInto<usize> for Boxed<BigInteger> {
+    type Error = TryIntoIntegerError;
+
+    #[inline]
+    fn try_into(self) -> Result<usize, Self::Error> {
+        self.as_ref().try_into()
     }
 }
-impl Into<usize> for Boxed<BigInteger> {
-    fn into(self) -> usize {
-        let u: u64 = self.try_into().unwrap();
-        u.try_into().unwrap()
+impl TryInto<usize> for &BigInteger {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        let u: u64 = self.try_into()?;
+        u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
     }
 }
 impl TryInto<u64> for Boxed<BigInteger> {
     type Error = TryIntoIntegerError;
 
+    #[inline]
     fn try_into(self) -> Result<u64, Self::Error> {
-        let big_int: &BigInt = self.as_ref().into();
+        self.as_ref().try_into()
+    }
+}
+impl TryInto<u64> for &BigInteger {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<u64, Self::Error> {
+        let big_int: &BigInt = self.into();
 
         match big_int.to_u64() {
             Some(self_u64) => self_u64
@@ -151,6 +169,7 @@ impl TryInto<u64> for Boxed<BigInteger> {
         }
     }
 }
+
 impl Eq for BigInteger {}
 impl PartialEq for BigInteger {
     #[inline]

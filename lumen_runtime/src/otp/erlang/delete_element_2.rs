@@ -19,7 +19,7 @@ use lumen_runtime_macros::native_implemented_function;
 #[native_implemented_function(delete_element/2)]
 pub fn native(process: &Process, index: Term, tuple: Term) -> exception::Result {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let ZeroBasedIndex(index_zero_based): ZeroBasedIndex = index.try_into()?;
+    let index_zero_based: ZeroBasedIndex = index.try_into()?;
     let initial_len = initial_inner_tuple.len();
 
     if index_zero_based < initial_len {
@@ -29,7 +29,7 @@ pub fn native(process: &Process, index: Term, tuple: Term) -> exception::Result 
                 .iter()
                 .enumerate()
                 .filter_map(|(old_index, old_term)| {
-                    if old_index == index_zero_based {
+                    if index_zero_based == old_index {
                         None
                     } else {
                         Some(&old_term)

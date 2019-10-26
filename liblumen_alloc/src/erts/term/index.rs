@@ -1,4 +1,5 @@
 use core::convert::{TryFrom, TryInto};
+use core::cmp;
 use core::fmt;
 
 use super::prelude::*;
@@ -42,6 +43,7 @@ impl From<core::num::TryFromIntError> for IndexError {
 }
 
 /// Represents indices which start at 1 and progress upwards
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct OneBasedIndex(usize);
 impl OneBasedIndex {
@@ -54,22 +56,20 @@ impl OneBasedIndex {
         }
     }
 }
-/*
-impl TryFrom<BigInteger> for OneBasedIndex {
+impl TryFrom<&BigInteger> for OneBasedIndex {
     type Error = IndexError;
 
-    fn try_from(n: BigInteger) -> Result<Self, Self::Error> {
-        Self::new(n.into())
+    fn try_from(n: &BigInteger) -> Result<Self, Self::Error> {
+        Self::new(n.try_into()?)
     }
 }
 impl TryFrom<Boxed<BigInteger>> for OneBasedIndex {
     type Error = IndexError;
 
     fn try_from(n: Boxed<BigInteger>) -> Result<Self, Self::Error> {
-        Self::new(n.into())
+        Self::new(n.try_into()?)
     }
 }
-*/
 impl TryFrom<SmallInteger> for OneBasedIndex {
     type Error = IndexError;
 
@@ -89,19 +89,45 @@ impl TryFrom<TypedTerm> for OneBasedIndex {
 
     fn try_from(term: TypedTerm) -> Result<Self, Self::Error> {
         match term {
-            TypedTerm::SmallInteger(n) => n.try_into().map_err(|_| IndexError::BadArgument),
-            //TypedTerm::BigInteger(n) => Self::new((*n.as_ref()).into()),
+            TypedTerm::SmallInteger(n) => n.try_into(),
+            TypedTerm::BigInteger(n) => Self::new(n.try_into()?),
             _ => Err(IndexError::BadArgument),
         }
     }
 }
 impl Into<usize> for OneBasedIndex {
+    #[inline]
     fn into(self) -> usize {
         self.0
     }
 }
+impl PartialEq<usize> for OneBasedIndex {
+    #[inline]
+    fn eq(&self, other: &usize) -> bool {
+        self.0 == *other
+    }
+}
+impl PartialEq<ZeroBasedIndex> for OneBasedIndex {
+    #[inline]
+    fn eq(&self, other: &ZeroBasedIndex) -> bool {
+        other.eq(self)
+    }
+}
+impl PartialOrd<usize> for OneBasedIndex {
+    #[inline]
+    fn partial_cmp(&self, other: &usize) -> Option<cmp::Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+impl PartialOrd<ZeroBasedIndex> for OneBasedIndex {
+    #[inline]
+    fn partial_cmp(&self, other: &ZeroBasedIndex) -> Option<cmp::Ordering> {
+        other.partial_cmp(self).map(|o| o.reverse())
+    }
+}
 
 /// Represents indices which start at 0 and progress upwards
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct ZeroBasedIndex(usize);
 impl ZeroBasedIndex {
@@ -122,19 +148,51 @@ impl TryFrom<TypedTerm> for ZeroBasedIndex {
 
     fn try_from(term: TypedTerm) -> Result<Self, Self::Error> {
         match term {
-            TypedTerm::SmallInteger(n) => Ok(Self::new(n.try_into().map_err(|_| IndexError::BadArgument)?)),
-            //TypedTerm::BigInteger(n) => Ok(Self::new(n.try_into().map_err(|_| IndexError::BadArgument)?)),
+            TypedTerm::SmallInteger(n) => Ok(Self::new(n.try_into()?)),
+            TypedTerm::BigInteger(n) => Ok(Self::new(n.try_into()?)),
             _ => Err(IndexError::BadArgument)
         }
     }
 }
 impl From<OneBasedIndex> for ZeroBasedIndex {
+    #[inline]
     fn from(i: OneBasedIndex) -> ZeroBasedIndex {
         Self(i.0 - 1)
     }
 }
+impl From<&OneBasedIndex> for ZeroBasedIndex {
+    #[inline]
+    fn from(i: &OneBasedIndex) -> ZeroBasedIndex {
+        Self(i.0 - 1)
+    }
+}
 impl Into<usize> for ZeroBasedIndex {
+    #[inline]
     fn into(self) -> usize {
         self.0
+    }
+}
+impl PartialEq<usize> for ZeroBasedIndex {
+    #[inline]
+    fn eq(&self, other: &usize) -> bool {
+        self.0 == *other
+    }
+}
+impl PartialEq<OneBasedIndex> for ZeroBasedIndex {
+    fn eq(&self, other: &OneBasedIndex) -> bool {
+        let index: ZeroBasedIndex = other.into();
+        self.eq(&index)
+    }
+}
+impl PartialOrd<usize> for ZeroBasedIndex {
+    #[inline]
+    fn partial_cmp(&self, other: &usize) -> Option<cmp::Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+impl PartialOrd<OneBasedIndex> for ZeroBasedIndex {
+    fn partial_cmp(&self, other: &OneBasedIndex) -> Option<cmp::Ordering> {
+        let index: ZeroBasedIndex = other.into();
+        self.partial_cmp(&index)
     }
 }

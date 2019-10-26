@@ -1,4 +1,4 @@
-#![deny(warnings)]
+//#![deny(warnings)]
 #![allow(stable_features)]
 // `rand` has link errors
 #![allow(intra_doc_link_resolution_failure)]
@@ -61,7 +61,6 @@ mod test;
 pub mod time;
 // Public so that external code can all `timer::expire` to expire timers
 mod timer;
-mod tuple;
 
 use self::config::Config;
 use self::logging::Logger;

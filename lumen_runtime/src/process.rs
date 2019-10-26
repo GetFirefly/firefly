@@ -49,6 +49,7 @@ fn is_expected_exit_reason(reason: Term) -> bool {
                     _ => false,
                 }
             }
+        }
         _ => false,
     }
 }

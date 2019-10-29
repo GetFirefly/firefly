@@ -218,14 +218,6 @@ impl RawTerm {
 // the target platform pointer width, i.e. the machine word size
 const_assert_eq!(mem::size_of::<RawTerm>(), mem::size_of::<usize>());
 
-/// The highest aligned memory address supported on the current platform
-#[allow(unused)]
-pub const MAX_ALIGNED_ADDR: usize = target::MAX_ALIGNED_ADDR as usize;
-
-/// The highest unsigned integer value storable in bits reserved for immediates
-#[allow(unused)]
-pub const MAX_IMMEDIATE_VALUE: usize = target::MAX_IMMEDIATE_VALUE as usize;
-
 /// The larged atom ID supported on the current platform
 pub const MAX_ATOM_ID: usize = target::MAX_ATOM_ID as usize;
 

@@ -1,4 +1,3 @@
-#![allow(unused)]
 ///! This module contains constants for 64-bit architectures used by the term
 ///! implementation.
 ///!
@@ -16,12 +15,11 @@ use core::mem;
 use core::fmt;
 use core::cmp;
 
-use crate::erts::exception::{Result, Exception};
+use crate::erts::exception;
 
 use liblumen_core::sys::sysconf::MIN_ALIGN;
 const_assert!(MIN_ALIGN >= 8);
 
-use crate::erts::to_word_size;
 use crate::erts::term::prelude::*;
 
 use super::{Tag, Repr};
@@ -30,13 +28,15 @@ pub type Word = u64;
 
 const NUM_BITS: u64 = 64;
 
+#[allow(unused)]
 const TAG_BITS: u64 = 4;
 const TAG_SHIFT: u64 = 47;
 const TAG_MASK: u64 = 0xFu64 << TAG_SHIFT;
 
-const SUBTAG_SHIFT: u64 = TAG_SHIFT - 4;
-const SUBTAG_MASK: u64 = 0xFCu64 << SUBTAG_SHIFT;
+const SUBTAG_SHIFT: u64 = TAG_SHIFT - 2;
+const SUBTAG_MASK: u64 = 0xFCu64 << (TAG_SHIFT - 4);
 
+#[allow(unused)]
 const VALUE_MASK: u64 = !(i64::max_value() >> (NUM_BITS - TAG_SHIFT)) as u64;
 const VALUE_SHIFT: u64 = 3;
 
@@ -52,11 +52,7 @@ const IMMEDIATE_MASK: u64 = MAX_ADDR;
 // value must be reinterpreted as a two's complement encoded integer
 const SMALL_VALUE: u64 = MAX_ADDR >> VALUE_SHIFT;
 
-// This is the highest assignable aligned address on this architecture
-pub const MAX_ALIGNED_ADDR: u64 = MAX_ADDR & !(MIN_ALIGN as u64 - 1);
-
 // The valid range of integer values that can fit in a term with primary tag
-pub const MAX_IMMEDIATE_VALUE: u64 = MAX_ADDR;
 pub const MAX_ATOM_ID: u64 = MAX_ADDR;
 
 // The valid range of fixed-width integers
@@ -98,7 +94,7 @@ pub const MAX_SMALLINT_VALUE: i64 = i64::max_value() >> (NUM_BITS - TAG_SHIFT + 
 const FLAG_LITERAL: u64 = 1;
 
 // We don't tag this type, they are implicit
-const FLAG_FLOAT: u64 = u64::max_value();
+// const FLAG_FLOAT: u64 = u64::max_value();
 
 // Tags
 const FLAG_BOXED: u64 = 0;
@@ -118,13 +114,13 @@ const FLAG_CLOSURE: u64 = 11 << TAG_SHIFT;
 const FLAG_RESOURCE_REFERENCE: u64 = 12 << TAG_SHIFT;
 
 const FLAG_BINARY: u64 = 13 << TAG_SHIFT;
-const FLAG_PROCBIN: u64 = 0 | FLAG_BINARY;
+const FLAG_PROCBIN: u64 = FLAG_BINARY;
 const FLAG_HEAPBIN: u64 = (1 << SUBTAG_SHIFT) | FLAG_BINARY;
 const FLAG_SUBBINARY: u64 = (2 << SUBTAG_SHIFT) | FLAG_BINARY;
 const FLAG_MATCH_CTX: u64 = (3 << SUBTAG_SHIFT) | FLAG_BINARY;
 
 const FLAG_EXTERNAL: u64 = 14 << TAG_SHIFT;
-const FLAG_EXTERN_PID: u64 = 0 | FLAG_EXTERNAL;
+const FLAG_EXTERN_PID: u64 = FLAG_EXTERNAL;
 const FLAG_EXTERN_PORT: u64 = (1 << SUBTAG_SHIFT) | FLAG_EXTERNAL;
 const FLAG_EXTERN_REF: u64 = (2 << SUBTAG_SHIFT) | FLAG_EXTERNAL;
 
@@ -151,11 +147,6 @@ impl RawTerm {
     pub const HEADER_EXTERN_PORT: u64 = FLAG_EXTERN_PORT;
     pub const HEADER_EXTERN_REF: u64 = FLAG_EXTERN_REF;
     pub const HEADER_MAP: u64 = FLAG_MAP;
-
-    #[inline]
-    fn encode_smallint(value: i64) -> Self {
-        Self(((value << VALUE_SHIFT) as u64 & IMMEDIATE_MASK) | FLAG_SMALL_INTEGER)
-    }
 
     #[inline]
     fn decode_float(self) -> Float {
@@ -202,7 +193,7 @@ impl Repr for RawTerm {
                     tag => Tag::Unknown(tag),
                 },
                 // External types have a subtag of 2 bits, but only 3 combinations are used
-                FLAG_EXTERNAL => match term & SUBTAG_MASK {
+                FLAG_EXTERNAL =>  match term & SUBTAG_MASK {
                     FLAG_EXTERN_PID => Tag::ExternalPid,
                     FLAG_EXTERN_PORT => Tag::ExternalPort,
                     FLAG_EXTERN_REF => Tag::ExternalReference,
@@ -210,17 +201,9 @@ impl Repr for RawTerm {
                 },
                 FLAG_TUPLE => Tag::Tuple,
                 FLAG_CLOSURE => Tag::Closure,
-                FLAG_HEAPBIN => Tag::HeapBinary,
                 FLAG_BIG_INTEGER => Tag::BigInteger,
                 FLAG_REFERENCE => Tag::Reference,
-                FLAG_FLOAT => Tag::Float,
                 FLAG_RESOURCE_REFERENCE => Tag::ResourceReference,
-                FLAG_PROCBIN => Tag::ProcBin,
-                FLAG_SUBBINARY => Tag::SubBinary,
-                FLAG_MATCH_CTX => Tag::MatchContext,
-                FLAG_EXTERN_PID => Tag::ExternalPid,
-                FLAG_EXTERN_PORT => Tag::ExternalPort,
-                FLAG_EXTERN_REF => Tag::ExternalReference,
                 FLAG_MAP => Tag::Map,
                 FLAG_NONE if term == NONE => Tag::None,
                 tag => Tag::Unknown(tag)
@@ -259,21 +242,20 @@ impl Repr for RawTerm {
     unsafe fn decode_list(self) -> Boxed<Cons> {
         debug_assert_eq!(self.0 & TAG_MASK, FLAG_LIST);
         let ptr = (self.0 & !TAG_MASK) as *const Cons as *mut Cons;
-        unsafe { Boxed::new_unchecked(ptr) }
+        Boxed::new_unchecked(ptr)
     }
 
     #[inline]
     unsafe fn decode_smallint(self) -> SmallInteger {
         const SMALL_INTEGER_SIGNED: u64 = 1u64 << TAG_SHIFT;
 
-        let value = self.0;
-        let tag = value & TAG_MASK;
+        let value = self.0 & TAG_MASK;
         let i = if value & SMALL_INTEGER_SIGNED == SMALL_INTEGER_SIGNED {
             !SMALL_VALUE | (value >> VALUE_SHIFT)
         } else {
             SMALL_VALUE & (value >> VALUE_SHIFT)
         } as i64;
-        unsafe { SmallInteger::new_unchecked(i as isize) }
+        SmallInteger::new_unchecked(i as isize)
     }
 
     #[inline]
@@ -307,46 +289,45 @@ impl Repr for RawTerm {
 unsafe impl Send for RawTerm {}
 
 impl Encode<RawTerm> for u8 {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm::encode_immediate((*self) as u64, FLAG_SMALL_INTEGER))
     }
 }
 
 impl Encode<RawTerm> for SmallInteger {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         let i: i64 = (*self).into();
         Ok(RawTerm::encode_immediate(i as u64, FLAG_SMALL_INTEGER))
     }
 }
 
 impl Encode<RawTerm> for Float {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm(self.value().to_bits() + MIN_DOUBLE))
     }
 }
 
 impl Encode<RawTerm> for bool {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         let atom = Atom::try_from_str(&self.to_string()).unwrap();
         Ok(RawTerm::encode_immediate(atom.id() as u64, FLAG_ATOM))
     }
 }
 
 impl Encode<RawTerm> for Atom {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm::encode_immediate(self.id() as u64, FLAG_ATOM))
     }
 }
 
 impl Encode<RawTerm> for Pid {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm::encode_immediate(self.as_usize() as u64, FLAG_PID))
     }
 }
 
 impl Encode<RawTerm> for Port {
-    fn encode(&self) -> Result<RawTerm> {
-        let value = self.as_usize();
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm::encode_immediate(self.as_usize() as u64, FLAG_PORT))
     }
 }
@@ -430,7 +411,7 @@ impl Cast<*const Cons> for RawTerm {
 
 impl Encoded for RawTerm {
     #[inline]
-    fn decode(&self) -> Result<TypedTerm> {
+    fn decode(&self) -> exception::Result<TypedTerm> {
         let tag = self.type_of();
         match tag {
             Tag::Nil => Ok(TypedTerm::Nil),
@@ -680,7 +661,7 @@ impl fmt::Debug for RawTerm {
             header => {
                 match self.decode_header(header, None) {
                     Ok(term) => write!(f, "Term({:?})", &term),
-                    Err(err) => write!(f, "InvalidHeader(tag: {:?})", &header)
+                    Err(_) => write!(f, "InvalidHeader(tag: {:?})", &header)
                 }
             }
         }

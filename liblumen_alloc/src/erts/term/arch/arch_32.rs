@@ -1,4 +1,3 @@
-#![allow(unused)]
 ///! This module exposes 32-bit architecture specific values and functions
 ///!
 ///! See the module doc in arch_64.rs for more information
@@ -12,28 +11,28 @@ use crate::erts::exception::{Result, Exception};
 use liblumen_core::sys::sysconf::MIN_ALIGN;
 const_assert!(MIN_ALIGN >= 4);
 
-use crate::erts::to_word_size;
 use crate::erts::term::prelude::*;
 
 use super::{Tag, Repr};
 
+#[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
 pub type Word = u32;
 
 const NUM_BITS: u32 = 32;
 
-// This is the highest assignable aligned address on this architecture
-pub const MAX_ALIGNED_ADDR: u32 = u32::max_value() & !(MIN_ALIGN as u32- 1);
-
 // The valid range of integer values that can fit in a term with primary tag
+#[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
 pub const MAX_IMMEDIATE_VALUE: u32 = u32::max_value() >> (NUM_BITS - (NUM_BITS - 3));
+#[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
 pub const MAX_ATOM_ID: u32 = MAX_IMMEDIATE_VALUE;
 
 // The valid range of fixed-width integers
+#[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
 pub const MIN_SMALLINT_VALUE: i32 = i32::min_value() >> (NUM_BITS - (NUM_BITS - 4));
+#[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
 pub const MAX_SMALLINT_VALUE: i32 = i32::max_value() >> (NUM_BITS - (NUM_BITS - 4));
 
 const PRIMARY_SHIFT: u32 = 3;
-const SMALLINT_SHIFT: u32 = 4;
 const HEADER_SHIFT: u32 = 8;
 const HEADER_TAG_SHIFT: u32 = 3;
 
@@ -52,6 +51,7 @@ const FLAG_PORT: u32 = 7;          // 0b111
 const FLAG_NONE: u32 = 0;                                                   // 0b00000_000
 const FLAG_TUPLE: u32 = (1 << HEADER_TAG_SHIFT) | FLAG_HEADER;              // 0b00001_000
 const FLAG_BIG_INTEGER: u32 = (2 << HEADER_TAG_SHIFT) | FLAG_HEADER;        // 0b00010_000
+#[allow(unused)]
 const FLAG_UNUSED: u32 = (3 << HEADER_TAG_SHIFT) | FLAG_HEADER;             // 0b00011_000
 const FLAG_REFERENCE: u32 = (4 << HEADER_TAG_SHIFT) | FLAG_HEADER;          // 0b00100_000
 const FLAG_CLOSURE: u32 = (5 << HEADER_TAG_SHIFT) | FLAG_HEADER;            // 0b00101_000
@@ -173,14 +173,14 @@ impl Repr for RawTerm {
     unsafe fn decode_list(self) -> Boxed<Cons> {
         debug_assert_eq!(self.0 & MASK_PRIMARY, FLAG_LIST);
         let ptr = (self.0 & !MASK_PRIMARY) as *mut Cons;
-        unsafe { Boxed::new_unchecked(ptr) }
+        Boxed::new_unchecked(ptr)
     }
 
     #[inline]
     unsafe fn decode_smallint(self) -> SmallInteger {
         let unmasked = (self.0 & !MASK_PRIMARY) as i32;
         let i = unmasked >> 3;
-        unsafe { SmallInteger::new_unchecked(i as isize) }
+        SmallInteger::new_unchecked(i as isize)
     }
 
     #[inline]
@@ -247,7 +247,6 @@ impl Encode<RawTerm> for Pid {
 
 impl Encode<RawTerm> for Port {
     fn encode(&self) -> Result<RawTerm> {
-        let value = self.as_usize();
         Ok(RawTerm::encode_immediate(self.as_usize() as u32, FLAG_PORT))
     }
 }
@@ -551,7 +550,7 @@ impl fmt::Debug for RawTerm {
             header => {
                 match self.decode_header(header, None) {
                     Ok(term) => write!(f, "Term({:?})", term),
-                    Err(err) => write!(f, "InvalidHeader(tag: {:?})", header)
+                    Err(_) => write!(f, "InvalidHeader(tag: {:?})", header)
                 }
             }
         }

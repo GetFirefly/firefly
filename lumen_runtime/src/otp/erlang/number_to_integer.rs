@@ -1,8 +1,8 @@
 use num_bigint::BigInt;
 
-use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::exception;
 
 pub enum NumberToInteger {
     NotANumber,
@@ -21,7 +21,7 @@ impl From<Term> for NumberToInteger {
     }
 }
 
-pub fn f64_to_integer(process: &Process, f: f64) -> Result<Term, Exception> {
+pub fn f64_to_integer(process: &Process, f: f64) -> exception::Result<Term> {
     // skip creating a BigInt if f64 can fit in small integer.
     if (SmallInteger::MIN_VALUE as f64).max(Float::INTEGRAL_MIN) <= f
         && f <= (SmallInteger::MAX_VALUE as f64).min(Float::INTEGRAL_MAX)

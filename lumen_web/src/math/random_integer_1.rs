@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -58,7 +58,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, exclusive_max: Term) -> exception::Result {
+fn native(process: &Process, exclusive_max: Term) -> exception::Result<Term> {
     let exclusive_max_usize: usize = exclusive_max.try_into()?;
     let exclusive_max_f64 = exclusive_max_usize as f64;
     let random_usize = (js_sys::Math::random() * exclusive_max_f64).trunc() as usize;

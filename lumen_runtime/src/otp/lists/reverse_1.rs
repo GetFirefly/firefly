@@ -14,6 +14,6 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::otp::lists::reverse_2;
 
 #[native_implemented_function(reverse/1)]
-fn native(process: &Process, list: Term) -> exception::Result {
+fn native(process: &Process, list: Term) -> exception::Result<Term> {
     reverse_2::native(process, list, Term::NIL)
 }

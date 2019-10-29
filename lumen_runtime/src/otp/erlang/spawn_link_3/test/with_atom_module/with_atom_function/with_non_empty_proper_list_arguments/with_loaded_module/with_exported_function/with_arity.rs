@@ -8,10 +8,10 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
+    let module_atom = atom!("erlang");
     let module = unsafe { module_atom.decode() };
 
-    let function_atom = Atom::try_from_str("+").unwrap();
+    let function_atom = atom!("+");
     let function = unsafe { function_atom.decode() };
 
     let number = parent_arc_process.integer(0).unwrap();
@@ -22,7 +22,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     assert!(result.is_ok());
 
     let child_pid = result.unwrap();
-    let child_pid_result_pid: core::result::Result<Pid, _> = child_pid.try_into();
+    let child_pid_result_pid: Result<Pid, _> = child_pid.try_into();
 
     assert!(child_pid_result_pid.is_ok());
 
@@ -42,7 +42,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
 
     match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(Atom::str_to_term("normal")));
+            assert_eq!(runtime_exception, &exit!(atom!("normal")));
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
@@ -56,14 +56,14 @@ fn without_valid_arguments_when_run_exits_and_parent_exits() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
+    let module_atom = atom!("erlang");
     let module = unsafe { module_atom.decode() };
 
-    let function_atom = Atom::try_from_str("+").unwrap();
+    let function_atom = atom!("+");
     let function = unsafe { function_atom.decode() };
 
     // not a number
-    let number = Atom::str_to_term("zero");
+    let number = atom!("zero");
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
     let result = spawn_link_3::native(&parent_arc_process, module, function, arguments);
@@ -71,7 +71,7 @@ fn without_valid_arguments_when_run_exits_and_parent_exits() {
     assert!(result.is_ok());
 
     let child_pid = result.unwrap();
-    let child_pid_result_pid: core::result::Result<Pid, _> = child_pid.try_into();
+    let child_pid_result_pid: Result<Pid, _> = child_pid.try_into();
 
     assert!(child_pid_result_pid.is_ok());
 

@@ -4,8 +4,9 @@ use wasm_bindgen::JsCast;
 
 use web_sys::DomException;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -13,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::node::node_from_term;
-use crate::{error, ok_tuple};
+use crate::ok_tuple;
 
 /// Unlike [Node.appendChild](https://developer.mozilla.org/en-US/docs/Web/API/Node/appendChild),
 /// this does not return the appended child as that is prone to errors with chaining.
@@ -83,7 +84,7 @@ fn native(
     parent: Term,
     new_child: Term,
     reference_child: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     let parent_node = node_from_term(parent)?;
     let new_child_node = node_from_term(new_child)?;
 
@@ -112,7 +113,7 @@ fn native(
                 ),
             };
             let reason = Atom::str_to_term(reason_name);
-            let error_tuple = process.tuple_from_slice(&[error(), reason])?;
+            let error_tuple = process.tuple_from_slice(&[atom!("error"), reason])?;
 
             Ok(error_tuple)
         }

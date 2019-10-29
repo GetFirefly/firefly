@@ -13,7 +13,7 @@ fn without_key_returns_error_atom() {
                         key != non_key
                     })
                     .prop_map(|(key, non_key)| {
-                        let value = Atom::str_to_term("value");
+                        let value = atom!("value");
 
                         (
                             non_key,
@@ -21,7 +21,7 @@ fn without_key_returns_error_atom() {
                         )
                     }),
                 |(key, map)| {
-                    let error = Atom::str_to_term("error");
+                    let error = atom!("error");
 
                     prop_assert_eq!(native(&arc_process, key, map), Ok(error.into()));
 
@@ -38,12 +38,12 @@ fn with_key_returns_value_and_map_tuple() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term(arc_process.clone()).prop_map(|key| {
-                    let value = Atom::str_to_term("value");
+                    let value = atom!("value");
 
                     (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
                 }),
                 |(key, map)| {
-                    let value = Atom::str_to_term("value");
+                    let value = atom!("value");
                     let empty_map = arc_process.map_from_slice(&[]).unwrap();
                     let value_and_map_tuple =
                         arc_process.tuple_from_slice(&[value, empty_map]).unwrap();

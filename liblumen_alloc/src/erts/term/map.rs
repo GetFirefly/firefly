@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::process::HeapAlloc;
 
 use super::prelude::*;
@@ -129,6 +129,14 @@ impl Map {
         }
     }
 
+    pub fn iter(&self) -> hashbrown::hash_map::Iter<Term, Term> {
+        self.value.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> hashbrown::hash_map::IterMut<Term, Term> {
+        self.value.iter_mut()
+    }
+
     // Private
 
     fn sorted_keys(&self) -> Vec<Term> {
@@ -153,7 +161,7 @@ impl AsRef<HashMap<Term, Term>> for Map {
 }
 
 impl crate::borrow::CloneToProcess for Map {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

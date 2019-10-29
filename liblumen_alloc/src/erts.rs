@@ -17,7 +17,7 @@ pub use process::*;
 /// Given a number of bytes `bytes`, returns the number of words
 /// needed to hold that number of bytes, rounding up if necessary
 #[inline]
-pub(crate) fn to_word_size(bytes: usize) -> usize {
+pub fn to_word_size(bytes: usize) -> usize {
     use core::mem;
     use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
 
@@ -26,7 +26,7 @@ pub(crate) fn to_word_size(bytes: usize) -> usize {
 
 #[allow(unused)]
 #[inline]
-pub(crate) fn to_arch64_word_size(bytes: usize) -> usize {
+pub fn to_arch64_word_size(bytes: usize) -> usize {
     use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
 
     round_up_to_multiple_of(bytes, 8) / 8
@@ -34,7 +34,7 @@ pub(crate) fn to_arch64_word_size(bytes: usize) -> usize {
 
 #[allow(unused)]
 #[inline]
-pub(crate) fn to_arch32_word_size(bytes: usize) -> usize {
+pub fn to_arch32_word_size(bytes: usize) -> usize {
     use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
 
     round_up_to_multiple_of(bytes, 4) / 4

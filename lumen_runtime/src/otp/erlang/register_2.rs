@@ -18,7 +18,7 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::registry;
 
 #[native_implemented_function(register/2)]
-pub fn native(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> exception::Result {
+pub fn native(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> exception::Result<Term> {
     let atom: Atom = name.try_into()?;
 
     let option_registered: Option<Term> = match atom.name() {

@@ -8,10 +8,10 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
+    let module_atom = atom!("erlang");
     let module = unsafe { module_atom.decode() };
 
-    let function_atom = Atom::try_from_str("self").unwrap();
+    let function_atom = atom!("self");
     let function = unsafe { function_atom.decode() };
 
     let arguments = Term::NIL;
@@ -41,7 +41,7 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(Atom::str_to_term("normal")));
+            assert_eq!(runtime_exception, &exit!(atom!("normal")));
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
@@ -57,10 +57,10 @@ fn without_arity_when_run_exits_undef_and_exits_parent() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
+    let module_atom = atom!("erlang");
     let module = unsafe { module_atom.decode() };
 
-    let function_atom = Atom::try_from_str("+").unwrap();
+    let function_atom = atom!("+");
     let function = unsafe { function_atom.decode() };
 
     // `+` is arity 1, not 0
@@ -93,7 +93,7 @@ fn without_arity_when_run_exits_undef_and_exits_parent() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: runtime::Exception =
+            let runtime_undef: RuntimeException =
                 undef!(&child_arc_process, module, function, arguments)
                     .try_into()
                     .unwrap();

@@ -16,7 +16,7 @@ use lumen_runtime_macros::native_implemented_function;
 /// `bitstring` is not divisible by `8`, the last element of the list is a `bitstring` containing
 /// the remaining `1`-`7` bits.
 #[native_implemented_function(bitstring_to_list/1)]
-pub fn native<'process>(process: &'process Process, bitstring: Term) -> exception::Result {
+pub fn native<'process>(process: &'process Process, bitstring: Term) -> exception::Result<Term> {
     match bitstring.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => {
             let byte_term_iter = heap_binary.as_bytes().iter().map(|byte| (*byte).into());

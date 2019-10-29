@@ -27,9 +27,7 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::exception::runtime;
-use crate::erts::exception::system::Alloc;
-use crate::erts::process::alloc::heap_alloc::MakePidError;
+use crate::erts::exception::{self, RuntimeException, AllocResult};
 use crate::erts::process::code::Code;
 use crate::erts::term::prelude::*;
 
@@ -227,21 +225,21 @@ impl Process {
     /// Perform a heap allocation, but do not fall back to allocating a heap fragment
     /// if the process heap is not able to fulfill the allocation request
     #[inline]
-    pub unsafe fn alloc_nofrag(&self, need: usize) -> Result<NonNull<Term>, Alloc> {
+    pub unsafe fn alloc_nofrag(&self, need: usize) -> AllocResult<NonNull<Term>> {
         let mut heap = self.heap.lock();
         heap.alloc(need)
     }
 
     /// Same as `alloc_nofrag`, but takes a `Layout` rather than the size in words
     #[inline]
-    pub unsafe fn alloc_nofrag_layout(&self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
+    pub unsafe fn alloc_nofrag_layout(&self, layout: Layout) -> AllocResult<NonNull<Term>> {
         let words = erts::to_word_size(layout.size());
         self.alloc_nofrag(words)
     }
 
     /// Skip allocating on the process heap and directly allocate a heap fragment
     #[inline]
-    pub unsafe fn alloc_fragment(&self, need: usize) -> Result<NonNull<Term>, Alloc> {
+    pub unsafe fn alloc_fragment(&self, need: usize) -> AllocResult<NonNull<Term>> {
         let layout = Layout::from_size_align_unchecked(
             need * mem::size_of::<Term>(),
             mem::align_of::<Term>(),
@@ -251,7 +249,7 @@ impl Process {
 
     /// Same as `alloc_fragment`, but takes a `Layout` rather than the size in words
     #[inline]
-    pub unsafe fn alloc_fragment_layout(&self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
+    pub unsafe fn alloc_fragment_layout(&self, layout: Layout) -> AllocResult<NonNull<Term>> {
         let mut frag = HeapFragment::new(layout)?;
         let frag_ref = frag.as_mut();
         let data = frag_ref.data().cast::<Term>();
@@ -294,7 +292,7 @@ impl Process {
         }
     }
 
-    unsafe fn alloca(&self, need: usize) -> Result<NonNull<Term>, Alloc> {
+    unsafe fn alloca(&self, need: usize) -> AllocResult<NonNull<Term>> {
         let mut heap = self.heap.lock();
         heap.alloca(need)
     }
@@ -306,7 +304,7 @@ impl Process {
     ///
     /// Returns `Err(Alloc)` if the process is out of stack space
     #[inline]
-    pub fn stack_push(&self, term: Term) -> Result<(), Alloc> {
+    pub fn stack_push(&self, term: Term) -> AllocResult<()> {
         assert!(term.is_runtime());
         unsafe {
             let stack0 = self.alloca(1)?.as_ptr();
@@ -410,7 +408,7 @@ impl Process {
     }
 
     /// Returns `true` if the process should stop waiting and be rescheduled as runnable.
-    pub fn send_from_other(&self, data: Term) -> Result<bool, Alloc> {
+    pub fn send_from_other(&self, data: Term) -> AllocResult<bool> {
         match self.heap.try_lock() {
             Some(ref mut destination_heap) => match data.clone_to_heap(destination_heap) {
                 Ok(destination_data) => {
@@ -451,11 +449,11 @@ impl Process {
 
     // Terms
 
-    pub fn binary_from_bytes(&self, bytes: &[u8]) -> Result<Term, Alloc> {
+    pub fn binary_from_bytes(&self, bytes: &[u8]) -> AllocResult<Term> {
         self.acquire_heap().binary_from_bytes(bytes)
     }
 
-    pub fn binary_from_str(&self, s: &str) -> Result<Term, Alloc> {
+    pub fn binary_from_str(&self, s: &str) -> AllocResult<Term> {
         self.acquire_heap().binary_from_str(s)
     }
 
@@ -471,7 +469,7 @@ impl Process {
         heap.bytes_from_binary(binary)
     }
 
-    pub fn charlist_from_str(&self, s: &str) -> Result<Term, Alloc> {
+    pub fn charlist_from_str(&self, s: &str) -> AllocResult<Term> {
         self.acquire_heap().charlist_from_str(s)
     }
 
@@ -481,14 +479,14 @@ impl Process {
         code: Code,
         creator: Term,
         slice: &[Term],
-    ) -> Result<Term, Alloc> {
+    ) -> AllocResult<Term> {
         self.acquire_heap()
             .closure_with_env_from_slice(mfa, code, creator, slice)
             .map(|term_ptr| term_ptr.into())
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
-    pub fn cons(&self, head: Term, tail: Term) -> Result<Term, Alloc> {
+    pub fn cons(&self, head: Term, tail: Term) -> AllocResult<Term> {
         self.acquire_heap().cons(head, tail)
     }
 
@@ -497,50 +495,50 @@ impl Process {
         node_id: usize,
         number: usize,
         serial: usize,
-    ) -> Result<Term, MakePidError> {
+    ) -> exception::Result<Term> {
         self.acquire_heap()
             .external_pid_with_node_id(node_id, number, serial)
     }
 
-    pub fn float(&self, f: f64) -> Result<Term, Alloc> {
+    pub fn float(&self, f: f64) -> AllocResult<Term> {
         self.acquire_heap().float(f)
     }
 
-    pub fn integer<I: Into<Integer>>(&self, i: I) -> Result<Term, Alloc> {
+    pub fn integer<I: Into<Integer>>(&self, i: I) -> AllocResult<Term> {
         self.acquire_heap().integer(i)
     }
 
-    pub fn list_from_chars(&self, chars: Chars) -> Result<Term, Alloc> {
+    pub fn list_from_chars(&self, chars: Chars) -> AllocResult<Term> {
         self.acquire_heap().list_from_chars(chars)
     }
 
-    pub fn list_from_iter<I>(&self, iter: I) -> Result<Term, Alloc>
+    pub fn list_from_iter<I>(&self, iter: I) -> AllocResult<Term>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
         self.acquire_heap().list_from_iter(iter)
     }
 
-    pub fn list_from_slice(&self, slice: &[Term]) -> Result<Term, Alloc> {
+    pub fn list_from_slice(&self, slice: &[Term]) -> AllocResult<Term> {
         self.acquire_heap().list_from_slice(slice)
     }
 
-    pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> Result<Term, Alloc>
+    pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> AllocResult<Term>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
         self.acquire_heap().improper_list_from_iter(iter, last)
     }
 
-    pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> Result<Term, Alloc> {
+    pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> AllocResult<Term> {
         self.acquire_heap().improper_list_from_slice(slice, tail)
     }
 
-    pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> Result<Term, Alloc> {
+    pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> AllocResult<Term> {
         self.acquire_heap().map_from_hash_map(hash_map)
     }
 
-    pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> Result<Term, Alloc> {
+    pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> AllocResult<Term> {
         self.acquire_heap().map_from_slice(slice)
     }
 
@@ -549,12 +547,12 @@ impl Process {
         node_id: usize,
         number: usize,
         serial: usize,
-    ) -> Result<Term, MakePidError> {
+    ) -> exception::Result<Term> {
         self.acquire_heap()
             .pid_with_node_id(node_id, number, serial)
     }
 
-    pub fn reference(&self, number: ReferenceNumber) -> Result<Term, Alloc> {
+    pub fn reference(&self, number: ReferenceNumber) -> AllocResult<Term> {
         self.reference_from_scheduler(self.scheduler_id.lock().unwrap(), number)
     }
 
@@ -562,13 +560,13 @@ impl Process {
         &self,
         scheduler_id: scheduler::ID,
         number: ReferenceNumber,
-    ) -> Result<Term, Alloc> {
+    ) -> AllocResult<Term> {
         self.acquire_heap()
             .reference(scheduler_id, number)
             .map(|ref_ptr| ref_ptr.into())
     }
 
-    pub fn resource(&self, value: Box<dyn Any>) -> Result<Term, Alloc> {
+    pub fn resource(&self, value: Box<dyn Any>) -> AllocResult<Term> {
         self.acquire_heap().resource(value)
     }
 
@@ -579,7 +577,7 @@ impl Process {
         bit_offset: u8,
         full_byte_len: usize,
         partial_byte_bit_len: u8,
-    ) -> Result<Term, Alloc> {
+    ) -> AllocResult<Term> {
         self.acquire_heap()
             .subbinary_from_original(
                 original,
@@ -591,7 +589,7 @@ impl Process {
             .map(|sub_ptr| sub_ptr.into())
     }
 
-    pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> Result<Term, Alloc>
+    pub fn tuple_from_iter<I>(&self, iterator: I, len: usize) -> AllocResult<Term>
     where
         I: Iterator<Item = Term>,
     {
@@ -600,13 +598,13 @@ impl Process {
             .map(|tup_ptr| tup_ptr.into())
     }
 
-    pub fn tuple_from_slice(&self, slice: &[Term]) -> Result<Term, Alloc> {
+    pub fn tuple_from_slice(&self, slice: &[Term]) -> AllocResult<Term> {
         self.acquire_heap()
             .tuple_from_slice(slice)
             .map(|tup_ptr| tup_ptr.into())
     }
 
-    pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> Result<Term, Alloc> {
+    pub fn tuple_from_slices(&self, slices: &[&[Term]]) -> AllocResult<Term> {
         self.acquire_heap()
             .tuple_from_slices(slices)
             .map(|tup_ptr| tup_ptr.into())
@@ -615,7 +613,7 @@ impl Process {
     // Process Dictionary
 
     /// Puts a new value under the given key in the process dictionary
-    pub fn put(&self, key: Term, value: Term) -> Result<Term, Alloc> {
+    pub fn put(&self, key: Term, value: Term) -> exception::Result<Term> {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
         assert!(
             value.is_runtime(),
@@ -637,7 +635,7 @@ impl Process {
         };
 
         match self.dictionary.lock().insert(heap_key, heap_value) {
-            None => Ok(undefined()),
+            None => Ok(atom!("undefined")),
             Some(old_value) => Ok(old_value),
         }
     }
@@ -647,7 +645,7 @@ impl Process {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
 
         match self.dictionary.lock().get(&key) {
-            None => undefined(),
+            None => atom!("undefined"),
             // We can simply copy the term value here, since we know it
             // is either an immediate, or already located on the process
             // heap or in a heap fragment.
@@ -656,7 +654,7 @@ impl Process {
     }
 
     /// Returns all key/value pairs from process dictionary
-    pub fn get_entries(&self) -> Result<Term, Alloc> {
+    pub fn get_entries(&self) -> AllocResult<Term> {
         let mut heap = self.heap.lock();
         let dictionary = self.dictionary.lock();
 
@@ -681,7 +679,7 @@ impl Process {
     }
 
     /// Returns list of all keys from the process dictionary.
-    pub fn get_keys(&self) -> Result<Term, Alloc> {
+    pub fn get_keys(&self) -> AllocResult<Term> {
         let mut heap = self.heap.lock();
         let dictionary = self.dictionary.lock();
 
@@ -698,7 +696,7 @@ impl Process {
     }
 
     /// Returns list of all keys from the process dictionary that have `value`.
-    pub fn get_keys_from_value(&self, value: Term) -> Result<Term, Alloc> {
+    pub fn get_keys_from_value(&self, value: Term) -> AllocResult<Term> {
         let mut heap = self.heap.lock();
         let dictionary = self.dictionary.lock();
 
@@ -717,7 +715,7 @@ impl Process {
     }
 
     /// Removes all key/value pairs from process dictionary and returns list of the entries.
-    pub fn erase_entries(&self) -> Result<Term, Alloc> {
+    pub fn erase_entries(&self) -> AllocResult<Term> {
         let mut heap = self.heap.lock();
         let mut dictionary = self.dictionary.lock();
 
@@ -747,7 +745,7 @@ impl Process {
         assert!(key.is_runtime(), "invalid key term for process dictionary");
 
         match self.dictionary.lock().remove(&key) {
-            None => undefined(),
+            None => atom!("undefined"),
             Some(old_value) => old_value,
         }
     }
@@ -905,7 +903,7 @@ impl Process {
     }
 
     pub fn exit_normal(&self) {
-        self.exit(Atom::str_to_term("normal"));
+        self.exit(atom!("normal"));
     }
 
     pub fn is_exiting(&self) -> bool {
@@ -916,7 +914,7 @@ impl Process {
         }
     }
 
-    pub fn exception(&self, exception: runtime::Exception) {
+    pub fn exception(&self, exception: RuntimeException) {
         *self.status.write() = Status::Exiting(exception);
     }
 
@@ -985,7 +983,7 @@ impl Process {
         locked_code_stack.pop().unwrap();
     }
 
-    pub fn return_from_call(&self, term: Term) -> Result<(), Alloc> {
+    pub fn return_from_call(&self, term: Term) -> AllocResult<()> {
         let has_caller = {
             let mut locked_stack = self.code_stack.lock();
 
@@ -1009,11 +1007,6 @@ impl Process {
     pub fn stacktrace(&self) -> stack::Trace {
         self.code_stack.lock().trace()
     }
-}
-
-#[inline]
-fn undefined() -> Term {
-    Atom::str_to_term("undefined")
 }
 
 #[cfg(test)]
@@ -1087,7 +1080,7 @@ pub enum Status {
     Runnable,
     Running,
     Waiting,
-    Exiting(runtime::Exception),
+    Exiting(RuntimeException),
 }
 
 impl Default for Status {

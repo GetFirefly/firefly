@@ -3,8 +3,7 @@ use core::convert::{TryFrom, TryInto};
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use liblumen_alloc::erts::exception::runtime::Exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::{AllocResult, Exception};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
 
@@ -88,7 +87,7 @@ impl Unit {
         }
     }
 
-    pub fn to_term(&self, process: &Process) -> Result<Term, Alloc> {
+    pub fn to_term(&self, process: &Process) -> AllocResult<Term> {
         match self {
             Unit::Hertz(hertz) => process.integer(*hertz),
             Unit::Second => Ok(Atom::str_to_term("second")),
@@ -104,15 +103,15 @@ impl Unit {
 impl TryFrom<Term> for Unit {
     type Error = Exception;
 
-    fn try_from(term: Term) -> Result<Unit, Exception> {
-        match term.decode().unwrap() {
+    fn try_from(term: Term) -> Result<Unit, Self::Error> {
+        match term.decode()? {
             TypedTerm::SmallInteger(small_integer) => {
                 let hertz: usize = small_integer.try_into()?;
 
                 if 0 < hertz {
                     Ok(Unit::Hertz(hertz))
                 } else {
-                    Err(badarg!())
+                    Err(badarg!().into())
                 }
             }
             TypedTerm::BigInteger(big_integer) => {
@@ -122,7 +121,7 @@ impl TryFrom<Term> for Unit {
             }
             TypedTerm::Atom(atom) => {
                 let term_string = atom.name();
-                let mut result = Err(badarg!());
+                let mut result = Err(badarg!().into());
 
                 for (s, unit) in [
                     ("second", Unit::Second),
@@ -146,7 +145,7 @@ impl TryFrom<Term> for Unit {
 
                 result
             }
-            _ => Err(badarg!()),
+            _ => Err(badarg!().into()),
         }
     }
 }

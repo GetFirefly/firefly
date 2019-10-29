@@ -1,10 +1,9 @@
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
 use liblumen_alloc::erts::process::{Priority, Process};
+use liblumen_alloc::erts::exception::{Exception, AllocResult};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 
@@ -69,7 +68,7 @@ impl Options {
         &self,
         parent_process: Option<&Process>,
         child_process: &Process,
-    ) -> Result<Connection, Alloc> {
+    ) -> AllocResult<Connection> {
         let linked = if self.link {
             parent_process.unwrap().link(child_process);
 
@@ -102,7 +101,7 @@ impl Options {
         module: Atom,
         function: Atom,
         arity: u8,
-    ) -> Result<Process, Alloc> {
+    ) -> AllocResult<Process> {
         let priority = self.cascaded_priority(parent_process);
         let module_function_arity = Arc::new(ModuleFunctionArity {
             module,
@@ -142,7 +141,7 @@ impl Options {
         }
     }
 
-    fn sized_heap(&self) -> Result<(*mut Term, usize), Alloc> {
+    fn sized_heap(&self) -> AllocResult<(*mut Term, usize)> {
         let heap_size = self.heap_size();
         let heap = heap(self.heap_size())?;
 

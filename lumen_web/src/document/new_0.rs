@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Atom;
+use liblumen_alloc::erts::term::prelude::{Term, Atom};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::{error, ok_tuple};
+use crate::ok_tuple;
 
 /// Returns a new document whose `origin` is the `origin` of the current global object's associated
 /// `Document`.
@@ -53,10 +54,10 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process) -> exception::Result {
+fn native(process: &Process) -> exception::Result<Term> {
     match web_sys::Document::new() {
         Ok(document) => ok_tuple(process, Box::new(document)).map_err(|error| error.into()),
         // Not sure how this can happen
-        Err(_) => Ok(error()),
+        Err(_) => Ok(atom!("error")),
     }
 }

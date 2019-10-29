@@ -2,11 +2,11 @@ pub mod options;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::CloneToProcess;
 
 use crate::otp::erlang;
@@ -22,13 +22,13 @@ pub fn apply_3(
     module: Atom,
     function: Atom,
     arguments: Term,
-) -> Result<Spawned, Alloc> {
+) -> exception::Result<Spawned> {
     let arity = arity(arguments);
 
     let child_process = options.spawn(Some(parent_process), module, function, arity)?;
 
-    let module_term = module.encode();
-    let function_term = function.encode();
+    let module_term = module.encode()?;
+    let function_term = function.encode()?;
     let heap_arguments = arguments.clone_to_process(&child_process);
 
     erlang::apply_3::place_frame_with_arguments(
@@ -57,7 +57,7 @@ pub fn code(
     function: Atom,
     arguments: &[Term],
     code: Code,
-) -> Result<Spawned, Alloc> {
+) -> exception::Result<Spawned> {
     let arity = arguments.len() as u8;
 
     let child_process = options.spawn(parent_process, module, function, arity)?;

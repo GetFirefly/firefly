@@ -10,6 +10,6 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::otp::erlang::term_to_binary::term_to_binary;
 
 #[native_implemented_function(term_to_binary/1)]
-pub fn native(process: &Process, term: Term) -> exception::Result {
+pub fn native(process: &Process, term: Term) -> exception::Result<Term> {
     term_to_binary(process, term, Default::default())
 }

@@ -5,17 +5,24 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use core::convert::TryInto;
+
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::otp::lists::get_by_term_one_based_index_key;
-
 #[native_implemented_function(keyfind/3)]
-pub fn native(key: Term, one_based_index: Term, tuple_list: Term) -> exception::Result {
-    get_by_term_one_based_index_key(tuple_list, one_based_index, key).map(|option| match option {
-        Some(found) => found,
-        None => false.into(),
-    })
+pub fn native(key: Term, index: Term, tuple_list: Term) -> exception::Result<Term> {
+    let index: OneBasedIndex = index.try_into()?;
+
+    match tuple_list.decode()? {
+        TypedTerm::Nil => Ok(false.into()),
+        TypedTerm::List(cons) => match cons.keyfind(index, key)? {
+            Some(found) => Ok(found),
+            None => Ok(false.into()),
+        }
+        _ => Err(badarg!().into()),
+    }
 }

@@ -12,11 +12,8 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.as_term() };
-
-    let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let module = atom!("erlang");
+    let function = atom!("+");
 
     let number = parent_arc_process.integer(0).unwrap();
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
@@ -55,7 +52,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
     assert_eq!(child_arc_process.code_stack_len(), 0);
     assert_eq!(child_arc_process.current_module_function_arity(), None);
 
-    let reason = Atom::str_to_term("normal");
+    let reason = atom!("normal");
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
@@ -66,7 +63,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = Atom::str_to_term("DOWN");
+    let tag = atom!("DOWN");
 
     assert!(has_message(
         &parent_arc_process,
@@ -74,7 +71,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                Atom::str_to_term("process"),
+                atom!("process"),
                 child_pid_term,
                 reason
             ])
@@ -90,14 +87,11 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.as_term() };
-
-    let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let module = atom!("erlang");
+    let function = atom!("+");
 
     // not a number
-    let number = Atom::str_to_term("zero");
+    let number = atom!("zero");
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
     let result = native(&parent_arc_process, module, function, arguments);
@@ -150,8 +144,8 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = Atom::str_to_term("DOWN");
-    let reason = Atom::str_to_term("badarith");
+    let tag = atom!("DOWN");
+    let reason = atom!("badarith");
 
     assert!(has_message(
         &parent_arc_process,
@@ -159,7 +153,7 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                Atom::str_to_term("process"),
+                atom!("process"),
                 child_pid_term,
                 reason
             ])

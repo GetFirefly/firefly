@@ -1,15 +1,14 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::runtime;
+use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir;
 
-pub fn code(arc_process: &Arc<Process>) -> Result {
+pub fn code(arc_process: &Arc<Process>) -> code::Result {
     let module_term = arc_process.stack_pop().unwrap();
     let function_term = arc_process.stack_pop().unwrap();
 
@@ -30,7 +29,7 @@ pub fn code(arc_process: &Arc<Process>) -> Result {
             "In {:?}, {:?} ({:#b}) is not an argument list.  Cannot call {:?}:{:?}",
             arc_process.pid_term(),
             argument_list,
-            argument_list.as_usize(),
+            argument_list,
             module_term,
             function_term
         ),
@@ -118,11 +117,9 @@ pub fn code(arc_process: &Arc<Process>) -> Result {
     }
 }
 
-fn undef(arc_process: &Arc<Process>, module: Term, function: Term, arguments: Term) -> Result {
+fn undef(arc_process: &Arc<Process>, module: Term, function: Term, arguments: Term) -> code::Result {
+    use liblumen_alloc::undef;
     arc_process.reduce();
-    let exception = liblumen_alloc::undef!(arc_process, module, function, arguments);
-    let runtime_exception: runtime::Exception = exception.try_into().unwrap();
-    arc_process.exception(runtime_exception);
-
-    Ok(())
+    let exception = undef!(arc_process, module, function, arguments);
+    code::result_from_exception(arc_process, exception)
 }

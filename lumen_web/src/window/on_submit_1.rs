@@ -5,15 +5,13 @@ use wasm_bindgen::JsCast;
 
 use web_sys::{Event, HtmlFormElement};
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::otp::erlang;
-
-use crate::error;
 
 /// The global `onsubmit` event listener for Lumen.Web forms.
 ///
@@ -26,7 +24,7 @@ pub fn place_frame_with_arguments(
     process: &Process,
     placement: Placement,
     event: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     process.stack_push(event)?;
     process.place_frame(frame(), placement);
 
@@ -69,8 +67,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                             }
                             None => {
                                 let error_tuple = arc_process.tuple_from_slice(&[
-                                    error(),
-                                    Atom::str_to_term("data-lumen-submit-function"),
+                                    atom!("error"),
+                                    atom!("data-lumen-submit-function"),
                                 ])?;
                                 arc_process.return_from_call(error_tuple)?;
                             }

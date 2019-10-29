@@ -7,22 +7,24 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception;
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::exception;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::registry;
 
 #[native_implemented_function(whereis/1)]
-pub fn native(name: Term) -> exception::Result {
+pub fn native(name: Term) -> exception::Result<Term> {
     let atom: Atom = name.try_into()?;
 
-    let option = registry::atom_to_process(&atom).map(|arc_process| arc_process.pid());
+    let option = registry::atom_to_process(&atom)
+        .map(|arc_process| arc_process.pid());
 
     let term = match option {
-        Some(pid) => unsafe { pid.decode() },
-        None => Atom::str_to_term("undefined"),
+        Some(pid) => pid.encode()?,
+        None => atom!("undefined"),
     };
 
     Ok(term)

@@ -10,11 +10,11 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
+    let module_atom = atom!("erlang");
     let module = unsafe { module_atom.decode() };
 
     // Typo
-    let function_atom = Atom::try_from_str("sel").unwrap();
+    let function_atom = atom!("sel");
     let function = unsafe { function_atom.decode() };
 
     let arguments = Term::NIL;
@@ -24,7 +24,7 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
     assert!(result.is_ok());
 
     let child_pid = result.unwrap();
-    let child_pid_result_pid: core::result::Result<Pid, _> = child_pid.try_into();
+    let child_pid_result_pid: Result<Pid, _> = child_pid.try_into();
 
     assert!(child_pid_result_pid.is_ok());
 
@@ -47,7 +47,7 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
 
     match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: runtime::Exception =
+            let runtime_undef: RuntimeException =
                 undef!(&arc_process, module, function, arguments)
                     .try_into()
                     .unwrap();

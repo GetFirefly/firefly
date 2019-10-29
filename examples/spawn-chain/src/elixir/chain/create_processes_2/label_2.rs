@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};

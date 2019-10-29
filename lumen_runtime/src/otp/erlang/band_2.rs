@@ -13,6 +13,6 @@ use lumen_runtime_macros::native_implemented_function;
 
 /// `band/2` infix operator.
 #[native_implemented_function(band/2)]
-pub fn native(process: &Process, left_integer: Term, right_integer: Term) -> exception::Result {
+pub fn native(process: &Process, left_integer: Term, right_integer: Term) -> exception::Result<Term> {
     bitwise_infix_operator!(left_integer, right_integer, process, &)
 }

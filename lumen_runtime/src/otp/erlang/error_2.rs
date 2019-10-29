@@ -12,6 +12,6 @@ use liblumen_alloc::erts::term::prelude::Term;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(error/2)]
-pub fn native(reason: Term, arguments: Term) -> exception::Result {
-    Err(error!(reason, Some(arguments)).into())
+pub fn native(reason: Term, arguments: Term) -> exception::Result<Term> {
+    Err(error!(reason, arguments).into())
 }

@@ -8,7 +8,7 @@ use liblumen_core::util::pointer::distance_absolute;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::HeapAlloc;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::{Term, TypedTerm, Cast, Header, Encoded};
 
 use super::prelude::*;
@@ -251,7 +251,7 @@ impl Bitstring for MatchContext {
 }
 
 impl CloneToProcess for MatchContext {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(bit_size/1)]
-pub fn native(process: &Process, bitstring: Term) -> exception::Result {
+pub fn native(process: &Process, bitstring: Term) -> exception::Result<Term> {
     let option_total_bit_len = match bitstring.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_bit_len()),
         TypedTerm::ProcBin(process_binary) => Some(process_binary.total_bit_len()),

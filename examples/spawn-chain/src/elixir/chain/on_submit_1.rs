@@ -5,7 +5,7 @@ mod label_4;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;

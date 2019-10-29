@@ -15,7 +15,7 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::otp::erlang;
 
 #[native_implemented_function(binary_part/2)]
-pub fn native(process: &Process, binary: Term, start_length: Term) -> exception::Result {
+pub fn native(process: &Process, binary: Term, start_length: Term) -> exception::Result<Term> {
     let option_result = match start_length.decode().unwrap() {
         TypedTerm::Tuple(tuple) => {
             if tuple.len() == 2 {

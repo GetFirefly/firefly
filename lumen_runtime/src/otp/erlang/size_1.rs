@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(size/1)]
-pub fn native(process: &Process, binary_or_tuple: Term) -> exception::Result {
+pub fn native(process: &Process, binary_or_tuple: Term) -> exception::Result<Term> {
     let option_size = match binary_or_tuple.decode().unwrap() {
         TypedTerm::Tuple(tuple) => Some(tuple.len()),
         TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.full_byte_len()),

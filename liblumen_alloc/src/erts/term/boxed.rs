@@ -208,7 +208,7 @@ where
     E: encoding::Encoded + From<*mut T>,
 {
     #[inline]
-    fn encode(&self) -> Result<E, encoding::TermEncodingError> {
+    fn encode(&self) -> crate::erts::exception::Result<E> {
         Ok(self.as_ptr().into())
     }
 }

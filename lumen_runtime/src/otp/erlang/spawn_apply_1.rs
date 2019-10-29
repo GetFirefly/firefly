@@ -1,7 +1,7 @@
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::apply_2;
 use crate::process::spawn::options::Options;
@@ -11,7 +11,7 @@ pub(in crate::otp::erlang) fn native(
     process: &Process,
     options: Options,
     function: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     if function.is_function() {
         let arguments = &[function, Term::NIL];
 
@@ -26,7 +26,7 @@ pub(in crate::otp::erlang) fn native(
             apply_2::code,
         )
         .and_then(|spawned| spawned.to_term(process))
-        .map_err(|alloc| alloc.into())
+        .map_err(|e| e.into())
     } else {
         Err(badarg!().into())
     }

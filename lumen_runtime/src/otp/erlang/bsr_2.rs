@@ -13,6 +13,6 @@ use lumen_runtime_macros::native_implemented_function;
 
 /// `bsr/2` infix operator.
 #[native_implemented_function(bsr/2)]
-pub fn native(process: &Process, integer: Term, shift: Term) -> exception::Result {
+pub fn native(process: &Process, integer: Term, shift: Term) -> exception::Result<Term> {
     bitshift_infix_operator!(integer, shift, process, >>, <<)
 }

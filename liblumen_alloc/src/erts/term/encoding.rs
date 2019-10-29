@@ -10,7 +10,7 @@ use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::{AllocResult, Result};
 
 use super::prelude::*;
 use super::arch::Word;
@@ -59,7 +59,7 @@ pub enum TermDecodingError {
 /// necessary to use the `Boxable::as_box` trait function to obtain an
 /// encoded pointer when needed.
 pub trait Encode<T: Encoded> {
-    fn encode(&self) -> Result<T, TermEncodingError>;
+    fn encode(&self) -> Result<T>;
 }
 
 /// This is a marker trait for terms which can be boxed
@@ -232,7 +232,7 @@ pub trait Encoded: Sized + Copy + Send + PartialEq<Self> + PartialOrd<Self> + Or
     /// to make this as safe as possible. The only exception to this rule should
     /// be the case of decoding a pointer which can not be validated unless it
     /// is dereferenced.
-    fn decode(&self) -> Result<TypedTerm, TermDecodingError>;
+    fn decode(&self) -> Result<TypedTerm>;
 
     /// Returns `true` if the encoded value represents `NONE`
     fn is_none(self) -> bool;
@@ -255,6 +255,16 @@ pub trait Encoded: Sized + Copy + Send + PartialEq<Self> + PartialOrd<Self> + Or
     }
     /// Returns `true` if the encoded value is an atom
     fn is_atom(self) -> bool;
+    /// Returns `true` if the encoded value is a boolean
+    fn is_boolean(self) -> bool {
+        if !self.is_atom() {
+            return false;
+        }
+        match self.decode() {
+            Ok(TypedTerm::Atom(a)) => a.is_boolean(),
+            _ => false,
+        }
+    }
     /// Returns `true` if the encoded value is a fixed-width integer value
     fn is_smallint(self) -> bool;
     /// Returns `true` if the encoded value is a arbitrary-width integer value
@@ -405,7 +415,7 @@ impl CloneToProcess for Term {
         }
     }
 
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

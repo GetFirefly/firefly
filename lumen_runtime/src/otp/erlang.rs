@@ -178,8 +178,8 @@ use core::convert::TryInto;
 
 use alloc::sync::Arc;
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::Result;
+use liblumen_alloc::{badarg, atom};
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -202,8 +202,8 @@ fn cancel_timer(
     timer_reference: Term,
     options: timer::cancel::Options,
     process: &Process,
-) -> Result {
-    match timer_reference.decode().unwrap() {
+) -> exception::Result<Term> {
+    match timer_reference.decode()? {
         TypedTerm::Reference(ref reference) => {
             let canceled = timer::cancel(reference);
 
@@ -216,18 +216,18 @@ fn cancel_timer(
 
                 if options.r#async {
                     let cancel_timer_message = heap.tuple_from_slice(&[
-                        Atom::str_to_term("cancel_timer"),
+                        atom!("cancel_timer"),
                         timer_reference,
                         canceled_term,
                     ])?;
-                    process.send_from_self(cancel_timer_message.encode().unwrap());
+                    process.send_from_self(cancel_timer_message.encode()?);
 
-                    Atom::str_to_term("ok")
+                    atom!("ok")
                 } else {
                     canceled_term
                 }
             } else {
-                Atom::str_to_term("ok")
+                atom!("ok")
             };
 
             Ok(term)
@@ -236,10 +236,10 @@ fn cancel_timer(
     }
 }
 
-fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> Result {
-    match term.decode().unwrap() {
+fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Result<Term> {
+    match term.decode()? {
         TypedTerm::Tuple(tuple) => {
-            match record_tag.decode().unwrap() {
+            match record_tag.decode()? {
                 TypedTerm::Atom(_) => {
                     let len = tuple.len();
 
@@ -273,8 +273,8 @@ fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> Result {
     }
 }
 
-fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Process) -> Result {
-    match timer_reference.decode().unwrap() {
+fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Process) -> exception::Result<Term> {
+    match timer_reference.decode()? {
         TypedTerm::Reference(ref local_reference) => {
             let read = timer::read(local_reference);
             let mut heap = process.acquire_heap();
@@ -286,13 +286,13 @@ fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Pr
 
             let term = if options.r#async {
                 let read_timer_message = heap.tuple_from_slice(&[
-                    Atom::str_to_term("read_timer"),
+                    atom!("read_timer"),
                     timer_reference,
                     read_term,
                 ])?;
-                process.send_from_self(read_timer_message.encode().unwrap());
+                process.send_from_self(read_timer_message.encode()?);
 
-                Atom::str_to_term("ok")
+                atom!("ok")
             } else {
                 read_term
             };
@@ -310,7 +310,7 @@ fn start_timer(
     message: Term,
     options: timer::start::Options,
     arc_process: Arc<Process>,
-) -> Result {
+) -> exception::Result<Term> {
     if time.is_integer() {
         let reference_frame_milliseconds: Milliseconds = time.try_into()?;
 

@@ -16,7 +16,7 @@ use liblumen_alloc::erts::string::Encoding;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(atom_to_binary/2)]
-pub fn native(process: &Process, atom: Term, encoding: Term) -> exception::Result {
+pub fn native(process: &Process, atom: Term, encoding: Term) -> exception::Result<Term> {
     match atom.decode().unwrap() {
         TypedTerm::Atom(atom) => {
             let _: Encoding = encoding.try_into()?;

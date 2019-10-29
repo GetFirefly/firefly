@@ -1,9 +1,9 @@
 use std::sync::Arc;
+use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::{Term, Boxed, Resource};
 
 use crate::elixir::chain::dom_output_1::label_9;
 
@@ -12,7 +12,7 @@ pub fn place_frame_with_arguments(
     placement: Placement,
     document: Term,
     tr: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     process.stack_push(tr)?;
     process.stack_push(document)?;
     process.place_frame(frame(process), placement);
@@ -39,11 +39,11 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let text_text = arc_process.stack_pop().unwrap();
-    assert!(text_text.is_resource_reference());
+    let _: Boxed<Resource> = text_text.try_into().unwrap();
     let document = arc_process.stack_pop().unwrap();
-    assert!(document.is_resource_reference());
+    let _: Boxed<Resource> = document.try_into().unwrap();
     let tr = arc_process.stack_pop().unwrap();
-    assert!(tr.is_resource_reference());
+    let _: Boxed<Resource> = tr.try_into().unwrap();
 
     label_9::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text_text)?;
 

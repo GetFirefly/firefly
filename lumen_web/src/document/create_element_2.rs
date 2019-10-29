@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -11,7 +12,7 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::binary_to_string::binary_to_string;
 
 use crate::document::document_from_term;
-use crate::{error, ok_tuple};
+use crate::ok_tuple;
 
 /// ```elixir
 /// case Lumen.Web.Document.create_element(document, tag) do
@@ -66,7 +67,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-pub fn native(process: &Process, document: Term, tag: Term) -> exception::Result {
+pub fn native(process: &Process, document: Term, tag: Term) -> exception::Result<Term> {
     let document_document = document_from_term(document)?;
     let tag_string: String = binary_to_string(tag)?;
 
@@ -76,7 +77,7 @@ pub fn native(process: &Process, document: Term, tag: Term) -> exception::Result
             let tag_tag = Atom::str_to_term("tag");
             let reason = process.tuple_from_slice(&[tag_tag, tag])?;
 
-            let error = error();
+            let error = atom!("error");
 
             process.tuple_from_slice(&[error, reason])
         }

@@ -14,7 +14,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 /// `--/2`
 #[native_implemented_function(--/2)]
-pub fn native(process: &Process, minuend: Term, subtrahend: Term) -> exception::Result {
+pub fn native(process: &Process, minuend: Term, subtrahend: Term) -> exception::Result<Term> {
     match (
         minuend.decode().unwrap(),
         subtrahend.decode().unwrap(),

@@ -1,10 +1,10 @@
 use std::sync::Arc;
+use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::{Term, Encoded, Boxed, Closure};
 
 use lumen_runtime::otp::erlang;
 
@@ -15,7 +15,7 @@ pub fn place_frame_with_arguments(
     placement: Placement,
     next_pid: Term,
     output: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     assert!(next_pid.is_pid());
     assert!(output.is_function());
     process.stack_push(output)?;
@@ -55,7 +55,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             let next_pid = arc_process.stack_pop().unwrap();
             assert!(next_pid.is_pid());
             let output = arc_process.stack_pop().unwrap();
-            assert!(output.is_function());
+            let _: Boxed<Closure> = output.try_into().unwrap();
 
             // ```elixir
             // # label 2

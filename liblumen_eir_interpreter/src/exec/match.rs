@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use libeir_ir::{BasicType, Block, MatchKind, PrimOpKind};
 
-use liblumen_alloc::erts::exception::system;
+use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::TypedTerm;
+use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded, ExactEq};
 
 use super::{CallExecutor, OpResult};
 use crate::module::ErlangFunction;
@@ -15,14 +15,17 @@ pub fn match_op(
     fun: &ErlangFunction,
     branches: &[MatchKind],
     block: Block,
-) -> std::result::Result<OpResult, system::Exception> {
+) -> std::result::Result<OpResult, SystemException> {
     let reads = fun.fun.block_reads(block);
 
     let branches_prim = fun.fun.value_primop(reads[0]).unwrap();
     assert!(fun.fun.primop_kind(branches_prim) == &PrimOpKind::ValueList);
     let branches_dests = fun.fun.primop_reads(branches_prim);
 
-    let unpack_term = exec.make_term(proc, fun, reads[1]).unwrap();
+    let unpack_term = exec.make_term(proc, fun, reads[1])
+        .unwrap()
+        .decode()
+        .unwrap();
 
     for (idx, (kind, branch)) in branches.iter().zip(branches_dests.iter()).enumerate() {
         let branch_arg_prim = fun.fun.value_primop(reads[idx + 2]).unwrap();
@@ -32,9 +35,12 @@ pub fn match_op(
         match kind {
             MatchKind::Value => {
                 assert!(branch_args.len() == 1);
-                let rhs = exec.make_term(proc, fun, branch_args[0]).unwrap();
+                let rhs = exec.make_term(proc, fun, branch_args[0])
+                    .unwrap()
+                    .decode()
+                    .unwrap();
 
-                if unpack_term.exactly_eq(&rhs) {
+                if unpack_term.exact_eq(&rhs) {
                     return exec.val_call(proc, fun, *branch);
                 }
             }
@@ -48,7 +54,7 @@ pub fn match_op(
                 assert!(branch_args.len() == 1);
                 let key = exec.make_term(proc, fun, branch_args[0]).unwrap();
 
-                match unpack_term.decode().unwrap() {
+                match unpack_term {
                     TypedTerm::Map(map) => {
                         if let Some(val) = map.get(key) {
                             exec.next_args.push(val);
@@ -61,7 +67,7 @@ pub fn match_op(
             MatchKind::Tuple(arity) => {
                 assert!(branch_args.len() == 0);
 
-                match unpack_term.decode().unwrap() {
+                match unpack_term {
                     TypedTerm::Tuple(tup) => {
                         if tup.len() == *arity {
                             exec.next_args.extend(tup.iter());
@@ -74,7 +80,7 @@ pub fn match_op(
             MatchKind::ListCell => {
                 assert!(branch_args.len() == 0);
 
-                match unpack_term.decode().unwrap() {
+                match unpack_term {
                     TypedTerm::List(cons) => {
                         exec.next_args.push(cons.head);
                         exec.next_args.push(cons.tail);

@@ -171,7 +171,7 @@ macro_rules! impl_term_conversions {
         }
 
         impl TryInto<Vec<u8>> for $raw {
-            type Error = runtime::Exception;
+            type Error = Exception;
 
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
                 self.decode().unwrap().try_into()
@@ -186,6 +186,22 @@ macro_rules! impl_term_conversions {
             }
         }
 
+        impl TryInto<Pid> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Pid, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Port> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Port, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
         impl TryInto<Boxed<Resource>> for $raw {
             type Error = TypeError;
 
@@ -193,7 +209,6 @@ macro_rules! impl_term_conversions {
                 self.decode().unwrap().try_into()
             }
         }
-
 
         impl TryInto<Resource> for $raw {
             type Error = TypeError;

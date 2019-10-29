@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::subtract_2;
 use crate::otp::timer::tc_3::label_4;

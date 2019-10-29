@@ -1,12 +1,13 @@
 use core::cmp;
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
+use core::convert::TryFrom;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::{HeapAlloc, Node};
 
-use super::prelude::{Term, Header, Boxed};
+use super::prelude::{Term, TypedTerm, Header, Boxed, TypeError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -66,6 +67,16 @@ where
         other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
+impl TryFrom<TypedTerm> for Port {
+    type Error = TypeError;
+
+    fn try_from(term: TypedTerm) -> Result<Self, Self::Error> {
+        match term {
+            TypedTerm::Port(p) => Ok(p),
+            _ => Err(TypeError)
+        }
+    }
+}
 
 #[derive(Debug)]
 #[repr(C)]
@@ -77,7 +88,7 @@ pub struct ExternalPort {
 }
 
 impl CloneToProcess for ExternalPort {
-    fn clone_to_heap<A>(&self, _heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, _heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -131,5 +142,16 @@ where
     #[inline]
     fn partial_cmp(&self, other: &Boxed<T>) -> Option<cmp::Ordering> {
         other.as_ref().partial_cmp(self).map(|o| o.reverse())
+    }
+}
+
+impl TryFrom<TypedTerm> for Boxed<ExternalPort> {
+    type Error = TypeError;
+
+    fn try_from(term: TypedTerm) -> Result<Self, Self::Error> {
+        match term {
+            TypedTerm::ExternalPort(p) => Ok(p),
+            _ => Err(TypeError)
+        }
     }
 }

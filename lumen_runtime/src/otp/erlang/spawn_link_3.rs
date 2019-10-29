@@ -20,7 +20,7 @@ pub fn native(
     module: Term,
     function: Term,
     arguments: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     let mut options: Options = Default::default();
     options.link = true;
 

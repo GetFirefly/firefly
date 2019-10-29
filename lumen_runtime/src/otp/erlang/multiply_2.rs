@@ -13,6 +13,6 @@ use lumen_runtime_macros::native_implemented_function;
 
 /// `*/2` infix operator
 #[native_implemented_function(*/2)]
-pub fn native(process: &Process, multiplier: Term, multiplicand: Term) -> exception::Result {
+pub fn native(process: &Process, multiplier: Term, multiplicand: Term) -> exception::Result<Term> {
     number_infix_operator!(multiplier, multiplicand, process, checked_mul, *)
 }

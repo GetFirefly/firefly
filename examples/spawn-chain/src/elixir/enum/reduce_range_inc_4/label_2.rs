@@ -1,9 +1,9 @@
 use std::sync::Arc;
+use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::{Term, Boxed, Closure, Encoded};
 
 use crate::elixir::r#enum::reduce_range_inc_4;
 
@@ -20,10 +20,11 @@ pub fn place_frame_with_arguments(
     new_first: Term,
     last: Term,
     reducer: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     assert!(new_first.is_integer());
     assert!(last.is_integer());
-    assert!(reducer.is_function());
+
+    let _: Boxed<Closure> = reducer.try_into().unwrap();
 
     process.stack_push(reducer)?;
     process.stack_push(last)?;

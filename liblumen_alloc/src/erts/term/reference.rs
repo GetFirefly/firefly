@@ -7,7 +7,7 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::{scheduler, HeapAlloc, Node};
 
 use super::prelude::{Term, TypeError, TypedTerm, Boxed, Header};
@@ -55,7 +55,7 @@ impl Reference {
 }
 
 impl CloneToProcess for Reference {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -150,7 +150,7 @@ pub struct ExternalReference {
 
 impl CloneToProcess for ExternalReference {
     #[inline]
-    fn clone_to_heap<A>(&self, _heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, _heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

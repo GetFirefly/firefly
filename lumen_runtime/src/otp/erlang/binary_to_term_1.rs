@@ -14,6 +14,6 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::otp::erlang::binary_to_term_2;
 
 #[native_implemented_function(binary_to_term/1)]
-pub fn native(process: &Process, binary: Term) -> exception::Result {
+pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {
     binary_to_term_2::native(process, binary, Term::NIL)
 }

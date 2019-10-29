@@ -14,6 +14,6 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::otp::erlang::spawn_apply_1;
 
 #[native_implemented_function(spawn/1)]
-pub fn native(process: &Process, function: Term) -> exception::Result {
+pub fn native(process: &Process, function: Term) -> exception::Result<Term> {
     spawn_apply_1::native(process, Default::default(), function)
 }

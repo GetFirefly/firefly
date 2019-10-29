@@ -14,7 +14,7 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::otp::erlang::integer_to_string::base_integer_to_string;
 
 #[native_implemented_function(integer_to_binary/2)]
-pub fn native(process: &Process, integer: Term, base: Term) -> exception::Result {
+pub fn native(process: &Process, integer: Term, base: Term) -> exception::Result<Term> {
     base_integer_to_string(base, integer).and_then(|string| {
         process
             .charlist_from_str(&string)

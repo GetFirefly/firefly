@@ -13,6 +13,6 @@ use lumen_runtime_macros::native_implemented_function;
 
 /// `rem/2` infix operator.  Integer remainder.
 #[native_implemented_function(rem/2)]
-pub fn native(process: &Process, dividend: Term, divisor: Term) -> exception::Result {
+pub fn native(process: &Process, dividend: Term, divisor: Term) -> exception::Result<Term> {
     integer_infix_operator!(dividend, divisor, process, %)
 }

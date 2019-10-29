@@ -19,6 +19,6 @@ pub fn native(
     module: Term,
     function: Term,
     arguments: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     spawn_apply_3::native(process, Default::default(), module, function, arguments)
 }

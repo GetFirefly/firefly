@@ -17,7 +17,7 @@ use lumen_runtime_macros::native_implemented_function;
 /// `//2` infix operator.  Unlike `+/2`, `-/2` and `*/2` always promotes to `float` returns the
 /// `float`.
 #[native_implemented_function(/ /2)]
-pub fn native(process: &Process, dividend: Term, divisor: Term) -> exception::Result {
+pub fn native(process: &Process, dividend: Term, divisor: Term) -> exception::Result<Term> {
     let dividend_f64: f64 = dividend.try_into().map_err(|_| badarith!())?;
     let divisor_f64: f64 = divisor.try_into().map_err(|_| badarith!())?;
 

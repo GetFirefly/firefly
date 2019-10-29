@@ -9,7 +9,7 @@ use core::sync::atomic::{self, AtomicUsize};
 
 use liblumen_core::sys::alloc as sys_alloc;
 
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::heap_alloc::HeapAlloc;
 use crate::CloneToProcess;
 
@@ -23,7 +23,7 @@ pub struct Resource {
     inner: NonNull<ResourceInner>,
 }
 impl Resource {
-    pub fn new(value: Box<dyn Any>) -> Result<Self, Alloc> {
+    pub fn new(value: Box<dyn Any>) -> AllocResult<Self> {
         let inner = ResourceInner::new(value)?;
         Ok(Self {
             header: Default::default(),
@@ -31,7 +31,7 @@ impl Resource {
         })
     }
 
-    pub fn from_value<A>(heap: &mut A, value: Box<dyn Any>) -> Result<Boxed<Self>, Alloc>
+    pub fn from_value<A>(heap: &mut A, value: Box<dyn Any>) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -48,9 +48,48 @@ impl Resource {
         }
     }
 
+    /// Try to cast the value of the resource reference to a concrete type
+    ///
+    /// Returns `None` if the cast is not valid
     #[inline]
     pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
         self.value().downcast_ref()
+    }
+
+    /// Returns the inner value, cast to a concrete type, if the `Resource`
+    /// is the sole strong reference. Works much like `Arc::try_unwrap`.
+    ///
+    /// If the value is not able to be cast to the desired type, the operation
+    /// fails and `Err` is returned containing the original `Resource` that was
+    /// passed in. Likewise, if there are other strong references, `Err` will be
+    /// returned.
+    #[inline]
+    pub fn downcast<T: 'static>(self) -> Result<Box<T>, Self> {
+        use core::mem;
+        use atomic::Ordering::{Acquire, Release, Relaxed};
+
+        if self.downcast_ref::<T>().is_none() {
+            return Err(self);
+        }
+        if self.inner().reference_count.compare_exchange(1, 0, Release, Relaxed).is_err() {
+            return Err(self);
+        }
+
+        atomic::fence(Acquire);
+
+        unsafe {
+            let inner = self.inner.as_ref();
+            let ptr = inner as *const _ as *mut u8;
+            let layout = Layout::for_value(&inner);
+            let value = ptr::read(&inner.resource);
+            // Don't run the Drop impl for this
+            mem::forget(self);
+            // Just free the allocation for the ResourceInner,
+            // which is separate from that of the Box value
+            sys_alloc::free(ptr, layout);
+            // Cast and return the value
+            Ok(value.downcast::<T>().unwrap())
+        }
     }
 
     #[inline]
@@ -70,10 +109,13 @@ impl Resource {
 
     // Non-inlined part of `drop`.
     #[inline(never)]
-    unsafe fn drop_slow(&self) {
+    unsafe fn drop_slow(&mut self) {
         if self.inner().reference_count.fetch_sub(1, atomic::Ordering::Release) == 1 {
             atomic::fence(atomic::Ordering::Acquire);
-            let inner = self.inner.as_ref();
+            let inner = self.inner.as_mut();
+            // Drop the resource data
+            ptr::drop_in_place(&mut inner.resource);
+            // Free the allocation for the ResourceInner struct
             let layout = Layout::for_value(&inner);
             sys_alloc::free(inner as *const _ as *mut u8, layout);
         }
@@ -113,7 +155,7 @@ impl Clone for Resource {
 }
 
 impl CloneToProcess for Resource {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -197,13 +239,12 @@ impl TryFrom<TypedTerm> for Boxed<Resource> {
 
 /// A wrapper around a boxed resource value that contains a reference count,
 /// similar to `ProcBinInner`
-#[repr(C)]
 pub struct ResourceInner {
     reference_count: AtomicUsize,
     resource: Box<dyn Any>,
 }
 impl ResourceInner {
-    fn new(resource: Box<dyn Any>) -> Result<NonNull<Self>, Alloc> {
+    fn new(resource: Box<dyn Any>) -> AllocResult<NonNull<Self>> {
         let layout = Layout::new::<Self>();
 
         unsafe {

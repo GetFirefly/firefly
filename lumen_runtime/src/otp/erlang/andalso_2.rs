@@ -17,7 +17,7 @@ use lumen_runtime_macros::native_implemented_function;
 /// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
 /// both operands, use `and_2`.
 #[native_implemented_function(andalso/2)]
-pub fn native(boolean: Term, term: Term) -> exception::Result {
+pub fn native(boolean: Term, term: Term) -> exception::Result<Term> {
     let boolean_bool: bool = boolean.try_into()?;
 
     if boolean_bool {

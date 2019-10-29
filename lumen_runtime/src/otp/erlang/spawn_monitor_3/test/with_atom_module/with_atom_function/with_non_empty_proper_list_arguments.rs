@@ -11,11 +11,9 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
     // Typo
-    let module_atom = Atom::try_from_str("erlan").unwrap();
-    let module = unsafe { module_atom.as_term() };
+    let module = atom!("erlan");
 
-    let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let function = atom!("+");
 
     let arguments = parent_arc_process
         .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
@@ -60,7 +58,7 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: runtime::Exception =
+            let runtime_undef: RuntimeException =
                 undef!(&child_arc_process, module, function, arguments)
                     .try_into()
                     .unwrap();
@@ -72,9 +70,9 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = Atom::str_to_term("DOWN");
+    let tag = atom!("DOWN");
     let reason = match undef!(&parent_arc_process, module, function, arguments) {
-        Exception::Runtime(runtime_exception) => runtime_exception.reason,
+        Exception::Runtime(runtime_exception) => runtime_exception.reason().unwrap(),
         _ => unreachable!("parent process out-of-memory"),
     };
 
@@ -84,7 +82,7 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                Atom::str_to_term("process"),
+                atom!("process"),
                 child_pid_term,
                 reason
             ])

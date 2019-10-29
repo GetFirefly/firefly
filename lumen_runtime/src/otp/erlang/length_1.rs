@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(length/1)]
-pub fn native(process: &Process, list: Term) -> exception::Result {
+pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
     match list.decode().unwrap() {
         TypedTerm::Nil => Ok(0.into()),
         TypedTerm::List(cons) => match cons.count() {

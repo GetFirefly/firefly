@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -68,7 +68,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
                 result_from_exception(
                     arc_process,
-                    liblumen_alloc::badarity!(arc_process, reducer, argument_list,),
+                    liblumen_alloc::badarity!(arc_process, reducer, argument_list),
                 )
             }
         }

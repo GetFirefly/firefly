@@ -20,7 +20,7 @@ use crate::otp;
 /// [crate::otp::binary::bin_to_list] instead. All functions in module [crate::otp::binary]
 /// consistently use zero-based indexing.
 #[native_implemented_function(binary_to_list/3)]
-pub fn native(process: &Process, binary: Term, start: Term, stop: Term) -> exception::Result {
+pub fn native(process: &Process, binary: Term, start: Term, stop: Term) -> exception::Result<Term> {
     let one_based_start_usize: usize = start.try_into()?;
 
     if 1 <= one_based_start_usize {

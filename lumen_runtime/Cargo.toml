@@ -13,6 +13,8 @@ bus = "2.0"
 cfg-if = "0.1.7"
 clap = "2.32.0"
 colored = "1.6"
+anyhow = "1.0.11"
+thiserror = "1.0.1"
 # immutable HashMap to back maps.
 im = "12.3"
 lazy_static = "1.2"

@@ -5,7 +5,6 @@ pub mod start;
 
 use core::cmp::Ordering::{self, *};
 use core::ops::{Index, IndexMut, RangeBounds};
-use core::result::Result;
 
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Drain;
@@ -14,7 +13,7 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::Mutex;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::CloneToProcess;
 use liblumen_alloc::Process;
@@ -42,7 +41,7 @@ pub fn start(
     timeout: Timeout,
     process_message: Term,
     process: &Process,
-) -> Result<Term, Alloc> {
+) -> AllocResult<Term> {
     let scheduler = Scheduler::current();
 
     let result = scheduler.hierarchy.write().start(
@@ -140,7 +139,7 @@ impl Hierarchy {
         process_message: Term,
         process: &Process,
         scheduler: &Scheduler,
-    ) -> Result<Term, Alloc> {
+    ) -> AllocResult<Term> {
         let reference_number = scheduler.next_reference_number();
         let process_reference = process.reference_from_scheduler(scheduler.id, reference_number)?;
         let (heap_fragment_message, heap_fragment) = match timeout {

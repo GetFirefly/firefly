@@ -12,7 +12,7 @@ use lazy_static::lazy_static;
 use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::*;
 use crate::erts::{HeapAlloc, Node};
 
@@ -56,7 +56,7 @@ impl Pid {
         Self(pid)
     }
 
-    pub fn new(number: usize, serial: usize) -> Result<Pid, OutOfRange> {
+    pub fn new(number: usize, serial: usize) -> Result<Pid, InvalidPidError> {
         Self::check(number, serial)
             .map(|(number, serial)| unsafe { Self::new_unchecked(number, serial) })
     }
@@ -66,20 +66,20 @@ impl Pid {
     }
 
     /// Same as `new`, but directly encodes to `Term`
-    pub fn make_term(number: usize, serial: usize) -> Result<Term, OutOfRange> {
+    pub fn make_term(number: usize, serial: usize) -> Result<Term, InvalidPidError> {
         let pid = Self::new(number, serial)?;
         Ok(pid.encode().unwrap())
     }
 
-    pub fn check(number: usize, serial: usize) -> Result<(usize, usize), OutOfRange> {
+    pub fn check(number: usize, serial: usize) -> Result<(usize, usize), InvalidPidError> {
         if number <= Self::NUMBER_MAX {
             if serial <= Self::SERIAL_MAX {
                 Ok((number, serial))
             } else {
-                Err(OutOfRange::Serial)
+                Err(InvalidPidError::Serial)
             }
         } else {
-            Err(OutOfRange::Number)
+            Err(InvalidPidError::Number)
         }
     }
 
@@ -157,13 +157,13 @@ impl ExternalPid {
         node_id: usize,
         number: usize,
         serial: usize,
-    ) -> Result<Self, OutOfRange> {
+    ) -> Result<Self, InvalidPidError> {
         let node = Node::new(node_id);
 
         Self::new(node, number, serial)
     }
 
-    fn new(node: Node, number: usize, serial: usize) -> Result<Self, OutOfRange> {
+    fn new(node: Node, number: usize, serial: usize) -> Result<Self, InvalidPidError> {
         let pid = Pid::new(number, serial)?;
 
         Ok(Self {
@@ -176,7 +176,7 @@ impl ExternalPid {
 }
 
 impl CloneToProcess for ExternalPid {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

@@ -9,7 +9,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::base::Base;
 
-pub fn base_string_to_integer(process: &Process, base: Term, string: &str) -> exception::Result {
+pub fn base_string_to_integer(process: &Process, base: Term, string: &str) -> exception::Result<Term> {
     let base: Base = base.try_into()?;
     let bytes = string.as_bytes();
 
@@ -19,7 +19,7 @@ pub fn base_string_to_integer(process: &Process, base: Term, string: &str) -> ex
     }
 }
 
-pub fn decimal_string_to_integer(process: &Process, string: &str) -> exception::Result {
+pub fn decimal_string_to_integer(process: &Process, string: &str) -> exception::Result<Term> {
     match BigInt::parse_bytes(string.as_bytes(), 10) {
         Some(big_int) => process.integer(big_int).map_err(|error| error.into()),
         None => Err(badarg!().into()),

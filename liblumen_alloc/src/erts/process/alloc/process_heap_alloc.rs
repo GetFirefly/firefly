@@ -15,7 +15,7 @@ use liblumen_alloc_macros::generate_heap_sizes;
 use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::SizeClass;
 
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::Term;
 use crate::SizeClassAlloc;
 
@@ -26,7 +26,7 @@ lazy_static! {
 
 /// Allocate a new default sized process heap
 #[inline]
-pub fn default_heap() -> Result<(*mut Term, usize), Alloc> {
+pub fn default_heap() -> AllocResult<(*mut Term, usize)> {
     let size = default_heap_size();
     PROC_ALLOC.alloc(size).map(|ptr| (ptr, size))
 }
@@ -37,7 +37,7 @@ pub fn default_heap_size() -> usize {
 
 /// Allocate a new process heap of the given size
 #[inline]
-pub fn heap(size: usize) -> Result<*mut Term, Alloc> {
+pub fn heap(size: usize) -> AllocResult<*mut Term> {
     PROC_ALLOC.alloc(size)
 }
 
@@ -121,7 +121,7 @@ impl ProcessHeapAlloc {
     /// If this fails, either there is an issue with the given size,
     /// the system is out of memory, or there is a bug in the allocator
     /// framework
-    pub fn alloc(&self, size: usize) -> Result<*mut Term, Alloc> {
+    pub fn alloc(&self, size: usize) -> AllocResult<*mut Term> {
         // Determine layout, require word alignment
         let layout = self.heap_layout(size);
         let total_size = layout.size();
@@ -145,7 +145,7 @@ impl ProcessHeapAlloc {
     }
 
     #[inline]
-    fn alloc_oversized_heap(layout: Layout) -> Result<*mut Term, Alloc> {
+    fn alloc_oversized_heap(layout: Layout) -> AllocResult<*mut Term> {
         match unsafe { mmap::map(layout) } {
             Ok(non_null) => {
                 let ptr = non_null.as_ptr() as *mut Term;

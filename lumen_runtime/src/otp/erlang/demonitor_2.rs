@@ -20,7 +20,7 @@ use crate::process::monitor::is_down;
 use crate::registry::pid_to_process;
 
 #[native_implemented_function(demonitor/2)]
-pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result {
+pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {
     let reference_reference: Boxed<Reference> = reference.try_into()?;
     let options_options: Options = options.try_into()?;
 
@@ -33,7 +33,7 @@ pub(in crate::otp::erlang) fn demonitor(
     monitoring_process: &Process,
     reference: &Reference,
     Options { flush, info }: Options,
-) -> exception::Result {
+) -> exception::Result<Term> {
     match monitoring_process.demonitor(reference) {
         Some(monitored_pid) => {
             match pid_to_process(&monitored_pid) {

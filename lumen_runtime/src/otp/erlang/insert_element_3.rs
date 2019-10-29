@@ -16,7 +16,7 @@ use liblumen_alloc::erts::term::index::ZeroBasedIndex;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(insert_element/3)]
-pub fn native(process: &Process, index: Term, tuple: Term, element: Term) -> exception::Result {
+pub fn native(process: &Process, index: Term, tuple: Term, element: Term) -> exception::Result<Term> {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 

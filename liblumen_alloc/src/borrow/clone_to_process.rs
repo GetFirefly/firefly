@@ -1,7 +1,7 @@
 use core::ptr::NonNull;
 use core::alloc::Layout;
 
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::{self, HeapAlloc, HeapFragment, Process};
 use crate::erts::term::prelude::Term;
 
@@ -39,13 +39,13 @@ pub trait CloneToProcess {
     /// using the given heap. If cloning requires allocation that exceeds
     /// the amount of memory available, this returns `Err(Alloc)`, otherwise
     /// it returns `Ok(Term)`
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
         where A: ?Sized + HeapAlloc;
 
     /// Returns boxed copy of this value and the heap fragment it was allocated into
     ///
     /// If unable to allocate a heap fragment that fits this value, `Err(Alloc)` is returned
-    fn clone_to_fragment(&self) -> Result<(Term, NonNull<HeapFragment>), Alloc> {
+    fn clone_to_fragment(&self) -> AllocResult<(Term, NonNull<HeapFragment>)> {
         let word_size = self.size_in_words();
         let mut frag = unsafe { HeapFragment::new_from_word_size(word_size)? };
         let frag_ref = unsafe { frag.as_mut() };

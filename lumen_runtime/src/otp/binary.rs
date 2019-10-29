@@ -1,7 +1,7 @@
 use core::convert::TryInto;
 use core::ops::Range;
 
-use liblumen_alloc::erts::exception::Result;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
 
@@ -21,7 +21,7 @@ use crate::binary::start_length_to_part_range;
 ///
 /// * `Ok(Term)` - the list of bytes
 /// * `Err(BadArgument)` - binary is not a binary; position is invalid; length is invalid.
-pub fn bin_to_list(binary: Term, position: Term, length: Term, process: &Process) -> Result {
+pub fn bin_to_list(binary: Term, position: Term, length: Term, process: &Process) -> exception::Result<Term> {
     let position_usize: usize = position.try_into()?;
     let length_isize: isize = length.try_into()?;
 

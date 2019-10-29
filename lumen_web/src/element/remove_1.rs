@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::{element, ok};
+use crate::element;
 
 /// ```elixir
 /// case Lumen.Web.Element.set_attribute(element, "data-attribute", "data-value") do
@@ -60,10 +61,10 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(element_term: Term) -> exception::Result {
+fn native(element_term: Term) -> exception::Result<Term> {
     let element = element::from_term(element_term)?;
 
     element.remove();
 
-    Ok(ok())
+    Ok(atom!("ok"))
 }

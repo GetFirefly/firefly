@@ -1,8 +1,8 @@
 use std::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::exception::Exception;
 
 pub struct Options {
     pub flush: bool,
@@ -19,7 +19,7 @@ impl Default for Options {
 }
 
 impl TryFrom<Boxed<Cons>> for Options {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(cons: Boxed<Cons>) -> Result<Self, Self::Error> {
         let mut options: Options = Default::default();
@@ -36,10 +36,10 @@ impl TryFrom<Boxed<Cons>> for Options {
                         "info" => {
                             options.info = true;
                         }
-                        _ => return Err(badarg!()),
+                        _ => return Err(badarg!().into()),
                     }
                 }
-                Err(_) => return Err(badarg!()),
+                Err(_) => return Err(badarg!().into()),
             }
         }
 
@@ -48,7 +48,7 @@ impl TryFrom<Boxed<Cons>> for Options {
 }
 
 impl TryFrom<Term> for Options {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         term.decode().unwrap().try_into()
@@ -56,13 +56,13 @@ impl TryFrom<Term> for Options {
 }
 
 impl TryFrom<TypedTerm> for Options {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
             TypedTerm::Nil => Ok(Default::default()),
             TypedTerm::List(cons) => cons.try_into(),
-            _ => Err(badarg!()),
+            _ => Err(badarg!().into()),
         }
     }
 }

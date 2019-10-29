@@ -8,15 +8,15 @@ mod test;
 use std::convert::TryInto;
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::term::index::ZeroBasedIndex;
+use liblumen_alloc::erts::exception;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(setelement/3)]
-pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result {
+pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
     let index_zero_based: ZeroBasedIndex = index.try_into()?;
 

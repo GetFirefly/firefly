@@ -3,7 +3,8 @@ use std::sync::{Arc, RwLock};
 
 use libeir_ir::FunctionIdent;
 
-use liblumen_alloc::erts::exception;
+use liblumen_alloc::atom;
+use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -75,12 +76,9 @@ impl VMState {
 
             match *run_arc_process.status.read() {
                 Status::Exiting(ref exception) => match exception {
-                    exception::runtime::Exception {
-                        class: exception::runtime::Class::Exit,
-                        reason,
-                        ..
-                    } => {
-                        if *reason != Atom::str_to_term("normal") {
+                    RuntimeException::Exit(err) => {
+                        let reason = err.reason();
+                        if reason != atom!("normal") {
                             panic!("Process exited: {:?}", reason);
                         } else {
                             panic!("yay!");

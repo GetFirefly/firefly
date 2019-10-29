@@ -12,6 +12,6 @@ use liblumen_alloc::erts::term::prelude::Term;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(put/2)]
-pub fn native(process: &Process, key: Term, value: Term) -> exception::Result {
+pub fn native(process: &Process, key: Term, value: Term) -> exception::Result<Term> {
     process.put(key, value).map_err(|alloc| alloc.into())
 }

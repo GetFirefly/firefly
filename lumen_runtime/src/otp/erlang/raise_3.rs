@@ -8,7 +8,6 @@ mod test;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::runtime::Class;
 use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::{badarg, raise};
 
@@ -17,11 +16,11 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::stacktrace;
 
 #[native_implemented_function(raise/3)]
-pub fn native(class: Term, reason: Term, stacktrace: Term) -> exception::Result {
-    let class_class: Class = class.try_into()?;
+pub fn native(class: Term, reason: Term, stacktrace: Term) -> exception::Result<Term> {
+    let class_class: exception::Class = class.try_into()?;
 
     let runtime_exception = if stacktrace::is(stacktrace) {
-        raise!(class_class, reason, Some(stacktrace)).into()
+        raise!(class_class, reason, stacktrace)
     } else {
         badarg!()
     };

@@ -3,7 +3,7 @@ use core::hash;
 use core::str;
 use core::convert::TryInto;
 
-use crate::erts::exception::runtime;
+use crate::erts::exception::Exception;
 use crate::erts::term::prelude::Boxed;
 
 use super::prelude::{HeapBin, ProcBin, BinaryLiteral, Binary, MaybePartialByte, IndexByte};
@@ -29,6 +29,18 @@ pub trait AlignedBinary: Binary {
     }
 }
 
+impl<T: ?Sized + AlignedBinary> AlignedBinary for Boxed<T> {
+    #[inline]
+    fn as_bytes(&self) -> &[u8] {
+        self.as_ref().as_bytes()
+    }
+
+    #[inline]
+    fn as_str(&self) -> &str {
+        self.as_ref().as_str()
+    }
+}
+
 impl<T: AlignedBinary> IndexByte for T {
     default fn byte(&self, index: usize) -> u8 {
         self.as_bytes()[index]
@@ -49,6 +61,23 @@ impl<A: AlignedBinary> MaybePartialByte for A {
     #[inline]
     default fn total_byte_len(&self) -> usize {
         self.full_byte_len()
+    }
+}
+
+impl<A: AlignedBinary> MaybePartialByte for Boxed<A> {
+    #[inline]
+    fn partial_byte_bit_len(&self) -> u8 {
+        0
+    }
+
+    #[inline]
+    fn total_bit_len(&self) -> usize {
+        self.as_ref().full_byte_len() * 8
+    }
+
+    #[inline]
+    fn total_byte_len(&self) -> usize {
+        self.as_ref().full_byte_len()
     }
 }
 
@@ -103,16 +132,6 @@ macro_rules! impl_aligned_binary {
             }
         }
 
-        impl<T> PartialEq<Boxed<T>> for $t
-        where
-            T: ?Sized + AlignedBinary,
-        {
-            #[inline]
-            fn eq(&self, other: &Boxed<T>) -> bool {
-                self.as_bytes().eq(other.as_ref().as_bytes())
-            }
-        }
-
         impl<T> PartialOrd<T> for $t
         where
             T: ?Sized + AlignedBinary,
@@ -123,29 +142,19 @@ macro_rules! impl_aligned_binary {
             }
         }
 
-        impl<T> PartialOrd<Boxed<T>> for $t
-        where
-            T: ?Sized + AlignedBinary,
-        {
-            #[inline]
-            fn partial_cmp(&self, other: &Boxed<T>) -> Option<core::cmp::Ordering> {
-                self.as_bytes().partial_cmp(other.as_ref().as_bytes())
-            }
-        }
-
         impl TryInto<String> for &$t {
-            type Error = runtime::Exception;
+            type Error = Exception;
 
             fn try_into(self) -> Result<String, Self::Error> {
                 match str::from_utf8(self.as_bytes()) {
                     Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!()),
+                    Err(_) => Err(badarg!().into()),
                 }
             }
         }
 
         impl TryInto<String> for Boxed<$t> {
-            type Error = runtime::Exception;
+            type Error = Exception;
 
             fn try_into(self) -> Result<String, Self::Error> {
                 self.as_ref().try_into()
@@ -153,7 +162,7 @@ macro_rules! impl_aligned_binary {
         }
 
         impl TryInto<Vec<u8>> for &$t {
-            type Error = runtime::Exception;
+            type Error = Exception;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
@@ -162,7 +171,7 @@ macro_rules! impl_aligned_binary {
         }
 
         impl TryInto<Vec<u8>> for Boxed<$t> {
-            type Error = runtime::Exception;
+            type Error = Exception;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
@@ -182,18 +191,18 @@ impl_aligned_binary!(BinaryLiteral);
 macro_rules! impl_aligned_try_into {
     ($t:ty) => {
         impl TryInto<String> for $t {
-            type Error = runtime::Exception;
+            type Error = Exception;
 
             fn try_into(self) -> Result<String, Self::Error> {
                 match str::from_utf8(self.as_bytes()) {
                     Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!()),
+                    Err(_) => Err(badarg!().into()),
                 }
             }
         }
 
         impl TryInto<Vec<u8>> for $t {
-            type Error = runtime::Exception;
+            type Error = Exception;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {

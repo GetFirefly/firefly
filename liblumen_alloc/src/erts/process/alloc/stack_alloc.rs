@@ -3,7 +3,7 @@ use core::ops::DerefMut;
 use core::ptr::NonNull;
 
 use crate::erts;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::Term;
 
 pub trait StackAlloc {
@@ -17,7 +17,7 @@ pub trait StackAlloc {
     /// size is incremented by 1, and this enables efficient implementations
     /// of the other stack manipulation functions as the stack size in terms
     /// does not have to be recalculated constantly.
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, Alloc>;
+    unsafe fn alloca(&mut self, need: usize) -> AllocResult<NonNull<Term>>;
 
     /// Same as `alloca`, but does not validate that there is enough available space,
     /// as it is assumed that the caller has already validated those invariants
@@ -26,7 +26,7 @@ pub trait StackAlloc {
     }
 
     /// Perform a stack allocation, but with a `Layout`
-    unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
+    unsafe fn alloca_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
         let need = erts::to_word_size(layout.size());
         self.alloca(need)
     }
@@ -44,7 +44,7 @@ where
     S: DerefMut<Target = A>,
 {
     #[inline]
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
+    unsafe fn alloca(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
         self.deref_mut().alloca(need)
     }
 
@@ -54,7 +54,7 @@ where
     }
 
     #[inline]
-    unsafe fn alloca_layout(&mut self, layout: Layout) -> Result<NonNull<Term>, Alloc> {
+    unsafe fn alloca_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
         self.deref_mut().alloca_layout(layout)
     }
 

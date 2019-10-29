@@ -11,8 +11,7 @@ use liblumen_core::cmp::ExactEq;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::alloc::HeapAlloc;
-use crate::erts::exception::runtime;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::{AllocResult, Exception};
 use crate::erts::{self, Process};
 
 use super::prelude::*;
@@ -120,6 +119,15 @@ impl TypedTerm {
     pub fn is_list(&self) -> bool {
         if let &Self::List(_) = self {
             true
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn is_proper_list(&self) -> bool {
+        if let &Self::List(cons) = self {
+            cons.is_proper()
         } else {
             false
         }
@@ -714,7 +722,7 @@ impl CloneToProcess for TypedTerm {
         }
     }
 
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -813,7 +821,7 @@ impl TryInto<isize> for TypedTerm {
 }
 
 impl TryInto<Vec<u8>> for TypedTerm {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_into(self) -> Result<Vec<u8>, Self::Error> {
         match self {
@@ -822,7 +830,7 @@ impl TryInto<Vec<u8>> for TypedTerm {
             TypedTerm::SubBinary(bin_ptr) => bin_ptr.as_ref().try_into(),
             TypedTerm::ProcBin(bin_ptr) => bin_ptr.as_ref().try_into(),
             TypedTerm::MatchContext(bin_ptr) => bin_ptr.as_ref().try_into(),
-            _ => Err(badarg!()),
+            _ => Err(badarg!().into()),
         }
     }
 }

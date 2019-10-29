@@ -4,7 +4,7 @@ use alloc::collections::vec_deque::Iter;
 use alloc::collections::VecDeque;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::message::{self, Message};
 use crate::erts::process::Process;
 use crate::erts::term::prelude::Term;
@@ -92,7 +92,7 @@ impl Mailbox {
 
     /// Pops the `message` out of the mailbox from the front of the queue AND clones it into
     /// `heap_guard` heap.
-    pub fn receive(&mut self, process: &Process) -> Option<Result<Term, Alloc>> {
+    pub fn receive(&mut self, process: &Process) -> Option<AllocResult<Term>> {
         self.messages.pop_front().map(|message| match message {
             Message::Process(message::Process { data }) => {
                 self.decrement_seen();

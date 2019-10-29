@@ -21,6 +21,8 @@
 #![feature(vec_remove_item)]
 // `crate::registry::<Registered as PartialEq>::eq`
 #![feature(weak_ptr_eq)]
+// Layout helpers
+#![feature(alloc_layout_extra)]
 
 extern crate alloc;
 #[macro_use]
@@ -85,17 +87,21 @@ cfg_if! {
     pub extern "C" fn start(name: *const libc::c_char, version: *const libc::c_char) -> i32 {
        let name = c_str_to_str!(name);
        let version = c_str_to_str!(version);
-       main(name, version, std::env::args().collect());
-       0
+       match main(name, version, std::env::args().collect()) {
+           Ok(_) => 0,
+           Err(err) => {
+               println!("{:?}", err);
+               1
+           }
+       }
     }
   }
 }
 
 /// The main entry point for the runtime, it is invoked by the platform-specific shims found above
-pub fn main(name: &str, version: &str, argv: Vec<String>) {
+pub fn main(name: &str, version: &str, argv: Vec<String>) -> anyhow::Result<()> {
     // Load configuration
-    let _config = Config::from_argv(name.to_string(), version.to_string(), argv)
-        .expect("Could not load config!");
+    let _config = Config::from_argv(name.to_string(), version.to_string(), argv)?;
 
     // This bus is used to receive signals across threads in the system
     let mut bus: Bus<break_handler::Signal> = Bus::new(1);
@@ -109,14 +115,6 @@ pub fn main(name: &str, version: &str, argv: Vec<String>) {
 
     // TEMP: Blocking loop which waits for user input
     loop {
-        match rx1.recv() {
-            Ok(_) => {
-                break;
-            }
-            Err(e) => {
-                println!("{}", e);
-                break;
-            }
-        }
+        let _ = rx1.recv()?;
     }
 }

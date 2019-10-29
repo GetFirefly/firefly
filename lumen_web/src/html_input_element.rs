@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 fn from_term(term: Term) -> Result<&'static HtmlInputElement, exception::Exception> {
     let boxed: Boxed<Resource> = term.try_into()?;
-    let html_input_element_reference: Resource = term.into();
+    let html_input_element_reference: Resource = boxed.into();
 
     match html_input_element_reference.downcast_ref() {
         Some(html_input_element) => {

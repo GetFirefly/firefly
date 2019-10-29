@@ -7,8 +7,7 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::runtime;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::{self, AllocResult, Exception};
 use crate::erts::term::prelude::*;
 use crate::erts::{to_word_size, HeapAlloc, StackAlloc};
 
@@ -255,7 +254,7 @@ where
 }
 
 impl CloneToProcess for Cons {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -366,18 +365,19 @@ impl TryFrom<TypedTerm> for Boxed<Cons> {
 }
 
 impl TryInto<String> for Boxed<Cons> {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_into(self) -> Result<String, Self::Error> {
         self.as_ref()
             .into_iter()
             .map(|result| match result {
                 Ok(element) => {
-                    let result_char: Result<char, _> = element.try_into().map_err(|_| badarg!());
+                    let result_char: exception::Result<char> = element.try_into()
+                        .map_err(|_| badarg!().into());
 
                     result_char
                 }
-                Err(_) => Err(badarg!()),
+                Err(_) => Err(badarg!().into()),
             })
             .collect()
     }
@@ -425,7 +425,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     }
 
     #[inline]
-    fn push_internal(&mut self, term: Term) -> Result<(), Alloc> {
+    fn push_internal(&mut self, term: Term) -> AllocResult<()> {
         if self.element.is_none() {
             // This is the very first push
             assert!(self.first.is_null());
@@ -464,7 +464,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
 
     /// Consumes the builder and produces a `Term` which points to the allocated list
     #[inline]
-    pub fn finish(mut self) -> Result<Boxed<Cons>, Alloc> {
+    pub fn finish(mut self) -> AllocResult<Boxed<Cons>> {
         if self.failed {
             // We can't clean up the heap until GC
             Err(alloc!())
@@ -507,7 +507,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
 
     /// Like `finish`, but produces an improper list if there is already at least one element
     #[inline]
-    pub fn finish_with(mut self, term: Term) -> Result<Boxed<Cons>, Alloc> {
+    pub fn finish_with(mut self, term: Term) -> AllocResult<Boxed<Cons>> {
         if self.failed {
             // We can't clean up the heap until GC
             Err(alloc!())
@@ -543,7 +543,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     }
 
     #[inline]
-    fn clone_term_to_heap(&mut self, term: Term) -> Result<Term, Alloc> {
+    fn clone_term_to_heap(&mut self, term: Term) -> AllocResult<Term> {
         if term.is_immediate() {
             Ok(term)
         } else if term.is_boxed() {
@@ -568,7 +568,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     }
 
     #[inline]
-    fn alloc_cell(&mut self, head: Term, tail: Term) -> Result<*mut Cons, Alloc> {
+    fn alloc_cell(&mut self, head: Term, tail: Term) -> AllocResult<*mut Cons> {
         let layout = Layout::new::<Cons>();
         let ptr = unsafe { self.heap.alloc_layout(layout)?.as_ptr() as *mut Cons };
         let mut cell = unsafe { &mut *ptr };
@@ -629,7 +629,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 
     /// Consumes the builder and produces a `Term` which points to the allocated list
     #[inline]
-    pub fn finish(self) -> Result<Boxed<Cons>, Alloc> {
+    pub fn finish(self) -> AllocResult<Boxed<Cons>> {
         if self.failed {
             Err(alloc!())
         } else {
@@ -674,7 +674,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 
     /// Like `finish`, but produces an improper list if there is already at least one element
     #[inline]
-    pub fn finish_with(mut self, term: Term) -> Result<Boxed<Cons>, Alloc> {
+    pub fn finish_with(mut self, term: Term) -> AllocResult<Boxed<Cons>> {
         if self.failed {
             Err(alloc!())
         } else {

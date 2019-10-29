@@ -22,7 +22,7 @@ fn module() -> Atom {
 
 fn document_from_term(term: Term) -> Result<&'static Document, exception::Exception> {
     let boxed: Boxed<Resource> = term.try_into()?;
-    let document_reference: Resource = term.into();
+    let document_reference: Resource = boxed.into();
 
     match document_reference.downcast_ref() {
         Some(document) => {

@@ -15,7 +15,7 @@ fn returns_list_of_keys() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(strategy::term(arc_process.clone())).prop_map(|key| {
-                    let value = Atom::str_to_term("value");
+                    let value = atom!("value");
 
                     (
                         arc_process.list_from_slice(&[key]).unwrap(),

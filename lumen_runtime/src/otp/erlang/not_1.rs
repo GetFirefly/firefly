@@ -14,7 +14,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 /// `not/1` prefix operator.
 #[native_implemented_function(not/1)]
-pub fn native(boolean: Term) -> exception::Result {
+pub fn native(boolean: Term) -> exception::Result<Term> {
     let boolean_bool: bool = boolean.try_into()?;
     let output = !boolean_bool;
 

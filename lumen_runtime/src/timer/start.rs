@@ -1,15 +1,15 @@
 use core::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::runtime::Exception;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::exception::{self, Exception};
 
 pub struct Options {
     pub reference_frame: ReferenceFrame,
 }
 
 impl Options {
-    fn put_option_term(&mut self, option: Term) -> Result<&Options, Exception> {
+    fn put_option_term(&mut self, option: Term) -> exception::Result<&Options> {
         let tuple: Boxed<Tuple> = option.try_into()?;
 
         if tuple.len() == 2 {
@@ -27,10 +27,10 @@ impl Options {
 
                     Ok(self)
                 }
-                _ => Err(badarg!()),
+                _ => Err(badarg!().into()),
             }
         } else {
-            Err(badarg!())
+            Err(badarg!().into())
         }
     }
 }
@@ -46,12 +46,12 @@ impl Default for Options {
 impl TryFrom<Term> for Options {
     type Error = Exception;
 
-    fn try_from(term: Term) -> Result<Options, Exception> {
+    fn try_from(term: Term) -> Result<Options, Self::Error> {
         let mut options: Options = Default::default();
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
+            match options_term.decode()? {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
                     options.put_option_term(cons.head)?;
@@ -59,7 +59,7 @@ impl TryFrom<Term> for Options {
 
                     continue;
                 }
-                _ => return Err(badarg!()),
+                _ => return Err(badarg!().into()),
             }
         }
     }

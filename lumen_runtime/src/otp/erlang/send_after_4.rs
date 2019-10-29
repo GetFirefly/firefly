@@ -24,7 +24,7 @@ pub fn native(
     destination: Term,
     message: Term,
     options: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     let timer_start_options: timer::start::Options = options.try_into()?;
 
     start_timer(

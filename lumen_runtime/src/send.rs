@@ -1,9 +1,9 @@
 use core::convert::{TryFrom, TryInto};
 use core::result::Result;
 
-use liblumen_alloc::erts::exception::{runtime, Exception};
 use liblumen_alloc::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
+use liblumen_alloc::erts::exception::{self, Exception};
 
 use crate::node;
 use crate::registry::{self, pid_to_process};
@@ -14,7 +14,7 @@ pub fn send(
     message: Term,
     options: Options,
     process: &Process,
-) -> Result<Sent, Exception> {
+) -> exception::Result<Sent> {
     match destination.decode().unwrap() {
         TypedTerm::Atom(destination_atom) => {
             send_to_name(destination_atom, message, options, process)
@@ -23,7 +23,7 @@ pub fn send(
             if tuple_box.len() == 2 {
                 let name = tuple_box[0];
 
-                match name.decode().unwrap() {
+                match name.decode()? {
                     TypedTerm::Atom(name_atom) => {
                         let node = tuple_box[1];
 
@@ -87,24 +87,21 @@ impl Options {
     fn put_option_term(
         &mut self,
         option: Term,
-    ) -> core::result::Result<&Options, runtime::Exception> {
-        let result: core::result::Result<Atom, _> = option.try_into();
+    ) -> exception::Result<&Options> {
+        let atom: Atom = option.try_into()?;
 
-        match result {
-            Ok(atom) => match atom.name() {
-                "noconnect" => {
-                    self.connect = false;
+        match atom.name() {
+            "noconnect" => {
+                self.connect = false;
 
-                    Ok(self)
-                }
-                "nosuspend" => {
-                    self.suspend = false;
+                Ok(self)
+            }
+            "nosuspend" => {
+                self.suspend = false;
 
-                    Ok(self)
-                }
-                _ => Err(badarg!()),
-            },
-            Err(_) => Err(badarg!()),
+                Ok(self)
+            }
+            _ => Err(badarg!().into()),
         }
     }
 }
@@ -119,14 +116,14 @@ impl Default for Options {
 }
 
 impl TryFrom<Term> for Options {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
-    fn try_from(term: Term) -> std::result::Result<Options, Self::Error> {
+    fn try_from(term: Term) -> Result<Options, Self::Error> {
         let mut options: Options = Default::default();
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
+            match options_term.decode()? {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
                     options.put_option_term(cons.head)?;
@@ -134,7 +131,7 @@ impl TryFrom<Term> for Options {
 
                     continue;
                 }
-                _ => return Err(badarg!()),
+                _ => return Err(badarg!().into()),
             }
         }
     }
@@ -154,7 +151,7 @@ fn send_to_name(
     message: Term,
     _options: Options,
     process: &Process,
-) -> Result<Sent, Exception> {
+) -> exception::Result<Sent> {
     if *process.registered_name.read() == Some(destination) {
         process.send_from_self(message);
 

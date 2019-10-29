@@ -2,7 +2,7 @@
 use core::convert::TryFrom;
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::runtime::Exception;
+use liblumen_alloc::erts::exception::Exception;
 
 pub enum Tag {
     NewFloat = 70,
@@ -22,7 +22,7 @@ pub enum Tag {
 impl TryFrom<u8> for Tag {
     type Error = Exception;
 
-    fn try_from(tag_byte: u8) -> Result<Tag, Exception> {
+    fn try_from(tag_byte: u8) -> Result<Tag, Self::Error> {
         use crate::term::external_format::Tag::*;
 
         match tag_byte {
@@ -38,7 +38,7 @@ impl TryFrom<u8> for Tag {
             109 => Ok(Binary),
             110 => Ok(SmallBigInteger),
             119 => Ok(SmallAtomUTF8),
-            _ => Err(badarg!()),
+            _ => Err(badarg!().into()),
         }
     }
 }

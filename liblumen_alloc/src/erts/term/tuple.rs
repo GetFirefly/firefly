@@ -8,7 +8,7 @@ use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 
 use super::prelude::*;
 
@@ -37,7 +37,7 @@ impl Tuple {
     /// individual elements are written, this is intended for
     /// cases where we don't already have a slice of elements
     /// to construct a tuple from
-    pub fn new<A>(heap: &mut A, len: usize) -> Result<Boxed<Tuple>, Alloc> 
+    pub fn new<A>(heap: &mut A, len: usize) -> AllocResult<Boxed<Tuple>>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -54,7 +54,7 @@ impl Tuple {
         }
     }
 
-    pub fn from_slice<A>(heap: &mut A, elements: &[Term]) -> Result<Boxed<Tuple>, Alloc> 
+    pub fn from_slice<A>(heap: &mut A, elements: &[Term]) -> AllocResult<Boxed<Tuple>>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -130,7 +130,7 @@ impl Tuple {
     /// the memory needed by elements of the tuple
 
     #[inline]
-    pub(in crate::erts) fn layout_for(elements: &[Term]) -> (Layout, usize) {
+    pub fn layout_for(elements: &[Term]) -> (Layout, usize) {
         let (base_layout, data_offset) = Layout::new::<Header<Tuple>>()
             .extend(Layout::for_value(elements))
             .unwrap();
@@ -145,7 +145,7 @@ impl Tuple {
     }
 
     #[inline]
-    pub(in crate::erts) fn layout_for_len(len: usize) -> Layout {
+    pub fn layout_for_len(len: usize) -> Layout {
         // Construct a false tuple of size `len` to get an accurate layout
         //
         // NOTE: This is essentially compiler magic; we don't really create
@@ -218,7 +218,7 @@ impl Tuple {
 }
 
 impl CloneToProcess for Tuple {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc> 
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

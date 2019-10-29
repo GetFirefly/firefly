@@ -3,9 +3,8 @@ use std::sync::Arc;
 
 use web_sys::Window;
 
-use liblumen_alloc::badarg;
+use liblumen_alloc::{badarg, atom};
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -30,7 +29,7 @@ pub fn place_frame_with_arguments(
     event: Term,
     module: Term,
     function: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     process.stack_push(function)?;
     process.stack_push(module)?;
     process.stack_push(event)?;
@@ -76,7 +75,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(window: Term, event: Term, module: Term, function: Term) -> exception::Result {
+fn native(window: Term, event: Term, module: Term, function: Term) -> exception::Result<Term> {
     let boxed: Boxed<Resource> = window.try_into()?;
     let window_reference: Resource = boxed.into();
     let window_window: &Window = window_reference.downcast_ref().ok_or_else(|| badarg!())?;
@@ -101,9 +100,9 @@ fn native(window: Term, event: Term, module: Term, function: Term) -> exception:
                 module,
                 function,
                 arguments,
-            )
+            ).map_err(|e| e.into())
         },
     );
 
-    Ok(Atom::str_to_term("ok"))
+    Ok(atom!("ok"))
 }

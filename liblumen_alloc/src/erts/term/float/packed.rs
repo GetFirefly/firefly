@@ -11,7 +11,7 @@ use core::convert::TryFrom;
 
 use crate::erts::HeapAlloc;
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 
 use crate::erts::term::prelude::{Term, TypedTerm, Header, StaticHeader, TypeError};
 
@@ -63,7 +63,7 @@ impl fmt::Debug for Float {
 
 impl CloneToProcess for Float {
     #[inline]
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

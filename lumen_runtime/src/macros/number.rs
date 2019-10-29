@@ -7,7 +7,7 @@ macro_rules! number_infix_operator {
 
         use $crate::number::Operands::*;
 
-        let operands = match ($left.decode().unwrap(), $right.decode().unwrap()) {
+        let operands = match ($left.decode()?, $right.decode()?) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
                 let left_isize = left_small_integer.into();
                 let right_isize = right_small_integer.into();
@@ -109,7 +109,7 @@ macro_rules! number_to_integer {
         use crate::otp::erlang::number_to_integer::{f64_to_integer, NumberToInteger};
 
         #[native_implemented_function($f/1)]
-        pub fn native(process: &Process, number: Term) -> exception::Result {
+        pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
             match number.into() {
                 NumberToInteger::Integer(integer) => Ok(integer),
                 NumberToInteger::F64(f) => {

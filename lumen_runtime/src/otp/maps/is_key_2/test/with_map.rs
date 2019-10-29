@@ -13,7 +13,7 @@ fn without_key_returns_false() {
                         key != non_key
                     })
                     .prop_map(|(key, non_key)| {
-                        let value = Atom::str_to_term("value");
+                        let value = atom!("value");
 
                         (
                             non_key,
@@ -36,7 +36,7 @@ fn with_key_returns_true() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term(arc_process.clone()).prop_map(|key| {
-                    let value = Atom::str_to_term("value");
+                    let value = atom!("value");
 
                     (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
                 }),

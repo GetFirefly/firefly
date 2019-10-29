@@ -37,13 +37,13 @@ pub mod prelude {
     // Export the typed term wrapper
     pub use super::typed_term::TypedTerm;
     // Export the primary term types
-    pub use super::atom::{Atom, AtomError, AtomErrorKind};
+    pub use super::atom::{Atom, AtomError};
     pub use super::closure::Closure;
     pub use super::float::Float;
     pub use super::integer::{Integer, SmallInteger, BigInteger};
     pub use super::list::{List, ImproperList, MaybeImproper, Cons, ListBuilder, HeaplessListBuilder};
     pub use super::map::Map;
-    pub use super::pid::{Pid, ExternalPid};
+    pub use super::pid::{Pid, ExternalPid, InvalidPidError};
     pub use super::port::{Port, ExternalPort};
     pub use super::reference::{Reference, ExternalReference, ReferenceNumber};
     pub use super::tuple::Tuple;

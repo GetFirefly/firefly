@@ -47,7 +47,7 @@ pub fn count_ones_in_big_integer(big_integer: Boxed<BigInteger>) -> u32 {
 
 pub fn errors_badarg<F>(actual: F)
 where
-    F: FnOnce(&Process) -> exception::Result,
+    F: FnOnce(&Process) -> exception::Result<Term>,
 {
     with_process(|process| assert_badarg!(actual(&process)))
 }

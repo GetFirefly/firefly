@@ -10,7 +10,7 @@ use intrusive_collections::LinkedListLink;
 use liblumen_core::offset_of;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::process::Process;
 use crate::erts::HeapAlloc;
 use crate::erts::string::Encoding;
@@ -120,14 +120,14 @@ impl ProcBin {
     }
 
     /// Creates a new procbin from a str slice, by copying it to the heap
-    pub fn from_str(s: &str) -> Result<Self, Alloc> {
+    pub fn from_str(s: &str) -> AllocResult<Self> {
         let encoding = Encoding::from_str(s);
 
         Self::from_slice(s.as_bytes(), encoding)
     }
 
     /// Creates a new procbin from a raw byte slice, by copying it to the heap
-    pub fn from_slice(s: &[u8], encoding: Encoding) -> Result<Self, Alloc> {
+    pub fn from_slice(s: &[u8], encoding: Encoding) -> AllocResult<Self> {
         use liblumen_core::sys::alloc as sys_alloc;
 
         let (base_layout, flags_offset) = ProcBinInner::base_layout();
@@ -142,28 +142,24 @@ impl ProcBin {
             .unwrap();
 
         unsafe {
-            match sys_alloc::alloc(layout) {
-                Ok(non_null) => {
-                    let len = s.len();
+            let non_null = sys_alloc::alloc(layout)?;
+            let len = s.len();
 
-                    let ptr: *mut u8 = non_null.as_ptr();
-                    ptr::write(ptr as *mut AtomicUsize, AtomicUsize::new(1));
-                    let flags_ptr = ptr.offset(flags_offset as isize) as *mut BinaryFlags;
-                    let flags = BinaryFlags::new(encoding)
-                        .set_size(len);
-                    ptr::write(flags_ptr, flags);
-                    let data_ptr = ptr.offset(data_offset as isize);
-                    ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, len);
+            let ptr: *mut u8 = non_null.as_ptr();
+            ptr::write(ptr as *mut AtomicUsize, AtomicUsize::new(1));
+            let flags_ptr = ptr.offset(flags_offset as isize) as *mut BinaryFlags;
+            let flags = BinaryFlags::new(encoding)
+                .set_size(len);
+            ptr::write(flags_ptr, flags);
+            let data_ptr = ptr.offset(data_offset as isize);
+            ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, len);
 
-                    let inner = ProcBinInner::from_raw_parts(ptr, len);
-                    Ok(Self {
-                        header: Default::default(),
-                        inner: inner.into(),
-                        link: LinkedListLink::new(),
-                    })
-                }
-                Err(_) => Err(alloc!()),
-            }
+            let inner = ProcBinInner::from_raw_parts(ptr, len);
+            Ok(Self {
+                header: Default::default(),
+                inner: inner.into(),
+                link: LinkedListLink::new(),
+            })
         }
     }
 
@@ -239,7 +235,7 @@ impl CloneToProcess for ProcBin {
         boxed
     }
 
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

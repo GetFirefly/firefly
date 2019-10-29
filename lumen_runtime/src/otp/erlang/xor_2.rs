@@ -5,8 +5,8 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -14,6 +14,6 @@ use lumen_runtime_macros::native_implemented_function;
 ///
 /// **NOTE: NOT SHORT-CIRCUITING!**
 #[native_implemented_function(xor/2)]
-pub fn native(left_boolean: Term, right_boolean: Term) -> exception::Result {
+pub fn native(left_boolean: Term, right_boolean: Term) -> exception::Result<Term> {
     boolean_infix_operator!(left_boolean, right_boolean, ^)
 }

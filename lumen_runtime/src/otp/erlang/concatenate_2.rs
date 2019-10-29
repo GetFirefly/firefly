@@ -14,7 +14,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 /// `++/2`
 #[native_implemented_function(++/2)]
-pub fn native(process: &Process, list: Term, term: Term) -> exception::Result {
+pub fn native(process: &Process, list: Term, term: Term) -> exception::Result<Term> {
     match list.decode().unwrap() {
         TypedTerm::Nil => Ok(term),
         TypedTerm::List(cons) => match cons

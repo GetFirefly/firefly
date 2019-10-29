@@ -7,7 +7,7 @@ use core::iter;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
 use crate::erts::term::encoding::Header;
@@ -88,7 +88,7 @@ impl HeapBin {
     }
 
     /// Creates a new `HeapBin` from a str slice, by copying it to the heap
-    pub fn from_str<A>(heap: &mut A, s: &str) -> Result<Boxed<Self>, Alloc> 
+    pub fn from_str<A>(heap: &mut A, s: &str) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -98,7 +98,7 @@ impl HeapBin {
     }
 
     /// Creates a new `HeapBin` from a byte slice, by copying it to the heap
-    pub fn from_slice<A>(heap: &mut A, s: &[u8], encoding: Encoding) -> Result<Boxed<Self>, Alloc> 
+    pub fn from_slice<A>(heap: &mut A, s: &[u8], encoding: Encoding) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -188,6 +188,23 @@ impl AlignedBinary for HeapBin {
     }
 }
 
+impl MaybePartialByte for HeapBin {
+    #[inline]
+    fn partial_byte_bit_len(&self) -> u8 {
+        0
+    }
+
+    #[inline]
+    fn total_bit_len(&self) -> usize {
+        self.full_byte_len() * 8
+    }
+
+    #[inline]
+    fn total_byte_len(&self) -> usize {
+        self.full_byte_len()
+    }
+}
+
 impl IndexByte for HeapBin {
     #[inline]
     fn byte(&self, index: usize) -> u8 {
@@ -196,7 +213,7 @@ impl IndexByte for HeapBin {
 }
 
 impl CloneToProcess for HeapBin {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc> 
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

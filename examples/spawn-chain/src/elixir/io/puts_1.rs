@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};

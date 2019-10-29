@@ -4,11 +4,7 @@ use std::sync::Arc;
 
 use liblumen_core::locks::RwLock;
 
-#[cfg(test)]
-use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::exception::system::Alloc;
 #[cfg(not(test))]
-use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::Process;
@@ -56,7 +52,7 @@ pub fn place_frame_with_arguments(
     module: Term,
     function: Term,
     arguments: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     process.stack_push(arguments)?;
     process.stack_push(function)?;
     process.stack_push(module)?;
@@ -76,14 +72,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let arguments = arc_process.stack_pop().unwrap();
     arc_process.reduce();
 
-    match liblumen_alloc::undef!(arc_process, module, function, arguments) {
-        Exception::Runtime(runtime_exception) => {
-            arc_process.exception(runtime_exception);
-
-            Ok(())
-        }
-        Exception::System(system_exception) => Err(system_exception),
-    }
+    let exception = liblumen_alloc::undef!(arc_process, module, function, arguments);
+    code::result_from_exception(arc_process, exception)
 }
 
 #[cfg(test)]
@@ -94,7 +84,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let mut argument_vec: Vec<Term> = Vec::new();
 
-    match argument_list.decode().unwrap() {
+    match argument_list.decode()? {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -164,10 +154,7 @@ fn undef(
 ) -> code::Result {
     arc_process.reduce();
     let exception = liblumen_alloc::undef!(arc_process, module, function, arguments);
-    let runtime_exception: runtime::Exception = exception.try_into().unwrap();
-    arc_process.exception(runtime_exception);
-
-    Ok(())
+    code::result_from_exception(arc_process, exception)
 }
 
 lazy_static! {

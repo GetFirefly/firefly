@@ -13,6 +13,6 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::otp::erlang::is_record;
 
 #[native_implemented_function(is_record/2)]
-pub fn native(term: Term, record_tag: Term) -> exception::Result {
+pub fn native(term: Term, record_tag: Term) -> exception::Result<Term> {
     is_record(term, record_tag, None)
 }

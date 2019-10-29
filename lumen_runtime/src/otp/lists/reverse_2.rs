@@ -13,8 +13,8 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(reverse/2)]
-pub fn native(process: &Process, list: Term, tail: Term) -> exception::Result {
-    match list.decode().unwrap() {
+pub fn native(process: &Process, list: Term, tail: Term) -> exception::Result<Term> {
+    match list.decode()? {
         TypedTerm::Nil => Ok(tail),
         TypedTerm::List(cons) => {
             let mut reversed = tail;

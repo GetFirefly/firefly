@@ -15,7 +15,7 @@ use crate::registry::pid_to_process;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(is_process_alive/1)]
-pub fn native(process: &Process, term: Term) -> exception::Result {
+pub fn native(process: &Process, term: Term) -> exception::Result<Term> {
     if term == process.pid_term() {
         Ok((!process.is_exiting()).into())
     } else {

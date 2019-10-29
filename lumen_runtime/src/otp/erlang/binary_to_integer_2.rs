@@ -15,7 +15,7 @@ use crate::binary_to_string::binary_to_string;
 use crate::otp::erlang::string_to_integer::base_string_to_integer;
 
 #[native_implemented_function(binary_to_integer/2)]
-pub fn native(process: &Process, binary: Term, base: Term) -> exception::Result {
+pub fn native(process: &Process, binary: Term, base: Term) -> exception::Result<Term> {
     let string: String = binary_to_string(binary)?;
 
     base_string_to_integer(process, base, &string)

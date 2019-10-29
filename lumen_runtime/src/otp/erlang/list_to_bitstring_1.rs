@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(list_to_bitstring/1)]
-pub fn native(process: &Process, iolist: Term) -> exception::Result {
+pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
     match iolist.decode().unwrap() {
         TypedTerm::Nil | TypedTerm::List(_) => {
             let mut byte_vec: Vec<u8> = Vec::new();

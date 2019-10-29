@@ -14,6 +14,6 @@ use lumen_runtime_macros::native_implemented_function;
 ///
 /// **NOTE: NOT SHORT-CIRCUITING!**
 #[native_implemented_function(or/2)]
-pub fn native(left_boolean: Term, right_boolean: Term) -> exception::Result {
+pub fn native(left_boolean: Term, right_boolean: Term) -> exception::Result<Term> {
     boolean_infix_operator!(left_boolean, right_boolean, |)
 }

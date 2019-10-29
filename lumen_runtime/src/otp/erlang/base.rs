@@ -1,8 +1,8 @@
 use std::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::exception::Exception;
 
 // 2-36
 pub struct Base(u8);
@@ -21,7 +21,7 @@ impl Base {
 }
 
 impl TryFrom<Term> for Base {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         term.decode().unwrap().try_into()
@@ -29,7 +29,7 @@ impl TryFrom<Term> for Base {
 }
 
 impl TryFrom<TypedTerm> for Base {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
@@ -41,10 +41,10 @@ impl TryFrom<TypedTerm> for Base {
                 {
                     Ok(Base(small_integer_isize as u8))
                 } else {
-                    Err(badarg!())
+                    Err(badarg!().into())
                 }
             }
-            _ => Err(badarg!()),
+            _ => Err(badarg!().into()),
         }
     }
 }

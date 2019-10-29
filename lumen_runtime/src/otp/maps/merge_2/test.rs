@@ -4,7 +4,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badmap;
+use liblumen_alloc::{badmap, atom};
 
 use crate::otp::maps::merge_2::native;
 use crate::test::strategy;

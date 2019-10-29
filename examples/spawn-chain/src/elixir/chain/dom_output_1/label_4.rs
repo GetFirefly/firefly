@@ -1,9 +1,9 @@
 use std::sync::Arc;
+use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::{Term, Encoded, Boxed, Resource};
 
 use crate::elixir::chain::dom_output_1::label_5;
 
@@ -13,7 +13,7 @@ pub fn place_frame_with_arguments(
     document: Term,
     tr: Term,
     text: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     assert!(text.is_binary());
     process.stack_push(text)?;
     process.stack_push(tr)?;
@@ -47,11 +47,11 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let pid_text = arc_process.stack_pop().unwrap();
-    assert!(pid_text.is_resource_reference());
+    let _: Boxed<Resource> = pid_text.try_into().unwrap();
     let document = arc_process.stack_pop().unwrap();
-    assert!(document.is_resource_reference());
+    let _: Boxed<Resource> = document.try_into().unwrap();
     let tr = arc_process.stack_pop().unwrap();
-    assert!(tr.is_resource_reference());
+    let _: Boxed<Resource> = tr.try_into().unwrap();
     let text = arc_process.stack_pop().unwrap();
 
     label_5::place_frame_with_arguments(

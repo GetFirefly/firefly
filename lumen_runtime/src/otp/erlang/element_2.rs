@@ -14,10 +14,10 @@ use lumen_runtime_macros::native_implemented_function;
 
 /// `element/2`
 #[native_implemented_function(element/2)]
-pub fn native(index: Term, tuple: Term) -> exception::Result {
+pub fn native(index: Term, tuple: Term) -> exception::Result<Term> {
     let tuple_tuple: Boxed<Tuple> = tuple.try_into()?;
+    let index: OneBasedIndex = index.try_into()?;
 
-    tuple_tuple
-        .get_element_from_one_based_term_index(index)
+    tuple_tuple.get_element(index)
         .map_err(|error| error.into())
 }

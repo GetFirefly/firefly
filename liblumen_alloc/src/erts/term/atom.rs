@@ -51,12 +51,20 @@ impl Atom {
         ATOMS.read().get_name(self.0).unwrap()
     }
 
+    /// Returns true if this atom is a boolean value
+    #[inline]
+    pub fn is_boolean(&self) -> bool {
+        // NOTE: This relies on the fact that the atom table is
+        // initialized such that true/false are at indices 1 and 0
+        self.0 < 2
+    }
+
     /// Creates a new atom from a slice of bytes interpreted as Latin-1.
     ///
     /// Returns `Err` if the atom name is invalid or the table overflows
     #[inline]
     pub fn try_from_latin1_bytes(name: &[u8]) -> Result<Self, AtomError> {
-        Self::try_from_str(str::from_utf8(name).unwrap())
+        Self::try_from_str(str::from_utf8(name)?)
     }
 
     /// Like `try_from_latin1_bytes`, but requires that the atom already exists
@@ -64,7 +72,7 @@ impl Atom {
     /// Returns `Err` if the atom does not exist
     #[inline]
     pub fn try_from_latin1_bytes_existing(name: &[u8]) -> Result<Self, AtomError> {
-        Self::try_from_str_existing(str::from_utf8(name).unwrap())
+        Self::try_from_str_existing(str::from_utf8(name)?)
     }
 
     /// For convenience, this function takes a `str`, creates an atom
@@ -112,7 +120,7 @@ impl Atom {
         if let Some(id) = ATOMS.read().get_id(name) {
             return Ok(Atom(id));
         }
-        Err(AtomError(AtomErrorKind::NonExistent))
+        Err(AtomError::NonExistent.into())
     }
 
     /// Creates a new atom from its id.
@@ -132,9 +140,21 @@ impl Atom {
     fn validate(name: &str) -> Result<(), AtomError> {
         let len = name.len();
         if len > MAX_ATOM_LENGTH {
-            return Err(AtomError(AtomErrorKind::InvalidLength(len)));
+            return Err(AtomError::InvalidLength(len));
         }
         Ok(())
+    }
+}
+
+impl PartialEq<bool> for Atom {
+    fn eq(&self, b: &bool) -> bool {
+        // NOTE: This relies on the fact that we initialize the
+        // atom table with 'false' at index 0, and 'true' at
+        // index 1; and that Rust will convert bools to integers
+        // such at false is 0 and true is 1
+        let id = self.id();
+        let b = *b;
+        id == (b as usize)
     }
 }
 
@@ -145,9 +165,9 @@ impl From<bool> for Atom {
         // is initialized in a deterministic way - it is critical that
         // if the initialization changes that these values get updated
         if b {
-            unsafe { Atom::from_id(0) }
-        } else {
             unsafe { Atom::from_id(1) }
+        } else {
+            unsafe { Atom::from_id(0) }
         }
     }
 }
@@ -269,7 +289,7 @@ impl AtomTable {
     unsafe fn insert(&mut self, name: &str) -> Result<usize, AtomError> {
         let id = self.names.len();
         if id > MAX_ATOMS {
-            return Err(AtomError(AtomErrorKind::TooManyAtoms));
+            return Err(AtomError::TooManyAtoms);
         }
 
         let size = name.len();
@@ -296,7 +316,7 @@ impl Default for AtomTable {
     fn default() -> Self {
         // Do not change the order of these atoms without updating any `From`
         // impls that may take advantage of the static order, i.e. From<bool>
-        let atoms = &["true", "false", "undefined", "nil", "ok", "error"];
+        let atoms = &["false", "true", "undefined", "nil", "ok", "error"];
         AtomTable::new(atoms)
     }
 }

@@ -7,9 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::{badarg, atom};
+use liblumen_alloc::erts::exception::{self, AllocResult};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -20,7 +19,7 @@ use crate::process::{self, SchedulerDependentAlloc};
 use crate::registry;
 
 #[native_implemented_function(monitor/2)]
-pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result {
+pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result<Term> {
     let type_atom: Atom = r#type.try_into()?;
 
     match type_atom.name() {
@@ -33,7 +32,7 @@ pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result 
 
 // Private
 
-fn monitor_process_identifier(process: &Process, process_identifier: Term) -> exception::Result {
+fn monitor_process_identifier(process: &Process, process_identifier: Term) -> exception::Result<Term> {
     match process_identifier.decode().unwrap() {
         TypedTerm::Atom(atom) => monitor_process_registered_name(process, process_identifier, atom),
         TypedTerm::Pid(pid) => monitor_process_pid(process, process_identifier, pid),
@@ -43,7 +42,7 @@ fn monitor_process_identifier(process: &Process, process_identifier: Term) -> ex
     }
 }
 
-fn monitor_process_identifier_noproc(process: &Process, identifier: Term) -> exception::Result {
+fn monitor_process_identifier_noproc(process: &Process, identifier: Term) -> exception::Result<Term> {
     let monitor_reference = process.next_reference()?;
     let noproc_message = noproc_message(process, monitor_reference, identifier)?;
     process.send_from_self(noproc_message);
@@ -51,7 +50,7 @@ fn monitor_process_identifier_noproc(process: &Process, identifier: Term) -> exc
     Ok(monitor_reference)
 }
 
-fn monitor_process_pid(process: &Process, process_identifier: Term, pid: Pid) -> exception::Result {
+fn monitor_process_pid(process: &Process, process_identifier: Term, pid: Pid) -> exception::Result<Term> {
     match registry::pid_to_process(&pid) {
         Some(monitored_arc_process) => {
             process::monitor(process, &monitored_arc_process).map_err(|alloc| alloc.into())
@@ -64,7 +63,7 @@ fn monitor_process_registered_name(
     process: &Process,
     process_identifier: Term,
     atom: Atom,
-) -> exception::Result {
+) -> exception::Result<Term> {
     match registry::atom_to_process(&atom) {
         Some(monitored_arc_process) => {
             let reference = process.next_reference()?;
@@ -74,8 +73,8 @@ fn monitor_process_registered_name(
                 monitoring_pid: process.pid(),
                 monitored_name: atom,
             };
-            process.monitor(reference_reference.clone(), monitored_arc_process.pid());
-            monitored_arc_process.monitored(reference_reference.clone(), monitor);
+            process.monitor(reference_reference.as_ref().clone(), monitored_arc_process.pid());
+            monitored_arc_process.monitored(reference_reference.as_ref().clone(), monitor);
 
             Ok(reference)
         }
@@ -91,7 +90,7 @@ fn monitor_process_tuple(
     process: &Process,
     _process_identifier: Term,
     tuple: &Tuple,
-) -> exception::Result {
+) -> exception::Result<Term> {
     if tuple.len() == 2 {
         let registered_name = tuple[0];
         let registered_name_atom: Atom = registered_name.try_into()?;
@@ -114,8 +113,8 @@ fn monitor_process_tuple(
     }
 }
 
-fn noproc_message(process: &Process, reference: Term, identifier: Term) -> Result<Term, Alloc> {
-    let noproc = Atom::str_to_term("noproc");
+fn noproc_message(process: &Process, reference: Term, identifier: Term) -> AllocResult<Term> {
+    let noproc = atom!("noproc");
 
     down_message(process, reference, identifier, noproc)
 }
@@ -125,9 +124,9 @@ fn down_message(
     reference: Term,
     identifier: Term,
     info: Term,
-) -> Result<Term, Alloc> {
-    let down = Atom::str_to_term("DOWN");
-    let r#type = Atom::str_to_term("process");
+) -> AllocResult<Term> {
+    let down = atom!("DOWN");
+    let r#type = atom!("process");
 
     process.tuple_from_slice(&[down, reference, r#type, identifier, info])
 }

@@ -6,7 +6,7 @@ use log::trace;
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
 use super::*;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc;
 use crate::erts::process::ProcessHeap;
 use crate::erts::term::prelude::*;
@@ -493,7 +493,7 @@ impl<'p, 'h> GarbageCollector<'p, 'h> {
 
     /// Ensures the old heap is initialized, if required
     #[inline]
-    fn ensure_old_heap(&mut self, size_before: usize, mature_size: usize) -> Result<(), Alloc> {
+    fn ensure_old_heap(&mut self, size_before: usize, mature_size: usize) -> AllocResult<()> {
         if !self.heap.old.active() && mature_size > 0 {
             let size = alloc::next_heap_size(size_before);
             let start = alloc::heap(size)?;

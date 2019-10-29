@@ -9,7 +9,7 @@ use core::slice;
 use alloc::sync::Arc;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
 use crate::erts::process::Process;
@@ -92,7 +92,7 @@ impl Closure {
     /// The constructed closure will contain an environment of invalid words until
     /// individual elements are written, this is intended for cases where we don't
     /// already have a slice of elements to construct a tuple from
-    pub fn new<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env_len: usize) -> Result<Boxed<Self>, Alloc> 
+    pub fn new<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env_len: usize) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -118,7 +118,7 @@ impl Closure {
         }
     }
 
-    pub fn from_slice<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env: &[Term]) -> Result<Boxed<Self>, Alloc> 
+    pub fn from_slice<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env: &[Term]) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + HeapAlloc,
     {
@@ -201,7 +201,7 @@ impl Closure {
         process: &Process,
         placement: Placement,
         arguments: Vec<Term>,
-    ) -> Result<(), Alloc> {
+    ) -> AllocResult<()> {
         assert_eq!(arguments.len(), self.arity() as usize);
         for argument in arguments.iter().rev() {
             process.stack_push(*argument)?;
@@ -214,7 +214,7 @@ impl Closure {
         Ok(())
     }
 
-    fn push_env_to_stack(&self, process: &Process) -> Result<(), Alloc> {
+    fn push_env_to_stack(&self, process: &Process) -> AllocResult<()> {
         for term in self.env.iter().rev() {
             process.stack_push(*term)?;
         }
@@ -255,7 +255,7 @@ impl Closure {
 }
 
 impl CloneToProcess for Closure {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc> 
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

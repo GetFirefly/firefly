@@ -5,8 +5,6 @@ use std::convert::TryInto;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::exception::runtime::Class::{self, *};
-
 #[test]
 fn without_class_errors_badarg() {
     with_process_arc(|arc_process| {
@@ -16,12 +14,8 @@ fn without_class_errors_badarg() {
                     strategy::term::atom().prop_filter(
                         "Class cannot be error, exit, or throw",
                         |class| {
-                            let class_atom: Atom = (*class).try_into().unwrap();
-
-                            match class_atom.name() {
-                                "error" | "exit" | "throw" => false,
-                                _ => true,
-                            }
+                            let is_class: exception::Class = (*class).try_into();
+                            is_class.is_err()
                         },
                     ),
                     strategy::term(arc_process.clone()),
@@ -71,7 +65,7 @@ fn with_class_with_empty_list_stacktrace_raises() {
 
                     prop_assert_eq!(
                         native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, Some(stacktrace)).into())
+                        Err(raise!(class_variant, reason, stacktrace).into())
                     );
 
                     Ok(())
@@ -190,7 +184,7 @@ fn with_class_with_stacktrace_with_mfa_with_file_without_charlist_errors_badarg(
                     strategy::term::is_not_list(arc_process.clone()),
                 ),
                 |(class, reason, module, function, arity_or_arguments, file_value)| {
-                    let file_key = Atom::str_to_term("file");
+                    let file_key = atom!("file");
                     let location = arc_process
                         .list_from_slice(&[arc_process
                             .tuple_from_slice(&[file_key, file_value])
@@ -225,7 +219,7 @@ fn with_class_with_stacktrace_with_mfa_with_non_positive_line_with_errors_badarg
                     strategy::term::integer::non_positive(arc_process.clone()),
                 ),
                 |(class, reason, module, function, arity_or_arguments, line_value)| {
-                    let line_key = Atom::str_to_term("line");
+                    let line_key = atom!("line");
                     let location = arc_process
                         .list_from_slice(&[arc_process
                             .tuple_from_slice(&[line_key, line_value])
@@ -307,7 +301,7 @@ fn with_atom_module_with_atom_function_with_arity_raises() {
 
                     prop_assert_eq!(
                         native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, Some(stacktrace)).into())
+                        Err(raise!(class_variant, reason, stacktrace).into())
                     );
 
                     Ok(())
@@ -338,7 +332,7 @@ fn with_atom_module_with_atom_function_with_arguments_raises() {
 
                     prop_assert_eq!(
                         native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, Some(stacktrace)).into())
+                        Err(raise!(class_variant, reason, stacktrace).into())
                     );
 
                     Ok(())
@@ -370,7 +364,7 @@ fn with_mfa_with_empty_location_raises() {
 
                     prop_assert_eq!(
                         native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, Some(stacktrace)).into())
+                        Err(raise!(class_variant, reason, stacktrace).into())
                     );
 
                     Ok(())
@@ -394,7 +388,7 @@ fn with_mfa_with_file_raises() {
                     strategy::term::charlist(arc_process.clone()),
                 ),
                 |((class_variant, class), reason, module, function, arity, file_value)| {
-                    let file_key = Atom::str_to_term("file");
+                    let file_key = atom!("file");
                     let location = arc_process
                         .list_from_slice(&[arc_process
                             .tuple_from_slice(&[file_key, file_value])
@@ -408,7 +402,7 @@ fn with_mfa_with_file_raises() {
 
                     prop_assert_eq!(
                         native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, Some(stacktrace)).into())
+                        Err(raise!(class_variant, reason, stacktrace).into())
                     );
 
                     Ok(())
@@ -439,7 +433,7 @@ fn with_mfa_with_positive_line_raises() {
                     arity_or_arguments,
                     line_value,
                 )| {
-                    let line_key = Atom::str_to_term("line");
+                    let line_key = atom!("line");
                     let location = arc_process
                         .list_from_slice(&[arc_process
                             .tuple_from_slice(&[line_key, line_value])
@@ -453,7 +447,7 @@ fn with_mfa_with_positive_line_raises() {
 
                     prop_assert_eq!(
                         native(class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, Some(stacktrace)).into())
+                        Err(raise!(class_variant, reason, stacktrace).into())
                     );
 
                     Ok(())
@@ -489,8 +483,8 @@ fn with_mfa_with_file_and_line_raises() {
                 file_value,
                 line_value,
             )| {
-                let file_key = Atom::str_to_term("file");
-                let line_key = Atom::str_to_term("line");
+                let file_key = atom!("file");
+                let line_key = atom!("line");
                 let location = arc_process
                     .list_from_slice(&[
                         arc_process
@@ -509,7 +503,7 @@ fn with_mfa_with_file_and_line_raises() {
 
                 prop_assert_eq!(
                     native(class, reason, stacktrace),
-                    Err(raise!(class_variant, reason, Some(stacktrace)).into())
+                    Err(raise!(class_variant, reason, stacktrace).into())
                 );
 
                 Ok(())
@@ -520,16 +514,17 @@ fn with_mfa_with_file_and_line_raises() {
 
 fn class() -> BoxedStrategy<Term> {
     prop_oneof![Just("error"), Just("exit"), Just("throw")]
-        .prop_map(|string| Atom::str_to_term(&string))
+        .prop_map(|string| atom!(&string))
         .boxed()
 }
 
 fn class_variant_and_term() -> BoxedStrategy<(Class, Term)> {
+    use liblumen_alloc::erts::exception::Class;
     prop_oneof![
-        Just((Error { arguments: None }, "error")),
-        Just((Exit, "exit")),
-        Just((Throw, "throw"))
+        Just((Class::Error { arguments: None }, "error")),
+        Just((Class::Exit, "exit")),
+        Just((Class::Throw, "throw"))
     ]
-    .prop_map(|(class_variant, string)| (class_variant, Atom::str_to_term(&string)))
+    .prop_map(|(class_variant, string)| (class_variant, atom!(&string)))
     .boxed()
 }

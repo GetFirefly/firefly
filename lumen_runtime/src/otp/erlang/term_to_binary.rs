@@ -5,22 +5,20 @@ use std::mem;
 use num_bigint::{BigInt, Sign};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::exception::{self, Exception};
 
 use crate::node;
-use hashbrown::HashMap;
 
-pub fn term_to_binary(process: &Process, term: Term, _options: Options) -> exception::Result {
+pub fn term_to_binary(process: &Process, term: Term, _options: Options) -> exception::Result<Term> {
     let mut stack = VecDeque::new();
     stack.push_front(term);
 
     let mut byte_vec: Vec<u8> = vec![VERSION_NUMBER];
 
     while let Some(front_term) = stack.pop_front() {
-        match front_term.decode().unwrap() {
+        match front_term.decode()? {
             TypedTerm::Atom(atom) => {
                 byte_vec.extend_from_slice(&atom_to_byte_vec(atom));
             }
@@ -109,9 +107,7 @@ pub fn term_to_binary(process: &Process, term: Term, _options: Options) -> excep
                 let len_usize = map.len();
                 append_usize_as_u32(&mut byte_vec, len_usize);
 
-                let hash_map: &HashMap<_, _> = map.as_ref();
-
-                for (key, value) in hash_map.iter() {
+                for (key, value) in map.iter() {
                     stack.push_front(*value);
                     stack.push_front(*key);
                 }
@@ -203,7 +199,7 @@ pub fn term_to_binary(process: &Process, term: Term, _options: Options) -> excep
                 }
 
                 for element in tuple.iter().rev() {
-                    stack.push_front(element);
+                    stack.push_front(*element);
                 }
             }
             _ => unimplemented!("term_to_binary({:?})", front_term),
@@ -398,7 +394,7 @@ impl Default for Compression {
 }
 
 impl TryFrom<Term> for Compression {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         let term_u8: u8 = term.try_into()?;
@@ -406,7 +402,7 @@ impl TryFrom<Term> for Compression {
         if Self::MIN_U8 <= term_u8 && term_u8 <= Self::MAX_U8 {
             Ok(Self(term_u8))
         } else {
-            Err(badarg!())
+            Err(badarg!().into())
         }
     }
 }
@@ -425,7 +421,7 @@ impl Default for MinorVersion {
 }
 
 impl TryFrom<Term> for MinorVersion {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         let term_u8: u8 = term.try_into()?;
@@ -433,7 +429,7 @@ impl TryFrom<Term> for MinorVersion {
         if Self::MIN_U8 <= term_u8 && term_u8 <= Self::MAX_U8 {
             Ok(Self(term_u8))
         } else {
-            Err(badarg!())
+            Err(badarg!().into())
         }
     }
 }
@@ -454,15 +450,15 @@ impl Default for Options {
 }
 
 impl Options {
-    fn put_option_term(&mut self, option: Term) -> Result<&Self, runtime::Exception> {
-        match option.decode().unwrap() {
+    fn put_option_term(&mut self, option: Term) -> exception::Result<&Self> {
+        match option.decode()? {
             TypedTerm::Atom(atom) => match atom.name() {
                 "compressed" => {
                     self.compression = Default::default();
 
                     Ok(self)
                 }
-                _ => Err(badarg!()),
+                _ => Err(badarg!().into()),
             },
             TypedTerm::Tuple(tuple) => {
                 if tuple.len() == 2 {
@@ -479,26 +475,26 @@ impl Options {
 
                             Ok(self)
                         }
-                        _ => Err(badarg!()),
+                        _ => Err(badarg!().into()),
                     }
                 } else {
-                    Err(badarg!())
+                    Err(badarg!().into())
                 }
             }
-            _ => Err(badarg!()),
+            _ => Err(badarg!().into()),
         }
     }
 }
 
 impl TryFrom<Term> for Options {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         let mut options: Options = Default::default();
         let mut options_term = term;
 
         loop {
-            match options_term.decode().unwrap() {
+            match options_term.decode()? {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
                     options.put_option_term(cons.head)?;

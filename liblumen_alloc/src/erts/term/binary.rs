@@ -70,7 +70,7 @@ pub trait Bitstring {
     unsafe fn as_byte_ptr(&self) -> *mut u8;
 }
 
-impl<T: Bitstring> Bitstring for Boxed<T> {
+impl<T: ?Sized + Bitstring> Bitstring for Boxed<T> {
     #[inline]
     default fn full_byte_len(&self) -> usize {
         self.as_ref().full_byte_len()
@@ -119,7 +119,7 @@ pub trait Binary: Bitstring {
     }
 }
 
-impl<T: Binary> Binary for Boxed<T> {
+impl<T: ?Sized + Binary> Binary for Boxed<T> {
     default fn flags(&self) -> &BinaryFlags {
         self.as_ref().flags()
     }

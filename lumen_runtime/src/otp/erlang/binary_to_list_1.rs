@@ -12,7 +12,7 @@ use liblumen_alloc::erts::term::prelude::Term;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(binary_to_list/1)]
-pub fn native(process: &Process, binary: Term) -> exception::Result {
+pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {
     let bytes = process.bytes_from_binary(binary)?;
     let byte_terms = bytes.iter().map(|byte| (*byte).into());
 

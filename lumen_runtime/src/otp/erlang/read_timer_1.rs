@@ -14,6 +14,6 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::otp::erlang::read_timer;
 
 #[native_implemented_function(read_timer/1)]
-pub fn native(process: &Process, timer_reference: Term) -> exception::Result {
+pub fn native(process: &Process, timer_reference: Term) -> exception::Result<Term> {
     read_timer(timer_reference, Default::default(), process)
 }

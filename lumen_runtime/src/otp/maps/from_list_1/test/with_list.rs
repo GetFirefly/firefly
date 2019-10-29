@@ -52,7 +52,7 @@ fn with_two_element_tuple_list_returns_value() {
                 )
             }),
             |(arc_process, key)| {
-                let value = Atom::str_to_term("value");
+                let value = atom!("value");
                 let tuple = arc_process.tuple_from_slice(&[key, value]).unwrap();
                 let list = arc_process.list_from_slice(&[tuple]).unwrap();
                 let map = arc_process.map_from_slice(&[(key, value)]).unwrap();
@@ -75,8 +75,8 @@ fn with_duplicate_keys_preserves_last_value() {
                 )
             }),
             |(arc_process, key)| {
-                let value1 = Atom::str_to_term("value1");
-                let value2 = Atom::str_to_term("value2");
+                let value1 = atom!("value1");
+                let value2 = atom!("value2");
                 let tuple1 = arc_process.tuple_from_slice(&[key, value1]).unwrap();
                 let tuple2 = arc_process.tuple_from_slice(&[key, value2]).unwrap();
                 let list = arc_process.list_from_slice(&[tuple1, tuple2]).unwrap();

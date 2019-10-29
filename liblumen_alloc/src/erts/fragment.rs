@@ -7,7 +7,7 @@ use intrusive_collections::{LinkedListLink, UnsafeRef};
 
 use liblumen_core::util::pointer::{distance_absolute, in_area};
 
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::*;
 use crate::std_alloc;
 
@@ -81,7 +81,7 @@ impl HeapFragment {
 
     /// Creates a new heap fragment with the given layout, allocated via `std_alloc`
     #[inline]
-    pub unsafe fn new(layout: Layout) -> Result<NonNull<Self>, Alloc> {
+    pub unsafe fn new(layout: Layout) -> AllocResult<NonNull<Self>> {
         let (full_layout, offset) = Layout::new::<Self>().extend(layout.clone()).unwrap();
         let size = layout.size();
         let align = layout.align();
@@ -99,7 +99,7 @@ impl HeapFragment {
         Ok(NonNull::new_unchecked(ptr))
     }
 
-    pub unsafe fn new_from_word_size(word_size: usize) -> Result<NonNull<Self>, Alloc> {
+    pub unsafe fn new_from_word_size(word_size: usize) -> AllocResult<NonNull<Self>> {
         let byte_size = word_size * mem::size_of::<Term>();
         let align = mem::align_of::<Term>();
 
@@ -109,7 +109,7 @@ impl HeapFragment {
     }
 
     /// Creates a new `HeapFragment` that can hold a tuple
-    pub fn tuple_from_slice(elements: &[Term]) -> Result<(Term, NonNull<HeapFragment>), Alloc> {
+    pub fn tuple_from_slice(elements: &[Term]) -> AllocResult<(Term, NonNull<HeapFragment>)> {
         // Make sure we have a fragment of the appropriate size
         let mut heap_fragment_box = unsafe {
             let (layout, _) = Tuple::layout_for(elements);
@@ -146,7 +146,7 @@ impl HeapAlloc for HeapFragment {
     /// If space on the process heap is not immediately available, then the allocation
     /// will be pushed into a heap fragment which will then be later moved on to the
     /// process heap during garbage collection
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
+    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
         let top_limit = self.raw.data.add(self.raw.size) as *mut Term;
         let top = self.top as *mut Term;
         let available = distance_absolute(top_limit, top);

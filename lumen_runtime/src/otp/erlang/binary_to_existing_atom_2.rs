@@ -15,35 +15,35 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(binary_to_existing_atom/2)]
-pub fn native(binary: Term, encoding: Term) -> exception::Result {
+pub fn native(binary: Term, encoding: Term) -> exception::Result<Term> {
     let _: Encoding = encoding.try_into()?;
 
-    match binary.decode().unwrap() {
+    match binary.decode()? {
         TypedTerm::HeapBinary(heap_binary) => {
-            Atom::try_from_latin1_bytes_existing(heap_binary.as_bytes())
-                .map_err(|error| error.into())
+            Atom::try_from_latin1_bytes_existing(heap_binary.as_bytes())?
+                .encode()
         }
         TypedTerm::ProcBin(process_binary) => {
-            Atom::try_from_latin1_bytes_existing(process_binary.as_bytes())
-                .map_err(|error| error.into())
+            Atom::try_from_latin1_bytes_existing(process_binary.as_bytes())?
+                .encode()
         }
         TypedTerm::SubBinary(subbinary) => {
             if subbinary.is_binary() {
                 if subbinary.is_aligned() {
                     let bytes = unsafe { subbinary.as_bytes_unchecked() };
 
-                    Atom::try_from_latin1_bytes_existing(bytes)
+                    Atom::try_from_latin1_bytes_existing(bytes)?
+                        .encode()
                 } else {
                     let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
-                    Atom::try_from_latin1_bytes_existing(&byte_vec)
+                    Atom::try_from_latin1_bytes_existing(&byte_vec)?
+                        .encode()
                 }
-                .map_err(|error| error.into())
             } else {
                 Err(badarg!().into())
             }
         }
         _ => Err(badarg!().into()),
     }
-    .map(|atom| unsafe { atom.decode() })
 }

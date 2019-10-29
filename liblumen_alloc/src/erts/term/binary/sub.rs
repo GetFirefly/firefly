@@ -8,7 +8,7 @@ use alloc::boxed::Box;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
 use crate::erts::term::encoding::{Header, Encoded};
@@ -241,7 +241,7 @@ impl Bitstring for SubBinary {
 }
 
 impl CloneToProcess for SubBinary {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

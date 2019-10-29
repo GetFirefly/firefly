@@ -1,6 +1,6 @@
 use core::ptr::NonNull;
 
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::{ProcBin, Term};
 
 use super::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
@@ -71,7 +71,7 @@ impl ProcessHeap {
 }
 impl HeapAlloc for ProcessHeap {
     #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
+    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
         self.young.alloc(need)
     }
 
@@ -94,7 +94,7 @@ impl VirtualAlloc for ProcessHeap {
 }
 impl StackAlloc for ProcessHeap {
     #[inline]
-    unsafe fn alloca(&mut self, need: usize) -> Result<NonNull<Term>, Alloc> {
+    unsafe fn alloca(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
         self.young.alloca(need)
     }
 

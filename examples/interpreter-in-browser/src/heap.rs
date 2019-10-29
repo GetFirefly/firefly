@@ -2,8 +2,10 @@ use core::ptr::NonNull;
 
 use wasm_bindgen::prelude::*;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::process::HeapAlloc;
-use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::term;
+use liblumen_alloc::erts::term::prelude::{Term, Atom, Encode};
 use liblumen_alloc::erts::HeapFragment;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::process::spawn::options::Options;
@@ -11,7 +13,7 @@ use lumen_runtime::registry::pid_to_process;
 use lumen_runtime::scheduler::{Scheduler, Spawned};
 
 #[wasm_bindgen]
-pub struct Pid(PidTerm);
+pub struct Pid(term::prelude::Pid);
 
 #[wasm_bindgen]
 pub struct JsHeap {
@@ -37,7 +39,7 @@ impl JsHeap {
     }
 
     pub fn atom(&mut self, name: &str) -> usize {
-        self.push(Atom::str_to_term(name))
+        self.push(atom!(name))
     }
 
     pub fn integer(&mut self, number: i32) -> usize {
@@ -52,7 +54,7 @@ impl JsHeap {
         let term = frag
             .tuple_from_iter(elems.iter().map(|n| terms[*n]), elems.len())
             .unwrap();
-        self.push(term)
+        self.push(term.encode().unwrap())
     }
 
     pub fn send(&self, pid: Pid, msg: usize) {

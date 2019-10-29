@@ -13,7 +13,7 @@ use web_sys::{
 
 use liblumen_core::locks::Mutex;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -24,9 +24,9 @@ use lumen_runtime::{process, registry};
 
 /// Spawns process with this as the first frame, so that the next frame added in `call` can fulfill
 /// the promise.
-pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> Result<Promise, Alloc>
+pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> exception::Result<Promise>
 where
-    F: Fn(&Process) -> Result<(), Alloc>,
+    F: Fn(&Process) -> code::Result,
 {
     let (process, promise) = spawn_unscheduled(options)?;
 
@@ -142,7 +142,7 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 /// the frame that will return to this frame can be added prior to running the process to
 /// prevent a race condition on the `parent_process`'s scheduler running the new child process
 /// when only the `with_return/0` frame is there.
-fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
+fn spawn_unscheduled(options: Options) -> exception::Result<(Process, Promise)> {
     assert!(!options.link, "Cannot link without a parent process");
     assert!(!options.monitor, "Cannot monitor without a parent process");
 
@@ -170,7 +170,7 @@ fn term_to_js_value(term: Term) -> JsValue {
         TypedTerm::Atom(atom) => atom_to_js_value(atom),
         TypedTerm::HeapBinary(heap_binary) => aligned_binary_to_js_value(heap_binary),
         TypedTerm::ProcBin(process_binary) => aligned_binary_to_js_value(process_binary),
-        TypedTerm::ResourceReference(resource_reference) => 
+        TypedTerm::ResourceReference(resource_reference) => {
             resource_reference_to_js_value(resource_reference.into())
         }
         TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
@@ -184,7 +184,7 @@ fn tuple_to_js_value(tuple: &Tuple) -> JsValue {
     let array = js_sys::Array::new();
 
     for element_term in tuple.iter() {
-        let element_js_value = term_to_js_value(element_term);
+        let element_js_value = term_to_js_value(*element_term);
         array.push(&element_js_value);
     }
 

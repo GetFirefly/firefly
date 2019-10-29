@@ -23,7 +23,7 @@ pub fn native(
     function: Term,
     arguments: Term,
     options: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     let options_options: Options = options.try_into()?;
 
     spawn_apply_3::native(process, options_options, module, function, arguments)

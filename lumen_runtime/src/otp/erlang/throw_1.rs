@@ -12,6 +12,6 @@ use liblumen_alloc::throw;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(throw/1)]
-pub fn native(reason: Term) -> exception::Result {
+pub fn native(reason: Term) -> exception::Result<Term> {
     Err(throw!(reason).into())
 }

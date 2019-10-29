@@ -5,7 +5,7 @@ use web_sys::Window;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -64,7 +64,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-pub fn native(process: &Process, window: Term) -> exception::Result {
+pub fn native(process: &Process, window: Term) -> exception::Result<Term> {
     let boxed: Boxed<Resource> = window.try_into()?;
     let window_reference: Resource = boxed.into();
     let window_window: &Window = window_reference.downcast_ref().ok_or_else(|| badarg!())?;

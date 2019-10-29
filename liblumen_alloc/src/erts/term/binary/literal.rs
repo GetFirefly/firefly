@@ -8,7 +8,7 @@ use liblumen_core::offset_of;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::HeapAlloc;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::string::{self, Encoding};
 use crate::erts::term::prelude::Term;
 use crate::erts::term::encoding::Header;
@@ -149,7 +149,7 @@ impl IndexByte for BinaryLiteral {
 }
 
 impl CloneToProcess for BinaryLiteral {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

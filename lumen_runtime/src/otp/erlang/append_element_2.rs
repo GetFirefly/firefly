@@ -14,7 +14,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(append_element/2)]
-pub fn native(process: &Process, tuple: Term, element: Term) -> exception::Result {
+pub fn native(process: &Process, tuple: Term, element: Term) -> exception::Result<Term> {
     let internal: Boxed<Tuple> = tuple.try_into()?;
     let new_tuple = process.tuple_from_slices(&[&internal[..], &[element]])?;
 

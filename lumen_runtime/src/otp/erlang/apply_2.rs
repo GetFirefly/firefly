@@ -8,8 +8,7 @@ mod test;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
@@ -60,14 +59,8 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
                 Process::call_code(arc_process)
             } else {
-                match badarity!(arc_process, function, arguments) {
-                    exception::Exception::Runtime(runtime_exception) => {
-                        arc_process.exception(runtime_exception);
-
-                        Ok(())
-                    }
-                    exception::Exception::System(system_exception) => Err(system_exception),
-                }
+                let exception = badarity!(arc_process, function, arguments);
+                code::result_from_exception(arc_process, exception)
             }
         }
         Err(_) => {

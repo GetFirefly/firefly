@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 fn from_term(term: Term) -> Result<&'static Event, exception::Exception> {
     let boxed: Boxed<Resource> = term.try_into()?;
-    let event_reference: Resource = term.into();
+    let event_reference: Resource = boxed.into();
 
     match event_reference.downcast_ref() {
         Some(event) => {

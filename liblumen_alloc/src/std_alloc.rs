@@ -52,10 +52,10 @@ use liblumen_core::alloc::mmap;
 use liblumen_core::locks::SpinLock;
 use liblumen_core::util::cache_padded::CachePadded;
 
+use crate::erts::exception::AllocResult;
 use crate::carriers::{superalign_down, SUPERALIGNED_CARRIER_SIZE};
 use crate::carriers::{MultiBlockCarrier, SingleBlockCarrier};
 use crate::carriers::{MultiBlockCarrierTree, SingleBlockCarrierList};
-use crate::erts::exception;
 use crate::sorted::{SortKey, SortOrder, SortedKeyAdapter};
 use crate::AllocatorInfo;
 
@@ -76,7 +76,7 @@ cfg_if! {
 }
 
 /// Allocates a new block of memory using the given layout
-pub unsafe fn alloc(layout: Layout) -> Result<NonNull<u8>, exception::system::Alloc> {
+pub unsafe fn alloc(layout: Layout) -> AllocResult<NonNull<u8>> {
     STD_ALLOC.allocate(layout)
 }
 
@@ -85,7 +85,7 @@ pub unsafe fn realloc(
     ptr: NonNull<u8>,
     layout: Layout,
     new_size: usize,
-) -> Result<NonNull<u8>, exception::system::Alloc> {
+) -> AllocResult<NonNull<u8>> {
     STD_ALLOC.reallocate(ptr, layout, new_size)
 }
 
@@ -148,7 +148,7 @@ impl StandardAlloc {
         sbc.iter().count()
     }
 
-    unsafe fn allocate(&self, layout: Layout) -> Result<NonNull<u8>, exception::system::Alloc> {
+    unsafe fn allocate(&self, layout: Layout) -> AllocResult<NonNull<u8>> {
         let size = layout.size();
         if size >= self.sbc_threshold {
             return self.alloc_large(layout);
@@ -197,7 +197,7 @@ impl StandardAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, exception::system::Alloc> {
+    ) -> AllocResult<NonNull<u8>> {
         let raw = ptr.as_ptr();
         let size = layout.size();
 
@@ -266,7 +266,7 @@ impl StandardAlloc {
     }
 
     /// This function handles allocations which exceed the single-block carrier threshold
-    unsafe fn alloc_large(&self, layout: Layout) -> Result<NonNull<u8>, exception::system::Alloc> {
+    unsafe fn alloc_large(&self, layout: Layout) -> AllocResult<NonNull<u8>> {
         // Ensure allocated region has enough space for carrier header and aligned block
         let data_layout = layout.clone();
         let carrier_layout = Layout::new::<SingleBlockCarrier<LinkedListLink>>();
@@ -306,7 +306,7 @@ impl StandardAlloc {
         ptr: NonNull<u8>,
         layout: Layout,
         new_size: usize,
-    ) -> Result<NonNull<u8>, exception::system::Alloc> {
+    ) -> AllocResult<NonNull<u8>> {
         // Allocate new carrier
         let new_ptr =
             self.alloc_large(Layout::from_size_align_unchecked(new_size, layout.align()))?;
@@ -440,7 +440,7 @@ unsafe impl Send for StandardAlloc {}
 /// NOTE: You must make sure to add the carrier to the free list of the
 /// allocator, or it will not be used, and will not be freed
 unsafe fn create_multi_block_carrier(
-) -> Result<UnsafeRef<MultiBlockCarrier<RBTreeLink>>, exception::system::Alloc> {
+) -> AllocResult<UnsafeRef<MultiBlockCarrier<RBTreeLink>>> {
     let size = SUPERALIGNED_CARRIER_SIZE;
     let carrier_layout = Layout::from_size_align_unchecked(size, size);
     // Allocate raw memory for carrier

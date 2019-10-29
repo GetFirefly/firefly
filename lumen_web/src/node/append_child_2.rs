@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use liblumen_alloc::badarg;
+use liblumen_alloc::{badarg, atom};
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -10,7 +10,6 @@ use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::node::node_from_term;
-use crate::ok;
 
 /// Unlike [Node.appendChild](https://developer.mozilla.org/en-US/docs/Web/API/Node/appendChild),
 /// this does not return the appended child as that is prone to errors with chaining.
@@ -78,13 +77,13 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-pub fn native(parent: Term, child: Term) -> exception::Result {
+pub fn native(parent: Term, child: Term) -> exception::Result<Term> {
     let parent_node = node_from_term(parent)?;
     let child_node = node_from_term(child)?;
 
     // not sure how this could fail from `web-sys` or MDN docs.
     match parent_node.append_child(child_node) {
-        Ok(_) => Ok(ok()),
+        Ok(_) => Ok(atom!("ok")),
         // JsValue(HierarchyRequestError: Failed to execute 'appendChild' on 'Node': The new child
         // element contains the parent.
         Err(_) => Err(badarg!().into()),

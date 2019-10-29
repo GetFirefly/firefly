@@ -22,7 +22,7 @@ pub fn native(
     time: Term,
     destination: Term,
     message: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     start_timer(
         time,
         destination,

@@ -10,7 +10,7 @@ use num_bigint::{BigInt, Sign};
 use num_traits::cast::ToPrimitive;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::AllocResult;
 use crate::erts::HeapAlloc;
 use crate::erts::term::prelude::*;
 
@@ -41,7 +41,7 @@ impl fmt::Display for BigInteger {
 }
 
 impl CloneToProcess for BigInteger {
-    fn clone_to_heap<A>(&self, heap: &mut A) -> Result<Term, Alloc>
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
         A: ?Sized + HeapAlloc,
     {

@@ -1,6 +1,7 @@
 use core::fmt::{self, Debug, Display};
 use core::hash::Hash;
 
+use crate::erts::exception;
 use crate::erts::term::prelude::*;
 
 use super::Tag;
@@ -9,6 +10,8 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
     type Word: Clone + Copy + PartialEq + Eq + Debug + fmt::Binary;
 
     fn as_usize(self) -> usize;
+
+    fn value(&self) -> Self::Word;
 
     fn type_of(self) -> Tag<Self::Word>;
 
@@ -30,8 +33,9 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
     /// NOTE: This is unsafe to use on any term except one where the tag is a valid header type
     unsafe fn decode_header_value(&self) -> Self::Word;
 
-    fn decode_header(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> Result<TypedTerm, TermDecodingError> {
-        let ptr = Boxed::new(self as *const _ as *mut u64).ok_or(TermDecodingError::NoneValue)?;
+    fn decode_header(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> exception::Result<TypedTerm> {
+        let ptr = Boxed::new(self as *const _ as *mut u64)
+            .ok_or_else(|| TermDecodingError::NoneValue)?;
         match tag {
             // Tuple cannot be constructed directly, as it is a dynamically-sized type,
             // instead we construct a fat pointer which requires the length of the tuple;
@@ -90,8 +94,8 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
             Tag::ExternalPort => Ok(TypedTerm::ExternalPort(ptr.cast::<ExternalPort>())),
             Tag::ExternalReference => Ok(TypedTerm::ExternalReference(ptr.cast::<ExternalReference>())),
             Tag::Map => Ok(TypedTerm::Map(ptr.cast::<Map>())),
-            Tag::None => Err(TermDecodingError::NoneValue),
-            _ => Err(TermDecodingError::InvalidTag)
+            Tag::None => Err(TermDecodingError::NoneValue.into()),
+            _ => Err(TermDecodingError::InvalidTag.into())
         }
     }
 

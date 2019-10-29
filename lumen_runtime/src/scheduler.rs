@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::{Mutex, RwLock};
 
-use liblumen_alloc::erts::exception::system::{Alloc, Exception};
+use liblumen_alloc::erts::exception::{Result, SystemException};
 use liblumen_alloc::erts::process::code::Code;
 #[cfg(test)]
 use liblumen_alloc::erts::process::Priority;
@@ -125,12 +125,13 @@ impl Scheduler {
                         match Process::run(&arc_process) {
                             Ok(()) => (),
                             Err(exception) => match exception {
-                                Exception::Alloc(_inner) => {
+                                SystemException::Alloc(_) => {
                                     match arc_process.garbage_collect(0, &mut []) {
                                         Ok(_freed) => (),
-                                        Err(gc_err) => panic!("Gc error: {:?}", gc_err),
+                                        Err(gc_err) => panic!("fatal garbage collection error: {:?}", gc_err),
                                     }
                                 }
+                                err => panic!("system error: {}", err),
                             },
                         }
                     } else {
@@ -213,7 +214,7 @@ impl Scheduler {
         module: Atom,
         function: Atom,
         arguments: Term,
-    ) -> Result<Spawned, Alloc> {
+    ) -> Result<Spawned> {
         let spawn::Spawned {
             process,
             connection,
@@ -238,7 +239,7 @@ impl Scheduler {
         function: Atom,
         arguments: &[Term],
         code: Code,
-    ) -> Result<Spawned, Alloc> {
+    ) -> Result<Spawned> {
         let spawn::Spawned {
             process,
             connection,
@@ -264,7 +265,7 @@ impl Scheduler {
     pub fn spawn_init(
         self: Arc<Scheduler>,
         minimum_heap_size: usize,
-    ) -> Result<Arc<Process>, Alloc> {
+    ) -> Result<Arc<Process>> {
         let process = process::init(minimum_heap_size)?;
         let arc_process = Arc::new(process);
         let scheduler_arc_process = Arc::clone(&arc_process);
@@ -350,7 +351,7 @@ pub struct Spawned {
 }
 
 impl Spawned {
-    pub fn to_term(&self, process: &Process) -> Result<Term, Alloc> {
+    pub fn to_term(&self, process: &Process) -> Result<Term> {
         let pid_term = self.arc_process.pid_term();
 
         match self.connection.monitor_reference {

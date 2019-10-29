@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
@@ -57,7 +57,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, element_term: Term) -> exception::Result {
+fn native(process: &Process, element_term: Term) -> exception::Result<Term> {
     let element = element::from_term(element_term)?;
     let class_name_binary = process.binary_from_str(&element.class_name())?;
 

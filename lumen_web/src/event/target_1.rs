@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::{error, event, ok};
+use crate::event;
 
 /// ```elixir
 /// case Lumen.Web.Event.target(event) do
@@ -59,7 +60,7 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     })
 }
 
-fn native(process: &Process, event_term: Term) -> exception::Result {
+fn native(process: &Process, event_term: Term) -> exception::Result<Term> {
     let event = event::from_term(event_term)?;
 
     match event.target() {
@@ -67,9 +68,9 @@ fn native(process: &Process, event_term: Term) -> exception::Result {
             let event_target_resource_reference = process.resource(Box::new(event_target))?;
 
             process
-                .tuple_from_slice(&[ok(), event_target_resource_reference])
+                .tuple_from_slice(&[atom!("ok"), event_target_resource_reference])
                 .map_err(|error| error.into())
         }
-        None => Ok(error()),
+        None => Ok(atom!("error")),
     }
 }

@@ -53,7 +53,7 @@ macro_rules! bitshift_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::prelude::TypedTerm;
+        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
 
         pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 

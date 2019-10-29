@@ -17,7 +17,7 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::binary::ToTermOptions;
 
 #[native_implemented_function(binary_to_term/2)]
-pub fn native(_process: &Process, binary: Term, options: Term) -> exception::Result {
+pub fn native(_process: &Process, binary: Term, options: Term) -> exception::Result<Term> {
     let _to_term_options: ToTermOptions = options.try_into()?;
 
     match binary.decode().unwrap() {

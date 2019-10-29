@@ -20,7 +20,7 @@ pub fn native(
     module: Term,
     function: Term,
     arguments: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     let options = Options {
         monitor: true,
         ..Default::default()

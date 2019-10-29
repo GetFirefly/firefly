@@ -15,6 +15,6 @@ use crate::otp::erlang::charlist_to_string::charlist_to_string;
 use crate::otp::erlang::string_to_float::string_to_float;
 
 #[native_implemented_function(list_to_float/1)]
-pub fn native(process: &Process, binary: Term) -> exception::Result {
+pub fn native(process: &Process, binary: Term) -> exception::Result<Term> {
     charlist_to_string(binary).and_then(|string| string_to_float(process, &string))
 }

@@ -8,13 +8,13 @@ mod test;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(is_function/2)]
-fn native(term: Term, arity: Term) -> exception::Result {
+fn native(term: Term, arity: Term) -> exception::Result<Term> {
     let arity_arity: usize = arity.try_into()?;
 
-    Ok(term.is_function_with_arity(arity_arity).into())
+    Ok(term.decode()?.is_function_with_arity(arity_arity).into())
 }

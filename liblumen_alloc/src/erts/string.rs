@@ -8,6 +8,9 @@ use thiserror::Error;
 
 use super::term::prelude::{Term, TypedTerm, Atom, Encoded};
 
+// The largest value as an integer of a latin-1 ASCII character
+const MAX_LATIN1_CHAR: u16 = 255;
+
 /// Represents the original encoding of a binary
 ///
 /// In the case of `Raw`, there is no specific encoding and
@@ -106,7 +109,7 @@ impl fmt::Display for InvalidEncodingError {
 
 /// Returns true if the given `str` is encodable as latin-1 bytes
 pub fn is_latin1(s: &str) -> bool {
-    s.chars().all(|c| c as u16 <= 255)
+    s.chars().all(|c| c as u16 <= MAX_LATIN1_CHAR)
 }
 
 /// Converts a Latin-1 encoded binary slice to a `String`
@@ -121,7 +124,7 @@ pub fn to_latin1_bytes(s: &str) -> Result<Vec<u8>, InvalidEncodingError> {
     let mut bytes = Vec::with_capacity(s.len());
     for (index, c) in s.char_indices() {
         let code = c as u16;
-        if code > 255 {
+        if code > MAX_LATIN1_CHAR {
             return Err(InvalidEncodingError::new(code, index, Encoding::Latin1, Direction::ToBytes))
         }
         bytes.push(code as u8);

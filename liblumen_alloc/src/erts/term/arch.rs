@@ -185,8 +185,6 @@ impl RawTerm {
     /// been found that way. In the case of a cons cell, the term you get back will
     /// be the top-level list term, i.e. the term which has the pointer to the head
     /// cons cell
-    ///
-    /// TODO: This should be moved to the `arch` module and converted to a method
     #[inline]
     pub(crate) fn follow_moved(self) -> RawTerm {
         use super::prelude::{Encoded, Cast};

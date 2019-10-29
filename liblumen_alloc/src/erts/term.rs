@@ -50,6 +50,8 @@ pub mod prelude {
     pub use super::resource::Resource;
     // Re-export the binary type prelude
     pub use super::binary::prelude::*;
+    // Export tuple indexing
+    pub use super::index::{TupleIndex, ZeroBasedIndex, OneBasedIndex, IndexError};
     // Export error types
     pub use super::convert::{TypeError, BoolError};
     pub use super::integer::TryIntoIntegerError;

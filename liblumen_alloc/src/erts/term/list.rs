@@ -151,6 +151,29 @@ impl Cons {
         }
         Some(MaybeImproper::Improper(self.tail))
     }
+
+    /// Searches this keyword list for the first element which has a matching key
+    /// at the given index.
+    ///
+    /// If no key is found, returns 'badarg'
+    pub fn keyfind(&self, index: OneBasedIndex, key: Term) -> exception::Result<Option<Term>> {
+        for result in self.into_iter() {
+            if let Ok(item) = result {
+                let tuple_item: Result<Boxed<Tuple>, _> = item.try_into();
+                if let Ok(tuple) = tuple_item {
+                    if let Ok(candidate) = tuple.get_element(index) {
+                        if candidate == key {
+                            return Ok(Some(candidate));
+                        }
+                    }
+                }
+            } else {
+                return Err(badarg!().into());
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 impl Debug for Cons {

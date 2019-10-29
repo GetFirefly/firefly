@@ -7,6 +7,11 @@ use thiserror::Error;
 
 use super::prelude::*;
 
+/// A marker trait for index types
+pub trait TupleIndex: Into<usize> {}
+/// A marker trait for internal index types to help in specialization
+pub trait NonPrimitiveIndex: Sized {}
+
 /// This error type is produced when an index is invalid, either due
 /// to type or range
 #[derive(Error, Debug, Clone, Copy, PartialEq)]
@@ -51,6 +56,13 @@ impl OneBasedIndex {
         }
     }
 }
+impl TupleIndex for OneBasedIndex {}
+impl NonPrimitiveIndex for OneBasedIndex {}
+impl Default for OneBasedIndex {
+    fn default() -> Self {
+        Self(1)
+    }
+}
 impl TryFrom<&BigInteger> for OneBasedIndex {
     type Error = IndexError;
 
@@ -93,7 +105,7 @@ impl TryFrom<TypedTerm> for OneBasedIndex {
 impl Into<usize> for OneBasedIndex {
     #[inline]
     fn into(self) -> usize {
-        self.0
+        self.0 - 1
     }
 }
 impl PartialEq<usize> for OneBasedIndex {
@@ -121,6 +133,21 @@ impl PartialOrd<ZeroBasedIndex> for OneBasedIndex {
     }
 }
 
+impl ops::Add for OneBasedIndex {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+impl ops::Add<usize> for OneBasedIndex {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
 /// Represents indices which start at 0 and progress upwards
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -129,6 +156,13 @@ impl ZeroBasedIndex {
     #[inline]
     pub fn new(i: usize) -> Self {
         Self(i)
+    }
+}
+impl TupleIndex for ZeroBasedIndex {}
+impl NonPrimitiveIndex for ZeroBasedIndex {}
+impl Default for ZeroBasedIndex {
+    fn default() -> Self {
+        Self(0)
     }
 }
 impl TryFrom<Term> for ZeroBasedIndex {
@@ -161,6 +195,12 @@ impl From<&OneBasedIndex> for ZeroBasedIndex {
         Self(i.0 - 1)
     }
 }
+impl From<usize> for ZeroBasedIndex {
+    #[inline]
+    fn from(n: usize) -> Self {
+        Self::new(n)
+    }
+}
 impl Into<usize> for ZeroBasedIndex {
     #[inline]
     fn into(self) -> usize {
@@ -189,5 +229,118 @@ impl PartialOrd<OneBasedIndex> for ZeroBasedIndex {
     fn partial_cmp(&self, other: &OneBasedIndex) -> Option<cmp::Ordering> {
         let index: ZeroBasedIndex = other.into();
         self.partial_cmp(&index)
+    }
+}
+
+impl ops::Add for ZeroBasedIndex {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+impl ops::Add<usize> for ZeroBasedIndex {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+// Tuple indexing
+
+impl ops::Index<ops::RangeFull> for Tuple {
+    type Output = [Term];
+
+    #[inline]
+    fn index(&self, index: ops::RangeFull) -> &Self::Output {
+        ops::Index::index(self.elements(), index)
+    }
+}
+
+// Specialization for indexing with usize values (assumed to be zero-based indices)
+impl TupleIndex for usize {}
+
+impl ops::Index<usize> for Tuple {
+    type Output = Term;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        <usize as slice::SliceIndex<[Term]>>::index(index, self.elements())
+    }
+}
+impl ops::IndexMut<usize> for Tuple {
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        <usize as slice::SliceIndex<[Term]>>::index_mut(index, self.elements_mut())
+    }
+}
+impl ops::Index<ops::RangeTo<usize>> for Tuple {
+    type Output = [Term];
+
+    #[inline]
+    fn index(&self, index: ops::RangeTo<usize>) -> &Self::Output {
+        <ops::RangeTo<usize> as slice::SliceIndex<[Term]>>::index(index, self.elements())
+    }
+}
+impl ops::Index<ops::RangeFrom<usize>> for Tuple {
+    type Output = [Term];
+
+    #[inline]
+    fn index(&self, index: ops::RangeFrom<usize>) -> &Self::Output {
+        <ops::RangeFrom<usize> as slice::SliceIndex<[Term]>>::index(index, self.elements())
+    }
+}
+
+// Generic tuple indexing for any type that implements TupleIndex + NonPrimitiveIndex
+
+impl<I> ops::Index<I> for Tuple
+where
+    I: TupleIndex + NonPrimitiveIndex,
+{
+    type Output = Term;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        let uindex: usize = index.into();
+        ops::Index::index(self.elements(), uindex)
+    }
+}
+
+impl<I> ops::IndexMut<I> for Tuple
+where
+    I: TupleIndex + NonPrimitiveIndex,
+{
+    #[inline]
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        let uindex: usize = index.into();
+        ops::IndexMut::index_mut(self.elements_mut(), uindex)
+    }
+}
+
+impl<I> ops::Index<ops::RangeTo<I>> for Tuple
+where
+    I: TupleIndex + NonPrimitiveIndex,
+{
+    type Output = [Term];
+
+    #[inline]
+    fn index(&self, index: ops::RangeTo<I>) -> &Self::Output {
+        let uindex: usize = index.end.into();
+        ops::Index::index(self.elements(), ops::RangeTo { end: uindex })
+    }
+}
+
+
+impl<I> ops::Index<ops::RangeFrom<I>> for Tuple
+where
+    I: TupleIndex + NonPrimitiveIndex,
+{
+    type Output = [Term];
+
+    #[inline]
+    fn index(&self, index: ops::RangeFrom<I>) -> &Self::Output {
+        let uindex: usize = index.start.into();
+        ops::Index::index(self.elements(), ops::RangeFrom { start: uindex })
     }
 }

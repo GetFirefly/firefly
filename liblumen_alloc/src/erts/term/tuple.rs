@@ -3,7 +3,6 @@ use core::cmp;
 use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
-use core::ops::Deref;
 use core::slice;
 use core::ptr;
 
@@ -12,7 +11,6 @@ use crate::erts::{self, HeapAlloc};
 use crate::erts::exception::system::Alloc;
 
 use super::prelude::*;
-use super::index::{OneBasedIndex, ZeroBasedIndex, IndexError};
 
 /// Represents a tuple term in memory.
 ///
@@ -193,23 +191,9 @@ impl Tuple {
         &mut self.elements
     }
 
-    /// Sets an element in the tuple, returns `Ok(())` if successful,
-    /// otherwise returns `Err(IndexErr)` if the given index is invalid
-    pub fn set_element_from_one_based_term_index(
-        &mut self,
-        index: OneBasedIndex,
-        element: Term,
-    ) -> Result<(), IndexError> {
-        self.set_element_from_zero_based_usize_index(index.into(), element)
-    }
-
-    /// Like `set_element` but for internal runtime use, as it takes a zero-based `usize` directly
+    /// Sets the element at the given index
     #[inline]
-    pub fn set_element_from_zero_based_usize_index(
-        &mut self,
-        index: ZeroBasedIndex,
-        element: Term,
-    ) -> Result<(), IndexError> {
+    pub fn set_element<I: TupleIndex>(&mut self, index: I, element: Term) -> Result<(), IndexError> {
         let index: usize = index.into();
         if let Some(term) = self.elements.get_mut(index) {
             *term = element;
@@ -220,19 +204,10 @@ impl Tuple {
         Err(IndexError::OutOfBounds { len, index })
     }
 
-    /// Fetches an element from the tuple, returns `Ok(term)` if the index is
-    /// valid, otherwise returns `Err(IndexErr)`
-    pub fn get_element_from_one_based_term_index(&self, index: OneBasedIndex) -> Result<Term, IndexError> {
-        self.get_element_from_zero_based_usize_index(index.into())
-    }
-
     /// Like `get_element` but for internal runtime use, as it takes a `usize`
     /// directly, rather than a value of type `Term`
     #[inline]
-    pub fn get_element_from_zero_based_usize_index(
-        &self,
-        index: ZeroBasedIndex,
-    ) -> Result<Term, IndexError> {
+    pub fn get_element<I: TupleIndex>(&self, index: I) -> Result<Term, IndexError> {
         let index: usize = index.into();
         if let Some(term) = self.elements.get(index) {
             return Ok(*term);
@@ -269,14 +244,6 @@ impl Debug for Tuple {
     }
 }
 
-impl Deref for Tuple {
-    type Target = [Term];
-
-    fn deref(&self) -> &[Term] {
-        &self.elements
-    }
-}
-
 impl Display for Tuple {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_char('{')?;
@@ -303,9 +270,11 @@ impl Hash for Tuple {
     }
 }
 
+impl Eq for Tuple {}
 impl PartialEq for Tuple {
+    #[inline]
     fn eq(&self, other: &Tuple) -> bool {
-        self.iter().eq(other.iter())
+        self.elements.eq(&other.elements)
     }
 }
 impl<T> PartialEq<Boxed<T>> for Tuple
@@ -318,15 +287,16 @@ where
     }
 }
 
+impl Ord for Tuple {
+    #[inline]
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.elements.cmp(&other.elements)
+    }
+}
 impl PartialOrd for Tuple {
+    #[inline]
     fn partial_cmp(&self, other: &Tuple) -> Option<cmp::Ordering> {
-        use core::cmp::Ordering;
-
-        match self.len().cmp(&other.len()) {
-            Ordering::Less => return Some(Ordering::Less),
-            Ordering::Greater => return Some(Ordering::Greater),
-            Ordering::Equal => self.iter().partial_cmp(other.iter()),
-        }
+        self.elements.partial_cmp(&other.elements)
     }
 }
 impl<T> PartialOrd<Boxed<T>> for Tuple
@@ -338,7 +308,6 @@ where
         other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
-
 
 impl TryFrom<TypedTerm> for Boxed<Tuple> {
     type Error = TypeError;
@@ -363,23 +332,35 @@ mod tests {
     use crate::erts::scheduler;
     use crate::erts::ModuleFunctionArity;
 
-    mod get_element_from_zero_based_usize_index {
+    mod get_element {
         use super::*;
 
         #[test]
-        fn without_valid_index() {
+        fn zerobased_index_out_of_bounds() {
             let process = process();
             let tuple_term = process.tuple_from_slice(&[]).unwrap();
             let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
 
             assert_eq!(
-                boxed_tuple.get_element_from_zero_based_usize_index(1),
+                boxed_tuple.get_element(ZeroBasedIndex::new(1)),
                 Err(IndexError::OutOfBounds { index: 1, len: 0 })
             );
         }
 
         #[test]
-        fn with_valid_index() {
+        fn onebased_index_out_of_bounds() {
+            let process = process();
+            let tuple_term = process.tuple_from_slice(&[]).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(
+                boxed_tuple.get_element(OneBasedIndex::new(2)),
+                Err(IndexError::OutOfBounds { index: 1, len: 0 })
+            );
+        }
+
+        #[test]
+        fn zerobased_index_in_bounds() {
             let process = process();
             let tuple_term = process
                 .tuple_from_slice(&[process.integer(0).unwrap()])
@@ -387,11 +368,94 @@ mod tests {
             let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
 
             assert_eq!(
-                boxed_tuple.get_element_from_zero_based_usize_index(0),
+                boxed_tuple.get_element_from_zero_based_usize_index(ZeroBasedIndex::default()),
+                Ok(process.integer(0).unwrap())
+            );
+        }
+
+        #[test]
+        fn onebased_index_in_bounds() {
+            let process = process();
+            let tuple_term = process
+                .tuple_from_slice(&[process.integer(0).unwrap()])
+                .unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+
+            assert_eq!(
+                boxed_tuple.get_element_from_zero_based_usize_index(OneBasedIndex::default()),
                 Ok(process.integer(0).unwrap())
             );
         }
     }
+
+    mod set_element {
+        use super::*;
+
+        #[test]
+        fn zerobased_index_out_of_bounds() {
+            let process = process();
+            let tuple_term = process.tuple_from_slice(&[]).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+            let index = ZeroBasedIndex::new(1);
+
+            assert_eq!(
+                boxed_tuple.set_element(index),
+                Err(IndexError::OutOfBounds { index: 1, len: 0 })
+            );
+        }
+
+        #[test]
+        fn onebased_index_out_of_bounds() {
+            let process = process();
+            let tuple_term = process.tuple_from_slice(&[]).unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+            let index = OneBasedIndex::new(2);
+
+            assert_eq!(
+                boxed_tuple.set_element(index),
+                Err(IndexError::OutOfBounds { index: 1, len: 0 })
+            );
+        }
+
+        #[test]
+        fn zerobased_index_in_bounds() {
+            let process = process();
+            let tuple_term = process
+                .tuple_from_slice(&[process.integer(0).unwrap()])
+                .unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+            let index = ZeroBasedIndex::default();
+
+            assert_eq!(
+                boxed_tuple.set_element(index, 1234.try_into().unwrap()),
+                Ok(()),
+            );
+            assert_eq!(
+                boxed_tuple.get_element(index),
+                Ok(1234.try_into().unwrap())
+            )
+        }
+
+        #[test]
+        fn onebased_index_in_bounds() {
+            let process = process();
+            let tuple_term = process
+                .tuple_from_slice(&[process.integer(0).unwrap()])
+                .unwrap();
+            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+            let index = OneBasedIndex::default();
+
+            assert_eq!(
+                boxed_tuple.set_element(index, 1234.try_into().unwrap()),
+                Ok(()),
+            );
+            assert_eq!(
+                boxed_tuple.get_element(index),
+                Ok(1234.try_into().unwrap())
+            )
+        }
+    }
+
 
     mod eq {
         use super::*;

@@ -18,19 +18,17 @@ use super::{Tag, Repr};
 #[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
 pub type Word = u32;
 
-const NUM_BITS: u32 = 32;
-
 // The valid range of integer values that can fit in a term with primary tag
 #[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
-pub const MAX_IMMEDIATE_VALUE: u32 = u32::max_value() >> (NUM_BITS - (NUM_BITS - 3));
+pub const MAX_IMMEDIATE_VALUE: u32 = u32::max_value() >> 3;
 #[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
 pub const MAX_ATOM_ID: u32 = MAX_IMMEDIATE_VALUE;
 
 // The valid range of fixed-width integers
 #[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
-pub const MIN_SMALLINT_VALUE: i32 = i32::min_value() >> (NUM_BITS - (NUM_BITS - 4));
+pub const MIN_SMALLINT_VALUE: i32 = i32::min_value() >> 4;
 #[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
-pub const MAX_SMALLINT_VALUE: i32 = i32::max_value() >> (NUM_BITS - (NUM_BITS - 4));
+pub const MAX_SMALLINT_VALUE: i32 = i32::max_value() >> 4;
 
 const PRIMARY_SHIFT: u32 = 3;
 const HEADER_SHIFT: u32 = 8;

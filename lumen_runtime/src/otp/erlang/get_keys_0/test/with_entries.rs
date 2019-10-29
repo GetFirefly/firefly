@@ -60,13 +60,8 @@ fn with_heap_available_returns_entries_as_list() {
 #[test]
 fn doc_test() {
     let init_arc_process = process::test_init();
-<<<<<<< HEAD
-    let arc_process = crate::test::process(&init_arc_process, Default::default());
-    let animal = Atom::str_to_term("animal");
-=======
     let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
     let animal = Atom::str_to_term("animal");
->>>>>>> origin/develop
 
     let dog = Atom::str_to_term("dog");
     arc_process

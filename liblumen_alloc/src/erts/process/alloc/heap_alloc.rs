@@ -568,24 +568,3 @@ fn str_from_binary_bytes<'heap>(bytes: &'heap [u8]) -> Result<&'heap str, StrFro
         Err(utf8_error) => Err(StrFromBinaryError::Utf8Error(utf8_error)),
     }
 }
-
-#[derive(Debug)]
-pub enum MakePidError {
-    Number,
-    Serial,
-    Alloc(Alloc),
-}
-
-impl From<Alloc> for MakePidError {
-    fn from(alloc_err: Alloc) -> Self {
-        MakePidError::Alloc(alloc_err)
-    }
-}
-impl From<pid::OutOfRange> for MakePidError {
-    fn from(out_of_range: pid::OutOfRange) -> Self {
-        match out_of_range {
-            pid::OutOfRange::Number => MakePidError::Number,
-            pid::OutOfRange::Serial => MakePidError::Serial,
-        }
-    }
-}

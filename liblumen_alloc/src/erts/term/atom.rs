@@ -5,12 +5,13 @@ use core::mem;
 
 use core::ptr;
 use core::slice;
-use core::str;
+use core::str::{self, Utf8Error};
 
 use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
+use thiserror::Error;
 
 use liblumen_arena::DroplessArena;
 
@@ -206,33 +207,21 @@ impl TryFrom<TypedTerm> for Atom {
 }
 
 /// Produced by operations which create atoms
-#[derive(Debug)]
-pub struct AtomError(AtomErrorKind);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AtomErrorKind {
+#[derive(Error, Debug)]
+pub enum AtomError {
+    #[error("exceeded system limit: maximum number of atoms ({})", MAX_ATOMS)]
     TooManyAtoms,
+    #[error("invalid atom, length is {}, maximum length is {}", .0, MAX_ATOM_LENGTH)]
     InvalidLength(usize),
+    #[error("tried to convert to an atom that doesn't exist")]
     NonExistent,
+    #[error("invalid utf-8 bytes: {}", .0)]
+    InvalidString(#[from] Utf8Error),
 }
-
-impl Display for AtomError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            AtomErrorKind::TooManyAtoms => write!(
-                f,
-                "exceeded system limit: maximum number of atoms ({})",
-                MAX_ATOMS
-            ),
-            AtomErrorKind::InvalidLength(len) => write!(
-                f,
-                "invalid atom, length is {}, maximum length is {}",
-                len, MAX_ATOM_LENGTH
-            ),
-            AtomErrorKind::NonExistent => {
-                write!(f, "tried to convert to an atom that doesn't exist")
-            }
-        }
+impl Eq for AtomError {}
+impl PartialEq for AtomError {
+    fn eq(&self, other: &AtomError) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
     }
 }
 

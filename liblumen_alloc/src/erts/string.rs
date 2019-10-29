@@ -4,6 +4,8 @@ use core::convert::{TryFrom, TryInto};
 
 use alloc::string::String;
 
+use thiserror::Error;
+
 use super::term::prelude::{Term, TypedTerm, Atom, Encoded};
 
 /// Represents the original encoding of a binary
@@ -51,22 +53,12 @@ impl TryFrom<Atom> for Encoding {
 }
 
 /// Represents an error that occurs when converting an atom encoding name to an `Encoding`
+#[derive(Error, Debug)]
 pub enum InvalidEncodingNameError {
+    #[error("invalid encoding name value: `{0:?}` is not an atom")]
     InvalidType(Term),
+    #[error("invalid atom encoding name: '{0}' is not one of the supported values (latin1, unicode, or utf8)")]
     InvalidEncoding(&'static str),
-}
-impl fmt::Display for InvalidEncodingNameError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use InvalidEncodingNameError::*;
-        match self {
-            InvalidType(term) => write!(f, "Encoding ({:#?}) is not an atom", term),
-            InvalidEncoding(name) => write!(
-                f,
-                "Invalid encoding name, '{}' is not one of the supported values (latin1, unicode, or utf8)",
-                name
-            ),
-        }
-    }
 }
 
 /// Represents the direction encoding is performed

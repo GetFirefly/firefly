@@ -1,115 +1,123 @@
 #[macro_export]
 macro_rules! badarg {
     () => {
-        $crate::erts::exception::runtime::Exception::badarg(file!(), line!(), column!())
+        $crate::erts::exception::badarg($crate::location!())
     };
 }
 
 #[macro_export]
 macro_rules! badarith {
-    () => {{
-        use $crate::erts::exception::runtime;
-
-        runtime::Exception::badarith(file!(), line!(), column!())
-    }};
+    () => {
+        $crate::erts::exception::badarith($crate::location!())
+    };
 }
 
 #[macro_export]
 macro_rules! badarity {
     ($process:expr, $function:expr, $arguments:expr) => {
-        $crate::erts::exception::Exception::badarity(
-            $process,
-            $function,
-            $arguments,
-            file!(),
-            line!(),
-            column!(),
-        )
-    };
-    ($process:expr, $function:expr, $arguments:expr,) => {
-        $crate::badarity!($process, $function, $arguments)
+        $crate::erts::exception::badarity($process, $function, $arguments, $crate::location!())
     };
 }
 
 #[macro_export]
 macro_rules! badfun {
     ($process:expr, $fun:expr) => {
-        $crate::erts::exception::Exception::badfun($process, $fun, file!(), line!(), column!())
+        $crate::erts::exception::badfun($process, $fun, $crate::location!())
+    };
+}
+
+#[macro_export]
+macro_rules! badkey {
+    ($process:expr, $key:expr) => {
+        $crate::erts::exception::badkey($process, $key, $crate::location!())
+    };
+}
+
+#[macro_export]
+macro_rules! badmap {
+    ($process:expr, $map:expr) => {
+        $crate::erts::exception::badmap($process, $map, $crate::location!())
+    };
+}
+
+#[macro_export]
+macro_rules! undef {
+    ($process:expr, $module:expr, $function:expr, $arguments:expr) => {
+        $crate::erts::exception::undef(
+            $process,
+            $module,
+            $function,
+            $arguments,
+            $crate::location!(),
+            $crate::erts::term::prelude::Term::NIL
+        )
+    };
+    ($process:expr, $module:expr, $function:expr, $arguments:expr, $stacktrace_tail:expr) => {{
+        $crate::erts::exception::undef(
+            $process,
+            $module,
+            $function,
+            $arguments,
+            $crate::location!(),
+            $stacktrace_tail
+        )
+    }};
+}
+
+#[macro_export]
+macro_rules! raise {
+    ($class:expr, $reason:expr) => {
+        $crate::erts::exception::raise($class, $reason, $crate::location!(), None)
+    };
+    ($class:expr, $reason:expr, $stacktrace:expr) => {
+        $crate::erts::exception::raise($class, $reason, $crate::location!(), Some($stacktrace))
     };
 }
 
 #[macro_export]
 macro_rules! error {
-    ($reason:expr) => {{
-        $crate::error!($reason, None)
-    }};
-    ($reason:expr, $arguments:expr) => {{
-        use $crate::erts::exception::runtime::Class::Error;
-
-        $crate::exception!(
-            Error {
-                arguments: $arguments
-            },
-            $reason
+    ($reason:expr) => {
+        $crate::erts::exception::error(
+            $reason,
+            None,
+            $crate::location!(),
+            None,
         )
-    }};
-    ($reason:expr, $arguments:expr,) => {{
-        $crate::error!($reason, $arguments)
-    }};
-}
-
-#[macro_export]
-macro_rules! exception {
-    ($class:expr, $reason:expr) => {
-        $crate::exception!($class, $reason, None)
     };
-    ($class:expr, $reason:expr,) => {
-        $crate::exception!($class, $reason)
-    };
-    ($class:expr, $reason:expr, $stacktrace:expr) => {{
-        use $crate::erts::exception::runtime;
-
-        runtime::Exception {
-            class: $class,
-            reason: $reason,
-            stacktrace: $stacktrace,
-            file: file!(),
-            line: line!(),
-            column: column!(),
-        }
-    }};
-    ($class:expr, $reason:expr, $stacktrace:expr) => {
-        $crate::exception!($class, $reason, $stacktrace)
+    ($reason:expr, $arguments:expr) => {
+        $crate::erts::exception::error(
+            $reason,
+            Some($arguments),
+            $crate::location!(),
+            None,
+        )
     };
 }
 
 #[macro_export]
 macro_rules! exit {
     ($reason:expr) => {
-        $crate::exit!($reason, None)
+        $crate::erts::exception::exit(
+            $reason,
+            $crate::location!(),
+            None,
+        )
     };
-    ($reason:expr, $stacktrace:expr) => {{
-        use $crate::erts::exception::runtime::Class::Exit;
-
-        $crate::exception!(Exit, $reason, $stacktrace)
-    }};
-}
-
-#[macro_export]
-macro_rules! raise {
-    ($class:expr, $reason:expr, $stacktrace:expr) => {
-        $crate::exception!($class, $reason, $stacktrace)
-    };
-    ($class:expr, $reason:expr, $stacktrace:expr,) => {
-        $crate::exception!($class, $reason, $stacktrace)
+    ($reason:expr, $stacktrace:expr) => {
+        $crate::erts::exception::exit(
+            $reason,
+            $crate::location!(),
+            Some($stacktrace)
+        )
     };
 }
 
 #[macro_export]
 macro_rules! throw {
-    ($reason:expr) => {{
-        use $crate::exception::runtime::Class::Throw;
-
-        $crate::exception!(Throw, $reason)
-    }};
+    ($reason:expr) => {
+        $crate::erts::exception::throw($reason, $crate::location!(), None)
+    };
+    ($reason:expr, $stacktrace:expr) => {
+        $crate::erts::exception::throw($reason, $crate::location!(), Some($stacktrace))
+    };
 }

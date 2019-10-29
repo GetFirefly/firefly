@@ -1,20 +1,35 @@
-use core::convert::{From, TryInto};
+use core::convert::{From, TryInto, Infallible};
 
-use crate::erts::exception::runtime;
+use thiserror::Error;
+
+use crate::erts::exception::Exception;
 
 use super::integer::TryIntoIntegerError;
 use super::prelude::*;
 use super::arch::{arch_32, arch_64, arch_x86_64};
 
 /// This error type is used to indicate a type conversion error
-#[derive(Debug)]
+#[derive(Error, Debug)]
+#[error("invalid term type")]
 pub struct TypeError;
+impl From<Infallible> for TypeError {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
+    }
+}
 
 /// This error type is used to indicate that a value is an invalid boolean
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum BoolError {
+    #[error("invalid boolean conversion: wrong type")]
     Type,
+    #[error("invalid boolean conversion: bad atom, expected 'true' or 'false'")]
     NotABooleanName,
+}
+impl From<Infallible> for BoolError {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
+    }
 }
 
 macro_rules! impl_term_conversions {

@@ -6,6 +6,7 @@ use core::marker::PhantomData;
 use core::convert::TryInto;
 
 use hashbrown::HashMap;
+use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
@@ -15,34 +16,39 @@ use super::prelude::*;
 use super::arch::Word;
 
 /// Represents the various conditions under which encoding can fail
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TermEncodingError {
     /// Occurs when attempting to encode an unaligned pointer
+    #[error("invalid attempt to encode unaligned pointer")]
     InvalidAlignment,
     /// Occurs when attempting to encode a value that cannot fit
     /// within the encoded types valid range, e.g. an integer that
     /// is too large
+    #[error("invalid attempt to encode a value outside the valid range")]
     ValueOutOfRange,
 }
 
 /// Used to indicate that some value was not a valid encoding of a term
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TermDecodingError {
     /// Occurs primarily with header tags, as there are some combinations
     /// of tag bits that are unused. Primary tags are (currently) fully
     /// occupied, and so invalid tags are not representable. That may
     /// change if additional representations are added that have free
     /// primary tags
+    #[error("invalid type tag")]
     InvalidTag,
     /// Decoding a Term that is a move marker is considered an error,
     /// code which needs to be aware of move markers should already be
     /// manually checking for this possibility
+    #[error("tried to decode a move marker")]
     MoveMarker,
     /// Decoding a Term that is a none value is considered an error,
     /// as this value is primarily used to indicate an error; and in cases
     /// where it represents a real value (namely as a move marker), it is
     /// meaningless to decode it. In all other cases, it represents uninitialized
     /// memory
+    #[error("tried to decode a none value")]
     NoneValue,
 }
 

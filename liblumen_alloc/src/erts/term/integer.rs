@@ -5,6 +5,7 @@ pub use big::*;
 pub use small::*;
 
 use num_bigint::{BigInt, Sign};
+use thiserror::Error;
 
 use core::cmp::Ordering;
 use core::convert::{TryInto, TryFrom};
@@ -15,19 +16,17 @@ use core::ops::*;
 use super::prelude::Boxed;
 
 /// This error type is used to indicate that a value cannot be converted to an integer
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum TryIntoIntegerError {
+    #[error("invalid integer conversion: wrong type")]
     Type,
+    #[error("invalid integer conversion: value out of range")]
     OutOfRange,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Error, Debug, Clone, Copy, PartialEq)]
+#[error("attempted to convert to small integer with out of range value")]
 pub struct TryFromIntError;
-impl Display for TryFromIntError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("attempted to convert to small integer with out of range value")
-    }
-}
 impl From<core::num::TryFromIntError> for TryFromIntError {
     fn from(_: core::num::TryFromIntError) -> Self {
         TryFromIntError

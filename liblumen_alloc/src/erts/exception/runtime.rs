@@ -1,295 +1,133 @@
-use core::convert::TryFrom;
 use core::num::TryFromIntError;
-use core::result::Result;
 
-use crate::erts::exception::system::Alloc;
-use crate::erts::process::Process;
+use thiserror::Error;
+
 use crate::erts::string::InvalidEncodingNameError;
 use crate::erts::term::index::IndexError;
 use crate::erts::term::prelude::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Class {
-    Error { arguments: Option<Term> },
-    Exit,
-    Throw,
+use super::location::Location;
+
+#[derive(Error, Debug, Clone)]
+pub enum RuntimeException {
+    #[error("{0}")]
+    Throw(#[from] super::Throw),
+    #[error("{0}")]
+    Error(#[from] super::Error),
+    #[error("{0}")]
+    Exit(#[from] super::Exit),
+    #[error("{0}")]
+    Unknown(#[from] super::ArcError),
 }
+impl Eq for RuntimeException {}
+impl PartialEq for RuntimeException {
+    fn eq(&self, other: &Self) -> bool {
+        use RuntimeException::*;
+        match (self, other) {
+            (Throw(ref lhs), Throw(ref rhs)) => lhs.eq(rhs),
+            (Error(ref lhs), Error(ref rhs)) => lhs.eq(rhs),
+            (Exit(ref lhs), Exit(ref rhs)) => lhs.eq(rhs),
+            (Unknown(_), Unknown(_)) => true,
+            _ => false
+        }
+    }
+}
+impl RuntimeException {
+    pub fn class(&self) -> Option<super::Class> {
+        match self {
+            RuntimeException::Throw(e) => Some(e.class()),
+            RuntimeException::Exit(e) => Some(e.class()),
+            RuntimeException::Error(e) => Some(e.class()),
+            RuntimeException::Unknown(_) => None,
+        }
+    }
 
-impl TryFrom<Term> for Class {
-    type Error = Exception;
+    pub fn reason(&self) -> Option<Term> {
+        match self {
+            RuntimeException::Throw(e) => Some(e.reason()),
+            RuntimeException::Exit(e) => Some(e.reason()),
+            RuntimeException::Error(e) => Some(e.reason()),
+            RuntimeException::Unknown(_err) => None,
+        }
+    }
 
-    fn try_from(term: Term) -> Result<Class, Exception> {
-        use self::Class::*;
+    pub fn location(&self) -> Option<Location> {
+        match self {
+            RuntimeException::Throw(e) => Some(e.location()),
+            RuntimeException::Exit(e) => Some(e.location()),
+            RuntimeException::Error(e) => Some(e.location()),
+            RuntimeException::Unknown(_err) => None,
+        }
+    }
 
-        match term.decode().unwrap() {
-            TypedTerm::Atom(atom) => match atom.name() {
-                "error" => Ok(Error { arguments: None }),
-                "exit" => Ok(Exit),
-                "throw" => Ok(Throw),
-                _ => Err(badarg!()),
-            },
-            _ => Err(badarg!()),
+    pub fn stacktrace(&self) -> Option<Term> {
+        match self {
+            RuntimeException::Throw(e) => e.stacktrace(),
+            RuntimeException::Exit(e) => e.stacktrace(),
+            RuntimeException::Error(e) => e.stacktrace(),
+            RuntimeException::Unknown(_err) => None,
         }
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct Exception {
-    pub class: Class,
-    pub reason: Term,
-    pub stacktrace: Option<Term>,
-    pub file: &'static str,
-    pub line: u32,
-    pub column: u32,
-}
-
-impl Exception {
-    pub fn badarg(file: &'static str, line: u32, column: u32) -> Self {
-        Self::error(Self::badarg_reason(), None, None, file, line, column)
-    }
-
-    pub fn badarith(file: &'static str, line: u32, column: u32) -> Self {
-        Self::error(Self::badarith_reason(), None, None, file, line, column)
-    }
-
-    pub fn badarity(
-        process: &Process,
-        function: Term,
-        arguments: Term,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Result<Self, Alloc> {
-        let reason = Self::badarity_reason(process, function, arguments)?;
-        let error = Self::error(reason, None, None, file, line, column);
-
-        Ok(error)
-    }
-
-    pub fn badfun(
-        process: &Process,
-        function: Term,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Result<Self, Alloc> {
-        let tag = Atom::str_to_term("badfun");
-        let reason = process.tuple_from_slice(&[tag, function])?;
-
-        let error = Self::error(reason, None, None, file, line, column);
-
-        Ok(error)
-    }
-
-    pub fn badkey(
-        process: &Process,
-        key: Term,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Result<Self, Alloc> {
-        let tag = Atom::str_to_term("badkey");
-        let reason = process.tuple_from_slice(&[tag, key])?;
-        let error = Self::error(reason, None, None, file, line, column);
-
-        Ok(error)
-    }
-
-    pub fn badmap(
-        process: &Process,
-        map: Term,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Result<Self, Alloc> {
-        let tag = Atom::str_to_term("badmap");
-        let reason = process.tuple_from_slice(&[tag, map])?;
-        let error = Self::error(reason, None, None, file, line, column);
-
-        Ok(error)
-    }
-
-    pub fn exit(
-        reason: Term,
-        stacktrace: Option<Term>,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Self {
-        let class = Class::Exit;
-        Self::new(class, reason, stacktrace, file, line, column)
-    }
-
-    pub fn undef(
-        process: &Process,
-        module: Term,
-        function: Term,
-        arguments: Term,
-        stacktrace_tail: Term,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Result<Self, Alloc> {
-        let reason = Self::undef_reason();
-        let stacktrace =
-            Self::undef_stacktrace(process, module, function, arguments, stacktrace_tail)?;
-        let exit = Self::exit(reason, Some(stacktrace), file, line, column);
-
-        Ok(exit)
-    }
-
-    // Private
-
-    fn badarg_reason() -> Term {
-        Atom::str_to_term("badarg")
-    }
-
-    fn badarith_reason() -> Term {
-        Atom::str_to_term("badarith")
-    }
-
-    fn badarity_reason(process: &Process, function: Term, arguments: Term) -> Result<Term, Alloc> {
-        let function_arguments = process.tuple_from_slice(&[function, arguments])?;
-
-        process.tuple_from_slice(&[Self::badarity_tag(), function_arguments])
-    }
-
-    fn badarity_tag() -> Term {
-        Atom::str_to_term("badarity")
-    }
-
-    fn error(
-        reason: Term,
-        arguments: Option<Term>,
-        stacktrace: Option<Term>,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Self {
-        let class = Class::Error { arguments };
-        Self::new(class, reason, stacktrace, file, line, column)
-    }
-
-    fn new(
-        class: Class,
-        reason: Term,
-        stacktrace: Option<Term>,
-        file: &'static str,
-        line: u32,
-        column: u32,
-    ) -> Self {
-        Exception {
-            class,
-            reason,
-            stacktrace,
-            file,
-            line,
-            column,
-        }
-    }
-
-    fn undef_reason() -> Term {
-        Atom::str_to_term("undef")
-    }
-
-    fn undef_stacktrace(
-        process: &Process,
-        module: Term,
-        function: Term,
-        arguments: Term,
-        tail: Term,
-    ) -> Result<Term, Alloc> {
-        let top = process.tuple_from_slice(&[
-            module,
-            function,
-            arguments,
-            // I'm not sure what this final empty list holds
-            Term::NIL,
-        ])?;
-
-        process.cons(top, tail)
-    }
-}
-
-impl Eq for Exception {}
-
-impl From<core::convert::Infallible> for Exception {
+impl From<core::convert::Infallible> for RuntimeException {
     fn from(_: core::convert::Infallible) -> Self {
         unreachable!()
     }
 }
 
-impl From<AtomError> for Exception {
+impl From<AtomError> for RuntimeException {
     fn from(_: AtomError) -> Self {
-        badarg!()
+        super::badarg(location!())
     }
 }
 
-impl From<BoolError> for Exception {
+impl From<BoolError> for RuntimeException {
     fn from(_: BoolError) -> Self {
-        badarg!()
+        super::badarg(location!())
     }
 }
 
-impl From<InvalidEncodingNameError> for Exception {
+impl From<InvalidEncodingNameError> for RuntimeException {
     fn from(_: InvalidEncodingNameError) -> Self {
-        badarg!()
+        super::badarg(location!())
     }
 }
 
-impl From<ImproperList> for Exception {
+impl From<ImproperList> for RuntimeException {
     fn from(_: ImproperList) -> Self {
-        badarg!()
+        super::badarg(location!())
     }
 }
 
-impl From<IndexError> for Exception {
+impl From<IndexError> for RuntimeException {
     fn from(_: IndexError) -> Self {
-        badarg!()
+        super::badarg(location!())
     }
 }
 
-impl From<TryFromIntError> for Exception {
+impl From<TryFromIntError> for RuntimeException {
     fn from(_: TryFromIntError) -> Self {
-        badarg!()
+        super::badarg(location!())
     }
 }
 
-impl From<TryIntoIntegerError> for Exception {
+impl From<TryIntoIntegerError> for RuntimeException {
     fn from(_: TryIntoIntegerError) -> Self {
-        badarg!()
+        super::badarg(location!())
     }
 }
 
-impl From<TypeError> for Exception {
+impl From<TypeError> for RuntimeException {
     fn from(_: TypeError) -> Self {
-        badarg!()
-    }
-}
-
-impl PartialEq for Exception {
-    /// `file`, `line`, and `column` don't count for equality as they are for `Debug` only to help
-    /// track down exceptions.
-    fn eq(&self, other: &Exception) -> bool {
-        (self.class == other.class)
-            & (self.reason == other.reason)
-            & (self.stacktrace == other.stacktrace)
-    }
-}
-
-impl TryFrom<super::Exception> for Exception {
-    type Error = TypeError;
-
-    fn try_from(exception: super::Exception) -> Result<Self, Self::Error> {
-        match exception {
-            super::Exception::Runtime(runtime_exception) => Ok(runtime_exception),
-            _ => Err(TypeError),
-        }
+        super::badarg(location!())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::atom;
+    use crate::erts::exception::Class;
     use super::*;
 
     mod error {
@@ -298,27 +136,25 @@ mod tests {
 
         #[test]
         fn without_arguments_stores_none() {
-            let reason = Atom::str_to_term("badarg");
-
+            let reason = atom!("badarg");
             let error = error!(reason);
 
-            assert_eq!(error.reason, reason);
-            assert_eq!(error.class, Error { arguments: None });
+            assert_eq!(error.reason(), Some(reason));
+            assert_eq!(error.class(), Some(Class::Error { arguments: None }));
         }
 
         #[test]
         fn without_arguments_stores_some() {
-            let reason = Atom::str_to_term("badarg");
+            let reason = atom!("badarg");
             let arguments = Term::NIL;
+            let error = error!(reason, arguments);
 
-            let error = error!(reason, Some(arguments));
-
-            assert_eq!(error.reason, reason);
+            assert_eq!(error.reason(), Some(reason));
             assert_eq!(
-                error.class,
-                Error {
+                error.class(),
+                Some(Class::Error {
                     arguments: Some(arguments)
-                }
+                })
             );
         }
     }

@@ -1,29 +1,24 @@
 use core::convert::{TryFrom, TryInto};
 use core::cmp;
-use core::fmt;
+use core::ops;
+use core::slice;
+
+use thiserror::Error;
 
 use super::prelude::*;
 
 /// This error type is produced when an index is invalid, either due
 /// to type or range
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Error, Debug, Clone, Copy, PartialEq)]
 pub enum IndexError {
+    #[error("invalid index: bad argument")]
     BadArgument,
+    #[error("invalid index {index}, exceeds max length of {len}")]
     OutOfBounds { len: usize, index: usize },
 }
 impl IndexError {
     pub fn new(index: usize, len: usize) -> Self {
         Self::OutOfBounds { len, index }
-    }
-}
-impl fmt::Display for IndexError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::OutOfBounds { len, index } => {
-                write!(f, "invalid index {}: exceeds max length of {}", index, len)
-            }
-            Self::BadArgument => write!(f, "invalid index: bad argument"),
-        }
     }
 }
 impl From<core::convert::Infallible> for IndexError {

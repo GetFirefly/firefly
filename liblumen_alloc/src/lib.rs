@@ -23,6 +23,10 @@
 #![feature(const_raw_ptr_deref)]
 // Support specialization of traits
 #![feature(specialization)]
+// Support SliceIndex trait
+#![feature(slice_index_methods)]
+// Support backtraces in errors
+#![feature(backtrace)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;

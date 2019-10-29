@@ -9,6 +9,7 @@ use core::ptr;
 use liblumen_core::locks::RwLock;
 
 use lazy_static::lazy_static;
+use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
@@ -257,9 +258,11 @@ impl TryFrom<TypedTerm> for Pid {
     }
 }
 
-#[derive(Debug)]
-pub enum OutOfRange {
+#[derive(Error, Debug)]
+pub enum InvalidPidError {
+    #[error("invalid pid: number out of range")]
     Number,
+    #[error("invalid pid: serial out of range")]
     Serial,
 }
 

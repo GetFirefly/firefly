@@ -11,8 +11,10 @@ mod primitives;
 
 use core::str::Utf8Error;
 
+use thiserror::Error;
+
 use crate::erts::string::Encoding;
-use crate::erts::exception::system::Alloc;
+use crate::erts::exception::Alloc;
 
 use super::prelude::Boxed;
 
@@ -267,20 +269,27 @@ pub trait MaybePartialByte {
 
 
 /// Represents an error converting a binary term to `Vec<u8>`
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum BytesFromBinaryError {
-    Alloc(Alloc),
+    #[error("unable to allocate memory for binary")]
+    Alloc(#[from] Alloc),
+    #[error("not a binary value")]
     NotABinary,
+    #[error("expected binary term, but got another type")]
     Type,
 }
 
 /// Represents an error converting a binary term to `&str`
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum StrFromBinaryError {
-    Alloc(Alloc),
+    #[error("unable to allocate memory for binary")]
+    Alloc(#[from] Alloc),
+    #[error("not a binary value")]
     NotABinary,
+    #[error("expected binary term, but got another type")]
     Type,
-    Utf8Error(Utf8Error),
+    #[error("invalid utf-8 encoding")]
+    Utf8Error(#[from] Utf8Error),
 }
 
 impl From<BytesFromBinaryError> for StrFromBinaryError {

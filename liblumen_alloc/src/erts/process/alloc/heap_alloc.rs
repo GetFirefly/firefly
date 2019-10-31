@@ -442,6 +442,21 @@ pub trait HeapAlloc {
         }
     }
 
+    /// Constructs a match context from some boxed binary term
+    fn match_context_from_binary<B>(&mut self, binary: Boxed<B>) -> AllocResult<Boxed<MatchContext>>
+    where
+        B: ?Sized + Bitstring + Encode<Term>,
+    {
+        let match_ctx = MatchContext::new(binary.into());
+
+        unsafe {
+            let ptr = self.alloc_layout(Layout::new::<MatchContext>())?.as_ptr() as *mut MatchContext;
+            ptr.write(match_ctx);
+
+            Ok(Boxed::new_unchecked(ptr))
+        }
+    }
+
     /// Constructs a `Tuple` that needs to be filled with elements and then boxed.
     fn mut_tuple(&mut self, len: usize) -> AllocResult<Boxed<Tuple>> {
         Tuple::new(self, len)

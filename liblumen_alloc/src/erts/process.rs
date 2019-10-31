@@ -472,7 +472,7 @@ impl Process {
     }
 
     pub fn charlist_from_str(&self, s: &str) -> AllocResult<Term> {
-        self.acquire_heap().charlist_from_str(s)
+        self.acquire_heap().charlist_from_str(s).map(|list| list.into())
     }
 
     pub fn closure_with_env_from_slice(
@@ -489,7 +489,9 @@ impl Process {
 
     /// Constructs a list of only the head and tail, and associated with the given process.
     pub fn cons(&self, head: Term, tail: Term) -> AllocResult<Term> {
-        self.acquire_heap().cons(head, tail)
+        self.acquire_heap()
+            .cons(head, tail)
+            .map(|boxed| boxed.into())
     }
 
     pub fn external_pid_with_node_id(
@@ -500,10 +502,11 @@ impl Process {
     ) -> exception::Result<Term> {
         self.acquire_heap()
             .external_pid_with_node_id(node_id, number, serial)
+            .map(|pid| pid.into())
     }
 
     pub fn float(&self, f: f64) -> AllocResult<Term> {
-        self.acquire_heap().float(f)
+        self.acquire_heap().float(f).map(|f| f.into())
     }
 
     pub fn integer<I: Into<Integer>>(&self, i: I) -> AllocResult<Term> {
@@ -511,37 +514,37 @@ impl Process {
     }
 
     pub fn list_from_chars(&self, chars: Chars) -> AllocResult<Term> {
-        self.acquire_heap().list_from_chars(chars)
+        self.acquire_heap().list_from_chars(chars).map(|list| list.into())
     }
 
     pub fn list_from_iter<I>(&self, iter: I) -> AllocResult<Term>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
-        self.acquire_heap().list_from_iter(iter)
+        self.acquire_heap().list_from_iter(iter).map(|list| list.into())
     }
 
     pub fn list_from_slice(&self, slice: &[Term]) -> AllocResult<Term> {
-        self.acquire_heap().list_from_slice(slice)
+        self.acquire_heap().list_from_slice(slice).map(|list| list.into())
     }
 
     pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> AllocResult<Term>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
-        self.acquire_heap().improper_list_from_iter(iter, last)
+        self.acquire_heap().improper_list_from_iter(iter, last).map(|list| list.into())
     }
 
     pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> AllocResult<Term> {
-        self.acquire_heap().improper_list_from_slice(slice, tail)
+        self.acquire_heap().improper_list_from_slice(slice, tail).map(|list| list.into())
     }
 
     pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> AllocResult<Term> {
-        self.acquire_heap().map_from_hash_map(hash_map)
+        self.acquire_heap().map_from_hash_map(hash_map).map(|map| map.into())
     }
 
     pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> AllocResult<Term> {
-        self.acquire_heap().map_from_slice(slice)
+        self.acquire_heap().map_from_slice(slice).map(|map| map.into())
     }
 
     pub fn pid_with_node_id(
@@ -552,6 +555,7 @@ impl Process {
     ) -> exception::Result<Term> {
         self.acquire_heap()
             .pid_with_node_id(node_id, number, serial)
+            .map(|pid| pid.into())
     }
 
     pub fn reference(&self, number: ReferenceNumber) -> AllocResult<Term> {
@@ -569,7 +573,7 @@ impl Process {
     }
 
     pub fn resource(&self, value: Box<dyn Any>) -> AllocResult<Term> {
-        self.acquire_heap().resource(value)
+        self.acquire_heap().resource(value).map(|r| r.into())
     }
 
     pub fn subbinary_from_original(
@@ -674,7 +678,7 @@ impl Process {
                      .into())
                 .collect();
 
-            Ok(heap.list_from_slice(&entry_vec).unwrap())
+            Ok(heap.list_from_slice(&entry_vec).map(|list| list.into()).unwrap())
         } else {
             Err(alloc!())
         }
@@ -691,7 +695,7 @@ impl Process {
         if need_in_words <= heap.heap_available() {
             let entry_vec: Vec<Term> = dictionary.keys().copied().collect();
 
-            Ok(heap.list_from_slice(&entry_vec).unwrap())
+            Ok(heap.list_from_slice(&entry_vec).map(|list| list.into()).unwrap())
         } else {
             Err(alloc!())
         }
@@ -713,7 +717,7 @@ impl Process {
             })
             .collect();
 
-        heap.list_from_slice(&key_vec)
+        heap.list_from_slice(&key_vec).map(|list| list.into())
     }
 
     /// Removes all key/value pairs from process dictionary and returns list of the entries.
@@ -735,7 +739,7 @@ impl Process {
                      .into())
                 .collect();
 
-            Ok(heap.list_from_slice(&entry_vec).unwrap())
+            Ok(heap.list_from_slice(&entry_vec).map(|list| list.into()).unwrap())
         } else {
             Err(alloc!())
         }

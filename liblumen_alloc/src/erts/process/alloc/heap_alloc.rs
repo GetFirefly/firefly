@@ -157,81 +157,6 @@ pub trait HeapAlloc {
         }
     }
 
-    /// Constructs a list of only the head and tail, and associated with the given process.
-    fn cons(&mut self, head: Term, tail: Term) -> AllocResult<Term> {
-        let cons = Cons::new(head, tail);
-
-        unsafe {
-            let ptr = self.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons;
-            ptr.write(cons);
-
-            Ok(ptr.into())
-        }
-    }
-
-    fn external_pid_with_node_id(
-        &mut self,
-        node_id: usize,
-        number: usize,
-        serial: usize,
-    ) -> exception::Result<Term>
-    where
-        Self: Sized,
-    {
-        let external_pid = ExternalPid::with_node_id(node_id, number, serial)?;
-        let heap_external_pid = external_pid.clone_to_heap(self)?;
-
-        Ok(heap_external_pid)
-    }
-
-    #[cfg(target_arch = "x86_64")]
-    fn float(&mut self, f: f64) -> AllocResult<Term> {
-        Ok(Float::new(f).encode().unwrap())
-    }
-
-    #[cfg(not(target_arch = "x86_64"))]
-    fn float(&mut self, f: f64) -> AllocResult<Term> {
-        let float = Float::new(f);
-
-        unsafe {
-            let ptr = self.alloc_layout(Layout::new::<Float>())?.as_ptr() as *mut Float;
-            ptr.write(float);
-
-            Ok(ptr.into())
-        }
-    }
-
-    /// Constructs a heap-allocated binary from the given byte slice, and associated with the given
-    /// process
-    #[inline]
-    fn heapbin_from_bytes(&mut self, s: &[u8]) -> AllocResult<Boxed<HeapBin>> {
-        HeapBin::from_slice(self, s, Encoding::Raw)
-    }
-
-    /// Constructs a heap-allocated binary from the given string, and associated with the given
-    /// process
-    #[inline]
-    fn heapbin_from_str(&mut self, s: &str) -> AllocResult<Boxed<HeapBin>> {
-        HeapBin::from_str(self, s)
-    }
-
-    fn improper_list_from_iter<I>(&mut self, iter: I, last: Term) -> AllocResult<Term>
-    where
-        I: DoubleEndedIterator + Iterator<Item = Term>,
-    {
-        let mut acc = last;
-
-        for element in iter.rev() {
-            acc = self.cons(element, acc)?;
-        }
-
-        Ok(acc)
-    }
-
-    fn improper_list_from_slice(&mut self, slice: &[Term], tail: Term) -> AllocResult<Term> {
-        self.improper_list_from_iter(slice.iter().map(|t| *t), tail)
-    }
-
     /// Constructs an integer value from any type that implements `Into<Integer>`,
     /// which currently includes `SmallInteger`, `BigInteger`, `usize` and `isize`.
     ///
@@ -248,7 +173,60 @@ pub trait HeapAlloc {
         }
     }
 
-    fn charlist_from_str(&mut self, s: &str) -> AllocResult<Term>
+    #[cfg(target_arch = "x86_64")]
+    fn float(&mut self, f: f64) -> AllocResult<Float> {
+        Ok(Float::new(f))
+    }
+
+    #[cfg(not(target_arch = "x86_64"))]
+    fn float(&mut self, f: f64) -> AllocResult<Boxed<Float>> {
+        let float = Float::new(f);
+
+        unsafe {
+            let ptr = self.alloc_layout(Layout::new::<Float>())?.as_ptr() as *mut Float;
+            ptr.write(float);
+
+            Ok(Boxed::new_unchecked(ptr))
+        }
+    }
+
+    /// Constructs a list of only the head and tail, and associated with the given process.
+    fn cons<T, U>(&mut self, head: T, tail: U) -> AllocResult<Boxed<Cons>>
+    where
+        T: Into<Term>,
+        U: Into<Term>,
+    {
+        let cons = Cons::new(head.into(), tail.into());
+
+        unsafe {
+            let ptr = self.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons;
+            ptr.write(cons);
+
+            Ok(Boxed::new_unchecked(ptr))
+        }
+    }
+
+
+    fn improper_list_from_iter<I>(&mut self, iter: I, last: Term) -> AllocResult<Option<Boxed<Cons>>>
+    where
+        I: DoubleEndedIterator + Iterator<Item = Term>,
+    {
+        let mut head: *mut Cons = ptr::null_mut();
+        let mut acc: Term = last;
+
+        for element in iter.rev() {
+            head = self.cons(element, acc)?.as_ptr();
+            acc = head.into();
+        }
+
+        Ok(Boxed::new(head))
+    }
+
+    fn improper_list_from_slice(&mut self, slice: &[Term], tail: Term) -> AllocResult<Option<Boxed<Cons>>> {
+        self.improper_list_from_iter(slice.iter().copied(), tail)
+    }
+
+    fn charlist_from_str(&mut self, s: &str) -> AllocResult<Option<Boxed<Cons>>>
     where
         Self: Sized,
     {
@@ -256,46 +234,52 @@ pub trait HeapAlloc {
     }
 
     /// Constructs a list from the chars and associated with the given process.
-    fn list_from_chars(&mut self, chars: Chars) -> AllocResult<Term>
+    fn list_from_chars(&mut self, chars: Chars) -> AllocResult<Option<Boxed<Cons>>>
     where
         Self: Sized,
     {
+        let mut head: *mut Cons = ptr::null_mut();
         let mut acc = Term::NIL;
 
         for character in chars.rev() {
-            let code_point = self.integer(character)?;
-
-            acc = self.cons(code_point, acc)?;
+            let codepoint = self.integer(character)?;
+            head = self.cons(codepoint, acc)?
+                       .as_ptr();
+            acc = head.into();
         }
 
-        Ok(acc)
+        Ok(Boxed::new(head))
     }
 
-    fn list_from_iter<I>(&mut self, iter: I) -> AllocResult<Term>
+    fn list_from_iter<I>(&mut self, iter: I) -> AllocResult<Option<Boxed<Cons>>>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
         self.improper_list_from_iter(iter, Term::NIL)
     }
 
-    fn list_from_slice(&mut self, slice: &[Term]) -> AllocResult<Term> {
+    fn list_from_slice(&mut self, slice: &[Term]) -> AllocResult<Option<Boxed<Cons>>> {
         self.improper_list_from_slice(slice, Term::NIL)
     }
 
     /// Constructs a map and associated with the given process.
-    fn map_from_hash_map(&mut self, hash_map: HashMap<Term, Term>) -> AllocResult<Term>
+    fn map_from_hash_map(&mut self, hash_map: HashMap<Term, Term>) -> AllocResult<Boxed<Map>>
     where
         Self: Sized,
     {
-        Map::from_hash_map(hash_map).clone_to_heap(self)
+        let boxed = Map::from_hash_map(hash_map).clone_to_heap(self)?;
+        let ptr: *mut Map = boxed.dyn_cast();
+        Ok(unsafe { Boxed::new_unchecked(ptr) })
     }
 
     /// Constructs a map and associated with the given process.
-    fn map_from_slice(&mut self, slice: &[(Term, Term)]) -> AllocResult<Term>
+    fn map_from_slice(&mut self, slice: &[(Term, Term)]) -> AllocResult<Boxed<Map>>
     where
         Self: Sized,
     {
-        Map::from_slice(slice).clone_to_heap(self)
+        let boxed = Map::from_slice(slice).clone_to_heap(self)?;
+        let ptr: *mut Map = boxed.dyn_cast();
+        Ok(unsafe { Boxed::new_unchecked(ptr) })
     }
 
     /// Creates a `Pid` or `ExternalPid` with the given `node`, `number` and `serial`.
@@ -304,18 +288,59 @@ pub trait HeapAlloc {
         node_id: usize,
         number: usize,
         serial: usize,
-    ) -> exception::Result<Term>
+    ) -> exception::Result<AnyPid>
     where
         Self: Sized,
     {
         if node_id == 0 {
-            let pid = Pid::new(number, serial)?
-                .encode()
-                .unwrap();
-            Ok(pid)
+            Ok(AnyPid::Local(self.local_pid_with_node_id(node_id, number, serial)?))
         } else {
-            self.external_pid_with_node_id(node_id, number, serial)
+            Ok(AnyPid::External(self.external_pid_with_node_id(node_id, number, serial)?))
         }
+    }
+
+    #[inline]
+    fn local_pid_with_node_id(
+        &mut self,
+        node_id: usize,
+        number: usize,
+        serial: usize,
+    ) -> exception::Result<Pid> {
+        assert_eq!(node_id, 0);
+
+        Ok(Pid::new(number, serial)?)
+    }
+
+    fn external_pid_with_node_id(
+        &mut self,
+        node_id: usize,
+        number: usize,
+        serial: usize,
+    ) -> exception::Result<Boxed<ExternalPid>>
+    where
+        Self: Sized,
+    {
+        assert_ne!(node_id, 0);
+
+        let pid = ExternalPid::with_node_id(node_id, number, serial)?
+            .clone_to_heap(self)?;
+        let boxed: *mut ExternalPid = pid.dyn_cast();
+
+        Ok(unsafe { Boxed::new_unchecked(boxed) })
+    }
+
+    /// Constructs a heap-allocated binary from the given byte slice, and associated with the given
+    /// process
+    #[inline]
+    fn heapbin_from_bytes(&mut self, s: &[u8]) -> AllocResult<Boxed<HeapBin>> {
+        HeapBin::from_slice(self, s, Encoding::Raw)
+    }
+
+    /// Constructs a heap-allocated binary from the given string, and associated with the given
+    /// process
+    #[inline]
+    fn heapbin_from_str(&mut self, s: &str) -> AllocResult<Boxed<HeapBin>> {
+        HeapBin::from_str(self, s)
     }
 
     /// Constructs a reference-counted binary from the given byte slice, and associated with the
@@ -363,11 +388,11 @@ pub trait HeapAlloc {
         }
     }
 
-    fn resource(&mut self, value: Box<dyn Any>) -> AllocResult<Term>
+    fn resource(&mut self, value: Box<dyn Any>) -> AllocResult<Boxed<Resource>>
     where
         Self: Sized,
     {
-        Ok(Resource::from_value(self, value)?.into())
+        Resource::from_value(self, value)
     }
 
     /// Either returns a `&str` to the pre-existing bytes in the heap binary, process binary, or

@@ -1,4 +1,5 @@
 use core::num::TryFromIntError;
+use core::convert::TryFrom;
 
 use thiserror::Error;
 
@@ -6,6 +7,7 @@ use crate::erts::string::InvalidEncodingNameError;
 use crate::erts::term::index::IndexError;
 use crate::erts::term::prelude::*;
 
+use super::{Exception, SystemException, UnexpectedExceptionError};
 use super::location::Location;
 
 #[derive(Error, Debug, Clone)]
@@ -123,6 +125,16 @@ impl From<TypeError> for RuntimeException {
         super::badarg(location!())
     }
 }
+impl TryFrom<Exception> for RuntimeException {
+    type Error = UnexpectedExceptionError<RuntimeException, SystemException>;
+
+    fn try_from(err: Exception) -> Result<Self, <Self as TryFrom<Exception>>::Error> {
+        match err {
+            Exception::Runtime(e) => Ok(e),
+            Exception::System(_) => Err(UnexpectedExceptionError::default()),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -131,7 +143,6 @@ mod tests {
     use super::*;
 
     mod error {
-        use super::Class::*;
         use super::*;
 
         #[test]
@@ -144,7 +155,7 @@ mod tests {
         }
 
         #[test]
-        fn without_arguments_stores_some() {
+        fn with_arguments_stores_some() {
             let reason = atom!("badarg");
             let arguments = Term::NIL;
             let error = error!(reason, arguments);

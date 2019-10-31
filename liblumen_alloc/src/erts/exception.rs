@@ -32,6 +32,8 @@ pub use self::system::SystemException;
 
 
 use core::convert::Into;
+use core::marker::PhantomData;
+use core::any::type_name;
 
 use thiserror::Error;
 
@@ -141,5 +143,23 @@ impl From<TryIntoIntegerError> for Exception {
 impl From<TypeError> for Exception {
     fn from(type_error: TypeError) -> Self {
         Self::Runtime(type_error.into())
+    }
+}
+
+/// Used to represent errors which occur when expecting a
+/// particular exception when converting from a more abstract type
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("unexpected exception occured; expected error of type {}, got {}", type_name::<T>(), type_name::<U>())]
+pub struct UnexpectedExceptionError<T, U>(PhantomData<T>, PhantomData<U>)
+where
+    T: std::error::Error,
+    U: std::error::Error;
+impl<T, U> Default for UnexpectedExceptionError<T, U>
+where
+    T: std::error::Error,
+    U: std::error::Error,
+{
+    fn default() -> Self {
+        Self(PhantomData, PhantomData)
     }
 }

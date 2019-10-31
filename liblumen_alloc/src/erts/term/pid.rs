@@ -20,6 +20,53 @@ lazy_static! {
     static ref RW_LOCK_COUNTER: RwLock<Counter> = Default::default();
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AnyPid {
+    Local(Pid),
+    External(Boxed<ExternalPid>),
+}
+impl Display for AnyPid {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            AnyPid::Local(pid) => write!(f, "{}", pid),
+            AnyPid::External(pid) => write!(f, "{}", pid.as_ref()),
+        }
+    }
+}
+impl CloneToProcess for AnyPid {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
+    where
+        A: ?Sized + HeapAlloc,
+    {
+        match self {
+            AnyPid::Local(pid) => Ok(pid.encode().unwrap()),
+            AnyPid::External(pid) => pid.clone_to_heap(heap),
+        }
+    }
+}
+impl TryFrom<TypedTerm> for AnyPid {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Pid(pid) => Ok(AnyPid::Local(pid)),
+            TypedTerm::ExternalPid(pid) => Ok(AnyPid::External(pid)),
+            _ => Err(TypeError),
+        }
+    }
+}
+impl From<Pid> for AnyPid {
+    fn from(pid: Pid) -> Self {
+        AnyPid::Local(pid)
+    }
+}
+impl From<Boxed<ExternalPid>> for AnyPid {
+    fn from(pid: Boxed<ExternalPid>) -> Self {
+        AnyPid::External(pid)
+    }
+}
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Pid(usize);

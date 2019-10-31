@@ -43,7 +43,7 @@ pub mod prelude {
     pub use super::integer::{Integer, SmallInteger, BigInteger};
     pub use super::list::{List, ImproperList, MaybeImproper, Cons, ListBuilder, HeaplessListBuilder};
     pub use super::map::Map;
-    pub use super::pid::{Pid, ExternalPid, InvalidPidError};
+    pub use super::pid::{AnyPid, Pid, ExternalPid, InvalidPidError};
     pub use super::port::{Port, ExternalPort};
     pub use super::reference::{Reference, ExternalReference, ReferenceNumber};
     pub use super::tuple::Tuple;

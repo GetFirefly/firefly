@@ -169,6 +169,16 @@ impl TryInto<u64> for &BigInteger {
         }
     }
 }
+impl TryFrom<TypedTerm> for Boxed<BigInteger> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::BigInteger(big) => Ok(big),
+            _ => Err(TypeError),
+        }
+    }
+}
 
 impl Eq for BigInteger {}
 impl PartialEq for BigInteger {

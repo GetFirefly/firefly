@@ -1,6 +1,7 @@
 use core::alloc::Layout;
 use core::ptr;
 use core::slice;
+use core::convert::TryFrom;
 
 use alloc::boxed::Box;
 
@@ -9,7 +10,7 @@ use liblumen_core::util::pointer::distance_absolute;
 use crate::borrow::CloneToProcess;
 use crate::erts::HeapAlloc;
 use crate::erts::exception::AllocResult;
-use crate::erts::term::prelude::{Term, TypedTerm, Cast, Header, Encoded};
+use crate::erts::term::prelude::{Term, TypedTerm, Boxed, Cast, Header, Encoded, TypeError};
 
 use super::prelude::*;
 
@@ -236,6 +237,16 @@ impl MatchContext {
                 ))
             }
             t => panic!("invalid term, expected binary but got {:?}", t)
+        }
+    }
+}
+impl TryFrom<TypedTerm> for Boxed<MatchContext> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::MatchContext(term) => Ok(term),
+            _ => Err(TypeError),
         }
     }
 }

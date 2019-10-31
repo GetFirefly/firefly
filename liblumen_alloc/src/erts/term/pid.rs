@@ -191,6 +191,18 @@ where
     }
 }
 
+impl TryFrom<TypedTerm> for Pid {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::Pid(pid) => Ok(pid),
+            _ => Err(TypeError),
+        }
+    }
+}
+
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct ExternalPid {
@@ -293,13 +305,12 @@ where
         other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
-
-impl TryFrom<TypedTerm> for Pid {
+impl TryFrom<TypedTerm> for Boxed<ExternalPid> {
     type Error = TypeError;
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
-            TypedTerm::Pid(pid) => Ok(pid),
+            TypedTerm::ExternalPid(pid) => Ok(pid),
             _ => Err(TypeError),
         }
     }

@@ -5,6 +5,7 @@ use core::slice;
 use core::str;
 use core::iter;
 use core::sync::atomic::{self, AtomicUsize};
+use core::convert::TryFrom;
 
 use intrusive_collections::LinkedListLink;
 use liblumen_core::offset_of;
@@ -14,7 +15,7 @@ use crate::erts::exception::AllocResult;
 use crate::erts::process::Process;
 use crate::erts::HeapAlloc;
 use crate::erts::string::Encoding;
-use crate::erts::term::prelude::{Term, Boxed, Cast};
+use crate::erts::term::prelude::{Term, TypedTerm, Boxed, Cast, TypeError};
 use crate::erts::term::encoding::Header;
 
 use super::prelude::*;
@@ -323,5 +324,15 @@ impl IndexByte for ProcBin {
 impl From<Boxed<ProcBin>> for ProcBin {
     fn from(boxed: Boxed<ProcBin>) -> Self {
         boxed.as_ref().clone()
+    }
+}
+impl TryFrom<TypedTerm> for Boxed<ProcBin> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::ProcBin(term) => Ok(term),
+            _ => Err(TypeError),
+        }
     }
 }

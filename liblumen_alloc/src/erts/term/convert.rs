@@ -34,6 +34,21 @@ impl From<Infallible> for BoolError {
 
 macro_rules! impl_term_conversions {
     ($raw:ty) => {
+        impl From<AnyPid> for $raw {
+            fn from(pid: AnyPid) -> Self {
+                pid.encode().unwrap()
+            }
+        }
+
+        impl Encode<$raw> for AnyPid {
+            fn encode(&self) -> Result<$raw, crate::erts::exception::Exception> {
+                match self {
+                    AnyPid::Local(pid) => pid.encode(),
+                    AnyPid::External(pid) => pid.encode(),
+                }
+            }
+        }
+
         impl From<SmallInteger> for $raw {
             #[inline]
             fn from(i: SmallInteger) -> Self {
@@ -58,11 +73,24 @@ macro_rules! impl_term_conversions {
 
         impl<T> From<Boxed<T>> for $raw
         where
-            T: Encode<$raw>,
+            T: ?Sized + Encode<$raw>,
         {
             #[inline]
             default fn from(boxed: Boxed<T>) -> Self {
                 boxed.encode().unwrap()
+            }
+        }
+
+        impl<T> From<Option<Boxed<T>>> for $raw
+        where
+            T: Encode<$raw>,
+        {
+            #[inline]
+            default fn from(boxed: Option<Boxed<T>>) -> Self {
+                match boxed {
+                    None => <$raw>::NIL,
+                    Some(ptr) => ptr.encode().unwrap()
+                }
             }
         }
 
@@ -93,6 +121,14 @@ macro_rules! impl_term_conversions {
             type Error = TypeError;
 
             fn try_into(self) -> Result<f64, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Float> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Float, Self::Error> {
                 self.decode().unwrap().try_into()
             }
         }
@@ -255,6 +291,14 @@ macro_rules! impl_term_conversions {
             type Error = TypeError;
 
             fn try_into(self) -> Result<Boxed<Closure>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Boxed<BigInteger>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<BigInteger>, Self::Error> {
                 self.decode().unwrap().try_into()
             }
         }

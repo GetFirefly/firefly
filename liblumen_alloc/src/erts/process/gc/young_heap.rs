@@ -2,8 +2,10 @@ use core::fmt;
 use core::mem;
 use core::slice;
 use core::ptr::{self, NonNull};
+use core::alloc::Layout;
 
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
+use liblumen_core::alloc::utils::{is_aligned, is_aligned_at, align_up_to};
 
 use crate::erts::*;
 use crate::erts::exception::AllocResult;
@@ -65,14 +67,29 @@ impl YoungHeap {
 }
 impl HeapAlloc for YoungHeap {
     #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
-        if self.heap_available() >= need {
-            let ptr = self.top;
-            self.top = self.top.add(need);
-            Ok(NonNull::new_unchecked(ptr))
-        } else {
-            Err(alloc!())
+    unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
+        let layout = layout.pad_to_align().unwrap();
+
+        let needed = layout.size();
+        let available = self.heap_available() * mem::size_of::<Term>();
+        if needed >= available {
+            return Err(alloc!());
         }
+
+        let top = self.top as *mut u8;
+        let new_top = top.add(needed);
+        debug_assert!(new_top <= self.end as *mut u8);
+        self.top = new_top as *mut Term;
+
+        let align = layout.align();
+        let ptr = if is_aligned_at(top, align) {
+            top as *mut Term
+        } else {
+            align_up_to(top as *mut Term, align)
+        };
+        // Success!
+        debug_assert!(is_aligned(ptr));
+        Ok(NonNull::new_unchecked(ptr))
     }
 
     #[inline]

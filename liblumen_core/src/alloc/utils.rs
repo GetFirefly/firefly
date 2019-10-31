@@ -81,34 +81,44 @@ pub fn round_down_to_alignment(size: usize, align: usize) -> usize {
 
 // Shifts the given pointer up to the next nearest aligned byte
 #[inline(always)]
-pub fn align_up_to(ptr: *const u8, align: usize) -> *const u8 {
-    self::round_up_to_alignment(ptr as usize, align) as *const u8
+pub fn align_up_to<T>(ptr: *mut T, align: usize) -> *mut T {
+    self::round_up_to_alignment(ptr as usize, align) as *mut T
 }
 
 // Aligns the given pointer down to the given alignment.
 // The resulting pointer is either less than or equal to the given pointer.
 #[inline(always)]
-pub fn align_down_to(ptr: *const u8, align: usize) -> *const u8 {
+pub fn align_down_to<T>(ptr: *mut T, align: usize) -> *mut T {
     assert!(align.is_power_of_two());
-    (ptr as usize & !(align - 1)) as *const u8
+    (ptr as usize & !(align - 1)) as *mut T
 }
 
 // Aligns the given pointer up to the next nearest byte which is a multiple of `base`
 #[inline(always)]
-pub fn align_up_to_multiple_of(ptr: *const u8, base: usize) -> *const u8 {
-    self::round_up_to_multiple_of(ptr as usize, base) as *const u8
+pub fn align_up_to_multiple_of<T>(ptr: *mut T, base: usize) -> *mut T {
+    self::round_up_to_multiple_of(ptr as usize, base) as *mut T
 }
 
 // Returns true if `ptr` is aligned to `align`
 #[inline(always)]
-pub fn is_aligned_at<T>(ptr: *const T, align: usize) -> bool {
+pub fn is_aligned_at<T>(ptr: *mut T, align: usize) -> bool {
     (ptr as usize) % align == 0
+}
+
+// Returns true if `ptr` fulfills minimum alignment requirements for its type
+pub fn is_aligned<T>(ptr: *mut T) -> bool {
+    use core::cmp;
+    use crate::sys::sysconf::MIN_ALIGN;
+
+    let raw = ptr as usize;
+    let align = cmp::max(mem::align_of::<T>(), MIN_ALIGN);
+    raw % align == 0
 }
 
 // Returns the effective alignment of `ptr`, i.e. the largest power
 // of two that is a divisor of `ptr`
 #[inline(always)]
-pub fn effective_alignment(ptr: *const u8) -> usize {
+pub fn effective_alignment<T>(ptr: *const T) -> usize {
     1usize << (ptr as usize).trailing_zeros()
 }
 

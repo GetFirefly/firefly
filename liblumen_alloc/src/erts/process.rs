@@ -43,6 +43,8 @@ pub use self::alloc::{
 pub use self::flags::*;
 pub use self::flags::*;
 pub use self::gc::{GcError, RootSet};
+#[cfg(test)]
+pub(super) use self::gc::VirtualBinaryHeap;
 pub use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::monitor::Monitor;

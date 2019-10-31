@@ -1,19 +1,21 @@
 use core::alloc::Layout;
 use core::any::Any;
 use core::ops::DerefMut;
-use core::ptr::NonNull;
+use core::ptr::{self, NonNull};
 use core::str::Chars;
+use core::mem;
+use core::cmp;
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 
+use liblumen_core::sys::sysconf::MIN_ALIGN;
 use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
 use crate::{ModuleFunctionArity, VirtualAlloc};
-use crate::erts;
 use crate::scheduler;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{self, AllocResult};
@@ -28,13 +30,15 @@ pub trait HeapAlloc {
     /// If space on the process heap is not immediately available, then the allocation
     /// will be pushed into a heap fragment which will then be later moved on to the
     /// process heap during garbage collection
-    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>>;
+    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
+        let align = cmp::max(mem::align_of::<Term>(), MIN_ALIGN);
+        let size = need * mem::size_of::<Term>();
+        let layout = Layout::from_size_align(size, align).unwrap();
+        self.alloc_layout(layout)
+    }
 
     /// Same as `alloc`, but takes a `Layout` rather than the size in words
-    unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
-        let need = erts::to_word_size(layout.size());
-        self.alloc(need)
-    }
+    unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>>;
 
     /// Returns true if the given pointer is owned by this process/heap
     fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized;

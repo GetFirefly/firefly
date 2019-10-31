@@ -6,6 +6,7 @@ use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
 
 use liblumen_core::util::pointer::{distance_absolute, in_area};
+use liblumen_core::alloc::utils::{is_aligned, is_aligned_at, align_up_to};
 
 use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::*;
@@ -20,7 +21,7 @@ intrusive_adapter!(pub HeapFragmentAdapter = UnsafeRef<HeapFragment>: HeapFragme
 pub struct RawFragment {
     size: usize,
     align: usize,
-    data: *mut u8,
+    base: *mut u8,
 }
 impl RawFragment {
     /// Returns the size (in bytes) of the fragment
@@ -32,7 +33,7 @@ impl RawFragment {
     /// Get a pointer to the data in this heap fragment
     #[inline]
     pub fn data(&self) -> NonNull<u8> {
-        unsafe { NonNull::new_unchecked(self.data) }
+        unsafe { NonNull::new_unchecked(self.base) }
     }
 
     /// Get the layout of this heap fragment
@@ -44,10 +45,8 @@ impl RawFragment {
     /// Returns true if the given pointer is contained within this fragment
     #[inline]
     pub fn contains<T>(&self, ptr: *const T) -> bool where T: ?Sized {
-        let ptr = ptr as *const () as usize;
-        let start = self.data as usize;
-        let end = unsafe { self.data.add(self.size) } as usize;
-        start <= ptr && ptr <= end
+        let end = unsafe { self.base.add(self.size) } as *const ();
+        in_area(ptr as *const (), self.base as *const (), end)
     }
 }
 
@@ -92,7 +91,7 @@ impl HeapFragment {
             ptr,
             Self {
                 link: LinkedListLink::new(),
-                raw: RawFragment { size, align, data },
+                raw: RawFragment { size, align, base: data },
                 top,
             },
         );
@@ -129,7 +128,7 @@ impl Drop for HeapFragment {
     fn drop(&mut self) {
         assert!(!self.link.is_linked());
         // Check if the contained value needs to have its destructor run
-        let ptr = self.data().as_ptr() as *mut Term;
+        let ptr = self.raw.base as *mut Term;
         let term = unsafe { *ptr };
         term.release();
         // Actually deallocate the memory backing this fragment
@@ -146,24 +145,36 @@ impl HeapAlloc for HeapFragment {
     /// If space on the process heap is not immediately available, then the allocation
     /// will be pushed into a heap fragment which will then be later moved on to the
     /// process heap during garbage collection
-    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
-        let top_limit = self.raw.data.add(self.raw.size) as *mut Term;
-        let top = self.top as *mut Term;
-        let available = distance_absolute(top_limit, top);
-
-        if need > available {
+    unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
+        // Ensure layout has alignment padding
+        let layout = layout.pad_to_align().unwrap();
+        // Capture the base pointer for this allocation
+        let top = self.top;
+        // Calculate available space and fail if not enough is free
+        let needed = layout.size();
+        let end = self.raw.base.add(self.raw.size);
+        let available = distance_absolute(end, top);
+        if needed > available {
             return Err(alloc!());
         }
-
-        let new_top = top.add(need);
-        debug_assert!(new_top <= top_limit);
-        self.top = new_top as *mut u8;
-
-        Ok(NonNull::new_unchecked(top))
+        // Calculate new top of the heap
+        let new_top = top.add(needed);
+        debug_assert!(new_top <= end);
+        self.top = new_top;
+        // Ensure base pointer for allocation fulfills minimum alignment requirements
+        let align = layout.align();
+        let ptr = if is_aligned_at(top, align) {
+            top as *mut Term
+        } else {
+            align_up_to(top as *mut Term, align)
+        };
+        // Success!
+        debug_assert!(is_aligned(ptr));
+        Ok(NonNull::new_unchecked(ptr))
     }
 
     /// Returns true if the given pointer is owned by this process/heap
     fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized {
-        in_area(ptr, self.raw.data, self.top)
+        self.contains(ptr)
     }
 }

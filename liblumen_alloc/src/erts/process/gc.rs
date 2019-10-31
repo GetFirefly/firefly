@@ -33,5 +33,5 @@ pub enum GcError {
 pub(super) use self::collector::GarbageCollector;
 pub(super) use self::old_heap::OldHeap;
 pub use self::rootset::RootSet;
-pub(super) use self::virtual_heap::VirtualBinaryHeap;
+pub(in crate::erts) use self::virtual_heap::VirtualBinaryHeap;
 pub(super) use self::young_heap::YoungHeap;

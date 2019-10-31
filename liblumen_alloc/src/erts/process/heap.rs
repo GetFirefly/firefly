@@ -1,4 +1,5 @@
 use core::ptr::NonNull;
+use core::alloc::Layout;
 
 use crate::erts::exception::AllocResult;
 use crate::erts::term::prelude::{ProcBin, Term};
@@ -71,8 +72,8 @@ impl ProcessHeap {
 }
 impl HeapAlloc for ProcessHeap {
     #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
-        self.young.alloc(need)
+    unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
+        self.young.alloc_layout(layout)
     }
 
     #[inline]

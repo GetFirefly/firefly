@@ -7,6 +7,8 @@ pub mod process;
 pub mod scheduler;
 pub mod term;
 pub mod string;
+#[cfg(test)]
+pub mod testing;
 
 pub use fragment::{HeapFragment, HeapFragmentAdapter};
 pub use message::Message;

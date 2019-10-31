@@ -56,7 +56,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(value.is_integer());
 
     let output_closure: Boxed<Closure> = output.try_into().unwrap();
-    assert_eq!(output_closure.arity(), 1);
+    assert_eq!(output_closure.arity, 1);
 
     label_2::place_frame_with_arguments(arc_process, Placement::Replace, time_value)?;
 

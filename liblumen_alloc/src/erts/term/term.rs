@@ -902,7 +902,7 @@ impl Term {
         }
     }
 
-    pub fn is_function_with_arity(&self, arity: usize) -> bool {
+    pub fn is_function_with_arity(&self, arity: u8) -> bool {
         self.to_typed_term().unwrap().is_function_with_arity(arity)
     }
 
@@ -1484,7 +1484,7 @@ impl Debug for Term {
                 } else if self.is_local_reference_header() {
                     write!(f, "Term({:?})", &*(ptr as *mut Reference))
                 } else if self.is_closure_header() {
-                    write!(f, "Term(Closure({:?}))", &*(ptr as *const Closure))
+                    write!(f, "Term({:?})", &*(ptr as *const Closure))
                 } else if self.is_float_header() {
                     write!(f, "Term({})", &*(ptr as *mut Float))
                 } else if self.is_procbin() {

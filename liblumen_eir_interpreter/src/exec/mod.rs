@@ -17,7 +17,6 @@ use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Boxed, Map, Term, TypedTerm};
-use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::module::{ErlangFunction, NativeFunctionKind, ResolvedFunction};
 use crate::vm::VMState;
@@ -422,16 +421,20 @@ impl CallExecutor {
             env.push(self.make_term(proc, fun, v)?);
         }
 
-        let mfa = ModuleFunctionArity {
-            module: Atom::try_from_str(fun.fun.ident().module.as_str()).unwrap(),
-            function: Atom::try_from_str(fun.fun.ident().name.as_str()).unwrap(),
-            arity: fun.fun.ident().arity as u8,
-        };
+        let module = Atom::try_from_str(fun.fun.ident().module.as_str()).unwrap();
+        let arity = fun.fun.ident().arity as u8;
 
-        let closure = proc.closure_with_env_from_slice(
-            mfa.into(),
-            crate::code::interpreter_closure_code,
-            proc.pid_term(),
+        let closure = proc.anonymous_closure_with_env_from_slice(
+            module,
+            // TODO generate `index` scoped to `module`
+            block.as_u32(),
+            // TODO calculate `old_unique` from `code`
+            Default::default(),
+            // TODO calculate `unique` from `code`
+            Default::default(),
+            arity,
+            Some(crate::code::interpreter_closure_code),
+            proc.pid().into(),
             &env,
         )?;
 
@@ -503,19 +506,13 @@ impl CallExecutor {
                         let module: Atom = self.make_term(proc, fun, reads[0])?.try_into().unwrap();
                         let function: Atom =
                             self.make_term(proc, fun, reads[1])?.try_into().unwrap();
-                        let arity: usize = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
+                        let arity: u8 = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
 
-                        let mfa = ModuleFunctionArity {
+                        Ok(proc.export_closure(
                             module,
                             function,
-                            arity: arity as u8,
-                        };
-
-                        Ok(proc.closure_with_env_from_slice(
-                            mfa.into(),
-                            crate::code::interpreter_mfa_code,
-                            proc.pid_term(),
-                            &[],
+                            arity,
+                            Some(crate::code::interpreter_mfa_code),
                         )?)
                     }
                     kind => unimplemented!("{:?}", kind),
@@ -591,19 +588,13 @@ impl CallExecutor {
             OpKind::CaptureFunction => {
                 let module: Atom = self.make_term(proc, fun, reads[1])?.try_into().unwrap();
                 let function: Atom = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
-                let arity: usize = self.make_term(proc, fun, reads[3])?.try_into().unwrap();
+                let arity: u8 = self.make_term(proc, fun, reads[3])?.try_into().unwrap();
 
-                let mfa = ModuleFunctionArity {
+                let closure = proc.export_closure(
                     module,
                     function,
-                    arity: arity as u8,
-                };
-
-                let closure = proc.closure_with_env_from_slice(
-                    mfa.into(),
-                    crate::code::interpreter_mfa_code,
-                    proc.pid_term(),
-                    &[],
+                    arity,
+                    Some(crate::code::interpreter_mfa_code),
                 )?;
 
                 self.next_args.push(closure);

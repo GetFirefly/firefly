@@ -13,18 +13,20 @@ use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
 use crate::borrow::CloneToProcess;
+use crate::erts;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::code::Code;
 use crate::erts::term::binary::aligned_binary::AlignedBinary;
 use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
 use crate::erts::term::binary::IterableBitstring;
+use crate::erts::term::closure::{Arity, Creator, Index, OldUnique, Unique};
 use crate::erts::term::reference::{self, Reference};
-use crate::erts::term::resource;
 use crate::erts::term::{
-    make_pid, pid, AsTerm, BinaryType, BytesFromBinaryError, Closure, Cons, ExternalPid, Float,
-    HeapBin, Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
+    pid, AsTerm, BinaryType, BytesFromBinaryError, Closure, Cons, ExternalPid, Float, HeapBin,
+    Integer, Map, ProcBin, StrFromBinaryError, SubBinary, Term, Tuple, TypedTerm,
 };
-use crate::{erts, ModuleFunctionArity};
+use crate::erts::term::{resource, Atom};
+use crate::erts::Node;
 use crate::{scheduler, VirtualAlloc};
 
 /// A trait, like `Alloc`, specifically for allocation of terms on a process heap
@@ -172,16 +174,16 @@ pub trait HeapAlloc {
         }
     }
 
-    fn external_pid_with_node_id(
+    fn external_pid(
         &mut self,
-        node_id: usize,
+        arc_node: Arc<Node>,
         number: usize,
         serial: usize,
     ) -> Result<Term, MakePidError>
     where
         Self: core::marker::Sized,
     {
-        let external_pid = ExternalPid::with_node_id(node_id, number, serial)?;
+        let external_pid = ExternalPid::new(arc_node, number, serial)?;
         let heap_external_pid = external_pid.clone_to_heap(self)?;
 
         Ok(heap_external_pid)
@@ -332,23 +334,6 @@ pub trait HeapAlloc {
         Self: core::marker::Sized,
     {
         Map::from_slice(slice).clone_to_heap(self)
-    }
-
-    /// Creates a `Pid` or `ExternalPid` with the given `node`, `number` and `serial`.
-    fn pid_with_node_id(
-        &mut self,
-        node_id: usize,
-        number: usize,
-        serial: usize,
-    ) -> Result<Term, MakePidError>
-    where
-        Self: core::marker::Sized,
-    {
-        if node_id == 0 {
-            make_pid(number, serial).map_err(|error| error.into())
-        } else {
-            self.external_pid_with_node_id(node_id, number, serial)
-        }
     }
 
     /// Constructs a reference-counted binary from the given byte slice, and associated with the
@@ -547,14 +532,27 @@ pub trait HeapAlloc {
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
-    fn closure_with_env_from_slice(
+    fn anonymous_closure_with_env_from_slice(
         &mut self,
-        mfa: Arc<ModuleFunctionArity>,
-        code: Code,
-        creator: Term,
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
+        option_code: Option<Code>,
+        creator: Creator,
         slice: &[Term],
     ) -> Result<Term, Alloc> {
-        self.closure_with_env_from_slices(mfa, code, creator, &[slice])
+        self.anonymous_closure_with_env_from_slices(
+            module,
+            index,
+            old_unique,
+            unique,
+            arity,
+            option_code,
+            creator,
+            &[slice],
+        )
     }
 
     /// Constructs a `Closure` from slices of `Term`
@@ -565,11 +563,15 @@ pub trait HeapAlloc {
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
-    fn closure_with_env_from_slices(
+    fn anonymous_closure_with_env_from_slices(
         &mut self,
-        mfa: Arc<ModuleFunctionArity>,
-        code: Code,
-        creator: Term,
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
+        option_code: Option<Code>,
+        creator: Creator,
         slices: &[&[Term]],
     ) -> Result<Term, Alloc> {
         let len = slices.iter().map(|slice| slice.len()).sum();
@@ -578,7 +580,16 @@ pub trait HeapAlloc {
         let closure_ptr = alloc_ptr as *mut Closure;
         let head_ptr = unsafe { alloc_ptr.add(Closure::base_size_words()) };
 
-        let closure = Closure::new(mfa, code, creator, len);
+        let closure = Closure::anonymous(
+            module,
+            index,
+            old_unique,
+            unique,
+            arity,
+            len,
+            option_code,
+            creator,
+        );
 
         unsafe {
             // Write header
@@ -592,6 +603,27 @@ pub trait HeapAlloc {
                     count += 1;
                 }
             }
+        }
+
+        Ok(Term::make_boxed(closure_ptr))
+    }
+
+    fn export_closure(
+        &mut self,
+        module: Atom,
+        function: Atom,
+        arity: u8,
+        option_code: Option<Code>,
+    ) -> Result<Term, Alloc> {
+        let layout = Closure::layout(0);
+        let alloc_ptr = unsafe { self.alloc_layout(layout)?.as_ptr() };
+        let closure_ptr = alloc_ptr as *mut Closure;
+
+        let closure = Closure::export(module, function, arity, option_code);
+
+        unsafe {
+            // Write header
+            ptr::write(closure_ptr, closure);
         }
 
         Ok(Term::make_boxed(closure_ptr))

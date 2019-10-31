@@ -4,9 +4,13 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{Atom, Term};
-use liblumen_alloc::erts::ModuleFunctionArity;
+use liblumen_alloc::erts::{Arity, ModuleFunctionArity};
 
 use crate::elixir::chain::{console_output_1, run_2};
+
+pub fn export() {
+    lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+}
 
 /// ```elixir
 /// # pushed to stack: (n)
@@ -30,6 +34,8 @@ pub fn place_frame_with_arguments(
 }
 
 // Private
+
+const ARITY: Arity = 1;
 
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
@@ -55,6 +61,6 @@ fn module_function_arity() -> Arc<ModuleFunctionArity> {
     Arc::new(ModuleFunctionArity {
         module: super::module(),
         function: function(),
-        arity: 1,
+        arity: ARITY,
     })
 }

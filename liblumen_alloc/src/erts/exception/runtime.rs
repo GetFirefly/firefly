@@ -1,3 +1,4 @@
+use core::array::TryFromSliceError;
 use core::convert::TryFrom;
 use core::num::TryFromIntError;
 use core::result::Result;
@@ -6,6 +7,7 @@ use crate::erts::exception::system::Alloc;
 use crate::erts::process::Process;
 use crate::erts::term::atom::{AtomError, EncodingError};
 use crate::erts::term::list::ImproperList;
+use crate::erts::term::pid;
 use crate::erts::term::{
     atom_unchecked, index, BoolError, Term, TryIntoIntegerError, TypeError, TypedTerm,
 };
@@ -245,6 +247,12 @@ impl From<index::Error> for Exception {
     }
 }
 
+impl From<pid::OutOfRange> for Exception {
+    fn from(_: pid::OutOfRange) -> Self {
+        badarg!()
+    }
+}
+
 impl From<TryFromIntError> for Exception {
     fn from(_: TryFromIntError) -> Self {
         badarg!()
@@ -253,6 +261,12 @@ impl From<TryFromIntError> for Exception {
 
 impl From<TryIntoIntegerError> for Exception {
     fn from(_: TryIntoIntegerError) -> Self {
+        badarg!()
+    }
+}
+
+impl From<TryFromSliceError> for Exception {
+    fn from(_: TryFromSliceError) -> Self {
         badarg!()
     }
 }

@@ -3,7 +3,8 @@ use core::convert::{TryFrom, TryInto};
 use core::default::Default;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
-use core::ptr;
+
+use alloc::sync::Arc;
 
 use liblumen_core::locks::RwLock;
 
@@ -103,33 +104,35 @@ impl PartialOrd<ExternalPid> for Pid {
     }
 }
 
+#[derive(Clone)]
 pub struct ExternalPid {
     header: Term,
-    node: Node,
-    next: *mut u8, // off heap header
+    arc_node: Arc<Node>,
     pid: Pid,
 }
+
 impl ExternalPid {
-    pub(in crate::erts) fn with_node_id(
-        node_id: usize,
-        number: usize,
-        serial: usize,
-    ) -> Result<Self, OutOfRange> {
-        let node = Node::new(node_id);
-
-        Self::new(node, number, serial)
-    }
-
-    fn new(node: Node, number: usize, serial: usize) -> Result<Self, OutOfRange> {
+    pub fn new(arc_node: Arc<Node>, number: usize, serial: usize) -> Result<Self, OutOfRange> {
         let pid = Pid::new(number, serial)?;
         let header = Term::make_header(arity_of::<Self>(), Term::FLAG_EXTERN_PID);
 
         Ok(Self {
             header,
-            node,
-            next: ptr::null_mut(),
+            arc_node,
             pid,
         })
+    }
+
+    pub fn arc_node(&self) -> Arc<Node> {
+        self.arc_node.clone()
+    }
+
+    pub fn number(&self) -> u16 {
+        self.pid.number()
+    }
+
+    pub fn serial(&self) -> u16 {
+        self.pid.serial()
     }
 }
 
@@ -144,7 +147,7 @@ impl CloneToProcess for ExternalPid {
     fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
         unsafe {
             let ptr = heap.alloc(self.size_in_words())?.as_ptr() as *mut Self;
-            ptr::copy_nonoverlapping(self as *const Self, ptr, 1);
+            ptr.write(self.clone());
 
             Ok(Term::make_boxed(ptr))
         }
@@ -156,7 +159,7 @@ impl Display for ExternalPid {
         write!(
             f,
             "<{}.{}.{}>",
-            self.node.id(),
+            self.arc_node.id(),
             self.pid.number(),
             self.pid.serial()
         )
@@ -167,22 +170,22 @@ impl Eq for ExternalPid {}
 
 impl Hash for ExternalPid {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.node.hash(state);
+        self.arc_node.hash(state);
         self.pid.hash(state);
     }
 }
 
 impl Ord for ExternalPid {
     fn cmp(&self, other: &ExternalPid) -> cmp::Ordering {
-        self.node
-            .cmp(&other.node)
+        self.arc_node
+            .cmp(&other.arc_node)
             .then_with(|| self.pid.cmp(&other.pid))
     }
 }
 
 impl PartialEq<ExternalPid> for ExternalPid {
     fn eq(&self, other: &ExternalPid) -> bool {
-        self.node == other.node && self.pid == other.pid
+        self.arc_node == other.arc_node && self.pid == other.pid
     }
 }
 
@@ -195,8 +198,7 @@ impl fmt::Debug for ExternalPid {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ExternalPid")
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("node", &self.node)
-            .field("next", &self.next)
+            .field("arc_node", &self.arc_node)
             .field("pid", &self.pid)
             .finish()
     }

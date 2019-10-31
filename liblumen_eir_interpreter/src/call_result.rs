@@ -10,7 +10,7 @@ use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::{Process, Status};
 use liblumen_alloc::erts::term::resource::Reference as ResourceReference;
 use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
-use liblumen_alloc::erts::{HeapFragment, ModuleFunctionArity};
+use liblumen_alloc::erts::HeapFragment;
 
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::scheduler::{Scheduler, Spawned};
@@ -96,23 +96,43 @@ pub fn call_erlang(
     let sender_term = proc.resource(Box::new(sender)).unwrap();
 
     let return_ok = {
-        let mfa = ModuleFunctionArity {
-            module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-            function: Atom::try_from_str("return_ok").unwrap(),
-            arity: 1,
-        };
-        proc.closure_with_env_from_slice(mfa.into(), return_ok, proc.pid_term(), &[sender_term])
-            .unwrap()
+        let module = Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap();
+        const ARITY: u8 = 1;
+
+        proc.anonymous_closure_with_env_from_slice(
+            module,
+            // TODO assign `index` scoped to `module`
+            0,
+            // TODO calculate `old_unique` for `return_ok` with `sender_term` captured.
+            Default::default(),
+            // TODO calculate `unique` for `return_ok` with `sender_term` captured.
+            Default::default(),
+            ARITY,
+            Some(return_ok),
+            proc.pid().into(),
+            &[sender_term],
+        )
+        .unwrap()
     };
 
     let return_throw = {
-        let mfa = ModuleFunctionArity {
-            module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-            function: Atom::try_from_str("return_throw").unwrap(),
-            arity: 1,
-        };
-        proc.closure_with_env_from_slice(mfa.into(), return_throw, proc.pid_term(), &[sender_term])
-            .unwrap()
+        let module = Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap();
+        const ARITY: u8 = 1;
+
+        proc.anonymous_closure_with_env_from_slice(
+            module,
+            // TODO assing `index` scoped to `module`
+            1,
+            // TODO calculate `unique` for `return_throw` with `sender_term` captured.
+            Default::default(),
+            // TODO calculate `unique` for `return_throw` with `sender_term` captured.
+            Default::default(),
+            ARITY,
+            Some(return_throw),
+            proc.pid().into(),
+            &[sender_term],
+        )
+        .unwrap()
     };
 
     let mut args_vec = vec![return_ok, return_throw];

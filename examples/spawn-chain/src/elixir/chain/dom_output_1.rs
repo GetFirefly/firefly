@@ -17,13 +17,14 @@ use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::{Atom, Term};
-use liblumen_alloc::erts::ModuleFunctionArity;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
-    process.closure_with_env_from_slice(module_function_arity(), code, process.pid_term(), &[])
+    process.export_closure(super::module(), function(), ARITY, Some(code))
 }
 
 // Private
+
+const ARITY: u8 = 1;
 
 /// ```elixir
 /// # pushed to stack: (text)
@@ -61,12 +62,4 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
 fn function() -> Atom {
     Atom::try_from_str("dom_output").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 1,
-    })
 }

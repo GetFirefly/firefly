@@ -1,20 +1,33 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
+use proptest::arbitrary::any;
 use proptest::collection::SizeRange;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::{Process, Term};
+use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::Process;
 
 use crate::process;
 
 pub mod base;
 pub mod byte_vec;
 pub mod module_function_arity;
+pub mod node;
 pub mod size_range;
 pub mod term;
 
 pub const NON_EMPTY_RANGE_INCLUSIVE: RangeInclusive<usize> = 1..=MAX_LEN;
+pub const NON_EXISTENT_ATOM_PREFIX: &str = "non_existent";
+
+pub fn atom() -> BoxedStrategy<Atom> {
+    any::<String>()
+        .prop_filter("Reserved for existing/safe atom tests", |s| {
+            !s.starts_with(NON_EXISTENT_ATOM_PREFIX)
+        })
+        .prop_map(|s| Atom::try_from_str(&s).unwrap())
+        .boxed()
+}
 
 pub fn bits_to_bytes(bits: usize) -> usize {
     (bits + 7) / 8

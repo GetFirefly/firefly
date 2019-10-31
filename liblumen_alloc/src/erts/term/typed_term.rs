@@ -96,10 +96,10 @@ impl TypedTerm {
         }
     }
 
-    pub fn is_function_with_arity(&self, arity: usize) -> bool {
+    pub fn is_function_with_arity(&self, arity: u8) -> bool {
         match self {
             Self::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                Self::Closure(closure) => (closure.arity() as usize) == arity,
+                Self::Closure(closure) => closure.arity == arity,
                 _ => false,
             },
             _ => false,

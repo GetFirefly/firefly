@@ -56,7 +56,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                     reducer,
                 )?;
 
-                if closure.arity() == 2 {
+                if closure.arity == 2 {
                     closure.place_frame_with_arguments(
                         arc_process,
                         Placement::Push,

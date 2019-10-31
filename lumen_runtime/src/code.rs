@@ -1,3 +1,6 @@
+pub mod anonymous;
+pub mod export;
+
 use alloc::sync::Arc;
 
 use liblumen_alloc::erts::process::{code, Process};

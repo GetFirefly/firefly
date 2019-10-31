@@ -3,7 +3,6 @@
 #![feature(allocator_api)]
 #![feature(type_ascription)]
 
-mod apply_3;
 mod elixir;
 mod start;
 
@@ -27,7 +26,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[wasm_bindgen(start)]
 pub fn start() {
     set_panic_hook();
-    set_apply_fn();
+    export_code();
     lumen_web::start();
 }
 

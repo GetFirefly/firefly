@@ -51,7 +51,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
     let output = arc_process.stack_pop().unwrap();
     let output_closure: Boxed<Closure> = output.try_into().unwrap();
-    assert_eq!(output_closure.arity(), 1);
+    assert_eq!(output_closure.arity, 1);
 
     // ```elixir
     // # label 2

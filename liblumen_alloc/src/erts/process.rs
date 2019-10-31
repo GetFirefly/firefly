@@ -29,6 +29,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::runtime;
 use crate::erts::exception::system::Alloc;
 use crate::erts::process::alloc::layout_to_words;
+use crate::erts::term::closure::{Arity, Creator, Index, OldUnique, Unique};
 use crate::erts::term::{
     atom_unchecked, pid, reference, Atom, Cons, Integer, Pid, ProcBin, Reference, Tuple,
 };
@@ -477,15 +478,38 @@ impl Process {
         self.acquire_heap().charlist_from_str(s)
     }
 
-    pub fn closure_with_env_from_slice(
+    pub fn anonymous_closure_with_env_from_slice(
         &self,
-        mfa: Arc<ModuleFunctionArity>,
-        code: Code,
-        creator: Term,
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
+        option_code: Option<Code>,
+        creator: Creator,
         slice: &[Term],
     ) -> Result<Term, Alloc> {
+        self.acquire_heap().anonymous_closure_with_env_from_slice(
+            module,
+            index,
+            old_unique,
+            unique,
+            arity,
+            option_code,
+            creator,
+            slice,
+        )
+    }
+
+    pub fn export_closure(
+        &self,
+        module: Atom,
+        function: Atom,
+        arity: u8,
+        option_code: Option<Code>,
+    ) -> Result<Term, Alloc> {
         self.acquire_heap()
-            .closure_with_env_from_slice(mfa, code, creator, slice)
+            .export_closure(module, function, arity, option_code)
     }
 
     /// Constructs a list of only the head and tail, and associated with the given process.
@@ -493,14 +517,13 @@ impl Process {
         self.acquire_heap().cons(head, tail)
     }
 
-    pub fn external_pid_with_node_id(
+    pub fn external_pid(
         &self,
-        node_id: usize,
+        arc_node: Arc<Node>,
         number: usize,
         serial: usize,
     ) -> Result<Term, MakePidError> {
-        self.acquire_heap()
-            .external_pid_with_node_id(node_id, number, serial)
+        self.acquire_heap().external_pid(arc_node, number, serial)
     }
 
     pub fn float(&self, f: f64) -> Result<Term, Alloc> {
@@ -543,16 +566,6 @@ impl Process {
 
     pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> Result<Term, Alloc> {
         self.acquire_heap().map_from_slice(slice)
-    }
-
-    pub fn pid_with_node_id(
-        &self,
-        node_id: usize,
-        number: usize,
-        serial: usize,
-    ) -> Result<Term, MakePidError> {
-        self.acquire_heap()
-            .pid_with_node_id(node_id, number, serial)
     }
 
     pub fn reference(&self, number: reference::Number) -> Result<Term, Alloc> {

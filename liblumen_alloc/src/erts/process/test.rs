@@ -140,6 +140,11 @@ mod tuple_from_slice {
     #[test]
     fn with_elements() {
         let process = process();
+        let arc_node = Arc::new(Node::new(
+            1,
+            Atom::try_from_str("node@external").unwrap(),
+            0,
+        ));
         // one of every type
         let slice = &[
             // small integer
@@ -149,7 +154,7 @@ mod tuple_from_slice {
             process.reference(0).unwrap(),
             closure(&process),
             process.float(0.0).unwrap(),
-            process.external_pid_with_node_id(1, 0, 0).unwrap(),
+            process.external_pid(arc_node, 0, 0).unwrap(),
             Term::NIL,
             make_pid(0, 0).unwrap(),
             atom_unchecked("atom"),
@@ -179,8 +184,6 @@ mod tuple_from_slice {
     }
 
     fn closure(process: &Process) -> Term {
-        let creator = process.pid_term();
-
         let module = Atom::try_from_str("module").unwrap();
         let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
@@ -197,7 +200,7 @@ mod tuple_from_slice {
 
         process
             .acquire_heap()
-            .closure_with_env_from_slices(module_function_arity, code, creator, &[&[]])
+            .export_closure(module, function, arity, Some(code))
             .unwrap()
     }
 }
@@ -247,15 +250,12 @@ fn simple_gc_test(process: Process) {
     let closure_string = "this is a binary";
     let closure_string_term = process.binary_from_str(closure_string).unwrap();
 
-    let creator = process.pid_term();
     let module = Atom::try_from_str("module").unwrap();
-    let function = Atom::try_from_str("function").unwrap();
+    let index = Default::default();
+    let unique = Default::default();
+    let old_unique = Default::default();
     let arity = 0;
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module,
-        function,
-        arity,
-    });
+    let creator = process.pid().into();
     let code = |arc_process: &Arc<Process>| {
         arc_process.wait();
 
@@ -264,16 +264,20 @@ fn simple_gc_test(process: Process) {
 
     let closure_term = process
         .acquire_heap()
-        .closure_with_env_from_slices(
-            module_function_arity,
-            code,
+        .anonymous_closure_with_env_from_slices(
+            module,
+            index,
+            unique,
+            old_unique,
+            arity,
+            Some(code),
             creator,
             &[&[closure_num, closure_string_term]],
         )
         .unwrap();
     assert!(closure_term.is_boxed());
     let closure_term_ref = unsafe { &*(closure_term.boxed_val() as *mut Closure) };
-    assert!(closure_term_ref.env_len == 2);
+    assert!(closure_term_ref.env_len() == 2);
     assert!(closure_term_ref.get_env_element(0).is_smallint());
     assert!(closure_term_ref.get_env_element(1).is_boxed());
 

@@ -53,7 +53,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         match reducer.to_typed_term().unwrap() {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Closure(closure) => {
-                    if closure.arity() == 2 {
+                    if closure.arity == 2 {
                         closure.place_frame_with_arguments(
                             arc_process,
                             Placement::Replace,

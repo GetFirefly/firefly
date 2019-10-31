@@ -4,6 +4,7 @@ use std::sync::Arc;
 use cranelift_entity::EntityRef;
 use libeir_ir::Block;
 
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::code::result_from_exception;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
@@ -14,10 +15,23 @@ use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::exec::CallExecutor;
 
+fn module() -> Atom {
+    Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap()
+}
+
 pub fn return_clean(arc_process: &Arc<Process>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
     arc_process.return_from_call(argument_list)?;
     Process::call_code(arc_process)
+}
+
+pub fn return_clean_closure(process: &Process) -> exception::Result {
+    let function = Atom::try_from_str("return_clean").unwrap();
+    const ARITY: u8 = 1;
+
+    process
+        .export_closure(module(), function, ARITY, Some(return_clean))
+        .map_err(|error| error.into())
 }
 
 pub fn return_ok(arc_process: &Arc<Process>) -> Result {
@@ -38,6 +52,15 @@ pub fn return_ok(arc_process: &Arc<Process>) -> Result {
     assert!(argument_vec.len() == 1);
 
     Ok(arc_process.return_from_call(argument_vec[0])?)
+}
+
+pub fn return_ok_closure(process: &Process) -> exception::Result {
+    let function = Atom::try_from_str("return_ok").unwrap();
+    const ARITY: u8 = 1;
+
+    process
+        .export_closure(module(), function, ARITY, Some(return_ok))
+        .map_err(|error| error.into())
 }
 
 pub fn return_throw(arc_process: &Arc<Process>) -> Result {
@@ -73,6 +96,15 @@ pub fn return_throw(arc_process: &Arc<Process>) -> Result {
         column: 0,
     };
     result_from_exception(arc_process, exc.into())
+}
+
+pub fn return_throw_closure(process: &Process) -> exception::Result {
+    let function = Atom::try_from_str("return_throw").unwrap();
+    const ARITY: u8 = 3;
+
+    process
+        .export_closure(module(), function, ARITY, Some(return_throw))
+        .map_err(|error| error.into())
 }
 
 /// Expects the following on stack:

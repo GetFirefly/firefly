@@ -39,7 +39,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(next_pid.is_pid());
 
     let output_closure: Boxed<Closure> = output.try_into().unwrap();
-    assert_eq!(output_closure.arity(), 1);
+    assert_eq!(output_closure.arity, 1);
 
     // TODO use `<>` and `to_string` instead of `format!` to properly emulate interpolation
     let data = arc_process.binary_from_str(&format!("sent {} to {}", sent, next_pid))?;

@@ -5,7 +5,7 @@ use liblumen_alloc::erts::term::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::node;
+use crate::distribution::nodes::node;
 
 #[native_implemented_function(node/0)]
 pub fn native() -> Term {

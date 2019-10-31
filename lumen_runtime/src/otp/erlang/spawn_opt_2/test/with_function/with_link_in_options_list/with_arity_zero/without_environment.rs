@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::atom_unchecked;
-use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::exit;
 
 #[test]
@@ -17,12 +16,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
             )
                 .prop_map(|(module, function)| {
                     let arc_process = process::test_init();
-                    let creator = arc_process.pid_term();
-                    let module_function_arity = Arc::new(ModuleFunctionArity {
-                        module,
-                        function,
-                        arity: 0,
-                    });
+                    let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
                         arc_process.exception(exit!(atom_unchecked("not_normal")));
 
@@ -32,7 +26,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                     (
                         arc_process.clone(),
                         arc_process
-                            .closure_with_env_from_slice(module_function_arity, code, creator, &[])
+                            .export_closure(module, function, arity, Some(code))
                             .unwrap(),
                     )
                 }),
@@ -94,12 +88,7 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
             )
                 .prop_map(|(module, function)| {
                     let arc_process = process::test_init();
-                    let creator = arc_process.pid_term();
-                    let module_function_arity = Arc::new(ModuleFunctionArity {
-                        module,
-                        function,
-                        arity: 0,
-                    });
+                    let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
                         arc_process.return_from_call(atom_unchecked("ok"))?;
 
@@ -109,7 +98,7 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
                     (
                         arc_process.clone(),
                         arc_process
-                            .closure_with_env_from_slice(module_function_arity, code, creator, &[])
+                            .export_closure(module, function, arity, Some(code))
                             .unwrap(),
                     )
                 }),

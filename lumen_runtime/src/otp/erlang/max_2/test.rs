@@ -23,7 +23,7 @@ use liblumen_alloc::erts::term::{atom_unchecked, make_pid, SmallInteger, Term};
 use crate::otp::erlang::max_2::native;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::FirstSecond::*;
-use crate::test::{strategy, FirstSecond};
+use crate::test::{external_arc_node, strategy, FirstSecond};
 
 #[test]
 fn max_is_first_if_first_is_greater_than_or_equal_to_second() {
@@ -47,22 +47,23 @@ fn max_is_first_if_first_is_greater_than_or_equal_to_second() {
 
 #[test]
 fn max_is_second_if_first_is_less_than_second() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term(arc_process.clone()),
-                    strategy::term(arc_process.clone()),
-                )
-                    .prop_filter("First must be <= second", |(first, second)| first < second),
-                |(first, second)| {
-                    prop_assert_eq!(native(first, second), second);
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process()
+                .prop_flat_map(|arc_process| {
+                    (
+                        strategy::term(arc_process.clone()),
+                        strategy::term(arc_process.clone()),
+                    )
+                })
+                .prop_filter("First must be <= second", |(first, second)| first < second),
+            |(first, second)| {
+                prop_assert_eq!(native(first, second), second);
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }
 
 fn max<F, S>(first: F, second: S, which: FirstSecond)

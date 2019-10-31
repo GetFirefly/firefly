@@ -11,48 +11,79 @@ use super::{to_word_size, AsTerm, Term};
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
+pub use crate::erts::module_function_arity::Arity;
 use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
 use crate::erts::process::Process;
-use crate::erts::term::{arity_of, Boxed, TypeError, TypedTerm};
+use crate::erts::term::{arity_of, Atom, Boxed, ExternalPid, Pid, TypeError, TypedTerm};
 use crate::erts::{HeapAlloc, ModuleFunctionArity};
 
+#[derive(Clone)]
 #[repr(C)]
 pub struct Closure {
     header: Term,
-    creator: Term, // pid of creator process, possible to be either Pid or ExternalPid
-    module_function_arity: Arc<ModuleFunctionArity>,
-    /// Pointer to function entry
-    pub code: Code,
-    pub env_len: usize,
+    pub module: Atom,
+    pub definition: Definition,
+    pub arity: u8,
+    /// Pointer to function entry.  When a closure is received over ETF, `code` may be `None`.
+    option_code: Option<Code>,
 }
 
 impl Closure {
-    pub fn new(
-        module_function_arity: Arc<ModuleFunctionArity>,
-        code: Code,
-        creator: Term,
+    pub fn anonymous(
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
         env_len: usize,
+        option_code: Option<Code>,
+        creator: Creator,
     ) -> Self {
         Self {
-            header: Term::make_header(arity_of::<Self>() + env_len, Term::FLAG_CLOSURE),
-            creator,
-            module_function_arity,
-            code,
-            env_len,
+            header: Self::anonymous_header(env_len),
+            module,
+            definition: Definition::Anonymous {
+                index,
+                unique,
+                old_unique,
+                creator,
+                env_len,
+            },
+            arity,
+            option_code,
         }
     }
 
-    pub fn arity(&self) -> u8 {
-        self.module_function_arity.arity
+    pub fn export(module: Atom, function: Atom, arity: Arity, option_code: Option<Code>) -> Self {
+        Self {
+            header: Self::export_header(),
+            module,
+            definition: Definition::Export { function },
+            arity,
+            option_code,
+        }
+    }
+
+    pub fn code(&self) -> Code {
+        self.option_code.unwrap_or_else(|| {
+            panic!(
+                "{} does not have code associated with it",
+                self.module_function_arity()
+            )
+        })
     }
 
     pub fn frame(&self) -> Frame {
-        Frame::new(Arc::clone(&self.module_function_arity), self.code)
+        Frame::new(self.module_function_arity(), self.code())
     }
 
     pub fn module_function_arity(&self) -> Arc<ModuleFunctionArity> {
-        Arc::clone(&self.module_function_arity)
+        Arc::new(ModuleFunctionArity {
+            module: self.module,
+            function: self.function(),
+            arity: self.arity,
+        })
     }
 
     pub fn place_frame_with_arguments(
@@ -61,7 +92,7 @@ impl Closure {
         placement: Placement,
         arguments: Vec<Term>,
     ) -> Result<(), Alloc> {
-        assert_eq!(arguments.len(), self.arity() as usize);
+        assert_eq!(arguments.len(), self.arity as usize);
         for argument in arguments.iter().rev() {
             process.stack_push(*argument)?;
         }
@@ -88,7 +119,10 @@ impl Closure {
 
     /// Returns the length of the closure environment in terms.
     pub fn env_len(&self) -> usize {
-        self.env_len
+        match self.definition {
+            Definition::Export { .. } => 0,
+            Definition::Anonymous { env_len, .. } => env_len,
+        }
     }
 
     /// Returns a slice containing the closure environment.
@@ -136,6 +170,48 @@ impl Closure {
     pub fn base_size_words() -> usize {
         to_word_size(Self::base_size())
     }
+
+    // Private
+
+    fn anonymous_header(env_len: usize) -> Term {
+        Term::make_header(arity_of::<Self>() + env_len, Term::FLAG_CLOSURE)
+    }
+
+    fn export_header() -> Term {
+        Self::anonymous_header(0)
+    }
+
+    fn function(&self) -> Atom {
+        match self.definition {
+            Definition::Export { function } => function,
+            Definition::Anonymous {
+                index,
+                old_unique,
+                unique,
+                ..
+            } => Atom::try_from_str(format!(
+                "{}-{}-{}",
+                index,
+                old_unique,
+                Self::format_unique(&unique)
+            ))
+            .unwrap(),
+        }
+    }
+
+    fn format_unique(unique: &[u8; 16]) -> String {
+        let mut string = String::with_capacity(unique.len() * 2);
+
+        for byte in unique {
+            string.push_str(&format!("{:02x}", byte));
+        }
+
+        string
+    }
+
+    fn option_code_address(&self) -> Option<usize> {
+        self.option_code.map(|code| code as usize)
+    }
 }
 
 unsafe impl AsTerm for Closure {
@@ -154,12 +230,7 @@ impl CloneToProcess for Closure {
             let base_ptr = heap.alloc(words)?.as_ptr() as *mut Term;
             let closure_ptr = base_ptr as *mut Self;
             // Write header
-            closure_ptr.write(Closure::new(
-                self.module_function_arity.clone(),
-                self.code,
-                self.creator,
-                len,
-            ));
+            closure_ptr.write(self.clone());
 
             // Write the elements
             let mut element_ptr = base_ptr.offset(Self::base_size_words() as isize);
@@ -186,17 +257,17 @@ impl Debug for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Closure")
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("code", &(self.code as usize))
-            .field("module_function_arity", &self.module_function_arity)
-            .field("creator", &self.creator)
-            .field("env_len", &self.env_len)
+            .field("module", &self.module)
+            .field("definition", &self.definition)
+            .field("arity", &self.arity)
+            .field("option_code", &self.option_code_address())
             .finish()
     }
 }
 
 impl Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let module_function_arity = &self.module_function_arity;
+        let module_function_arity = &self.module_function_arity();
 
         write!(f, "&{}.", module_function_arity.module)?;
         f.write_char('\"')?;
@@ -215,22 +286,32 @@ impl Eq for Closure {}
 
 impl Hash for Closure {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.module_function_arity.hash(state);
-        state.write_usize(self.code as usize);
+        self.module.hash(state);
+        self.definition.hash(state);
+        self.arity.hash(state);
+        self.option_code_address().hash(state);
+        self.env_slice().hash(state);
     }
 }
 
 impl Ord for Closure {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.module_function_arity.cmp(&other.module_function_arity))
-            .then_with(|| (self.code as usize).cmp(&(other.code as usize)))
+        self.module
+            .cmp(&other.module)
+            .then_with(|| self.definition.cmp(&other.definition))
+            .then_with(|| self.arity.cmp(&other.arity))
+            .then_with(|| self.option_code_address().cmp(&other.option_code_address()))
+            .then_with(|| self.env_slice().cmp(other.env_slice()))
     }
 }
 
 impl PartialEq for Closure {
     fn eq(&self, other: &Self) -> bool {
-        (self.module_function_arity == other.module_function_arity)
-            && ((self.code as usize) == (other.code as usize))
+        (self.module == other.module)
+            && (self.definition == other.definition)
+            && (self.arity == other.arity)
+            && (self.option_code_address() == other.option_code_address())
+            && (self.env_slice() == other.env_slice())
     }
 }
 
@@ -256,6 +337,145 @@ impl TryFrom<TypedTerm> for Boxed<Closure> {
             TypedTerm::Boxed(boxed_closure) => boxed_closure.to_typed_term().unwrap().try_into(),
             TypedTerm::Closure(closure) => Ok(closure),
             _ => Err(TypeError),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum Creator {
+    Local(Pid),
+    External(ExternalPid),
+}
+
+impl Debug for Creator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Local(pid) => write!(f, "{:?}", pid),
+            Self::External(external_pid) => write!(f, "{:?}", external_pid),
+        }
+    }
+}
+
+impl From<Pid> for Creator {
+    fn from(pid: Pid) -> Self {
+        Self::Local(pid)
+    }
+}
+
+impl From<ExternalPid> for Creator {
+    fn from(external_pid: ExternalPid) -> Self {
+        Self::External(external_pid)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Definition {
+    /// External functions captured with `fun M:F/A` in Erlang or `&M.f/a` in Elixir.
+    Export { function: Atom },
+    /// Anonymous functions declared with `fun` in Erlang or `fn` in Elixir.
+    Anonymous {
+        /// Each anonymous function within a module has an unique index.
+        index: u32,
+        /// The 16 bytes MD5 of the significant parts of the Beam file.
+        unique: [u8; 16],
+        /// The hash value of the parse tree for the fun, but must fit in i32, so not the same as
+        /// `unique`.
+        old_unique: u32,
+        creator: Creator,
+        env_len: usize,
+    },
+}
+
+impl Eq for Definition {}
+
+impl Hash for Definition {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Definition::Export { function } => function.hash(state),
+            Definition::Anonymous {
+                index,
+                unique,
+                old_unique,
+                ..
+            } => {
+                index.hash(state);
+                unique.hash(state);
+                old_unique.hash(state);
+            }
+        }
+    }
+}
+
+impl PartialEq for Definition {
+    fn eq(&self, other: &Definition) -> bool {
+        match (self, other) {
+            (
+                Definition::Export {
+                    function: self_function,
+                },
+                Definition::Export {
+                    function: other_function,
+                },
+            ) => self_function == other_function,
+            (
+                Definition::Anonymous {
+                    index: self_index,
+                    unique: self_unique,
+                    old_unique: self_old_unique,
+                    ..
+                },
+                Definition::Anonymous {
+                    index: other_index,
+                    unique: other_unique,
+                    old_unique: other_old_unique,
+                    ..
+                },
+            ) => {
+                (self_index == other_index)
+                    && (self_unique == other_unique)
+                    && (self_old_unique == other_old_unique)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for Definition {
+    fn partial_cmp(&self, other: &Definition) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Definition {
+    fn cmp(&self, other: &Definition) -> Ordering {
+        match (self, other) {
+            (
+                Definition::Export {
+                    function: self_function,
+                },
+                Definition::Export {
+                    function: other_function,
+                },
+            ) => self_function.cmp(other_function),
+            (Definition::Export { .. }, Definition::Anonymous { .. }) => Ordering::Greater,
+            (Definition::Anonymous { .. }, Definition::Export { .. }) => Ordering::Less,
+            (
+                Definition::Anonymous {
+                    index: self_index,
+                    unique: self_unique,
+                    old_unique: self_old_unique,
+                    ..
+                },
+                Definition::Anonymous {
+                    index: other_index,
+                    unique: other_unique,
+                    old_unique: other_old_unique,
+                    ..
+                },
+            ) => self_index
+                .cmp(other_index)
+                .then_with(|| self_unique.cmp(other_unique))
+                .then_with(|| self_old_unique.cmp(other_old_unique)),
         }
     }
 }
@@ -305,3 +525,12 @@ impl DoubleEndedIterator for EnvIter {
         }
     }
 }
+
+/// Index of anonymous function in module's function table
+pub type Index = u32;
+
+/// Hash of the parse of the function.  Replaced by `Unique`
+pub type OldUnique = u32;
+
+/// 16 byte MD5 of the significant parts of the BEAM file.
+pub type Unique = [u8; 16];

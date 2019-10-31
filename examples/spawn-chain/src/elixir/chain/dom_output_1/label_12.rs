@@ -31,7 +31,11 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok_tbody = arc_process.stack_pop().unwrap();
-    assert!(ok_tbody.is_tuple());
+    assert!(
+        ok_tbody.is_tuple(),
+        "ok_tbody ({:?}) is not a tuple",
+        ok_tbody
+    );
     let tr = arc_process.stack_pop().unwrap();
     assert!(tr.is_resource_reference());
 

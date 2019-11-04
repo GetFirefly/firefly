@@ -1,7 +1,7 @@
 task:
   name: Check Formatted
   container:
-    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
+    image: kronicdeth/lumen-development@sha256:6b71e10a3dc14f655a891a7e53c69a1024554acc195cef33860fba0cc523df83
   script: cargo fmt -- --check
 
 x86_64_task_template: &x86_64_TASK_TEMPLATE
@@ -35,7 +35,7 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
 task:
   name: Linux x86_64
   container:
-    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
+    image: kronicdeth/lumen-development@sha256:6b71e10a3dc14f655a891a7e53c69a1024554acc195cef33860fba0cc523df83
     cpu: 4
     memory: 12
   linux_x86_64_cargo_cache:
@@ -116,7 +116,7 @@ task:
 task:
   name: Linux wasm32
   container:
-    image: kronicdeth/lumen-development@sha256:2a6e1b519b1965586ab19be06470a2edcc18fb936f649cbd25a4bdb9911d15ad
+    image: kronicdeth/lumen-development@sha256:6b71e10a3dc14f655a891a7e53c69a1024554acc195cef33860fba0cc523df83
     memory: 6
   linux_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry

@@ -170,7 +170,7 @@ task:
     brew cask install google-chrome
     brew cask info google-chrome
   install_chrome_driver_script: |
-    wget https://chromedriver.storage.googleapis.com/76.0.3809.126/chromedriver_mac64.zip
+    wget https://chromedriver.storage.googleapis.com/78.0.3904.70/chromedriver_mac64.zip
     unzip chromedriver_mac64.zip
     mv chromedriver /usr/local/bin/
     rm chromedriver_mac64.zip

@@ -1,10 +1,10 @@
+use core::alloc::{AllocErr, Layout};
 use core::cmp;
-use core::ptr::{self, NonNull};
-use core::alloc::{Layout, AllocErr};
 use core::intrinsics::unlikely;
+use core::ptr::{self, NonNull};
 
-use crate::sys::sysconf;
 use crate::alloc::alloc_utils;
+use crate::sys::sysconf;
 
 mod constants {
     pub use libc::{PROT_READ, PROT_WRITE};
@@ -74,7 +74,14 @@ pub unsafe fn map(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
 
 #[inline(always)]
 unsafe fn map_internal(hint_ptr: *mut u8, size: usize) -> Result<NonNull<u8>, AllocErr> {
-    let res = libc::mmap(hint_ptr as *mut libc::c_void, size, MMAP_PROT, MMAP_FLAGS, -1 as libc::c_int, 0);
+    let res = libc::mmap(
+        hint_ptr as *mut libc::c_void,
+        size,
+        MMAP_PROT,
+        MMAP_FLAGS,
+        -1 as libc::c_int,
+        0,
+    );
     if res == MAP_FAILED {
         return Err(AllocErr);
     }
@@ -106,10 +113,14 @@ unsafe fn unmap_internal(ptr: *mut u8, size: usize) {
 }
 
 /// Remaps the memory mapping at `ptr` using the alignment of `layout` and `new_size`
-/// 
+///
 /// NOTE: No guarantee is made that the new mapping will be remain in place
 #[inline]
-pub unsafe fn remap(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn remap(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     let old_size = layout.size();
     let align = layout.align();
     let new_size = alloc_utils::round_up_to_multiple_of(new_size, align);
@@ -123,7 +134,12 @@ pub unsafe fn remap(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<Non
 
 #[inline]
 #[cfg(any(target_os = "linux", target_os = "emscripten", target_os = "android"))]
-unsafe fn remap_internal(ptr: *mut u8, old_size: usize, _align: usize, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+unsafe fn remap_internal(
+    ptr: *mut u8,
+    old_size: usize,
+    _align: usize,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     let new_seg = libc::mremap(ptr as *mut _, old_size, new_size, libc::MREMAP_MAYMOVE);
     if new_seg == MAP_FAILED {
         return Err(AllocErr);
@@ -132,11 +148,16 @@ unsafe fn remap_internal(ptr: *mut u8, old_size: usize, _align: usize, new_size:
 }
 
 /// Remaps the memory mapping at `ptr` using the alignment of `layout` and `new_size`
-/// 
+///
 /// NOTE: No guarantee is made that the new mapping will be remain in place
 #[inline]
 #[cfg(any(target_os = "freebsd", target_os = "netbsd"))]
-unsafe fn remap_internal(ptr: *mut u8, old_size: usize, _align: usize, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+unsafe fn remap_internal(
+    ptr: *mut u8,
+    old_size: usize,
+    _align: usize,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     let new_seg = libc::mremap(ptr as *mut _, old_size, 0, new_size, 0 as libc::c_int);
     if new_seg == MAP_FAILED {
         return Err(AllocErr);
@@ -145,7 +166,7 @@ unsafe fn remap_internal(ptr: *mut u8, old_size: usize, _align: usize, new_size:
 }
 
 /// Remaps the memory mapping at `ptr` using the alignment of `layout` and `new_size`
-/// 
+///
 /// NOTE: No guarantee is made that the new mapping will be remain in place
 #[inline]
 #[cfg(all(
@@ -155,11 +176,23 @@ unsafe fn remap_internal(ptr: *mut u8, old_size: usize, _align: usize, new_size:
     not(target_os = "freebsd"),
     not(target_os = "netbsd"),
 ))]
-unsafe fn remap_internal(ptr: *mut u8, old_size: usize, align: usize, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+unsafe fn remap_internal(
+    ptr: *mut u8,
+    old_size: usize,
+    align: usize,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     // Try and map the extra space at the end of the old mapping
     let hint_ptr = ((ptr as usize) + old_size) as *mut libc::c_void;
     let extend_size = new_size - old_size;
-    let ret = libc::mmap(hint_ptr, extend_size, MMAP_PROT, MMAP_FLAGS, -1 as libc::c_int, 0);
+    let ret = libc::mmap(
+        hint_ptr,
+        extend_size,
+        MMAP_PROT,
+        MMAP_FLAGS,
+        -1 as libc::c_int,
+        0,
+    );
 
     // Unable to map any new memory
     if ret == MAP_FAILED {
@@ -180,7 +213,11 @@ unsafe fn remap_internal(ptr: *mut u8, old_size: usize, align: usize, new_size: 
 }
 
 #[inline]
-unsafe fn remap_fallback(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+unsafe fn remap_fallback(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     // Allocate new mapping
     let new_layout = Layout::from_size_align(new_size, layout.align()).expect("invalid layout");
     let new_ptr = map(new_layout)?;

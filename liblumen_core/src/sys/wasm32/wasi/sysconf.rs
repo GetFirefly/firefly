@@ -4,7 +4,6 @@ pub(crate) fn pagesize() -> usize {
     64 * 1024
 }
 
-
 #[inline]
 pub fn get_num_cpus() -> usize {
     // In the unknown environment, we have no resources for determining

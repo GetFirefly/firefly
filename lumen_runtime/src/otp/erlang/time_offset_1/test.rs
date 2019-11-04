@@ -5,7 +5,7 @@ use crate::otp::erlang::time_offset_1;
 use crate::scheduler::with_process;
 use liblumen_alloc::erts::term::atom_unchecked;
 
-const TIME_OFFSET_DELTA_LIMIT: u64 = 2;
+const TIME_OFFSET_DELTA_LIMIT: u64 = 5;
 
 #[test]
 fn approximately_system_time_minus_monotonic_time_in_seconds() {

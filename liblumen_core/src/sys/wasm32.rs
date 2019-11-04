@@ -10,5 +10,5 @@ cfg_if! {
     }
 }
 
-pub use self::arch::sysconf;
 pub use self::arch::alloc;
+pub use self::arch::sysconf;

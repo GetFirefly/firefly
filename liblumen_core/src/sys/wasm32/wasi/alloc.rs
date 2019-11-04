@@ -1,8 +1,8 @@
+use core::alloc::{AllocErr, GlobalAlloc, Layout};
 use core::ptr::{self, NonNull};
-use core::alloc::{GlobalAlloc, Layout, AllocErr};
 
-use crate::sys::sysconf::MIN_ALIGN;
 use crate::alloc::realloc_fallback;
+use crate::sys::sysconf::MIN_ALIGN;
 
 #[inline]
 pub unsafe fn alloc(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
@@ -31,7 +31,11 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
 }
 
 #[inline]
-pub unsafe fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn realloc(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     if layout.align() <= MIN_ALIGN && layout.align() <= new_size {
         NonNull::new(libc::realloc(ptr as *mut libc::c_void, new_size) as *mut u8).ok_or(AllocErr)
     } else {

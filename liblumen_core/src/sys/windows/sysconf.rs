@@ -2,16 +2,12 @@ use core::mem;
 
 #[inline]
 pub fn pagesize() -> usize {
-    unsafe {
-        SystemInfo::get().page_size
-    }
+    unsafe { SystemInfo::get().page_size }
 }
 
 #[inline]
 pub fn get_num_cpus() -> usize {
-    unsafe {
-        SystemInfo::get().num_cpus
-    }
+    unsafe { SystemInfo::get().num_cpus }
 }
 /// A friendly representation of the Windows system information struct
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

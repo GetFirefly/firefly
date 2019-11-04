@@ -67,22 +67,10 @@ fn with_float_rounds_to_nearest_integer() {
                     let result_big_int: BigInt = result_term.try_into().unwrap();
 
                     prop_assert_eq!(number_big_int, result_big_int);
-                } else if (0.0 < number_f64 && number_fract < 0.5)
-                    || (number_f64 < 0.0 && number_fract < -0.5)
-                {
-                    prop_assert!(
-                        result_term <= number,
-                        "Expected rounded ({:?}) <= number ({:?})",
-                        result_term,
-                        number
-                    );
                 } else {
-                    prop_assert!(
-                        number <= result_term,
-                        "Expected number ({:?}) <= rounded ({:?})",
-                        number,
-                        result_term
-                    );
+                    let result_f64: f64 = result_term.try_into().unwrap();
+
+                    prop_assert!((result_f64 - number_f64).abs() <= 0.5)
                 }
 
                 Ok(())

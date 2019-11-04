@@ -31,6 +31,12 @@ impl Into<u32> for ID {
     }
 }
 
+impl Into<u128> for ID {
+    fn into(self) -> u128 {
+        self.0 as u128
+    }
+}
+
 lazy_static! {
     static ref ID_COUNTER: AtomicU32 = AtomicU32::new(0);
 }

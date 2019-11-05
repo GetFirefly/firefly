@@ -107,7 +107,7 @@ impl Compiler {
                 CompilerMode::Erlang => self.parse_erl(&mut parser, file)?,
             };
 
-            modules.insert(module.name.clone(), module);
+            modules.insert(module.name().clone(), module);
         }
 
         Ok(modules)

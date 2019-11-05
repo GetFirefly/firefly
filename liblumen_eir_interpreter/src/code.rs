@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use cranelift_entity::EntityRef;
-use libeir_ir::Block;
+use libeir_ir::{Block, FunctionIndex};
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::runtime;
@@ -10,7 +10,7 @@ use liblumen_alloc::erts::process::code::result_from_exception;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
+use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Definition, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::exec::CallExecutor;
@@ -152,12 +152,25 @@ pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
     let closure_term = arc_process.stack_pop().unwrap();
 
     let closure: Boxed<Closure> = closure_term.try_into().unwrap();
+    println!("{:?}", closure);
 
     let mfa = arc_process.current_module_function_arity().unwrap();
-    let arity = mfa.arity;
+    let definition = arc_process.current_definition().unwrap();
 
-    let block_id: usize = closure.env_slice()[0].try_into().unwrap();
-    let block = Block::new(block_id);
+    let block_id;
+    let function_index;
+    match definition {
+        Definition::Anonymous {
+            index, old_unique, ..
+        } => {
+            block_id = index;
+            function_index = old_unique;
+        }
+        _ => unreachable!(),
+    }
+
+    //let block_id: usize = closure.env_slice()[0].try_into().unwrap();
+    let block = Block::new(block_id as usize);
 
     let mut argument_vec: Vec<Term> = Vec::new();
     match argument_list.to_typed_term().unwrap() {
@@ -172,15 +185,16 @@ pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
         _ => panic!(),
     }
 
-    let mut environment_vec: Vec<Term> = closure.env_slice()[1..].to_owned();
+    let mut environment_vec: Vec<Term> = closure.env_slice().to_owned();
 
     let mut exec = CallExecutor::new();
     exec.call_block(
         &crate::VM,
         arc_process,
         mfa.module,
-        mfa.function,
-        arity as usize,
+        FunctionIndex::new(function_index as usize),
+        //mfa.function,
+        //arity as usize,
         &mut argument_vec,
         block,
         &mut environment_vec,

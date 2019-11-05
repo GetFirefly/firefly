@@ -7,7 +7,8 @@ use cranelift_entity::EntityRef;
 use libeir_intern::Symbol;
 use libeir_ir::constant::{AtomicTerm, Const, ConstKind};
 use libeir_ir::{
-    BinOp, BinaryEntrySpecifier, Block, LogicOp, MapPutUpdate, OpKind, PrimOpKind, Value, ValueKind,
+    BinOp, BinaryEntrySpecifier, Block, FunctionIndex, LogicOp, MapPutUpdate, OpKind, PrimOpKind,
+    Value, ValueKind,
 };
 
 use liblumen_alloc::erts::exception::runtime;
@@ -231,24 +232,20 @@ impl CallExecutor {
         vm: &VMState,
         proc: &Arc<Process>,
         module: Atom,
-        function: Atom,
-        arity: usize,
+        fun_idx: FunctionIndex,
         args: &mut [Term],
         block: Block,
         env: &mut [Term],
     ) {
         trace!("======== RUN {} ========", proc.pid());
         let modules = vm.modules.read().unwrap();
-        match modules.lookup_function(module, function, arity) {
-            None => self
-                .fun_not_found(proc, args[1], module, function, arity)
-                .unwrap(),
-            Some(ResolvedFunction::Native(_ptr)) => unreachable!(),
-            Some(ResolvedFunction::Erlang(fun)) => {
-                let live = &fun.live.live[&block];
-                assert!(live.size(&fun.live.pool) == env.len());
+        match modules.lookup_function_idx(module, fun_idx) {
+            None => unreachable!(),
+            Some(fun) => {
+                let live = &fun.live.live_at(block);
+                assert_eq!(live.size(), env.len());
 
-                for (v, t) in live.iter(&fun.live.pool).zip(env.iter()) {
+                for (v, t) in live.iter().zip(env.iter()) {
                     self.binds.insert(v, *t);
                 }
 
@@ -411,12 +408,11 @@ impl CallExecutor {
         fun: &ErlangFunction,
         block: Block,
     ) -> std::result::Result<Term, system::Exception> {
-        let live = &fun.live.live[&block];
+        let live = fun.live.live_at(block);
 
         // FIXME vec alloc
         let mut env = Vec::new();
-        env.push(proc.integer(block.index())?);
-        for v in live.iter(&fun.live.pool) {
+        for v in live.iter() {
             assert!(fun.fun.value_argument(v).is_some());
             env.push(self.make_term(proc, fun, v)?);
         }
@@ -429,7 +425,7 @@ impl CallExecutor {
             // TODO generate `index` scoped to `module`
             block.as_u32(),
             // TODO calculate `old_unique` from `code`
-            Default::default(),
+            fun.index.index() as u32,
             // TODO calculate `unique` from `code`
             Default::default(),
             arity,
@@ -545,11 +541,12 @@ impl CallExecutor {
         let reads = fun.fun.block_reads(block);
         let kind = fun.fun.block_kind(block).unwrap();
         trace!("OP: {:?} {}", kind, block);
+        println!("{:?}", reads);
 
         proc.reduce();
 
         match kind {
-            OpKind::Call => {
+            OpKind::Call(_) => {
                 for read in reads.iter().skip(1) {
                     let term = self.make_term(proc, fun, *read)?;
                     self.next_args.push(term);
@@ -584,21 +581,6 @@ impl CallExecutor {
                         self.val_call(proc, fun, reads[0])
                     }
                 }
-            }
-            OpKind::CaptureFunction => {
-                let module: Atom = self.make_term(proc, fun, reads[1])?.try_into().unwrap();
-                let function: Atom = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
-                let arity: u8 = self.make_term(proc, fun, reads[3])?.try_into().unwrap();
-
-                let closure = proc.export_closure(
-                    module,
-                    function,
-                    arity,
-                    Some(crate::code::interpreter_mfa_code),
-                )?;
-
-                self.next_args.push(closure);
-                self.val_call(proc, fun, reads[0])
             }
             OpKind::Intrinsic(name) if *name == Symbol::intern("bool_and") => {
                 let mut res = true;

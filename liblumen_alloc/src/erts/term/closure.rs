@@ -75,7 +75,8 @@ impl Closure {
     }
 
     pub fn frame(&self) -> Frame {
-        Frame::new(self.module_function_arity(), self.code())
+        let mfa = self.module_function_arity();
+        Frame::from_definition(mfa.module, self.definition.clone(), mfa.arity, self.code())
     }
 
     pub fn module_function_arity(&self) -> Arc<ModuleFunctionArity> {
@@ -182,31 +183,7 @@ impl Closure {
     }
 
     fn function(&self) -> Atom {
-        match self.definition {
-            Definition::Export { function } => function,
-            Definition::Anonymous {
-                index,
-                old_unique,
-                unique,
-                ..
-            } => Atom::try_from_str(format!(
-                "{}-{}-{}",
-                index,
-                old_unique,
-                Self::format_unique(&unique)
-            ))
-            .unwrap(),
-        }
-    }
-
-    fn format_unique(unique: &[u8; 16]) -> String {
-        let mut string = String::with_capacity(unique.len() * 2);
-
-        for byte in unique {
-            string.push_str(&format!("{:02x}", byte));
-        }
-
-        string
+        self.definition.function_name()
     }
 
     fn option_code_address(&self) -> Option<usize> {
@@ -384,6 +361,36 @@ pub enum Definition {
         creator: Creator,
         env_len: usize,
     },
+}
+
+impl Definition {
+    pub fn function_name(&self) -> Atom {
+        match self {
+            Definition::Export { function } => *function,
+            Definition::Anonymous {
+                index,
+                old_unique,
+                unique,
+                ..
+            } => Atom::try_from_str(format!(
+                "{}-{}-{}",
+                index,
+                old_unique,
+                Self::format_unique(&unique)
+            ))
+            .unwrap(),
+        }
+    }
+
+    fn format_unique(unique: &[u8; 16]) -> String {
+        let mut string = String::with_capacity(unique.len() * 2);
+
+        for byte in unique {
+            string.push_str(&format!("{:02x}", byte));
+        }
+
+        string
+    }
 }
 
 impl Eq for Definition {}

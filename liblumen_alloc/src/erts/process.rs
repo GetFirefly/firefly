@@ -52,6 +52,7 @@ pub use self::priority::Priority;
 use crate::erts::process::alloc::heap_alloc::MakePidError;
 use crate::erts::process::code::Code;
 use crate::erts::term::BytesFromBinaryError;
+use crate::erts::term::Definition;
 
 // 4000 in [BEAM](https://github.com/erlang/otp/blob/61ebe71042fce734a06382054690d240ab027409/erts/emulator/beam/erl_vm.h#L39)
 cfg_if::cfg_if! {
@@ -950,6 +951,13 @@ impl Process {
             .lock()
             .get(0)
             .map(|frame| frame.module_function_arity())
+    }
+
+    pub fn current_definition(&self) -> Option<Definition> {
+        self.code_stack
+            .lock()
+            .get(0)
+            .map(|frame| frame.definition().clone())
     }
 
     pub fn place_frame(&self, frame: Frame, placement: Placement) {

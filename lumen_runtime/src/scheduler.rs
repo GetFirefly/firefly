@@ -48,6 +48,9 @@ pub struct Scheduler {
     // References are always 64-bits even on 32-bit platforms
     reference_count: AtomicU64,
     run_queues: RwLock<run::queues::Queues>,
+    // Non-monotonic unique integers are scoped to the scheduler ID and then use this per-scheduler
+    // `u64`.
+    unique_integer: AtomicU64,
 }
 
 impl Scheduler {
@@ -76,6 +79,10 @@ impl Scheduler {
 
     pub fn next_reference_number(&self) -> reference::Number {
         self.reference_count.fetch_add(1, Ordering::SeqCst)
+    }
+
+    pub fn next_unique_integer(&self) -> u64 {
+        self.unique_integer.fetch_add(1, Ordering::SeqCst)
     }
 
     /// > 1. Update reduction counters
@@ -293,6 +300,7 @@ impl Scheduler {
             hierarchy: Default::default(),
             reference_count: AtomicU64::new(0),
             run_queues: Default::default(),
+            unique_integer: AtomicU64::new(0),
         }
     }
 

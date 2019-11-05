@@ -78,6 +78,11 @@ impl From<u64> for BigInteger {
         Self::new(BigInt::from(n))
     }
 }
+impl From<u128> for BigInteger {
+    fn from(n: u128) -> Self {
+        Self::new(BigInt::from(n))
+    }
+}
 impl From<usize> for BigInteger {
     #[inline]
     fn from(n: usize) -> Self {
@@ -93,6 +98,12 @@ impl From<isize> for BigInteger {
 impl From<i64> for BigInteger {
     #[inline]
     fn from(n: i64) -> Self {
+        Self::new(BigInt::from(n))
+    }
+}
+impl From<i128> for BigInteger {
+    #[inline]
+    fn from(n: i128) -> Self {
         Self::new(BigInt::from(n))
     }
 }

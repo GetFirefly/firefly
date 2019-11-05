@@ -1,6 +1,6 @@
-#[path = "./replace_child_3/with_new_child_is_parent_returns_error_hierarchy_request.rs"]
+#[path = "replace_child_3/with_new_child_is_parent_returns_error_hierarchy_request.rs"]
 mod with_new_child_is_parent_returns_error_hierarchy_request;
-#[path = "./replace_child_3/with_new_child_returns_ok_replaced_child.rs"]
+#[path = "replace_child_3/with_new_child_returns_ok_replaced_child.rs"]
 mod with_new_child_returns_ok_replaced_child;
 
 use super::*;
@@ -49,7 +49,7 @@ fn with_new_child_is_parent_returns_error_hierarchy_request(
         // # full stack: ()
         // # returns: {:ok, document}
         // ```
-        document::new_0::place_frame(child_process, Placement::Push);
+        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
 
         Ok(())
     })
@@ -116,7 +116,7 @@ fn with_new_child_returns_ok_replaced_child() -> impl Future<Item = (), Error = 
         // # full stack: ()
         // # returns: {:ok, parent_document}
         // ```
-        document::new_0::place_frame(child_process, Placement::Push);
+        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
 
         Ok(())
     })

@@ -1,4 +1,4 @@
-#[path = "./remove_1/removes_element.rs"]
+#[path = "remove_1/removes_element.rs"]
 mod removes_element;
 
 use super::*;
@@ -43,7 +43,7 @@ fn removes_element() -> impl Future<Item = (), Error = JsValue> {
         // # full stack: ()
         // # returns: {:ok, window}
         // ```
-        window::window_0::place_frame(child_process, Placement::Push);
+        window::window_0::place_frame_with_arguments(child_process, Placement::Push)?;
 
         Ok(())
     })

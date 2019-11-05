@@ -1,14 +1,14 @@
-#[path = "./with_reference_child_inserts_before_reference_child/label_1.rs"]
+#[path = "with_reference_child_inserts_before_reference_child/label_1.rs"]
 pub mod label_1;
-#[path = "./with_reference_child_inserts_before_reference_child/label_2.rs"]
+#[path = "with_reference_child_inserts_before_reference_child/label_2.rs"]
 pub mod label_2;
-#[path = "./with_reference_child_inserts_before_reference_child/label_3.rs"]
+#[path = "with_reference_child_inserts_before_reference_child/label_3.rs"]
 pub mod label_3;
-#[path = "./with_reference_child_inserts_before_reference_child/label_4.rs"]
+#[path = "with_reference_child_inserts_before_reference_child/label_4.rs"]
 pub mod label_4;
-#[path = "./with_reference_child_inserts_before_reference_child/label_5.rs"]
+#[path = "with_reference_child_inserts_before_reference_child/label_5.rs"]
 pub mod label_5;
-#[path = "./with_reference_child_inserts_before_reference_child/label_6.rs"]
+#[path = "with_reference_child_inserts_before_reference_child/label_6.rs"]
 pub mod label_6;
 
 use liblumen_alloc::erts::term::Atom;

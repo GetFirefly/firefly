@@ -1,9 +1,11 @@
 use liblumen_alloc::erts::term::atom_unchecked;
 
-use crate::otp::erlang::{monotonic_time_1, subtract_2, system_time_1, time_offset_1};
+use crate::otp::erlang::{
+    convert_time_unit_3, monotonic_time_1, subtract_2, system_time_1, time_offset_1,
+};
 use crate::scheduler::with_process;
 
-const TIME_OFFSET_DELTA_LIMIT: u64 = 20;
+const TIME_OFFSET_DELTA_LIMIT_SECONDS: u64 = 2;
 
 #[test]
 fn approximately_system_time_minus_monotonic_time_in_seconds() {
@@ -45,12 +47,22 @@ fn approximately_system_time_minus_monotonic_time_in_unit(unit_str: &str) {
             subtract_2::native(process, system_time, monotonic_time).unwrap();
         let time_offset_delta =
             subtract_2::native(process, expected_time_offset, time_offset).unwrap();
+        let time_offset_delta_limit_seconds =
+            process.integer(TIME_OFFSET_DELTA_LIMIT_SECONDS).unwrap();
+        let time_offset_delta_limit = convert_time_unit_3::native(
+            process,
+            time_offset_delta_limit_seconds,
+            atom_unchecked("seconds"),
+            unit,
+        )
+        .unwrap();
 
         assert!(
-            time_offset_delta <= process.integer(TIME_OFFSET_DELTA_LIMIT).unwrap(),
-            "time_offset_delta ({:?}) <= TIME_OFFSET_DELTA_LIMIT ({:?})",
+            time_offset_delta <= time_offset_delta_limit,
+            "time_offset_delta ({:?}) <= TIME_OFFSET_DELTA_LIMIT ({:?}) in unit ({:?})",
             time_offset_delta,
-            TIME_OFFSET_DELTA_LIMIT
+            time_offset_delta_limit,
+            unit
         );
     });
 }

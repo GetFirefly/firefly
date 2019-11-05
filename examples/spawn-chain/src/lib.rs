@@ -53,7 +53,7 @@ enum Output {
 
 fn run_with_output(count: usize, output: Output) -> js_sys::Promise {
     let mut options: Options = Default::default();
-    options.min_heap_size = Some(79 + count * 5);
+    options.min_heap_size = Some(79 + count * 10);
 
     wait::with_return_0::spawn(
         options,

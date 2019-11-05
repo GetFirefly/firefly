@@ -43,7 +43,6 @@ pub trait StackPrimitives {
     /// allocation, and `S` is the bottom of the stack, or oldest allocation.
     ///
     /// If `S > stack_size`, then `None` is returned. Otherwise, `Some(Term)` is returned.
-    #[inline]
     fn stack_slot(&mut self, n: usize) -> Option<Term>;
 
     /// This function "pops" the last `n` terms from the stack, making that
@@ -53,7 +52,6 @@ pub trait StackPrimitives {
     ///
     /// This function will panic if given a value `n` which exceeds the current
     /// number of terms allocated on the stack
-    #[inline]
     fn stack_popn(&mut self, n: usize);
 }
 impl<A, S> StackPrimitives for S

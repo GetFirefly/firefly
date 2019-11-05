@@ -56,12 +56,9 @@ impl JsHeap {
     }
 
     pub fn send(&self, pid: Pid, msg: usize) {
-        match pid_to_process(&pid.0) {
-            Some(process) => {
-                let term = self.terms[msg];
-                process.send_from_other(term).unwrap();
-            }
-            None => (),
+        if let Some(process) = pid_to_process(&pid.0) {
+            let term = self.terms[msg];
+            process.send_from_other(term).unwrap();
         }
     }
 

@@ -69,8 +69,7 @@ where
         Ok(ast) => return (ast, parser),
         Err(errs) => errs,
     };
-    let emitter =
-        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
+    let emitter = StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap);
     for err in errs.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -81,8 +80,7 @@ pub fn lower(input: &str, config: ParseConfig) -> Result<Module, ()> {
     let (parsed, parser): (ErlAstModule, _) = parse(input, config);
     let (res, messages) = lower_module(&parsed);
 
-    let emitter =
-        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
+    let emitter = StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap);
     for err in messages.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }

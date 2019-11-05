@@ -79,7 +79,11 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
             Process::call_code(arc_process)
         }
-        None => Ok(Arc::clone(arc_process).wait()),
+        None => {
+            Arc::clone(arc_process).wait();
+
+            Ok(())
+        }
         Some(Err(alloc_err)) => Err(alloc_err.into()),
     }
 }

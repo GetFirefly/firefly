@@ -1,6 +1,6 @@
-#[path = "./insert_before_3/with_nil_reference_child_appends_new_child.rs"]
+#[path = "insert_before_3/with_nil_reference_child_appends_new_child.rs"]
 mod with_nil_reference_child_appends_new_child;
-#[path = "./insert_before_3/with_reference_child_inserts_before_reference_child.rs"]
+#[path = "insert_before_3/with_reference_child_inserts_before_reference_child.rs"]
 mod with_reference_child_inserts_before_reference_child;
 
 use super::*;

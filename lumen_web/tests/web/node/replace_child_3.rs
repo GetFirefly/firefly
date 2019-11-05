@@ -1,6 +1,6 @@
-#[path = "./replace_child_3/with_new_child_is_parent_returns_error_hierarchy_request.rs"]
+#[path = "replace_child_3/with_new_child_is_parent_returns_error_hierarchy_request.rs"]
 mod with_new_child_is_parent_returns_error_hierarchy_request;
-#[path = "./replace_child_3/with_new_child_returns_ok_replaced_child.rs"]
+#[path = "replace_child_3/with_new_child_returns_ok_replaced_child.rs"]
 mod with_new_child_returns_ok_replaced_child;
 
 use super::*;

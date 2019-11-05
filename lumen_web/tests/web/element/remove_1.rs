@@ -1,4 +1,4 @@
-#[path = "./remove_1/removes_element.rs"]
+#[path = "remove_1/removes_element.rs"]
 mod removes_element;
 
 use super::*;

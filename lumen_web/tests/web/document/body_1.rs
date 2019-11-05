@@ -1,7 +1,7 @@
-#[path = "./body_1/without_body.rs"]
+#[path = "body_1/without_body.rs"]
 mod without_body;
 
-#[path = "./body_1/with_body.rs"]
+#[path = "body_1/with_body.rs"]
 mod with_body;
 
 use super::*;

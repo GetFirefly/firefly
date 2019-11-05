@@ -3,15 +3,15 @@
 //! Test suite for the Web and headless browsers.
 #![cfg(target_arch = "wasm32")]
 
-#[path = "./web/document.rs"]
+#[path = "web/document.rs"]
 mod document;
-#[path = "./web/element.rs"]
+#[path = "web/element.rs"]
 mod element;
-#[path = "./web/math.rs"]
+#[path = "web/math.rs"]
 mod math;
-#[path = "./web/node.rs"]
+#[path = "web/node.rs"]
 mod node;
-#[path = "./web/web_socket.rs"]
+#[path = "web/web_socket.rs"]
 mod web_socket;
 
 extern crate wasm_bindgen_test;

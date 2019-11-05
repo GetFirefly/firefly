@@ -1,4 +1,4 @@
-#[path = "./without_body/label_1.rs"]
+#[path = "without_body/label_1.rs"]
 pub mod label_1;
 
 use super::*;

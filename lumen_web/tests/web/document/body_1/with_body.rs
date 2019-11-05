@@ -1,6 +1,6 @@
-#[path = "./with_body/label_1.rs"]
+#[path = "with_body/label_1.rs"]
 pub mod label_1;
-#[path = "./with_body/label_2.rs"]
+#[path = "with_body/label_2.rs"]
 pub mod label_2;
 
 use super::*;

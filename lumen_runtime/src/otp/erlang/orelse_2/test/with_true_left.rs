@@ -56,7 +56,7 @@ fn with_local_pid_right_returns_true() {
 
 #[test]
 fn with_external_pid_right_returns_true() {
-    with_right_returns_true(|process| process.external_pid_with_node_id(1, 2, 3).unwrap());
+    with_right_returns_true(|process| process.external_pid(external_arc_node(), 2, 3).unwrap());
 }
 
 #[test]

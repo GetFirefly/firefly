@@ -2,22 +2,36 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use cranelift_entity::EntityRef;
-use libeir_ir::Block;
+use libeir_ir::{Block, FunctionIndex};
 
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::exception::runtime;
 use liblumen_alloc::erts::process::code::result_from_exception;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
+use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Definition, Term, TypedTerm};
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::exec::CallExecutor;
+
+fn module() -> Atom {
+    Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap()
+}
 
 pub fn return_clean(arc_process: &Arc<Process>) -> Result {
     let argument_list = arc_process.stack_pop().unwrap();
     arc_process.return_from_call(argument_list)?;
     Process::call_code(arc_process)
+}
+
+pub fn return_clean_closure(process: &Process) -> exception::Result {
+    let function = Atom::try_from_str("return_clean").unwrap();
+    const ARITY: u8 = 1;
+
+    process
+        .export_closure(module(), function, ARITY, Some(return_clean))
+        .map_err(|error| error.into())
 }
 
 pub fn return_ok(arc_process: &Arc<Process>) -> Result {
@@ -38,6 +52,15 @@ pub fn return_ok(arc_process: &Arc<Process>) -> Result {
     assert!(argument_vec.len() == 1);
 
     Ok(arc_process.return_from_call(argument_vec[0])?)
+}
+
+pub fn return_ok_closure(process: &Process) -> exception::Result {
+    let function = Atom::try_from_str("return_ok").unwrap();
+    const ARITY: u8 = 1;
+
+    process
+        .export_closure(module(), function, ARITY, Some(return_ok))
+        .map_err(|error| error.into())
 }
 
 pub fn return_throw(arc_process: &Arc<Process>) -> Result {
@@ -73,6 +96,15 @@ pub fn return_throw(arc_process: &Arc<Process>) -> Result {
         column: 0,
     };
     result_from_exception(arc_process, exc.into())
+}
+
+pub fn return_throw_closure(process: &Process) -> exception::Result {
+    let function = Atom::try_from_str("return_throw").unwrap();
+    const ARITY: u8 = 3;
+
+    process
+        .export_closure(module(), function, ARITY, Some(return_throw))
+        .map_err(|error| error.into())
 }
 
 /// Expects the following on stack:
@@ -120,12 +152,25 @@ pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
     let closure_term = arc_process.stack_pop().unwrap();
 
     let closure: Boxed<Closure> = closure_term.try_into().unwrap();
+    println!("{:?}", closure);
 
     let mfa = arc_process.current_module_function_arity().unwrap();
-    let arity = mfa.arity;
+    let definition = arc_process.current_definition().unwrap();
 
-    let block_id: usize = closure.env_slice()[0].try_into().unwrap();
-    let block = Block::new(block_id);
+    let block_id;
+    let function_index;
+    match definition {
+        Definition::Anonymous {
+            index, old_unique, ..
+        } => {
+            block_id = index;
+            function_index = old_unique;
+        }
+        _ => unreachable!(),
+    }
+
+    //let block_id: usize = closure.env_slice()[0].try_into().unwrap();
+    let block = Block::new(block_id as usize);
 
     let mut argument_vec: Vec<Term> = Vec::new();
     match argument_list.to_typed_term().unwrap() {
@@ -140,15 +185,16 @@ pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
         _ => panic!(),
     }
 
-    let mut environment_vec: Vec<Term> = closure.env_slice()[1..].to_owned();
+    let mut environment_vec: Vec<Term> = closure.env_slice().to_owned();
 
     let mut exec = CallExecutor::new();
     exec.call_block(
         &crate::VM,
         arc_process,
         mfa.module,
-        mfa.function,
-        arity as usize,
+        FunctionIndex::new(function_index as usize),
+        //mfa.function,
+        //arity as usize,
         &mut argument_vec,
         block,
         &mut environment_vec,

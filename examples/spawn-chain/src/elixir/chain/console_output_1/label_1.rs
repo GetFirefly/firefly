@@ -36,8 +36,11 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let text = arc_process.stack_pop().unwrap();
 
     // TODO use `<>` and `to_string` to emulate interpolation properly
-    let full_text = arc_process.binary_from_str(&format!("pid={} {}", self_term, text))?;
-    elixir::io::puts_1::place_frame_with_arguments(arc_process, Placement::Replace, full_text)?;
+    let full_text = arc_process
+        .binary_from_str(&format!("pid={} {}", self_term, text))
+        .unwrap();
+    elixir::io::puts_1::place_frame_with_arguments(arc_process, Placement::Replace, full_text)
+        .unwrap();
 
     Process::call_code(arc_process)
 }

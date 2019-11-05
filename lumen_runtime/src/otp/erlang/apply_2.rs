@@ -51,7 +51,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                 }
             }
 
-            if argument_vec.len() == (function_boxed_closure.arity() as usize) {
+            if argument_vec.len() == (function_boxed_closure.arity as usize) {
                 function_boxed_closure.place_frame_with_arguments(
                     arc_process,
                     Placement::Replace,

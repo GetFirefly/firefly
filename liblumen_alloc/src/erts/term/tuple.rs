@@ -352,7 +352,7 @@ mod tests {
     use crate::erts::process::{default_heap, Priority, Process};
     use crate::erts::scheduler;
     use crate::erts::term::{Boxed, Tuple};
-    use crate::erts::ModuleFunctionArity;
+    use crate::erts::{ModuleFunctionArity, Node};
 
     mod get_element_from_zero_based_usize_index {
         use super::*;
@@ -430,6 +430,11 @@ mod tests {
         #[test]
         fn with_elements() {
             let process = process();
+            let arc_node = Arc::new(Node::new(
+                1,
+                Atom::try_from_str("node@external").unwrap(),
+                0,
+            ));
             // one of every type
             let slice = &[
                 // small integer
@@ -439,7 +444,7 @@ mod tests {
                 process.reference(0).unwrap(),
                 closure(&process),
                 process.float(0.0).unwrap(),
-                process.external_pid_with_node_id(1, 0, 0).unwrap(),
+                process.external_pid(arc_node, 0, 0).unwrap(),
                 Term::NIL,
                 make_pid(0, 0).unwrap(),
                 atom_unchecked("atom"),
@@ -477,16 +482,9 @@ mod tests {
     }
 
     fn closure(process: &Process) -> Term {
-        let creator = process.pid_term();
-
         let module = Atom::try_from_str("module").unwrap();
         let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
-        let module_function_arity = Arc::new(ModuleFunctionArity {
-            module,
-            function,
-            arity,
-        });
         let code = |arc_process: &Arc<Process>| {
             arc_process.wait();
 
@@ -495,7 +493,7 @@ mod tests {
 
         process
             .acquire_heap()
-            .closure_with_env_from_slices(module_function_arity, code, creator, &[&[]])
+            .export_closure(module, function, arity, Some(code))
             .unwrap()
     }
 

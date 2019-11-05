@@ -19,7 +19,7 @@ pub fn place_frame_with_arguments(
     time_value: Term,
 ) -> Result<(), Alloc> {
     assert!(time_value.is_tuple());
-    process.stack_push(time_value)?;
+    process.stack_push(time_value).unwrap();
     process.place_frame(frame(process), placement);
 
     Ok(())
@@ -34,7 +34,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok, atom_unchecked("ok"));
     let time_value = arc_process.stack_pop().unwrap();
 
-    arc_process.return_from_call(time_value)?;
+    arc_process.return_from_call(time_value).unwrap();
 
     Process::call_code(arc_process)
 }

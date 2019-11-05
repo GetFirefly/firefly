@@ -8,14 +8,15 @@ pub mod r#loop;
 pub mod strategy;
 
 use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
 
 use num_bigint::BigInt;
 
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::binary::MaybePartialByte;
-use liblumen_alloc::erts::term::{atom_unchecked, BigInteger, Boxed, Term, TypedTerm};
+use liblumen_alloc::erts::term::{atom_unchecked, Atom, BigInteger, Boxed, Term, TypedTerm};
+use liblumen_alloc::erts::{exception, Node};
 
 use crate::process::spawn::options::Options;
 use crate::scheduler::{with_process, Scheduler, Spawned};
@@ -54,6 +55,14 @@ where
     F: FnOnce(&Process) -> exception::Result,
 {
     with_process(|process| assert_badarg!(actual(&process)))
+}
+
+pub fn external_arc_node() -> Arc<Node> {
+    Arc::new(Node::new(
+        1,
+        Atom::try_from_str("node@external").unwrap(),
+        0,
+    ))
 }
 
 pub fn has_no_message(process: &Process) -> bool {
@@ -96,12 +105,6 @@ pub fn has_process_message(process: &Process, data: Term) -> bool {
             }) => message_data == &data,
             _ => false,
         })
-}
-
-pub fn list_term(process: &Process) -> Term {
-    let head_term = atom_unchecked("head");
-
-    process.cons(head_term, Term::NIL).unwrap()
 }
 
 pub fn monitor_count(process: &Process) -> usize {

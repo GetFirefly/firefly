@@ -53,7 +53,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         arc_process,
         Placement::Push,
         n_input,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

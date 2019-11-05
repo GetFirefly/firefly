@@ -9,7 +9,7 @@ pub mod term;
 
 pub use fragment::{HeapFragment, HeapFragmentAdapter};
 pub use message::Message;
-pub use module_function_arity::ModuleFunctionArity;
+pub use module_function_arity::{Arity, ModuleFunctionArity};
 pub use node::*;
 pub use process::*;
 pub(crate) use term::to_word_size;

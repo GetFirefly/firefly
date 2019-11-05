@@ -15,8 +15,11 @@
 #![feature(ptr_offset_from)]
 // For allocation multiple contiguous terms in `Term::alloc_count`.
 #![feature(try_reserve)]
+#![feature(type_ascription)]
 // for `lumen_runtime::term::Term`
 #![feature(untagged_unions)]
+// for `lumen_runtime::distribution::nodes::insert`
+#![feature(option_unwrap_none)]
 // for `lumen_runtime::list::Cons::subtract`.
 #![feature(vec_remove_item)]
 // `crate::registry::<Registered as PartialEq>::eq`
@@ -38,9 +41,9 @@ pub mod binary_to_string;
 // `pub` or `examples/spawn-chain`
 pub mod code;
 mod config;
+mod distribution;
 pub mod future;
 mod logging;
-mod node;
 mod number;
 pub mod otp;
 pub mod process;

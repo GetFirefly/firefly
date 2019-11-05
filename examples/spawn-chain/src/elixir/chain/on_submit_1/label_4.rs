@@ -13,7 +13,7 @@ use lumen_runtime::otp::erlang;
 /// # returned from call: n
 /// # full stack: (n)
 /// # returns: {time, value}
-/// :erlang.spawn_opt(Chain, dom, [n], [min_heap_size: 79 + n *5])
+/// :erlang.spawn_opt(Chain, dom, [n], [min_heap_size: 79 + n * 10])
 /// ```
 pub fn place_frame(process: &Process, placement: Placement) {
     process.place_frame(frame(process), placement);
@@ -33,12 +33,17 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         Placement::Replace,
         atom_unchecked("Elixir.Chain"),
         atom_unchecked("dom"),
-        arc_process.list_from_slice(&[n])?,
-        arc_process.list_from_slice(&[arc_process.tuple_from_slice(&[
-            atom_unchecked("min_heap_size"),
-            arc_process.integer(79 + n_usize * 5)?,
-        ])?])?,
-    )?;
+        arc_process.list_from_slice(&[n]).unwrap(),
+        arc_process
+            .list_from_slice(&[arc_process
+                .tuple_from_slice(&[
+                    atom_unchecked("min_heap_size"),
+                    arc_process.integer(79 + n_usize * 10).unwrap(),
+                ])
+                .unwrap()])
+            .unwrap(),
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

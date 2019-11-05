@@ -53,16 +53,18 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         match reducer.to_typed_term().unwrap() {
             TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
                 TypedTerm::Closure(closure) => {
-                    if closure.arity() == 2 {
-                        closure.place_frame_with_arguments(
-                            arc_process,
-                            Placement::Replace,
-                            vec![first, acc],
-                        )?;
+                    if closure.arity == 2 {
+                        closure
+                            .place_frame_with_arguments(
+                                arc_process,
+                                Placement::Replace,
+                                vec![first, acc],
+                            )
+                            .unwrap();
 
                         Process::call_code(arc_process)
                     } else {
-                        let argument_list = arc_process.list_from_slice(&[first, acc])?;
+                        let argument_list = arc_process.list_from_slice(&[first, acc]).unwrap();
 
                         result_from_exception(
                             arc_process,
@@ -97,7 +99,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             last,
             acc,
             reducer,
-        )?;
+        )
+        .unwrap();
 
         // ```elixir
         // # pushed to stack: (first, inc)
@@ -106,8 +109,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         // # returns: new_first
         // first + 1
         // ```
-        let inc = arc_process.integer(1)?;
-        add_2::place_frame_with_arguments(arc_process, Placement::Push, first, inc)?;
+        let inc = arc_process.integer(1).unwrap();
+        add_2::place_frame_with_arguments(arc_process, Placement::Push, first, inc).unwrap();
 
         Process::call_code(arc_process)
     }

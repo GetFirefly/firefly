@@ -41,15 +41,16 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let tr = arc_process.stack_pop().unwrap();
     assert!(tr.is_resource_reference());
 
-    label_12::place_frame_with_arguments(arc_process, Placement::Replace, tr)?;
+    label_12::place_frame_with_arguments(arc_process, Placement::Replace, tr).unwrap();
 
-    let id = arc_process.binary_from_str("output")?;
+    let id = arc_process.binary_from_str("output").unwrap();
     lumen_web::document::get_element_by_id_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         document,
         id,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

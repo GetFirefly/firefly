@@ -51,7 +51,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
     let output = arc_process.stack_pop().unwrap();
     let output_closure: Boxed<Closure> = output.try_into().unwrap();
-    assert_eq!(output_closure.arity(), 1);
+    assert_eq!(output_closure.arity, 1);
 
     // ```elixir
     // # label 2
@@ -64,7 +64,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     //     output.("Result is #{inspect(final_answer)}")
     // end
     // ```
-    label_2::place_frame_with_arguments(arc_process, Placement::Replace, output)?;
+    label_2::place_frame_with_arguments(arc_process, Placement::Replace, output).unwrap();
 
     // ```elixir
     // # pushed stack: (last, data)
@@ -73,8 +73,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     // # returns: sent
     // send(last, 0) # start the count by sending a zero to the last process
     // ```
-    let message = arc_process.integer(0)?;
-    erlang::send_2::place_frame_with_arguments(arc_process, Placement::Push, last, message)?;
+    let message = arc_process.integer(0).unwrap();
+    erlang::send_2::place_frame_with_arguments(arc_process, Placement::Push, last, message)
+        .unwrap();
 
     Process::call_code(arc_process)
 }

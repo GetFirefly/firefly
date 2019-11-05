@@ -7,7 +7,7 @@ use lumen_runtime::process::spawn::Spawned;
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::{process, registry};
 
-use crate::start::set_apply_fn;
+use crate::start::export_code;
 
 #[test]
 fn with_1() {
@@ -131,7 +131,7 @@ fn run_through(n: usize) {
 static START: Once = Once::new();
 
 fn start() {
-    set_apply_fn();
+    export_code();
 }
 
 fn start_once() {

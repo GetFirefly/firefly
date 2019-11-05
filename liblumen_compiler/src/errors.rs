@@ -26,3 +26,6 @@ impl From<std::io::Error> for CompilerError {
         CompilerError::IO(err)
     }
 }
+
+unsafe impl Send for CompilerError {}
+unsafe impl Sync for CompilerError {}

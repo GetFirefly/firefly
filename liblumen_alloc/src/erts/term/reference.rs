@@ -6,6 +6,8 @@ use core::hash::{Hash, Hasher};
 use core::mem::{self, size_of};
 use core::ptr;
 
+use alloc::sync::Arc;
+
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::system::Alloc;
 use crate::erts::term::{arity_of, to_word_size, AsTerm, Boxed, Term, TypeError, TypedTerm};
@@ -146,8 +148,7 @@ impl TryFrom<TypedTerm> for Boxed<Reference> {
 #[repr(C)]
 pub struct ExternalReference {
     header: Term,
-    node: Node,
-    next: *mut u8,
+    arc_node: Arc<Node>,
     reference: Reference,
 }
 
@@ -169,8 +170,7 @@ impl Debug for ExternalReference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ExternalReference")
             .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("node", &self.node)
-            .field("next", &self.next)
+            .field("arc_node", &self.arc_node)
             .field("reference", &self.reference)
             .finish()
     }
@@ -184,7 +184,7 @@ impl Display for ExternalReference {
 
 impl Hash for ExternalReference {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.node.hash(state);
+        self.arc_node.hash(state);
         self.reference.hash(state);
     }
 }
@@ -209,7 +209,7 @@ impl PartialEq<Boxed<Reference>> for Boxed<ExternalReference> {
 
 impl PartialEq<ExternalReference> for ExternalReference {
     fn eq(&self, other: &ExternalReference) -> bool {
-        self.node == other.node && self.reference == other.reference
+        self.arc_node == other.arc_node && self.reference == other.reference
     }
 }
 
@@ -235,7 +235,7 @@ impl PartialOrd<Boxed<Reference>> for Boxed<ExternalReference> {
 impl PartialOrd<ExternalReference> for ExternalReference {
     fn partial_cmp(&self, other: &ExternalReference) -> Option<cmp::Ordering> {
         use cmp::Ordering;
-        match self.node.partial_cmp(&other.node) {
+        match self.arc_node.partial_cmp(&other.arc_node) {
             Some(Ordering::Equal) => self.reference.partial_cmp(&other.reference),
             result => result,
         }

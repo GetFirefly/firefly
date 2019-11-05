@@ -1,7 +1,7 @@
 pub(in crate::erts) mod atom;
 pub mod binary;
 mod boxed;
-mod closure;
+pub mod closure;
 mod float;
 pub mod index;
 mod integer;

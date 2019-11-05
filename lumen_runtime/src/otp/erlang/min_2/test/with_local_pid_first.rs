@@ -42,7 +42,7 @@ fn with_greater_local_pid_second_returns_first() {
 #[test]
 fn with_external_pid_second_returns_first() {
     min(
-        |_, process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
+        |_, process| process.external_pid(external_arc_node(), 2, 3).unwrap(),
         First,
     );
 }

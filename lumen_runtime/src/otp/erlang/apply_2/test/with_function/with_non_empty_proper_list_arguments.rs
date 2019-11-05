@@ -7,9 +7,8 @@ use proptest::strategy::{Just, Strategy};
 use liblumen_alloc::badarity;
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::test::strategy::term::closure;
+use crate::test::strategy::term::export_closure;
 
 #[test]
 fn without_arity_errors_badarg() {
@@ -29,7 +28,7 @@ fn without_arity_errors_badarg() {
                     |(arc_process, module, function, first_argument, second_argument)| {
                         (
                             arc_process.clone(),
-                            closure(&arc_process.clone(), module, function, 1),
+                            export_closure(&arc_process, module, function, 1),
                             arc_process
                                 .list_from_slice(&[first_argument, second_argument])
                                 .unwrap(),
@@ -78,12 +77,8 @@ fn with_arity_returns_function_return() {
                     strategy::term(arc_process.clone()),
                 )
                     .prop_map(|(module, function, argument)| {
-                        let creator = arc_process.pid_term();
-                        let module_function_arity = Arc::new(ModuleFunctionArity {
-                            module,
-                            function,
-                            arity: 1,
-                        });
+                        let arity = 1;
+
                         let code: Code = |arc_process: &Arc<Process>| {
                             let return_term = arc_process.stack_pop().unwrap();
                             arc_process.return_from_call(return_term)?;
@@ -93,12 +88,7 @@ fn with_arity_returns_function_return() {
 
                         (
                             arc_process
-                                .closure_with_env_from_slice(
-                                    module_function_arity,
-                                    code,
-                                    creator,
-                                    &[],
-                                )
+                                .export_closure(module, function, arity, Some(code))
                                 .unwrap(),
                             argument,
                         )

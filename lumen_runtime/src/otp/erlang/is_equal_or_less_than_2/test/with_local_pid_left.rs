@@ -37,7 +37,7 @@ fn with_greater_local_pid_right_returns_true() {
 #[test]
 fn with_external_pid_right_returns_true() {
     is_equal_or_less_than(
-        |_, process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
+        |_, process| process.external_pid(external_arc_node(), 2, 3).unwrap(),
         true,
     );
 }

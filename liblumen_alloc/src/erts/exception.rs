@@ -2,6 +2,7 @@
 pub mod runtime;
 pub mod system;
 
+use core::array::TryFromSliceError;
 use core::convert::Into;
 use core::num::TryFromIntError;
 
@@ -10,6 +11,7 @@ use crate::erts::process::Process;
 use crate::erts::term::atom::AtomError;
 use crate::erts::term::atom::EncodingError;
 use crate::erts::term::list::ImproperList;
+use crate::erts::term::pid;
 use crate::erts::term::{
     index, BoolError, BytesFromBinaryError, StrFromBinaryError, Term, TryIntoIntegerError,
     TypeError,
@@ -164,6 +166,12 @@ impl From<MakePidError> for Exception {
     }
 }
 
+impl From<pid::OutOfRange> for Exception {
+    fn from(out_of_range: pid::OutOfRange) -> Self {
+        Self::Runtime(out_of_range.into())
+    }
+}
+
 impl From<StrFromBinaryError> for Exception {
     fn from(str_from_binary_error: StrFromBinaryError) -> Self {
         use StrFromBinaryError::*;
@@ -184,6 +192,12 @@ impl From<TryFromIntError> for Exception {
 impl From<TryIntoIntegerError> for Exception {
     fn from(try_into_integer_error: TryIntoIntegerError) -> Self {
         Self::Runtime(try_into_integer_error.into())
+    }
+}
+
+impl From<TryFromSliceError> for Exception {
+    fn from(try_from_slice_error: TryFromSliceError) -> Self {
+        Self::Runtime(try_from_slice_error.into())
     }
 }
 

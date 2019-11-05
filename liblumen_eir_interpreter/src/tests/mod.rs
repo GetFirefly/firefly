@@ -48,7 +48,8 @@ pub fn compile(input: &str) -> Module {
     let config = ParseConfig::default();
     let mut eir_mod = lower(input, config).unwrap();
 
-    for fun in eir_mod.functions.values() {
+    for fun_def in eir_mod.function_iter() {
+        let fun = fun_def.function();
         fun.graph_validate_global();
     }
 

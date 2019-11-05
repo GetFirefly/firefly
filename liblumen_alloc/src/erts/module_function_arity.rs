@@ -2,11 +2,13 @@ use core::fmt::{self, Display};
 
 use crate::erts::term::Atom;
 
+pub type Arity = u8;
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModuleFunctionArity {
     pub module: Atom,
     pub function: Atom,
-    pub arity: u8,
+    pub arity: Arity,
 }
 
 impl Display for ModuleFunctionArity {

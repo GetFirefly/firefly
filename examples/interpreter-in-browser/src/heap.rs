@@ -5,7 +5,6 @@ use wasm_bindgen::prelude::*;
 use liblumen_alloc::erts::process::HeapAlloc;
 use liblumen_alloc::erts::term::{atom_unchecked, Atom, Pid as PidTerm, Term};
 use liblumen_alloc::erts::HeapFragment;
-use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::registry::pid_to_process;
 use lumen_runtime::scheduler::{Scheduler, Spawned};
@@ -68,34 +67,8 @@ impl JsHeap {
 
         let proc = liblumen_eir_interpreter::VM.init.clone();
 
-        let return_ok = {
-            let mfa = ModuleFunctionArity {
-                module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-                function: Atom::try_from_str("return_ok").unwrap(),
-                arity: 1,
-            };
-            proc.closure_with_env_from_slice(
-                mfa.into(),
-                liblumen_eir_interpreter::code::return_ok,
-                proc.pid_term(),
-                &[],
-            )
-            .unwrap()
-        };
-        let return_throw = {
-            let mfa = ModuleFunctionArity {
-                module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-                function: Atom::try_from_str("return_throw").unwrap(),
-                arity: 3,
-            };
-            proc.closure_with_env_from_slice(
-                mfa.into(),
-                liblumen_eir_interpreter::code::return_throw,
-                proc.pid_term(),
-                &[],
-            )
-            .unwrap()
-        };
+        let return_ok = liblumen_eir_interpreter::code::return_ok_closure(&proc).unwrap();
+        let return_throw = liblumen_eir_interpreter::code::return_throw_closure(&proc).unwrap();
 
         let mut args_vec = vec![return_ok, return_throw];
         args_vec.extend(a.iter().map(|v| self.terms[*v]));

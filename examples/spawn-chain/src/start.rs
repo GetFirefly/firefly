@@ -1,7 +1,9 @@
-use crate::apply_3;
-
-pub fn set_apply_fn() {
-    lumen_runtime::otp::erlang::apply_3::set_code(apply_3::code);
+pub fn export_code() {
+    crate::elixir::chain::console_1::export();
+    crate::elixir::chain::counter_2::export();
+    crate::elixir::chain::create_processes_2::export();
+    crate::elixir::chain::dom_1::export();
+    crate::elixir::chain::on_submit_1::export();
 }
 
 pub fn set_panic_hook() {

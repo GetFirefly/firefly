@@ -57,16 +57,20 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let tr = ok_tr_tuple[1];
     assert!(tr.is_resource_reference());
 
-    label_4::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text)?;
+    label_4::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text)
+        .unwrap();
 
     // TODO actually call `to_string(self)`
-    let pid_text_binary = arc_process.binary_from_str(&format!("{}", arc_process.pid_term()))?;
+    let pid_text_binary = arc_process
+        .binary_from_str(&format!("{}", arc_process.pid_term()))
+        .unwrap();
     lumen_web::document::create_text_node_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         document,
         pid_text_binary,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

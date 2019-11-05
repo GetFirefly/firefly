@@ -50,7 +50,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
                 if message_data.is_integer() {
                     let final_answer = match message {
-                        Message::Process(message::Process { data }) => data.clone(),
+                        Message::Process(message::Process { data }) => *data,
                         Message::HeapFragment(message::HeapFragment { data, .. }) => {
                             match data.clone_to_heap(&mut arc_process.acquire_heap()) {
                                 Ok(heap_data) => heap_data,

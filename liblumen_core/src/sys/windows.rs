@@ -1,14 +1,14 @@
-pub mod sysconf;
 pub mod alloc;
 pub mod mmap;
+pub mod sysconf;
 
 pub mod threading {
     #![allow(unused)]
 
-    use winapi::um::winnt::HANDLE;
-    use winapi::um::processthreadsapi::{GetCurrentProcess, GetProcessId};
     use winapi::um::processthreadsapi::GetCurrentThreadId;
+    use winapi::um::processthreadsapi::{GetCurrentProcess, GetProcessId};
     use winapi::um::processthreadsapi::{TlsAlloc, TlsFree, TlsGetValue, TlsSetValue};
+    use winapi::um::winnt::HANDLE;
 
     /// This struct represents key information about the current process
     pub struct ProcessInfo {
@@ -20,10 +20,7 @@ pub mod threading {
         pub(crate) unsafe fn get() -> Self {
             let p = GetCurrentProcess();
             let pid = GetProcessId(p) as usize;
-            Self {
-                p,
-                pid,
-            }
+            Self { p, pid }
         }
 
         /// Returns the current thread ID of the caller

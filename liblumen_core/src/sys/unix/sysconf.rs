@@ -4,10 +4,12 @@ pub fn pagesize() -> usize {
 }
 
 #[allow(unused)]
-#[cfg(any(target_os = "freebsd",
-          target_os = "dragonfly",
-          target_os = "bitrig",
-          target_os = "netbsd"))]
+#[cfg(any(
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "bitrig",
+    target_os = "netbsd"
+))]
 pub fn get_num_cpus() -> usize {
     use core::mem;
 
@@ -21,12 +23,14 @@ pub fn get_num_cpus() -> usize {
     if cpus < 1 {
         let mut mib = [libc::CTL_HW, libc::HW_NCPU, 0, 0];
         unsafe {
-            libc::sysctl(mib.as_mut_ptr(),
-                         2,
-                         &mut cpus as *mut _ as *mut _,
-                         &mut cpus_size as *mut _ as *mut _,
-                         0 as *mut _,
-                         0);
+            libc::sysctl(
+                mib.as_mut_ptr(),
+                2,
+                &mut cpus as *mut _ as *mut _,
+                &mut cpus_size as *mut _ as *mut _,
+                0 as *mut _,
+                0,
+            );
         }
         if cpus < 1 {
             cpus = 1;
@@ -46,12 +50,14 @@ pub fn get_num_cpus() -> usize {
     let mut mib = [libc::CTL_HW, libc::HW_NCPU, 0, 0];
 
     unsafe {
-        libc::sysctl(mib.as_mut_ptr(),
-                     2,
-                     &mut cpus as *mut _ as *mut _,
-                     &mut cpus_size as *mut _ as *mut _,
-                     0 as *mut _,
-                     0);
+        libc::sysctl(
+            mib.as_mut_ptr(),
+            2,
+            &mut cpus as *mut _ as *mut _,
+            &mut cpus_size as *mut _ as *mut _,
+            0 as *mut _,
+            0,
+        );
     }
     if cpus < 1 {
         cpus = 1;
@@ -91,8 +97,8 @@ pub fn get_num_cpus() -> usize {
     target_os = "android",
     target_os = "solaris",
     target_os = "illumos",
-    target_os = "fuchsia")
-)]
+    target_os = "fuchsia"
+))]
 pub fn get_num_cpus() -> usize {
     // On ARM targets, processors could be turned off to save power.
     // Use `_SC_NPROCESSORS_CONF` to get the real number.

@@ -12,8 +12,8 @@ pub fn place_frame_with_arguments(
     output: Term,
     next_pid: Term,
 ) -> Result<(), Alloc> {
-    process.stack_push(next_pid)?;
-    process.stack_push(output)?;
+    process.stack_push(next_pid).unwrap();
+    process.stack_push(output).unwrap();
     process.place_frame(frame(process), placement);
 
     Ok(())
@@ -42,8 +42,12 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(output_closure.arity, 1);
 
     // TODO use `<>` and `to_string` instead of `format!` to properly emulate interpolation
-    let data = arc_process.binary_from_str(&format!("sent {} to {}", sent, next_pid))?;
-    output_closure.place_frame_with_arguments(arc_process, Placement::Replace, vec![data])?;
+    let data = arc_process
+        .binary_from_str(&format!("sent {} to {}", sent, next_pid))
+        .unwrap();
+    output_closure
+        .place_frame_with_arguments(arc_process, Placement::Replace, vec![data])
+        .unwrap();
 
     Process::call_code(arc_process)
 }

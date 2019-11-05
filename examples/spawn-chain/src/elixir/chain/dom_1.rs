@@ -43,8 +43,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let n = arc_process.stack_pop().unwrap();
     assert!(n.is_integer());
 
-    let dom_output_closure = dom_output_1::closure(arc_process)?;
-    run_2::place_frame_with_arguments(arc_process, Placement::Replace, n, dom_output_closure)?;
+    let dom_output_closure = dom_output_1::closure(arc_process).unwrap();
+    run_2::place_frame_with_arguments(arc_process, Placement::Replace, n, dom_output_closure)
+        .unwrap();
 
     Process::call_code(arc_process)
 }

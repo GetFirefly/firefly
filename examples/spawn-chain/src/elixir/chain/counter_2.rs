@@ -54,13 +54,15 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     //     sent = send(next_pid, n + 1)
     //     output.("sent #{sent} to #{next_pid}")
     // end
-    label_1::place_frame_with_arguments(arc_process, Placement::Replace, next_pid, output)?;
+    label_1::place_frame_with_arguments(arc_process, Placement::Replace, next_pid, output).unwrap();
 
     // ```elixir
     // output.("spawned")
     // ```
-    let output_data = arc_process.binary_from_str("spawned")?;
-    output_closure.place_frame_with_arguments(arc_process, Placement::Push, vec![output_data])?;
+    let output_data = arc_process.binary_from_str("spawned").unwrap();
+    output_closure
+        .place_frame_with_arguments(arc_process, Placement::Push, vec![output_data])
+        .unwrap();
 
     Process::call_code(arc_process)
 }

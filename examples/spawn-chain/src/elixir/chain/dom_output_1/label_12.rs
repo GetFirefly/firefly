@@ -50,7 +50,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         Placement::Replace,
         tbody,
         tr,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

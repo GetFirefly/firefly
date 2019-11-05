@@ -38,7 +38,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             system::io::puts(&string);
 
             let ok = atom_unchecked("ok");
-            arc_process.return_from_call(ok)?;
+            arc_process.return_from_call(ok).unwrap();
 
             Process::call_code(arc_process)
         }

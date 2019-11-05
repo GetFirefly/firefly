@@ -20,7 +20,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let _text = arc_process.stack_pop().unwrap();
 
-    Process::return_from_call(arc_process, atom_unchecked("ok"))?;
+    Process::return_from_call(arc_process, atom_unchecked("ok")).unwrap();
 
     Process::call_code(arc_process)
 }

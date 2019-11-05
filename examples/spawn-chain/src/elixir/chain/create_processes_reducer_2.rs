@@ -50,14 +50,15 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let module = atom_unchecked("Elixir.Chain");
     let function = atom_unchecked("counter");
-    let arguments = arc_process.list_from_slice(&[send_to, output])?;
+    let arguments = arc_process.list_from_slice(&[send_to, output]).unwrap();
     erlang::spawn_3::place_frame_with_arguments(
         arc_process,
         Placement::Replace,
         module,
         function,
         arguments,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

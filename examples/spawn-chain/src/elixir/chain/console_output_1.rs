@@ -23,8 +23,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let text = arc_process.stack_pop().unwrap();
 
-    label_1::place_frame_with_arguments(arc_process, Placement::Replace, text)?;
-    erlang::self_0::place_frame_with_arguments(arc_process, Placement::Push)?;
+    label_1::place_frame_with_arguments(arc_process, Placement::Replace, text).unwrap();
+    erlang::self_0::place_frame_with_arguments(arc_process, Placement::Push).unwrap();
 
     Process::call_code(arc_process)
 }

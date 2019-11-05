@@ -41,18 +41,19 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let n = arc_process.stack_pop().unwrap();
     let output = arc_process.stack_pop().unwrap();
 
-    label_1::place_frame_with_arguments(arc_process, Placement::Replace, output, n)?;
+    label_1::place_frame_with_arguments(arc_process, Placement::Replace, output, n).unwrap();
 
     let module = atom_unchecked("Elixir.Chain");
     let function = atom_unchecked("create_processes");
-    let arguments = arc_process.list_from_slice(&[n, output])?;
+    let arguments = arc_process.list_from_slice(&[n, output]).unwrap();
     timer::tc_3::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         module,
         function,
         arguments,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

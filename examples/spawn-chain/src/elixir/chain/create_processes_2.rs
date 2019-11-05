@@ -58,7 +58,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     // 1..n
     // ```
     // assumed to be fast enough to act as a BIF
-    let first = arc_process.integer(1)?;
+    let first = arc_process.integer(1).unwrap();
     let last = n;
     let result = elixir::range::new(first, last, arc_process);
 
@@ -71,7 +71,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             //  # returned from call: last
             //  # full stack: (last, output)
             //  # returns: sent
-            label_1::place_frame_with_arguments(arc_process, Placement::Replace, output)?;
+            label_1::place_frame_with_arguments(arc_process, Placement::Replace, output).unwrap();
 
             // ```elixir
             // # returns: last
@@ -83,14 +83,16 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             //    end
             //  )
             // ```
-            let reducer = elixir::chain::create_processes_reducer_2::closure(arc_process, output)?;
+            let reducer =
+                elixir::chain::create_processes_reducer_2::closure(arc_process, output).unwrap();
             elixir::r#enum::reduce_3::place_frame_with_arguments(
                 arc_process,
                 Placement::Push,
                 range,
                 arc_process.pid_term(),
                 reducer,
-            )?;
+            )
+            .unwrap();
 
             Process::call_code(arc_process)
         }

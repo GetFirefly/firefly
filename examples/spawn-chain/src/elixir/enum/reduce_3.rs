@@ -55,7 +55,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                                     last,
                                     initial,
                                     reducer,
-                                )?;
+                                )
+                                .unwrap();
                             } else {
                                 reduce_range_dec_4::place_frame_with_arguments(
                                     arc_process,
@@ -64,7 +65,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                                     last,
                                     initial,
                                     reducer,
-                                )?;
+                                )
+                                .unwrap();
                             }
 
                             Process::call_code(arc_process)

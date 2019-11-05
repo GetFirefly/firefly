@@ -42,7 +42,7 @@ fn without_body() -> impl Future<Item = (), Error = JsValue> {
         // # full stack: ()
         // # returns: {:ok, document}
         // ```
-        document::new_0::place_frame(child_process, Placement::Push);
+        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
 
         Ok(())
     })

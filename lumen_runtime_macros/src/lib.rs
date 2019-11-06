@@ -287,7 +287,7 @@ impl Signatures {
         };
 
         quote! {
-            pub(crate) fn code(arc_process: &std::sync::Arc<liblumen_alloc::erts::process::Process>) -> liblumen_alloc::erts::process::code::Result {
+            pub fn code(arc_process: &std::sync::Arc<liblumen_alloc::erts::process::Process>) -> liblumen_alloc::erts::process::code::Result {
                 arc_process.reduce();
 
                 #(let #stack_popped_code_argument_ident = arc_process.stack_pop().unwrap();)*

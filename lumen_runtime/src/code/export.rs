@@ -11,7 +11,19 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::{Atom, Term};
 use liblumen_alloc::{Arity, ModuleFunctionArity};
 
-pub fn get(module: &Atom, function: &Atom, arity: u8) -> Option<Code> {
+pub fn contains_key(module: &Atom, function: &Atom, arity: Arity) -> bool {
+    RW_LOCK_CODE_BY_ARITY_BY_FUNCTION_BY_MODULE
+        .read()
+        .get(module)
+        .and_then(|code_by_arity_by_function| {
+            code_by_arity_by_function
+                .get(function)
+                .map(|code_by_arity| code_by_arity.contains_key(&arity))
+        })
+        .unwrap_or(false)
+}
+
+pub fn get(module: &Atom, function: &Atom, arity: Arity) -> Option<Code> {
     RW_LOCK_CODE_BY_ARITY_BY_FUNCTION_BY_MODULE
         .read()
         .get(module)
@@ -22,7 +34,7 @@ pub fn get(module: &Atom, function: &Atom, arity: u8) -> Option<Code> {
         })
 }
 
-pub fn insert(module: Atom, function: Atom, arity: u8, code: Code) {
+pub fn insert(module: Atom, function: Atom, arity: Arity, code: Code) {
     RW_LOCK_CODE_BY_ARITY_BY_FUNCTION_BY_MODULE
         .write()
         .entry(module)

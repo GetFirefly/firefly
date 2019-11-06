@@ -59,6 +59,7 @@ pub mod float_to_list_1;
 pub mod float_to_list_2;
 mod float_to_string;
 pub mod floor_1;
+pub mod function_exported_3;
 pub mod get_0;
 pub mod get_1;
 pub mod get_keys_0;

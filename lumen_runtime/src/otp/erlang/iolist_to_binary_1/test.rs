@@ -7,7 +7,7 @@ use crate::scheduler::{with_process};
 // <<4,5>>
 // > Bin3 = <<6>>.
 // <<6>>
-// > list_to_binary([Bin1,1,[2,3,Bin2],4|Bin3]).
+// > iolist_to_binary([Bin1,1,[2,3,Bin2],4|Bin3]).
 // <<1,2,3,1,2,3,4,5,4,6>>
 #[test]
 fn otp_doctest_returns_binary() {

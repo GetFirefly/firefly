@@ -1,18 +1,15 @@
 use crate::otp;
-use crate::scheduler::{with_process};
+use crate::scheduler::with_process;
 
 // > iolist_size([1,2|<<3,4>>]).
 // 4
 #[test]
 fn otp_doctest() {
-  with_process(|process| {
+    with_process(|process| {
         let iolist = process
             .improper_list_from_slice(
-              &[
-                process.integer(1).unwrap(),
-                process.integer(2).unwrap()
-              ],
-              process.binary_from_bytes(&[3, 4]).unwrap()
+                &[process.integer(1).unwrap(), process.integer(2).unwrap()],
+                process.binary_from_bytes(&[3, 4]).unwrap(),
             )
             .unwrap();
 
@@ -20,7 +17,7 @@ fn otp_doctest() {
             otp::erlang::iolist_size_1::native(process, iolist),
             Ok(process.integer(4).unwrap())
         )
-  });
+    });
 }
 
 // > Bin1 = <<1,2,3>>.
@@ -70,9 +67,7 @@ fn with_binary_returns_binary() {
 
         assert_eq!(
             otp::erlang::iolist_size_1::native(process, bin),
-            Ok(process
-                .integer(3)
-                .unwrap())
+            Ok(process.integer(3).unwrap())
         )
     });
 }

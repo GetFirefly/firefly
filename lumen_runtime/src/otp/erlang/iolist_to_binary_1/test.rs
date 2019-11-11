@@ -1,5 +1,5 @@
 use crate::otp;
-use crate::scheduler::{with_process};
+use crate::scheduler::with_process;
 
 // > Bin1 = <<1,2,3>>.
 // <<1,2,3>>
@@ -50,9 +50,7 @@ fn with_binary_returns_binary() {
 
         assert_eq!(
             otp::erlang::iolist_to_binary_1::native(process, bin),
-            Ok(process
-                .binary_from_bytes(&[1, 2, 3],)
-                .unwrap())
+            Ok(process.binary_from_bytes(&[1, 2, 3],).unwrap())
         )
     });
 }

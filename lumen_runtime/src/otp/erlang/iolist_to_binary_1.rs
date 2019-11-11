@@ -12,15 +12,15 @@ use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp;
 
-/// Returns a binary that is made from the integers and binaries given in iolist 
+/// Returns a binary that is made from the integers and binaries given in iolist
 #[native_implemented_function(iolist_to_binary/1)]
 pub fn native(process: &Process, iolist_or_binary: Term) -> exception::Result {
-  otp::erlang::list_to_binary_1::native(
-    process,
-    if iolist_or_binary.is_binary() {
-      process.list_from_slice(&[iolist_or_binary]).unwrap()
-    } else {
-      iolist_or_binary
-    }
-  )
+    otp::erlang::list_to_binary_1::native(
+        process,
+        if iolist_or_binary.is_binary() {
+            process.list_from_slice(&[iolist_or_binary]).unwrap()
+        } else {
+            iolist_or_binary
+        },
+    )
 }

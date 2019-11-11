@@ -1,6 +1,28 @@
 use crate::otp;
 use crate::scheduler::{with_process};
 
+// > iolist_size([1,2|<<3,4>>]).
+// 4
+#[test]
+fn otp_doctest() {
+  with_process(|process| {
+        let iolist = process
+            .improper_list_from_slice(
+              &[
+                process.integer(1).unwrap(),
+                process.integer(2).unwrap()
+              ],
+              process.binary_from_bytes(&[3, 4]).unwrap()
+            )
+            .unwrap();
+
+        assert_eq!(
+            otp::erlang::iolist_size_1::native(process, iolist),
+            Ok(process.integer(4).unwrap())
+        )
+  });
+}
+
 // > Bin1 = <<1,2,3>>.
 // <<1,2,3>>
 // > Bin2 = <<4,5>>.

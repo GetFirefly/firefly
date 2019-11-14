@@ -23,6 +23,7 @@ pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialO
     fn encode_box<U>(value: *const U) -> Self where U: ?Sized;
     fn encode_literal<U>(value: *const U) -> Self where U: ?Sized;
 
+    unsafe fn decode_box(self) -> *mut Self;
     unsafe fn decode_list(self) -> Boxed<Cons>;
     unsafe fn decode_smallint(self) -> SmallInteger;
     unsafe fn decode_immediate(self) -> Self::Word;

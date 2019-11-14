@@ -182,6 +182,11 @@ impl Repr for RawTerm {
     }
 
     #[inline]
+    unsafe fn decode_box(self) -> *mut Self {
+        (self.0 & !MASK_PRIMARY) as *const RawTerm as *mut RawTerm
+    }
+
+    #[inline]
     unsafe fn decode_list(self) -> Boxed<Cons> {
         debug_assert_eq!(self.0 & MASK_PRIMARY, FLAG_LIST);
         let ptr = (self.0 & !MASK_PRIMARY) as *const Cons as *mut Cons;
@@ -289,7 +294,18 @@ impl Cast<*mut RawTerm> for RawTerm {
     #[inline]
     default fn dyn_cast(self) -> *mut RawTerm {
         assert!(self.is_boxed() || self.is_literal() || self.is_list());
-        (self.0 & !MASK_PRIMARY) as *const RawTerm as *mut RawTerm
+        unsafe { self.decode_box() }
+    }
+}
+
+impl<T> Cast<Boxed<T>> for RawTerm
+where
+    T: Boxable<RawTerm>,
+{
+    #[inline]
+    default fn dyn_cast(self) -> Boxed<T> {
+        assert!(self.is_boxed() || self.is_literal() || self.is_list());
+        Boxed::new(unsafe { self.decode_box() as *mut T }).unwrap()
     }
 }
 
@@ -300,7 +316,7 @@ where
     #[inline]
     default fn dyn_cast(self) -> *mut T {
         assert!(self.is_boxed() || self.is_literal());
-        (self.0 & !MASK_PRIMARY) as *const RawTerm as *mut T
+        unsafe { self.decode_box() as *mut T }
     }
 }
 
@@ -308,7 +324,7 @@ impl Cast<*mut Cons> for RawTerm {
     #[inline]
     fn dyn_cast(self) -> *mut Cons {
         assert!(self.is_list());
-        (self.0 & !MASK_PRIMARY) as *const RawTerm as *mut Cons
+        unsafe { self.decode_box() as *mut Cons }
     }
 }
 
@@ -316,7 +332,7 @@ impl Cast<*const RawTerm> for RawTerm {
     #[inline]
     default fn dyn_cast(self) -> *const RawTerm {
         assert!(self.is_boxed() || self.is_literal() || self.is_list());
-        (self.0 & !MASK_PRIMARY) as *const RawTerm
+        unsafe { self.decode_box() as *const RawTerm }
     }
 }
 
@@ -327,7 +343,7 @@ where
     #[inline]
     default fn dyn_cast(self) -> *const T {
         assert!(self.is_boxed() || self.is_literal());
-        (self.0 & !MASK_PRIMARY) as *const T
+        unsafe { self.decode_box() as *const T }
     }
 }
 
@@ -354,7 +370,7 @@ impl Encoded for RawTerm {
                 // NOTE: If the pointer we extract here is bogus or unmapped memory, we'll segfault,
                 // but that is reflective of a bug where a term is being created or dereferenced incorrectly,
                 // to find the source, you'll need to examine the trace to see where the input term is defined
-                let ptr = (self.0 & !MASK_PRIMARY) as *const RawTerm;
+                let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { *ptr };
                 match unboxed.type_of() {
                     Tag::Nil => Ok(TypedTerm::Nil),
@@ -524,7 +540,7 @@ impl fmt::Debug for RawTerm {
             Tag::None => write!(f, "Term(None)"),
             Tag::Nil => write!(f, "Term(Nil)"),
             Tag::List => {
-                let ptr = (self.0 & !MASK_PRIMARY) as *const RawTerm;
+                let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { *ptr };
                 if unboxed.is_none() {
                     let forwarding_addr_ptr = unsafe { ptr.offset(1) };

@@ -24,7 +24,7 @@ fn without_number_minuend_errors_badarith() {
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
                         native(&arc_process, minuend, subtrahend),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())
@@ -46,7 +46,7 @@ fn with_number_minuend_without_number_subtrahend_errors_badarith() {
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
                         native(&arc_process, minuend, subtrahend),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())

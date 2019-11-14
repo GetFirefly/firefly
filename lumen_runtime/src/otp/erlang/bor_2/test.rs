@@ -21,7 +21,10 @@ fn without_integer_left_errors_badarith() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(&arc_process, left, right), Err(badarith!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, left, right),
+                        Err(badarith!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -40,7 +43,10 @@ fn with_integer_left_without_integer_right_errors_badarith() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(&arc_process, left, right), Err(badarith!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, left, right),
+                        Err(badarith!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

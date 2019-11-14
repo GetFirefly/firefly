@@ -25,7 +25,7 @@ fn without_number_multiplier_errors_badarith() {
                 |(multiplier, multiplicand)| {
                     prop_assert_eq!(
                         native(&arc_process, multiplier, multiplicand),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())

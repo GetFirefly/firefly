@@ -52,7 +52,7 @@ macro_rules! bitwise_infix_operator {
 
                 Ok(output_term)
             }
-            _ => Err(badarith!().into()),
+            _ => Err(badarith!($process).into()),
         }
     }};
 }
@@ -71,7 +71,7 @@ macro_rules! bitshift_infix_operator {
         let option_shifted = match $integer.decode().unwrap() {
             TypedTerm::SmallInteger(integer_small_integer) => {
                 let integer_isize: isize = integer_small_integer.into();
-                let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
+                let shift_isize: isize = $shift.try_into().map_err(|_| badarith!($process))?;
 
                 // Rust doesn't support negative shift, so negative left shifts need to be right shifts
                 if 0 <= shift_isize {
@@ -108,7 +108,7 @@ macro_rules! bitshift_infix_operator {
             }
             TypedTerm::BigInteger(integer_big_integer) => {
                 let big_int = integer_big_integer.as_ref();
-                let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
+                let shift_isize: isize = $shift.try_into().map_err(|_| badarith!($process))?;
 
                 // Rust doesn't support negative shift, so negative left shifts need to be right
                 // shifts
@@ -133,7 +133,7 @@ macro_rules! bitshift_infix_operator {
 
         match option_shifted {
             Some(shifted) => Ok(shifted),
-            None => Err(badarith!().into())
+            None => Err(badarith!($process).into())
         }
     }};
 }
@@ -151,7 +151,7 @@ macro_rules! integer_infix_operator {
                 let right_isize: isize = right_small_integer.into();
 
                 if right_isize == 0 {
-                    Err(badarith!())
+                    Err(badarith!($process))
                 } else {
                     let quotient = left_isize $infix right_isize;
                     let quotient_term = $process.integer(quotient)?;
@@ -173,7 +173,7 @@ macro_rules! integer_infix_operator {
                 let right_isize: isize = right_small_integer.into();
 
                 if right_isize == 0 {
-                    Err(badarith!())
+                    Err(badarith!($process))
                 } else {
                     let left_big_int = left_big_integer.as_ref();
                     let right_big_int: BigInteger = right_isize.into();
@@ -195,7 +195,7 @@ macro_rules! integer_infix_operator {
 
                 Ok(quotient_term)
             }
-            _ => Err(badarith!()),
+            _ => Err(badarith!($process)),
         }.map_err(|error| error.into())
     }};
 }

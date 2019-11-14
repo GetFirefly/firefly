@@ -32,6 +32,6 @@ pub fn native(process: &Process, integer: Term) -> exception::Result<Term> {
 
             Ok(output_term)
         }
-        _ => Err(badarith!().into()),
+        _ => Err(badarith!(process).into()),
     }
 }

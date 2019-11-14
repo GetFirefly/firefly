@@ -66,7 +66,7 @@ macro_rules! number_infix_operator {
         };
 
         match operands {
-            Bad => Err(badarith!().into()),
+            Bad => Err(badarith!($process).into()),
             ISizes(left_isize, right_isize) => {
                 match left_isize.$checked(right_isize) {
                     Some(sum_isize) => Ok($process.integer(sum_isize)?),

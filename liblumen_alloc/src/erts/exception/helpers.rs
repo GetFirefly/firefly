@@ -9,8 +9,8 @@ pub fn badarg<S: Into<Stacktrace>>(stacktrace: S, location: Location) -> Runtime
 }
 
 #[inline]
-pub fn badarith(location: Location) -> RuntimeException {
-    self::error(atom("badarith"), None, location, None)
+pub fn badarith<S: Into<Stacktrace>>(stacktrace: S, location: Location) -> RuntimeException {
+    self::error(atom("badarith"), None, location, Some(stacktrace.into()))
 }
 
 pub fn badarity(process: &Process, fun: Term, args: Term, location: Location) -> Exception {

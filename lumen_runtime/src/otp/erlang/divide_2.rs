@@ -18,11 +18,11 @@ use lumen_runtime_macros::native_implemented_function;
 /// `float`.
 #[native_implemented_function(/ /2)]
 pub fn native(process: &Process, dividend: Term, divisor: Term) -> exception::Result<Term> {
-    let dividend_f64: f64 = dividend.try_into().map_err(|_| badarith!())?;
-    let divisor_f64: f64 = divisor.try_into().map_err(|_| badarith!())?;
+    let dividend_f64: f64 = dividend.try_into().map_err(|_| badarith!(process))?;
+    let divisor_f64: f64 = divisor.try_into().map_err(|_| badarith!(process))?;
 
     if divisor_f64 == 0.0 {
-        Err(badarith!().into())
+        Err(badarith!(process).into())
     } else {
         let quotient_f64 = dividend_f64 / divisor_f64;
         let quotient_term = process.float(quotient_f64)?;

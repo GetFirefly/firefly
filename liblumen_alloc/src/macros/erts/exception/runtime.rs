@@ -7,8 +7,8 @@ macro_rules! badarg {
 
 #[macro_export]
 macro_rules! badarith {
-    () => {
-        $crate::erts::exception::badarith($crate::location!())
+    ($process:expr) => {
+        $crate::erts::exception::badarith($process, $crate::location!())
     };
 }
 

@@ -19,7 +19,10 @@ fn without_integer_errors_badarith() {
             .run(
                 &strategy::term::is_not_integer(arc_process.clone()),
                 |operand| {
-                    prop_assert_eq!(native(&arc_process, operand), Err(badarith!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, operand),
+                        Err(badarith!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

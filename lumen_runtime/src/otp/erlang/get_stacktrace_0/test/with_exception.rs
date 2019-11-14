@@ -1,6 +1,6 @@
 use super::*;
 
-use liblumen_alloc::{atom, badarg, exit};
+use liblumen_alloc::{atom, badarg, badarith, exit};
 
 #[test]
 fn without_stacktrace_returns_empty_list() {
@@ -44,6 +44,22 @@ fn with_stacktrace_returns_stacktrace() {
 fn badarg_includes_stacktrace() {
     with_process(|process| {
         process.exception(badarg!(process));
+
+        assert_eq!(
+            native(process),
+            Ok(process
+                .list_from_slice(&[process
+                    .tuple_from_slice(&[atom!("test"), atom!("loop"), 0.into()])
+                    .unwrap()])
+                .unwrap())
+        );
+    })
+}
+
+#[test]
+fn badarith_includes_stacktrace() {
+    with_process(|process| {
+        process.exception(badarith!(process));
 
         assert_eq!(
             native(process),

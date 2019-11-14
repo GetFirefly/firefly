@@ -28,7 +28,7 @@ fn without_integer_integer_errors_badarith() {
                 |(integer, shift)| {
                     prop_assert_eq!(
                         native(&arc_process, integer, shift),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())
@@ -50,7 +50,7 @@ fn with_integer_integer_without_integer_shift_errors_badarith() {
                 |(integer, shift)| {
                     prop_assert_eq!(
                         native(&arc_process, integer, shift),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())

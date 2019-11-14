@@ -26,7 +26,7 @@ fn without_integer_dividend_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())
@@ -48,7 +48,7 @@ fn with_integer_dividend_without_integer_divisor_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())
@@ -70,7 +70,7 @@ fn with_integer_dividend_with_zero_divisor_errors_badarith() {
                 |(dividend, divisor)| {
                     prop_assert_eq!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())

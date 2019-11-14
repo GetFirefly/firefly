@@ -116,7 +116,7 @@ fn without_valid_arguments_when_run_exits_and_parent_exits() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &badarith!());
+            assert_eq!(runtime_exception, &badarith!(&child_arc_process));
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };

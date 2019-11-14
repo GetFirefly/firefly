@@ -14,7 +14,10 @@ fn without_number_errors_badarith() {
             .run(
                 &strategy::term::is_not_number(arc_process.clone()),
                 |number| {
-                    prop_assert_eq!(native(number), Err(badarith!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, number),
+                        Err(badarith!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -28,7 +31,7 @@ fn with_number_returns_number() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_number(arc_process.clone()), |number| {
-                prop_assert_eq!(native(number), Ok(number));
+                prop_assert_eq!(native(&arc_process, number), Ok(number));
 
                 Ok(())
             })

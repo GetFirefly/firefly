@@ -44,6 +44,6 @@ pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
 
     match option_negated {
         Some(negated) => Ok(negated),
-        None => Err(badarith!().into()),
+        None => Err(badarith!(process).into()),
     }
 }

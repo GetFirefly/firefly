@@ -27,7 +27,7 @@ fn without_number_augend_errors_badarith() {
                 |(augend, addend)| {
                     prop_assert_eq!(
                         native(&arc_process, augend, addend),
-                        Err(badarith!().into())
+                        Err(badarith!(&arc_process).into())
                     );
 
                     Ok(())

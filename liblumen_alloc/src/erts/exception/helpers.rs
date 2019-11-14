@@ -5,12 +5,12 @@ use super::{Exception, Location, RuntimeException, Stacktrace};
 
 #[inline]
 pub fn badarg<S: Into<Stacktrace>>(stacktrace: S, location: Location) -> RuntimeException {
-    self::error(atom("badarg"), None, location, Some(stacktrace.into()))
+    self::error(atom("badarg"), None, location, stacktrace)
 }
 
 #[inline]
 pub fn badarith<S: Into<Stacktrace>>(stacktrace: S, location: Location) -> RuntimeException {
-    self::error(atom("badarith"), None, location, Some(stacktrace.into()))
+    self::error(atom("badarith"), None, location, stacktrace)
 }
 
 pub fn badarity(process: &Process, fun: Term, args: Term, location: Location) -> Exception {
@@ -18,7 +18,7 @@ pub fn badarity(process: &Process, fun: Term, args: Term, location: Location) ->
         Ok(fun_args) => {
             let tag = atom("badarity");
             match process.tuple_from_slice(&[tag, fun_args]) {
-                Ok(reason) => Exception::Runtime(self::error(reason, None, location, None)),
+                Ok(reason) => Exception::Runtime(self::error(reason, None, location, process)),
                 Err(err) => err.into(),
             }
         }
@@ -29,12 +29,7 @@ pub fn badarity(process: &Process, fun: Term, args: Term, location: Location) ->
 pub fn badfun(process: &Process, fun: Term, location: Location) -> Exception {
     let tag = atom("badfun");
     match process.tuple_from_slice(&[tag, fun]) {
-        Ok(reason) => Exception::Runtime(self::error(
-            reason,
-            None,
-            location,
-            Some(process.stacktrace().into()),
-        )),
+        Ok(reason) => Exception::Runtime(self::error(reason, None, location, process)),
         Err(err) => err.into(),
     }
 }
@@ -42,12 +37,7 @@ pub fn badfun(process: &Process, fun: Term, location: Location) -> Exception {
 pub fn badkey(process: &Process, key: Term, location: Location) -> Exception {
     let tag = atom("badkey");
     match process.tuple_from_slice(&[tag, key]) {
-        Ok(reason) => Exception::Runtime(self::error(
-            reason,
-            None,
-            location,
-            Some(process.stacktrace().into()),
-        )),
+        Ok(reason) => Exception::Runtime(self::error(reason, None, location, process)),
         Err(err) => err.into(),
     }
 }
@@ -55,12 +45,7 @@ pub fn badkey(process: &Process, key: Term, location: Location) -> Exception {
 pub fn badmap(process: &Process, map: Term, location: Location) -> Exception {
     let tag = atom("badmap");
     match process.tuple_from_slice(&[tag, map]) {
-        Ok(reason) => Exception::Runtime(self::error(
-            reason,
-            None,
-            location,
-            Some(process.stacktrace().into()),
-        )),
+        Ok(reason) => Exception::Runtime(self::error(reason, None, location, process)),
         Err(err) => err.into(),
     }
 }
@@ -96,12 +81,7 @@ pub fn raise(
     match class {
         Class::Exit => self::exit(reason, location, stacktrace.unwrap()),
         Class::Throw => self::throw(reason, location, stacktrace),
-        Class::Error { arguments } => self::error(
-            reason,
-            arguments,
-            location,
-            stacktrace.map(|term| Stacktrace::Term(term)),
-        ),
+        Class::Error { arguments } => self::error(reason, arguments, location, stacktrace.unwrap()),
     }
 }
 
@@ -116,15 +96,15 @@ pub fn exit<S: Into<Stacktrace>>(
 }
 
 #[inline]
-pub fn error(
+pub fn error<S: Into<Stacktrace>>(
     reason: Term,
     args: Option<Term>,
     location: Location,
-    stacktrace: Option<Stacktrace>,
+    stacktrace: S,
 ) -> RuntimeException {
     use super::Error;
 
-    RuntimeException::Error(Error::new_with_trace(reason, args, location, stacktrace))
+    RuntimeException::Error(Error::new(reason, args, location, stacktrace))
 }
 
 #[inline]

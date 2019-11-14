@@ -59,24 +59,21 @@ impl fmt::Debug for Throw {
 pub struct Error {
     reason: Term,
     arguments: Option<Term>,
-    stacktrace: Option<Stacktrace>,
+    stacktrace: Stacktrace,
     location: Location,
 }
 impl Error {
-    pub fn new(reason: Term, arguments: Option<Term>, location: Location) -> Self {
-        Self::new_with_trace(reason, arguments, location, None)
-    }
-    pub fn new_with_trace(
+    pub fn new<S: Into<Stacktrace>>(
         reason: Term,
         arguments: Option<Term>,
         location: Location,
-        trace: Option<Stacktrace>,
+        stacktrace: S,
     ) -> Self {
         Self {
             reason,
             arguments,
             location,
-            stacktrace: trace,
+            stacktrace: stacktrace.into(),
         }
     }
     pub fn class(&self) -> Class {
@@ -87,7 +84,7 @@ impl Error {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Option<Stacktrace> {
+    pub fn stacktrace(&self) -> Stacktrace {
         self.stacktrace.clone()
     }
     pub fn location(&self) -> Location {

@@ -64,7 +64,7 @@ impl RuntimeException {
         match self {
             RuntimeException::Throw(e) => e.stacktrace().map(|term| Stacktrace::Term(term)),
             RuntimeException::Exit(e) => Some(e.stacktrace()),
-            RuntimeException::Error(e) => e.stacktrace(),
+            RuntimeException::Error(e) => Some(e.stacktrace()),
             RuntimeException::Unknown(_err) => None,
         }
     }
@@ -92,8 +92,9 @@ mod tests {
 
         #[test]
         fn without_arguments_stores_none() {
+            let stacktrace = Term::NIL;
             let reason = atom!("badarg");
-            let error = error!(reason);
+            let error = error!(stacktrace, reason);
 
             assert_eq!(error.reason(), Some(reason));
             assert_eq!(error.class(), Some(Class::Error { arguments: None }));
@@ -101,9 +102,10 @@ mod tests {
 
         #[test]
         fn with_arguments_stores_some() {
+            let stacktrace = Term::NIL;
             let reason = atom!("badarg");
             let arguments = Term::NIL;
-            let error = error!(reason, arguments);
+            let error = error!(stacktrace, reason, arguments);
 
             assert_eq!(error.reason(), Some(reason));
             assert_eq!(

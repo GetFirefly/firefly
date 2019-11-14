@@ -39,10 +39,13 @@ fn with_registered_name_errors_badarg() {
 
         let unregistered_process_arc = process::test(&registered_process_arc);
 
-        assert_badarg!(native(
-            unregistered_process_arc.clone(),
-            registered_name,
-            unregistered_process_arc.pid_term(),
-        ));
+        assert_badarg!(
+            native(
+                unregistered_process_arc.clone(),
+                registered_name,
+                unregistered_process_arc.pid_term(),
+            ),
+            &unregistered_process_arc
+        );
     });
 }

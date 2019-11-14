@@ -31,54 +31,78 @@ fn without_list_errors_badarg() {
 #[test]
 fn with_list_encoding_local_pid() {
     with_process(|process| {
-        assert_badarg!(native(&process, process.charlist_from_str("<").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<0").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<0.").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<0.1").unwrap()));
-        assert_badarg!(native(
-            &process,
-            process.charlist_from_str("<0.1.").unwrap(),
-        ));
-        assert_badarg!(native(
-            &process,
-            process.charlist_from_str("<0.1.2").unwrap(),
-        ));
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<").unwrap()),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<0").unwrap()),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<0.").unwrap()),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<0.1").unwrap()),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<0.1.").unwrap(),),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<0.1.2").unwrap(),),
+            process
+        );
 
         assert_eq!(
             native(&process, process.charlist_from_str("<0.1.2>").unwrap()),
             Ok(Pid::make_term(1, 2).unwrap())
         );
 
-        assert_badarg!(native(
-            &process,
-            process.charlist_from_str("<0.1.2>?").unwrap(),
-        ));
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<0.1.2>?").unwrap(),),
+            process
+        );
     })
 }
 
 #[test]
 fn with_list_encoding_external_pid_without_known_node_errors_badarg() {
     with_process(|process| {
-        assert_badarg!(native(&process, process.charlist_from_str("<").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<2").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<2.").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<2.3").unwrap()));
-        assert_badarg!(native(
-            &process,
-            process.charlist_from_str("<2.3.").unwrap(),
-        ));
-        assert_badarg!(native(
-            &process,
-            process.charlist_from_str("<2.3.4").unwrap(),
-        ));
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<").unwrap()),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<2").unwrap()),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<2.").unwrap()),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<2.3").unwrap()),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<2.3.").unwrap(),),
+            process
+        );
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<2.3.4").unwrap(),),
+            process
+        );
 
         // MUST be a different `id` than other tests that insert the node.
         let arc_node = Arc::new(Node::new(2, Atom::try_from_str("2@external").unwrap(), 0));
 
-        assert_badarg!(native(
-            &process,
-            process.charlist_from_str("<2.3.4>").unwrap(),
-        ));
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<2.3.4>").unwrap(),),
+            process
+        );
 
         nodes::insert(arc_node.clone());
 
@@ -87,9 +111,9 @@ fn with_list_encoding_external_pid_without_known_node_errors_badarg() {
             Ok(process.external_pid(arc_node, 3, 4).unwrap())
         );
 
-        assert_badarg!(native(
-            &process,
-            process.charlist_from_str("<2.3.4>?").unwrap(),
-        ));
+        assert_badarg!(
+            native(&process, process.charlist_from_str("<2.3.4>?").unwrap(),),
+            process
+        );
     });
 }

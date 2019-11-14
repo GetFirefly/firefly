@@ -194,7 +194,7 @@ where
     with(|head, process| {
         let iolist = process.cons(head, tail(&process)).unwrap();
 
-        assert_badarg!(native(process, iolist));
+        assert_badarg!(native(process, iolist), process);
     });
 }
 

@@ -103,6 +103,6 @@ where
         let timer_reference = process.next_reference().unwrap();
         let options = process.cons(option(process), Term::NIL).unwrap();
 
-        assert_badarg!(native(process, timer_reference, options));
+        assert_badarg!(native(process, timer_reference, options), process);
     });
 }

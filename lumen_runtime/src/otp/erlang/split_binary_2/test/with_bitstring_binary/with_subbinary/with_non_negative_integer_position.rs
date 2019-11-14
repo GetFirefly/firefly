@@ -42,7 +42,7 @@ fn with_byte_len_with_bit_count_errors_badarg() {
         let binary = bitstring!(1, 2 :: 2, &process);
         let position = process.integer(2).unwrap();
 
-        assert_badarg!(native(process, binary, position));
+        assert_badarg!(native(process, binary, position), process);
     });
 }
 
@@ -52,6 +52,6 @@ fn with_greater_than_byte_len_errors_badarg() {
         let binary = bitstring!(1, 2 :: 2, &process);
         let position = process.integer(3).unwrap();
 
-        assert_badarg!(native(process, binary, position));
+        assert_badarg!(native(process, binary, position), process);
     });
 }

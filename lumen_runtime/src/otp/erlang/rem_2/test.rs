@@ -160,5 +160,5 @@ fn errors_badarith<F>(actual: F)
 where
     F: FnOnce(&Process) -> exception::Result<Term>,
 {
-    with_process(|process| assert_badarith!(actual(&process)))
+    with_process(|process| assert_badarith!(actual(process), process))
 }

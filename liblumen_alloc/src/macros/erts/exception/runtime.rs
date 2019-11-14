@@ -76,11 +76,11 @@ macro_rules! raise {
 
 #[macro_export]
 macro_rules! error {
-    ($reason:expr) => {
-        $crate::erts::exception::error($reason, None, $crate::location!(), None)
+    ($stacktrace:expr, $reason:expr) => {
+        $crate::erts::exception::error($reason, None, $crate::location!(), $stacktrace)
     };
-    ($reason:expr, $arguments:expr) => {
-        $crate::erts::exception::error($reason, Some($arguments), $crate::location!(), None)
+    ($stacktrace:expr, $reason:expr, $arguments:expr) => {
+        $crate::erts::exception::error($reason, Some($arguments), $crate::location!(), $stacktrace)
     };
 }
 

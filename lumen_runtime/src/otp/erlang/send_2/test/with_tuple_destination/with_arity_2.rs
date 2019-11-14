@@ -104,6 +104,6 @@ where
             .unwrap();
         let message = Atom::str_to_term("message");
 
-        assert_badarg!(native(process, destination, message));
+        assert_badarg!(native(process, destination, message), process);
     })
 }

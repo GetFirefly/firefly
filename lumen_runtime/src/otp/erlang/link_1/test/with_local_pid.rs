@@ -1,8 +1,8 @@
 use super::*;
 
-use liblumen_alloc::error;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::{Atom, Pid};
+use liblumen_alloc::{atom, error};
 
 use crate::otp::erlang;
 use crate::process;
@@ -26,7 +26,7 @@ fn with_non_existent_pid_errors_noproc() {
 
         assert_eq!(
             native(process, Pid::next_term()),
-            Err(error!(Atom::str_to_term("noproc")).into())
+            Err(error!(process, atom!("noproc")).into())
         );
 
         assert_eq!(link_count(process), link_count_before);

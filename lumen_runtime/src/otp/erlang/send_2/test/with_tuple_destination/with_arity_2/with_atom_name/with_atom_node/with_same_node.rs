@@ -17,7 +17,7 @@ fn unregistered_errors_badarg() {
                         native(&arc_process, destination, message),
                         Err(badarg!(&arc_process).into())
                     );
-                    assert_badarg!(native(&arc_process, destination, message));
+                    assert_badarg!(native(&arc_process, destination, message), &arc_process);
 
                     Ok(())
                 },

@@ -12,7 +12,10 @@ fn errors_with_reason() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |reason| {
-                prop_assert_eq!(native(reason), Err(error!(reason).into()));
+                prop_assert_eq!(
+                    native(&arc_process, reason),
+                    Err(error!(&arc_process, reason).into())
+                );
 
                 Ok(())
             })

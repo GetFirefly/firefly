@@ -29,7 +29,12 @@ pub fn badarity(process: &Process, fun: Term, args: Term, location: Location) ->
 pub fn badfun(process: &Process, fun: Term, location: Location) -> Exception {
     let tag = atom("badfun");
     match process.tuple_from_slice(&[tag, fun]) {
-        Ok(reason) => Exception::Runtime(self::error(reason, None, location, None)),
+        Ok(reason) => Exception::Runtime(self::error(
+            reason,
+            None,
+            location,
+            Some(process.stacktrace().into()),
+        )),
         Err(err) => err.into(),
     }
 }

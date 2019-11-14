@@ -2,7 +2,14 @@ use super::*;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::{atom, badarg, badarith, badarity, exit};
+use proptest::prop_assert_eq;
+use proptest::test_runner::{Config, TestRunner};
+
+use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::{atom, badarg, badarith, badarity, badfun, exit};
+
+use crate::scheduler::with_process_arc;
+use crate::test::strategy;
 
 #[test]
 fn without_stacktrace_returns_empty_list() {
@@ -47,14 +54,7 @@ fn badarg_includes_stacktrace() {
     with_process(|process| {
         process.exception(badarg!(process));
 
-        assert_eq!(
-            native(process),
-            Ok(process
-                .list_from_slice(&[process
-                    .tuple_from_slice(&[atom!("test"), atom!("loop"), 0.into()])
-                    .unwrap()])
-                .unwrap())
-        );
+        assert_eq!(native(process), Ok(stacktrace(process)));
     })
 }
 
@@ -63,14 +63,7 @@ fn badarith_includes_stacktrace() {
     with_process(|process| {
         process.exception(badarith!(process));
 
-        assert_eq!(
-            native(process),
-            Ok(process
-                .list_from_slice(&[process
-                    .tuple_from_slice(&[atom!("test"), atom!("loop"), 0.into()])
-                    .unwrap()])
-                .unwrap())
-        );
+        assert_eq!(native(process), Ok(stacktrace(process)));
     })
 }
 
@@ -81,13 +74,32 @@ fn badarity_includes_stacktrace() {
         let arguments = process.list_from_slice(&[]).unwrap();
         process.exception(badarity!(process, function, arguments).try_into().unwrap());
 
-        assert_eq!(
-            native(process),
-            Ok(process
-                .list_from_slice(&[process
-                    .tuple_from_slice(&[atom!("test"), atom!("loop"), 0.into()])
-                    .unwrap()])
-                .unwrap())
-        );
+        assert_eq!(native(process), Ok(stacktrace(process)));
     })
+}
+
+#[test]
+fn badfun_includes_stacktrace() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(
+                &strategy::term::is_function(arc_process.clone()),
+                |function| {
+                    arc_process.exception(badfun!(&arc_process, function).try_into().unwrap());
+
+                    prop_assert_eq!(native(&arc_process), Ok(stacktrace(&arc_process)));
+
+                    Ok(())
+                },
+            )
+            .unwrap();
+    });
+}
+
+fn stacktrace(process: &Process) -> Term {
+    process
+        .list_from_slice(&[process
+            .tuple_from_slice(&[atom!("test"), atom!("loop"), 0.into()])
+            .unwrap()])
+        .unwrap()
 }

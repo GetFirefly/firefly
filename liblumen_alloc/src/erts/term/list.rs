@@ -9,7 +9,8 @@ use core::ptr;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{self, AllocResult, Exception};
 use crate::erts::term::prelude::*;
-use crate::erts::{to_word_size, HeapAlloc, StackAlloc};
+use crate::erts::to_word_size;
+use crate::erts::process::alloc::{TermAlloc, StackAlloc};
 
 pub enum List {
     Empty,
@@ -256,7 +257,7 @@ where
 impl CloneToProcess for Cons {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         let mut vec: alloc::vec::Vec<Term> = Default::default();
         let mut tail = Term::NIL;
@@ -384,7 +385,7 @@ impl TryInto<String> for Boxed<Cons> {
     }
 }
 
-pub struct ListBuilder<'a, A: HeapAlloc> {
+pub struct ListBuilder<'a, A: TermAlloc> {
     heap: &'a mut A,
     element: Option<Term>,
     first: *mut Cons,
@@ -392,7 +393,7 @@ pub struct ListBuilder<'a, A: HeapAlloc> {
     size: usize,
     failed: bool,
 }
-impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
+impl<'a, A: TermAlloc> ListBuilder<'a, A> {
     /// Creates a new list builder that allocates on the given processes' heap
     #[inline]
     pub fn new(heap: &'a mut A) -> Self {
@@ -722,7 +723,6 @@ mod tests {
     use super::*;
 
     use crate::erts::testing::RegionHeap;
-    use crate::erts::process::HeapAlloc;
 
     mod clone_to_heap {
         use super::*;

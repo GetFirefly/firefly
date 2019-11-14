@@ -199,10 +199,10 @@ impl CallExecutor {
 
         // Make sure no non-heap terms make it into the process
         {
-            let mut heap = proc.acquire_heap();
+            let heap = proc.acquire_heap();
             for arg in args.iter() {
                 if arg.is_boxed() {
-                    use liblumen_alloc::erts::process::alloc::HeapAlloc;
+                    use liblumen_alloc::erts::process::alloc::Heap;
                     let ptr: *const Term = arg.dyn_cast();
                     if !heap.is_owner(ptr) {
                         println!("NON HEAP BOXED: {:?}", arg);

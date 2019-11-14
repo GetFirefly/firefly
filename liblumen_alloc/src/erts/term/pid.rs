@@ -13,8 +13,9 @@ use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
+use crate::erts::node::Node;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::term::prelude::*;
-use crate::erts::{HeapAlloc, Node};
 
 lazy_static! {
     static ref RW_LOCK_COUNTER: RwLock<Counter> = Default::default();
@@ -36,7 +37,7 @@ impl Display for AnyPid {
 impl CloneToProcess for AnyPid {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         match self {
             AnyPid::Local(pid) => Ok(pid.encode().unwrap()),
@@ -238,7 +239,7 @@ impl ExternalPid {
 impl CloneToProcess for ExternalPid {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         unsafe {
             let layout = Layout::new::<Self>();

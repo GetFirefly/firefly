@@ -615,7 +615,7 @@ mod tests {
 
     use crate::borrow::CloneToProcess;
     use crate::erts::testing::RegionHeap;
-    use crate::erts::process::alloc::HeapAlloc;
+    use crate::erts::process::alloc::TermAlloc;
 
     use super::*;
 

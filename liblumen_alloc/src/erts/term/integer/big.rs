@@ -11,7 +11,7 @@ use num_traits::cast::ToPrimitive;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
-use crate::erts::HeapAlloc;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::term::prelude::*;
 
 use super::*;
@@ -44,7 +44,7 @@ impl fmt::Display for BigInteger {
 impl CloneToProcess for BigInteger {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         let layout = Layout::for_value(self);
         let size = layout.size();

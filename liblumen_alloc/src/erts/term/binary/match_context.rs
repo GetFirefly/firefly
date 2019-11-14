@@ -8,11 +8,11 @@ use alloc::boxed::Box;
 use liblumen_core::util::pointer::distance_absolute;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::HeapAlloc;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::exception::AllocResult;
-use crate::erts::term::prelude::{Term, TypedTerm, Boxed, Cast, Header, Encoded, TypeError};
+use crate::erts::term::prelude::*;
 
-use super::prelude::*;
+use super::prelude::{num_bytes, byte_offset};
 
 /// Represents a binary being matched
 ///
@@ -265,7 +265,7 @@ impl Bitstring for MatchContext {
 impl CloneToProcess for MatchContext {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         // For ref-counted binaries and those that are already on the process heap,
         // we just need to copy the match context header, not the binary as well.

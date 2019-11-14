@@ -10,7 +10,7 @@ use num_bigint::{BigInt, Sign};
 use liblumen_core::cmp::ExactEq;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::alloc::HeapAlloc;
+use crate::erts::alloc::TermAlloc;
 use crate::erts::exception::{AllocResult, Exception};
 use crate::erts::{self, Process};
 
@@ -724,7 +724,7 @@ impl CloneToProcess for TypedTerm {
 
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         use TypedTerm::*;
         // Immediates are just copied and returned, all other terms

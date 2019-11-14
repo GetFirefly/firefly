@@ -10,7 +10,7 @@ use core::sync::atomic::{self, AtomicUsize};
 use liblumen_core::sys::alloc as sys_alloc;
 
 use crate::erts::exception::AllocResult;
-use crate::erts::process::alloc::heap_alloc::HeapAlloc;
+use crate::erts::process::alloc::{TermAlloc, Heap};
 use crate::CloneToProcess;
 
 use super::prelude::*;
@@ -34,7 +34,7 @@ impl Resource {
 
     pub fn from_value<A>(heap: &mut A, value: Box<dyn Any>) -> AllocResult<Boxed<Self>>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + Heap,
     {
         let resource = Self::new(value)?;
         let layout = Layout::new::<Self>();
@@ -158,7 +158,7 @@ impl Clone for Resource {
 impl CloneToProcess for Resource {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         self.inner().reference_count.fetch_add(1, atomic::Ordering::AcqRel);
         unsafe {

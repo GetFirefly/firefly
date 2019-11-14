@@ -1,8 +1,8 @@
 pub mod exception;
-mod fragment;
+pub mod fragment;
 pub mod message;
 mod module_function_arity;
-mod node;
+pub mod node;
 pub mod process;
 pub mod scheduler;
 pub mod term;

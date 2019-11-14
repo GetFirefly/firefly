@@ -5,7 +5,8 @@ use core::convert::TryFrom;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
-use crate::erts::{HeapAlloc, Node};
+use crate::erts::node::Node;
+use crate::erts::process::alloc::TermAlloc;
 
 use super::prelude::*;
 
@@ -90,7 +91,7 @@ impl_static_header!(ExternalPort, Term::HEADER_EXTERN_PORT);
 impl CloneToProcess for ExternalPort {
     fn clone_to_heap<A>(&self, _heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         unimplemented!()
     }

@@ -8,7 +8,7 @@ use hashbrown::HashMap;
 use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{self, HeapAlloc};
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::exception::{AllocResult, Result};
 
 use super::prelude::*;

@@ -1,20 +1,16 @@
 use core::fmt;
 use core::mem;
-use core::slice;
 use core::ptr::{self, NonNull};
 use core::alloc::Layout;
 
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
 use liblumen_core::alloc::utils::{is_aligned, is_aligned_at, align_up_to};
 
-use crate::erts::*;
 use crate::erts::exception::AllocResult;
-use crate::erts::process::alloc::{HeapAlloc, StackAlloc, StackPrimitives, VirtualAlloc};
+use crate::erts::process;
+use crate::erts::process::alloc::*;
 use crate::erts::term::prelude::*;
-use crate::erts::string::Encoding;
 use crate::mem::bit_size_of;
-
-use super::*;
 
 /// This struct represents the current heap and stack of a process,
 /// which corresponds to the young generation in the overall garbage
@@ -64,6 +60,292 @@ impl YoungHeap {
             vheap,
         }
     }
+
+    /// This function is used to reallocate the memory region this heap was originally allocated
+    /// with to a smaller size, given by `new_size`. This function will panic if the given size
+    /// is not large enough to hold the stack, if a size greater than the previous size is
+    /// given, or if reallocation in place fails.
+    ///
+    /// On success, the heap metadata is updated to reflect the new size
+    pub unsafe fn shrink(&mut self, new_size: usize) {
+        let total_size = self.heap_size();
+        assert!(
+            new_size < total_size,
+            "tried to shrink a heap with a new size that is larger than the old size"
+        );
+        let stack_size = self.stack_used();
+        assert!(
+            new_size > stack_size,
+            "cannot shrink heap to be smaller than its stack usage"
+        );
+
+        // Calculate the new start (or "top") of the stack, this will be our destination pointer
+        let old_start = self.start;
+        let old_stack_start = self.stack_start;
+        let new_stack_start = old_start.add(new_size - stack_size);
+
+        // Copy the stack into its new position
+        ptr::copy(old_stack_start, new_stack_start, stack_size);
+
+        // Reallocate the heap to shrink it, if the heap is moved, there is a bug
+        // in the allocator which must have been introduced in a recent change
+        let new_heap = process::alloc::realloc(old_start, total_size, new_size).unwrap_or(old_start);
+        assert_eq!(
+            new_heap, old_start,
+            "expected reallocation of heap during shrink to occur in-place!"
+        );
+
+        self.end = new_heap.add(new_size);
+        self.stack_end = self.end;
+        self.stack_start = self.stack_end.offset(-(stack_size as isize));
+    }
+
+    /// Gets the current amount of unused space (in words)
+    ///
+    /// Unused space is available to both heap and stack allocations
+    #[inline]
+    pub fn unused(&self) -> usize {
+        self.heap_available()
+    }
+
+    /// Returns the size of the mature region, i.e. terms below the high water mark
+    #[inline]
+    pub(crate) fn mature_size(&self) -> usize {
+        distance_absolute(self.high_water_mark, self.start)
+    }
+
+    /// Sets the high water mark to the current top of the heap
+    #[inline]
+    pub fn set_high_water_mark(&mut self) {
+        self.high_water_mark = self.top;
+    }
+
+    #[inline]
+    fn stack_slot_address(&self, slot: usize) -> *mut Term {
+        assert!(slot < self.stack_size);
+        if slot == 0 {
+            return self.stack_start;
+        }
+        // Walk the stack from start to finish, where the start is the lowest
+        // address. This means we walk terms from the "top" of the stack to the
+        // bottom, or put another way, from the most recently pushed to the oldest.
+        //
+        // When terms are allocated on the stack, the stack grows downwards, but we
+        // lay the term out in memory normally, i.e. allocating upwards. So scanning
+        // the stack requires following terms upwards, in order for us to skip over
+        // non-term data on the stack.
+        let mut last = self.stack_start;
+        let mut pos = last;
+        for _ in 0..=slot {
+            let term = unsafe { *pos };
+            if term.is_immediate() {
+                // Immediates are the typical case, and only occupy one word
+                last = pos;
+                pos = unsafe { pos.add(1) };
+            } else if term.is_boxed() {
+                // Boxed terms will consist of the box itself, and if stored on the stack, the
+                // boxed value will follow immediately afterward. The header of that value will
+                // contain the size in words of the data, which we can use to skip over to the next
+                // term. In the case where the value resides on the heap, we can treat the box like
+                // an immediate
+                let ptr: *mut Term = term.dyn_cast();
+                last = pos;
+                pos = unsafe { pos.add(1) };
+                if ptr == pos {
+                    // The boxed value is on the stack immediately following the box
+                    let val = unsafe { *ptr };
+                    assert!(val.is_header());
+                    let skip = val.arity();
+                    pos = unsafe { pos.add(skip) };
+                } else {
+                    assert!(
+                        !in_area(ptr, pos, self.stack_end),
+                        "boxed term stored on stack but not contiguously!"
+                    );
+                }
+            } else if term.is_non_empty_list() {
+                // The list begins here
+                last = pos;
+                pos = unsafe { pos.add(1) };
+                // Lists are essentially boxes which point to cons cells, but are a bit more
+                // complicated than boxed terms. Proper lists will have a cons cell
+                // where the head is nil, and improper lists will have a tail that
+                // contains a non-list term. For lists entirely on the stack, they
+                // may only consist of immediates or boxes which point to values on the heap, as it
+                // introduces unnecessary complexity to lay out cons cells in memory
+                // where the head term is larger than one word. This constraint also
+                // makes allocating lists on the stack easier to reason about.
+                let ptr: *mut Cons = term.dyn_cast();
+                let mut next_ptr = pos as *mut Cons;
+                // If true, the first cell is correctly laid out contiguously with the list term
+                if ptr == next_ptr {
+                    // This is used to hold the current cons cell
+                    let mut cons = unsafe { *ptr };
+                    // This is a pointer to the next location in memory following this cell
+                    next_ptr = unsafe { next_ptr.add(1) };
+                    loop {
+                        if cons.head.is_nil() {
+                            // We've hit the end of a proper list, update `pos` and break out
+                            pos = next_ptr as *mut Term;
+                            break;
+                        }
+                        assert!(
+                            cons.head.is_immediate() || cons.head.is_boxed(),
+                            "invalid stack-allocated list, elements must be an immediate or box"
+                        );
+                        if cons.tail.is_non_empty_list() {
+                            // The list continues, we need to check where it continues on the stack
+                            let next_cons: *mut Cons = cons.tail.dyn_cast();
+                            if next_cons == next_ptr {
+                                // Yep, it is on the stack, contiguous with this cell
+                                cons = unsafe { *next_ptr };
+                                next_ptr = unsafe { next_ptr.add(1) };
+                                continue;
+                            } else {
+                                // It must be on the heap, otherwise we've violated an invariant
+                                assert!(
+                                    !in_area(next_cons, next_ptr as *const Term, self.stack_end),
+                                    "list stored on stack but not contiguously!"
+                                );
+                            }
+                        } else if cons.tail.is_immediate() {
+                            // We've hit the end of the list, update `pos` and break out
+                            pos = next_ptr as *mut Term;
+                            break;
+                        } else if cons.tail.is_boxed() {
+                            // We've hit the end of an improper list, update `pos` and break out
+                            let box_ptr: *mut Term = cons.tail.dyn_cast();
+                            assert!(!in_area(box_ptr, next_ptr as *const Term, self.stack_end), "invalid stack-allocated list, elements must be an immediate or box");
+                            pos = next_ptr as *mut Term;
+                            break;
+                        }
+                    }
+                } else {
+                    assert!(
+                        !in_area(ptr, pos, self.stack_end),
+                        "list term stored on stack but not contiguously!"
+                    );
+                }
+            } else {
+                unreachable!();
+            }
+        }
+        last
+    }
+
+    /// Copies the stack from another `YoungHeap` into this heap
+    ///
+    /// NOTE: This function will panic if the stack size of `other`
+    /// exceeds the unused space available in this heap
+    #[inline]
+    pub(super) unsafe fn copy_stack_from(&mut self, other: &Self) {
+        let stack_used = other.stack_used();
+        assert!(stack_used <= self.unused());
+        // Determine new stack start pointer, then copy the stack
+        let stack_start = self.stack_end.offset(-(stack_used as isize));
+        ptr::copy_nonoverlapping(other.stack_start, stack_start, stack_used);
+        // Set stack_start
+        self.stack_start = stack_start;
+        self.stack_size = other.stack_size;
+    }
+
+    #[inline]
+    fn overrun_check(&self) {
+        if self.stack_start < self.top {
+            panic!(
+                "Detected overrun of stack/heap: stack_start = {:?}, stack_end = {:?}, heap_start = {:?}, heap_top = {:?}",
+                self.stack_start,
+                self.stack_end,
+                self.start,
+                self.top,
+            );
+        }
+    }
+}
+impl Heap for YoungHeap {
+    #[inline(always)]
+    fn heap_start(&self) -> *mut Term {
+        self.start
+    }
+
+    #[inline(always)]
+    fn heap_top(&self) -> *mut Term {
+        self.top
+    }
+
+    #[inline(always)]
+    fn heap_end(&self) -> *mut Term {
+        self.stack_start
+    }
+
+    #[inline]
+    fn heap_size(&self) -> usize {
+        distance_absolute(self.end, self.start)
+    }
+
+    #[inline]
+    fn heap_available(&self) -> usize {
+        distance_absolute(self.stack_start, self.top)
+    }
+
+    /// Gets the high water mark
+    #[inline]
+    fn high_water_mark(&self) -> *mut Term {
+        self.high_water_mark
+    }
+
+    #[inline]
+    fn contains<T: ?Sized>(&self, ptr: *const T) -> bool {
+        in_area(ptr, self.heap_start(), self.heap_top())
+    }
+
+    #[inline]
+    fn is_owner<T: ?Sized>(&self, ptr: *const T) -> bool {
+        self.contains(ptr) || self.virtual_contains(ptr)
+    }
+
+    #[cfg(debug_assertions)]
+    #[inline]
+    fn sanity_check(&self) {
+        let hb = self.heap_start();
+        let st = self.stack_end;
+        let size = self.heap_size() * mem::size_of::<Term>();
+        assert!(
+            hb < st,
+            "bottom of the heap must be a lower address than the end of the stack"
+        );
+        assert_eq!(size, (st as usize - hb as usize), "mismatch between heap size and the actual distance between the start of the heap and end of the stack");
+        let ht = self.top;
+        assert!(
+            hb <= ht,
+            "bottom of the heap must be a lower address than or equal to the top of the heap"
+        );
+        let sb = self.stack_start;
+        assert!(
+            ht <= sb,
+            "top of the heap must be a lower address than or equal to the start of the stack"
+        );
+        assert!(
+            sb <= st,
+            "start of the stack must be a lower address than or equal to the end of the stack"
+        );
+        let hwm = self.high_water_mark;
+        assert!(
+            hb <= hwm,
+            "bottom of the heap must be a lower address than or equal to the high water mark"
+        );
+        assert!(
+            hwm <= st,
+            "high water mark must be a lower address than or equal to the end of the stack"
+        );
+        self.overrun_check();
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[inline]
+    fn sanity_check(&self) {
+        self.overrun_check();
+    }
 }
 impl HeapAlloc for YoungHeap {
     #[inline]
@@ -72,7 +354,7 @@ impl HeapAlloc for YoungHeap {
 
         let needed = layout.size();
         let available = self.heap_available() * mem::size_of::<Term>();
-        if needed >= available {
+        if needed > available {
             return Err(alloc!());
         }
 
@@ -91,16 +373,52 @@ impl HeapAlloc for YoungHeap {
         debug_assert!(is_aligned(ptr));
         Ok(NonNull::new_unchecked(ptr))
     }
+}
+impl VirtualHeap<ProcBin> for YoungHeap {
+    #[inline]
+    fn virtual_size(&self) -> usize {
+        self.vheap.virtual_size()
+    }
 
     #[inline]
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized {
-        self.contains(ptr) || self.vheap.contains(ptr)
+    fn virtual_heap_used(&self) -> usize {
+        self.vheap.virtual_heap_used()
+    }
+
+    #[inline]
+    fn virtual_heap_unused(&self) -> usize {
+        self.vheap.virtual_heap_unused()
     }
 }
-impl VirtualAlloc for YoungHeap {
+impl VirtualAllocator<ProcBin> for YoungHeap {
     #[inline]
-    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.vheap.push(bin)
+    fn virtual_alloc(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_alloc(value)
+    }
+
+    #[inline]
+    fn virtual_free(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_free(value)
+    }
+
+    #[inline]
+    fn virtual_unlink(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_unlink(value)
+    }
+
+    #[inline]
+    fn virtual_pop(&mut self, value: Boxed<ProcBin>) -> ProcBin {
+        self.vheap.virtual_pop(value)
+    }
+
+    #[inline]
+    fn virtual_contains<P: ?Sized>(&self, ptr: *const P) -> bool {
+        self.vheap.virtual_contains(ptr)
+    }
+
+    #[inline]
+    unsafe fn virtual_clear(&mut self) {
+        self.vheap.virtual_clear()
     }
 }
 impl StackAlloc for YoungHeap {
@@ -184,684 +502,38 @@ impl StackPrimitives for YoungHeap {
         }
     }
 }
-impl YoungHeap {
-    /// This function is used to reallocate the memory region this heap was originally allocated
-    /// with to a smaller size, given by `new_size`. This function will panic if the given size
-    /// is not large enough to hold the stack, if a size greater than the previous size is
-    /// given, or if reallocation in place fails.
-    ///
-    /// On success, the heap metadata is updated to reflect the new size
-    pub(super) fn shrink(&mut self, new_size: usize) {
-        let total_size = self.size();
-        assert!(
-            new_size < total_size,
-            "tried to shrink a heap with a new size that is larger than the old size"
-        );
-        let stack_size = self.stack_used();
-        assert!(
-            new_size > stack_size,
-            "cannot shrink heap to be smaller than its stack usage"
-        );
-
-        // Calculate the new start (or "top") of the stack, this will be our destination pointer
-        let old_start = self.start;
-        let old_stack_start = self.stack_start;
-        let new_stack_start = unsafe { old_start.add(new_size - stack_size) };
-
-        // Copy the stack into its new position
-        unsafe { ptr::copy(old_stack_start, new_stack_start, stack_size) };
-
-        // Reallocate the heap to shrink it, if the heap is moved, there is a bug
-        // in the allocator which must have been introduced in a recent change
-        let new_heap = unsafe {
-            process::alloc::realloc(old_start, total_size, new_size).unwrap_or(old_start)
-        };
-        assert_eq!(
-            new_heap, old_start,
-            "expected reallocation of heap during shrink to occur in-place!"
-        );
-
-        self.end = unsafe { new_heap.add(new_size) };
-        self.stack_end = self.end;
-        self.stack_start = unsafe { self.stack_end.offset(-(stack_size as isize)) };
-    }
-
-    /// Gets the total size of allocated to this heap (in words)
-    #[inline]
-    pub fn size(&self) -> usize {
-        distance_absolute(self.end, self.start)
-    }
-
-    /// Returns the pointer to the bottom of the heap
-    #[inline(always)]
-    pub fn heap_start(&self) -> *mut Term {
-        self.start
-    }
-
-    /// Gets the current amount of heap space used (in words)
-    #[inline]
-    pub fn heap_used(&self) -> usize {
-        distance_absolute(self.top, self.start)
-    }
-
-    /// Gets the current amount of unused space (in words)
-    ///
-    /// Unused space is available to both heap and stack allocations
-    #[inline]
-    pub fn unused(&self) -> usize {
-        distance_absolute(self.stack_start, self.top)
-    }
-
-    /// Returns the used size of the virtual heap
-    #[inline]
-    pub fn virtual_heap_used(&self) -> usize {
-        self.vheap.heap_used()
-    }
-
-    /// Returns the unused size of the virtual heap
-    #[inline]
-    pub fn virtual_heap_unused(&self) -> usize {
-        self.vheap.unused()
-    }
-
-    /// Gets the current amount of space (in words) available for heap allocations
-    #[inline]
-    pub fn heap_available(&self) -> usize {
-        self.unused()
-    }
-
-    /// Returns the size of the mature region, i.e. terms below the high water mark
-    #[inline]
-    pub(crate) fn mature_size(&self) -> usize {
-        distance_absolute(self.high_water_mark, self.start)
-    }
-
-    /// Returns true if the given pointer points into this heap
-    #[allow(unused)]
-    #[inline]
-    pub fn contains<T>(&self, term: *const T) -> bool where T: ?Sized {
-        in_area(term, self.start, self.top)
-    }
-
-    /// Sets the high water mark to the current top of the heap
-    #[inline]
-    pub fn set_high_water_mark(&mut self) {
-        self.high_water_mark = self.top;
-    }
-
-    #[inline]
-    fn stack_slot_address(&self, slot: usize) -> *mut Term {
-        assert!(slot < self.stack_size);
-        if slot == 0 {
-            return self.stack_start;
-        }
-        // Walk the stack from start to finish, where the start is the lowest
-        // address. This means we walk terms from the "top" of the stack to the
-        // bottom, or put another way, from the most recently pushed to the oldest.
-        //
-        // When terms are allocated on the stack, the stack grows downwards, but we
-        // lay the term out in memory normally, i.e. allocating upwards. So scanning
-        // the stack requires following terms upwards, in order for us to skip over
-        // non-term data on the stack.
-        let mut last = self.stack_start;
-        let mut pos = last;
-        for _ in 0..=slot {
-            let term = unsafe { *pos };
-            if term.is_immediate() {
-                // Immediates are the typical case, and only occupy one word
-                last = pos;
-                pos = unsafe { pos.add(1) };
-            } else if term.is_boxed() {
-                // Boxed terms will consist of the box itself, and if stored on the stack, the
-                // boxed value will follow immediately afterward. The header of that value will
-                // contain the size in words of the data, which we can use to skip over to the next
-                // term. In the case where the value resides on the heap, we can treat the box like
-                // an immediate
-                let ptr: *mut Term = term.dyn_cast();
-                last = pos;
-                pos = unsafe { pos.add(1) };
-                if ptr == pos {
-                    // The boxed value is on the stack immediately following the box
-                    let val = unsafe { *ptr };
-                    assert!(val.is_header());
-                    let skip = unsafe { val.arity() };
-                    pos = unsafe { pos.add(skip) };
-                } else {
-                    assert!(
-                        !in_area(ptr, pos, self.stack_end),
-                        "boxed term stored on stack but not contiguously!"
-                    );
-                }
-            } else if term.is_non_empty_list() {
-                // The list begins here
-                last = pos;
-                pos = unsafe { pos.add(1) };
-                // Lists are essentially boxes which point to cons cells, but are a bit more
-                // complicated than boxed terms. Proper lists will have a cons cell
-                // where the head is nil, and improper lists will have a tail that
-                // contains a non-list term. For lists entirely on the stack, they
-                // may only consist of immediates or boxes which point to values on the heap, as it
-                // introduces unnecessary complexity to lay out cons cells in memory
-                // where the head term is larger than one word. This constraint also
-                // makes allocating lists on the stack easier to reason about.
-                let ptr: *mut Cons = term.dyn_cast();
-                let mut next_ptr = pos as *mut Cons;
-                // If true, the first cell is correctly laid out contiguously with the list term
-                if ptr == next_ptr {
-                    // This is used to hold the current cons cell
-                    let mut cons = unsafe { *ptr };
-                    // This is a pointer to the next location in memory following this cell
-                    next_ptr = unsafe { next_ptr.add(1) };
-                    loop {
-                        if cons.head.is_nil() {
-                            // We've hit the end of a proper list, update `pos` and break out
-                            pos = next_ptr as *mut Term;
-                            break;
-                        }
-                        assert!(
-                            cons.head.is_immediate() || cons.head.is_boxed(),
-                            "invalid stack-allocated list, elements must be an immediate or box"
-                        );
-                        if cons.tail.is_non_empty_list() {
-                            // The list continues, we need to check where it continues on the stack
-                            let next_cons: *mut Cons = cons.tail.dyn_cast();
-                            if next_cons == next_ptr {
-                                // Yep, it is on the stack, contiguous with this cell
-                                cons = unsafe { *next_ptr };
-                                next_ptr = unsafe { next_ptr.add(1) };
-                                continue;
-                            } else {
-                                // It must be on the heap, otherwise we've violated an invariant
-                                assert!(
-                                    !in_area(next_cons, next_ptr as *const Term, self.stack_end),
-                                    "list stored on stack but not contiguously!"
-                                );
-                            }
-                        } else if cons.tail.is_immediate() {
-                            // We've hit the end of the list, update `pos` and break out
-                            pos = next_ptr as *mut Term;
-                            break;
-                        } else if cons.tail.is_boxed() {
-                            // We've hit the end of an improper list, update `pos` and break out
-                            let box_ptr: *mut Term = cons.tail.dyn_cast();
-                            assert!(!in_area(box_ptr, next_ptr as *const Term, self.stack_end), "invalid stack-allocated list, elements must be an immediate or box");
-                            pos = next_ptr as *mut Term;
-                            break;
-                        }
-                    }
-                } else {
-                    assert!(
-                        !in_area(ptr, pos, self.stack_end),
-                        "list term stored on stack but not contiguously!"
-                    );
-                }
-            } else {
-                unreachable!();
-            }
-        }
-        last
-    }
-
-    /// Copies the stack from another `YoungHeap` into this heap
-    ///
-    /// NOTE: This function will panic if the stack size of `other`
-    /// exceeds the unused space available in this heap
-    #[inline]
-    pub fn copy_stack_from(&mut self, other: &Self) {
-        let stack_used = other.stack_used();
-        assert!(stack_used <= self.unused());
-        // Determine new stack start pointer, then copy the stack
-        let stack_start = unsafe { self.stack_end.offset(-(stack_used as isize)) };
-        unsafe { ptr::copy_nonoverlapping(other.stack_start, stack_start, stack_used) };
-        // Set stack_start
-        self.stack_start = stack_start;
-        self.stack_size = other.stack_size;
-    }
-
-    /// Returns true if the given ProcBin is on this heap's virtual binary heap
-    #[inline]
-    pub fn virtual_heap_contains<T>(&self, term: *const T) -> bool where T: ?Sized {
-        self.vheap.contains(term)
-    }
-
-    /// Unlinks the given ProcBin from the virtual binary heap, but does not free it
-    #[inline]
-    pub fn virtual_heap_unlink(&mut self, bin: &ProcBin) {
-        self.vheap.unlink(bin)
-    }
-
-    /// This function walks the heap, applying the given function to every term
-    /// encountered that is either boxed, a list, or a header value. All other
-    /// term values are skipped over as they are components of one of the above
-    /// mentioned types.
-    ///
-    /// The callback provided will receive the current `Term` and pointer to that
-    /// term (also functions as the current position in the heap). This can be used
-    /// to read/write data to/from the heap at that position.
-    ///
-    /// The callback should return `Some(pos)` if traversal should continue,
-    /// returning the pointer `pos` as the position at which to resume traversing the
-    /// heap. This pointer must _always_ be incremented by at least `1` to ensure that
-    /// an infinite loop does not occur, and this will be verified when run in debug mode.
-    /// If `None` is returned, traversal will stop.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// heap.walk(|term, pos| {
-    ///     if term.is_tuple() {
-    ///         let arity = term.arityval();
-    ///         # ...
-    ///         return Some(unsafe { pos.offset(arity + 1) });
-    ///     }
-    ///     None
-    /// });
-    #[inline]
-    pub fn walk<F>(&mut self, mut fun: F)
-    where
-        F: FnMut(&mut YoungHeap, Term, *mut Term) -> Option<*mut Term>,
-    {
-        let mut pos = self.start;
-
-        while (pos as usize) < (self.top as usize) {
-            let prev_pos = pos;
-            let term = unsafe { *pos };
-            if term.is_boxed() || term.is_non_empty_list() || term.is_header() {
-                if let Some(new_pos) = fun(self, term, pos) {
-                    pos = new_pos;
-                } else {
-                    break;
-                }
-            } else {
-                pos = unsafe { pos.add(1) };
-            }
-
-            debug_assert!(
-                pos as usize > prev_pos as usize,
-                "walk callback must advance position in heap by at least 1!"
-            );
-        }
-    }
-
-    /// Moves a boxed term into this heap
-    ///
-    /// - `orig` is the original boxed term pointer
-    /// - `ptr` is the pointer contained in the box
-    /// - `header` is the header value pointed to by `ptr`
-    ///
-    /// When this function returns, `orig` will have been updated
-    /// with a new boxed term which points into this heap rather than
-    /// the previous location. Likewise, `ptr` will have been updated
-    /// with the same value as `orig`, forwarding references to this heap.
-    #[inline]
-    pub unsafe fn move_into(&mut self, orig: *mut Term, ptr: *mut Term, header: Term) -> usize {
-        assert!(header.is_header());
-        debug_assert_ne!(orig, self.top);
-
-        // All other headers follow more or less the same formula,
-        // the header arityval contains the size of the term in words,
-        // so we simply need to move those words into this heap
-        let mut heap_top = self.top;
-
-        // Sub-binaries are a little different, in that since we're garbage
-        // collecting, we can't guarantee that the original binary will stick
-        // around, and we don't necessarily want it to. Instead we create a new
-        // heap binary (if within the size limit) that contains the slice of
-        // the original binary that the sub-binary referenced. If the sub-binary
-        // is too large to build a heap binary, then the original must be a ProcBin,
-        // so we don't need to worry about it being collected out from under us
-        // TODO: Handle other subtype cases, see erl_gc.h:60
-        if header.is_subbinary() {
-            let bin = &*(ptr as *mut SubBinary);
-            // Convert to HeapBin if applicable
-            if let Ok((_bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
-                // Save space for box
-                let dst = heap_top.add(1);
-                // Create box pointing to new destination
-                let val: Term = dst.into();
-                ptr::write(heap_top, val);
-                // Allocate HeapBin at destination
-                let bytes = slice::from_raw_parts(bin_ptr, bin_size);
-                let bin = HeapBin::copy_slice_to(dst as *mut u8, bytes, Encoding::Raw);
-                // Write a move marker to the original location
-                let marker: Term = heap_top.into();
-                ptr::write(orig, marker);
-                // Update `ptr` as well
-                ptr::write(ptr, marker);
-                // Update top pointer by offseting pointer past end of new HeapBin
-                let size = mem::size_of_val(bin.as_ref());
-                self.top = (dst as *mut u8).offset(size as isize) as *mut Term;
-                // We're done
-                return 1 + to_word_size(size);
-            }
-        }
-
-        let num_elements = header.arity();
-        let moved = num_elements + 1;
-
-        let marker: Term = heap_top.into();
-        // Write the term header to the location pointed to by the boxed term
-        ptr::write(heap_top, header);
-        // Write the move marker to the original location
-        ptr::write(orig, marker);
-        // And to `ptr` as well
-        ptr::write(ptr, marker);
-        // Move `ptr` to the first arityval
-        // Move heap_top to the first data location
-        // Then copy arityval data to new location
-        heap_top = heap_top.add(1);
-        ptr::copy_nonoverlapping(ptr.add(1), heap_top, num_elements);
-        // Update the top pointer
-        self.top = heap_top.add(num_elements);
-        // Return the number of words moved into this heap
-        moved
-    }
-
-    /// Like `move_into`, but designed for cons cells, as the move marker approach
-    /// differs slightly. The head element of the cell is set to the none value, and
-    /// the tail element contains the forwarding pointer.
-    #[inline]
-    pub unsafe fn move_cons_into(&mut self, orig: *mut Term, ptr: *mut Cons, cons: Cons) {
-        // Copy cons cell to this heap
-        let location = self.top as *mut Cons;
-        ptr::write(location, cons);
-        // New list value
-        let list = location.into();
-        // Redirect original reference
-        ptr::write(orig, list);
-        // Store forwarding indicator/address
-        let marker = Cons::new(Term::NONE, list);
-        ptr::write(ptr as *mut Cons, marker);
-        // Update the top pointer
-        self.top = location.add(1) as *mut Term;
-    }
-
-    /// This function is used during garbage collection to sweep this heap for references
-    /// that reside in the fromspace heap and have not yet been moved to this heap. At
-    /// this point, the root set at a minimum will have been moved to this heap, however
-    /// the moved values themselves can contain references to data which has not been moved
-    /// yet, which is what this function is responsible for doing.
-    ///
-    /// In more general terms however, this function will walk the current heap until
-    /// the top of the heap is reached, searching for any values in the fromspace
-    /// heap that require moving. A reference to the old generation heap is also provided
-    /// so that we can check that a candidate pointer is not in the old generation already,
-    /// as those values are out of scope for this sweep
-    pub fn sweep(
-        &mut self,
-        prev: &mut YoungHeap,
-        old: &mut OldHeap,
-        mature: *mut Term,
-        mature_end: *mut Term,
-    ) {
-        self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
-            unsafe {
-                if term.is_boxed() {
-                    let ptr: *mut Term = term.dyn_cast();
-                    let boxed = *ptr;
-                    if boxed.is_boxed() {
-                        // Overwrite move marker with "real" boxed term
-                        ptr::write(pos, boxed);
-                    } else if in_area(ptr, mature, mature_end) {
-                        // Move into old generation
-                        if boxed.is_procbin() {
-                            // First we need to remove the procbin from its old virtual heap
-                            let old_bin = &*(ptr as *mut ProcBin);
-                            if prev.virtual_heap_contains(old_bin) {
-                                prev.virtual_heap_unlink(old_bin);
-                            } else {
-                                heap.virtual_heap_unlink(old_bin);
-                            }
-                            // Move to top of the old gen heap
-                            old.move_into(pos, ptr, boxed);
-                            // Then add the procbin to the old gen virtual heap
-                            let marker = *ptr;
-                            assert!(marker.is_boxed());
-                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
-                            let bin = &*bin_ptr;
-                            old.virtual_alloc(bin);
-                        } else {
-                            old.move_into(pos, ptr, boxed);
-                        }
-                    } else if !term.is_literal() && !old.contains(ptr) && !heap.contains(ptr) {
-                        // Move into young generation (this heap)
-                        if boxed.is_procbin() {
-                            // First we need to remove the procbin from its old virtual heap
-                            let old_bin = &*(ptr as *mut ProcBin);
-                            prev.virtual_heap_unlink(old_bin);
-                            // Move to top of this heap
-                            heap.move_into(pos, ptr, boxed);
-                            // Then add the procbin to the new virtual heap
-                            let marker = *ptr;
-                            assert!(marker.is_boxed());
-                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
-                            let bin = &*bin_ptr;
-                            heap.virtual_alloc(bin);
-                        } else {
-                            // Move to top of this heap
-                            heap.move_into(pos, ptr, boxed);
-                        }
-                    }
-                    Some(pos.add(1))
-                } else if term.is_non_empty_list() {
-                    let ptr: *mut Cons = term.dyn_cast();
-                    let cons = *ptr;
-                    if cons.is_move_marker() {
-                        // Overwrite move marker with "real" list term
-                        ptr::write(pos, cons.tail);
-                    } else if in_area(ptr, mature, mature_end) {
-                        // Move to old generation
-                        old.move_cons_into(pos, ptr, cons);
-                    } else if !term.is_literal() && !old.contains(ptr) && !heap.contains(ptr) {
-                        // Move to top of this heap
-                        heap.move_cons_into(pos, ptr, cons);
-                    }
-                    Some(pos.add(1))
-                } else if term.is_header() {
-                    if term.is_tuple() {
-                        // We need to check all elements, so we just skip over the tuple header
-                        Some(pos.add(1))
-                    } else if term.is_function() {
-                        // Just as for tuples, we need to check elements within the closure env
-                        Some(pos.add(Closure::base_size_words()))
-                    } else if term.is_match_context() {
-                        let ctx = &mut *(pos as *mut MatchContext);
-                        let base = ctx.base();
-                        let orig = ctx.orig();
-                        let orig_term = *orig;
-                        let ptr: *mut Term = orig_term.dyn_cast();
-                        let bin = *ptr;
-                        if bin.is_boxed() {
-                            // `orig` was a move marker
-                            ptr::write(orig, bin);
-                            ptr::write(base, bin.as_binary_ptr());
-                        } else if in_area(ptr, mature, mature_end) {
-                            // Move to old generation
-                            old.move_into(orig, ptr, bin);
-                            ptr::write(base, bin.as_binary_ptr());
-                        } else if !orig_term.is_literal() && !old.contains(ptr) {
-                            heap.move_into(orig, ptr, bin);
-                            ptr::write(base, bin.as_binary_ptr());
-                        }
-                        Some(pos.add(1 + term.arity()))
-                    } else {
-                        Some(pos.add(1 + term.arity()))
-                    }
-                } else {
-                    Some(pos.add(1))
-                }
-            }
-        });
-    }
-
-    /// Essentially the same as `sweep`, except it always moves values into
-    /// this heap, since the goal is to consolidate all generations into a
-    /// fresh young heap, which is this heap when called
-    pub fn full_sweep(&mut self, prev: &mut YoungHeap, old: &mut OldHeap) {
-        self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
-            unsafe {
-                if term.is_boxed() {
-                    let ptr: *mut Term = term.dyn_cast();
-                    let boxed = *ptr;
-                    if boxed.is_boxed() {
-                        // Overwrite move marker with "real" boxed term
-                        ptr::write(pos, boxed);
-                    } else if !term.is_literal() {
-                        if boxed.is_procbin() {
-                            // First we need to remove the procbin from its old virtual heap
-                            let old_bin = &*(ptr as *mut ProcBin);
-                            if old.virtual_heap_contains(old_bin) {
-                                old.virtual_heap_unlink(old_bin);
-                            } else {
-                                prev.virtual_heap_unlink(old_bin);
-                            }
-                            // Move to top of this heap
-                            heap.move_into(pos, ptr, boxed);
-                            // Then add the procbin to the new virtual heap
-                            let marker = *ptr;
-                            assert!(marker.is_boxed());
-                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
-                            let bin = &*bin_ptr;
-                            heap.virtual_alloc(bin);
-                        } else {
-                            // Move to top of this heap
-                            heap.move_into(pos, ptr, boxed);
-                        }
-                    }
-                    // Move past box pointer to next term
-                    Some(pos.add(1))
-                } else if term.is_non_empty_list() {
-                    let ptr: *mut Cons = term.dyn_cast();
-                    let cons = *ptr;
-                    if cons.is_move_marker() {
-                        assert!(cons.tail.is_non_empty_list());
-                        // Rewrite marker with list pointer
-                        ptr::write(pos, cons.tail);
-                    } else if !term.is_literal() {
-                        // Move cons cell to top of this heap
-                        heap.move_cons_into(pos, ptr, cons);
-                    }
-                    // Move past list pointer to next term
-                    Some(pos.add(1))
-                } else if term.is_header() {
-                    if term.is_tuple() {
-                        // We need to check all elements, so we just skip over the tuple header
-                        Some(pos.add(1))
-                    } else if term.is_function() {
-                        // Just as for tuples, we need to check elements within the closure env
-                        Some(pos.add(Closure::base_size_words()))
-                    } else if term.is_match_context() {
-                        let ctx = &mut *(pos as *mut MatchContext);
-                        let base = ctx.base();
-                        let orig = ctx.orig();
-                        let orig_term = *orig;
-                        let ptr: *mut Term = orig_term.dyn_cast();
-                        let bin = *ptr;
-                        if bin.is_boxed() {
-                            // `orig` was a move marker
-                            ptr::write(orig, bin);
-                            ptr::write(base, bin.as_binary_ptr());
-                        } else if !orig_term.is_literal() {
-                            heap.move_into(orig, ptr, bin);
-                            ptr::write(base, bin.as_binary_ptr());
-                        }
-                        Some(pos.add(1 + term.arity()))
-                    } else {
-                        Some(pos.add(1 + term.arity()))
-                    }
-                } else {
-                    Some(pos.add(1))
-                }
-            }
-        });
-    }
-
-    #[cfg(debug_assertions)]
-    #[inline]
-    pub(super) fn sanity_check(&self) {
-        let hb = self.start as usize;
-        let st = self.stack_end as usize;
-        let size = self.size() * mem::size_of::<Term>();
-        assert!(
-            hb < st,
-            "bottom of the heap must be a lower address than the end of the stack"
-        );
-        assert!(size == st - hb, "mismatch between heap size and the actual distance between the start of the heap and end of the stack");
-        let ht = self.top as usize;
-        assert!(
-            hb <= ht,
-            "bottom of the heap must be a lower address than or equal to the top of the heap"
-        );
-        let sb = self.stack_start as usize;
-        assert!(
-            ht <= sb,
-            "top of the heap must be a lower address than or equal to the start of the stack"
-        );
-        assert!(
-            sb <= st,
-            "start of the stack must be a lower address than or equal to the end of the stack"
-        );
-        let hwm = self.high_water_mark as usize;
-        assert!(
-            hb <= hwm,
-            "bottom of the heap must be a lower address than or equal to the high water mark"
-        );
-        assert!(
-            hwm <= st,
-            "high water mark must be a lower address than or equal to the end of the stack"
-        );
-        self.overrun_check();
-    }
-
-    #[cfg(not(debug_assertions))]
-    #[inline]
-    pub(super) fn sanity_check(&self) {
-        self.overrun_check();
-    }
-
-    #[inline]
-    fn overrun_check(&self) {
-        if (self.stack_start as usize) < (self.top as usize) {
-            panic!(
-                "Detected overrun of stack/heap: stack_start = {:?}, stack_end = {:?}, heap_start = {:?}, heap_top = {:?}",
-                self.stack_start,
-                self.stack_end,
-                self.start,
-                self.top,
-            );
-        }
-    }
-}
 impl Drop for YoungHeap {
     fn drop(&mut self) {
         unsafe {
+            let heap_size = self.heap_size();
             // Free virtual binary heap
-            self.vheap.clear();
-            // Free memory region managed by this heap instance
-            process::alloc::free(self.start, self.size());
+            self.virtual_clear();
+            // Zero-sized heaps have no backing memory
+            if heap_size > 0 {
+                // Free memory region managed by this heap instance
+                process::alloc::free(self.heap_start(), self.heap_size());
+            }
         }
     }
 }
 impl fmt::Debug for YoungHeap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_fmt(format_args!(
-            "YoungHeap (heap: {:?}-{:?}, stack: {:?}-{:?}, used: {}, unused: {}) [\n",
-            self.start,
-            self.top,
+            "YoungHeap (heap: {:p}-{:p}, stack: {:p}-{:p}, used: {}, unused: {}) [\n",
+            self.heap_start(),
+            self.heap_top(),
             self.stack_start,
             self.stack_end,
             self.heap_used() + self.stack_used(),
             self.unused(),
         ))?;
-        let mut pos = self.start;
-        while pos < self.top {
+        let mut pos = self.heap_start();
+        while pos < self.heap_top() {
             unsafe {
                 let term = &*pos;
-
-                let skip = term.sizeof();
-
+                let skip = term.arity();
                 f.write_fmt(format_args!(
-                    "  {:?}: {:0bit_len$b} {:?}\n",
+                    "  {:p}: {:0bit_len$b} {:?}\n",
                     pos,
                     *(pos as *const usize),
                     term,
@@ -875,7 +547,7 @@ impl fmt::Debug for YoungHeap {
         while pos < self.stack_start {
             unsafe {
                 f.write_fmt(format_args!(
-                    "  {:?}: {:0bit_len$b}\n",
+                    "  {:p}: {:0bit_len$b}\n",
                     pos,
                     *(pos as *const usize),
                     bit_len = (bit_size_of::<usize>())
@@ -890,10 +562,10 @@ impl fmt::Debug for YoungHeap {
             unsafe {
                 let term = &*pos;
 
-                let skip = term.sizeof();
+                let skip = term.arity();
 
                 f.write_fmt(format_args!(
-                    "  {:?}: {:0bit_len$b} {:?}\n",
+                    "  {:p}: {:0bit_len$b} {:?}\n",
                     pos,
                     *(pos as *const usize),
                     term,
@@ -913,14 +585,15 @@ mod tests {
     use core::convert::TryInto;
 
     use crate::{atom, fixnum};
-    use crate::erts::process::alloc;
+    use crate::erts;
+    use crate::erts::process::alloc::{self, HeapAlloc};
 
     #[test]
     fn young_heap_alloc() {
         let (heap, heap_size) = alloc::default_heap().unwrap();
         let mut yh = YoungHeap::new(heap, heap_size);
 
-        assert_eq!(yh.size(), heap_size);
+        assert_eq!(yh.heap_size(), heap_size);
         assert_eq!(yh.stack_size(), 0);
         unsafe {
             yh.set_stack_size(3);
@@ -955,7 +628,7 @@ mod tests {
             .unwrap();
         let list_term: Term = list.into();
         let list_size =
-            to_word_size((mem::size_of::<Cons>() * 2) + string_term_size + string_len);
+            erts::to_word_size((mem::size_of::<Cons>() * 2) + string_term_size + string_len);
         assert_eq!(yh.heap_used(), list_size);
         assert!(list_term.is_list());
         let list_ptr: *mut Cons = list_term.dyn_cast();
@@ -986,7 +659,7 @@ mod tests {
             .finish()
             .unwrap();
         // 2 cons cells + 1 box term
-        let list_size = to_word_size(mem::size_of::<Cons>() * 2) + 1;
+        let list_size = erts::to_word_size(mem::size_of::<Cons>() * 2) + 1;
 
         assert_eq!(yh.heap_used(), 0);
         assert_eq!(yh.stack_used(), list_size);

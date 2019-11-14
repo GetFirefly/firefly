@@ -3,7 +3,8 @@ use core::ptr::NonNull;
 use core::alloc::Layout;
 
 use crate::erts::exception::AllocResult;
-use crate::erts::{self, HeapAlloc, HeapFragment, Process};
+use crate::erts::{self, HeapFragment, Process};
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::term::prelude::Term;
 
 /// This trait represents cloning, like `Clone`, but specifically
@@ -41,7 +42,7 @@ pub trait CloneToProcess {
     /// the amount of memory available, this returns `Err(Alloc)`, otherwise
     /// it returns `Ok(Term)`
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
-        where A: ?Sized + HeapAlloc;
+        where A: ?Sized + TermAlloc;
 
     /// Returns boxed copy of this value and the heap fragment it was allocated into
     ///
@@ -50,7 +51,7 @@ pub trait CloneToProcess {
         let size = self.size_in_words() * mem::size_of::<Term>();
         let align = mem::align_of_val(self);
         let layout = Layout::from_size_align(size, align).unwrap();
-        let mut frag = unsafe { HeapFragment::new(layout)? };
+        let mut frag = HeapFragment::new(layout)?;
         let frag_ref = unsafe { frag.as_mut() };
         let term = self.clone_to_heap(frag_ref)?;
         Ok((term, frag))

@@ -3,10 +3,10 @@ use core::ptr::NonNull;
 use wasm_bindgen::prelude::*;
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::process::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term;
 use liblumen_alloc::erts::term::prelude::{Term, Atom, Encode};
-use liblumen_alloc::erts::HeapFragment;
+use liblumen_alloc::erts::fragment::HeapFragment;
 use liblumen_alloc::erts::ModuleFunctionArity;
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::registry::pid_to_process;
@@ -25,7 +25,7 @@ pub struct JsHeap {
 impl JsHeap {
     #[wasm_bindgen(constructor)]
     pub fn new(size: usize) -> JsHeap {
-        let fragment = unsafe { HeapFragment::new_from_word_size(size) }.unwrap();
+        let fragment = HeapFragment::new_from_word_size(size).unwrap();
         JsHeap {
             fragment,
             terms: Vec::new(),

@@ -1,15 +1,15 @@
 use core::fmt;
 use core::mem;
-use core::ptr;
-use core::slice;
+use core::ptr::{self, NonNull};
+use core::alloc::Layout;
 
-use liblumen_core::util::pointer::*;
+use liblumen_core::alloc::utils::{is_aligned_at, is_aligned, align_up_to};
 
+use crate::mem::bit_size_of;
 use crate::erts::*;
 use crate::erts::term::prelude::*;
-use crate::erts::string::Encoding;
-
-use super::{VirtualBinaryHeap, YoungHeap};
+use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::*;
 
 /// This type represents the old generation process heap
 ///
@@ -63,307 +63,95 @@ impl OldHeap {
     pub fn active(&self) -> bool {
         !self.start.is_null()
     }
-
-    /// Returns the total allocated size of this heap
-    #[inline]
-    pub fn size(&self) -> usize {
-        distance_absolute(self.end, self.start)
-    }
-
-    /// Returns the pointer to the bottom of the heap
+}
+impl Heap for OldHeap {
     #[inline(always)]
-    pub fn heap_start(&self) -> *mut Term {
+    fn heap_start(&self) -> *mut Term {
         self.start
     }
 
-    /// Returns the pointer to the top of the heap
     #[inline(always)]
-    pub fn heap_pointer(&self) -> *mut Term {
+    fn heap_top(&self) -> *mut Term {
         self.top
     }
 
-    /// Returns the used size of this heap
-    #[inline]
-    pub fn heap_used(&self) -> usize {
-        distance_absolute(self.top, self.start)
+    #[inline(always)]
+    fn heap_end(&self) -> *mut Term {
+        self.end
     }
-
+}
+impl HeapAlloc for OldHeap {
     #[inline]
-    pub fn heap_available(&self) -> usize {
-        distance_absolute(self.end, self.top)
-    }
+    unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
+        let layout = layout.pad_to_align().unwrap();
 
-    /// Returns the used size of the virtual heap
-    #[allow(unused)]
-    #[inline]
-    pub fn virtual_heap_used(&self) -> usize {
-        self.vheap.heap_used()
-    }
-
-    /// Returns true if the given ProcBin is on this heap's virtual binary heap
-    #[inline]
-    pub fn virtual_heap_contains<T>(&self, term: *const T) -> bool where T: ?Sized {
-        self.vheap.contains(term)
-    }
-
-    /// Unlinks the given ProcBin from the virtual binary heap, but does not free it
-    #[inline]
-    pub fn virtual_heap_unlink(&mut self, bin: &ProcBin) {
-        self.vheap.unlink(bin)
-    }
-
-    /// Adds a binary reference to this heap's virtual binary heap
-    #[inline]
-    pub fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.vheap.push(bin)
-    }
-
-    /// Returns true if the given pointer points into this heap
-    #[inline]
-    pub fn contains<T>(&self, term: *const T) -> bool where T: ?Sized {
-        in_area(term, self.start, self.top)
-    }
-
-    /// This function walks the heap, applying the given function to every term
-    /// encountered that is either boxed, a list, or a header value. All other
-    /// term values are skipped over as they are components of one of the above
-    /// mentioned types.
-    ///
-    /// The callback provided will receive the current `Term` and pointer to that
-    /// term (also functions as the current position in the heap). This can be used
-    /// to read/write data to/from the heap at that position.
-    ///
-    /// The callback should return `Some(pos)` if traversal should continue,
-    /// returning the pointer `pos` as the position at which to resume traversing the
-    /// heap. This pointer must _always_ be incremented by at least `1` to ensure that
-    /// an infinite loop does not occur, and this will be verified when run in debug mode.
-    /// If `None` is returned, traversal will stop.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// self.walk(|heap, term, pos| {
-    ///     if term.is_tuple() {
-    ///         let arity = term.arity();
-    ///         # ...
-    ///         return Some(unsafe { pos.add(arity + 1) });
-    ///     }
-    ///     None
-    /// });
-    #[inline]
-    pub fn walk<F>(&mut self, mut fun: F)
-    where
-        F: FnMut(&mut OldHeap, Term, *mut Term) -> Option<*mut Term>,
-    {
-        let mut pos = self.start;
-
-        while (pos as usize) < (self.top as usize) {
-            let prev_pos = pos;
-            let term = unsafe { *pos };
-            if term.is_boxed() {
-                if let Some(new_pos) = fun(self, term, pos) {
-                    pos = new_pos;
-                } else {
-                    break;
-                }
-            } else if term.is_non_empty_list() {
-                if let Some(new_pos) = fun(self, term, pos) {
-                    pos = new_pos;
-                } else {
-                    break;
-                }
-            } else if term.is_header() {
-                if let Some(new_pos) = fun(self, term, pos) {
-                    pos = new_pos;
-                } else {
-                    break;
-                }
-            } else {
-                pos = unsafe { pos.add(1) };
-            }
-
-            debug_assert!(
-                pos as usize > prev_pos as usize,
-                "walk callback must advance position in heap by at least 1!"
-            );
-        }
-    }
-
-    /// Moves a boxed term into this heap
-    ///
-    /// - `orig` is the original boxed term pointer
-    /// - `ptr` is the pointer contained in the box
-    /// - `header` is the header value pointed to by `ptr`
-    ///
-    /// When this function returns, `orig` will have been updated
-    /// with a new boxed term which points into this heap rather than
-    /// the previous location. Likewise, `ptr` will have been updated
-    /// with the same value as `orig`, forwarding references to this heap.
-    #[inline]
-    pub unsafe fn move_into(&mut self, orig: *mut Term, ptr: *mut Term, header: Term) -> usize {
-        assert!(header.is_header());
-        debug_assert_ne!(orig, self.top);
-
-        // All other headers follow more or less the same formula,
-        // the header arityval contains the size of the term in words,
-        // so we simply need to move those words into this heap
-        let heap_top = self.top;
-
-        // Sub-binaries are a little different, in that since we're garbage
-        // collecting, we can't guarantee that the original binary will stick
-        // around, and we don't necessarily want it to. Instead we create a new
-        // heap binary (if within the size limit) that contains the slice of
-        // the original binary that the sub-binary referenced. If the sub-binary
-        // is too large to build a heap binary, then the original must be a ProcBin,
-        // so we don't need to worry about it being collected out from under us
-        // TODO: Handle other subtype cases, see erl_gc.h:60
-        if header.is_subbinary() {
-            let bin = &*(ptr as *mut SubBinary);
-            // Convert to HeapBin if applicable
-            if let Ok((_bin_flags, bin_ptr, bin_size)) = bin.to_heapbin_parts() {
-                // Save space for box
-                let dst = heap_top.add(1);
-                // Create box pointing to new destination
-                let val: Term = dst.into();
-                ptr::write(heap_top, val);
-                // Allocate HeapBin at destination
-                let bytes = slice::from_raw_parts(bin_ptr, bin_size);
-                let bin = HeapBin::copy_slice_to(dst as *mut u8, bytes, Encoding::Raw);
-                // Write a move marker to the original location
-                let marker: Term = heap_top.into();
-                ptr::write(orig, marker);
-                // Update `ptr` as well
-                ptr::write(ptr, marker);
-                // Update top pointer by offseting pointer past end of new HeapBin
-                let size = mem::size_of_val(bin.as_ref());
-                self.top = (dst as *mut u8).offset(size as isize) as *mut Term;
-                // We're done
-                return 1 + to_word_size(size);
-            }
+        let needed = layout.size();
+        let available = self.heap_available() * mem::size_of::<Term>();
+        if needed >= available {
+            return Err(alloc!());
         }
 
-        let num_elements = header.arity();
-        let moved = num_elements + 1;
+        let top = self.top as *mut u8;
+        let new_top = top.add(needed);
+        debug_assert!(new_top <= self.end as *mut u8);
+        self.top = new_top as *mut Term;
 
-        let marker: Term = heap_top.into();
-        // Write the term header to the location pointed to by the boxed term
-        ptr::write(heap_top, header);
-        // Move `ptr` to the first arityval
-        // Move heap_top to the first data location
-        // Then copy arityval data to new location
-        ptr::copy_nonoverlapping(ptr.add(1), heap_top.add(1), num_elements);
-        // In debug, verify that the src and dst are bitwise-equal
-        debug_assert!(compare_bytes(
-            heap_top as *const u8,
-            ptr as *const u8,
-            num_elements * mem::size_of::<Term>()
-        ));
-        // Write a move marker to the original location
-        ptr::write(orig, marker);
-        // And to `ptr` as well
-        ptr::write(ptr, marker);
-        // Update the top pointer
-        self.top = heap_top.add(1 + num_elements);
-        // Return the number of words moved into this heap
-        moved
+        let align = layout.align();
+        let ptr = if is_aligned_at(top, align) {
+            top as *mut Term
+        } else {
+            align_up_to(top as *mut Term, align)
+        };
+        // Success!
+        debug_assert!(is_aligned(ptr));
+        Ok(NonNull::new_unchecked(ptr))
     }
-
-    /// Like `move_into`, but designed for cons cells, as the move marker approach
-    /// differs slightly. The head element of the cell is set to the none value, and
-    /// the tail element contains the forwarding pointer.
+}
+impl VirtualHeap<ProcBin> for OldHeap {
     #[inline]
-    pub unsafe fn move_cons_into(&mut self, orig: *mut Term, ptr: *mut Cons, cons: Cons) {
-        // Copy cons cell to this heap
-        let location = self.top as *mut Cons;
-        ptr::write(location, cons);
-        // New list value
-        let list = location.into();
-        // Redirect original reference
-        ptr::write(orig, list);
-        // Store forwarding indicator/address
-        let marker = Cons::new(Term::NONE, list);
-        ptr::write(ptr as *mut Cons, marker);
-        // Update the top pointer
-        self.top = location.add(1) as *mut Term;
+    fn virtual_size(&self) -> usize {
+        self.vheap.virtual_size()
     }
 
-    /// This function is used during garbage collection to sweep this heap for references
-    /// that reside in younger generation heaps and have not yet been moved to this heap.
-    ///
-    /// In more general terms, this function will walk the current heap until
-    /// the top of the heap is reached, searching for any values outside this heap
-    /// heap that require moving.
-    pub fn sweep(&mut self, young: &mut YoungHeap) {
-        self.walk(|heap: &mut Self, term: Term, pos: *mut Term| {
-            unsafe {
-                if term.is_boxed() {
-                    let ptr: *mut Term = term.dyn_cast();
-                    let boxed = *ptr;
-                    if boxed.is_boxed() {
-                        assert!(boxed.is_boxed());
-                        // Overwrite move marker with "real" boxed term
-                        ptr::write(pos, boxed);
-                    } else if !term.is_literal() && !heap.contains(ptr) {
-                        if boxed.is_procbin() {
-                            // First we need to remove the procbin from its old virtual heap
-                            let old_bin = &*(ptr as *mut ProcBin);
-                            young.virtual_heap_unlink(old_bin);
-                            // Move to top of this heap
-                            heap.move_into(pos, ptr, boxed);
-                            // Then add the procbin to the new virtual heap
-                            let marker = *ptr;
-                            assert!(marker.is_boxed());
-                            let bin_ptr: *mut ProcBin = marker.dyn_cast();
-                            let bin = &*bin_ptr;
-                            heap.virtual_alloc(bin);
-                        } else {
-                            // Move to top of this heap
-                            heap.move_into(pos, ptr, boxed);
-                        }
-                    }
-                    Some(pos.add(1))
-                } else if term.is_non_empty_list() {
-                    let ptr: *mut Cons = term.dyn_cast();
-                    let cons = *ptr;
-                    if cons.is_move_marker() {
-                        // Overwrite move marker with "real" list term
-                        ptr::write(pos, cons.tail);
-                    } else if !term.is_literal() && !heap.contains(ptr) {
-                        // Move to top of this heap
-                        heap.move_cons_into(pos, ptr, cons);
-                    }
-                    Some(pos.add(1))
-                } else if term.is_header() {
-                    if term.is_tuple() {
-                        // We need to check all elements, so we just skip over the tuple header
-                        Some(pos.add(1))
-                    } else if term.is_function() {
-                        // Just as for tuples, we need to check elements within the closure env
-                        Some(pos.add(Closure::base_size_words()))
-                    } else if term.is_match_context() {
-                        let ctx = &mut *(pos as *mut MatchContext);
-                        let base = ctx.base();
-                        let orig = ctx.orig();
-                        let orig_term = *orig;
-                        let ptr: *mut Term = orig_term.dyn_cast();
-                        let bin = *ptr;
-                        if bin.is_boxed() {
-                            // `orig` was a move marker
-                            ptr::write(orig, bin);
-                            ptr::write(base, bin.as_binary_ptr());
-                        } else if !orig_term.is_literal() && !heap.contains(ptr) {
-                            heap.move_into(orig, ptr, bin);
-                            ptr::write(base, bin.as_binary_ptr());
-                        }
-                        Some(pos.add(1 + term.arity()))
-                    } else {
-                        Some(pos.add(1 + term.arity()))
-                    }
-                } else {
-                    Some(pos.add(1))
-                }
-            }
-        });
+    #[inline]
+    fn virtual_heap_used(&self) -> usize {
+        self.vheap.virtual_heap_used()
+    }
+
+    #[inline]
+    fn virtual_heap_unused(&self) -> usize {
+        self.vheap.virtual_heap_unused()
+    }
+}
+impl VirtualAllocator<ProcBin> for OldHeap {
+    #[inline]
+    fn virtual_alloc(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_alloc(value)
+    }
+
+    #[inline]
+    fn virtual_free(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_free(value)
+    }
+
+    #[inline]
+    fn virtual_unlink(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_unlink(value)
+    }
+
+    #[inline]
+    fn virtual_pop(&mut self, value: Boxed<ProcBin>) -> ProcBin {
+        self.vheap.virtual_pop(value)
+    }
+
+    #[inline]
+    fn virtual_contains<P: ?Sized>(&self, ptr: *const P) -> bool {
+        self.vheap.virtual_contains(ptr)
+    }
+
+    #[inline]
+    unsafe fn virtual_clear(&mut self) {
+        self.vheap.virtual_clear()
     }
 }
 impl Default for OldHeap {
@@ -377,9 +165,9 @@ impl Drop for OldHeap {
             if self.active() {
                 // Free virtual binary heap, we can't free the memory of this heap until we've done
                 // this
-                self.vheap.clear();
+                self.virtual_clear();
                 // Free memory region managed by this heap instance
-                process::alloc::free(self.start, self.size());
+                process::alloc::free(self.heap_start(), self.heap_size());
             }
         }
     }
@@ -387,28 +175,28 @@ impl Drop for OldHeap {
 impl fmt::Debug for OldHeap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_fmt(format_args!(
-            "OldHeap (heap: {:?}-{:?}, used: {}, unused: {}) [\n",
-            self.start,
-            self.top,
+            "OldHeap (heap: {:p}-{:p}, used: {}, unused: {}) [\n",
+            self.heap_start(),
+            self.heap_top(),
             self.heap_used(),
             self.heap_available(),
         ))?;
-        let mut pos = self.start;
-        while pos < self.top {
+        let mut pos = self.heap_start();
+        while pos < self.heap_top() {
             unsafe {
                 let term = &*pos;
-                if term.is_immediate() || term.is_boxed() || term.is_literal() || term.is_non_empty_list() {
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.add(1);
-                } else {
-                    assert!(term.is_header());
-                    let arityval = term.arity();
-                    f.write_fmt(format_args!("  {:?}: {:?}\n", pos, term))?;
-                    pos = pos.add(1 + arityval);
-                }
+                let skip = term.arity();
+                f.write_fmt(format_args!(
+                    "  {:p}: {:0bit_len$b} {:?}\n",
+                    pos,
+                    *(pos as *const usize),
+                    term,
+                    bit_len = (bit_size_of::<usize>())
+                ))?;
+                pos = pos.add(1 + skip);
             }
         }
-        f.write_fmt(format_args!("  {:?}: END OF HEAP", pos))?;
+        f.write_fmt(format_args!("  {:p}: END OF HEAP", pos))?;
         f.write_str("]\n")
     }
 }

@@ -7,7 +7,8 @@ use core::slice;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{self, HeapAlloc};
+use crate::erts;
+use crate::erts::process::alloc::{TermAlloc, HeapAlloc};
 use crate::erts::exception::AllocResult;
 
 use super::prelude::*;
@@ -57,7 +58,7 @@ impl Tuple {
 
     pub fn from_slice<A>(heap: &mut A, elements: &[Term]) -> AllocResult<Boxed<Tuple>>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         let len = elements.len();
         let (layout, data_offset) = Self::layout_for(elements);
@@ -222,7 +223,7 @@ impl<E: super::arch::Repr> UnsizedBoxable<E> for Tuple {
 impl CloneToProcess for Tuple {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         Tuple::from_slice(heap, &self.elements)
             .map(|nn| nn.into())
@@ -330,7 +331,7 @@ mod tests {
 
     use crate::erts::ModuleFunctionArity;
     use crate::erts::testing::RegionHeap;
-    use crate::erts::process::{Process, HeapAlloc};
+    use crate::erts::process::Process;
     use crate::erts::scheduler;
 
     mod get_element {
@@ -545,7 +546,7 @@ mod tests {
         }
     }
 
-    fn closure<H: HeapAlloc>(heap: &mut H) -> Term {
+    fn closure<H: TermAlloc>(heap: &mut H) -> Term {
         let creator = Pid::make_term(0, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();

@@ -13,7 +13,8 @@ use crate::erts::exception::AllocResult;
 use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
 use crate::erts::process::Process;
-use crate::erts::{self, HeapAlloc, ModuleFunctionArity};
+use crate::erts::process::alloc::{TermAlloc, Heap};
+use crate::erts::{self, ModuleFunctionArity};
 
 use super::prelude::*;
 
@@ -92,7 +93,7 @@ impl Closure {
     /// already have a slice of elements to construct a tuple from
     pub fn new<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env_len: usize) -> AllocResult<Boxed<Self>>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + Heap,
     {
         let closure_layout = ClosureLayout::for_code_and_env_len(&code, env_len);
         let layout = closure_layout.layout.clone();
@@ -118,7 +119,7 @@ impl Closure {
 
     pub fn from_slice<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env: &[Term]) -> AllocResult<Boxed<Self>>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         let closure_layout = ClosureLayout::for_code_and_env(&code, env);
         let layout = closure_layout.layout.clone();
@@ -266,7 +267,7 @@ impl<E: super::arch::Repr> UnsizedBoxable<E> for Closure {
 impl CloneToProcess for Closure {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         let mfa = self.module_function_arity.clone();
         let code = self.code;

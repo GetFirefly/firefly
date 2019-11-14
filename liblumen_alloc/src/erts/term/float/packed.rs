@@ -9,9 +9,9 @@ use core::fmt;
 use core::cmp;
 use core::convert::TryFrom;
 
-use crate::erts::HeapAlloc;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::TermAlloc;
 
 use crate::erts::term::prelude::{Term, TypedTerm, Header, StaticHeader, TypeError};
 
@@ -65,7 +65,7 @@ impl CloneToProcess for Float {
     #[inline]
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         unsafe {
             let layout = Layout::for_value(self);

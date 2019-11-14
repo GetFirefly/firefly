@@ -7,7 +7,8 @@ use core::iter;
 use core::mem;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{self, HeapAlloc};
+use crate::erts;
+use crate::erts::process::alloc::{TermAlloc, HeapAlloc};
 use crate::erts::exception::AllocResult;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
@@ -189,7 +190,7 @@ impl IndexByte for HeapBin {
 impl CloneToProcess for HeapBin {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         let encoding = self.encoding();
         let ptr = HeapBin::from_slice(heap, &self.data, encoding)?;

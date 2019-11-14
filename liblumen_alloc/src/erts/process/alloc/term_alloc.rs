@@ -1,21 +1,17 @@
 use core::alloc::Layout;
 use core::any::Any;
-use core::ops::DerefMut;
-use core::ptr::{self, NonNull};
+use core::ptr;
 use core::str::Chars;
-use core::mem;
-use core::cmp;
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 
-use liblumen_core::sys::sysconf::MIN_ALIGN;
 use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
-use crate::{ModuleFunctionArity, VirtualAlloc};
+use crate::ModuleFunctionArity;
 use crate::scheduler;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{self, AllocResult};
@@ -23,26 +19,10 @@ use crate::erts::process::code::Code;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
 
+use super::{Heap, VirtualAllocator};
+
 /// A trait, like `Alloc`, specifically for allocation of terms on a process heap
-pub trait HeapAlloc {
-    /// Perform a heap allocation.
-    ///
-    /// If space on the process heap is not immediately available, then the allocation
-    /// will be pushed into a heap fragment which will then be later moved on to the
-    /// process heap during garbage collection
-    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
-        let align = cmp::max(mem::align_of::<Term>(), MIN_ALIGN);
-        let size = need * mem::size_of::<Term>();
-        let layout = Layout::from_size_align(size, align).unwrap();
-        self.alloc_layout(layout)
-    }
-
-    /// Same as `alloc`, but takes a `Layout` rather than the size in words
-    unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>>;
-
-    /// Returns true if the given pointer is owned by this process/heap
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized;
-
+pub trait TermAlloc: Heap {
     /// Constructs a binary from the given byte slice, and associated with the given process
     ///
     /// For inputs greater than 64 bytes in size, the resulting binary data is allocated
@@ -59,7 +39,7 @@ pub trait HeapAlloc {
     /// that the global heap is out of space.
     fn binary_from_bytes(&mut self, bytes: &[u8]) -> AllocResult<Term>
     where
-        Self: VirtualAlloc,
+        Self: VirtualAllocator<ProcBin>,
     {
         let len = bytes.len();
 
@@ -69,8 +49,7 @@ pub trait HeapAlloc {
                 Err(error) => Err(error),
                 Ok(bin_ptr) => {
                     // Add the binary to the process's virtual binary heap
-                    let bin = bin_ptr.as_ref();
-                    self.virtual_alloc(bin);
+                    self.virtual_alloc(bin_ptr);
 
                     Ok(bin_ptr.into())
                 }
@@ -89,7 +68,7 @@ pub trait HeapAlloc {
         binary: Term,
     ) -> Result<&'heap [u8], BytesFromBinaryError>
     where
-        Self: VirtualAlloc,
+        Self: VirtualAllocator<ProcBin>,
     {
         match binary.decode().unwrap() {
             TypedTerm::HeapBinary(bin_ptr) => {
@@ -137,7 +116,7 @@ pub trait HeapAlloc {
     /// that the global heap is out of space.
     fn binary_from_str(&mut self, s: &str) -> AllocResult<Term>
     where
-        Self: VirtualAlloc,
+        Self: VirtualAllocator<ProcBin>,
     {
         let len = s.len();
         // Allocate ProcBins for sizes greater than 64 bytes
@@ -146,8 +125,7 @@ pub trait HeapAlloc {
                 Err(error) => Err(error),
                 Ok(bin_ptr) => {
                     // Add the binary to the process's virtual binary heap
-                    let bin = bin_ptr.as_ref();
-                    self.virtual_alloc(bin);
+                    self.virtual_alloc(bin_ptr);
                     Ok(bin_ptr.into())
                 }
             }
@@ -403,7 +381,7 @@ pub trait HeapAlloc {
         binary: Term,
     ) -> Result<&'heap str, StrFromBinaryError>
     where
-        Self: VirtualAlloc,
+        Self: VirtualAllocator<ProcBin>,
     {
         let bytes = self.bytes_from_binary(binary)?;
 
@@ -585,24 +563,18 @@ pub trait HeapAlloc {
         Ok(closure_box)
     }
 }
-impl<A, H> HeapAlloc for H
+
+impl<T> TermAlloc for T
 where
-    A: HeapAlloc,
-    H: DerefMut<Target = A>,
+    T: Heap,
 {
-    #[inline]
-    unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
-        self.deref_mut().alloc(need)
-    }
+}
 
-    #[inline]
-    unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
-        self.deref_mut().alloc_layout(layout)
-    }
-
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized {
-        self.deref_mut().is_owner(ptr)
-    }
+impl<T, H> TermAlloc for T
+where
+    H: TermAlloc,
+    T: core::ops::DerefMut<Target=H>,
+{
 }
 
 fn str_from_binary_bytes<'heap>(bytes: &'heap [u8]) -> Result<&'heap str, StrFromBinaryError> {

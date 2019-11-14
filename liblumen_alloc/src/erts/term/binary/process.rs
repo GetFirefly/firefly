@@ -13,12 +13,9 @@ use liblumen_core::offset_of;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::Process;
-use crate::erts::HeapAlloc;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::string::Encoding;
-use crate::erts::term::prelude::{Term, TypedTerm, Boxed, Cast, TypeError};
-use crate::erts::term::encoding::Header;
-
-use super::prelude::*;
+use crate::erts::term::prelude::*;
 
 /// This is the header written alongside all procbin binaries in the heap,
 /// it owns the refcount and the raw binary data
@@ -239,7 +236,7 @@ impl CloneToProcess for ProcBin {
 
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         unsafe {
             // Allocate space for the header

@@ -11,7 +11,7 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 
 use crate::erts::exception::AllocResult;
-use crate::erts::process::HeapAlloc;
+use crate::erts::process::alloc::TermAlloc;
 
 use super::prelude::*;
 
@@ -163,7 +163,7 @@ impl AsRef<HashMap<Term, Term>> for Map {
 impl crate::borrow::CloneToProcess for Map {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         let layout = Layout::for_value(self);
         let ptr = unsafe { heap.alloc_layout(layout)?.as_ptr() };

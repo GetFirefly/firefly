@@ -8,7 +8,9 @@ use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
-use crate::erts::{scheduler, HeapAlloc, Node};
+use crate::erts::scheduler;
+use crate::erts::node::Node;
+use crate::erts::process::alloc::TermAlloc;
 
 use super::prelude::*;
 
@@ -57,7 +59,7 @@ impl Reference {
 impl CloneToProcess for Reference {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         unsafe {
             let layout = Layout::new::<Self>();
@@ -152,7 +154,7 @@ impl CloneToProcess for ExternalReference {
     #[inline]
     fn clone_to_heap<A>(&self, _heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         unimplemented!()
     }

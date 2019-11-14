@@ -7,13 +7,13 @@ use core::ptr;
 use alloc::boxed::Box;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::{self, HeapAlloc};
+use crate::erts;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::exception::AllocResult;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
-use crate::erts::term::encoding::{Header, Encoded};
 
-use super::prelude::*;
+use super::prelude::{bit_offset, byte_offset};
 
 /// A slice of a binary
 #[derive(Debug, Clone, Copy)]
@@ -243,7 +243,7 @@ impl Bitstring for SubBinary {
 impl CloneToProcess for SubBinary {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         let layout = Layout::new::<Self>();
         let size = layout.size();

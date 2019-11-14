@@ -7,13 +7,10 @@ use core::str;
 use liblumen_core::offset_of;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::HeapAlloc;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::exception::AllocResult;
 use crate::erts::string::{self, Encoding};
-use crate::erts::term::prelude::Term;
-use crate::erts::term::encoding::Header;
-
-use super::prelude::*;
+use crate::erts::term::prelude::*;
 
 /// This struct is used to represent binary literals which are compiled into
 /// the final executable. At runtime, we identify them by the fact that they
@@ -152,7 +149,7 @@ impl IndexByte for BinaryLiteral {
 impl CloneToProcess for BinaryLiteral {
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         unsafe {
             // Allocate space for the header

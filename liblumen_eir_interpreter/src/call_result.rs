@@ -156,7 +156,7 @@ fn return_ok(arc_process: &Arc<Process>) -> code::Result {
     let sender_any: Resource = sender_resource.into();
     let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
 
-    let mut fragment = unsafe { HeapFragment::new_from_word_size(100) }.unwrap();
+    let mut fragment = HeapFragment::new_from_word_size(100).unwrap();
     let frag_mut = unsafe { fragment.as_mut() };
     let ret = argument_vec[0].clone_to_heap(frag_mut).unwrap();
 
@@ -193,7 +193,7 @@ fn return_throw(arc_process: &Arc<Process>) -> code::Result {
     let sender_any: Resource = sender_resource.into();
     let sender: &ProcessResultSender = sender_any.downcast_ref().unwrap();
 
-    let mut fragment = unsafe { HeapFragment::new_from_word_size(100) }.unwrap();
+    let mut fragment = HeapFragment::new_from_word_size(100).unwrap();
     let frag_mut = unsafe { fragment.as_mut() };
 
     let ret_type = argument_vec[0].clone_to_heap(frag_mut).unwrap();

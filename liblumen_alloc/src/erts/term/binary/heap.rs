@@ -24,82 +24,9 @@ pub struct HeapBin {
     flags: BinaryFlags,
     data: [u8]
 }
+impl_dynamic_header!(HeapBin, Term::HEADER_HEAPBIN);
 impl HeapBin {
     pub const MAX_SIZE: usize = 64;
-
-    /// Constructs a reference to a `HeapBin` given a pointer to
-    /// the memory containing the struct and the length of its variable-length
-    /// data
-    ///
-    /// # Implementation Details
-    ///
-    /// You should note that this struct is a dynamically-sized type (DST), and
-    /// as such, the rules around how you can use it is far more restrictive
-    /// than a typical statically sized struct. Notably, you can only ever
-    /// construct a reference to a HeapBin, you can't create a HeapBin directly;
-    /// clearly this seems like a chicken and egg problem since it is mostly
-    /// meaningless to construct references to things you can't create in the
-    /// first place.
-    ///
-    /// So you may be asking "how the hell does this even work?!", which is a
-    /// great question! Luckily it has a fairly straightforward, yet mind-bendy
-    /// explanation:
-    ///
-    /// If we redefined `HeapBin` (sans `flags` field, we'll get to that) as `HeapBin<T>`,
-    /// where the `data` field has type `[T]`, then we could say that the structural layout
-    /// of `[HeapBin<u8>; 1]` is equivalent to that of `HeapBin<[u8; 1]>`. This should make
-    /// intuitive sense, as the variable-length part of the structure occurs at the end, and
-    /// the layout of `[T; 1]` is equivalent to the layout of `T` itself.
-    ///
-    /// So given this structural equivalence, the second piece of the puzzle is
-    /// found in unsizing coercions performed by Rust. If we create a slice from
-    /// a pointer to the memory where the `HeapBin` is allocated, and the length
-    /// of the variable-sized component of that `HeapBin`; and then cast that
-    /// slice to a `*const HeapBin` - Rust will treat this as a coercion to an
-    /// unsized type, due to the fact that the `HeapBin` struct contains an unsized
-    /// field, and it is the last field in the struct [1].
-    ///
-    /// In effect, the pointer of our first slice acts as the base pointer for the
-    /// struct, and the layout rules for the sized fields are as you would expect.
-    /// Where things get confusing is that the length we gave to `slice::from_raw_parts`
-    /// is used as the length of the unsized slice at the end (i.e. the `data` field);
-    /// this is due to the unsizing coercion performed by Rust.
-    ///
-    /// Now, to apply the above to our actual definition of `HeapBin`, we have to account
-    /// for some some extra properties:
-    ///
-    /// - We have an extra field, `flags`
-    /// - Our `header` and `flags` fields are word-sized, but..
-    /// - Our `data` field is a slice of _byte-sized_ elements
-    ///
-    /// The result is that the equivalence of `HeapBin<[u8]>` and `[HeapBin<u8>]` doesn't
-    /// hold. However, we can cheat a bit as long as we know the precise size of the
-    /// binary data originally stored - which in our case is given by accessing that size
-    /// from the `flags` field. Using that size, we can calculate the precise size in bytes
-    /// of the entire `HeapBin` struct, ensuring that our coercion from a `*mut u8` remains
-    /// correct.
-    ///
-    /// - [1](https://github.com/rust-lang/rfcs/blob/master/text/0982-dst-coercion.md)
-    /// - [2](http://doc.rust-lang.org/1.38.0/std/marker/trait.Unsize.html)
-    #[inline]
-    pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
-        let header_ptr = term as *mut Header<HeapBin>;
-        // Get precise size in bytes of binary data
-        let flags = &*(header_ptr.add(1) as *mut BinaryFlags);
-        let bin_len = flags.get_size();
-
-        Self::from_raw_parts(term as *const u8, bin_len)
-    }
-
-    #[inline]
-    unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
-        // Invariants of slice::from_raw_parts.
-        assert!(!ptr.is_null());
-        assert!(len <= isize::max_value() as usize);
-
-        let slice = core::slice::from_raw_parts(ptr, len);
-        Boxed::new_unchecked(slice as *const [u8] as *mut Self)
-    }
 
     /// Creates a new `HeapBin` from a str slice, by copying it to the heap
     pub fn from_str<A>(heap: &mut A, s: &str) -> AllocResult<Boxed<Self>>
@@ -126,16 +53,6 @@ impl HeapBin {
                 Err(_) => Err(alloc!()),
             }
         }
-    }
-
-    /// Creates a new `HeapBin` at `dst` by copying the given slice.
-    ///
-    /// This function is very unsafe, and is currently only used in the garbage collector when
-    /// moving data that gets copied into a heap-allocated binary
-    pub(in crate::erts) unsafe fn copy_slice_to(dst: *mut u8, s: &[u8], encoding: Encoding) -> Boxed<Self> {
-        let (_layout, flags_offset, data_offset) = Self::layout_for(s);
-
-        Self::copy_slice_to_internal(dst, s, encoding, flags_offset, data_offset)
     }
 
     // This function handles the low-level parts of creating a `HeapBin` at the given pointer
@@ -175,6 +92,47 @@ impl HeapBin {
     #[inline]
     pub fn full_byte_iter<'a>(&'a self) -> iter::Copied<slice::Iter<'a, u8>> {
         self.data.iter().copied()
+    }
+
+    /// Given a raw pointer to some memory, and a length in units of `Self::Element`,
+    /// this function produces a fat pointer to `Self` which represents a value
+    /// containing `len` elements in its variable-length field
+    ///
+    /// For example, given a pointer to the memory containing a `Tuple`, and the
+    /// number of elements it contains, this function produces a valid pointer of
+    /// type `Tuple`
+    unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<HeapBin> {
+        // Invariants of slice::from_raw_parts.
+        assert!(!ptr.is_null());
+        assert!(len <= isize::max_value() as usize);
+
+        let slice = core::slice::from_raw_parts_mut(ptr as *mut u8, len);
+        let ptr = slice as *mut [u8] as *mut HeapBin;
+        Boxed::new_unchecked(ptr)
+    }
+}
+
+impl From<*mut Term> for Boxed<HeapBin> {
+    fn from(ptr: *mut Term) -> Boxed<HeapBin> {
+        unsafe { HeapBin::from_raw_term(ptr) }
+    }
+}
+impl Into<*mut Term> for Boxed<HeapBin> {
+    fn into(self) -> *mut Term {
+        self.cast::<Term>().as_ptr()
+    }
+}
+
+impl<E: crate::erts::term::arch::Repr> Boxable<E> for HeapBin {}
+
+impl<E: crate::erts::term::arch::Repr> UnsizedBoxable<E> for HeapBin {
+    unsafe fn from_raw_term(ptr: *mut E) -> Boxed<HeapBin> {
+        let header_ptr = ptr as *mut Header<HeapBin>;
+        // Get precise size in bytes of binary data
+        let flags = &*(header_ptr.add(1) as *mut BinaryFlags);
+        let bin_len = flags.get_size();
+
+        Self::from_raw_parts(ptr as *const u8, bin_len)
     }
 }
 

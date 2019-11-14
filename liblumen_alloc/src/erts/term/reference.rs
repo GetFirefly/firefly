@@ -10,7 +10,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::{scheduler, HeapAlloc, Node};
 
-use super::prelude::{Term, TypeError, TypedTerm, Boxed, Header};
+use super::prelude::*;
 
 pub type ReferenceNumber = u64;
 
@@ -21,7 +21,7 @@ pub struct Reference {
     scheduler_id: scheduler::ID,
     number: ReferenceNumber,
 }
-
+impl_static_header!(Reference, Term::HEADER_REFERENCE);
 impl Reference {
     /// Create a new `Reference` struct
     pub fn new(scheduler_id: scheduler::ID, number: ReferenceNumber) -> Self {
@@ -147,7 +147,7 @@ pub struct ExternalReference {
     next: *mut u8,
     reference: Reference,
 }
-
+impl_static_header!(ExternalReference, Term::HEADER_EXTERN_REF);
 impl CloneToProcess for ExternalReference {
     #[inline]
     fn clone_to_heap<A>(&self, _heap: &mut A) -> AllocResult<Term>

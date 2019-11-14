@@ -44,6 +44,7 @@ pub struct BinaryLiteral {
     flags: BinaryFlags,
     bytes: *mut u8,
 }
+impl_static_header!(BinaryLiteral, Term::HEADER_BINARY_LITERAL);
 impl BinaryLiteral {
     #[inline]
     pub fn flags_offset() -> usize {

@@ -211,6 +211,7 @@ pub struct ExternalPid {
     next: *mut u8, // off heap header
     pid: Pid,
 }
+impl_static_header!(ExternalPid, Term::HEADER_EXTERN_PID);
 impl ExternalPid {
     pub(in crate::erts) fn with_node_id(
         node_id: usize,

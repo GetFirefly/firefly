@@ -6,7 +6,7 @@ use core::ops::{Deref, DerefMut};
 use core::convert::Into;
 
 use super::prelude::Term;
-use super::encoding::{self, Boxable};
+use super::encoding::{self, Boxable, UnsizedBoxable};
 
 /// Represents boxed terms.
 ///
@@ -104,7 +104,7 @@ impl<T: ?Sized> Copy for Boxed<T> { }
 impl<T: ?Sized> fmt::Debug for Boxed<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ty = core::any::type_name::<T>();
-        write!(f, "Boxed<{}>({:p})", ty, &self.as_ptr())
+        write!(f, "Boxed<{}>({:p})", ty, self.as_ptr())
     }
 }
 
@@ -183,6 +183,54 @@ impl<T: ?Sized> Into<NonNull<T>> for Boxed<T> {
     #[inline]
     fn into(self) -> NonNull<T> {
         self.0
+    }
+}
+
+impl<T> From<*mut Term> for Boxed<T>
+where
+    T: UnsizedBoxable<Term>,
+{
+    default fn from(ptr: *mut Term) -> Boxed<T> {
+        assert_ne!(ptr, core::ptr::null_mut());
+        unsafe { T::from_raw_term(ptr) }
+    }
+}
+
+impl<T> From<*mut Term> for Boxed<T>
+where
+    T: Boxable<Term>,
+{
+    #[inline]
+    default fn from(ptr: *mut Term) -> Self {
+        assert_ne!(ptr, core::ptr::null_mut());
+        unsafe { Boxed::new_unchecked(ptr as *mut T) }
+    }
+}
+
+impl<T> Into<*mut Term> for Boxed<T>
+where
+    T: Boxable<Term>,
+{
+    #[inline]
+    default fn into(self) -> *mut Term {
+        self.0.cast::<Term>().as_ptr()
+    }
+}
+
+impl<T> Into<*mut Term> for Boxed<T>
+where
+    T: UnsizedBoxable<Term>,
+{
+    #[inline]
+    default fn into(self) -> *mut Term {
+        self.0.cast::<Term>().as_ptr()
+    }
+}
+
+impl<T> Into<*mut T> for Boxed<T> {
+    #[inline]
+    default fn into(self) -> *mut T {
+        self.0.as_ptr()
     }
 }
 

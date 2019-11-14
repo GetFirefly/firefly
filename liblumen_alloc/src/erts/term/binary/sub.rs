@@ -33,7 +33,7 @@ pub struct SubBinary {
     /// Original binary term (`ProcBin`, `BinaryLiteral` or `HeapBin`)
     original: Term,
 }
-
+impl_static_header!(SubBinary, Term::HEADER_SUBBINARY);
 impl SubBinary {
     /// See erts_bs_get_binary_2 in erl_bits.c:460
     #[inline]

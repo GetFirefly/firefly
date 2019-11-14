@@ -11,7 +11,6 @@
 ///! such as AArch64 and SPARC, have no such restriction and could result in erroneous
 ///! behavior when compiled for those platforms. Intel is also planning extensions to its
 ///! processors to use up to 54 bits for addresses, which would cause issues as well.
-use core::mem;
 use core::fmt;
 use core::cmp;
 
@@ -281,13 +280,13 @@ impl_boxable!(ExternalPid, RawTerm);
 impl_boxable!(ExternalPort, RawTerm);
 impl_boxable!(ExternalReference, RawTerm);
 impl_boxable!(Resource, RawTerm);
-impl_boxable!(Tuple, RawTerm);
 impl_boxable!(Map, RawTerm);
-impl_boxable!(Closure, RawTerm);
 impl_boxable!(ProcBin, RawTerm);
-impl_boxable!(HeapBin, RawTerm);
 impl_boxable!(SubBinary, RawTerm);
 impl_boxable!(MatchContext, RawTerm);
+impl_unsized_boxable!(Tuple, RawTerm);
+impl_unsized_boxable!(Closure, RawTerm);
+impl_unsized_boxable!(HeapBin, RawTerm);
 impl_literal!(BinaryLiteral, RawTerm);
 
 impl Cast<*mut RawTerm> for RawTerm {
@@ -520,16 +519,6 @@ impl Encoded for RawTerm {
             Tag::Port => true,
             Tag::Nil => true,
             _ => false,
-        }
-    }
-
-    #[inline]
-    fn sizeof(&self) -> usize {
-        if self.is_header() && !self.is_none() {
-            let arity = unsafe { self.decode_header_value() };
-            arity as usize + 1
-        } else {
-            mem::size_of::<Self>()
         }
     }
 }

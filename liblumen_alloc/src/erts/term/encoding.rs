@@ -62,10 +62,100 @@ pub trait Encode<T: Encoded> {
 }
 
 /// This is a marker trait for terms which can be boxed
-pub trait Boxable<T: Encoded> {}
+pub trait Boxable<T: Repr> {}
 
 /// This is a marker trait for boxed terms which are stored as literals
-pub trait Literal<T: Encoded> : Boxable<T> {}
+pub trait Literal<T: Repr> : Boxable<T> {}
+
+/// This trait provides functionality for obtaining a pointer to an
+/// unsized type from a raw term. For example, the `Tuple` type consists
+/// of an arbitrary number of `Term` elements, and as such it is a
+/// dynamically sized type (i.e. `?Sized`). Raw pointers to dynamically
+/// sized types cannot be constructed without a size, so the job of this
+/// trait is to provide functions to determine a size automatically from
+/// such terms and construct a pointer, given only a pointer to a term
+/// header.
+///
+/// Implementors of this trait are dynamically-sized types (DSTs), and
+/// as such, the rules around how you can use them are far more restrictive
+/// than a typical statically sized struct. Notably, you can only ever
+/// construct a reference to one, you can't create a raw pointer to one or
+/// construct an instance of one directly.
+///
+/// Clearly this seems like a chicken and egg problem since it is mostly
+/// meaningless to construct references to things you can't create in the
+/// first place. So how do values to DSTs get constructed? There are a few
+/// key principles:
+///
+/// First, consider slices; the only way to make sense of a slice as a concept
+/// is to know the position where the slice starts, the size of its elements
+/// and the length of the slice. Rust gives us tools to construct these given
+/// a pointer with a sized element type, and the length of the slice. This is
+/// part of the solution, but it doesn't answer the question of how we deal with
+/// dynamically sized _structs_.
+///
+/// The second piece of the puzzle is structural equivalence. Consider our `Tuple`
+/// type, it is a struct consisting of a header containing the arity, and then some
+/// arbitrary number of elements. If we expressed it's type as `Tuple<[Term]>`, where
+/// the `elements` field is given the type `[Term]`; then a value of `Tuple<[Term]>`
+/// is structurally equivalent to a value of `[Tuple<Term>; 1]`. Put another way, since
+/// our variable-length field occurs at the end of the struct, we're really saying
+/// that the layout of `[Term; 1]` is the same as `Term`, which is intuitively obvious.
+///
+/// The final piece of the puzzle is given by another Rust feature: unsizing coercions.
+/// When Rust sees a cast from a sized type to an unsized type, it performs an unsizing
+/// coercion.
+///
+/// For our purposes, the coercion here is from `[T; N]` to `CustomType<T>`, which
+/// is allowed when `CustomType<T>` only has a single, non-PhantomData field involving `T`.
+///
+/// So given a pointer to a `Tuple`, if we construct a slice of `[Term; N]` and cast it to
+/// a pointer to `Tuple`, Rust performs the coercion by first filling in the fields of `Tuple`
+/// from the pointed-to memory, then coercing the `[Term; N]` to `[Term]` using the address of
+/// the unsized field plus the size `N` to construct the fat pointer required for the `[Term]`
+/// value.
+///
+/// To be clear: the pointer we use to construct the `[T; N]` slice that we coerce, is a
+/// pointer to memory that contains the sized fields of `CustomType<T>` _followed by_ memory that
+/// contains the actual `[T; N]` value. Rust is essentially casting the pointer given by
+/// adding the offset of the unsized field to the base pointer we provided, plus the size
+/// `N` to coerce the sized type to the type of the unsized field. The `N` provided is
+/// _not_ the total size of the struct in units of `T`, it is always the number of elements
+/// contained in the unsized field.
+///
+/// # Caveats
+///
+/// - This only works for types that follow Rusts' unsized coercion rules
+/// - It is necessary to know the size of the variable-length region, which is generally true
+/// for the types we are using this on, thanks to storing the arity in words of all non-immediate
+/// types; but it has to be in terms of the element size. For example, `HeapBin` has a slice
+/// of bytes, not `Term`, and the arity of the `HeapBin` is the size in words including extra fields,
+/// so if we used that arity value, we'd get completely incorrect results. In the case of `HeapBin`,
+/// we actually store the binary data size in the `flags` field, so we are able to use that to obtain
+/// the `N` for our `[u8; N]` slice. Just be aware that similar steps will be necessary for types that
+/// have non-word-sized elements.
+///
+/// - [DST Coercion RFC](https://github.com/rust-lang/rfcs/blob/master/text/0982-dst-coercion.md)
+/// - [Unsize Trait](http://doc.rust-lang.org/1.38.0/std/marker/trait.Unsize.html)
+/// - [Coercion - Nomicon](http://doc.rust-lang.org/1.38.0/nomicon/coercions.html)
+pub trait UnsizedBoxable<T: Repr>: Boxable<T> + DynamicHeader {
+    // The type of element contained in the dynamically sized
+    // area of this type. By default this is specified as `()`,
+    // with the assumption that elements are word-sized. For
+    // non-word-sized elements, this is incorrect, e.g. for binary
+    // data, as found in `HeapBin`
+    // type Element: Sized;
+
+    /// Given a pointer, this function dereferences the original term header,
+    /// and uses its arity value to construct a fat pointer to the real term
+    /// type.
+    ///
+    /// The implementation for this function is auto-implemented by default,
+    /// but should be overridden if the number of elements in the dynamically
+    /// sized portion of the type are not inferred by the arity produced from
+    /// the header.
+    unsafe fn from_raw_term(ptr: *mut T) -> Boxed<Self>;
+}
 
 /// Boxable terms require a header term to be built during
 /// construction of the type, which specifies the type and
@@ -76,11 +166,20 @@ pub trait Literal<T: Encoded> : Boxable<T> {}
 /// ensure that architecture-specific details do not leak
 /// out of the `arch` or `encoding` modules.
 #[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct Header<T: ?Sized> {
     value: Term,
     _phantom: PhantomData<T>,
 }
+impl<T: ?Sized> Clone for Header<T> {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value,
+            _phantom: PhantomData,
+        }
+    }
+}
+impl<T: ?Sized> Copy for Header<T> {}
 impl<T: Sized> Header<T> {
     /// Returns the statically known base size (in bytes) of any value of type `T`
     #[allow(unused)]
@@ -111,12 +210,12 @@ impl<T: ?Sized> Header<T> {
     /// Returns the size in words of the value this header represents, not including the header
     #[inline]
     pub fn arity(&self) -> usize {
-        unsafe { self.value.arity() }
+        self.value.arity()
     }
 
     #[inline]
     fn to_word_size(size: usize) -> usize {
-        use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
+        use liblumen_core::alloc::utils::round_up_to_multiple_of;
 
         round_up_to_multiple_of(size, mem::size_of::<Term>()) / mem::size_of::<Term>()
     }
@@ -143,10 +242,23 @@ impl Header<Map> {
 pub trait DynamicHeader {
     /// The header tag associated with this type
     const TAG: Word;
+
+    /// Returns the header of this value
+    fn header(&self) -> Header<Self>;
 }
-impl DynamicHeader for Closure { const TAG: Word = Term::HEADER_CLOSURE; }
-impl DynamicHeader for Tuple { const TAG: Word = Term::HEADER_TUPLE; }
-impl DynamicHeader for HeapBin { const TAG: Word = Term::HEADER_HEAPBIN; }
+#[macro_export]
+macro_rules! impl_dynamic_header {
+    ($typ:ty, $tag:expr) => {
+        impl crate::erts::term::encoding::DynamicHeader for $typ {
+            const TAG: crate::erts::term::arch::Word = $tag;
+
+            #[inline]
+            fn header(&self) -> crate::erts::term::encoding::Header<Self> {
+                self.header
+            }
+        }
+    };
+}
 impl<T: ?Sized + DynamicHeader> Header<T> {
     pub fn from_arity(arity: usize) -> Self {
         let arity = arity.try_into().unwrap();
@@ -159,18 +271,23 @@ impl<T: ?Sized + DynamicHeader> Header<T> {
 pub trait StaticHeader {
     /// The header tag associated with this type
     const TAG: Word;
-}
 
-impl StaticHeader for BigInteger { const TAG: Word = Term::HEADER_BIG_INTEGER; }
-impl StaticHeader for ExternalPid { const TAG: Word = Term::HEADER_EXTERN_PID; }
-impl StaticHeader for ExternalPort { const TAG: Word = Term::HEADER_EXTERN_PORT; }
-impl StaticHeader for ExternalReference { const TAG: Word = Term::HEADER_EXTERN_REF; }
-impl StaticHeader for Reference { const TAG: Word = Term::HEADER_REFERENCE; }
-impl StaticHeader for Resource { const TAG: Word = Term::HEADER_RESOURCE_REFERENCE; }
-impl StaticHeader for BinaryLiteral { const TAG: Word = Term::HEADER_BINARY_LITERAL; }
-impl StaticHeader for ProcBin { const TAG: Word = Term::HEADER_PROCBIN; }
-impl StaticHeader for SubBinary { const TAG: Word = Term::HEADER_SUBBINARY; }
-impl StaticHeader for MatchContext { const TAG: Word = Term::HEADER_MATCH_CTX; }
+    /// Returns the header of this value
+    fn header(&self) -> Header<Self>;
+}
+#[macro_export]
+macro_rules! impl_static_header {
+    ($typ:ty, $tag:expr) => {
+        impl crate::erts::term::encoding::StaticHeader for $typ {
+            const TAG: crate::erts::term::arch::Word = $tag;
+
+            #[inline]
+            fn header(&self) -> crate::erts::term::encoding::Header<Self> {
+                self.header
+            }
+        }
+    }
+}
 impl<T: StaticHeader> Default for Header<T> {
     fn default() -> Self {
         let arity = Self::to_word_size(Self::static_arity());
@@ -380,7 +497,7 @@ pub trait Encoded: Repr + Copy {
 
     /// Returns the size in bytes of the term in memory
     fn sizeof(&self) -> usize {
-        erts::to_word_size(self.arity() + 1)
+        mem::size_of::<<Self as Repr>::Word>() * (self.arity() + 1)
     }
 
     /// Returns the arity of this term, which reflects the number of words of data

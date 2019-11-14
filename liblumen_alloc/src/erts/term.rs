@@ -28,7 +28,7 @@ pub mod prelude {
     pub use super::arch::RawTerm as Term;
     pub use super::release::Release;
     // Export the encoding traits and types as they are used hand-in-hand with Term
-    pub use super::encoding::{Encode, Encoded, Boxable, Literal, Cast};
+    pub use super::encoding::{Encode, Encoded, Boxable, UnsizedBoxable, Literal, Cast};
     pub use super::encoding::{Header, DynamicHeader, StaticHeader};
     // Export the encoding errors
     pub use super::encoding::{TermEncodingError, TermDecodingError};
@@ -56,6 +56,8 @@ pub mod prelude {
     pub use super::convert::{TypeError, BoolError};
     pub use super::integer::TryIntoIntegerError;
     pub use super::BadArgument;
+
+    pub(super) use crate::{impl_dynamic_header, impl_static_header};
 }
 
 /// This error is produced when a term is given to a runtime

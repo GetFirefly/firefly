@@ -41,7 +41,10 @@ pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialO
     /// will result if this is invoked on any other term.
     unsafe fn decode_header_value(&self) -> Self::Word;
 
-    fn decode_header(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> exception::Result<TypedTerm> {
+    fn decode_header(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> exception::Result<TypedTerm>
+    where
+        Self: Encoded,
+    {
         let ptr = Boxed::new(self as *const _ as *mut u64)
             .ok_or_else(|| TermDecodingError::NoneValue)?;
         match tag {
@@ -52,15 +55,15 @@ pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialO
             // NOTE: This happens with a few other types as well, so if you see this pattern,
             // the reasoning is the same for each case
             Tag::Tuple => {
-                let tuple = unsafe { Tuple::from_raw_term(ptr.cast::<Term>().as_ptr()) };
+                let tuple = unsafe { Tuple::from_raw_term(ptr.cast::<Self>().as_ptr()) };
                 Ok(TypedTerm::Tuple(tuple))
             }
             Tag::Closure => {
-                let closure = unsafe { Closure::from_raw_term(ptr.cast::<Term>().as_ptr()) };
+                let closure = unsafe { Closure::from_raw_term(ptr.cast::<Self>().as_ptr()) };
                 Ok(TypedTerm::Closure(closure))
             }
             Tag::HeapBinary => {
-                let bin = unsafe { HeapBin::from_raw_term(ptr.cast::<Term>().as_ptr()) };
+                let bin = unsafe { HeapBin::from_raw_term(ptr.cast::<Self>().as_ptr()) };
                 Ok(TypedTerm::HeapBinary(bin))
             }
             #[cfg(not(target_arch = "x86_64"))]
@@ -103,7 +106,10 @@ pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialO
     /// NOTE: This is assumed to be used during decoding when this term has already been
     /// typechecked as a header type.
     #[inline]
-    unsafe fn decode_header_unchecked(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> TypedTerm {
+    unsafe fn decode_header_unchecked(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> TypedTerm
+    where
+        Self: Encoded,
+    {
         match self.decode_header(tag.clone(), literal) {
             Ok(term) => term,
             Err(_) => panic!("invalid type tag: {:?}", tag)

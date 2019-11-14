@@ -7,7 +7,7 @@ use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::{HeapAlloc, Node};
 
-use super::prelude::{Term, TypedTerm, Header, Boxed, TypeError};
+use super::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -86,7 +86,7 @@ pub struct ExternalPort {
     next: *mut u8,
     port: Port,
 }
-
+impl_static_header!(ExternalPort, Term::HEADER_EXTERN_PORT);
 impl CloneToProcess for ExternalPort {
     fn clone_to_heap<A>(&self, _heap: &mut A) -> AllocResult<Term>
     where

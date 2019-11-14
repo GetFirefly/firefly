@@ -30,6 +30,7 @@ pub struct Tuple {
     header: Header<Tuple>,
     elements: [Term]
 }
+impl_dynamic_header!(Tuple, Term::HEADER_TUPLE);
 impl Tuple {
     /// Constructs a new `Tuple` of size `len` using `heap`
     ///
@@ -50,7 +51,7 @@ impl Tuple {
             // Write tuple header
             ptr.write(header);
             // Construct actual Tuple reference
-            Ok(Self::from_raw_parts(ptr as *mut u8, len))
+            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, len))
         }
     }
 
@@ -85,36 +86,9 @@ impl Tuple {
                 data_ptr = data_ptr.offset(1);
             }
             // Construct actual Tuple reference
-            Ok(Self::from_raw_parts(ptr as *mut u8, len))
+            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, len))
         }
     }
-
-    /// Constructs a reference to a `Tuple` given a pointer to
-    /// the memory containing the struct and the length of its variable-length
-    /// data
-    ///
-    /// NOTE: For more information about how this works, see the detailed
-    /// explanation in the function docs for `HeapBin::from_raw_term`, the
-    /// details are mostly identical, all that differs is the type of data
-    #[inline]
-    pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
-        let header = &*(term as *mut Header<Term>);
-        let arity = header.arity();
-
-        Self::from_raw_parts(term as *const u8, arity)
-    }
-
-    #[inline]
-    unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
-        // Invariants of slice::from_raw_parts.
-        assert!(!ptr.is_null());
-        assert!(len <= isize::max_value() as usize);
-
-        let slice = core::slice::from_raw_parts(ptr as *const (), len);
-        let ptr = slice as *const [()] as *mut Self;
-        Boxed::new_unchecked(ptr)
-    }
-
 
     /// Returns the length of this tuple
     #[inline]
@@ -214,6 +188,34 @@ impl Tuple {
         }
 
         Err(IndexError::OutOfBounds { index, len: self.elements.len() })
+    }
+
+    /// Given a raw pointer to some memory, and a length in units of `Self::Element`,
+    /// this function produces a fat pointer to `Self` which represents a value
+    /// containing `len` elements in its variable-length field
+    ///
+    /// For example, given a pointer to the memory containing a `Tuple`, and the
+    /// number of elements it contains, this function produces a valid pointer of
+    /// type `Tuple`
+    unsafe fn from_raw_parts<E: super::arch::Repr>(ptr: *const E, len: usize) -> Boxed<Tuple> {
+        // Invariants of slice::from_raw_parts.
+        assert!(!ptr.is_null());
+        assert!(len <= isize::max_value() as usize);
+
+        let slice = core::slice::from_raw_parts_mut(ptr as *mut E, len);
+        let ptr = slice as *mut [E] as *mut Tuple;
+        Boxed::new_unchecked(ptr)
+    }
+}
+
+impl<E: crate::erts::term::arch::Repr> Boxable<E> for Tuple {}
+
+impl<E: super::arch::Repr> UnsizedBoxable<E> for Tuple {
+    unsafe fn from_raw_term(ptr: *mut E) -> Boxed<Tuple> {
+        let header = &*(ptr as *mut Header<Tuple>);
+        let arity = header.arity();
+
+        Self::from_raw_parts::<E>(ptr, arity)
     }
 }
 

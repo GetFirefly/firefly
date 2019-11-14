@@ -308,7 +308,7 @@ impl Repr for RawTerm {
     unsafe fn decode_header_value(&self) -> u64 {
         debug_assert!(self.0 < MIN_DOUBLE, "invalid use of immediate float value as header");
         debug_assert!(self.0 > MAX_ADDR, "invalid use of boxed value as header");
-        self.decode_immediate()
+        self.0 & MAX_HEADER_VALUE
     }
 }
 
@@ -377,13 +377,13 @@ impl_boxable!(ExternalPid, RawTerm);
 impl_boxable!(ExternalPort, RawTerm);
 impl_boxable!(ExternalReference, RawTerm);
 impl_boxable!(Resource, RawTerm);
-impl_boxable!(Tuple, RawTerm);
 impl_boxable!(Map, RawTerm);
-impl_boxable!(Closure, RawTerm);
 impl_boxable!(ProcBin, RawTerm);
-impl_boxable!(HeapBin, RawTerm);
 impl_boxable!(SubBinary, RawTerm);
 impl_boxable!(MatchContext, RawTerm);
+impl_unsized_boxable!(Tuple, RawTerm);
+impl_unsized_boxable!(Closure, RawTerm);
+impl_unsized_boxable!(HeapBin, RawTerm);
 impl_literal!(BinaryLiteral, RawTerm);
 
 impl Cast<*mut RawTerm> for RawTerm {
@@ -836,6 +836,15 @@ mod tests {
         let min_decoded: Result<SmallInteger, _> = min_term.decode().unwrap().try_into();
         assert!(min_decoded.is_ok());
         assert_eq!(min, min_decoded.unwrap());
+
+        let a: SmallInteger = 101usize.try_into().unwrap();
+        let a_term: RawTerm = a.encode().unwrap();
+        assert!(a_term.is_integer());
+        assert_eq!(a_term.type_of(), Tag::SmallInteger);
+        assert!(a_term.is_smallint());
+        assert!(!a_term.is_header());
+        assert!(!a_term.is_boxed());
+        assert_eq!(a_term.arity(), 0);
     }
 
     #[test]
@@ -1040,8 +1049,11 @@ mod tests {
             Ok(())
         };
 
-        let closure = heap.closure_with_env_from_slices(mfa.clone(), code, creator, &[&[]])
+        let one = fixnum!(1);
+        let two = fixnum!(2);
+        let closure = heap.closure_with_env_from_slices(mfa.clone(), code, creator, &[&[one, two]])
             .unwrap();
+        assert_eq!(closure.env_len(), 2);
         let closure_term: RawTerm = closure.into();
         assert!(closure_term.is_boxed());
         assert_eq!(closure_term.type_of(), Tag::Box);
@@ -1057,8 +1069,10 @@ mod tests {
         assert!(closure_decoded.is_ok());
         let closure_box = closure_decoded.unwrap();
         assert_eq!(&closure, closure_box.as_ref());
-        assert_eq!(closure_box.arity(), 0);
+        assert_eq!(closure_box.env_len(), 2);
         assert_eq!(closure_box.module_function_arity(), mfa);
+        assert_eq!(closure_box.get_env_element(0), one);
+        assert_eq!(closure_box.get_env_element(1), two);
     }
 
     #[test]

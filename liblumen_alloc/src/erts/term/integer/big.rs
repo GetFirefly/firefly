@@ -23,6 +23,7 @@ pub struct BigInteger {
     header: Header<BigInteger>,
     pub(crate) value: BigInt,
 }
+impl_static_header!(BigInteger, Term::HEADER_BIG_INTEGER);
 impl BigInteger {
     /// Creates a new BigInteger from a BigInt value
     #[inline]

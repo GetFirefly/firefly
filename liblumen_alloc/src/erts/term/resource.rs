@@ -13,7 +13,7 @@ use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::heap_alloc::HeapAlloc;
 use crate::CloneToProcess;
 
-use super::prelude::{TypeError, TypedTerm, Term, Header, Boxed};
+use super::prelude::*;
 
 /// A reference-counting smart pointer to a resource handle which
 /// can be stored as a term
@@ -22,6 +22,7 @@ pub struct Resource {
     header: Header<Resource>,
     inner: NonNull<ResourceInner>,
 }
+impl_static_header!(Resource, Term::HEADER_RESOURCE_REFERENCE);
 impl Resource {
     pub fn new(value: Box<dyn Any>) -> AllocResult<Self> {
         let inner = ResourceInner::new(value)?;

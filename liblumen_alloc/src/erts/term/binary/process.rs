@@ -33,6 +33,7 @@ pub struct ProcBinInner {
     flags: BinaryFlags,
     data: [u8]
 }
+impl_static_header!(ProcBin, Term::HEADER_PROCBIN);
 impl ProcBinInner {
     /// Constructs a reference to a `ProcBinInner` given a pointer to
     /// the memory containing the struct and the length of its variable-length

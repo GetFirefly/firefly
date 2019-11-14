@@ -13,10 +13,9 @@ use crate::erts::exception::AllocResult;
 use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
 use crate::erts::process::Process;
-use crate::erts::term::prelude::{Header, Encoded};
 use crate::erts::{self, HeapAlloc, ModuleFunctionArity};
 
-use super::prelude::{TypeError, Term, TypedTerm, Boxed};
+use super::prelude::*;
 
 #[repr(C)]
 pub struct Closure {
@@ -25,11 +24,11 @@ pub struct Closure {
     module_function_arity: Arc<ModuleFunctionArity>,
     /// Pointer to function entry
     pub code: Code,
-    pub env_len: usize,
     env: [Term]
 }
+impl_dynamic_header!(Closure, Term::HEADER_CLOSURE);
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct ClosureLayout {
     layout: Layout,
     creator_offset: usize,
@@ -85,7 +84,6 @@ impl ClosureLayout {
         }
     }
 }
-
 impl Closure {
     /// Constructs a new `Closure` with an env of size `len` using `heap`
     ///
@@ -114,7 +112,7 @@ impl Closure {
             let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Code;
             code_ptr.write(code);
             // Construct actual Tuple reference
-            Ok(Self::from_raw_parts(ptr, env_len))
+            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_len))
         }
     }
 
@@ -143,7 +141,7 @@ impl Closure {
             let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Code;
             code_ptr.write(code);
             // Construct pointer to first env element
-            let mut env_ptr = (ptr as *mut u8).offset(closure_layout.env_offset as isize) as *mut Term;
+            let mut env_ptr = ptr.offset(closure_layout.env_offset as isize) as *mut Term;
             // Walk original slice of terms and copy them into new memory region,
             // copying boxed terms recursively as necessary
             for element in env {
@@ -158,37 +156,13 @@ impl Closure {
                 env_ptr = env_ptr.offset(1);
             }
             // Construct actual Tuple reference
-            Ok(Self::from_raw_parts(ptr as *mut u8, arity))
+            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, arity))
         }
     }
 
     #[inline]
     pub fn base_size_words() -> usize {
         erts::to_word_size(ClosureLayout::base_size())
-    }
-
-    /// Constructs a reference to a `Closure` given a pointer to
-    /// the memory containing the struct and the length of its variable-length
-    /// data
-    ///
-    /// NOTE: For more information about how this works, see the detailed
-    /// explanation in the function docs for `HeapBin::from_raw_term`, the
-    /// details are mostly identical, all that differs is the type of data
-    pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
-        let header = &*(term as *mut Header<Closure>);
-        let arity = header.arity();
-
-        Self::from_raw_parts(term as *const u8, arity)
-    }
-
-    #[inline]
-    unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
-        // Invariants of slice::from_raw_parts.
-        assert!(!ptr.is_null());
-        assert!(len <= isize::max_value() as usize);
-
-        let slice = core::slice::from_raw_parts(ptr as *const (), len);
-        Boxed::new_unchecked(slice as *const [()] as *mut Self)
     }
 
     pub fn arity(&self) -> u8 {
@@ -259,6 +233,34 @@ impl Closure {
     pub fn get_env_element(&self, idx: usize) -> Term {
         self.env[idx]
     }
+
+    /// Given a raw pointer to some memory, and a length in units of `Self::Element`,
+    /// this function produces a fat pointer to `Self` which represents a value
+    /// containing `len` elements in its variable-length field
+    ///
+    /// For example, given a pointer to the memory containing a `Tuple`, and the
+    /// number of elements it contains, this function produces a valid pointer of
+    /// type `Tuple`
+    unsafe fn from_raw_parts<E: super::arch::Repr>(ptr: *const E, len: usize) -> Boxed<Closure> {
+        // Invariants of slice::from_raw_parts.
+        assert!(!ptr.is_null());
+        assert!(len <= isize::max_value() as usize);
+
+        let slice = core::slice::from_raw_parts_mut(ptr as *mut E, len);
+        let ptr = slice as *mut [E] as *mut Closure;
+        Boxed::new_unchecked(ptr)
+    }
+}
+
+impl<E: crate::erts::term::arch::Repr> Boxable<E> for Closure {}
+
+impl<E: super::arch::Repr> UnsizedBoxable<E> for Closure {
+    unsafe fn from_raw_term(ptr: *mut E) -> Boxed<Closure> {
+        let header = &*(ptr as *mut Header<Closure>);
+        let arity = header.arity();
+
+        Self::from_raw_parts::<E>(ptr, arity)
+    }
 }
 
 impl CloneToProcess for Closure {
@@ -286,7 +288,7 @@ impl Debug for Closure {
             .field("code", &(self.code as usize))
             .field("module_function_arity", &self.module_function_arity)
             .field("creator", &self.creator)
-            .field("env_len", &self.env_len)
+            .field("env_len", &self.env.len())
             .finish()
     }
 }

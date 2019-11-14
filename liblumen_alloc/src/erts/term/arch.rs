@@ -37,6 +37,41 @@ macro_rules! impl_boxable {
     };
 }
 
+macro_rules! impl_unsized_boxable {
+    ($typ: ty, $raw: ty) => {
+        impl core::convert::From<*const $typ> for $raw {
+            fn from(ptr: *const $typ) -> $raw {
+                <$raw>::encode_box(ptr)
+            }
+        }
+        impl core::convert::From<*mut $typ> for $raw {
+            fn from(ptr: *mut $typ) -> $raw {
+                <$raw>::encode_box(ptr)
+            }
+        }
+        impl core::convert::From<&$typ> for $raw {
+            fn from(ptr: &$typ) -> $raw {
+                <$raw>::encode_box(ptr as *const $typ)
+            }
+        }
+        impl core::convert::From<&mut $typ> for $raw {
+            fn from(ptr: &mut $typ) -> $raw {
+                <$raw>::encode_box(ptr as *mut $typ)
+            }
+        }
+        impl core::convert::From<crate::erts::term::prelude::Boxed<$typ>> for $raw {
+            fn from(ptr: crate::erts::term::prelude::Boxed<$typ>) -> $raw {
+                <$raw>::encode_box(ptr.as_ptr())
+            }
+        }
+        impl crate::erts::term::encoding::Encode<$raw> for $typ {
+            fn encode(&self) -> crate::erts::exception::Result<$raw> {
+                Ok(<$raw>::encode_box(self as *const $typ))
+            }
+        }
+    };
+}
+
 // Provides the required trait implementations for a boxable literal term
 //
 // Intended for use internally within the `arch` module
@@ -150,7 +185,7 @@ impl RawTerm {
     ///
     /// NOTE: This will panic if the term is not a valid binary type, and does not include
     /// `MatchContext` or `SubBinary`.
-    pub(in crate::erts) unsafe fn as_binary_ptr<'a>(self) -> *mut u8 {
+    pub(in crate::erts) unsafe fn as_binary_ptr<'a>(&self) -> *mut u8 {
         use super::prelude::{Encoded, Bitstring};
 
         match self.decode().unwrap() {
@@ -159,14 +194,6 @@ impl RawTerm {
             TypedTerm::HeapBinary(bin_ptr) => bin_ptr.as_ref().as_byte_ptr(),
             t => panic!("tried to cast invalid term type to binary: {:?}", t)
         }
-    }
-
-    pub(in crate::erts) unsafe fn arity(&self) -> usize {
-        use core::convert::TryInto;
-
-        <Self as Repr>::decode_header_value(self)
-            .try_into()
-            .unwrap()
     }
 
     /// Resolve a term potentially containing a move marker to the location

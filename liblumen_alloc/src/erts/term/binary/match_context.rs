@@ -29,6 +29,7 @@ pub struct MatchBuffer {
     // Size of binary in bits
     pub(super) bit_len: usize,
 }
+impl_static_header!(MatchContext, Term::HEADER_MATCH_CTX);
 impl MatchBuffer {
     /// Create a match buffer from a binary
     ///
@@ -301,7 +302,7 @@ impl CloneToProcess for MatchContext {
                     // updated
                     let new_bin = bin.clone_to_heap(heap)?;
                     let new_bin_ptr: *mut Term = new_bin.dyn_cast();
-                    let new_bin_box = unsafe { HeapBin::from_raw_term(new_bin_ptr) };
+                    let new_bin_box: Boxed<HeapBin> = new_bin_ptr.into();
                     let new_bin_ref = new_bin_box.as_ref();
                     let old_bin_ptr = unsafe { bin.as_byte_ptr() };
                     let old_bin_base = self.buffer.base;

@@ -115,6 +115,18 @@ pub fn is_aligned<T>(ptr: *mut T) -> bool {
     raw % align == 0
 }
 
+/// Ensures `ptr` is aligned at the desired alignment, and returns
+/// the amount of padding in bytes that was needed to do so
+#[inline]
+pub fn ensure_aligned<T>(ptr: *mut T, align: usize) -> (*mut T, usize) {
+    let ptr = ptr as *mut u8;
+    let offset = ptr.align_offset(align);
+    assert_ne!(offset, usize::max_value());
+
+    let aligned = unsafe { ptr.add(offset) as *mut T };
+    (aligned, offset)
+}
+
 // Returns the effective alignment of `ptr`, i.e. the largest power
 // of two that is a divisor of `ptr`
 #[inline(always)]

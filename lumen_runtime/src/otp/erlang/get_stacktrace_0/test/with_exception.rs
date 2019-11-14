@@ -1,6 +1,8 @@
 use super::*;
 
-use liblumen_alloc::{atom, badarg, badarith, exit};
+use std::convert::TryInto;
+
+use liblumen_alloc::{atom, badarg, badarith, badarity, exit};
 
 #[test]
 fn without_stacktrace_returns_empty_list() {
@@ -60,6 +62,24 @@ fn badarg_includes_stacktrace() {
 fn badarith_includes_stacktrace() {
     with_process(|process| {
         process.exception(badarith!(process));
+
+        assert_eq!(
+            native(process),
+            Ok(process
+                .list_from_slice(&[process
+                    .tuple_from_slice(&[atom!("test"), atom!("loop"), 0.into()])
+                    .unwrap()])
+                .unwrap())
+        );
+    })
+}
+
+#[test]
+fn badarity_includes_stacktrace() {
+    with_process(|process| {
+        let function = atom!("anonymous");
+        let arguments = process.list_from_slice(&[]).unwrap();
+        process.exception(badarity!(process, function, arguments).try_into().unwrap());
 
         assert_eq!(
             native(process),

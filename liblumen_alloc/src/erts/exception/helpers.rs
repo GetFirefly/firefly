@@ -77,7 +77,7 @@ pub fn undef(
     // I'm not sure what this final empty list holds
     match process.tuple_from_slice(&[m, f, a, Term::NIL /* ? */]) {
         Ok(top) => match process.cons(top, stacktrace_tail) {
-            Ok(stacktrace) => Exception::Runtime(self::exit(reason, location, Some(stacktrace))),
+            Ok(stacktrace) => Exception::Runtime(self::exit(reason, location, stacktrace)),
             Err(err) => err.into(),
         },
         Err(err) => err.into(),
@@ -94,7 +94,7 @@ pub fn raise(
     use super::Class;
 
     match class {
-        Class::Exit => self::exit(reason, location, stacktrace),
+        Class::Exit => self::exit(reason, location, stacktrace.unwrap()),
         Class::Throw => self::throw(reason, location, stacktrace),
         Class::Error { arguments } => self::error(
             reason,
@@ -105,11 +105,14 @@ pub fn raise(
     }
 }
 
-#[inline]
-pub fn exit(reason: Term, location: Location, stacktrace: Option<Term>) -> RuntimeException {
+pub fn exit<S: Into<Stacktrace>>(
+    reason: Term,
+    location: Location,
+    stacktrace: S,
+) -> RuntimeException {
     use super::Exit;
 
-    RuntimeException::Exit(Exit::new_with_trace(reason, location, stacktrace))
+    RuntimeException::Exit(Exit::new(reason, location, stacktrace))
 }
 
 #[inline]

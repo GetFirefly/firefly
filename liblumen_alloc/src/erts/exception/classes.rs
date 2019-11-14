@@ -114,18 +114,15 @@ impl fmt::Debug for Error {
 #[error("** exit: {reason} at {location}")]
 pub struct Exit {
     reason: Term,
-    stacktrace: Option<Term>,
+    stacktrace: Stacktrace,
     location: Location,
 }
 impl Exit {
-    pub fn new(reason: Term, location: Location) -> Self {
-        Self::new_with_trace(reason, location, None)
-    }
-    pub fn new_with_trace(reason: Term, location: Location, trace: Option<Term>) -> Self {
+    pub fn new<S: Into<Stacktrace>>(reason: Term, location: Location, stacktrace: S) -> Self {
         Self {
             reason,
             location,
-            stacktrace: trace,
+            stacktrace: stacktrace.into(),
         }
     }
     pub fn class(&self) -> Class {
@@ -134,8 +131,8 @@ impl Exit {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Option<Term> {
-        self.stacktrace
+    pub fn stacktrace(&self) -> Stacktrace {
+        self.stacktrace.clone()
     }
     pub fn location(&self) -> Location {
         self.location
@@ -150,7 +147,7 @@ impl fmt::Debug for Exit {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Exit")
             .field("reason", &self.reason.decode())
-            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("stacktrace", &self.stacktrace)
             .field("location", &self.location)
             .finish()
     }

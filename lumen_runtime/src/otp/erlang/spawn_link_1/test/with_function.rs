@@ -67,7 +67,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_whi
                             _ => unreachable!("parent process out-of-memory"),
                         };
 
-                        prop_assert_eq!(exception, &exit!(reason));
+                        prop_assert_eq!(exception, &exit!(&parent_arc_process, reason));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(

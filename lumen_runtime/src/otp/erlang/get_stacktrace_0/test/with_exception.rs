@@ -14,7 +14,7 @@ use crate::test::strategy;
 #[test]
 fn without_stacktrace_returns_empty_list() {
     with_process(|process| {
-        process.exception(exit!(atom!("reason")));
+        process.exception(exit!(Term::NIL, atom!("reason")));
 
         assert_eq!(native(process), Ok(Term::NIL));
     });
@@ -43,7 +43,7 @@ fn with_stacktrace_returns_stacktrace() {
 
         let stacktrace = process.list_from_slice(&[stack_item]).unwrap();
 
-        process.exception(exit!(atom!("reason"), stacktrace));
+        process.exception(exit!(stacktrace, atom!("reason")));
 
         assert_eq!(native(process), Ok(stacktrace));
     })
@@ -117,6 +117,21 @@ fn badmap_includes_stacktrace() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |map| {
                 arc_process.exception(badmap!(&arc_process, map).try_into().unwrap());
+
+                prop_assert_eq!(native(&arc_process), Ok(stacktrace(&arc_process)));
+
+                Ok(())
+            })
+            .unwrap();
+    });
+}
+
+#[test]
+fn exit_includes_stacktrace() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term(arc_process.clone()), |reason| {
+                arc_process.exception(exit!(&arc_process, reason));
 
                 prop_assert_eq!(native(&arc_process), Ok(stacktrace(&arc_process)));
 

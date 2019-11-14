@@ -46,7 +46,7 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
 
     match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(atom!("normal")));
+            assert_eq!(runtime_exception, &exit!(&arc_process, atom!("normal")));
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };

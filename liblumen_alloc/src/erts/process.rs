@@ -971,7 +971,7 @@ impl Process {
 
     pub fn exit(&self, reason: Term) {
         self.reduce();
-        self.exception(exit!(reason));
+        self.exception(exit!(self, reason));
     }
 
     pub fn exit_normal(&self) {

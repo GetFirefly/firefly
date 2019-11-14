@@ -18,7 +18,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                     let arc_process = process::test_init();
                     let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
-                        arc_process.exception(exit!(Atom::str_to_term("not_normal")));
+                        arc_process.exception(exit!(arc_process, atom!("not_normal")));
 
                         Ok(())
                     };
@@ -50,7 +50,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(Atom::str_to_term("not_normal")));
+                        prop_assert_eq!(exception, &exit!(&child_arc_process, atom!("not_normal")));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -62,7 +62,10 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
 
                 match *parent_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(Atom::str_to_term("not_normal")));
+                        prop_assert_eq!(
+                            exception,
+                            &exit!(&parent_arc_process, atom!("not_normal"))
+                        );
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -122,7 +125,7 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(Atom::str_to_term("normal")));
+                        prop_assert_eq!(exception, &exit!(&child_arc_process, atom!("normal")));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(

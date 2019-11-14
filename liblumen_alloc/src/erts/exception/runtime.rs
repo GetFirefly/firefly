@@ -63,7 +63,7 @@ impl RuntimeException {
     pub fn stacktrace(&self) -> Option<Stacktrace> {
         match self {
             RuntimeException::Throw(e) => e.stacktrace().map(|term| Stacktrace::Term(term)),
-            RuntimeException::Exit(e) => e.stacktrace().map(|term| Stacktrace::Term(term)),
+            RuntimeException::Exit(e) => Some(e.stacktrace()),
             RuntimeException::Error(e) => e.stacktrace(),
             RuntimeException::Unknown(_err) => None,
         }

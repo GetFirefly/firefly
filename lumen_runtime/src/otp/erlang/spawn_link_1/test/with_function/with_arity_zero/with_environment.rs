@@ -25,7 +25,7 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                         let second = arc_process.stack_pop().unwrap();
                         let reason = arc_process.list_from_slice(&[first, second])?;
 
-                        arc_process.exception(exit!(reason));
+                        arc_process.exception(exit!(arc_process, reason));
 
                         Ok(())
                     };
@@ -68,12 +68,15 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                     Status::Exiting(ref exception) => {
                         prop_assert_eq!(
                             exception,
-                            &exit!(child_arc_process
-                                .list_from_slice(&[
-                                    Atom::str_to_term("first"),
-                                    Atom::str_to_term("second")
-                                ])
-                                .unwrap())
+                            &exit!(
+                                &child_arc_process,
+                                child_arc_process
+                                    .list_from_slice(&[
+                                        Atom::str_to_term("first"),
+                                        Atom::str_to_term("second")
+                                    ])
+                                    .unwrap()
+                            )
                         );
                     }
                     ref status => {
@@ -88,12 +91,15 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                     Status::Exiting(ref exception) => {
                         prop_assert_eq!(
                             exception,
-                            &exit!(child_arc_process
-                                .list_from_slice(&[
-                                    Atom::str_to_term("first"),
-                                    Atom::str_to_term("second")
-                                ])
-                                .unwrap())
+                            &exit!(
+                                &parent_arc_process,
+                                parent_arc_process
+                                    .list_from_slice(&[
+                                        Atom::str_to_term("first"),
+                                        Atom::str_to_term("second")
+                                    ])
+                                    .unwrap()
+                            )
                         );
                     }
                     ref status => {
@@ -129,7 +135,7 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
                         let second = arc_process.stack_pop().unwrap();
                         let reason = arc_process.tuple_from_slice(&[first, second])?;
 
-                        arc_process.exception(exit!(reason));
+                        arc_process.exception(exit!(arc_process, reason));
 
                         Ok(())
                     };
@@ -175,12 +181,15 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
                     Status::Exiting(ref exception) => {
                         prop_assert_eq!(
                             exception,
-                            &exit!(child_arc_process
-                                .tuple_from_slice(&[
-                                    Atom::str_to_term("shutdown"),
-                                    Atom::str_to_term("shutdown_reason")
-                                ])
-                                .unwrap())
+                            &exit!(
+                                &child_arc_process,
+                                child_arc_process
+                                    .tuple_from_slice(&[
+                                        Atom::str_to_term("shutdown"),
+                                        Atom::str_to_term("shutdown_reason")
+                                    ])
+                                    .unwrap()
+                            )
                         );
                     }
                     ref status => {

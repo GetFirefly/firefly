@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
-use liblumen_alloc::exit;
+use liblumen_alloc::{atom, exit};
 
 #[test]
 fn without_environment_runs_function_in_child_process() {
@@ -48,7 +48,7 @@ fn without_environment_runs_function_in_child_process() {
 
                     match *child_arc_process.status.read() {
                         Status::Exiting(ref exception) => {
-                            prop_assert_eq!(exception, &exit!(Atom::str_to_term("normal")));
+                            prop_assert_eq!(exception, &exit!(&child_arc_process, atom!("normal")));
                         }
                         ref status => {
                             return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -84,7 +84,7 @@ fn with_environment_runs_function_in_child_process() {
                             let second = arc_process.stack_pop().unwrap();
                             let reason = arc_process.list_from_slice(&[first, second])?;
 
-                            arc_process.exception(exit!(reason));
+                            arc_process.exception(exit!(arc_process, reason));
 
                             Ok(())
                         };
@@ -125,12 +125,15 @@ fn with_environment_runs_function_in_child_process() {
                         Status::Exiting(ref exception) => {
                             prop_assert_eq!(
                                 exception,
-                                &exit!(child_arc_process
-                                    .list_from_slice(&[
-                                        Atom::str_to_term("first"),
-                                        Atom::str_to_term("second")
-                                    ])
-                                    .unwrap())
+                                &exit!(
+                                    &child_arc_process,
+                                    child_arc_process
+                                        .list_from_slice(&[
+                                            Atom::str_to_term("first"),
+                                            Atom::str_to_term("second")
+                                        ])
+                                        .unwrap()
+                                )
                             );
                         }
                         ref status => {

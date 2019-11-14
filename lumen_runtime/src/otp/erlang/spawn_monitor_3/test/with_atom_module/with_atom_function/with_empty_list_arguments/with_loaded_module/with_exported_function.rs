@@ -62,7 +62,7 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(reason));
+            assert_eq!(runtime_exception, &exit!(&child_arc_process, reason));
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };

@@ -86,11 +86,8 @@ macro_rules! error {
 
 #[macro_export]
 macro_rules! exit {
-    ($reason:expr) => {
-        $crate::erts::exception::exit($reason, $crate::location!(), None)
-    };
-    ($reason:expr, $stacktrace:expr) => {
-        $crate::erts::exception::exit($reason, $crate::location!(), Some($stacktrace))
+    ($stacktrace:expr, $reason:expr) => {
+        $crate::erts::exception::exit($reason, $crate::location!(), $stacktrace)
     };
 }
 

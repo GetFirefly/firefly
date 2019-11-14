@@ -1,23 +1,24 @@
 use core::alloc::Layout;
 use core::ptr::NonNull;
 use core::mem;
+use core::fmt;
 
 use liblumen_core::sys::alloc as sys_alloc;
 use liblumen_core::sys::sysconf::MIN_ALIGN;
-use liblumen_core::util::pointer::{distance_absolute, in_area};
+use liblumen_core::util::pointer::distance_absolute;
 use liblumen_core::alloc::utils::{is_aligned, is_aligned_at, align_up_to};
 
-use crate::erts::term::prelude::{Term, ProcBin};
+use crate::mem::bit_size_of;
+use crate::erts::term::prelude::*;
 use crate::erts::exception::AllocResult;
-use crate::erts::process::alloc::{HeapAlloc, VirtualAlloc};
-use crate::erts::process::VirtualBinaryHeap;
+use crate::erts::process::alloc::{Heap, HeapAlloc, VirtualHeap, VirtualAllocator, VirtualBinaryHeap};
 
 // We allocate 64 words for default scratch heaps, which amounts
 // to 512 bytes for 64-bit systems, and 256 for 32-bit systems;
 // this amount should provide enough working room for just about
 // any unit test allocation - for larger requirements, manually
 // define a layout and use `RegionHeap::new`
-const DEFAULT_HEAP_SIZE: usize = mem::size_of::<Term>() * 32;
+pub(in crate::erts) const DEFAULT_HEAP_SIZE: usize = mem::size_of::<Term>() * 32;
 
 /// This struct defines a system allocator-backed heap
 /// for testing functionality which requires a `HeapAlloc`
@@ -27,6 +28,7 @@ pub struct RegionHeap {
     ptr: NonNull<u8>,
     end: *mut u8,
     top: *mut u8,
+    high_water_mark: *mut u8,
     vheap: VirtualBinaryHeap,
 }
 impl RegionHeap {
@@ -45,8 +47,15 @@ impl RegionHeap {
             ptr,
             end,
             top,
+            high_water_mark: top,
             vheap: VirtualBinaryHeap::new(size),
         }
+    }
+
+    /// Sets the high water mark to the current top of the heap
+    #[inline]
+    pub fn set_high_water_mark(&mut self) {
+        self.high_water_mark = self.top;
     }
 }
 impl Default for RegionHeap {
@@ -57,10 +66,72 @@ impl Default for RegionHeap {
         Self::new(layout)
     }
 }
-impl VirtualAlloc for RegionHeap {
+impl VirtualHeap<ProcBin> for RegionHeap {
     #[inline]
-    fn virtual_alloc(&mut self, bin: &ProcBin) -> Term {
-        self.vheap.push(bin)
+    fn virtual_size(&self) -> usize {
+        self.vheap.virtual_size()
+    }
+
+    #[inline]
+    fn virtual_heap_used(&self) -> usize {
+        self.vheap.virtual_heap_used()
+    }
+
+    #[inline]
+    fn virtual_heap_unused(&self) -> usize {
+        self.vheap.virtual_heap_unused()
+    }
+}
+impl VirtualAllocator<ProcBin> for RegionHeap {
+    #[inline]
+    fn virtual_alloc(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_alloc(value);
+    }
+
+    #[inline]
+    fn virtual_free(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_free(value);
+    }
+
+    #[inline]
+    fn virtual_unlink(&mut self, value: Boxed<ProcBin>) {
+        self.vheap.virtual_unlink(value);
+    }
+
+    #[inline]
+    fn virtual_pop(&mut self, value: Boxed<ProcBin>) -> ProcBin {
+        self.vheap.virtual_pop(value)
+    }
+
+    #[inline]
+    fn virtual_contains<P: ?Sized>(&self, ptr: *const P) -> bool {
+        self.vheap.virtual_contains(ptr)
+    }
+
+    #[inline]
+    unsafe fn virtual_clear(&mut self) {
+        self.vheap.virtual_clear();
+    }
+}
+impl Heap for RegionHeap {
+    #[inline]
+    fn heap_start(&self) -> *mut Term {
+        self.ptr.as_ptr() as *mut Term
+    }
+
+    #[inline]
+    fn heap_top(&self) -> *mut Term {
+        self.top as *mut Term
+    }
+
+    #[inline]
+    fn heap_end(&self) -> *mut Term {
+        self.end as *mut Term
+    }
+
+    #[inline]
+    fn high_water_mark(&self) -> *mut Term {
+        self.high_water_mark as *mut Term
     }
 }
 impl HeapAlloc for RegionHeap {
@@ -95,10 +166,35 @@ impl HeapAlloc for RegionHeap {
         debug_assert!(is_aligned(ptr), "unaligned pointer ({:b}); requested alignment is {}", ptr as usize, align);
         Ok(NonNull::new_unchecked(ptr))
     }
-
-    /// Returns true if the given pointer is owned by this process/heap
-    fn is_owner<T>(&mut self, ptr: *const T) -> bool where T: ?Sized {
-        in_area(ptr, self.ptr.as_ptr(), self.top)
+}
+impl fmt::Debug for RegionHeap {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "RegionHeap (size: {}, align: {}, heap: {:p}-{:p}, used: {}, unused: {}) [\n",
+            self.layout.size(),
+            self.layout.align(),
+            self.heap_start(),
+            self.heap_top(),
+            self.heap_used(),
+            self.heap_available(),
+        ))?;
+        let mut pos = self.heap_start();
+        while pos < self.heap_top() {
+            unsafe {
+                let term = &*pos;
+                let skip = term.arity();
+                f.write_fmt(format_args!(
+                    "  {:p}: {:0bit_len$b} {:?}\n",
+                    pos,
+                    *(pos as *const usize),
+                    term,
+                    bit_len = (bit_size_of::<usize>())
+                ))?;
+                pos = pos.add(1 + skip);
+            }
+        }
+        f.write_fmt(format_args!("  {:p}: END OF HEAP", pos))?;
+        f.write_str("]\n")
     }
 }
 impl Drop for RegionHeap {

@@ -837,4 +837,60 @@ mod tests {
             assert_eq!(list_iter.next(), None);
         }
     }
+
+    mod builder {
+        use super::*;
+
+        #[test]
+        fn list_builder_proper_list_iter() {
+            let mut heap = RegionHeap::default();
+            let a = fixnum!(42);
+            let b = fixnum!(24);
+            let c = fixnum!(11);
+            let cons = ListBuilder::new(&mut heap)
+                .push(a)
+                .push(b)
+                .push(c)
+                .finish()
+                .unwrap();
+
+            let mut list_iter = cons.into_iter();
+            let l0 = list_iter.next().unwrap();
+            assert_eq!(l0, Ok(a));
+            let l1 = list_iter.next().unwrap();
+            assert_eq!(l1, Ok(b));
+            let l2 = list_iter.next().unwrap();
+            assert_eq!(l2, Ok(c));
+            assert_eq!(list_iter.next(), None);
+            assert_eq!(list_iter.next(), None);
+        }
+
+
+        #[test]
+        fn list_builder_improper_list_iter() {
+            let mut heap = RegionHeap::default();
+            let a = fixnum!(42);
+            let b = fixnum!(24);
+            let c = fixnum!(11);
+            let d = fixnum!(99);
+            let cons = ListBuilder::new(&mut heap)
+                .push(a)
+                .push(b)
+                .push(c)
+                .finish_with(d)
+                .unwrap();
+
+            let mut list_iter = cons.into_iter();
+            let l0 = list_iter.next().unwrap();
+            assert_eq!(l0, Ok(a));
+            let l1 = list_iter.next().unwrap();
+            assert_eq!(l1, Ok(b));
+            let l2 = list_iter.next().unwrap();
+            assert_eq!(l2, Ok(c));
+            let l3 = list_iter.next().unwrap();
+            assert_eq!(l3, Err(ImproperList { tail: d }));
+            assert_eq!(list_iter.next(), None);
+            assert_eq!(list_iter.next(), None);
+        }
+    }
 }

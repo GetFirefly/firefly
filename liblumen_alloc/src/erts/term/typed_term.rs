@@ -26,7 +26,6 @@ use super::prelude::*;
 /// inner types as well. In these situations, the pointer is _not_ the tagged value,
 /// instead, you must dereference the pointer as `Term` and ask it to resolve itself
 /// to its typed form.
-#[derive(Debug)]
 pub enum TypedTerm {
     List(Boxed<Cons>),
     Tuple(Boxed<Tuple>),
@@ -52,6 +51,36 @@ pub enum TypedTerm {
     MatchContext(Boxed<MatchContext>),
     Closure(Boxed<Closure>),
     Nil,
+}
+impl fmt::Debug for TypedTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Self::Nil => write!(f, "Nil"),
+            &Self::Pid(pid) => write!(f, "{:?}", pid),
+            &Self::Port(port) => write!(f, "{:?}", port),
+            &Self::Atom(atom) => write!(f, "{:?}", atom),
+            &Self::SmallInteger(small) => write!(f, "{:?}", small),
+            #[cfg(target_arch = "x86_64")]
+            &Self::Float(float) => write!(f, "{:?}", float),
+            #[cfg(not(target_arch = "x86_64"))]
+            &Self::Float(boxed) => write!(f, "{:?}", boxed),
+            &Self::BigInteger(boxed) => write!(f, "{:?}", boxed),
+            &Self::List(boxed) => write!(f, "{:?}", boxed),
+            &Self::Tuple(boxed) => write!(f, "{:?}", boxed),
+            &Self::Map(boxed) => write!(f, "{:?}", boxed),
+            &Self::Reference(boxed) => write!(f, "{:?}", boxed),
+            &Self::ExternalPid(boxed) => write!(f, "{:?}", boxed),
+            &Self::ExternalPort(boxed) => write!(f, "{:?}", boxed),
+            &Self::ExternalReference(boxed) => write!(f, "{:?}", boxed),
+            &Self::ResourceReference(boxed) => write!(f, "{:?}", boxed),
+            &Self::BinaryLiteral(boxed) => write!(f, "{:?}", boxed),
+            &Self::ProcBin(boxed) => write!(f, "{:?}", boxed),
+            &Self::HeapBinary(boxed) => write!(f, "{:?}", boxed),
+            &Self::SubBinary(boxed) => write!(f, "{:?}", boxed),
+            &Self::MatchContext(boxed) => write!(f, "{:?}", boxed),
+            &Self::Closure(boxed) => write!(f, "{:?}", boxed),
+        }
+    }
 }
 impl TypedTerm {
     #[inline]

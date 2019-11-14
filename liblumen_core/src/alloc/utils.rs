@@ -196,41 +196,41 @@ mod tests {
     #[test]
     fn align_up_to_test() {
         let x: usize = 8;
-        let y: *const u8 = 16usize as *const u8;
-        assert_eq!(align_up_to(x as *const u8, 16), y);
+        let y = 16usize as *mut u8;
+        assert_eq!(align_up_to(x as *mut u8, 16), y);
 
         let x: usize = 16;
-        let y: *const u8 = 16usize as *const u8;
-        assert_eq!(align_up_to(x as *const u8, 16), y);
+        let y = 16usize as *mut u8;
+        assert_eq!(align_up_to(x as *mut u8, 16), y);
     }
 
     #[test]
     fn align_down_to_test() {
         let x: usize = 16;
-        let y: *const u8 = 16usize as *const u8;
-        assert_eq!(align_down_to(x as *const u8, 16), y);
+        let y = 16usize as *mut u8;
+        assert_eq!(align_down_to(x as *mut u8, 16), y);
 
         let x: usize = 14;
-        let y: *const u8 = 8usize as *const u8;
-        assert_eq!(align_down_to(x as *const u8, 8), y);
+        let y = 8usize as *mut u8;
+        assert_eq!(align_down_to(x as *mut u8, 8), y);
     }
 
     #[test]
     fn align_up_to_multiple_of_test() {
         let x: usize = 8;
-        let y: *const u8 = 4096usize as *const u8;
-        assert_eq!(align_up_to_multiple_of(x as *const u8, 4096), y);
+        let y = 4096usize as *mut u8;
+        assert_eq!(align_up_to_multiple_of(x as *mut u8, 4096), y);
     }
 
     #[test]
     fn is_aligned_at_test() {
         let x: usize = 4096;
-        assert!(is_aligned_at(x as *const u8, 8));
-        assert!(is_aligned_at(x as *const u8, 16));
-        assert!(is_aligned_at(x as *const u8, 4096));
+        assert!(is_aligned_at(x as *mut u8, 8));
+        assert!(is_aligned_at(x as *mut u8, 16));
+        assert!(is_aligned_at(x as *mut u8, 4096));
         let y: usize = 4092;
-        assert!(is_aligned_at(y as *const u8, 4));
-        assert!(!is_aligned_at(y as *const u8, 8));
+        assert!(is_aligned_at(y as *mut u8, 4));
+        assert!(!is_aligned_at(y as *mut u8, 8));
     }
 
     #[test]

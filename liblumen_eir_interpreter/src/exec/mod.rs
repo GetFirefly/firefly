@@ -13,7 +13,7 @@ use libeir_ir::{
 
 use liblumen_alloc::erts::exception::{Exception, RuntimeException, SystemException};
 use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::RootSet;
+use liblumen_alloc::erts::process::gc::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;

@@ -1,7 +1,7 @@
 pub mod alloc;
 pub mod code;
 mod flags;
-mod gc;
+pub mod gc;
 mod heap;
 mod mailbox;
 mod monitor;
@@ -35,16 +35,12 @@ use super::*;
 
 use self::code::stack;
 use self::code::stack::frame::{Frame, Placement};
+use self::gc::{GcError, RootSet};
+use self::alloc::{Heap, HeapAlloc, TermAlloc};
+use self::alloc::VirtualAllocator;
+use self::alloc::{StackAlloc, StackPrimitives};
 
-pub use self::alloc::heap_alloc::{self, HeapAlloc};
-pub use self::alloc::{
-    default_heap, heap, next_heap_size, StackAlloc, StackPrimitives, VirtualAlloc,
-};
 pub use self::flags::*;
-pub use self::flags::*;
-pub use self::gc::{GcError, RootSet};
-#[cfg(test)]
-pub(super) use self::gc::VirtualBinaryHeap;
 pub use self::heap::ProcessHeap;
 pub use self::mailbox::*;
 pub use self::monitor::Monitor;
@@ -229,7 +225,7 @@ impl Process {
     #[inline]
     pub unsafe fn alloc_nofrag(&self, need: usize) -> AllocResult<NonNull<Term>> {
         let mut heap = self.heap.lock();
-        heap.alloc(need)
+        heap.deref_mut().alloc(need)
     }
 
     /// Same as `alloc_nofrag`, but takes a `Layout` rather than the size in words
@@ -262,7 +258,7 @@ impl Process {
     /// Attaches a `HeapFragment` to this processes' off-heap fragment list
     #[inline]
     pub fn attach_fragment(&self, fragment: &mut HeapFragment) {
-        let size = fragment.size();
+        let size = fragment.heap_size();
         let mut off_heap = self.off_heap.lock();
         unsafe { off_heap.push_front(UnsafeRef::from_raw(fragment as *mut HeapFragment)) };
         drop(off_heap);
@@ -273,7 +269,9 @@ impl Process {
     #[inline]
     pub fn virtual_alloc(&self, bin: &ProcBin) -> Term {
         let mut heap = self.heap.lock();
-        heap.virtual_alloc(bin)
+        let boxed: Boxed<ProcBin> = bin.into();
+        heap.virtual_alloc(boxed);
+        boxed.into()
     }
 
     // Stack
@@ -833,10 +831,38 @@ impl Process {
         heap.garbage_collect(self, need, rootset)
     }
 
+    /// Cleans up any linked HeapFragments which should have had any live
+    /// references moved out by the time this is called.
+    ///
+    /// Since no live data is contained in these fragments, we can simply
+    /// walk the list of fragments and drop them in place, freeing the memory
+    /// associated with them. It is expected that heap fragments have a `Drop` impl
+    /// that handles this last step.
+    fn sweep_off_heap(&self) {
+        // When we drop the `HeapFragment`, its `Drop` implementation executes the
+        // destructor of the term stored in the fragment, and then frees the memory
+        // backing it. Since this takes care of any potential clean up we may need
+        // to do automatically, we don't have to do any more than that here, at least
+        // for now. In the future we may need to have more control over this, but
+        // not in the current state of the system
+        let mut off_heap = self.off_heap.lock();
+        let mut cursor = off_heap.front_mut();
+        while let Some(fragment_ref) = cursor.remove() {
+            let fragment_ptr = UnsafeRef::into_raw(fragment_ref);
+            unsafe { ptr::drop_in_place(fragment_ptr) };
+        }
+    }
+
+    /// Determines if we should try and grow the heap even when not necessary
+    #[inline]
+    pub(super) fn should_force_heap_growth(&self) -> bool {
+        self.flags.are_set(ProcessFlags::GrowHeap)
+    }
+
     /// Returns true if the given pointer belongs to memory owned by this process
     #[inline]
     pub fn is_owner<T>(&self, ptr: *const T) -> bool where T: ?Sized {
-        let mut heap = self.heap.lock();
+        let heap = self.heap.lock();
         if heap.is_owner(ptr) {
             return true;
         }
@@ -1019,20 +1045,26 @@ impl Process {
 impl Process {
     #[inline]
     fn young_heap_used(&self) -> usize {
+        use crate::erts::process::alloc::GenerationalHeap;
+
         let heap = self.heap.lock();
-        heap.young.heap_used()
+        heap.heap().young_generation().heap_used()
     }
 
     #[inline]
     fn old_heap_used(&self) -> usize {
+        use crate::erts::process::alloc::GenerationalHeap;
+
         let heap = self.heap.lock();
-        heap.old.heap_used()
+        heap.heap().old_generation().heap_used()
     }
 
     #[inline]
     fn has_old_heap(&self) -> bool {
+        use crate::erts::process::alloc::GenerationalHeap;
+
         let heap = self.heap.lock();
-        heap.old.active()
+        heap.heap().old_generation().active()
     }
 }
 

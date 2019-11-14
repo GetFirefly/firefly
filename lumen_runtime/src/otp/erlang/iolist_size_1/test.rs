@@ -61,7 +61,7 @@ fn with_iolist_returns_size() {
 }
 
 #[test]
-fn with_binary_returns_binary() {
+fn with_binary_returns_size() {
     with_process(|process| {
         let bin = process.binary_from_bytes(&[1, 2, 3]).unwrap();
 

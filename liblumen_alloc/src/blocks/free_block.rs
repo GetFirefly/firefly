@@ -10,7 +10,7 @@ use alloc::fmt::{self, Debug, Formatter};
 use intrusive_collections::container_of;
 use intrusive_collections::RBTreeLink;
 
-use liblumen_core::alloc::alloc_utils;
+use liblumen_core::alloc::utils as alloc_utils;
 
 use crate::sorted::{SortKey, SortOrder, Sortable};
 
@@ -163,7 +163,7 @@ impl FreeBlock {
     /// that, it is _only_ designed to be accessed by one thread at a time.
     pub fn try_alloc(&mut self, layout: &Layout) -> Result<NonNull<u8>, AllocErr> {
         // This is here as a safety against trying to use a FreeBlock twice
-        if unsafe { unlikely(!self.header.is_free()) } {
+        if unlikely(!self.header.is_free()) {
             debug_assert!(
                 !self.header.is_free(),
                 "tried to allocate a free block twice"

@@ -21,7 +21,7 @@ pub use process::*;
 #[inline]
 pub fn to_word_size(bytes: usize) -> usize {
     use core::mem;
-    use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
+    use liblumen_core::alloc::utils::round_up_to_multiple_of;
 
     round_up_to_multiple_of(bytes, mem::size_of::<usize>()) / mem::size_of::<usize>()
 }
@@ -29,7 +29,7 @@ pub fn to_word_size(bytes: usize) -> usize {
 #[allow(unused)]
 #[inline]
 pub fn to_arch64_word_size(bytes: usize) -> usize {
-    use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
+    use liblumen_core::alloc::utils::round_up_to_multiple_of;
 
     round_up_to_multiple_of(bytes, 8) / 8
 }
@@ -37,7 +37,7 @@ pub fn to_arch64_word_size(bytes: usize) -> usize {
 #[allow(unused)]
 #[inline]
 pub fn to_arch32_word_size(bytes: usize) -> usize {
-    use liblumen_core::alloc::alloc_utils::round_up_to_multiple_of;
+    use liblumen_core::alloc::utils::round_up_to_multiple_of;
 
     round_up_to_multiple_of(bytes, 4) / 4
 }

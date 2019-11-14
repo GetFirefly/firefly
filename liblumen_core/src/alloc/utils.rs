@@ -19,7 +19,7 @@ macro_rules! assert_word_aligned {
 macro_rules! assert_aligned_to {
     ($ptr:expr, $align:expr) => {
         assert!(
-            liblumen_core::alloc::alloc_utils::is_aligned_at($ptr, $align),
+            liblumen_core::alloc::utils::is_aligned_at($ptr, $align),
             "{:p} is not aligned to {}",
             $ptr,
             $align

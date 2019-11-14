@@ -11,5 +11,4 @@ mod region;
 
 pub use self::static_alloc::StaticAlloc;
 pub use self::sys_alloc::*;
-pub use self::utils as alloc_utils;
 pub use self::region::Region;

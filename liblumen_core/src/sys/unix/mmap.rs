@@ -4,7 +4,7 @@ use core::alloc::{Layout, AllocErr};
 use core::intrinsics::unlikely;
 
 use crate::sys::sysconf;
-use crate::alloc::alloc_utils;
+use crate::alloc::utils as alloc_utils;
 
 mod constants {
     pub use libc::{PROT_READ, PROT_WRITE};

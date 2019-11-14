@@ -4,7 +4,7 @@ use core::ptr::{self, NonNull};
 use alloc::fmt::{self, Debug, Formatter};
 use alloc::string::String;
 
-use liblumen_core::alloc::alloc_utils;
+use liblumen_core::alloc::utils as alloc_utils;
 #[cfg(debug_assertions)]
 use liblumen_core::assert_word_aligned;
 

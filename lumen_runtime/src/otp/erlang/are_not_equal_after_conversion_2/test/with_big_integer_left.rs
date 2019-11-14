@@ -75,7 +75,7 @@ fn with_same_value_float_right_returns_false() {
                             (heap.integer(i).unwrap(), heap.float(i as f64).unwrap())
                         }),
                         |(left, right)| {
-                            prop_assert_eq!(native(left, right), false.into());
+                            prop_assert_eq!(native(left, right.into()), false.into());
 
                             Ok(())
                         },
@@ -100,7 +100,7 @@ fn with_different_value_float_right_returns_true() {
                             (heap.integer(i + 1).unwrap(), heap.float(i as f64).unwrap())
                         }),
                         |(left, right)| {
-                            prop_assert_eq!(native(left, right), true.into());
+                            prop_assert_eq!(native(left, right.into()), true.into());
 
                             Ok(())
                         },

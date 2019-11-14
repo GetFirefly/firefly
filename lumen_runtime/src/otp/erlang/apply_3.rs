@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use liblumen_core::locks::RwLock;
 
-#[cfg(not(test))]
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::Process;
@@ -84,7 +83,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let mut argument_vec: Vec<Term> = Vec::new();
 
-    match argument_list.decode()? {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {

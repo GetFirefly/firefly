@@ -541,6 +541,11 @@ impl Encoded for RawTerm {
     }
 
     #[inline]
+    fn is_boxed_float(self) -> bool {
+        self.is_float()
+    }
+
+    #[inline]
     fn is_number(self) -> bool {
         if self.0 >= MIN_DOUBLE || self.0 & TAG_MASK == FLAG_SMALL_INTEGER {
             return true;

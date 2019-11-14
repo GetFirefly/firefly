@@ -21,7 +21,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Just;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;

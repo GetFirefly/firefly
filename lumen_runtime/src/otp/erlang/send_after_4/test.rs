@@ -10,7 +10,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{Term, Atom, Pid};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::send_after_4::native;

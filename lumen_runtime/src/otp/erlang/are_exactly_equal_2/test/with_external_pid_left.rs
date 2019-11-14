@@ -11,7 +11,7 @@ fn without_external_pid_left_returns_false() {
                     strategy::term::pid::external(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Left cannot be an external pid", |left| {
-                            !left.is_external_pid()
+                            !left.is_remote_pid()
                         }),
                 ),
                 |(left, right)| {
@@ -61,7 +61,7 @@ fn with_same_value_external_pid_right_returns_true() {
                         )
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
+                    prop_assert_eq!(native(left.into(), right.into()), true.into());
 
                     Ok(())
                 },

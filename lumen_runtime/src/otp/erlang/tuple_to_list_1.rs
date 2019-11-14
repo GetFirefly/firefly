@@ -7,7 +7,7 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
@@ -21,7 +21,7 @@ pub fn native(process: &Process, tuple: Term) -> exception::Result<Term> {
     let mut acc = Term::NIL;
 
     for element in tuple.iter().rev() {
-        acc = heap.cons(*element, acc)?;
+        acc = heap.cons(*element, acc)?.into();
     }
 
     Ok(acc)

@@ -3,7 +3,7 @@ use core::alloc::Layout;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception::RuntimeException;
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::{TermAlloc, Heap};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{self, Message};
@@ -77,7 +77,7 @@ pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
 
 const DOWN_LEN: usize = 5;
 
-fn down<A: HeapAlloc>(
+fn down<A: TermAlloc>(
     heap: &mut A,
     reference: &Reference,
     process: &Process,
@@ -126,7 +126,7 @@ fn down_tag() -> Term {
     Atom::str_to_term("DOWN")
 }
 
-fn identifier<A: HeapAlloc>(process: &Process, monitor: &Monitor, heap: &mut A) -> Term {
+fn identifier<A: TermAlloc>(process: &Process, monitor: &Monitor, heap: &mut A) -> Term {
     match monitor {
         Monitor::Pid { .. } => process.pid_term(),
         Monitor::Name { monitored_name, .. } => {
@@ -165,7 +165,7 @@ fn send_heap_down_message(
     info: Term,
 ) {
     let mut non_null_heap_fragment =
-        unsafe { HeapFragment::new(down_layout).unwrap() };
+        HeapFragment::new(down_layout).unwrap();
     let heap_fragment = unsafe { non_null_heap_fragment.as_mut() };
 
     let heap_fragment_data = down(heap_fragment, reference, monitored_process, monitor, info);

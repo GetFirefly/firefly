@@ -143,7 +143,7 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
             .run(
                 &strategy::term::binary::sub::is_not_binary(arc_process.clone()),
                 |bitstring| {
-                    let subbinary: SubBinary = bitstring.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = bitstring.try_into().unwrap();
 
                     let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 

@@ -2,7 +2,7 @@ use super::*;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::term::prelude::SmallInteger;
+use liblumen_alloc::erts::term::prelude::{SmallInteger, Encoded};
 
 #[test]
 fn with_small_integer_returns_small_integer() {

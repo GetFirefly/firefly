@@ -23,7 +23,7 @@ pub mod prelude {
     // Expose the iterator traits for bytes/bits
     pub use super::iter::{ByteIterator, BitIterator};
     // Expose the concrete iterator types for use within the `binary` module only
-    pub(super) use super::iter::{FullByteIter, BitsIter, PartialByteBitIter};
+    pub(in crate::erts::term) use super::iter::{FullByteIter, BitsIter, PartialByteBitIter};
     // Expose the various binary/bitstring traits
     pub use super::{Bitstring, Binary, IndexByte, MaybePartialByte};
     pub use super::aligned_binary::AlignedBinary;

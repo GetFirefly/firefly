@@ -73,7 +73,7 @@ where
     let timer_reference = erlang::start_timer_3::native(
         same_thread_process_arc.clone(),
         same_thread_process_arc.integer(milliseconds).unwrap(),
-        unsafe { same_thread_process_arc.pid().decode() },
+        same_thread_process_arc.pid().into(),
         message,
     )
     .unwrap();

@@ -60,7 +60,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
                         prop_assert_eq!(
-                            Exception::Runtime(*exception),
+                            Exception::Runtime(exception.clone()),
                             badarity!(&child_arc_process, function, Term::NIL)
                         );
                     }
@@ -76,12 +76,12 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
                     Status::Exiting(ref exception) => {
                         let reason = match badarity!(&parent_arc_process, function, Term::NIL) {
                             Exception::Runtime(badarity_runtime_exception) => {
-                                (badarity_runtime_exception.reason)
+                                (badarity_runtime_exception.reason().unwrap())
                             }
                             _ => unreachable!("parent process out-of-memory"),
                         };
 
-                        prop_assert_eq!(*exception, exit!(reason));
+                        prop_assert_eq!(exception, &exit!(reason));
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -93,7 +93,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_and
 
                 let tag = Atom::str_to_term("DOWN");
                 let reason = match badarity!(&parent_arc_process, function, Term::NIL) {
-                    Exception::Runtime(runtime_exception) => runtime_exception.reason,
+                    Exception::Runtime(runtime_exception) => runtime_exception.reason().unwrap(),
                     _ => unreachable!("parent process out-of-memory"),
                 };
 

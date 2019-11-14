@@ -10,12 +10,9 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = atom!("erlang");
-    let module = unsafe { module_atom.decode() };
-
+    let module = atom!("erlang");
     // Typo
-    let function_atom = atom!("sel");
-    let function = unsafe { function_atom.decode() };
+    let function = atom!("sel");
 
     let arguments = Term::NIL;
 

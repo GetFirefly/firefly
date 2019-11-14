@@ -73,20 +73,19 @@ where
 
     let different_thread = thread::spawn(move || {
         let different_thread_process_arc = process::test(&different_thread_same_thread_process_arc);
-        let same_thread_process_pid =
-            unsafe { different_thread_same_thread_process_arc.pid().decode() };
+        let same_thread_process_pid = different_thread_same_thread_process_arc.pid();
 
         let timer_reference = erlang::start_timer_3::native(
             different_thread_process_arc.clone(),
             different_thread_process_arc.integer(milliseconds).unwrap(),
-            same_thread_process_pid,
+            same_thread_process_pid.into(),
             Atom::str_to_term("different"),
         )
         .unwrap();
 
         erlang::send_2::native(
             &different_thread_process_arc,
-            same_thread_process_pid,
+            same_thread_process_pid.into(),
             different_thread_process_arc
                 .tuple_from_slice(&[Atom::str_to_term("timer_reference"), timer_reference])
                 .unwrap(),

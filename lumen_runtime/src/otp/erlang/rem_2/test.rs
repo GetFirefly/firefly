@@ -8,7 +8,7 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::badarith;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{SmallInteger, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::rem_2::native;
 use crate::process::SchedulerDependentAlloc;

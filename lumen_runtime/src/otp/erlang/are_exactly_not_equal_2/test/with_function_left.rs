@@ -10,7 +10,7 @@ fn without_function_right_returns_true() {
                 &(
                     strategy::term::is_function(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be function", |v| !v.is_closure()),
+                        .prop_filter("Right must not be function", |v| !v.is_function()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), true.into());
@@ -54,7 +54,7 @@ fn with_same_value_function_right_returns_false() {
 
                             Ok(())
                         };
-                        let creator = unsafe { arc_process.pid().decode() };
+                        let creator: Term = arc_process.pid().into();
 
                         let left_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,
@@ -107,7 +107,7 @@ fn with_different_function_right_returns_true() {
                     strategy::module_function_arity::arity(),
                 )
                     .prop_map(move |(module, function, arity)| {
-                        let creator = unsafe { arc_process.pid().decode() };
+                        let creator: Term = arc_process.pid().into();
 
                         let left_module_function_arity = Arc::new(ModuleFunctionArity {
                             module,

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn with_atom_option_errors_badarg() {
-    with_option_errors_badarg(|_| Atom::str_from_term("unsupported"));
+    with_option_errors_badarg(|_| Atom::str_to_term("unsupported"));
 }
 
 #[test]

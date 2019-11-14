@@ -3,8 +3,8 @@ use std::sync::Arc;
 use proptest::collection::SizeRange;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::erts::Process;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::test::strategy::byte_vec;
 

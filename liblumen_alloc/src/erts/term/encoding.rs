@@ -395,6 +395,14 @@ pub trait Encoded: Repr + Copy {
     /// NOTE: This function returns true if either the term is an immediate float,
     /// or if it is the header of a packed float. It does not unwrap boxed values.
     fn is_float(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `Float`
+    fn is_boxed_float(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_float()
+    }
     /// Returns `true` if the encoded value is either a float or integer
     fn is_number(self) -> bool {
         match self.decode() {
@@ -406,6 +414,14 @@ pub trait Encoded: Repr + Copy {
     }
     /// Returns `true` if the encoded value is the header of a `Tuple`
     fn is_tuple(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `Tuple`
+    fn is_boxed_tuple(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_tuple()
+    }
     /// Returns `true` if the encoded value is the header of a `Map`
     fn is_map(self) -> bool;
     /// Returns `true` if the encoded value is a `Pid`
@@ -432,6 +448,14 @@ pub trait Encoded: Repr + Copy {
     fn is_match_context(self) -> bool;
     /// Returns `true` if the encoded value is the header of a `Closure`
     fn is_function(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `Tuple`
+    fn is_boxed_function(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_function()
+    }
 
     /// Returns `true` if this term is a bitstring type,
     /// where the number of bits is evenly divisible by 8 (i.e. one byte)
@@ -529,7 +553,7 @@ impl CloneToProcess for Term {
 
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
     where
-        A: ?Sized + HeapAlloc,
+        A: ?Sized + TermAlloc,
     {
         debug_assert!(self.is_runtime());
         if self.is_immediate() || self.is_literal() {

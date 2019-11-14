@@ -8,11 +8,8 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = atom!("erlang");
-    let module = unsafe { module_atom.decode() };
-
-    let function_atom = atom!("+");
-    let function = unsafe { function_atom.decode() };
+    let module = atom!("erlang");
+    let function = atom!("+");
 
     let number = parent_arc_process.integer(0).unwrap();
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
@@ -56,11 +53,8 @@ fn without_valid_arguments_when_run_exits_and_parent_exits() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = atom!("erlang");
-    let module = unsafe { module_atom.decode() };
-
-    let function_atom = atom!("+");
-    let function = unsafe { function_atom.decode() };
+    let module = atom!("erlang");
+    let function = atom!("+");
 
     // not a number
     let number = atom!("zero");
@@ -90,8 +84,8 @@ fn without_valid_arguments_when_run_exits_and_parent_exits() {
     assert_eq!(
         child_arc_process.current_module_function_arity(),
         Some(Arc::new(ModuleFunctionArity {
-            module: module_atom,
-            function: function_atom,
+            module: atom_from!(module),
+            function: atom_from!(function),
             arity: 1
         }))
     );

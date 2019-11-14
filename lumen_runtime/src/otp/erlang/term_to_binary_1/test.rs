@@ -118,7 +118,7 @@ fn with_subbinary_without_binary_without_aligned_returns_bit_binary_ext() {
 fn with_reference_returns_new_reference_ext() {
     with_process(|process| {
         let scheduler_id: scheduler::ID = 1.into();
-        let reference = unsafe { Reference::new(scheduler_id, 2).as_term() };
+        let reference = Reference::new(scheduler_id, 2).encode().unwrap();
 
         assert_eq!(
             native(process, reference),
@@ -223,7 +223,7 @@ fn with_non_empty_atom_returns_atom_ext() {
 #[test]
 fn with_pid_returns_pid_ext() {
     with_process(|process| {
-        let pid = unsafe { Pid::new(1, 2).unwrap().as_term() };
+        let pid = Pid::new(1, 2).unwrap().encode().unwrap();
 
         assert_eq!(
             native(process, pid),

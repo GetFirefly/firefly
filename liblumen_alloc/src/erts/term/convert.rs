@@ -56,6 +56,13 @@ macro_rules! impl_term_conversions {
             }
         }
 
+        impl From<Pid> for $raw {
+            #[inline]
+            fn from(pid: Pid) -> Self {
+                pid.encode().unwrap()
+            }
+        }
+
         impl From<u8> for $raw {
             #[inline]
             fn from(i: u8) -> Self {
@@ -172,6 +179,14 @@ macro_rules! impl_term_conversions {
                     TypedTerm::BigInteger(big_integer) => big_integer.try_into(),
                     _ => Err(TryIntoIntegerError::Type),
                 }
+            }
+        }
+
+        impl TryInto<SmallInteger> for $raw {
+            type Error = TryIntoIntegerError;
+
+            fn try_into(self) -> Result<SmallInteger, Self::Error> {
+                self.decode().unwrap().try_into().map_err(|_| TryIntoIntegerError::Type)
             }
         }
 
@@ -299,6 +314,22 @@ macro_rules! impl_term_conversions {
             type Error = TypeError;
 
             fn try_into(self) -> Result<Boxed<BigInteger>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Boxed<SubBinary>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<SubBinary>, Self::Error> {
+                self.decode().unwrap().try_into()
+            }
+        }
+
+        impl TryInto<Boxed<HeapBin>> for $raw {
+            type Error = TypeError;
+
+            fn try_into(self) -> Result<Boxed<HeapBin>, Self::Error> {
                 self.decode().unwrap().try_into()
             }
         }

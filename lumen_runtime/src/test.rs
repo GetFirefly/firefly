@@ -134,7 +134,7 @@ pub fn registered_name() -> Term {
             "registered{}",
             REGISTERED_NAME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
         )
-        .as_ref(),
+        .as_str(),
     )
 }
 

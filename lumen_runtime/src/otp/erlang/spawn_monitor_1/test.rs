@@ -7,7 +7,6 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Status;
-use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::spawn_monitor_1::native;
 use crate::registry::pid_to_process;

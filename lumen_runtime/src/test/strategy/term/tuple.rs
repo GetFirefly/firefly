@@ -6,7 +6,6 @@ use num_bigint::BigInt;
 use proptest::collection::SizeRange;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::Process;
 
 use super::*;
@@ -31,13 +30,11 @@ pub fn with_index(arc_process: Arc<Process>) -> BoxedStrategy<(Vec<Term>, usize,
             )
         })
         .prop_map(|(arc_process, element_vec, zero_based_index)| {
-            let mut heap = arc_process.acquire_heap();
-
             (
                 element_vec.clone(),
                 zero_based_index,
-                heap.tuple_from_slice(&element_vec).unwrap(),
-                heap.integer(zero_based_index + 1).unwrap(),
+                arc_process.tuple_from_slice(&element_vec).unwrap(),
+                arc_process.integer(zero_based_index + 1).unwrap(),
             )
         })
         .boxed()

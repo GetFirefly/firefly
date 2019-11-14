@@ -69,7 +69,7 @@ fn with_subbinary_is_eight_times_byte_count_plus_bit_count() {
                     let bit_size_small_integer: SmallInteger = bit_size_term.try_into().unwrap();
                     let bit_size: usize = bit_size_small_integer.try_into().unwrap();
 
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
 
                     prop_assert_eq!(
                         subbinary.full_byte_len() * 8 + subbinary.partial_byte_bit_len() as usize,

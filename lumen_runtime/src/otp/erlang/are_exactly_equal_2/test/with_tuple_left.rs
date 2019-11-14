@@ -53,7 +53,7 @@ fn with_same_value_tuple_right_returns_true() {
                     )
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
+                    prop_assert_eq!(native(left.into(), right.into()), true.into());
 
                     Ok(())
                 },

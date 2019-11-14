@@ -4,8 +4,6 @@ use std::convert::TryInto;
 
 use proptest::strategy::{Just, Strategy};
 
-use liblumen_alloc::erts::term::prelude::{Boxed, Cons};
-
 use crate::process;
 use crate::scheduler::Spawned;
 

@@ -8,6 +8,7 @@ use proptest::strategy::{BoxedStrategy, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarith;
+use liblumen_alloc::erts::term::prelude::Encoded;
 
 use crate::otp::erlang;
 use crate::otp::erlang::bsl_2::native;

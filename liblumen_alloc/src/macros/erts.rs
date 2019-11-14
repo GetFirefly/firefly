@@ -20,7 +20,7 @@ macro_rules! atom_from {
     ($e:expr) => {{
         #[allow(unused)]
         use core::convert::TryInto;
-        let a: $crate::erts::term::prelude::Atom = ($num)
+        let a: $crate::erts::term::prelude::Atom = ($e)
             .try_into()
             .unwrap();
         a

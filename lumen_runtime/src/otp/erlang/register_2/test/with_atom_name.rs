@@ -32,7 +32,7 @@ fn with_registered_name_errors_badarg() {
             native(
                 Arc::clone(&registered_process_arc),
                 registered_name,
-                unsafe { registered_process_arc.pid().decode() }
+                registered_process_arc.pid().into()
             ),
             Ok(true.into())
         );

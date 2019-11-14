@@ -46,7 +46,7 @@ fn with_same_value_float_right_returns_false() {
                     (heap.float(f).unwrap(), heap.float(f).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
+                    prop_assert_eq!(native(left.into(), right.into()), false.into());
 
                     Ok(())
                 },
@@ -88,7 +88,7 @@ fn with_same_value_small_integer_right_returns_false() {
                     (heap.float(i as f64).unwrap(), heap.integer(i).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
+                    prop_assert_eq!(native(left.into(), right), false.into());
 
                     Ok(())
                 },
@@ -108,7 +108,7 @@ fn with_different_value_small_integer_right_returns_true() {
                     (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
+                    prop_assert_eq!(native(left.into(), right), true.into());
 
                     Ok(())
                 },
@@ -130,7 +130,7 @@ fn with_same_value_big_integer_right_returns_false() {
                             (heap.float(i as f64).unwrap(), heap.integer(i).unwrap())
                         }),
                         |(left, right)| {
-                            prop_assert_eq!(native(left, right), false.into());
+                            prop_assert_eq!(native(left.into(), right), false.into());
 
                             Ok(())
                         },
@@ -155,7 +155,7 @@ fn with_different_value_big_integer_right_returns_true() {
                             (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
                         }),
                         |(left, right)| {
-                            prop_assert_eq!(native(left, right), false.into());
+                            prop_assert_eq!(native(left.into(), right), false.into());
 
                             Ok(())
                         },

@@ -4,7 +4,7 @@ use num_bigint::BigInt;
 
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::Process;
 
 use crate::test::strategy;
 

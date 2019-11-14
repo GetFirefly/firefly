@@ -3,7 +3,7 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::is_record_3::native;
 use crate::scheduler::with_process_arc;
@@ -120,12 +120,10 @@ fn with_non_empty_tuple_without_record_tag_with_size_returns_false() {
                         |(actual_record_tag, mut tail_element_vec, tested_record_tag)| {
                             tail_element_vec.insert(0, actual_record_tag);
 
-                            let mut heap = arc_process.acquire_heap();
-
-                            let size = heap.integer(tail_element_vec.len()).unwrap();
+                            let size = arc_process.integer(tail_element_vec.len()).unwrap();
 
                             (
-                                heap.tuple_from_slice(&tail_element_vec).unwrap(),
+                                arc_process.tuple_from_slice(&tail_element_vec).unwrap(),
                                 tested_record_tag,
                                 size,
                             )

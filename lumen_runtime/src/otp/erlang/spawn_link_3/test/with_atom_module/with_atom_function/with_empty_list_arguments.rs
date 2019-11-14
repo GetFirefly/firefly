@@ -11,11 +11,8 @@ fn without_loaded_module_when_run_exits_undef_and_parent_exits() {
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
     // Typo
-    let module_atom = atom!("erlan");
-    let module = unsafe { module_atom.decode() };
-
-    let function_atom = atom!("self");
-    let function = unsafe { function_atom.decode() };
+    let module = atom!("erlan");
+    let function = atom!("self");
 
     let arguments = Term::NIL;
 

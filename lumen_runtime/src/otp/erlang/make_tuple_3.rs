@@ -10,9 +10,9 @@ use std::convert::TryInto;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term::prelude::*;
 
-use liblumen_alloc::HeapAlloc;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(make_tuple/3)]

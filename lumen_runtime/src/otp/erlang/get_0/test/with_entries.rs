@@ -2,7 +2,7 @@ use super::*;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 

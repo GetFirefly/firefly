@@ -7,7 +7,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarith;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{SmallInteger, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::otp::erlang::div_2::native;

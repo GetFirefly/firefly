@@ -10,7 +10,7 @@ use hashbrown::HashMap;
 use liblumen_core::locks::RwLockWriteGuard;
 
 use liblumen_alloc::erts::exception::{self, RuntimeException, AllocResult};
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::{TermAlloc, Heap};
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::{self, Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
@@ -161,10 +161,12 @@ fn send_self_exit_message(
 }
 
 fn send_heap_exit_message(process: &Process, exit_message_elements: &[Term]) {
-    let (heap_fragment_data, heap_fragment) =
-        HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
+    let (layout, _) = Tuple::layout_for(exit_message_elements);
+    let mut heap_fragment = HeapFragment::new(layout).unwrap();
+    let heap_fragment_ref = unsafe { heap_fragment.as_mut() };
 
-    process.send_heap_message(heap_fragment, heap_fragment_data);
+    let ptr = heap_fragment_ref.tuple_from_slice(exit_message_elements).unwrap();
+    process.send_heap_message(heap_fragment, ptr.into());
 }
 
 fn exit_in_heap(process: &Process, heap: &mut ProcessHeap, reason: Term) {
@@ -206,8 +208,8 @@ pub fn init(minimum_heap_size: usize) -> AllocResult<Process> {
         arity: 0,
     });
 
-    let heap_size = process::next_heap_size(minimum_heap_size);
-    let heap = process::heap(heap_size)?;
+    let heap_size = process::alloc::next_heap_size(minimum_heap_size);
+    let heap = process::alloc::heap(heap_size)?;
 
     let process = Process::new(
         Default::default(),

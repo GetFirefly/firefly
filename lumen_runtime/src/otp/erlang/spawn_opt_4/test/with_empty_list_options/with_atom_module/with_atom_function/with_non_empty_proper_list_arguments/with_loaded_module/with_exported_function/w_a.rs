@@ -86,8 +86,8 @@ fn without_valid_arguments_when_run_exits_and_parent_does_not_exit() {
     assert_eq!(
         child_arc_process.current_module_function_arity(),
         Some(Arc::new(ModuleFunctionArity {
-            module: module_atom,
-            function: function_atom,
+            module: atom_from!(module),
+            function: atom_from!(function),
             arity: 1
         }))
     );

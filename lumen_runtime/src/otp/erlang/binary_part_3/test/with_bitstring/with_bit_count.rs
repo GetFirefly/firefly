@@ -16,7 +16,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                     arc_process.clone(),
                 )
                 .prop_flat_map(|binary| {
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
                     let byte_count = subbinary.full_byte_len();
 
                     // `start` must be 2 less than `byte_count` so that `length` can be at least 1
@@ -24,7 +24,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
                     (Just(binary), (1..=(byte_count - 2)))
                 })
                 .prop_flat_map(|(binary, start)| {
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
 
                     (
                         Just(binary),
@@ -70,7 +70,7 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                     arc_process.clone(),
                 )
                 .prop_map(|binary| {
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
                     let byte_count = subbinary.full_byte_len();
 
                     let mut heap = arc_process.acquire_heap();
@@ -82,7 +82,7 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
                     )
                 }),
                 |(binary, start, length)| {
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
 
                     let expected_returned_binary_bytes: Vec<u8> =
                         subbinary.full_byte_iter().collect();
@@ -97,13 +97,13 @@ fn with_byte_count_start_and_negative_byte_count_length_returns_subbinary_withou
 
                     let returned = native(&arc_process, binary, start, length).unwrap();
 
-                    let returned_subbinary_result: core::result::Result<SubBinary, _> =
+                    let returned_subbinary_result: core::result::Result<Boxed<SubBinary>, _> =
                         returned.try_into();
 
                     prop_assert!(returned_subbinary_result.is_ok());
 
                     let returned_subbinary = returned_subbinary_result.unwrap();
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
 
                     prop_assert_eq!(returned_subbinary.original(), subbinary.original());
 
@@ -127,7 +127,7 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
                     arc_process.clone(),
                 )
                 .prop_map(|binary| {
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
 
                     let mut heap = arc_process.acquire_heap();
 
@@ -138,7 +138,8 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
                     )
                 }),
                 |(binary, start, length)| {
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
+
                     let expected_returned_binary_bytes: Vec<u8> =
                         subbinary.full_byte_iter().collect();
                     let expected_returned_binary = arc_process
@@ -152,13 +153,13 @@ fn with_zero_start_and_byte_count_length_returns_subbinary_without_bit_count() {
 
                     let returned = native(&arc_process, binary, start, length).unwrap();
 
-                    let returned_subbinary_result: core::result::Result<SubBinary, _> =
+                    let returned_subbinary_result: core::result::Result<Boxed<SubBinary>, _> =
                         returned.try_into();
 
                     prop_assert!(returned_subbinary_result.is_ok());
 
                     let returned_subbinary = returned_subbinary_result.unwrap();
-                    let subbinary: SubBinary = binary.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = binary.try_into().unwrap();
 
                     prop_assert_eq!(returned_subbinary.original(), subbinary.original());
 

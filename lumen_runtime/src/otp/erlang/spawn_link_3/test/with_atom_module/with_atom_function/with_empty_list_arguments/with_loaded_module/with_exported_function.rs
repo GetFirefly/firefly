@@ -8,11 +8,8 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = atom!("erlang");
-    let module = unsafe { module_atom.decode() };
-
-    let function_atom = atom!("self");
-    let function = unsafe { function_atom.decode() };
+    let module = atom!("erlang");
+    let function = atom!("self");
 
     let arguments = Term::NIL;
 
@@ -57,11 +54,8 @@ fn without_arity_when_run_exits_undef_and_exits_parent() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = atom!("erlang");
-    let module = unsafe { module_atom.decode() };
-
-    let function_atom = atom!("+");
-    let function = unsafe { function_atom.decode() };
+    let module = atom!("erlang");
+    let function = atom!("+");
 
     // `+` is arity 1, not 0
     let arguments = Term::NIL;

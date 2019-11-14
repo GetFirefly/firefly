@@ -117,18 +117,23 @@ impl MatchContext {
         *ptr
     }
 
+    #[inline]
+    pub fn original(&self) -> Term {
+        self.buffer.original
+    }
+
     /// Used by garbage collection to get a pointer to the original
     /// term in order to place/modify move markers
     #[inline]
-    pub(crate) fn orig(&self) -> *mut Term {
-        &self.buffer.original as *const _ as *mut Term
+    pub fn original_mut(&mut self) -> &mut Term {
+        &mut self.buffer.original
     }
 
     /// Used by garbage collection to get a pointer to the raw binary
     /// data pointer in order to update it if the underlying binary moves
     #[inline]
-    pub(crate) fn base(&self) -> *mut *mut u8 {
-        &self.buffer.base as *const _ as *mut *mut u8
+    pub fn base_mut(&mut self) -> &mut *mut u8 {
+        &mut self.buffer.base
     }
 
     #[inline]

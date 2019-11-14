@@ -5,6 +5,8 @@ use std::convert::TryInto;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
+use liblumen_alloc::erts::exception::Class;
+
 #[test]
 fn without_class_errors_badarg() {
     with_process_arc(|arc_process| {
@@ -14,7 +16,7 @@ fn without_class_errors_badarg() {
                     strategy::term::atom().prop_filter(
                         "Class cannot be error, exit, or throw",
                         |class| {
-                            let is_class: exception::Class = (*class).try_into();
+                            let is_class: Result<exception::Class, _> = (*class).try_into();
                             is_class.is_err()
                         },
                     ),
@@ -90,7 +92,7 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
                                 // {M, F, arity | args}
                                 module.is_atom() ||
                                     // {function, args, location}
-                                    module.is_closure()
+                                    module.is_function()
                             )
                         },
                     ),
@@ -519,7 +521,6 @@ fn class() -> BoxedStrategy<Term> {
 }
 
 fn class_variant_and_term() -> BoxedStrategy<(Class, Term)> {
-    use liblumen_alloc::erts::exception::Class;
     prop_oneof![
         Just((Class::Error { arguments: None }, "error")),
         Just((Class::Exit, "exit")),

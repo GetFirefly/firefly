@@ -10,7 +10,7 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, badarith, exit, undef, atom, ModuleFunctionArity, Process};
+use liblumen_alloc::{badarg, badarith, exit, undef, atom, atom_from, ModuleFunctionArity, Process};
 
 use crate::otp::erlang::apply_3;
 use crate::otp::erlang::spawn_opt_4::native;

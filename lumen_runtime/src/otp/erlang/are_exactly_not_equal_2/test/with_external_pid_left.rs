@@ -58,7 +58,7 @@ fn with_same_value_external_pid_right_returns_false() {
                         )
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
+                    prop_assert_eq!(native(left.into(), right.into()), false.into());
 
                     Ok(())
                 },

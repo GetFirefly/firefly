@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::prelude::{Pid, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
 pub mod external;

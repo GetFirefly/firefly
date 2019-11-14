@@ -188,7 +188,7 @@ use crate::time::monotonic;
 use crate::time::Milliseconds;
 use crate::timer::start::ReferenceFrame;
 use crate::timer::{self, Timeout};
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::TermAlloc;
 
 pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 

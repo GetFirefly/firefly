@@ -11,12 +11,10 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = atom!("erlang");
-    let module = unsafe { module_atom.decode() };
+    let module = atom!("erlang");
 
     // Rust name instead of Erlang name
-    let function_atom = atom!("number_or_badarith_1");
-    let function = unsafe { function_atom.decode() };
+    let function = atom!("number_or_badarith_1");
 
     let arguments = parent_arc_process
         .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)

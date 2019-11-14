@@ -10,11 +10,8 @@ fn without_arity_when_run_exits_undef_and_parent_exits() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = atom!("erlang");
-    let module = unsafe { module_atom.decode() };
-
-    let function_atom = atom!("+");
-    let function = unsafe { function_atom.decode() };
+    let module = atom!("erlang");
+    let function = atom!("+");
 
     // erlang.+/1 and erlang.+/2 exists so use 3 for invalid arity
     let arguments = parent_arc_process

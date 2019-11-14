@@ -89,6 +89,13 @@ impl Tuple {
         }
     }
 
+    /// Constructs a reference to a `Tuple` given a pointer to
+    /// the memory containing the struct and the length of its variable-length
+    /// data
+    ///
+    /// NOTE: For more information about how this works, see the detailed
+    /// explanation in the function docs for `HeapBin::from_raw_term`, the
+    /// details are mostly identical, all that differs is the type of data
     #[inline]
     pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
         let header = &*(term as *mut Header<Term>);
@@ -97,15 +104,8 @@ impl Tuple {
         Self::from_raw_parts(term as *const u8, arity)
     }
 
-    /// Constructs a reference to a `Tuple` given a pointer to
-    /// the memory containing the struct and the length of its variable-length
-    /// data
-    ///
-    /// NOTE: For more information about how this works, see the detailed
-    /// explanation in the function docs for `HeapBin::from_raw_parts`, the
-    /// details are mostly identical, all that differs is the type of data
     #[inline]
-    pub(in super) unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
+    unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
         // Invariants of slice::from_raw_parts.
         assert!(!ptr.is_null());
         assert!(len <= isize::max_value() as usize);
@@ -324,66 +324,61 @@ impl TryFrom<TypedTerm> for Boxed<Tuple> {
 mod tests {
     use super::*;
 
-    use core::convert::TryInto;
-
     use alloc::sync::Arc;
 
-    use crate::erts::process::{default_heap, Priority, Process};
-    use crate::erts::scheduler;
     use crate::erts::ModuleFunctionArity;
+    use crate::erts::testing::RegionHeap;
+    use crate::erts::process::{Process, HeapAlloc};
+    use crate::erts::scheduler;
 
     mod get_element {
         use super::*;
 
         #[test]
-        fn zerobased_index_out_of_bounds() {
-            let process = process();
-            let tuple_term = process.tuple_from_slice(&[]).unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+        fn tuple_zerobased_index_out_of_bounds() {
+            let mut heap = RegionHeap::default();
+            let tuple = heap.tuple_from_slice(&[]).unwrap();
 
             assert_eq!(
-                boxed_tuple.get_element(ZeroBasedIndex::new(1)),
+                tuple.get_element(ZeroBasedIndex::new(1)),
                 Err(IndexError::OutOfBounds { index: 1, len: 0 })
             );
         }
 
         #[test]
-        fn onebased_index_out_of_bounds() {
-            let process = process();
-            let tuple_term = process.tuple_from_slice(&[]).unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+        fn tuple_onebased_index_out_of_bounds() {
+            let mut heap = RegionHeap::default();
+            let tuple = heap.tuple_from_slice(&[]).unwrap();
 
             assert_eq!(
-                boxed_tuple.get_element(OneBasedIndex::new(2)),
+                tuple.get_element(OneBasedIndex::new(2).unwrap()),
                 Err(IndexError::OutOfBounds { index: 1, len: 0 })
             );
         }
 
         #[test]
-        fn zerobased_index_in_bounds() {
-            let process = process();
-            let tuple_term = process
-                .tuple_from_slice(&[process.integer(0).unwrap()])
+        fn tuple_zerobased_index_in_bounds() {
+            let mut heap = RegionHeap::default();
+            let tuple = heap
+                .tuple_from_slice(&[fixnum!(0)])
                 .unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
 
             assert_eq!(
-                boxed_tuple.get_element_from_zero_based_usize_index(ZeroBasedIndex::default()),
-                Ok(process.integer(0).unwrap())
+                tuple.get_element(ZeroBasedIndex::default()),
+                Ok(fixnum!(0))
             );
         }
 
         #[test]
-        fn onebased_index_in_bounds() {
-            let process = process();
-            let tuple_term = process
-                .tuple_from_slice(&[process.integer(0).unwrap()])
+        fn tuple_onebased_index_in_bounds() {
+            let mut heap = RegionHeap::default();
+            let tuple = heap
+                .tuple_from_slice(&[fixnum!(0)])
                 .unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
 
             assert_eq!(
-                boxed_tuple.get_element_from_zero_based_usize_index(OneBasedIndex::default()),
-                Ok(process.integer(0).unwrap())
+                tuple.get_element(OneBasedIndex::default()),
+                Ok(fixnum!(0))
             );
         }
     }
@@ -392,66 +387,66 @@ mod tests {
         use super::*;
 
         #[test]
-        fn zerobased_index_out_of_bounds() {
-            let process = process();
-            let tuple_term = process.tuple_from_slice(&[]).unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+        fn tuple_zerobased_index_out_of_bounds() {
+            let mut heap = RegionHeap::default();
+            let mut tuple = heap
+                .tuple_from_slice(&[])
+                .unwrap();
             let index = ZeroBasedIndex::new(1);
 
             assert_eq!(
-                boxed_tuple.set_element(index),
+                tuple.set_element(index, Term::NIL),
                 Err(IndexError::OutOfBounds { index: 1, len: 0 })
             );
         }
 
         #[test]
-        fn onebased_index_out_of_bounds() {
-            let process = process();
-            let tuple_term = process.tuple_from_slice(&[]).unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
-            let index = OneBasedIndex::new(2);
+        fn tuple_onebased_index_out_of_bounds() {
+            let mut heap = RegionHeap::default();
+            let mut tuple = heap
+                .tuple_from_slice(&[])
+                .unwrap();
+            let index = OneBasedIndex::new(2).unwrap();
 
             assert_eq!(
-                boxed_tuple.set_element(index),
+                tuple.set_element(index, Term::NIL),
                 Err(IndexError::OutOfBounds { index: 1, len: 0 })
             );
         }
 
         #[test]
-        fn zerobased_index_in_bounds() {
-            let process = process();
-            let tuple_term = process
-                .tuple_from_slice(&[process.integer(0).unwrap()])
+        fn tuple_zerobased_index_in_bounds() {
+            let mut heap = RegionHeap::default();
+            let mut tuple = heap
+                .tuple_from_slice(&[fixnum!(0)])
                 .unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
             let index = ZeroBasedIndex::default();
 
             assert_eq!(
-                boxed_tuple.set_element(index, 1234.try_into().unwrap()),
+                tuple.set_element(index, fixnum!(1234)),
                 Ok(()),
             );
             assert_eq!(
-                boxed_tuple.get_element(index),
-                Ok(1234.try_into().unwrap())
+                tuple.get_element(index),
+                Ok(fixnum!(1234))
             )
         }
 
         #[test]
-        fn onebased_index_in_bounds() {
-            let process = process();
-            let tuple_term = process
-                .tuple_from_slice(&[process.integer(0).unwrap()])
+        fn tuple_onebased_index_in_bounds() {
+            let mut heap = RegionHeap::default();
+            let mut tuple = heap
+                .tuple_from_slice(&[fixnum!(0)])
                 .unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
             let index = OneBasedIndex::default();
 
             assert_eq!(
-                boxed_tuple.set_element(index, 1234.try_into().unwrap()),
+                tuple.set_element(index, fixnum!(1234)),
                 Ok(()),
             );
             assert_eq!(
-                boxed_tuple.get_element(index),
-                Ok(1234.try_into().unwrap())
+                tuple.get_element(index),
+                Ok(fixnum!(1234))
             )
         }
     }
@@ -461,26 +456,28 @@ mod tests {
         use super::*;
 
         #[test]
-        fn without_element() {
-            let process = process();
-            let tuple = process.tuple_from_slice(&[]).unwrap();
-            let equal = process.tuple_from_slice(&[]).unwrap();
+        fn tuple_without_element() {
+            let mut heap = RegionHeap::default();
+            let lhs = heap.tuple_from_slice(&[]).unwrap();
+            let rhs = heap.tuple_from_slice(&[]).unwrap();
 
-            assert_eq!(tuple, tuple);
-            assert_eq!(tuple, equal);
+            assert_eq!(lhs, lhs);
+            assert_eq!(lhs, rhs);
+            assert_eq!(rhs, lhs);
         }
 
         #[test]
-        fn with_unequal_length() {
-            let process = process();
-            let tuple = process
-                .tuple_from_slice(&[process.integer(0).unwrap()])
+        fn tuple_with_unequal_length() {
+            let mut heap = RegionHeap::default();
+            let lhs = heap
+                .tuple_from_slice(&[fixnum!(0)])
                 .unwrap();
-            let unequal = process
-                .tuple_from_slice(&[process.integer(0).unwrap(), process.integer(1).unwrap()])
+            let rhs = heap
+                .tuple_from_slice(&[fixnum!(0), fixnum!(1)])
                 .unwrap();
 
-            assert_ne!(tuple, unequal);
+            assert_ne!(lhs, rhs);
+            assert_ne!(rhs, lhs);
         }
     }
 
@@ -488,46 +485,41 @@ mod tests {
         use super::*;
 
         #[test]
-        fn without_elements() {
-            let process = process();
-            let tuple_term = process.tuple_from_slice(&[]).unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+        fn tuple_without_elements() {
+            let mut heap = RegionHeap::default();
+            let tuple = heap.tuple_from_slice(&[]).unwrap();
 
-            assert_eq!(boxed_tuple.iter().count(), 0);
-
-            let length = boxed_tuple.len();
-
-            assert_eq!(boxed_tuple.iter().count(), length);
+            assert_eq!(tuple.iter().count(), 0);
+            assert_eq!(tuple.len(), 0);
         }
 
         #[test]
-        fn with_elements() {
-            let process = process();
+        fn tuple_with_elements() {
+            let align = core::mem::align_of::<usize>();
+            let layout = unsafe { Layout::from_size_align_unchecked(8 * 1024, align) };
+            let mut heap = RegionHeap::new(layout);
             // one of every type
             let slice = &[
                 // small integer
-                process.integer(0).unwrap(),
+                fixnum!(0),
                 // big integer
-                process.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
-                process.reference(0).unwrap(),
-                closure(&process),
-                process.float(0.0).unwrap(),
-                process.external_pid_with_node_id(1, 0, 0).unwrap(),
+                heap.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
+                heap.reference(scheduler::id::next(), 0).map(|r| r.into()).unwrap(),
+                closure(&mut heap),
+                heap.float(0.0).map(|f| f.into()).unwrap(),
+                heap.external_pid_with_node_id(1, 0, 0).map(|p| p.into()).unwrap(),
                 Term::NIL,
                 Pid::make_term(0, 0).unwrap(),
-                Atom::str_to_term("atom"),
-                process.tuple_from_slice(&[]).unwrap(),
-                process.map_from_slice(&[]).unwrap(),
-                process.list_from_slice(&[]).unwrap(),
+                atom!("atom"),
+                heap.tuple_from_slice(&[atom!("tuple")]).unwrap().encode().unwrap(),
+                heap.map_from_slice(&[(atom!("key"), atom!("value"))]).unwrap().encode().unwrap(),
+                heap.list_from_slice(&[atom!("list")]).unwrap().unwrap().encode().unwrap(),
             ];
-            let tuple_term = process.tuple_from_slice(slice).unwrap();
-            let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+            let num_terms = slice.len();
+            let tuple = heap.tuple_from_slice(slice).unwrap();
 
-            assert_eq!(boxed_tuple.iter().count(), 12);
-
-            let length = boxed_tuple.len();
-
-            assert_eq!(boxed_tuple.iter().count(), length);
+            assert_eq!(tuple.iter().count(), num_terms);
+            assert_eq!(tuple.len(), num_terms);
         }
     }
 
@@ -535,27 +527,29 @@ mod tests {
         use super::*;
 
         #[test]
-        fn without_elements() {
-            let tuple = Tuple::new(0);
+        fn tuple_without_elements() {
+            let mut heap = RegionHeap::default();
+            let tuple = Tuple::new(&mut heap, 0).unwrap();
 
             assert_eq!(tuple.len(), 0);
         }
 
         #[test]
-        fn with_elements() {
-            let tuple = Tuple::new(1);
+        fn tuple_with_elements() {
+            let mut heap = RegionHeap::default();
+            let tuple = Tuple::new(&mut heap, 3).unwrap();
 
-            assert_eq!(tuple.len(), 1);
+            assert_eq!(tuple.len(), 3);
         }
     }
 
-    fn closure(process: &Process) -> Term {
-        let creator = process.pid_term();
+    fn closure<H: HeapAlloc>(heap: &mut H) -> Term {
+        let creator = Pid::make_term(0, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
         let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
-        let module_function_arity = Arc::new(ModuleFunctionArity {
+        let mfa = Arc::new(ModuleFunctionArity {
             module,
             function,
             arity,
@@ -566,31 +560,8 @@ mod tests {
             Ok(())
         };
 
-        process
-            .acquire_heap()
-            .closure_with_env_from_slices(module_function_arity, code, creator, &[&[]])
+        heap.closure_with_env_from_slices(mfa, code, creator, &[&[]])
             .unwrap()
-    }
-
-    fn process() -> Process {
-        let init = Atom::try_from_str("init").unwrap();
-        let initial_module_function_arity = Arc::new(ModuleFunctionArity {
-            module: init,
-            function: init,
-            arity: 0,
-        });
-        let (heap, heap_size) = default_heap().unwrap();
-
-        let process = Process::new(
-            Priority::Normal,
-            None,
-            initial_module_function_arity,
-            heap,
-            heap_size,
-        );
-
-        process.schedule_with(scheduler::id::next());
-
-        process
+            .into()
     }
 }

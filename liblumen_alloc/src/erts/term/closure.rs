@@ -167,6 +167,13 @@ impl Closure {
         erts::to_word_size(ClosureLayout::base_size())
     }
 
+    /// Constructs a reference to a `Closure` given a pointer to
+    /// the memory containing the struct and the length of its variable-length
+    /// data
+    ///
+    /// NOTE: For more information about how this works, see the detailed
+    /// explanation in the function docs for `HeapBin::from_raw_term`, the
+    /// details are mostly identical, all that differs is the type of data
     pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
         let header = &*(term as *mut Header<Closure>);
         let arity = header.arity();
@@ -175,7 +182,7 @@ impl Closure {
     }
 
     #[inline]
-    pub(in super) unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
+    unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
         // Invariants of slice::from_raw_parts.
         assert!(!ptr.is_null());
         assert!(len <= isize::max_value() as usize);

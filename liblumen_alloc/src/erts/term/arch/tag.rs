@@ -5,18 +5,13 @@ pub enum Tag<T>
 where
     T: Clone + Copy + PartialEq + Eq,
 {
-    #[allow(unused)]
     Atom,
-    #[allow(unused)]
     Pid,
-    #[allow(unused)]
     Port,
-    #[allow(unused)]
     SmallInteger,
     BigInteger,
     Float,
     Tuple,
-    #[allow(unused)]
     List,
     Map,
     Closure,
@@ -29,7 +24,6 @@ where
     ExternalReference,
     Reference,
     ResourceReference,
-    #[allow(unused)]
     Nil,
     None,
     Box,

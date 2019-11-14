@@ -910,10 +910,10 @@ impl fmt::Debug for YoungHeap {
 mod tests {
     use super::*;
     use core::ptr;
+    use core::convert::TryInto;
 
+    use crate::{atom, fixnum};
     use crate::erts::process::alloc;
-    use crate::erts::term::list::{HeaplessListBuilder, ListBuilder};
-    use crate::erts::term::Atom;
 
     #[test]
     fn young_heap_alloc() {
@@ -942,29 +942,33 @@ mod tests {
         unsafe { ptr::write(nil, Term::NIL) };
 
         // Allocate the list `[101, "test"]`
-        let num = Term::make_smallint(101);
+        let num = fixnum!(101);
         let string = "test";
-        let string_term = yh.heapbin_from_str(string).unwrap();
-        let list_term = ListBuilder::new(&mut yh)
+        let string_len = string.len();
+        let string_term = yh.heapbin_from_str(string)
+            .unwrap();
+        let string_term_size = Layout::for_value(string_term.as_ref()).size();
+        let list = ListBuilder::new(&mut yh)
             .push(num)
-            .push(string_term)
+            .push(string_term.into())
             .finish()
             .unwrap();
+        let list_term: Term = list.into();
         let list_size =
-            to_word_size((mem::size_of::<Cons>() * 2) + mem::size_of::<HeapBin>() + string.len());
-        assert_eq!(yh.heap_used(), 1 + list_size);
+            to_word_size((mem::size_of::<Cons>() * 2) + string_term_size + string_len);
+        assert_eq!(yh.heap_used(), list_size);
         assert!(list_term.is_list());
-        let list_ptr = list_term.list_val();
+        let list_ptr: *mut Cons = list_term.dyn_cast();
         let first_cell = unsafe { &*list_ptr };
         assert!(first_cell.head.is_smallint());
         assert!(first_cell.tail.is_list());
-        let tail_ptr = first_cell.tail.list_val();
+        let tail_ptr: *mut Cons = first_cell.tail.dyn_cast();
         let second_cell = unsafe { &*tail_ptr };
         assert!(second_cell.head.is_boxed());
-        let bin_ptr = second_cell.head.boxed_val();
+        let bin_ptr: *mut Term = second_cell.head.dyn_cast();
         let bin_term = unsafe { *bin_ptr };
         assert!(bin_term.is_heapbin());
-        let hb = unsafe { &*(bin_ptr as *mut HeapBin) };
+        let hb = unsafe { HeapBin::from_raw_term(bin_ptr) };
         assert_eq!(hb.as_str(), string);
     }
 
@@ -974,8 +978,8 @@ mod tests {
         let mut yh = YoungHeap::new(heap, heap_size);
 
         // Allocate the list `[101, :foo]` on the stack
-        let num = Term::make_smallint(101);
-        let foo = unsafe { Atom::try_from_str("foo").unwrap().decode() };
+        let num = fixnum!(101);
+        let foo = atom!("foo");
         let _list_term = HeaplessListBuilder::new(&mut yh)
             .push(num)
             .push(foo)
@@ -993,7 +997,7 @@ mod tests {
         let string_term = yh.heapbin_from_str(string).unwrap();
         unsafe {
             let ptr = yh.alloca(1).unwrap().as_ptr();
-            ptr::write(ptr, string_term);
+            ptr::write(ptr, string_term.into());
         }
 
         // Verify stack sizes
@@ -1011,10 +1015,10 @@ mod tests {
         assert_eq!(slot_term_addr, unsafe { yh.stack_start.add(1) });
         let slot_term = unsafe { *slot_term_addr };
         assert!(slot_term.is_non_empty_list());
-        let list = unsafe { *slot_term.list_val() };
+        let list: Boxed<Cons> = slot_term.try_into().unwrap();
         assert!(list.head.is_smallint());
         assert!(list.tail.is_non_empty_list());
-        let tail = unsafe { *list.tail.list_val() };
+        let tail: Boxed<Cons> = list.tail.try_into().unwrap();
         assert!(tail.head.is_atom());
         assert!(tail.tail.is_nil());
     }

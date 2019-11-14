@@ -4,6 +4,7 @@ use core::ptr;
 use core::slice;
 use core::str;
 use core::iter;
+use core::mem;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::{self, HeapAlloc};
@@ -44,10 +45,10 @@ impl HeapBin {
     /// great question! Luckily it has a fairly straightforward, yet mind-bendy
     /// explanation:
     ///
-    /// If we redefined `HeapBin` as `HeapBin<T>`, where the `data` field has
-    /// type `T`, then we could say that the structural layout of `[HeapBin<u8>; 1]`
-    /// is equivalent to that of `HeapBin<[u8; 1]>`. This should make intuitive
-    /// sense, as the variable-length part of the structure occurs at the end, and
+    /// If we redefined `HeapBin` (sans `flags` field, we'll get to that) as `HeapBin<T>`,
+    /// where the `data` field has type `[T]`, then we could say that the structural layout
+    /// of `[HeapBin<u8>; 1]` is equivalent to that of `HeapBin<[u8; 1]>`. This should make
+    /// intuitive sense, as the variable-length part of the structure occurs at the end, and
     /// the layout of `[T; 1]` is equivalent to the layout of `T` itself.
     ///
     /// So given this structural equivalence, the second piece of the puzzle is
@@ -64,27 +65,40 @@ impl HeapBin {
     /// is used as the length of the unsized slice at the end (i.e. the `data` field);
     /// this is due to the unsizing coercion performed by Rust.
     ///
+    /// Now, to apply the above to our actual definition of `HeapBin`, we have to account
+    /// for some some extra properties:
+    ///
+    /// - We have an extra field, `flags`
+    /// - Our `header` and `flags` fields are word-sized, but..
+    /// - Our `data` field is a slice of _byte-sized_ elements
+    ///
+    /// The result is that the equivalence of `HeapBin<[u8]>` and `[HeapBin<u8>]` doesn't
+    /// hold. However, we can cheat a bit as long as we know the precise size of the
+    /// binary data originally stored - which in our case is given by accessing that size
+    /// from the `flags` field. Using that size, we can calculate the precise size in bytes
+    /// of the entire `HeapBin` struct, ensuring that our coercion from a `*mut u8` remains
+    /// correct.
+    ///
     /// - [1](https://github.com/rust-lang/rfcs/blob/master/text/0982-dst-coercion.md)
     /// - [2](http://doc.rust-lang.org/1.38.0/std/marker/trait.Unsize.html)
     #[inline]
-    pub(in crate::erts::term) unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
+    pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
+        let header_ptr = term as *mut Header<HeapBin>;
+        // Get precise size in bytes of binary data
+        let flags = &*(header_ptr.add(1) as *mut BinaryFlags);
+        let bin_len = flags.get_size();
+
+        Self::from_raw_parts(term as *const u8, bin_len)
+    }
+
+    #[inline]
+    unsafe fn from_raw_parts(ptr: *const u8, len: usize) -> Boxed<Self> {
         // Invariants of slice::from_raw_parts.
         assert!(!ptr.is_null());
         assert!(len <= isize::max_value() as usize);
 
-        let slice = core::slice::from_raw_parts(ptr as *const (), len);
-        Boxed::new_unchecked(slice as *const [()] as *mut Self)
-    }
-
-    /// Reifies a reference to a `HeapBin` from a pointer to `Term`
-    ///
-    /// It is expected that the `Term` on the other end is the header
-    #[inline]
-    pub unsafe fn from_raw_term(term: *mut Term) -> Boxed<Self> {
-        let header = &*(term as *mut Header<HeapBin>);
-        let arity = header.arity();
-
-        Self::from_raw_parts(term as *const u8, arity)
+        let slice = core::slice::from_raw_parts(ptr, len);
+        Boxed::new_unchecked(slice as *const [u8] as *mut Self)
     }
 
     /// Creates a new `HeapBin` from a str slice, by copying it to the heap
@@ -129,19 +143,21 @@ impl HeapBin {
     unsafe fn copy_slice_to_internal(dst: *mut u8, s: &[u8], encoding: Encoding, flags_offset: usize, data_offset: usize) -> Boxed<Self> {
         let len = s.len();
         // Write header
-        let header = Header::from_arity(len);
+        let arity = erts::to_word_size(len + mem::size_of::<BinaryFlags>());
+        let header = Header::from_arity(arity);
         ptr::write(dst as *mut Header<HeapBin>, header);
         let flags_ptr = dst.offset(flags_offset as isize) as *mut BinaryFlags;
-        ptr::write(flags_ptr, BinaryFlags::new(encoding));
-        let data_ptr = dst.offset(data_offset as isize);
+        let flags = BinaryFlags::new(encoding).set_size(len);
+        ptr::write(flags_ptr, flags);
+        let data_ptr = dst.add(data_offset);
         ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, len);
 
         Self::from_raw_parts(dst, len)
     }
 
     fn layout_for(s: &[u8]) -> (Layout, usize, usize) {
-        let (base_layout, flags_offset) = Layout::new::<Term>()
-            .extend(Layout::new::<usize>())
+        let (base_layout, flags_offset) = Layout::new::<Header<HeapBin>>()
+            .extend(Layout::new::<BinaryFlags>())
             .unwrap();
         let (unpadded_layout, data_offset) = base_layout
             .extend(Layout::for_value(s))
@@ -223,8 +239,7 @@ impl CloneToProcess for HeapBin {
     }
 
     fn size_in_words(&self) -> usize {
-        let layout = Layout::for_value(self);
-        erts::to_word_size(layout.size())
+        self.header.arity()
     }
 }
 

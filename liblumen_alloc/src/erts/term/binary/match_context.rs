@@ -299,10 +299,9 @@ impl CloneToProcess for MatchContext {
                 } else {
                     // Need to make sure that the heapbin is cloned as well, and that the header is suitably
                     // updated
-                    let bin_size = bin.size();
                     let new_bin = bin.clone_to_heap(heap)?;
                     let new_bin_ptr: *mut Term = new_bin.dyn_cast();
-                    let new_bin_box = unsafe { HeapBin::from_raw_parts(new_bin_ptr as *mut u8, bin_size) };
+                    let new_bin_box = unsafe { HeapBin::from_raw_term(new_bin_ptr) };
                     let new_bin_ref = new_bin_box.as_ref();
                     let old_bin_ptr = unsafe { bin.as_byte_ptr() };
                     let old_bin_base = self.buffer.base;

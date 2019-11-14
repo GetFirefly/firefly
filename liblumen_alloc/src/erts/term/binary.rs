@@ -200,14 +200,14 @@ impl BinaryFlags {
             Self::FLAG_IS_RAW_BIN => Encoding::Raw,
             Self::FLAG_IS_LATIN1_BIN => Encoding::Latin1,
             Self::FLAG_IS_UTF8_BIN => Encoding::Utf8,
-            _ => unreachable!()
+            value => unreachable!("{}", value)
         }
     }
 
     #[inline]
     pub fn set_size(self, size: usize) -> Self {
         assert!(size <= (usize::max_value() << Self::FLAG_BITS), "binary size is too large!");
-        Self(self.0 << Self::FLAG_BITS)
+        Self(self.0 | (size << Self::FLAG_BITS))
     }
 
     #[inline]

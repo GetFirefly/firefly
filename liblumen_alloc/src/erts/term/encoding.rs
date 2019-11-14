@@ -1,7 +1,6 @@
 use core::alloc::Layout;
 use core::fmt::{self, Debug};
 use core::mem;
-use core::hash;
 use core::marker::PhantomData;
 use core::convert::TryInto;
 
@@ -13,7 +12,7 @@ use crate::erts::{self, HeapAlloc};
 use crate::erts::exception::{AllocResult, Result};
 
 use super::prelude::*;
-use super::arch::Word;
+use super::arch::{Repr, Word};
 
 /// Represents the various conditions under which encoding can fail
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,13 +99,13 @@ impl<T: ?Sized> Header<T> {
     /// Returns the size in bytes of the value this header represents, including the header
     #[inline]
     pub fn size(&self) -> usize {
-        mem::size_of::<Term>() * (self.arity() + 1)
+        mem::size_of::<Term>() * self.size_in_words()
     }
 
     /// Returns the size in words of the value this header represents, including the header
     #[inline]
     pub fn size_in_words(&self) -> usize {
-        erts::to_word_size(self.size())
+        self.arity() + 1
     }
 
     /// Returns the size in words of the value this header represents, not including the header
@@ -124,8 +123,6 @@ impl<T: ?Sized> Header<T> {
 }
 impl<T: ?Sized> Debug for Header<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use crate::erts::term::arch::Repr;
-
         let name = core::any::type_name::<T>();
         write!(f, "Header<{}>({:#b})", name, self.value.as_usize())
     }
@@ -133,8 +130,6 @@ impl<T: ?Sized> Debug for Header<T> {
 const_assert_eq!(mem::size_of::<Header<usize>>(), mem::size_of::<usize>());
 impl Header<Map> {
     pub fn from_map(map: &HashMap<Term, Term>) -> Self {
-        use crate::erts::term::arch::Repr;
-
         // NOTE: This size only accounts for the HashMap header, not the values
         let layout = Layout::for_value(map);
         let map_size = layout.size();
@@ -154,9 +149,8 @@ impl DynamicHeader for Tuple { const TAG: Word = Term::HEADER_TUPLE; }
 impl DynamicHeader for HeapBin { const TAG: Word = Term::HEADER_HEAPBIN; }
 impl<T: ?Sized + DynamicHeader> Header<T> {
     pub fn from_arity(arity: usize) -> Self {
-        use crate::erts::term::arch::Repr;
-
-        let value = Term::encode_header(arity.try_into().unwrap(), T::TAG);
+        let arity = arity.try_into().unwrap();
+        let value = Term::encode_header(arity, T::TAG);
         Self { value, _phantom: PhantomData }
     }
 }
@@ -179,8 +173,6 @@ impl StaticHeader for SubBinary { const TAG: Word = Term::HEADER_SUBBINARY; }
 impl StaticHeader for MatchContext { const TAG: Word = Term::HEADER_MATCH_CTX; }
 impl<T: StaticHeader> Default for Header<T> {
     fn default() -> Self {
-        use crate::erts::term::arch::Repr;
-
         let arity = Self::to_word_size(Self::static_arity());
         let value = Term::encode_header(arity.try_into().unwrap(), T::TAG);
         Self { value, _phantom: PhantomData }
@@ -224,7 +216,7 @@ pub trait Cast<T>: Encoded {
 /// to `self` to prevent copying the original term in cases where the location in memory is
 /// important. However, several functions of this trait do not, and it is assumed that those
 /// functions are not dependent on a specific memory address. If that constraint is violated
-pub trait Encoded: Sized + Copy + Send + PartialEq<Self> + PartialOrd<Self> + Ord + hash::Hash {
+pub trait Encoded: Repr + Copy {
     /// Decodes `Self` into a `TypedTerm`, unless the encoded value is
     /// invalid or malformed.
     ///
@@ -249,7 +241,8 @@ pub trait Encoded: Sized + Copy + Send + PartialEq<Self> + PartialOrd<Self> + Or
     fn is_nil(self) -> bool;
     /// Returns `true` if the encoded value represents a `Cons` value (non-empty list)
     fn is_list(self) -> bool;
-    /// This is an alias for `is_cons` which better expresses intent in some instances
+    /// This is an alias for `is_list` which better expresses intent in some instances
+    #[inline(always)]
     fn is_non_empty_list(self) -> bool {
         self.is_list()
     }
@@ -387,10 +380,7 @@ pub trait Encoded: Sized + Copy + Send + PartialEq<Self> + PartialOrd<Self> + Or
 
     /// Returns the size in bytes of the term in memory
     fn sizeof(&self) -> usize {
-        match self.decode() {
-            Ok(tt) => tt.sizeof(),
-            Err(_) => mem::size_of::<Term>(),
-        }
+        erts::to_word_size(self.arity() + 1)
     }
 
     /// Returns the arity of this term, which reflects the number of words of data
@@ -398,8 +388,13 @@ pub trait Encoded: Sized + Copy + Send + PartialEq<Self> + PartialOrd<Self> + Or
     ///
     /// Returns zero for immediates/pointers
     fn arity(&self) -> usize {
-        let size = self.sizeof();
-        erts::to_word_size(size - mem::size_of::<Term>())
+        if self.is_header() {
+            <Self as Repr>::word_to_usize(unsafe { self.decode_header_value() })
+        } else {
+            // All other term types are required to be immediate/word-sized,
+            // and as such, have no arity
+            0
+        }
     }
 }
 

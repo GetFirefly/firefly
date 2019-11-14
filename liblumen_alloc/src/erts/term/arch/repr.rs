@@ -6,14 +6,16 @@ use crate::erts::term::prelude::*;
 
 use super::Tag;
 
-pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self> + Ord + Hash + Send {
+pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self> + Ord + Hash + Send {
     type Word: Clone + Copy + PartialEq + Eq + Debug + fmt::Binary;
 
-    fn as_usize(self) -> usize;
+    fn as_usize(&self) -> usize;
+
+    fn word_to_usize(word: Self::Word) -> usize;
 
     fn value(&self) -> Self::Word;
 
-    fn type_of(self) -> Tag<Self::Word>;
+    fn type_of(&self) -> Tag<Self::Word>;
 
     fn encode_immediate(value: Self::Word, tag: Self::Word) -> Self;
     fn encode_header(value: Self::Word, tag: Self::Word) -> Self;
@@ -28,9 +30,14 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
     unsafe fn decode_pid(self) -> Pid;
     unsafe fn decode_port(self) -> Port;
 
-    /// Used to access the value stored in a header word.
+    /// Access the raw header value contained in this term
     ///
-    /// NOTE: This is unsafe to use on any term except one where the tag is a valid header type
+    /// # Safety
+    ///
+    /// This function is unsafe because it makes the assumption that
+    /// type checking has already been performed and the implementation may
+    /// assume that it is operating on a header word. Undefined behaviour
+    /// will result if this is invoked on any other term.
     unsafe fn decode_header_value(&self) -> Self::Word;
 
     fn decode_header(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> exception::Result<TypedTerm> {
@@ -44,24 +51,15 @@ pub trait Repr: Sized + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self
             // NOTE: This happens with a few other types as well, so if you see this pattern,
             // the reasoning is the same for each case
             Tag::Tuple => {
-                let arity = ptr.cast::<Header<Tuple>>()
-                    .as_ref()
-                    .arity();
-                let tuple = unsafe { Tuple::from_raw_parts(ptr.as_ptr() as *mut u8, arity) };
+                let tuple = unsafe { Tuple::from_raw_term(ptr.cast::<Term>().as_ptr()) };
                 Ok(TypedTerm::Tuple(tuple))
             }
             Tag::Closure => {
-                let arity = ptr.cast::<Header<Closure>>()
-                    .as_ref()
-                    .arity();
-                let closure = unsafe { Closure::from_raw_parts(ptr.as_ptr() as *mut u8, arity) };
+                let closure = unsafe { Closure::from_raw_term(ptr.cast::<Term>().as_ptr()) };
                 Ok(TypedTerm::Closure(closure))
             }
             Tag::HeapBinary => {
-                let arity = ptr.cast::<Header<HeapBin>>()
-                    .as_ref()
-                    .arity();
-                let bin = unsafe { HeapBin::from_raw_parts(ptr.as_ptr() as *mut u8, arity) };
+                let bin = unsafe { HeapBin::from_raw_term(ptr.cast::<Term>().as_ptr()) };
                 Ok(TypedTerm::HeapBinary(bin))
             }
             #[cfg(not(target_arch = "x86_64"))]

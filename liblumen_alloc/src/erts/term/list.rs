@@ -271,6 +271,7 @@ impl CloneToProcess for Cons {
         }
 
         heap.improper_list_from_slice(&vec, tail)
+            .map(|list| list.into())
     }
 
     fn size_in_words(&self) -> usize {
@@ -719,124 +720,76 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::erts::term::prelude::SmallInteger;
+
+    use crate::erts::testing::RegionHeap;
+    use crate::erts::process::HeapAlloc;
 
     mod clone_to_heap {
         use super::*;
 
-        use ::alloc::sync::Arc;
-
-        use crate::erts::process::{alloc, Priority, Process};
-        use crate::erts::scheduler;
-        use crate::erts::term::prelude::Atom;
-        use crate::erts::ModuleFunctionArity;
-
         #[test]
-        fn single_element() {
-            let process = process();
-            let head = Atom::str_to_term("head");
-            let tail = Term::NIL;
-            let cons_term = process.cons(head, tail).unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+        fn list_single_element() {
+            let mut heap = RegionHeap::default();
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = cons!(heap, atom!("head"));
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
 
         #[test]
-        fn two_element_proper() {
-            let process = process();
-            let element0 = process.integer(0).unwrap();
-            let element1 = process.integer(1).unwrap();
-            let tail = Term::NIL;
-            let cons_term = process
-                .cons(element0, process.cons(element1, tail).unwrap())
-                .unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+        fn list_two_element_proper() {
+            let mut heap = RegionHeap::default();
+            let element0 = fixnum!(0);
+            let element1 = fixnum!(1);
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = cons!(heap, element0, element1);
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
 
         #[test]
-        fn three_element_proper() {
-            let process = process();
-            let element0 = process.integer(0).unwrap();
-            let element1 = process.integer(1).unwrap();
-            let element2 = process.integer(2).unwrap();
-            let tail = Term::NIL;
-            let cons_term = process
-                .cons(
-                    element0,
-                    process
-                        .cons(element1, process.cons(element2, tail).unwrap())
-                        .unwrap(),
-                )
-                .unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+        fn list_three_element_proper() {
+            let mut heap = RegionHeap::default();
+            let element0 = fixnum!(0);
+            let element1 = fixnum!(1);
+            let element2 = heap.binary_from_str("hello world!").unwrap();
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = cons!(heap, element0, element1, element2);
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
 
         #[test]
-        fn tree_element_proper_with_nil_element() {
-            let process = process();
-            let element0 = process.integer(0).unwrap();
+        fn list_three_element_proper_with_nil_element() {
+            let mut heap = RegionHeap::default();
+            let element0 = fixnum!(0);
             let element1 = Term::NIL;
-            let element2 = process.integer(2).unwrap();
-            let tail = Term::NIL;
-            let cons_term = process
-                .cons(
-                    element0,
-                    process
-                        .cons(element1, process.cons(element2, tail).unwrap())
-                        .unwrap(),
-                )
-                .unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+            let element2 = fixnum!(2);
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = cons!(heap, element0, element1, element2);
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
 
         #[test]
-        fn two_element_improper() {
-            let process = process();
-            let head = Atom::str_to_term("head");
-            let tail = Atom::str_to_term("tail");
-            let cons_term = process.cons(head, tail).unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+        fn list_two_element_improper() {
+            let mut heap = RegionHeap::default();
+            let head = atom!("head");
+            let tail = atom!("tail");
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = improper_cons!(heap, head, tail);
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
-        }
-
-        fn process() -> Process {
-            let init = Atom::try_from_str("init").unwrap();
-            let initial_module_function_arity = Arc::new(ModuleFunctionArity {
-                module: init,
-                function: init,
-                arity: 0,
-            });
-            let (heap, heap_size) = alloc::default_heap().unwrap();
-
-            let process = Process::new(
-                Priority::Normal,
-                None,
-                initial_module_function_arity,
-                heap,
-                heap_size,
-            );
-
-            process.schedule_with(scheduler::id::next());
-
-            process
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
     }
 
@@ -844,17 +797,14 @@ mod tests {
         use super::*;
 
         #[test]
-        fn proper_list_iter() {
-            let a = SmallInteger::new(42).unwrap().encode();
-            let b = SmallInteger::new(24).unwrap().encode();
-            let c = SmallInteger::new(11).unwrap().encode();
-            let last = Cons::new(c, Term::NIL);
-            let last_term = last.encode();
-            let second = Cons::new(b, last_term);
-            let second_term = second.encode();
-            let first = Cons::new(a, second_term);
+        fn list_proper_list_iter() {
+            let mut heap = RegionHeap::default();
+            let a = fixnum!(42);
+            let b = fixnum!(24);
+            let c = fixnum!(11);
+            let cons = cons!(heap, a, b, c);
 
-            let mut list_iter = first.into_iter();
+            let mut list_iter = cons.into_iter();
             let l0 = list_iter.next().unwrap();
             assert_eq!(l0, Ok(a));
             let l1 = list_iter.next().unwrap();
@@ -866,18 +816,15 @@ mod tests {
         }
 
         #[test]
-        fn improper_list_iter() {
-            let a = SmallInteger::new(42).unwrap().encode();
-            let b = SmallInteger::new(24).unwrap().encode();
-            let c = SmallInteger::new(11).unwrap().encode();
-            let d = SmallInteger::new(99).unwrap().encode();
-            let last = Cons::new(c, d);
-            let last_term = last.encode();
-            let second = Cons::new(b, last_term);
-            let second_term = second.encode();
-            let first = Cons::new(a, second_term);
+        fn list_improper_list_iter() {
+            let mut heap = RegionHeap::default();
+            let a = fixnum!(42);
+            let b = fixnum!(24);
+            let c = fixnum!(11);
+            let d = fixnum!(99);
+            let cons = improper_cons!(heap, a, b, c, d);
 
-            let mut list_iter = first.into_iter();
+            let mut list_iter = cons.into_iter();
             let l0 = list_iter.next().unwrap();
             assert_eq!(l0, Ok(a));
             let l1 = list_iter.next().unwrap();

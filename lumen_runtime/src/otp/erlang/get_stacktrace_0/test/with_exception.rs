@@ -6,7 +6,7 @@ use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::{atom, badarg, badarith, badarity, badfun, badkey, exit};
+use liblumen_alloc::{atom, badarg, badarith, badarity, badfun, badkey, badmap, exit};
 
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -102,6 +102,21 @@ fn badkey_includes_stacktrace() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |key| {
                 arc_process.exception(badkey!(&arc_process, key).try_into().unwrap());
+
+                prop_assert_eq!(native(&arc_process), Ok(stacktrace(&arc_process)));
+
+                Ok(())
+            })
+            .unwrap();
+    });
+}
+
+#[test]
+fn badmap_includes_stacktrace() {
+    with_process_arc(|arc_process| {
+        TestRunner::new(Config::with_source_file(file!()))
+            .run(&strategy::term(arc_process.clone()), |map| {
+                arc_process.exception(badmap!(&arc_process, map).try_into().unwrap());
 
                 prop_assert_eq!(native(&arc_process), Ok(stacktrace(&arc_process)));
 

@@ -535,8 +535,17 @@ impl CloneToProcess for Term {
         if self.is_immediate() || self.is_literal() {
             Ok(*self)
         } else if self.is_boxed() || self.is_non_empty_list() {
-            let tt = self.decode().unwrap();
-            tt.clone_to_heap(heap)
+            // There is no need to clone the actual object to this
+            // heap if it is already there, just clone a pointer
+            let ptr: *mut Term = self.dyn_cast();
+            if heap.contains(ptr) {
+                // Just return self
+                Ok(*self)
+            } else {
+                // We're good to clone
+                let tt = self.decode().unwrap();
+                tt.clone_to_heap(heap)
+            }
         } else {
             panic!("clone_to_heap called on invalid term type: {:?}", self);
         }

@@ -37,7 +37,7 @@ pub fn native(process: &Process) -> exception::Result<Term> {
                         .list_from_slice(&stack_item_vec)
                         .map_err(|error| error.into())
                 }
-                Stacktrace::Term(term) => Ok(term),
+                Stacktrace::Term(term) => Ok(*term),
             },
             None => Ok(Term::NIL),
         },

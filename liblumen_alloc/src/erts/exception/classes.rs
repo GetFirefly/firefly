@@ -12,18 +12,15 @@ use super::Location;
 #[error("** throw: {reason} at {location}")]
 pub struct Throw {
     reason: Term,
-    stacktrace: Option<Term>,
+    stacktrace: Stacktrace,
     location: Location,
 }
 impl Throw {
-    pub fn new(reason: Term, location: Location) -> Self {
-        Self::new_with_trace(reason, location, None)
-    }
-    pub fn new_with_trace(reason: Term, location: Location, trace: Option<Term>) -> Self {
+    pub fn new<S: Into<Stacktrace>>(reason: Term, location: Location, stacktrace: S) -> Self {
         Self {
             reason,
             location,
-            stacktrace: trace,
+            stacktrace: stacktrace.into(),
         }
     }
     pub fn class(&self) -> Class {
@@ -32,8 +29,8 @@ impl Throw {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Option<Term> {
-        self.stacktrace
+    pub fn stacktrace(&self) -> &Stacktrace {
+        &self.stacktrace
     }
     pub fn location(&self) -> Location {
         self.location
@@ -48,7 +45,7 @@ impl fmt::Debug for Throw {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Throw")
             .field("reason", &self.reason.decode())
-            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("stacktrace", &self.stacktrace)
             .field("location", &self.location)
             .finish()
     }
@@ -84,8 +81,8 @@ impl Error {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Stacktrace {
-        self.stacktrace.clone()
+    pub fn stacktrace(&self) -> &Stacktrace {
+        &self.stacktrace
     }
     pub fn location(&self) -> Location {
         self.location
@@ -128,8 +125,8 @@ impl Exit {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Stacktrace {
-        self.stacktrace.clone()
+    pub fn stacktrace(&self) -> &Stacktrace {
+        &self.stacktrace
     }
     pub fn location(&self) -> Location {
         self.location

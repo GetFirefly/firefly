@@ -60,9 +60,9 @@ impl RuntimeException {
         }
     }
 
-    pub fn stacktrace(&self) -> Option<Stacktrace> {
+    pub fn stacktrace(&self) -> Option<&Stacktrace> {
         match self {
-            RuntimeException::Throw(e) => e.stacktrace().map(|term| Stacktrace::Term(term)),
+            RuntimeException::Throw(e) => Some(e.stacktrace()),
             RuntimeException::Exit(e) => Some(e.stacktrace()),
             RuntimeException::Error(e) => Some(e.stacktrace()),
             RuntimeException::Unknown(_err) => None,

@@ -5,20 +5,20 @@ use super::{Exception, Location, RuntimeException, Stacktrace};
 
 #[inline]
 pub fn badarg<S: Into<Stacktrace>>(stacktrace: S, location: Location) -> RuntimeException {
-    self::error(atom("badarg"), None, location, stacktrace)
+    self::error(atom!("badarg"), None, location, stacktrace)
 }
 
 #[inline]
 pub fn badarith<S: Into<Stacktrace>>(stacktrace: S, location: Location) -> RuntimeException {
-    self::error(atom("badarith"), None, location, stacktrace)
+    self::error(atom!("badarith"), None, location, stacktrace)
 }
 
 pub fn badarity<S: Into<Stacktrace>>(
     process: &Process,
-    stacktrace: S,
     fun: Term,
     args: Term,
     location: Location,
+    stacktrace: S,
 ) -> Exception {
     match process.tuple_from_slice(&[fun, args]) {
         Ok(fun_args) => {
@@ -34,9 +34,9 @@ pub fn badarity<S: Into<Stacktrace>>(
 
 pub fn badfun<S: Into<Stacktrace>>(
     process: &Process,
-    stacktrace: S,
     fun: Term,
     location: Location,
+    stacktrace: S,
 ) -> Exception {
     let tag = atom("badfun");
     match process.tuple_from_slice(&[tag, fun]) {
@@ -47,9 +47,9 @@ pub fn badfun<S: Into<Stacktrace>>(
 
 pub fn badkey<S: Into<Stacktrace>>(
     process: &Process,
-    stacktrace: S,
     key: Term,
     location: Location,
+    stacktrace: S,
 ) -> Exception {
     let tag = atom("badkey");
     match process.tuple_from_slice(&[tag, key]) {
@@ -60,9 +60,9 @@ pub fn badkey<S: Into<Stacktrace>>(
 
 pub fn badmap<S: Into<Stacktrace>>(
     process: &Process,
-    stacktrace: S,
     map: Term,
     location: Location,
+    stacktrace: S,
 ) -> Exception {
     let tag = atom("badmap");
     match process.tuple_from_slice(&[tag, map]) {
@@ -90,19 +90,18 @@ pub fn undef(
     }
 }
 
-#[inline]
-pub fn raise(
+pub fn raise<S: Into<Stacktrace>>(
     class: super::Class,
     reason: Term,
     location: Location,
-    stacktrace: Option<Term>,
+    stacktrace: S,
 ) -> RuntimeException {
     use super::Class;
 
     match class {
-        Class::Exit => self::exit(reason, location, stacktrace.unwrap()),
+        Class::Exit => self::exit(reason, location, stacktrace),
         Class::Throw => self::throw(reason, location, stacktrace),
-        Class::Error { arguments } => self::error(reason, arguments, location, stacktrace.unwrap()),
+        Class::Error { arguments } => self::error(reason, arguments, location, stacktrace),
     }
 }
 
@@ -129,10 +128,14 @@ pub fn error<S: Into<Stacktrace>>(
 }
 
 #[inline]
-pub fn throw(reason: Term, location: Location, stacktrace: Option<Term>) -> RuntimeException {
+pub fn throw<S: Into<Stacktrace>>(
+    reason: Term,
+    location: Location,
+    stacktrace: S,
+) -> RuntimeException {
     use super::Throw;
 
-    RuntimeException::Throw(Throw::new_with_trace(reason, location, stacktrace))
+    RuntimeException::Throw(Throw::new(reason, location, stacktrace))
 }
 
 #[inline(always)]

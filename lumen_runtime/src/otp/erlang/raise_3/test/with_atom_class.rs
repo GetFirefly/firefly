@@ -73,7 +73,7 @@ fn with_class_with_empty_list_stacktrace_raises() {
 
                     prop_assert_eq!(
                         native(&arc_process, class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
+                        Err(raise!(stacktrace, class_variant, reason).into())
                     );
 
                     Ok(())
@@ -327,7 +327,7 @@ fn with_atom_module_with_atom_function_with_arity_raises() {
 
                     prop_assert_eq!(
                         native(&arc_process, class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
+                        Err(raise!(stacktrace, class_variant, reason).into())
                     );
 
                     Ok(())
@@ -358,7 +358,7 @@ fn with_atom_module_with_atom_function_with_arguments_raises() {
 
                     prop_assert_eq!(
                         native(&arc_process, class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
+                        Err(raise!(stacktrace, class_variant, reason).into())
                     );
 
                     Ok(())
@@ -390,7 +390,7 @@ fn with_mfa_with_empty_location_raises() {
 
                     prop_assert_eq!(
                         native(&arc_process, class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
+                        Err(raise!(stacktrace, class_variant, reason).into())
                     );
 
                     Ok(())
@@ -428,7 +428,7 @@ fn with_mfa_with_file_raises() {
 
                     prop_assert_eq!(
                         native(&arc_process, class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
+                        Err(raise!(stacktrace, class_variant, reason).into())
                     );
 
                     Ok(())
@@ -473,7 +473,7 @@ fn with_mfa_with_positive_line_raises() {
 
                     prop_assert_eq!(
                         native(&arc_process, class, reason, stacktrace),
-                        Err(raise!(class_variant, reason, stacktrace).into())
+                        Err(raise!(stacktrace, class_variant, reason).into())
                     );
 
                     Ok(())
@@ -529,7 +529,7 @@ fn with_mfa_with_file_and_line_raises() {
 
                 prop_assert_eq!(
                     native(&arc_process, class, reason, stacktrace),
-                    Err(raise!(class_variant, reason, stacktrace).into())
+                    Err(raise!(stacktrace, class_variant, reason).into())
                 );
 
                 Ok(())

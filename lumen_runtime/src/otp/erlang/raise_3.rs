@@ -26,7 +26,7 @@ pub fn native(
     let class_class: exception::Class = class.try_into().map_err(|_| badarg!(process))?;
 
     let runtime_exception = if stacktrace::is(stacktrace) {
-        raise!(class_class, reason, stacktrace).into()
+        raise!(stacktrace, class_class, reason).into()
     } else {
         badarg!(process)
     };

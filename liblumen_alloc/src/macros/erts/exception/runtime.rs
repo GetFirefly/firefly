@@ -15,15 +15,15 @@ macro_rules! badarith {
 #[macro_export]
 macro_rules! badarity {
     ($process:expr, $function:expr, $arguments:expr) => {
-        $crate::badarity!($process, $process, $function, $arguments)
+        $crate::badarity!($process, $function, $arguments, $process)
     };
-    ($process:expr, $stacktrace:expr, $function:expr, $arguments:expr) => {
+    ($process:expr, $function:expr, $arguments:expr, $stacktrace:expr) => {
         $crate::erts::exception::badarity(
             $process,
-            $stacktrace,
             $function,
             $arguments,
             $crate::location!(),
+            $stacktrace,
         )
     };
 }
@@ -31,30 +31,30 @@ macro_rules! badarity {
 #[macro_export]
 macro_rules! badfun {
     ($process:expr, $fun:expr) => {
-        $crate::badfun!($process, $process, $fun)
+        $crate::badfun!($process, $fun, $process)
     };
-    ($process:expr, $stacktrace:expr, $fun:expr) => {
-        $crate::erts::exception::badfun($process, $stacktrace, $fun, $crate::location!())
+    ($process:expr, $fun:expr, $stacktrace:expr) => {
+        $crate::erts::exception::badfun($process, $fun, $crate::location!(), $stacktrace)
     };
 }
 
 #[macro_export]
 macro_rules! badkey {
     ($process:expr, $key:expr) => {
-        $crate::badkey!($process, $process, $key)
+        $crate::badkey!($process, $key, $process)
     };
-    ($process:expr, $stacktrace:expr, $key:expr) => {
-        $crate::erts::exception::badkey($process, $stacktrace, $key, $crate::location!())
+    ($process:expr, $key:expr, $stacktrace:expr) => {
+        $crate::erts::exception::badkey($process, $key, $crate::location!(), $stacktrace)
     };
 }
 
 #[macro_export]
 macro_rules! badmap {
     ($process:expr, $map:expr) => {
-        $crate::badmap!($process, $process, $map)
+        $crate::badmap!($process, $map, $process)
     };
-    ($process:expr, $stacktrace:expr, $map:expr) => {
-        $crate::erts::exception::badmap($process, $stacktrace, $map, $crate::location!())
+    ($process:expr, $map:expr, $stacktrace:expr) => {
+        $crate::erts::exception::badmap($process, $map, $crate::location!(), $stacktrace)
     };
 }
 
@@ -84,11 +84,8 @@ macro_rules! undef {
 
 #[macro_export]
 macro_rules! raise {
-    ($class:expr, $reason:expr) => {
-        $crate::erts::exception::raise($class, $reason, $crate::location!(), None)
-    };
-    ($class:expr, $reason:expr, $stacktrace:expr) => {
-        $crate::erts::exception::raise($class, $reason, $crate::location!(), Some($stacktrace))
+    ($stacktrace:expr, $class:expr, $reason:expr) => {
+        $crate::erts::exception::raise($class, $reason, $crate::location!(), $stacktrace)
     };
 }
 
@@ -111,10 +108,7 @@ macro_rules! exit {
 
 #[macro_export]
 macro_rules! throw {
-    ($reason:expr) => {
-        $crate::erts::exception::throw($reason, $crate::location!(), None)
-    };
-    ($reason:expr, $stacktrace:expr) => {
-        $crate::erts::exception::throw($reason, $crate::location!(), Some($stacktrace))
+    ($stacktrace:expr, $reason:expr) => {
+        $crate::erts::exception::throw($reason, $crate::location!(), $stacktrace)
     };
 }

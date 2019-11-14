@@ -42,7 +42,12 @@ pub fn badfun(process: &Process, fun: Term, location: Location) -> Exception {
 pub fn badkey(process: &Process, key: Term, location: Location) -> Exception {
     let tag = atom("badkey");
     match process.tuple_from_slice(&[tag, key]) {
-        Ok(reason) => Exception::Runtime(self::error(reason, None, location, None)),
+        Ok(reason) => Exception::Runtime(self::error(
+            reason,
+            None,
+            location,
+            Some(process.stacktrace().into()),
+        )),
         Err(err) => err.into(),
     }
 }

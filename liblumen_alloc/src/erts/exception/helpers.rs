@@ -13,12 +13,18 @@ pub fn badarith<S: Into<Stacktrace>>(stacktrace: S, location: Location) -> Runti
     self::error(atom("badarith"), None, location, stacktrace)
 }
 
-pub fn badarity(process: &Process, fun: Term, args: Term, location: Location) -> Exception {
+pub fn badarity<S: Into<Stacktrace>>(
+    process: &Process,
+    stacktrace: S,
+    fun: Term,
+    args: Term,
+    location: Location,
+) -> Exception {
     match process.tuple_from_slice(&[fun, args]) {
         Ok(fun_args) => {
             let tag = atom("badarity");
             match process.tuple_from_slice(&[tag, fun_args]) {
-                Ok(reason) => Exception::Runtime(self::error(reason, None, location, process)),
+                Ok(reason) => Exception::Runtime(self::error(reason, None, location, stacktrace)),
                 Err(err) => err.into(),
             }
         }
@@ -26,26 +32,41 @@ pub fn badarity(process: &Process, fun: Term, args: Term, location: Location) ->
     }
 }
 
-pub fn badfun(process: &Process, fun: Term, location: Location) -> Exception {
+pub fn badfun<S: Into<Stacktrace>>(
+    process: &Process,
+    stacktrace: S,
+    fun: Term,
+    location: Location,
+) -> Exception {
     let tag = atom("badfun");
     match process.tuple_from_slice(&[tag, fun]) {
-        Ok(reason) => Exception::Runtime(self::error(reason, None, location, process)),
+        Ok(reason) => Exception::Runtime(self::error(reason, None, location, stacktrace)),
         Err(err) => err.into(),
     }
 }
 
-pub fn badkey(process: &Process, key: Term, location: Location) -> Exception {
+pub fn badkey<S: Into<Stacktrace>>(
+    process: &Process,
+    stacktrace: S,
+    key: Term,
+    location: Location,
+) -> Exception {
     let tag = atom("badkey");
     match process.tuple_from_slice(&[tag, key]) {
-        Ok(reason) => Exception::Runtime(self::error(reason, None, location, process)),
+        Ok(reason) => Exception::Runtime(self::error(reason, None, location, stacktrace)),
         Err(err) => err.into(),
     }
 }
 
-pub fn badmap(process: &Process, map: Term, location: Location) -> Exception {
+pub fn badmap<S: Into<Stacktrace>>(
+    process: &Process,
+    stacktrace: S,
+    map: Term,
+    location: Location,
+) -> Exception {
     let tag = atom("badmap");
     match process.tuple_from_slice(&[tag, map]) {
-        Ok(reason) => Exception::Runtime(self::error(reason, None, location, process)),
+        Ok(reason) => Exception::Runtime(self::error(reason, None, location, stacktrace)),
         Err(err) => err.into(),
     }
 }

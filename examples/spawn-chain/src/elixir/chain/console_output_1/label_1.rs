@@ -31,7 +31,7 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let self_term: Pid = arc_process.stack_pop()
+    let self_pid: Pid = arc_process.stack_pop()
         .unwrap()
         .try_into()
         .unwrap();
@@ -40,7 +40,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     // TODO use `<>` and `to_string` to emulate interpolation properly
     let full_text = arc_process
-        .binary_from_str(&format!("pid={} {}", self_term, text))
+        .binary_from_str(&format!("pid={} {}", self_pid, text))
         .unwrap();
     elixir::io::puts_1::place_frame_with_arguments(arc_process, Placement::Replace, full_text)
         .unwrap();

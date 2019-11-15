@@ -1,5 +1,6 @@
-///! This module defines a packed representation for floating point numbers where
-///! the layout consists of a header word followed by a raw f64 value.
+///! This module defines an immediate representation for floating point numbers where
+///! the layout consists of a single word containing the f64 value, but encoded via
+///! a NaN-boxing approach
 ///!
 ///! Where supported, the immediate representation should be preferred.
 #[cfg(not(target_arch = "x86_64"))]

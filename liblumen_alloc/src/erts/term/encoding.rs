@@ -333,6 +333,8 @@ pub trait Cast<T>: Encoded {
 /// to `self` to prevent copying the original term in cases where the location in memory is
 /// important. However, several functions of this trait do not, and it is assumed that those
 /// functions are not dependent on a specific memory address. If that constraint is violated
+/// then you may end up with a partial term which leads to out of bounds memory addresses, or
+/// other undefined behavior.
 pub trait Encoded: Repr + Copy {
     /// Decodes `Self` into a `TypedTerm`, unless the encoded value is
     /// invalid or malformed.
@@ -613,7 +615,7 @@ pub trait Encoded: Repr + Copy {
     }
 
     /// Returns the arity of this term, which reflects the number of words of data
-    /// follow this term in memory.
+    /// following this term in memory.
     ///
     /// Returns zero for immediates/pointers
     fn arity(&self) -> usize {

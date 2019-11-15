@@ -111,7 +111,7 @@ impl Tuple {
             .unwrap();
         // We pad to alignment so that the Layout produced here
         // matches that returned by `Layout::for_value` on the
-        // final `HeapBin`
+        // final `Tuple`
         let layout = base_layout
             .pad_to_align()
             .unwrap();

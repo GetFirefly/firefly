@@ -169,7 +169,7 @@ impl Closure {
             arity_ptr.write(arity);
             let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Option<Code>;
             code_ptr.write(code);
-            // Construct actual Tuple reference
+            // Construct actual Closure reference
             Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_len))
         }
     }
@@ -212,7 +212,7 @@ impl Closure {
         let closure_layout = ClosureLayout::for_env(env);
         let layout = closure_layout.layout.clone();
 
-        // The result of calling this will be a Tuple with everything located
+        // The result of calling this will be a Closure with everything located
         // contiguously in memory
         let env_arity = env.len();
         let header = Header::from_arity(env_arity);
@@ -246,7 +246,7 @@ impl Closure {
 
                 env_ptr = env_ptr.offset(1);
             }
-            // Construct actual Tuple reference
+            // Construct actual Closure reference
             Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_arity))
         }
     }
@@ -364,9 +364,9 @@ impl Closure {
     /// this function produces a fat pointer to `Self` which represents a value
     /// containing `len` elements in its variable-length field
     ///
-    /// For example, given a pointer to the memory containing a `Tuple`, and the
+    /// For example, given a pointer to the memory containing a `Closure`, and the
     /// number of elements it contains, this function produces a valid pointer of
-    /// type `Tuple`
+    /// type `Closure`
     unsafe fn from_raw_parts<E: super::arch::Repr>(ptr: *const E, len: usize) -> Boxed<Closure> {
         // Invariants of slice::from_raw_parts.
         assert!(!ptr.is_null());

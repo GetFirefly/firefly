@@ -57,7 +57,10 @@ fn without_arity_errors_badarg() {
                 )
                 .unwrap();
 
-                prop_assert_eq!(result, Err(badarity!(&arc_process, function, arguments)));
+                prop_assert_eq!(
+                    result,
+                    Err(badarity!(&arc_process, function, arguments, trace()))
+                );
 
                 mem::drop(child_arc_process);
 

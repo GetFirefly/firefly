@@ -46,7 +46,10 @@ fn without_arity_errors_badarity() {
                     )
                     .unwrap();
 
-                    prop_assert_eq!(result, Err(badarity!(&arc_process, function, Term::NIL)));
+                    prop_assert_eq!(
+                        result,
+                        Err(badarity!(&arc_process, function, Term::NIL, trace()))
+                    );
 
                     mem::drop(child_arc_process);
 

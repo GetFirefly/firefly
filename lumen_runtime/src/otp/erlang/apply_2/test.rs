@@ -1,14 +1,16 @@
 mod with_function;
 
 use std::mem;
+use std::sync::Arc;
 
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
+use liblumen_alloc::erts::process::code::stack::Trace;
 use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::{atom_from_str, badarg, ModuleFunctionArity};
 
 use crate::future::{run_until_ready, Ready};
 use crate::otp::erlang::apply_2::place_frame_with_arguments;
@@ -44,7 +46,7 @@ fn without_function_errors_badarg() {
                     )
                     .unwrap();
 
-                    prop_assert_eq!(result, Err(badarg!(&arc_process).into()));
+                    prop_assert_eq!(result, Err(badarg!(trace()).into()));
 
                     mem::drop(child_arc_proces);
 
@@ -53,4 +55,19 @@ fn without_function_errors_badarg() {
             )
             .unwrap();
     });
+}
+
+fn trace() -> Trace {
+    Trace(vec![
+        Arc::new(ModuleFunctionArity {
+            module: atom_from_str!("erlang"),
+            function: atom_from_str!("apply"),
+            arity: 2,
+        }),
+        Arc::new(ModuleFunctionArity {
+            module: atom_from_str!("Elixir.Lumen"),
+            function: atom_from_str!("future"),
+            arity: 0,
+        }),
+    ])
 }

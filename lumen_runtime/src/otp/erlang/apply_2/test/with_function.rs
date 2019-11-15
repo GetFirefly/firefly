@@ -37,7 +37,7 @@ fn without_proper_list_arguments_errors_badarg() {
                     )
                     .unwrap();
 
-                    prop_assert_eq!(result, Err(badarg!(&arc_process).into()));
+                    prop_assert_eq!(result, Err(badarg!(trace()).into()));
 
                     mem::drop(child_arc_process);
 

@@ -2,9 +2,10 @@ use super::*;
 
 use std::sync::Arc;
 
+use liblumen_alloc::erts::process::code::stack::Trace;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
-use liblumen_alloc::exit;
+use liblumen_alloc::{exit, ModuleFunctionArity};
 
 #[test]
 fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
@@ -96,7 +97,11 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                         prop_assert_eq!(
                             exception,
                             &exit!(
-                                &child_arc_process,
+                                Trace(vec![Arc::new(ModuleFunctionArity {
+                                    module: Atom::try_from_str("init").unwrap(),
+                                    function: Atom::try_from_str("init").unwrap(),
+                                    arity: 0
+                                })]),
                                 child_arc_process
                                     .list_from_slice(&[
                                         Atom::str_to_term("first"),

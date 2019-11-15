@@ -236,14 +236,24 @@ mod tests {
     #[test]
     fn effective_alignment_test() {
         // This is a real address gathered by testing, should be word-aligned
+        #[cfg(target_pointer_width = "64")]
         let ptr = 0x70000cf815a8usize as *const u8;
+        // Make sure this pointer value fits in a 32-bit address space
+        // by simply moving the high bit right
+        #[cfg(target_pointer_width = "32")]
+        let ptr = 0x7cf815a8usize as *const u8;
+
         let effective = effective_alignment(ptr);
         assert!(effective.is_power_of_two());
         assert_eq!(effective, mem::align_of::<usize>());
 
         // This address is super-aligned size * 400000001
         // to give us an address in a "normal" range
+        #[cfg(target_pointer_width = "64")]
         let ptr = 0x5f5e10040000usize as *const u8;
+        #[cfg(target_pointer_width = "32")]
+        let ptr = 0x5e140000usize as *const u8;
+
         let effective = effective_alignment(ptr);
         assert!(effective.is_power_of_two());
         assert_eq!(effective, 262144);

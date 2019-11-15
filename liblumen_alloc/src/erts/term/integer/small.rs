@@ -144,8 +144,8 @@ impl Into<i32> for SmallInteger {
 impl TryInto<i32> for SmallInteger {
     type Error = TryFromIntError;
 
-    fn try_into(self) -> Result<Self, Self::Error> {
-        self.0.try_into()
+    fn try_into(self) -> Result<i32, Self::Error> {
+        self.0.try_into().map_err(|_| TryFromIntError)
     }
 }
 impl Into<i64> for SmallInteger {

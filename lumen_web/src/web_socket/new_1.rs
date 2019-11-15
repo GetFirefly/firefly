@@ -25,5 +25,5 @@ pub fn native(process: &Process, url: Term) -> exception::Result<Term> {
         Ok(web_socket) => ok_tuple(process, Box::new(web_socket)),
         Err(js_value) => error_tuple(process, js_value),
     }
-    .map_err(|alloc| alloc.into())
+    .map_err(|e| e.into())
 }

@@ -1,3 +1,4 @@
+#![cfg_attr(not(target_pointer_width = "64"), allow(unused))]
 use core::cmp;
 ///! This module contains constants for 64-bit architectures used by the term
 ///! implementation.
@@ -666,9 +667,7 @@ mod tests {
 
     #[test]
     fn float_encoding_x86_64() {
-        let float: Float = std::f64::MAX.into();
-
-        let float = heap.float(float).unwrap();
+        let float = heap.float(std::f64::MAX).unwrap();
         let float_term: RawTerm = float.encode().unwrap();
         assert!(float_term.is_boxed());
         assert_eq!(float_term.type_of(), Tag::Box);
@@ -904,7 +903,7 @@ mod tests {
         use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
-        let creator = Pid::make_term(0, 0).unwrap();
+        let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
         let function = Atom::try_from_str("function").unwrap();
@@ -1129,9 +1128,17 @@ mod tests {
 
     #[test]
     fn external_pid_encoding_x86_64() {
+        use crate::erts::Node;
+        use alloc::sync::Arc;
+
         let mut heap = RegionHeap::default();
 
-        let pid = ExternalPid::with_node_id(1, 2, 3).unwrap();
+        let arc_node = Arc::new(Node::new(
+            1,
+            Atom::try_from_str("node@external").unwrap(),
+            0,
+        ));
+        let pid = ExternalPid::new(arc_node, 1, 0).unwrap();
         let pid_term = pid.clone_to_heap(&mut heap).unwrap();
         assert!(pid_term.is_boxed());
         assert_eq!(pid_term.type_of(), Tag::Box);

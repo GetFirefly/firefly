@@ -5,7 +5,7 @@ use core::convert::TryInto;
 ///! See the module doc in arch_64.rs for more information
 use core::fmt;
 
-use crate::erts::exception::{Exception, Result};
+use crate::erts::exception;
 
 use liblumen_core::sys::sysconf::MIN_ALIGN;
 const_assert!(MIN_ALIGN >= 4);
@@ -226,7 +226,7 @@ impl Repr for RawTerm {
 unsafe impl Send for RawTerm {}
 
 impl Encode<RawTerm> for u8 {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm::encode_immediate(
             (*self) as u32,
             FLAG_SMALL_INTEGER,
@@ -235,35 +235,35 @@ impl Encode<RawTerm> for u8 {
 }
 
 impl Encode<RawTerm> for SmallInteger {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         let i: i32 = (*self)
             .try_into()
-            .map_err(|_| Exception::from(TermEncodingError::ValueOutOfRange))?;
+            .map_err(|_| exception::Exception::from(TermEncodingError::ValueOutOfRange))?;
         Ok(RawTerm::encode_immediate(i as u32, FLAG_SMALL_INTEGER))
     }
 }
 
 impl Encode<RawTerm> for bool {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         let atom = Atom::try_from_str(&self.to_string()).unwrap();
         Ok(RawTerm::encode_immediate(atom.id() as u32, FLAG_ATOM))
     }
 }
 
 impl Encode<RawTerm> for Atom {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm::encode_immediate(self.id() as u32, FLAG_ATOM))
     }
 }
 
 impl Encode<RawTerm> for Pid {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm::encode_immediate(self.as_usize() as u32, FLAG_PID))
     }
 }
 
 impl Encode<RawTerm> for Port {
-    fn encode(&self) -> Result<RawTerm> {
+    fn encode(&self) -> exception::Result<RawTerm> {
         Ok(RawTerm::encode_immediate(self.as_usize() as u32, FLAG_PORT))
     }
 }
@@ -358,7 +358,7 @@ impl Cast<*const Cons> for RawTerm {
 
 impl Encoded for RawTerm {
     #[inline]
-    fn decode(&self) -> Result<TypedTerm> {
+    fn decode(&self) -> exception::Result<TypedTerm> {
         let tag = self.type_of();
         match tag {
             Tag::Nil => Ok(TypedTerm::Nil),
@@ -659,9 +659,9 @@ mod tests {
 
     #[test]
     fn float_encoding_x86_64() {
-        let float: Float = std::f64::MAX.into();
+        let mut heap = RegionHeap::default();
 
-        let float = heap.float(float).unwrap();
+        let float = heap.float(std::f64::MAX).unwrap();
         let float_term: RawTerm = float.encode().unwrap();
         assert!(float_term.is_boxed());
         assert_eq!(float_term.type_of(), Tag::Box);
@@ -748,7 +748,7 @@ mod tests {
 
     #[test]
     fn port_encoding_x86_64() {
-        let port = unsafe { Port::from_raw(IMMEDIATE_VALUE_ADDR as usize) };
+        let port = unsafe { Port::from_raw(MAX_IMMEDIATE_VALUE as usize) };
 
         let port_term: RawTerm = port.encode().unwrap();
         assert!(port_term.is_local_port());
@@ -897,7 +897,7 @@ mod tests {
         use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
-        let creator = Pid::make_term(0, 0).unwrap();
+        let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
         let function = Atom::try_from_str("function").unwrap();
@@ -1122,9 +1122,17 @@ mod tests {
 
     #[test]
     fn external_pid_encoding_x86_64() {
+        use crate::erts::Node;
+        use alloc::sync::Arc;
+
         let mut heap = RegionHeap::default();
 
-        let pid = ExternalPid::with_node_id(1, 2, 3).unwrap();
+        let arc_node = Arc::new(Node::new(
+            1,
+            Atom::try_from_str("node@external").unwrap(),
+            0,
+        ));
+        let pid = ExternalPid::new(arc_node, 1, 0).unwrap();
         let pid_term = pid.clone_to_heap(&mut heap).unwrap();
         assert!(pid_term.is_boxed());
         assert_eq!(pid_term.type_of(), Tag::Box);

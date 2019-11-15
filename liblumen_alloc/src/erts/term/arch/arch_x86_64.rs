@@ -1,3 +1,4 @@
+#![cfg_attr(not(target_arch = "x86_64"), allow(unused))]
 use core::cmp;
 ///! This module contains constants for 64-bit architectures used by the term
 ///! implementation.
@@ -480,7 +481,12 @@ impl Encoded for RawTerm {
             Tag::Nil => Ok(TypedTerm::Nil),
             Tag::List => Ok(TypedTerm::List(unsafe { self.decode_list() })),
             Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unsafe { self.decode_smallint() })),
+            // When compiling for non-x86_64, we use boxed floats, so
+            // we accomodate that by boxing the float.
+            #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
             Tag::Float => Ok(TypedTerm::Float(self.decode_float())),
+            #[cfg(not(all(target_pointer_width = "64", target_arch = "x86_64")))]
+            Tag::Float => Ok(TypedTerm::Float(unsafe { Boxed::new_unchecked(self as *const _ as *mut Float) })),
             Tag::Atom => Ok(TypedTerm::Atom(unsafe { self.decode_atom() })),
             Tag::Pid => Ok(TypedTerm::Pid(unsafe { self.decode_pid() })),
             Tag::Port => Ok(TypedTerm::Port(unsafe { self.decode_port() })),
@@ -493,7 +499,10 @@ impl Encoded for RawTerm {
                     Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unsafe {
                         unboxed.decode_smallint()
                     })),
+                    #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
                     Tag::Float => Ok(TypedTerm::Float(unboxed.decode_float())),
+                    #[cfg(not(all(target_pointer_width = "64", target_arch = "x86_64")))]
+                    Tag::Float => Ok(TypedTerm::Float(unsafe { Boxed::new_unchecked(ptr as *mut Float) })),
                     Tag::Atom => Ok(TypedTerm::Atom(unsafe { unboxed.decode_atom() })),
                     Tag::Pid => Ok(TypedTerm::Pid(unsafe { unboxed.decode_pid() })),
                     Tag::Port => Ok(TypedTerm::Port(unsafe { unboxed.decode_port() })),

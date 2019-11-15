@@ -12,11 +12,12 @@ use core::cmp;
 use core::convert::TryFrom;
 use core::ptr;
 
+use crate::impl_static_header;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::TermAlloc;
 
-use crate::erts::term::prelude::{Boxed, Header, StaticHeader, Term, TypeError, TypedTerm};
+use crate::erts::term::prelude::{Boxed, Header, Term, TypeError, TypedTerm};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -38,10 +39,7 @@ impl Float {
         self.value
     }
 }
-
-impl StaticHeader for Float {
-    const TAG: Term = Term::HEADER_FLOAT;
-}
+impl_static_header!(Float, Term::HEADER_FLOAT);
 
 impl Eq for Float {}
 impl PartialEq for Float {
@@ -88,8 +86,14 @@ impl TryFrom<TypedTerm> for Float {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
-            TypedTerm::Float(float) => Ok(*float.as_ptr()),
+            TypedTerm::Float(float) => Ok(unsafe { *float.as_ptr() }),
             _ => Err(TypeError),
         }
+    }
+}
+
+impl Into<f64> for Boxed<Float> {
+    fn into(self) -> f64 {
+        self.as_ref().value
     }
 }

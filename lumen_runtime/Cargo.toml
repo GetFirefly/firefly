@@ -24,8 +24,8 @@ liblumen_alloc = { path = "../liblumen_alloc" }
 liblumen_core = { path = "../liblumen_core" }
 log = "0.4"
 lumen_runtime_macros = { path = "../lumen_runtime_macros" }
-num-bigint = "0.2.2"
-num-traits = "0.2.6"
+num-bigint = "0.2"
+num-traits = "0.2"
 num_enum = "0.4.2"
 radix_fmt = "1.0.0"
 chrono = "0.4"

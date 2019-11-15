@@ -23,7 +23,7 @@ pub struct Closure {
     header: Header<Closure>,
     module: Atom,
     definition: Definition,
-    arity: usize,
+    arity: u8,
     /// Pointer to function entry.  When a closure is received over ETF, `code` may be `None`.
     code: Option<Code>,
     env: [Term]
@@ -228,7 +228,7 @@ impl Closure {
             let definition_ptr = ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
             definition_ptr.write(definition);
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
-            arity_ptr.write(arity as u8);
+            arity_ptr.write(arity);
             let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Option<Code>;
             code_ptr.write(code);
             // Construct pointer to first env element
@@ -284,7 +284,7 @@ impl Closure {
         Arc::new(ModuleFunctionArity {
             module: self.module,
             function: self.function(),
-            arity: self.arity as u8,
+            arity: self.arity,
         })
     }
 

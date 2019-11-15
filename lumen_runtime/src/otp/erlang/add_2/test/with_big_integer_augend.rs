@@ -58,7 +58,7 @@ fn that_is_positive_with_positive_small_integer_addend_returns_greater_big_integ
 
                     prop_assert!(augend < sum);
                     prop_assert!(addend < sum);
-                    prop_assert!(sum.is_bigint());
+                    prop_assert!(sum.is_boxed_bigint());
 
                     Ok(())
                 },
@@ -85,7 +85,7 @@ fn that_is_positive_with_positive_big_integer_addend_returns_greater_big_integer
 
                     prop_assert!(augend < sum);
                     prop_assert!(addend < sum);
-                    prop_assert!(sum.is_bigint());
+                    prop_assert!(sum.is_boxed_bigint());
 
                     Ok(())
                 },
@@ -105,7 +105,7 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
 
         let sum = result.unwrap();
 
-        assert!(sum.is_float());
+        assert!(sum.is_boxed_float());
     })
 }
 
@@ -158,7 +158,7 @@ where
     with_process(|process| {
         let augend = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
-        assert!(augend.is_bigint());
+        assert!(augend.is_boxed_bigint());
 
         f(augend, &process)
     })

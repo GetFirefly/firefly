@@ -248,8 +248,8 @@ pub trait TermAlloc: Heap {
         Self: Sized,
     {
         let boxed = Map::from_hash_map(hash_map).clone_to_heap(self)?;
-        let ptr: *mut Map = boxed.dyn_cast();
-        Ok(unsafe { Boxed::new_unchecked(ptr) })
+        let ptr: Boxed<Map> = boxed.dyn_cast();
+        Ok(ptr)
     }
 
     /// Constructs a map and associated with the given process.
@@ -258,8 +258,8 @@ pub trait TermAlloc: Heap {
         Self: Sized,
     {
         let boxed = Map::from_slice(slice).clone_to_heap(self)?;
-        let ptr: *mut Map = boxed.dyn_cast();
-        Ok(unsafe { Boxed::new_unchecked(ptr) })
+        let ptr: Boxed<Map> = boxed.dyn_cast();
+        Ok(ptr)
     }
 
     #[inline]

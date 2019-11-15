@@ -102,9 +102,19 @@ impl<T: ?Sized> Clone for Boxed<T> {
 impl<T: ?Sized> Copy for Boxed<T> { }
 
 impl<T: ?Sized> fmt::Debug for Boxed<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    default fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ty = core::any::type_name::<T>();
         write!(f, "Boxed<{}>({:p})", ty, self.as_ptr())
+    }
+}
+impl<T: ?Sized> fmt::Debug for Boxed<T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ty = core::any::type_name::<T>();
+        let inner = self.as_ref();
+        write!(f, "Boxed<{}>({:?} at {:p})", ty, inner, self.as_ptr())
     }
 }
 

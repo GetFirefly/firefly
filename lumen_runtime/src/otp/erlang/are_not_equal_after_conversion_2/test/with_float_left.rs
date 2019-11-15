@@ -155,7 +155,7 @@ fn with_different_value_big_integer_right_returns_true() {
                             (heap.float(i as f64).unwrap(), heap.integer(i + 1).unwrap())
                         }),
                         |(left, right)| {
-                            prop_assert_eq!(native(left.into(), right), false.into());
+                            prop_assert_eq!(native(left.into(), right), true.into());
 
                             Ok(())
                         },

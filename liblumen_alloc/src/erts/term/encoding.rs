@@ -377,8 +377,16 @@ pub trait Encoded: Repr + Copy {
     }
     /// Returns `true` if the encoded value is a fixed-width integer value
     fn is_smallint(self) -> bool;
-    /// Returns `true` if the encoded value is a arbitrary-width integer value
+    /// Returns `true` if the encoded value is the header of a arbitrary-width integer value
     fn is_bigint(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a arbitrary-width integer value
+    fn is_boxed_bigint(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_bigint()
+    }
     /// Returns `true` if the encoded value is an integer of either
     /// fixed or arbitrary width
     fn is_integer(&self) -> bool {
@@ -424,28 +432,108 @@ pub trait Encoded: Repr + Copy {
     }
     /// Returns `true` if the encoded value is the header of a `Map`
     fn is_map(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `Map`
+    fn is_boxed_map(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_map()
+    }
     /// Returns `true` if the encoded value is a `Pid`
     fn is_local_pid(self) -> bool;
     /// Returns `true` if the encoded value is the header of an `ExternalPid`
     fn is_remote_pid(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to an `ExternalPid`
+    fn is_boxed_remote_pid(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_remote_pid()
+    }
     /// Returns `true` if the encoded value is a `Port`
     fn is_local_port(self) -> bool;
     /// Returns `true` if the encoded value is the header of an `ExternalPort`
     fn is_remote_port(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to an `ExternalPort`
+    fn is_boxed_remote_port(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_remote_port()
+    }
     /// Returns `true` if the encoded value is the header of a `Reference`
     fn is_local_reference(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `Reference`
+    fn is_boxed_local_reference(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_local_reference()
+    }
     /// Returns `true` if the encoded value is the header of a `ExternalReference`
     fn is_remote_reference(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `ExternalReference`
+    fn is_boxed_remote_reference(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_remote_reference()
+    }
     /// Returns `true` if the encoded value is the header of a `Resource`
     fn is_resource_reference(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `Resource`
+    fn is_boxed_resource_reference(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_resource_reference()
+    }
     /// Returns `true` if the encoded value is the header of a `ProcBin`
     fn is_procbin(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `ProcBin`
+    fn is_boxed_procbin(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_procbin()
+    }
     /// Returns `true` if the encoded value is the header of a `HeapBin`
     fn is_heapbin(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `HeapBin`
+    fn is_boxed_heapbin(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_heapbin()
+    }
     /// Returns `true` if the encoded value is the header of a `SubBinary`
     fn is_subbinary(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `SubBinary`
+    fn is_boxed_subbinary(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_subbinary()
+    }
     /// Returns `true` if the encoded value is the header of a `MatchContext`
     fn is_match_context(self) -> bool;
+    /// Returns `true` if the encoded value is a pointer to a `MatchContext`
+    fn is_boxed_match_context(self) -> bool {
+        if !self.is_boxed() {
+            return false;
+        }
+        let header = unsafe { &*(self.decode_box()) };
+        header.is_match_context()
+    }
     /// Returns `true` if the encoded value is the header of a `Closure`
     fn is_function(self) -> bool;
     /// Returns `true` if the encoded value is a pointer to a `Tuple`

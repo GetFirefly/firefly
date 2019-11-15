@@ -11,7 +11,7 @@ fn without_big_integer_or_float_returns_true() {
                     strategy::term::integer::big(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be a big integer or float", |v| {
-                            !(v.is_bigint() || v.is_float())
+                            !(v.is_boxed_bigint() || v.is_boxed_float())
                         }),
                 ),
                 |(left, right)| {

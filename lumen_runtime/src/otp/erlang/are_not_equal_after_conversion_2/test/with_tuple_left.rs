@@ -10,7 +10,7 @@ fn without_tuple_right_returns_true() {
                 (
                     strategy::term::tuple(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be tuple", |v| !v.is_tuple()),
+                        .prop_filter("Right must not be tuple", |v| !v.is_boxed_tuple()),
                 )
             }),
             |(left, right)| {

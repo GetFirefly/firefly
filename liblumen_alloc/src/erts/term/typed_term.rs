@@ -277,8 +277,10 @@ impl Hash for TypedTerm {
 
 impl ExactEq for TypedTerm {
     fn exact_eq(&self, other: &Self) -> bool {
-        if mem::discriminant(self) != mem::discriminant(other) {
-            return false;
+        if self.is_number() && other.is_number() {
+            if mem::discriminant(self) != mem::discriminant(other) {
+                return false;
+            }
         }
 
         self.eq(other)

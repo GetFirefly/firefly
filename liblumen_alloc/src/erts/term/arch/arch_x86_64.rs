@@ -693,7 +693,8 @@ impl fmt::Debug for RawTerm {
             Tag::Box => {
                 let is_literal = self.0 & FLAG_LITERAL == FLAG_LITERAL;
                 let ptr = unsafe { self.decode_box() };
-                write!(f, "Box({:p}, literal={})", ptr, is_literal)
+                let unboxed = unsafe { &*ptr };
+                write!(f, "Box({:p}, literal={}, value={:?})", ptr, is_literal, unboxed)
             }
             Tag::Unknown(invalid_tag) => {
                 write!(f, "InvalidTerm(tag: {:064b})", invalid_tag)

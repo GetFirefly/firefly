@@ -9,7 +9,7 @@ use super::Location;
 use super::RuntimeException;
 
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Clone)]
 #[error("** throw: {reason} at {location}")]
 pub struct Throw {
     reason: Term,
@@ -45,8 +45,17 @@ impl PartialEq for Throw {
         self.reason == other.reason && self.stacktrace == other.stacktrace
     }
 }
+impl fmt::Debug for Throw {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Throw")
+            .field("reason", &self.reason.decode())
+            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("location", &self.location)
+            .finish()
+    }
+}
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Clone)]
 #[error("** error: {reason} at {location}")]
 pub struct Error {
     reason: Term,
@@ -84,8 +93,18 @@ impl PartialEq for Error {
         self.reason == other.reason && self.stacktrace == other.stacktrace
     }
 }
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Error")
+            .field("reason", &self.reason.decode())
+            .field("arguments", &self.arguments.map(|t| t.decode()))
+            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("location", &self.location)
+            .finish()
+    }
+}
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Clone)]
 #[error("** exit: {reason} at {location}")]
 pub struct Exit {
     reason: Term,
@@ -104,7 +123,7 @@ impl Exit {
         }
     }
     pub fn class(&self) -> Class {
-        Class::Throw
+        Class::Exit
     }
     pub fn reason(&self) -> Term {
         self.reason
@@ -119,6 +138,15 @@ impl Exit {
 impl PartialEq for Exit {
     fn eq(&self, other: &Self) -> bool {
         self.reason == other.reason && self.stacktrace == other.stacktrace
+    }
+}
+impl fmt::Debug for Exit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Exit")
+            .field("reason", &self.reason.decode())
+            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("location", &self.location)
+            .finish()
     }
 }
 

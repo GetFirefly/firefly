@@ -55,13 +55,15 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let text_td = ok_text_td_tuple[1];
     assert!(text_td.is_resource_reference());
 
-    label_10::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text_td)?;
+    label_10::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text_td)
+        .unwrap();
     lumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         text_td,
         text_text,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

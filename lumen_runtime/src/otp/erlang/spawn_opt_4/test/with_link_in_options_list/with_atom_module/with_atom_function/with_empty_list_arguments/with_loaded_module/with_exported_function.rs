@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::otp::erlang;
+
 #[test]
 fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
     let parent_arc_process = process::test_init();
@@ -8,8 +10,13 @@ fn with_arity_when_run_exits_normal_and_parent_does_not_exit() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module = atom!("erlang");
-    let function = atom!("self");
+    erlang::self_0::export();
+
+    let module_atom = erlang::module();
+    let module: Term = module_atom.encode().unwrap();
+
+    let function_atom = erlang::self_0::function();
+    let function: Term = function_atom.encode().unwrap();
 
     let arguments = Term::NIL;
 

@@ -50,7 +50,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
                 if message_data.is_integer() {
                     let final_answer = match message {
-                        Message::Process(message::Process { data }) => data.clone(),
+                        Message::Process(message::Process { data }) => *data,
                         Message::HeapFragment(message::HeapFragment { data, .. }) => {
                             match data.clone_to_heap(&mut arc_process.acquire_heap()) {
                                 Ok(heap_data) => heap_data,
@@ -72,17 +72,17 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                         arc_process,
                         Placement::Replace,
                         final_answer,
-                    )?;
+                    )
+                    .unwrap();
 
                     let output_closure: Boxed<Closure> = output.try_into().unwrap();
                     // TODO use `<>` and `to_string` to more closely emulate interpolation
-                    let binary =
-                        arc_process.binary_from_str(&format!("Result is {}", final_answer))?;
-                    output_closure.place_frame_with_arguments(
-                        arc_process,
-                        Placement::Push,
-                        vec![binary],
-                    )?;
+                    let binary = arc_process
+                        .binary_from_str(&format!("Result is {}", final_answer))
+                        .unwrap();
+                    output_closure
+                        .place_frame_with_arguments(arc_process, Placement::Push, vec![binary])
+                        .unwrap();
 
                     found_position = Some(position);
 

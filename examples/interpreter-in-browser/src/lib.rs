@@ -69,8 +69,7 @@ where
         Ok(ast) => return (ast, parser),
         Err(errs) => errs,
     };
-    let emitter =
-        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
+    let emitter = StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap);
     for err in errs.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -81,8 +80,7 @@ pub fn lower(input: &str, config: ParseConfig) -> Result<Module, ()> {
     let (parsed, parser): (ErlAstModule, _) = parse(input, config);
     let (res, messages) = lower_module(&parsed);
 
-    let emitter =
-        StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap.clone());
+    let emitter = StandardStreamEmitter::new(ColorChoice::Auto).set_codemap(parser.config.codemap);
     for err in messages.iter() {
         emitter.diagnostic(&err.to_diagnostic()).unwrap();
     }
@@ -95,17 +93,17 @@ pub fn compile_erlang_module(text: &str) {
     let config = ParseConfig::default();
     let mut eir_mod = lower(text, config).unwrap();
 
-    for fun in eir_mod.functions.values() {
-        fun.graph_validate_global();
+    for function_definition in eir_mod.function_iter() {
+        function_definition.function().graph_validate_global();
     }
 
     let mut pass_manager = PassManager::default();
     pass_manager.run(&mut eir_mod);
 
-    for fun in eir_mod.functions.values() {
-        fun.graph_validate_global();
+    for function_definition in eir_mod.function_iter() {
+        function_definition.function().graph_validate_global();
     }
 
-    system::io::puts(&format!("Compiled and registered {}", eir_mod.name));
+    system::io::puts(&format!("Compiled and registered {}", eir_mod.name()));
     VM.modules.write().unwrap().register_erlang_module(eir_mod);
 }

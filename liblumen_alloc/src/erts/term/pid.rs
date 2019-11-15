@@ -1,10 +1,12 @@
 use core::alloc::Layout;
 use core::cmp;
+use core::ptr;
 use core::convert::TryFrom;
 use core::default::Default;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
-use core::ptr;
+
+use alloc::sync::Arc;
 
 use liblumen_core::locks::RwLock;
 
@@ -191,7 +193,6 @@ where
         other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
-
 impl TryFrom<TypedTerm> for Pid {
     type Error = TypeError;
 
@@ -204,35 +205,35 @@ impl TryFrom<TypedTerm> for Pid {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct ExternalPid {
     header: Header<ExternalPid>,
-    node: Node,
-    next: *mut u8, // off heap header
+    arc_node: Arc<Node>,
     pid: Pid,
 }
 impl_static_header!(ExternalPid, Term::HEADER_EXTERN_PID);
 impl ExternalPid {
-    pub(in crate::erts) fn with_node_id(
-        node_id: usize,
-        number: usize,
-        serial: usize,
-    ) -> Result<Self, InvalidPidError> {
-        let node = Node::new(node_id);
-
-        Self::new(node, number, serial)
-    }
-
-    fn new(node: Node, number: usize, serial: usize) -> Result<Self, InvalidPidError> {
+    pub fn new(arc_node: Arc<Node>, number: usize, serial: usize) -> Result<Self, InvalidPidError> {
         let pid = Pid::new(number, serial)?;
 
         Ok(Self {
             header: Default::default(),
-            node,
-            next: ptr::null_mut(),
+            arc_node,
             pid,
         })
+    }
+
+    pub fn arc_node(&self) -> Arc<Node> {
+        self.arc_node.clone()
+    }
+
+    pub fn number(&self) -> u16 {
+        self.pid.number()
+    }
+
+    pub fn serial(&self) -> u16 {
+        self.pid.serial()
     }
 }
 
@@ -256,7 +257,7 @@ impl Display for ExternalPid {
         write!(
             f,
             "<{}.{}.{}>",
-            self.node.id(),
+            self.arc_node.id(),
             self.pid.number(),
             self.pid.serial()
         )
@@ -265,7 +266,7 @@ impl Display for ExternalPid {
 
 impl Hash for ExternalPid {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.node.hash(state);
+        self.arc_node.hash(state);
         self.pid.hash(state);
     }
 }
@@ -273,7 +274,7 @@ impl Hash for ExternalPid {
 impl Eq for ExternalPid {}
 impl PartialEq for ExternalPid {
     fn eq(&self, other: &ExternalPid) -> bool {
-        self.node == other.node && self.pid == other.pid
+        self.arc_node == other.arc_node && self.pid == other.pid
     }
 }
 impl<T> PartialEq<Boxed<T>> for ExternalPid
@@ -288,8 +289,8 @@ where
 
 impl Ord for ExternalPid {
     fn cmp(&self, other: &ExternalPid) -> cmp::Ordering {
-        self.node
-            .cmp(&other.node)
+        self.arc_node
+            .cmp(&other.arc_node)
             .then_with(|| self.pid.cmp(&other.pid))
     }
 }

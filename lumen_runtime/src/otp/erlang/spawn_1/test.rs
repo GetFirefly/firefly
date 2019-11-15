@@ -13,6 +13,7 @@ use crate::otp::erlang::spawn_1::native;
 use crate::registry::pid_to_process;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
+use crate::test::strategy::term::function;
 
 #[test]
 fn without_function_errors_badarg() {

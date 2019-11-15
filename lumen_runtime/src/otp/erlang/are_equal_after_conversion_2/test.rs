@@ -31,23 +31,24 @@ use crate::test::strategy;
 
 #[test]
 fn without_numbers_are_not_equal_after_conversion_if_not_equal_before_conversion() {
-    with_process_arc(|arc_process| {
-        TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(
-                    strategy::term::is_not_number(arc_process.clone()),
-                    strategy::term::is_not_number(arc_process.clone()),
-                )
-                    .prop_filter(
-                        "Left must not equal right before conversion",
-                        |(left, right)| left != right,
-                    ),
-                |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process()
+                .prop_flat_map(|arc_process| {
+                    (
+                        strategy::term::is_not_number(arc_process.clone()),
+                        strategy::term::is_not_number(arc_process),
+                    )
+                })
+                .prop_filter(
+                    "Left must not equal right before conversion",
+                    |(left, right)| left != right,
+                ),
+            |(left, right)| {
+                prop_assert_eq!(native(left, right), false.into());
 
-                    Ok(())
-                },
-            )
-            .unwrap();
-    });
+                Ok(())
+            },
+        )
+        .unwrap();
 }

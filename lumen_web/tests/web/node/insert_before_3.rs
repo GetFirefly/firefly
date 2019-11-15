@@ -1,6 +1,6 @@
-#[path = "./insert_before_3/with_nil_reference_child_appends_new_child.rs"]
+#[path = "insert_before_3/with_nil_reference_child_appends_new_child.rs"]
 mod with_nil_reference_child_appends_new_child;
-#[path = "./insert_before_3/with_reference_child_inserts_before_reference_child.rs"]
+#[path = "insert_before_3/with_reference_child_inserts_before_reference_child.rs"]
 mod with_reference_child_inserts_before_reference_child;
 
 use super::*;
@@ -52,7 +52,7 @@ fn with_nil_reference_child_appends_new_child() -> impl Future<Item = (), Error 
         // # full stack: ()
         // # returns: {:ok, parent_document}
         // ```
-        document::new_0::place_frame(child_process, Placement::Push);
+        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
 
         Ok(())
     })
@@ -128,7 +128,7 @@ fn with_reference_child_inserts_before_reference_child() -> impl Future<Item = (
         // # full stack: ()
         // # returns: {:ok, parent_document}
         // ```
-        document::new_0::place_frame(child_process, Placement::Push);
+        document::new_0::place_frame_with_arguments(child_process, Placement::Push)?;
 
         Ok(())
     })

@@ -14,6 +14,8 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::distribution::nodes;
+
 #[native_implemented_function(list_to_pid/1)]
 pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
     let cons: Boxed<Cons> = string.try_into()?;
@@ -39,8 +41,16 @@ pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
     let suffix_tail = skip_char(serial_tail_cons, '>')?;
 
     if suffix_tail.is_nil() {
-        process.pid_with_node_id(node_id, number, serial)
-            .map_err(|error| error.into())
+        if node_id == nodes::node::id() {
+            Pid::make_term(number, serial).map_err(|error| error.into())
+        } else {
+            match nodes::id_to_arc_node(&node_id) {
+                Some(arc_node) => process
+                    .external_pid(arc_node, number, serial)
+                    .map_err(|error| error.into()),
+                None => Err(badarg!().into()),
+            }
+        }
     } else {
         Err(badarg!().into())
     }

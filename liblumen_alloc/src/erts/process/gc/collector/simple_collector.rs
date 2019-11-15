@@ -30,7 +30,7 @@ where
     T: Sweep<*mut Term>,
 {
     fn garbage_collect(&mut self) -> Result<usize, GcError> {
-        use crate::erts::process::gc::collection::sweep_root;
+        use crate::erts::process::gc::collection_type::sweep_root;
 
         // Follow roots and move values as appropriate
         for mut root in self.roots.iter().copied() {

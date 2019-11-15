@@ -10,7 +10,6 @@ use crate::scheduler::with_process_arc;
 use crate::test::strategy;
 
 #[test]
-#[ignore]
 fn without_binary_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
@@ -27,7 +26,6 @@ fn without_binary_errors_badarg() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_atom_returns_atom() {
     with_binary_returns_term(
         // :erlang.term_to_binary(:atom)
@@ -37,7 +35,6 @@ fn with_binary_encoding_atom_returns_atom() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_empty_list_returns_empty_list() {
     with_binary_returns_term(
         // :erlang.term_to_binary([])
@@ -47,7 +44,6 @@ fn with_binary_encoding_empty_list_returns_empty_list() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_list_returns_list() {
     with_binary_returns_term(
         // :erlang.term_to_binary([:zero, 1])
@@ -68,7 +64,6 @@ fn with_binary_encoding_list_returns_list() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_small_integer_returns_small_integer() {
     with_binary_returns_term(
         // :erlang.term_to_binary(0)
@@ -78,7 +73,6 @@ fn with_binary_encoding_small_integer_returns_small_integer() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_integer_returns_integer() {
     with_binary_returns_term(
         // :erlang.term_to_binary(-2147483648)
@@ -88,7 +82,6 @@ fn with_binary_encoding_integer_returns_integer() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_new_float_returns_float() {
     with_binary_returns_term(
         // :erlang.term_to_binary(1.0)
@@ -98,7 +91,6 @@ fn with_binary_encoding_new_float_returns_float() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_small_tuple_returns_tuple() {
     with_binary_returns_term(
         // :erlang.term_to_binary({:zero, 1})
@@ -112,7 +104,6 @@ fn with_binary_encoding_small_tuple_returns_tuple() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_byte_list_returns_list() {
     with_binary_returns_term(
         // :erlang.term_to_binary([?0, ?1])
@@ -131,7 +122,6 @@ fn with_binary_encoding_byte_list_returns_list() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_binary_returns_binary() {
     with_binary_returns_term(
         // :erlang.term_to_binary(<<0, 1>>)
@@ -141,7 +131,6 @@ fn with_binary_encoding_binary_returns_binary() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_small_big_integer_returns_big_integer() {
     with_binary_returns_term(
         // :erlang.term_to_binary(4294967295)
@@ -151,7 +140,6 @@ fn with_binary_encoding_small_big_integer_returns_big_integer() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_bit_string_returns_subbinary() {
     with_binary_returns_term(
         // :erlang.term_to_binary(<<1, 2::3>>)
@@ -171,7 +159,6 @@ fn with_binary_encoding_bit_string_returns_subbinary() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_small_atom_utf8_returns_atom() {
     with_binary_returns_term(
         // :erlang.term_to_binary(:"😈")

@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use libeir_ir::{Function, LiveValues, Module};
+use libeir_ir::{Function, FunctionIndex, LiveValues, Module};
 
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::Result;
@@ -64,8 +64,9 @@ impl ModuleRegistry {
         match self.map.get(&module) {
             None => None,
             Some(ModuleType::Erlang(erl)) => erl
-                .functions
+                .name_map
                 .get(&(function, arity))
+                .map(|i| &erl.funs[i])
                 .map(ResolvedFunction::Erlang),
             Some(ModuleType::Native(nat)) => nat
                 .functions
@@ -76,12 +77,32 @@ impl ModuleRegistry {
                 if let Some(nat_fun) = nat.functions.get(&(function, arity)) {
                     Some(ResolvedFunction::Native(*nat_fun))
                 } else {
-                    erl.functions
+                    erl.name_map
                         .get(&(function, arity))
+                        .map(|i| &erl.funs[i])
                         .map(ResolvedFunction::Erlang)
                 }
             }
         }
+    }
+
+    pub fn lookup_function_idx(
+        &self,
+        module: Atom,
+        index: FunctionIndex,
+    ) -> Option<&ErlangFunction> {
+        let ret = match self.map.get(&module) {
+            None => None,
+            Some(ModuleType::Erlang(erl)) => Some(&erl.funs[&index]),
+            Some(ModuleType::Overlayed(erl, _)) => Some(&erl.funs[&index]),
+            Some(ModuleType::Native(_)) => unreachable!(),
+        };
+
+        if let Some(erl) = ret.as_ref() {
+            trace!("LOOKUP IDX {}", erl.fun.ident());
+        }
+
+        ret
     }
 }
 
@@ -126,32 +147,47 @@ impl NativeModule {
 
 pub struct ErlangFunction {
     pub fun: Function,
+    pub index: FunctionIndex,
     pub live: LiveValues,
 }
 
 pub struct ErlangModule {
     pub name: Atom,
-    pub functions: HashMap<(Atom, usize), ErlangFunction>,
+    pub funs: BTreeMap<FunctionIndex, ErlangFunction>,
+    pub name_map: BTreeMap<(Atom, usize), FunctionIndex>,
 }
 
 impl ErlangModule {
     pub fn from_eir(module: Module) -> Self {
-        let name_atom = Atom::try_from_str(module.name.as_str()).unwrap();
-        let functions = module
-            .functions
-            .values()
-            .map(|fun| {
+        let name_atom = Atom::try_from_str(module.name().as_str()).unwrap();
+
+        let funs = module
+            .function_iter()
+            .map(|fun_def| {
+                let fun = fun_def.function();
                 let nfun = ErlangFunction {
                     live: fun.live_values(),
+                    index: fun_def.index(),
                     fun: fun.clone(),
                 };
-                let name = Atom::try_from_str(fun.ident().name.as_str()).unwrap();
-                ((name, fun.ident().arity), nfun)
+                (fun_def.index(), nfun)
             })
             .collect();
+
+        let name_map = module
+            .function_iter()
+            .map(|fun_def| {
+                let fun = fun_def.function();
+                let ident = fun.ident();
+                let name = Atom::try_from_str(ident.name.as_str()).unwrap();
+                ((name, ident.arity), fun_def.index())
+            })
+            .collect();
+
         ErlangModule {
             name: name_atom,
-            functions,
+            funs,
+            name_map,
         }
     }
 }

@@ -45,15 +45,17 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let tr = arc_process.stack_pop().unwrap();
     let _: Boxed<Resource> = tr.try_into().unwrap();
 
-    label_9::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text_text)?;
+    label_9::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text_text)
+        .unwrap();
 
-    let tag = arc_process.binary_from_str("td")?;
+    let tag = arc_process.binary_from_str("td").unwrap();
     lumen_web::document::create_element_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         document,
         tag,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

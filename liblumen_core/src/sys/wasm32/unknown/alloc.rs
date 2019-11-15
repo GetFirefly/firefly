@@ -1,5 +1,5 @@
+use core::alloc::{AllocErr, Layout};
 use core::ptr::NonNull;
-use core::alloc::{Layout, AllocErr};
 
 use crate::locks::SpinLock;
 
@@ -20,7 +20,11 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> Result<NonNull<u8>, AllocErr> {
 }
 
 #[inline]
-pub unsafe fn realloc(ptr: *mut u8, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr> {
+pub unsafe fn realloc(
+    ptr: *mut u8,
+    layout: Layout,
+    new_size: usize,
+) -> Result<NonNull<u8>, AllocErr> {
     let mut allocator = SYS_ALLOC_LOCK.lock();
     let new_ptr = (*allocator).realloc(ptr, layout.size(), layout.align(), new_size);
     NonNull::new(new_ptr).ok_or(AllocErr)

@@ -13,9 +13,7 @@ use crate::otp::erlang;
 use crate::otp::erlang::cancel_timer_2::native;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::{
-    cancel_timer_message, has_message, list_term, receive_message, strategy, timeout_message,
-};
+use crate::test::{cancel_timer_message, has_message, receive_message, strategy, timeout_message};
 use crate::time::Milliseconds;
 use crate::{process, timer};
 

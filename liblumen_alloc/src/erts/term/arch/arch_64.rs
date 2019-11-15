@@ -893,6 +893,7 @@ mod tests {
         use alloc::sync::Arc;
         use crate::erts::ModuleFunctionArity;
         use crate::erts::process::Process;
+        use crate::erts::term::closure::*;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::make_term(0, 0).unwrap();
@@ -901,7 +902,7 @@ mod tests {
         let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
         let mfa = Arc::new(ModuleFunctionArity {
-            module,
+            module: module.clone(),
             function,
             arity,
         });
@@ -909,8 +910,21 @@ mod tests {
             Ok(())
         };
 
-        let closure = heap.closure_with_env_from_slices(mfa.clone(), code, creator, &[&[]])
-            .unwrap();
+        let one = fixnum!(1);
+        let two = fixnum!(2);
+        let index = 1 as Index;
+        let old_unique = 2 as OldUnique;
+        let unique = [0u8; 16];
+        let closure = heap.anonymous_closure_with_env_from_slices(
+            module,
+            index,
+            old_unique,
+            unique,
+            2,
+            Some(code),
+            Creator::Local(creator),
+            &[&[one, two]]
+        ).unwrap();
         let closure_term: RawTerm = closure.into();
         assert!(closure_term.is_boxed());
         assert_eq!(closure_term.type_of(), Tag::Box);

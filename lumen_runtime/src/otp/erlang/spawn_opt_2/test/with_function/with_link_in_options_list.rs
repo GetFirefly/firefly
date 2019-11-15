@@ -26,7 +26,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_whi
             |(module, function, arity)| {
                 let parent_arc_process = process::test_init();
                 let function =
-                    strategy::term::closure(&parent_arc_process, module, function, arity);
+                    strategy::term::export_closure(&parent_arc_process, module, function, arity);
 
                 let result = native(&parent_arc_process, function, options(&parent_arc_process));
 

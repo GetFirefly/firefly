@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 5fef9d4d2df623f09b333031452afbf442ce1a79d858a7d348c9568546e90837 # shrinks to Term(Boxed(0x10fb66430 => Term(-576460752303423491)))
+cc bb181f6397ade5630b5a1618425336290299c4c17e403b722abc31b94a5be80d # shrinks to Term(Boxed(0x114e1f258 => Term(Tuple(Term(Boxed(0x114e1f240 => Term(ExternalPid { header: 0b11000000000000000000000000000000000000000000000000000000000010, arc_node: Node { id: 101, name: Mutex { data: Cell { value: :"@external" } } }, pid: Pid(0) })))))))
+cc bc97bc3675fce4d62ad51ce8f90dc95ab1b87e58f11d882633a6e067951da06f # shrinks to (Pid(125), Term(Boxed(0x114abfda8 => Term(Tuple(Term(Boxed(0x114abfd98 => Term(Tuple(Term(Boxed(0x114abfd30 => Term(Closure(Closure { header: 0b1010000000000000000000000000000000000000000000000000000001100, module: :"", definition: Anonymous { index: 2147483648, unique: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], old_unique: 0, creator: Pid(0), env_len: 0 }, arity: 0, option_code: Some(4538325392) })))))))))))))

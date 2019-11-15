@@ -119,9 +119,9 @@ impl TypedTerm {
         }
     }
 
-    pub fn is_function_with_arity(&self, arity: usize) -> bool {
+    pub fn is_function_with_arity(&self, arity: u8) -> bool {
         match self {
-            Self::Closure(closure) => (closure.as_ref().arity() as usize) == arity,
+            Self::Closure(closure) => closure.as_ref().arity() == arity,
             _ => false,
         }
     }

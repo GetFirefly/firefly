@@ -6,6 +6,8 @@ use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 
+use alloc::sync::Arc;
+
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::scheduler;
@@ -145,8 +147,7 @@ impl TryFrom<TypedTerm> for Boxed<Reference> {
 #[repr(C)]
 pub struct ExternalReference {
     header: Header<ExternalReference>,
-    node: Node,
-    next: *mut u8,
+    arc_node: Arc<Node>,
     reference: Reference,
 }
 impl_static_header!(ExternalReference, Term::HEADER_EXTERN_REF);
@@ -168,14 +169,14 @@ impl Display for ExternalReference {
 
 impl Hash for ExternalReference {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.node.hash(state);
+        self.arc_node.hash(state);
         self.reference.hash(state);
     }
 }
 
 impl PartialEq for ExternalReference {
     fn eq(&self, other: &ExternalReference) -> bool {
-        self.node == other.node && self.reference == other.reference
+        self.arc_node == other.arc_node && self.reference == other.reference
     }
 }
 impl PartialEq<Reference> for ExternalReference {
@@ -201,7 +202,7 @@ impl PartialEq<Boxed<Reference>> for ExternalReference {
 
 impl PartialOrd for ExternalReference {
     fn partial_cmp(&self, other: &ExternalReference) -> Option<Ordering> {
-        match self.node.partial_cmp(&other.node) {
+        match self.arc_node.partial_cmp(&other.arc_node) {
             Some(Ordering::Equal) => self.reference.partial_cmp(&other.reference),
             result => result,
         }

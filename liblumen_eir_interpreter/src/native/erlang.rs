@@ -1,5 +1,5 @@
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
+
 use lumen_runtime::otp::erlang;
 
 use crate::module::NativeModule;
@@ -46,19 +46,7 @@ pub fn make_erlang() -> NativeModule {
             t => panic!("{:?}", t),
         }
 
-        let ret = {
-            let mfa = ModuleFunctionArity {
-                module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-                function: Atom::try_from_str("return_clean").unwrap(),
-                arity: 1,
-            };
-            proc.closure_with_env_from_slice(
-                mfa.into(),
-                crate::code::return_clean,
-                proc.pid_term(),
-                &[],
-            )?
-        };
+        let ret = crate::code::return_clean_closure(proc)?;
 
         let inner_args = proc.cons(ret, proc.cons(ret, args[2])?)?;
 
@@ -67,19 +55,7 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("spawn").unwrap(), 3, |proc, args| {
-        let ret = {
-            let mfa = ModuleFunctionArity {
-                module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-                function: Atom::try_from_str("return_clean").unwrap(),
-                arity: 1,
-            };
-            proc.closure_with_env_from_slice(
-                mfa.into(),
-                crate::code::return_clean,
-                proc.pid_term(),
-                &[],
-            )?
-        };
+        let ret = crate::code::return_clean_closure(proc)?;
 
         let inner_args = proc.cons(ret, proc.cons(ret, args[2])?)?;
         erlang::spawn_3::native(proc, args[0], args[1], inner_args)
@@ -89,19 +65,7 @@ pub fn make_erlang() -> NativeModule {
         Atom::try_from_str("spawn_link").unwrap(),
         3,
         |proc, args| {
-            let ret = {
-                let mfa = ModuleFunctionArity {
-                    module: Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap(),
-                    function: Atom::try_from_str("return_clean").unwrap(),
-                    arity: 1,
-                };
-                proc.closure_with_env_from_slice(
-                    mfa.into(),
-                    crate::code::return_clean,
-                    proc.pid_term(),
-                    &[],
-                )?
-            };
+            let ret = crate::code::return_clean_closure(proc)?;
 
             let inner_args = proc.cons(ret, proc.cons(ret, args[2])?)?;
             erlang::spawn_link_3::native(proc, args[0], args[1], inner_args)

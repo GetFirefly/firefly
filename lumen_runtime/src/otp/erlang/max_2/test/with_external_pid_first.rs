@@ -24,7 +24,7 @@ fn with_number_atom_reference_function_port_or_local_pid_returns_first() {
 #[test]
 fn with_lesser_external_pid_second_returns_first() {
     max(
-        |_, process| process.external_pid_with_node_id(1, 1, 3).unwrap(),
+        |_, process| process.external_pid(external_arc_node(), 1, 3).unwrap(),
         First,
     );
 }
@@ -37,7 +37,7 @@ fn with_same_external_pid_second_returns_first() {
 #[test]
 fn with_same_value_external_pid_second_returns_first() {
     max(
-        |_, process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
+        |_, process| process.external_pid(external_arc_node(), 2, 3).unwrap(),
         First,
     );
 }
@@ -45,7 +45,7 @@ fn with_same_value_external_pid_second_returns_first() {
 #[test]
 fn with_greater_external_pid_second_returns_second() {
     max(
-        |_, process| process.external_pid_with_node_id(1, 3, 3).unwrap(),
+        |_, process| process.external_pid(external_arc_node(), 3, 3).unwrap(),
         Second,
     );
 }
@@ -74,7 +74,7 @@ where
     R: FnOnce(Term, &Process) -> Term,
 {
     super::max(
-        |process| process.external_pid_with_node_id(1, 2, 3).unwrap(),
+        |process| process.external_pid(external_arc_node(), 2, 3).unwrap(),
         second,
         which,
     );

@@ -17,13 +17,14 @@ use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
-    process.closure_with_env_from_slice(module_function_arity(), code, process.pid_term(), &[])
+    process.export_closure(super::module(), function(), ARITY, Some(code))
 }
 
 // Private
+
+const ARITY: u8 = 1;
 
 /// ```elixir
 /// # pushed to stack: (text)
@@ -53,20 +54,12 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let text = arc_process.stack_pop().unwrap();
 
-    label_1::place_frame_with_arguments(arc_process, Placement::Replace, text)?;
-    lumen_web::window::window_0::place_frame(arc_process, Placement::Push);
+    label_1::place_frame_with_arguments(arc_process, Placement::Replace, text).unwrap();
+    lumen_web::window::window_0::place_frame_with_arguments(arc_process, Placement::Push).unwrap();
 
     Process::call_code(arc_process)
 }
 
 fn function() -> Atom {
     Atom::try_from_str("dom_output").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 1,
-    })
 }

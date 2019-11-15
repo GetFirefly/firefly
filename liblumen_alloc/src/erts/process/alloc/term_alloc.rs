@@ -11,13 +11,15 @@ use hashbrown::HashMap;
 use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
-use crate::ModuleFunctionArity;
 use crate::scheduler;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{self, AllocResult};
 use crate::erts::process::code::Code;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
+use crate::erts::term::closure::{Creator, Index, OldUnique, Unique};
+use crate::erts::module_function_arity::Arity;
+use crate::erts::Node;
 
 use super::{Heap, VirtualAllocator};
 
@@ -260,23 +262,6 @@ pub trait TermAlloc: Heap {
         Ok(unsafe { Boxed::new_unchecked(ptr) })
     }
 
-    /// Creates a `Pid` or `ExternalPid` with the given `node`, `number` and `serial`.
-    fn pid_with_node_id(
-        &mut self,
-        node_id: usize,
-        number: usize,
-        serial: usize,
-    ) -> exception::Result<AnyPid>
-    where
-        Self: Sized,
-    {
-        if node_id == 0 {
-            Ok(AnyPid::Local(self.local_pid_with_node_id(node_id, number, serial)?))
-        } else {
-            Ok(AnyPid::External(self.external_pid_with_node_id(node_id, number, serial)?))
-        }
-    }
-
     #[inline]
     fn local_pid_with_node_id(
         &mut self,
@@ -289,18 +274,16 @@ pub trait TermAlloc: Heap {
         Ok(Pid::new(number, serial)?)
     }
 
-    fn external_pid_with_node_id(
+    fn external_pid(
         &mut self,
-        node_id: usize,
+        arc_node: Arc<Node>,
         number: usize,
         serial: usize,
     ) -> exception::Result<Boxed<ExternalPid>>
     where
         Self: Sized,
     {
-        assert_ne!(node_id, 0);
-
-        let pid = ExternalPid::with_node_id(node_id, number, serial)?
+        let pid = ExternalPid::new(arc_node, number, serial)?
             .clone_to_heap(self)?;
         let boxed: *mut ExternalPid = pid.dyn_cast();
 
@@ -518,14 +501,28 @@ pub trait TermAlloc: Heap {
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
-    fn closure_with_env_from_slice(
+    fn anonymous_closure_with_env_from_slice(
         &mut self,
-        mfa: Arc<ModuleFunctionArity>,
-        code: Code,
-        creator: Term,
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
+        code: Option<Code>,
+        creator: Creator,
         slice: &[Term],
     ) -> AllocResult<Boxed<Closure>> {
-        Closure::from_slice(self, mfa, code, creator, slice)
+        Closure::from_slice(
+            self,
+            module,
+            index,
+            old_unique,
+            unique,
+            arity,
+            code,
+            creator,
+            slice,
+        )
     }
 
     /// Constructs a `Closure` from slices of `Term`
@@ -536,15 +533,29 @@ pub trait TermAlloc: Heap {
     ///
     /// The resulting `Term` is a box pointing to the closure header, and can itself be used in
     /// a slice passed to `closure_with_env_from_slice` to produce nested closures or tuples.
-    fn closure_with_env_from_slices(
+    fn anonymous_closure_with_env_from_slices(
         &mut self,
-        mfa: Arc<ModuleFunctionArity>,
-        code: Code,
-        creator: Term,
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
+        code: Option<Code>,
+        creator: Creator,
         slices: &[&[Term]],
     ) -> AllocResult<Boxed<Closure>> {
         let len = slices.iter().map(|slice| slice.len()).sum();
-        let mut closure_box = Closure::new(self, mfa, code, creator, len)?;
+        let mut closure_box = Closure::new_anonymous(
+            self,
+            module,
+            index,
+            old_unique,
+            unique,
+            arity,
+            code,
+            creator,
+            len,
+        )?;
 
         unsafe {
             let closure_ref = closure_box.as_mut();
@@ -561,6 +572,22 @@ pub trait TermAlloc: Heap {
         }
 
         Ok(closure_box)
+    }
+
+    fn export_closure(
+        &mut self,
+        module: Atom,
+        function: Atom,
+        arity: u8,
+        code: Option<Code>,
+    ) -> AllocResult<Boxed<Closure>> {
+        Closure::new_export(
+            self,
+            module,
+            function,
+            arity,
+            code,
+        )
     }
 }
 

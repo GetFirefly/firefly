@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::otp::erlang::rem_2::native;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::strategy;
+use crate::test::{external_arc_node, strategy};
 
 #[test]
 fn without_integer_dividend_errors_badarith() {
@@ -112,7 +112,9 @@ fn with_local_pid_dividend_errors_badarith() {
 
 #[test]
 fn with_external_pid_dividend_errors_badarith() {
-    with_dividend_errors_badarith(|process| process.external_pid_with_node_id(1, 2, 3).unwrap());
+    with_dividend_errors_badarith(|process| {
+        process.external_pid(external_arc_node(), 2, 3).unwrap()
+    });
 }
 
 #[test]

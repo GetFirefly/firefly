@@ -22,3 +22,6 @@ pub enum CompilerError {
     #[error("invalid file type: '{0}'")]
     FileType(String),
 }
+
+unsafe impl Send for CompilerError {}
+unsafe impl Sync for CompilerError {}

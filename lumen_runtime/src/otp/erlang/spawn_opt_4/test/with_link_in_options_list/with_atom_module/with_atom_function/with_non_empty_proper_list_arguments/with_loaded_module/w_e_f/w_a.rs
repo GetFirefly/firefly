@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::otp::erlang;
+
 #[test]
 fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let parent_arc_process = process::test_init();
@@ -8,8 +10,13 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module = atom!("erlang");
-    let function = atom!("+");
+    erlang::number_or_badarith_1::export();
+
+    let module_atom = erlang::module();
+    let module: Term = module_atom.encode().unwrap();
+
+    let function_atom = erlang::number_or_badarith_1::function();
+    let function: Term = function_atom.encode().unwrap();
 
     let number = parent_arc_process.integer(0).unwrap();
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
@@ -59,8 +66,13 @@ fn without_valid_arguments_when_run_exits_and_parent_exits() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module = atom!("erlang");
-    let function = atom!("+");
+    erlang::number_or_badarith_1::export();
+
+    let module_atom = erlang::module();
+    let module: Term = module_atom.encode().unwrap();
+
+    let function_atom = erlang::number_or_badarith_1::function();
+    let function: Term = function_atom.encode().unwrap();
 
     // not a number
     let number = atom!("zero");

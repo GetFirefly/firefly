@@ -329,10 +329,9 @@ mod tests {
 
     use alloc::sync::Arc;
 
-    use crate::erts::ModuleFunctionArity;
     use crate::erts::testing::RegionHeap;
     use crate::erts::process::Process;
-    use crate::erts::scheduler;
+    use crate::erts::{scheduler, Node};
 
     mod get_element {
         use super::*;
@@ -501,6 +500,11 @@ mod tests {
             let align = core::mem::align_of::<usize>();
             let layout = unsafe { Layout::from_size_align_unchecked(8 * 1024, align) };
             let mut heap = RegionHeap::new(layout);
+            let arc_node = Arc::new(Node::new(
+                1,
+                Atom::try_from_str("node@external").unwrap(),
+                0,
+            ));
             // one of every type
             let slice = &[
                 // small integer
@@ -510,7 +514,7 @@ mod tests {
                 heap.reference(scheduler::id::next(), 0).map(|r| r.into()).unwrap(),
                 closure(&mut heap),
                 heap.float(0.0).map(|f| f.into()).unwrap(),
-                heap.external_pid_with_node_id(1, 0, 0).map(|p| p.into()).unwrap(),
+                heap.external_pid(arc_node, 0, 0).map(|p| p.into()).unwrap(),
                 Term::NIL,
                 Pid::make_term(0, 0).unwrap(),
                 atom!("atom"),
@@ -547,23 +551,16 @@ mod tests {
     }
 
     fn closure<H: TermAlloc>(heap: &mut H) -> Term {
-        let creator = Pid::make_term(0, 0).unwrap();
-
         let module = Atom::try_from_str("module").unwrap();
         let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
-        let mfa = Arc::new(ModuleFunctionArity {
-            module,
-            function,
-            arity,
-        });
         let code = |arc_process: &Arc<Process>| {
             arc_process.wait();
 
             Ok(())
         };
 
-        heap.closure_with_env_from_slices(mfa, code, creator, &[&[]])
+        heap.export_closure(module, function, arity, Some(code))
             .unwrap()
             .into()
     }

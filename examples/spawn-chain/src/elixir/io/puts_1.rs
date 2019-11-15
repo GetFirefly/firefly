@@ -48,7 +48,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
                 Ok(())
             }
-            Exception::System(system_exception) => return Err(system_exception),
+            Exception::System(system_exception) => Err(system_exception),
         },
     }
 }

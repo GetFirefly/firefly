@@ -4,7 +4,7 @@ mod typed_term;
 mod atom;
 mod binary;
 mod boxed;
-mod closure;
+pub mod closure;
 mod float;
 mod integer;
 mod list;

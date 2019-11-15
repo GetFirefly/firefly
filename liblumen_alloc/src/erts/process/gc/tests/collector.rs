@@ -7,6 +7,7 @@ use ::alloc::sync::Arc;
 
 use crate::{atom, fixnum};
 use crate::erts::term::prelude::*;
+use crate::erts::term::closure::*;
 use crate::erts::process::alloc::{TermAlloc, GenerationalHeap};
 use crate::erts::process::test::process;
 use crate::erts::*;
@@ -100,27 +101,27 @@ fn simple_gc_test(process: Process) {
         .binary_from_str(closure_string)
         .unwrap();
 
-    let creator = process.pid_term();
+    let creator = Pid::new(1, 0).unwrap();
     let module = atom_from_str!("module");
-    let function = atom_from_str!("function");
-    let arity = 0;
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module,
-        function,
-        arity,
-    });
     let code = |arc_process: &Arc<Process>| {
         arc_process.wait();
 
         Ok(())
     };
 
+    let index = 1 as Index;
+    let old_unique = 2 as OldUnique;
+    let unique = [0u8; 16];
     let closure = process
         .acquire_heap()
-        .closure_with_env_from_slices(
-            module_function_arity,
-            code,
-            creator,
+        .anonymous_closure_with_env_from_slices(
+            module,
+            index,
+            old_unique,
+            unique,
+            2,
+            Some(code),
+            Creator::Local(creator),
             &[&[closure_num, closure_string_term]],
         )
         .unwrap();

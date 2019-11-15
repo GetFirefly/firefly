@@ -21,7 +21,7 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity() {
                     (1_u8..=255_u8),
                 )
                     .prop_map(|(module, function, arity)| {
-                        strategy::term::closure(&arc_process, module, function, arity)
+                        strategy::term::export_closure(&arc_process, module, function, arity)
                     }),
                 |function| {
                     let result = native(&arc_process, function);

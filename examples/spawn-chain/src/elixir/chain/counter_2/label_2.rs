@@ -52,7 +52,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     // sent = ...
     // output.("sent #{sent} to #{next_pid}")
     // ```
-    label_3::place_frame_with_arguments(arc_process, Placement::Replace, output, next_pid)?;
+    label_3::place_frame_with_arguments(arc_process, Placement::Replace, output, next_pid).unwrap();
 
     // ```elixir
     // # pushed stack: (next_pid, sum)
@@ -60,7 +60,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     // # full stack: (next_pid, sum)
     // # returns: sent
     // send(next_pid, sum)
-    erlang::send_2::place_frame_with_arguments(arc_process, Placement::Push, next_pid, sum)?;
+    erlang::send_2::place_frame_with_arguments(arc_process, Placement::Push, next_pid, sum)
+        .unwrap();
 
     Process::call_code(arc_process)
 }

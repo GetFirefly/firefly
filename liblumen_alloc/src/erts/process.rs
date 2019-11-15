@@ -28,11 +28,13 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 use crate::borrow::CloneToProcess;
 use crate::erts;
 use crate::erts::exception::{self, RuntimeException, AllocResult};
-use crate::erts::process::code::Code;
 use crate::erts::term::prelude::*;
+use crate::erts::term::closure::{Creator, Index, OldUnique, Unique, Definition};
+use crate::erts::module_function_arity::Arity;
 
 use super::*;
 
+use self::code::Code;
 use self::code::stack;
 use self::code::stack::frame::{Frame, Placement};
 use self::gc::{GcError, RootSet};
@@ -473,15 +475,40 @@ impl Process {
         self.acquire_heap().charlist_from_str(s).map(|list| list.into())
     }
 
-    pub fn closure_with_env_from_slice(
+    pub fn anonymous_closure_with_env_from_slice(
         &self,
-        mfa: Arc<ModuleFunctionArity>,
-        code: Code,
-        creator: Term,
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
+        code: Option<Code>,
+        creator: Creator,
         slice: &[Term],
     ) -> AllocResult<Term> {
         self.acquire_heap()
-            .closure_with_env_from_slice(mfa, code, creator, slice)
+            .anonymous_closure_with_env_from_slice(
+                module,
+                index,
+                old_unique,
+                unique,
+                arity,
+                code,
+                creator,
+                slice,
+            )
+            .map(|term_ptr| term_ptr.into())
+    }
+
+    pub fn export_closure(
+        &self,
+        module: Atom,
+        function: Atom,
+        arity: u8,
+        code: Option<Code>,
+    ) -> AllocResult<Term> {
+        self.acquire_heap()
+            .export_closure(module, function, arity, code)
             .map(|term_ptr| term_ptr.into())
     }
 
@@ -492,14 +519,14 @@ impl Process {
             .map(|boxed| boxed.into())
     }
 
-    pub fn external_pid_with_node_id(
+    pub fn external_pid(
         &self,
-        node_id: usize,
+        node: Arc<Node>,
         number: usize,
         serial: usize,
     ) -> exception::Result<Term> {
         self.acquire_heap()
-            .external_pid_with_node_id(node_id, number, serial)
+            .external_pid(node, number, serial)
             .map(|pid| pid.into())
     }
 
@@ -543,17 +570,6 @@ impl Process {
 
     pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> AllocResult<Term> {
         self.acquire_heap().map_from_slice(slice).map(|map| map.into())
-    }
-
-    pub fn pid_with_node_id(
-        &self,
-        node_id: usize,
-        number: usize,
-        serial: usize,
-    ) -> exception::Result<Term> {
-        self.acquire_heap()
-            .pid_with_node_id(node_id, number, serial)
-            .map(|pid| pid.into())
     }
 
     pub fn reference(&self, number: ReferenceNumber) -> AllocResult<Term> {
@@ -984,6 +1000,13 @@ impl Process {
             .lock()
             .get(0)
             .map(|frame| frame.module_function_arity())
+    }
+
+    pub fn current_definition(&self) -> Option<Definition> {
+        self.code_stack
+            .lock()
+            .get(0)
+            .map(|frame| frame.definition().clone())
     }
 
     pub fn place_frame(&self, frame: Frame, placement: Placement) {

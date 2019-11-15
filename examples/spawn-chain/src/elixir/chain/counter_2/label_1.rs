@@ -66,7 +66,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             // sent = send(next_pid, sum)
             // output.("send #{sent} to #{next_pid}")
             // ```
-            label_2::place_frame_with_arguments(arc_process, Placement::Replace, next_pid, output)?;
+            label_2::place_frame_with_arguments(arc_process, Placement::Replace, next_pid, output)
+                .unwrap();
 
             // ```elixir
             // # pushed to stack: (n)
@@ -74,12 +75,17 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             // # full stack: (n)
             // # returns: sum
             // n + 1
-            let one = arc_process.integer(1)?;
-            erlang::add_2::place_frame_with_arguments(arc_process, Placement::Push, n, one)?;
+            let one = arc_process.integer(1).unwrap();
+            erlang::add_2::place_frame_with_arguments(arc_process, Placement::Push, n, one)
+                .unwrap();
 
             Process::call_code(arc_process)
         }
-        None => Ok(Arc::clone(arc_process).wait()),
+        None => {
+            Arc::clone(arc_process).wait();
+
+            Ok(())
+        }
         Some(Err(alloc_err)) => Err(alloc_err.into()),
     }
 }

@@ -56,15 +56,16 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             )?;
 
             if closure.arity() == 2 {
-                closure.place_frame_with_arguments(
-                    arc_process,
-                    Placement::Push,
-                    vec![first, acc],
-                )?;
+                closure
+                    .place_frame_with_arguments(
+                        arc_process,
+                        Placement::Push,
+                        vec![first, acc]
+                    )?;
 
                 Process::call_code(arc_process)
             } else {
-                let argument_list = arc_process.list_from_slice(&[first, acc])?;
+                let argument_list = arc_process.list_from_slice(&[first, acc]).unwrap();
 
                 result_from_exception(
                     arc_process,

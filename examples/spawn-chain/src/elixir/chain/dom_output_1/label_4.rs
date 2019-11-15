@@ -61,15 +61,17 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         tr,
         pid_text,
         text,
-    )?;
+    )
+    .unwrap();
 
-    let tag = arc_process.binary_from_str("td")?;
+    let tag = arc_process.binary_from_str("td").unwrap();
     lumen_web::document::create_element_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         document,
         tag,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

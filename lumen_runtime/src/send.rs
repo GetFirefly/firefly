@@ -5,7 +5,7 @@ use liblumen_alloc::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
 use liblumen_alloc::erts::exception::{self, Exception};
 
-use crate::node;
+use crate::distribution::nodes::node;
 use crate::registry::{self, pid_to_process};
 use crate::scheduler::Scheduler;
 
@@ -29,7 +29,7 @@ pub fn send(
 
                         match node.decode().unwrap() {
                             TypedTerm::Atom(node_atom) => match node_atom.name() {
-                                node::DEAD => {
+                                node::DEAD_ATOM_NAME => {
                                     send_to_name(name_atom, message, options, process)
                                 }
                                 _ => {

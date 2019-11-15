@@ -31,7 +31,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let final_answer = arc_process.stack_pop().unwrap();
     assert!(final_answer.is_integer());
 
-    arc_process.return_from_call(final_answer)?;
+    arc_process.return_from_call(final_answer).unwrap();
 
     Process::call_code(arc_process)
 }

@@ -41,7 +41,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let n = arc_process.stack_pop().unwrap();
     let output = arc_process.stack_pop().unwrap();
 
-    label_1::place_frame_with_arguments(arc_process, Placement::Replace, output, n)?;
+    label_1::place_frame_with_arguments(arc_process, Placement::Replace, output, n).unwrap();
 
     let module = Atom::str_to_term("Elixir.Chain");
     let function = Atom::str_to_term("create_processes");
@@ -52,7 +52,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         module,
         function,
         arguments,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

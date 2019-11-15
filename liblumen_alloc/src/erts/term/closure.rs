@@ -14,17 +14,18 @@ use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
 use crate::erts::process::Process;
 use crate::erts::process::alloc::{TermAlloc, Heap};
-use crate::erts::{self, ModuleFunctionArity};
+use crate::erts::{self, Arity, ModuleFunctionArity};
 
 use super::prelude::*;
 
 #[repr(C)]
 pub struct Closure {
     header: Header<Closure>,
-    creator: Term, // pid of creator process, possible to be either Pid or ExternalPid
-    module_function_arity: Arc<ModuleFunctionArity>,
-    /// Pointer to function entry
-    pub code: Code,
+    module: Atom,
+    definition: Definition,
+    arity: usize,
+    /// Pointer to function entry.  When a closure is received over ETF, `code` may be `None`.
+    code: Option<Code>,
     env: [Term]
 }
 impl_dynamic_header!(Closure, Term::HEADER_CLOSURE);
@@ -32,34 +33,41 @@ impl_dynamic_header!(Closure, Term::HEADER_CLOSURE);
 #[derive(Debug, Clone, Copy)]
 struct ClosureLayout {
     layout: Layout,
-    creator_offset: usize,
-    mfa_offset: usize,
+    module_offset: usize,
+    definition_offset: usize,
+    arity_offset: usize,
     code_offset: usize,
     env_offset: usize,
 }
 impl ClosureLayout {
     fn base_size() -> usize {
-        let (layout, _creator_offset) = Layout::new::<Header<Closure>>()
-            .extend(Layout::new::<Term>())
+        let (layout, _module_offset) = Layout::new::<Header<Closure>>()
+            .extend(Layout::new::<Atom>())
             .unwrap();
-        let (layout, _mfa_offset) = layout
-            .extend(Layout::new::<Arc<ModuleFunctionArity>>())
+        let (layout, _definition_offset) = layout
+            .extend(Layout::new::<Definition>())
+            .unwrap();
+        let (layout, _arity_offset) = layout
+            .extend(Layout::new::<usize>())
             .unwrap();
         let (layout, _code_offset) = layout
-            .extend(Layout::new::<Code>())
+            .extend(Layout::new::<Option<Code>>())
             .unwrap();
         layout.size()
     }
 
-    fn for_code_and_env(code: &Code, env: &[Term]) -> Self {
-        let (layout, creator_offset) = Layout::new::<Header<Closure>>()
-            .extend(Layout::new::<Term>())
+    fn for_env(env: &[Term]) -> Self {
+        let (layout, module_offset) = Layout::new::<Header<Closure>>()
+            .extend(Layout::new::<Atom>())
             .unwrap();
-        let (layout, mfa_offset) = layout
-            .extend(Layout::new::<Arc<ModuleFunctionArity>>())
+        let (layout, definition_offset) = layout
+            .extend(Layout::new::<Definition>())
+            .unwrap();
+        let (layout, arity_offset) = layout
+            .extend(Layout::new::<usize>())
             .unwrap();
         let (layout, code_offset) = layout
-            .extend(Layout::for_value(code))
+            .extend(Layout::new::<Option<Code>>())
             .unwrap();
         let (layout, env_offset) = layout
             .extend(Layout::for_value(env))
@@ -69,33 +77,80 @@ impl ClosureLayout {
 
         Self {
             layout,
-            creator_offset,
-            mfa_offset,
+            module_offset,
+            definition_offset,
+            arity_offset,
             code_offset,
             env_offset,
         }
     }
 
-    fn for_code_and_env_len(code: &Code, env_len: usize) -> Self {
+    fn for_env_len(env_len: usize) -> Self {
         unsafe {
             let ptr = ptr::null_mut() as *mut Term;
             let arr = core::slice::from_raw_parts(ptr as *const (), env_len);
             let env = &*(arr as *const [()] as *mut [Term]);
-            Self::for_code_and_env(code, env)
+            Self::for_env(env)
         }
     }
 }
 impl Closure {
-    /// Constructs a new `Closure` with an env of size `len` using `heap`
+    /// Constructs a new `Closure` with an anonymous definition, with an env of size `len` using `heap`
     ///
     /// The constructed closure will contain an environment of invalid words until
     /// individual elements are written, this is intended for cases where we don't
     /// already have a slice of elements to construct a tuple from
-    pub fn new<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env_len: usize) -> AllocResult<Boxed<Self>>
+    pub fn new_anonymous<A>(
+        heap: &mut A,
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
+        code: Option<Code>,
+        creator: Creator,
+        env_len: usize,
+    ) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + Heap,
     {
-        let closure_layout = ClosureLayout::for_code_and_env_len(&code, env_len);
+        let definition = Definition::Anonymous {
+            index,
+            unique,
+            old_unique,
+            creator,
+        };
+        Self::new(heap, module, definition, arity, code, env_len)
+    }
+
+    /// Like `new_anonymous`, but for export definitions
+    pub fn new_export<A>(
+        heap: &mut A,
+        module: Atom,
+        function: Atom,
+        arity: Arity,
+        code: Option<Code>,
+    ) -> AllocResult<Boxed<Self>>
+    where
+        A: ?Sized + Heap,
+    {
+        let definition = Definition::Export { function };
+        Self::new(heap, module, definition, arity, code, 0)
+    }
+
+    /// Internal helper for the `new_*` constructors
+    fn new<A>(
+        heap: &mut A,
+        module: Atom,
+        definition: Definition,
+        arity: Arity,
+        code: Option<Code>,
+        env_len: usize
+    ) -> AllocResult<Boxed<Self>>
+    where
+        A: ?Sized + Heap,
+    {
+        let closure_layout = ClosureLayout::for_env_len(env_len);
         let layout = closure_layout.layout.clone();
 
         let header = Header::from_arity(env_len);
@@ -106,28 +161,61 @@ impl Closure {
             // Write header
             header_ptr.write(header);
             // Construct pointer to each field and write the corresponding value
-            let creator_ptr = ptr.offset(closure_layout.creator_offset as isize) as *mut Term;
-            creator_ptr.write(creator);
-            let mfa_ptr = ptr.offset(closure_layout.mfa_offset as isize) as *mut Arc<ModuleFunctionArity>;
-            mfa_ptr.write(mfa);
-            let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Code;
+            let module_ptr = ptr.offset(closure_layout.module_offset as isize) as *mut Atom;
+            module_ptr.write(module);
+            let definition_ptr = ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
+            definition_ptr.write(definition);
+            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
+            arity_ptr.write(arity);
+            let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Option<Code>;
             code_ptr.write(code);
             // Construct actual Tuple reference
             Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_len))
         }
     }
 
-    pub fn from_slice<A>(heap: &mut A, mfa: Arc<ModuleFunctionArity>, code: Code, creator: Term, env: &[Term]) -> AllocResult<Boxed<Self>>
+    pub fn from_slice<A>(
+        heap: &mut A,
+        module: Atom,
+        index: Index,
+        old_unique: OldUnique,
+        unique: Unique,
+        arity: Arity,
+        code: Option<Code>,
+        creator: Creator,
+        env: &[Term],
+    ) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + TermAlloc,
     {
-        let closure_layout = ClosureLayout::for_code_and_env(&code, env);
+        let definition = Definition::Anonymous {
+            index,
+            unique,
+            old_unique,
+            creator,
+        };
+
+        Self::new_from_slice(heap, module, definition, arity, code, env)
+    }
+
+    fn new_from_slice<A>(
+        heap: &mut A,
+        module: Atom,
+        definition: Definition,
+        arity: Arity,
+        code: Option<Code>,
+        env: &[Term],
+    ) -> AllocResult<Boxed<Self>>
+    where
+        A: ?Sized + TermAlloc,
+    {
+        let closure_layout = ClosureLayout::for_env(env);
         let layout = closure_layout.layout.clone();
 
         // The result of calling this will be a Tuple with everything located
         // contiguously in memory
-        let arity = env.len();
-        let header = Header::from_arity(arity);
+        let env_arity = env.len();
+        let header = Header::from_arity(env_arity);
         unsafe {
             // Allocate space for tuple and immediate elements
             let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut u8;
@@ -135,11 +223,13 @@ impl Closure {
             let header_ptr = ptr as *mut Header<Self>;
             header_ptr.write(header);
             // Construct pointer to each field and write the corresponding value
-            let creator_ptr = ptr.offset(closure_layout.creator_offset as isize) as *mut Term;
-            creator_ptr.write(creator);
-            let mfa_ptr = ptr.offset(closure_layout.mfa_offset as isize) as *mut Arc<ModuleFunctionArity>;
-            mfa_ptr.write(mfa);
-            let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Code;
+            let module_ptr = ptr.offset(closure_layout.module_offset as isize) as *mut Atom;
+            module_ptr.write(module);
+            let definition_ptr = ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
+            definition_ptr.write(definition);
+            let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
+            arity_ptr.write(arity as u8);
+            let code_ptr = ptr.offset(closure_layout.code_offset as isize) as *mut Option<Code>;
             code_ptr.write(code);
             // Construct pointer to first env element
             let mut env_ptr = ptr.offset(closure_layout.env_offset as isize) as *mut Term;
@@ -157,7 +247,7 @@ impl Closure {
                 env_ptr = env_ptr.offset(1);
             }
             // Construct actual Tuple reference
-            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, arity))
+            Ok(Self::from_raw_parts::<Term>(ptr as *mut Term, env_arity))
         }
     }
 
@@ -166,16 +256,36 @@ impl Closure {
         erts::to_word_size(ClosureLayout::base_size())
     }
 
+    #[inline]
     pub fn arity(&self) -> u8 {
-        self.module_function_arity.arity
+        self.module_function_arity().arity
+    }
+
+    #[inline]
+    pub fn definition(&self) -> &Definition {
+        &self.definition
+    }
+
+    pub fn code(&self) -> Code {
+        self.code.unwrap_or_else(|| {
+            panic!(
+                "{} does not have code associated with it",
+                self.module_function_arity()
+            )
+        })
     }
 
     pub fn frame(&self) -> Frame {
-        Frame::new(Arc::clone(&self.module_function_arity), self.code)
+        let mfa = self.module_function_arity();
+        Frame::from_definition(mfa.module, self.definition.clone(), mfa.arity, self.code())
     }
 
     pub fn module_function_arity(&self) -> Arc<ModuleFunctionArity> {
-        Arc::clone(&self.module_function_arity)
+        Arc::new(ModuleFunctionArity {
+            module: self.module,
+            function: self.function(),
+            arity: self.arity as u8,
+        })
     }
 
     pub fn place_frame_with_arguments(
@@ -202,6 +312,21 @@ impl Closure {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn module(&self) -> Atom {
+        self.module.clone()
+    }
+
+    #[inline]
+    pub fn function(&self) -> Atom {
+        self.definition.function_name()
+    }
+
+    #[inline]
+    pub fn code_address(&self) -> Option<usize> {
+        self.code.map(|code| code as usize)
     }
 
     /// Returns the length of the closure environment in terms.
@@ -269,10 +394,11 @@ impl CloneToProcess for Closure {
     where
         A: ?Sized + TermAlloc,
     {
-        let mfa = self.module_function_arity.clone();
-        let code = self.code;
-        let creator = self.creator;
-        let ptr = Self::from_slice(heap, mfa, code, creator, &self.env)?;
+        let module = self.module.clone();
+        let definition = self.definition.clone();
+        let arity = self.arity;
+        let code = self.code.clone();
+        let ptr = Self::new_from_slice(heap, module, definition, arity as u8, code, &self.env)?;
 
         Ok(ptr.into())
     }
@@ -286,9 +412,10 @@ impl Debug for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Closure")
             .field("header", &self.header)
-            .field("code", &(self.code as usize))
-            .field("module_function_arity", &self.module_function_arity)
-            .field("creator", &self.creator)
+            .field("module", &self.module)
+            .field("definition", &self.definition)
+            .field("arity", &self.arity)
+            .field("code", &self.code_address())
             .field("env_len", &self.env.len())
             .finish()
     }
@@ -296,7 +423,7 @@ impl Debug for Closure {
 
 impl Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let module_function_arity = &self.module_function_arity;
+        let module_function_arity = &self.module_function_arity();
 
         write!(f, "&{}.", module_function_arity.module)?;
         f.write_char('\"')?;
@@ -315,22 +442,32 @@ impl Eq for Closure {}
 
 impl Hash for Closure {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.module_function_arity.hash(state);
-        state.write_usize(self.code as usize);
+        self.module.hash(state);
+        self.definition.hash(state);
+        self.arity.hash(state);
+        self.code_address().hash(state);
+        self.env_slice().hash(state);
     }
 }
 
 impl Ord for Closure {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.module_function_arity.cmp(&other.module_function_arity))
-            .then_with(|| (self.code as usize).cmp(&(other.code as usize)))
+        self.module
+            .cmp(&other.module)
+            .then_with(|| self.definition.cmp(&other.definition))
+            .then_with(|| self.arity.cmp(&other.arity))
+            .then_with(|| self.code_address().cmp(&other.code_address()))
+            .then_with(|| self.env_slice().cmp(other.env_slice()))
     }
 }
 
 impl PartialEq for Closure {
     fn eq(&self, other: &Self) -> bool {
-        (self.module_function_arity == other.module_function_arity)
-            && ((self.code as usize) == (other.code as usize))
+        (self.module == other.module)
+            && (self.definition == other.definition)
+            && (self.arity == other.arity)
+            && (self.code_address() == other.code_address())
+            && (self.env_slice() == other.env_slice())
     }
 }
 impl<T> PartialEq<Boxed<T>> for Closure
@@ -368,3 +505,180 @@ impl TryFrom<TypedTerm> for Boxed<Closure> {
         }
     }
 }
+
+#[derive(Clone)]
+pub enum Creator {
+    Local(Pid),
+    External(ExternalPid),
+}
+
+impl Debug for Creator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Local(pid) => write!(f, "{:?}", pid),
+            Self::External(external_pid) => write!(f, "{:?}", external_pid),
+        }
+    }
+}
+
+impl From<Pid> for Creator {
+    fn from(pid: Pid) -> Self {
+        Self::Local(pid)
+    }
+}
+
+impl From<ExternalPid> for Creator {
+    fn from(external_pid: ExternalPid) -> Self {
+        Self::External(external_pid)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Definition {
+    /// External functions captured with `fun M:F/A` in Erlang or `&M.f/a` in Elixir.
+    Export { function: Atom },
+    /// Anonymous functions declared with `fun` in Erlang or `fn` in Elixir.
+    Anonymous {
+        /// Each anonymous function within a module has an unique index.
+        index: u32,
+        /// The 16 bytes MD5 of the significant parts of the Beam file.
+        unique: [u8; 16],
+        /// The hash value of the parse tree for the fun, but must fit in i32, so not the same as
+        /// `unique`.
+        old_unique: u32,
+        creator: Creator,
+    },
+}
+
+impl Definition {
+    pub fn function_name(&self) -> Atom {
+        match self {
+            Definition::Export { function } => *function,
+            Definition::Anonymous {
+                index,
+                old_unique,
+                unique,
+                ..
+            } => Atom::try_from_str(format!(
+                "{}-{}-{}",
+                index,
+                old_unique,
+                Self::format_unique(&unique)
+            ))
+            .unwrap(),
+        }
+    }
+
+    fn format_unique(unique: &[u8; 16]) -> String {
+        let mut string = String::with_capacity(unique.len() * 2);
+
+        for byte in unique {
+            string.push_str(&format!("{:02x}", byte));
+        }
+
+        string
+    }
+}
+
+impl Eq for Definition {}
+
+impl Hash for Definition {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Definition::Export { function } => function.hash(state),
+            Definition::Anonymous {
+                index,
+                unique,
+                old_unique,
+                ..
+            } => {
+                index.hash(state);
+                unique.hash(state);
+                old_unique.hash(state);
+            }
+        }
+    }
+}
+
+impl PartialEq for Definition {
+    fn eq(&self, other: &Definition) -> bool {
+        match (self, other) {
+            (
+                Definition::Export {
+                    function: self_function,
+                },
+                Definition::Export {
+                    function: other_function,
+                },
+            ) => self_function == other_function,
+            (
+                Definition::Anonymous {
+                    index: self_index,
+                    unique: self_unique,
+                    old_unique: self_old_unique,
+                    ..
+                },
+                Definition::Anonymous {
+                    index: other_index,
+                    unique: other_unique,
+                    old_unique: other_old_unique,
+                    ..
+                },
+            ) => {
+                (self_index == other_index)
+                    && (self_unique == other_unique)
+                    && (self_old_unique == other_old_unique)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for Definition {
+    fn partial_cmp(&self, other: &Definition) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Definition {
+    fn cmp(&self, other: &Definition) -> Ordering {
+        match (self, other) {
+            (
+                Definition::Export {
+                    function: self_function,
+                },
+                Definition::Export {
+                    function: other_function,
+                },
+            ) => self_function.cmp(other_function),
+            (Definition::Export { .. }, Definition::Anonymous { .. }) => Ordering::Greater,
+            (Definition::Anonymous { .. }, Definition::Export { .. }) => Ordering::Less,
+            (
+                Definition::Anonymous {
+                    index: self_index,
+                    unique: self_unique,
+                    old_unique: self_old_unique,
+                    ..
+                },
+                Definition::Anonymous {
+                    index: other_index,
+                    unique: other_unique,
+                    old_unique: other_old_unique,
+                    ..
+                },
+            ) => self_index
+                .cmp(other_index)
+                .then_with(|| self_unique.cmp(other_unique))
+                .then_with(|| self_old_unique.cmp(other_old_unique)),
+        }
+    }
+}
+
+/// Index of anonymous function in module's function table
+pub type Index = u32;
+
+/// Hash of the parse of the function.  Replaced by `Unique`
+pub type OldUnique = u32;
+
+/// 16 byte MD5 of the significant parts of the BEAM file.
+pub type Unique = [u8; 16];

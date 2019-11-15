@@ -30,7 +30,6 @@ pub use self::runtime::RuntimeException;
 mod system;
 pub use self::system::SystemException;
 
-
 use core::convert::Into;
 use core::marker::PhantomData;
 use core::any::type_name;
@@ -120,6 +119,7 @@ impl From<InvalidPidError> for Exception {
         Self::Runtime(badarg(location!()))
     }
 }
+
 impl From<StrFromBinaryError> for Exception {
     fn from(err: StrFromBinaryError) -> Self {
         use StrFromBinaryError::*;
@@ -140,6 +140,7 @@ impl From<TryIntoIntegerError> for Exception {
         Self::Runtime(try_into_integer_error.into())
     }
 }
+
 impl From<TypeError> for Exception {
     fn from(type_error: TypeError) -> Self {
         Self::Runtime(type_error.into())

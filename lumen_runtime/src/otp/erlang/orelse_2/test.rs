@@ -11,7 +11,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use crate::otp::erlang::orelse_2::native;
 use crate::process::SchedulerDependentAlloc;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::strategy;
+use crate::test::{external_arc_node, strategy};
 
 #[test]
 fn without_boolean_left_errors_badarg() {

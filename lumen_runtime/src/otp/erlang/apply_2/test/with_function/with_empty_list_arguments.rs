@@ -8,9 +8,8 @@ use liblumen_alloc::badarity;
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
-use liblumen_alloc::erts::ModuleFunctionArity;
 
-use crate::test::strategy::term::closure;
+use crate::test::strategy::term::export_closure;
 
 #[test]
 fn without_arity_errors_badarity() {
@@ -23,7 +22,7 @@ fn without_arity_errors_badarity() {
                     (1_u8..=255_u8),
                 )
                     .prop_map(|(module, function, arity)| {
-                        closure(&arc_process.clone(), module, function, arity)
+                        export_closure(&arc_process.clone(), module, function, arity)
                     }),
                 |function| {
                     let Ready {
@@ -67,12 +66,7 @@ fn with_arity_returns_function_return() {
                     module_function_arity::function(),
                 )
                     .prop_map(|(module, function)| {
-                        let creator = arc_process.pid_term();
-                        let module_function_arity = Arc::new(ModuleFunctionArity {
-                            module,
-                            function,
-                            arity: 0,
-                        });
+                        let arity = 0;
                         let code: Code = |arc_process: &Arc<Process>| {
                             arc_process.return_from_call(Atom::str_to_term("return_from_fn"))?;
 
@@ -80,7 +74,7 @@ fn with_arity_returns_function_return() {
                         };
 
                         arc_process
-                            .closure_with_env_from_slice(module_function_arity, code, creator, &[])
+                            .export_closure(module, function, arity, Some(code))
                             .unwrap()
                     }),
                 |function| {

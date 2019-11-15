@@ -240,9 +240,8 @@ impl Executor {
 
 impl Drop for Executor {
     fn drop(&mut self) {
-        match self.state {
-            State::Pending { .. } => self.reject(),
-            _ => (),
+        if let State::Pending { .. } = self.state {
+            self.reject()
         };
     }
 }

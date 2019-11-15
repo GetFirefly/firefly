@@ -89,7 +89,7 @@ impl<'h> GarbageCollector<FullSweep<'h>> for ProcessCollector<FullSweep<'h>> {
     // - Deallocate from space
     #[inline]
     fn garbage_collect(&mut self) -> Result<usize, GcError> {
-        use crate::erts::process::gc::collection::sweep_root;
+        use crate::erts::process::gc::collection_type::sweep_root;
 
         // Follow roots and copy values to appropriate heaps
         for mut root in self.roots.iter().copied() {
@@ -155,7 +155,7 @@ impl<'h> GarbageCollector<MinorSweep<'h>> for ProcessCollector<MinorSweep<'h>> {
     /// 1. Verify that we are not going to exceed the maximum heap size
     #[inline]
     fn garbage_collect(&mut self) -> Result<usize, GcError> {
-        use crate::erts::process::gc::collection::sweep_term;
+        use crate::erts::process::gc::collection_type::sweep_term;
 
         // Track the top of the old generation to see if we promote any mature objects
         let old_top = self.gc.target().old_generation().heap_top();

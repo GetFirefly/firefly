@@ -3,6 +3,7 @@ use super::*;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::term::prelude::*;
 
+use crate::otp::erlang;
 use crate::test::has_message;
 
 #[test]
@@ -13,8 +14,13 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module = atom!("erlang");
-    let function = atom!("self");
+    erlang::self_0::export();
+
+    let module_atom = erlang::module();
+    let module: Term = module_atom.encode().unwrap();
+
+    let function_atom = erlang::self_0::function();
+    let function: Term = function_atom.encode().unwrap();
 
     let arguments = Term::NIL;
 

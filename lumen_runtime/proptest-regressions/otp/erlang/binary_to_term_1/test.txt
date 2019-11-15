@@ -1,0 +1,14 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc a31921dcd7d798d9bd2c6b2de672fde0bf9698f4e3066abacdd3b5569773619e # shrinks to Term(Boxed(0x10ef47000 => Term(HeapBin([131, 107, 0, 2, 48, 49]))))
+cc 91f118294edea94031e265822c772df1cb2b0de05fe8eece399737a30586d109 # shrinks to Term(Boxed(0x10ef24000 => Term(HeapBin([131, 100, 0, 4, 97, 116, 111, 109]))))
+cc 115b99d8d3766e209578eb3d90315da6968b915841237b3af320d1b8f444d0b8 # shrinks to Term(Boxed(0x10ee75000 => Term(HeapBin([131, 109, 0, 0, 0, 2, 0, 1]))))
+cc 3872e5edb54a372440da3d382bff63c3da45b6d3364cb00e28e7c008413dd0b2 # shrinks to Term(Boxed(0x10eede000 => Term(HeapBin([131, 77, 0, 0, 0, 2, 3, 1, 64]))))
+cc d7c43c0caafdeb8e8aebdc1af5954723d7e759e2113596f95f84e8acf283ecd0 # shrinks to Term(Boxed(0x10ef01000 => Term(HeapBin([131, 98, 128, 0, 0, 0]))))
+cc 9d8907a425cbd15237037b40fa0eea949f1db0f3dd6d03896d66f9faf130a861 # shrinks to Term(Boxed(0x10ef6a000 => Term(HeapBin([131, 106]))))
+cc 4bda7f092fb0052bfce655d4013531e2214b0a4b9e70685bed3d021c1d9ea321 # shrinks to Term(Boxed(0x10ee98000 => Term(HeapBin([131, 70, 63, 240, 0, 0, 0, 0, 0, 0]))))
+cc 59e9145d70a996be103bd97db4703a9d67d509afb761cd23ec843049ea3905d9 # shrinks to Term(Boxed(0x10eebb000 => Term(HeapBin([131, 108, 0, 0, 0, 2, 100, 0, 4, 122, 101, 114, 111, 97, 1, 106]))))

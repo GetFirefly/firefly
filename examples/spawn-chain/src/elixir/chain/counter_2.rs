@@ -5,29 +5,19 @@ mod label_3;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code;
-use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
+use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::ModuleFunctionArity;
+use liblumen_alloc::Arity;
 
-pub fn place_frame_with_arguments(
-    process: &Process,
-    placement: Placement,
-    next_pid: Term,
-    output: Term,
-) -> Result<(), Alloc> {
-    assert!(next_pid.is_pid());
-    assert!(output.is_function());
-    process.stack_push(output)?;
-    process.stack_push(next_pid)?;
-    process.place_frame(frame(), placement);
-
-    Ok(())
+pub fn export() {
+    lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
 }
 
 // Private
+
+const ARITY: Arity = 2;
 
 /// ```elixir
 /// def counter(next_pid, output) when is_function(output, 1) do
@@ -64,29 +54,19 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     //     sent = send(next_pid, n + 1)
     //     output.("sent #{sent} to #{next_pid}")
     // end
-    label_1::place_frame_with_arguments(arc_process, Placement::Replace, next_pid, output)?;
+    label_1::place_frame_with_arguments(arc_process, Placement::Replace, next_pid, output).unwrap();
 
     // ```elixir
     // output.("spawned")
     // ```
-    let output_data = arc_process.binary_from_str("spawned")?;
-    output_closure.place_frame_with_arguments(arc_process, Placement::Push, vec![output_data])?;
+    let output_data = arc_process.binary_from_str("spawned").unwrap();
+    output_closure
+        .place_frame_with_arguments(arc_process, Placement::Push, vec![output_data])
+        .unwrap();
 
     Process::call_code(arc_process)
 }
 
-fn frame() -> Frame {
-    Frame::new(module_function_arity(), code)
-}
-
 fn function() -> Atom {
     Atom::try_from_str("counter").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 2,
-    })
 }

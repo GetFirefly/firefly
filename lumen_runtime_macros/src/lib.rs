@@ -4,9 +4,11 @@
 #![feature(proc_macro_def_site)]
 extern crate proc_macro;
 
+use proc_macro2::{Ident, Span};
+
 use proc_macro::TokenStream;
 
-use proc_macro2::Ident;
+use proc_macro_crate::crate_name;
 
 use quote::{quote, ToTokens};
 
@@ -30,6 +32,8 @@ pub fn native_implemented_function(
         Ok(signatures) => {
             let place_frame_with_arguments = signatures.place_frame_with_arguments();
             let code = signatures.code();
+            let arity = function_arity.arity();
+            let export = signatures.export();
             let frame = frame();
             let function = function_arity.function();
             let module_function_arity = signatures.module_function_arity();
@@ -40,6 +44,8 @@ pub fn native_implemented_function(
                 // Private
 
                 #code
+                #arity
+                #export
                 #frame
                 #function
                 #module_function_arity
@@ -281,7 +287,7 @@ impl Signatures {
         };
 
         quote! {
-            pub(crate) fn code(arc_process: &std::sync::Arc<liblumen_alloc::erts::process::Process>) -> liblumen_alloc::erts::process::code::Result {
+            pub fn code(arc_process: &std::sync::Arc<liblumen_alloc::erts::process::Process>) -> liblumen_alloc::erts::process::code::Result {
                 arc_process.reduce();
 
                 #(let #stack_popped_code_argument_ident = arc_process.stack_pop().unwrap();)*
@@ -291,15 +297,37 @@ impl Signatures {
         }
     }
 
-    pub fn module_function_arity(&self) -> proc_macro2::TokenStream {
-        let arity = self.code.argument_ident_vec.len() as u8;
+    pub fn export(&self) -> proc_macro2::TokenStream {
+        match crate_name("lumen_runtime") {
+            // in other crates
+            Ok(name) => {
+                let ident = Ident::new(&name, Span::call_site());
 
+                quote! {
+                    pub fn export() {
+                        use #ident as lumen_runtime;
+                        lumen_runtime::code::export::insert(super::module(), function(), ARITY, code);
+                    }
+                }
+            }
+            // in `lumen_runtime`
+            Err(_) => {
+                quote! {
+                    pub fn export() {
+                        crate::code::export::insert(super::module(), function(), ARITY, code);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn module_function_arity(&self) -> proc_macro2::TokenStream {
         quote! {
             pub fn module_function_arity() -> std::sync::Arc<liblumen_alloc::erts::ModuleFunctionArity> {
                 std::sync::Arc::new(liblumen_alloc::erts::ModuleFunctionArity {
                     module: super::module(),
                     function: function(),
-                    arity: #arity,
+                    arity: ARITY,
                 })
             }
         }
@@ -332,11 +360,19 @@ struct FunctionArity {
 }
 
 impl FunctionArity {
+    fn arity(&self) -> proc_macro2::TokenStream {
+        let arity = &self.arity;
+
+        quote! {
+           const ARITY: liblumen_alloc::Arity = #arity;
+        }
+    }
+
     fn function(&self) -> proc_macro2::TokenStream {
         let function = &self.function;
 
         quote! {
-            fn function() -> liblumen_alloc::erts::term::prelude::Atom {
+            pub fn function() -> liblumen_alloc::erts::term::prelude::Atom {
                 liblumen_alloc::erts::term::prelude::Atom::try_from_str(#function).unwrap()
             }
         }

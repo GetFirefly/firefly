@@ -109,15 +109,15 @@ mod tests {
 
     #[test]
     fn test_distance_absolute() {
-        let a = 1 as *const usize;
-        let b = (4 * mem::size_of::<usize>()) as *const usize;
+        let a = 0 as *const usize;
+        let b = (3 * mem::size_of::<usize>()) as *const usize;
         assert_eq!(distance_absolute(a, b), 3);
         assert_eq!(distance_absolute(b, a), 3);
 
         let c = a as *const u8;
         let d = b as *const u8;
-        assert_eq!(distance_absolute(c, d), 4 * mem::size_of::<usize>() - 1);
-        assert_eq!(distance_absolute(d, c), 4 * mem::size_of::<usize>() - 1);
+        assert_eq!(distance_absolute(c, d), 3 * mem::size_of::<usize>());
+        assert_eq!(distance_absolute(d, c), 3 * mem::size_of::<usize>());
 
         let x = 0 as *const usize;
         let y = 0 as *const usize;

@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
-use liblumen_alloc::erts::ModuleFunctionArity;
 use liblumen_alloc::exit;
 
 #[test]
@@ -13,16 +12,14 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
         .run(
             &(
                 strategy::module_function_arity::module(),
-                strategy::module_function_arity::function(),
+                function::anonymous::index(),
+                function::anonymous::old_unique(),
+                function::anonymous::unique(),
             )
-                .prop_map(|(module, function)| {
+                .prop_map(|(module, index, old_unique, unique)| {
                     let arc_process = process::test_init();
-                    let creator = arc_process.pid_term();
-                    let module_function_arity = Arc::new(ModuleFunctionArity {
-                        module,
-                        function,
-                        arity: 0,
-                    });
+                    let creator = arc_process.pid().into();
+                    let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
                         let first = arc_process.stack_pop().unwrap();
                         let second = arc_process.stack_pop().unwrap();
@@ -36,9 +33,13 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                     (
                         arc_process.clone(),
                         arc_process
-                            .closure_with_env_from_slice(
-                                module_function_arity,
-                                code,
+                            .anonymous_closure_with_env_from_slice(
+                                module,
+                                index,
+                                old_unique,
+                                unique,
+                                arity,
+                                Some(code),
                                 creator,
                                 &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
@@ -119,16 +120,14 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
         .run(
             &(
                 strategy::module_function_arity::module(),
-                strategy::module_function_arity::function(),
+                function::anonymous::index(),
+                function::anonymous::old_unique(),
+                function::anonymous::unique(),
             )
-                .prop_map(|(module, function)| {
+                .prop_map(|(module, index, old_unique, unique)| {
                     let arc_process = process::test_init();
-                    let creator = arc_process.pid_term();
-                    let module_function_arity = Arc::new(ModuleFunctionArity {
-                        module,
-                        function,
-                        arity: 0,
-                    });
+                    let creator = arc_process.pid().into();
+                    let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
                         let first = arc_process.stack_pop().unwrap();
                         let second = arc_process.stack_pop().unwrap();
@@ -142,9 +141,13 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                     (
                         arc_process.clone(),
                         arc_process
-                            .closure_with_env_from_slice(
-                                module_function_arity,
-                                code,
+                            .anonymous_closure_with_env_from_slice(
+                                module,
+                                index,
+                                old_unique,
+                                unique,
+                                arity,
+                                Some(code),
                                 creator,
                                 &[
                                     Atom::str_to_term("shutdown"),

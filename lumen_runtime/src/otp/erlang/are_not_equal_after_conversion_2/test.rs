@@ -24,7 +24,6 @@ use proptest::test_runner::{Config, TestRunner};
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::otp::erlang::are_not_equal_after_conversion_2::native;
 use crate::scheduler::with_process_arc;

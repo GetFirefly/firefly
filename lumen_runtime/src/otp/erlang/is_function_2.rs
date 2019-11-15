@@ -14,7 +14,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(is_function/2)]
 fn native(term: Term, arity: Term) -> exception::Result<Term> {
-    let arity_arity: usize = arity.try_into()?;
+    let arity_arity: u8 = arity.try_into()?;
 
     Ok(term.decode()?.is_function_with_arity(arity_arity).into())
 }

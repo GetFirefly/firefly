@@ -1,9 +1,38 @@
+use proptest::strategy::{Just, Strategy};
+use proptest::test_runner::{Config, TestRunner};
+use proptest::{prop_assert, prop_assert_eq};
+
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::scheduler;
 use liblumen_alloc::erts::term::prelude::*;
 
+use crate::otp::erlang::binary_to_term_1;
 use crate::otp::erlang::term_to_binary_1::native;
 use crate::scheduler::with_process;
+use crate::test::strategy;
+
+#[test]
+fn roundtrips_through_binary_to_term() {
+    TestRunner::new(Config::with_source_file(file!()))
+        .run(
+            &strategy::process().prop_flat_map(|arc_process| {
+                (Just(arc_process.clone()), strategy::term(arc_process))
+            }),
+            |(arc_process, term)| {
+                let result_binary = native(&arc_process, term);
+
+                prop_assert!(result_binary.is_ok());
+
+                let binary = result_binary.unwrap();
+
+                prop_assert!(binary.is_binary());
+                prop_assert_eq!(binary_to_term_1::native(&arc_process, binary), Ok(term));
+
+                Ok(())
+            },
+        )
+        .unwrap();
+}
 
 // NEW_FLOAT_EXT (70)
 #[test]

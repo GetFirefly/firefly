@@ -1,4 +1,5 @@
 use core::num::TryFromIntError;
+use core::array::TryFromSliceError;
 use core::convert::TryFrom;
 
 use thiserror::Error;
@@ -116,6 +117,12 @@ impl From<TryFromIntError> for RuntimeException {
 
 impl From<TryIntoIntegerError> for RuntimeException {
     fn from(_: TryIntoIntegerError) -> Self {
+        super::badarg(location!())
+    }
+}
+
+impl From<TryFromSliceError> for RuntimeException {
+    fn from(_: TryFromSliceError) -> Self {
         super::badarg(location!())
     }
 }

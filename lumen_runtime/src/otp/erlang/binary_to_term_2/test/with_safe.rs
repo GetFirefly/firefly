@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore]
 fn with_binary_encoding_atom_that_does_not_exist_errors_badarg() {
     // :erlang.term_to_binary(:non_existent_0)
     let byte_vec = vec![
@@ -26,7 +25,6 @@ fn with_binary_encoding_atom_that_does_not_exist_errors_badarg() {
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_list_containing_atom_that_does_not_exist_errors_badarg() {
     // :erlang.term_to_binary([:non_existent_1])
     let byte_vec = vec![
@@ -52,7 +50,6 @@ fn with_binary_encoding_list_containing_atom_that_does_not_exist_errors_badarg()
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_small_tuple_containing_atom_that_does_not_exist_errors_badarg() {
     // :erlang.term_to_binary({:non_existent_2})
     let byte_vec = vec![
@@ -77,7 +74,6 @@ fn with_binary_encoding_small_tuple_containing_atom_that_does_not_exist_errors_b
 }
 
 #[test]
-#[ignore]
 fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
     // :erlang.term_to_binary(:"non_existent_3_😈")
     let byte_vec = vec![

@@ -1036,28 +1036,34 @@ mod tests {
     #[test]
     fn closure_encoding_x86_64() {
         use alloc::sync::Arc;
-        use crate::erts::ModuleFunctionArity;
         use crate::erts::process::Process;
+        use crate::erts::term::closure::*;
 
         let mut heap = RegionHeap::default();
-        let creator = Pid::make_term(0, 0).unwrap();
+        let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
-        let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
-        let mfa = Arc::new(ModuleFunctionArity {
-            module,
-            function,
-            arity,
-        });
         let code = |_arc_process: &Arc<Process>| {
             Ok(())
         };
 
         let one = fixnum!(1);
         let two = fixnum!(2);
-        let closure = heap.closure_with_env_from_slices(mfa.clone(), code, creator, &[&[one, two]])
-            .unwrap();
+        let index = 1 as Index;
+        let old_unique = 2 as OldUnique;
+        let unique = [0u8; 16];
+        let closure = heap.anonymous_closure_with_env_from_slices(
+            module,
+            index,
+            old_unique,
+            unique,
+            arity,
+            Some(code),
+            Creator::Local(creator),
+            &[&[one, two]]
+        ).unwrap();
+        let mfa = closure.module_function_arity();
         assert_eq!(closure.env_len(), 2);
         let closure_term: RawTerm = closure.into();
         assert!(closure_term.is_boxed());
@@ -1252,9 +1258,17 @@ mod tests {
 
     #[test]
     fn external_pid_encoding_x86_64() {
+        use alloc::sync::Arc;
+        use crate::erts::Node;
+
         let mut heap = RegionHeap::default();
 
-        let pid = ExternalPid::with_node_id(1, 2, 3).unwrap();
+        let arc_node = Arc::new(Node::new(
+            1,
+            Atom::try_from_str("node@external").unwrap(),
+            0,
+        ));
+        let pid = ExternalPid::new(arc_node, 1, 0).unwrap();
         let pid_term = pid.clone_to_heap(&mut heap).unwrap();
         assert!(pid_term.is_boxed());
         assert_eq!(pid_term.type_of(), Tag::Box);

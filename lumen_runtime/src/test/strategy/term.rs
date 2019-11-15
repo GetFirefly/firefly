@@ -10,10 +10,10 @@ use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::{atom, fixnum_from};
-use liblumen_alloc::erts::{ModuleFunctionArity, Process};
+use liblumen_alloc::erts::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-use super::{module_function_arity, size_range};
+use super::size_range;
 
 pub mod binary;
 pub mod function;
@@ -29,11 +29,8 @@ pub mod tuple;
 pub const NON_EXISTENT_ATOM_PREFIX: &str = "non_existent";
 
 pub fn atom() -> BoxedStrategy<Term> {
-    any::<String>()
-        .prop_filter("Reserved for existing/safe atom tests", |s| {
-            !s.starts_with(NON_EXISTENT_ATOM_PREFIX)
-        })
-        .prop_map(|s| atom!(&s))
+    super::atom()
+        .prop_map(|atom| atom.encode().unwrap())
         .boxed()
 }
 
@@ -129,31 +126,22 @@ pub fn is_encoding() -> BoxedStrategy<Term> {
 }
 
 pub fn is_function(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    (
-        module_function_arity::module(),
-        module_function_arity::function(),
-        module_function_arity::arity(),
-    )
-        .prop_map(move |(module, function, arity)| closure(&arc_process, module, function, arity))
-        .boxed()
+    prop_oneof![
+        function::export(arc_process.clone()),
+        function::anonymous(arc_process)
+    ]
+    .boxed()
 }
 
 pub fn is_function_with_arity(arc_process: Arc<Process>, arity: u8) -> BoxedStrategy<Term> {
-    (
-        module_function_arity::module(),
-        module_function_arity::function(),
-    )
-        .prop_map(move |(module, function)| closure(&arc_process, module, function, arity))
-        .boxed()
+    prop_oneof![
+        function::export::with_arity(arc_process.clone(), arity),
+        function::anonymous::with_arity(arc_process, arity)
+    ]
+    .boxed()
 }
 
-pub fn closure(process: &Process, module: Atom, function: Atom, arity: u8) -> Term {
-    let creator = process.pid_term();
-    let module_function_arity = Arc::new(ModuleFunctionArity {
-        module,
-        function,
-        arity,
-    });
+pub fn export_closure(process: &Process, module: Atom, function: Atom, arity: u8) -> Term {
     let code = |arc_process: &Arc<Process>| {
         arc_process.wait();
 
@@ -161,7 +149,7 @@ pub fn closure(process: &Process, module: Atom, function: Atom, arity: u8) -> Te
     };
 
     process
-        .closure_with_env_from_slice(module_function_arity, code, creator, &[])
+        .export_closure(module, function, arity, Some(code))
         .unwrap()
 }
 
@@ -350,6 +338,14 @@ pub fn is_not_list(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 pub fn is_not_local_pid(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Term cannot be a local pid", |term| !term.is_local_pid())
+        .boxed()
+}
+
+pub fn is_not_local_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    super::term(arc_process)
+        .prop_filter("Term cannot be a local reference", |term| {
+            !term.is_local_reference()
+        })
         .boxed()
 }
 

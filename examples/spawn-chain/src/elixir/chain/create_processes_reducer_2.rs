@@ -4,15 +4,18 @@ use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::otp::erlang;
 
 pub fn closure(process: &Process, output: Term) -> std::result::Result<Term, Alloc> {
-    process.closure_with_env_from_slice(
-        module_function_arity(),
-        code,
-        process.pid_term(),
+    process.anonymous_closure_with_env_from_slice(
+        super::module(),
+        0,
+        Default::default(),
+        Default::default(),
+        2,
+        Some(code),
+        process.pid().into(),
         &[output],
     )
 }
@@ -54,19 +57,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         module,
         function,
         arguments,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
-}
-
-fn function() -> Atom {
-    Atom::try_from_str("create_processes_reducer").unwrap()
-}
-
-fn module_function_arity() -> Arc<ModuleFunctionArity> {
-    Arc::new(ModuleFunctionArity {
-        module: super::module(),
-        function: function(),
-        arity: 2,
-    })
 }

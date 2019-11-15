@@ -101,6 +101,6 @@ mod run_2;
 
 use liblumen_alloc::erts::term::prelude::Atom;
 
-fn module() -> Atom {
+pub fn module() -> Atom {
     Atom::try_from_str("Elixir.Chain").unwrap()
 }

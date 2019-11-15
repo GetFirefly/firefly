@@ -24,7 +24,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::is_greater_than_2::native;
 use crate::scheduler::{with_process, with_process_arc};
-use crate::test::strategy;
+use crate::test::{external_arc_node, strategy};
 
 #[test]
 fn with_same_left_and_right_returns_false() {

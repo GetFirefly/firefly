@@ -1,9 +1,13 @@
+use std::sync::Arc;
+
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::Pid;
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::Node;
 
+use crate::distribution::nodes;
 use crate::otp::erlang::list_to_pid_1::native;
 use crate::scheduler::{with_process, with_process_arc};
 use crate::test::strategy;
@@ -50,29 +54,39 @@ fn with_list_encoding_local_pid() {
 }
 
 #[test]
-fn with_list_encoding_external_pid() {
+fn with_list_encoding_external_pid_without_known_node_errors_badarg() {
     with_process(|process| {
         assert_badarg!(native(&process, process.charlist_from_str("<").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<1").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<1.").unwrap()));
-        assert_badarg!(native(&process, process.charlist_from_str("<1.2").unwrap()));
+        assert_badarg!(native(&process, process.charlist_from_str("<2").unwrap()));
+        assert_badarg!(native(&process, process.charlist_from_str("<2.").unwrap()));
+        assert_badarg!(native(&process, process.charlist_from_str("<2.3").unwrap()));
         assert_badarg!(native(
             &process,
-            process.charlist_from_str("<1.2.").unwrap(),
+            process.charlist_from_str("<2.3.").unwrap(),
         ));
         assert_badarg!(native(
             &process,
-            process.charlist_from_str("<1.2.3").unwrap(),
+            process.charlist_from_str("<2.3.4").unwrap(),
         ));
 
+        // MUST be a different `id` than other tests that insert the node.
+        let arc_node = Arc::new(Node::new(2, Atom::try_from_str("2@external").unwrap(), 0));
+
+        assert_badarg!(native(
+            &process,
+            process.charlist_from_str("<2.3.4>").unwrap(),
+        ));
+
+        nodes::insert(arc_node.clone());
+
         assert_eq!(
-            native(&process, process.charlist_from_str("<1.2.3>").unwrap()),
-            Ok(process.external_pid_with_node_id(1, 2, 3).unwrap())
+            native(&process, process.charlist_from_str("<2.3.4>").unwrap()),
+            Ok(process.external_pid(arc_node, 3, 4).unwrap())
         );
 
         assert_badarg!(native(
             &process,
-            process.charlist_from_str("<1.2.3>?").unwrap(),
+            process.charlist_from_str("<2.3.4>?").unwrap(),
         ));
     });
 }

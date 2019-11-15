@@ -187,6 +187,17 @@ impl From<u64> for Integer {
         }
     }
 }
+impl From<u128> for Integer {
+    fn from(u: u128) -> Integer {
+        let result_isize: Result<isize, _> = u.try_into();
+
+        match result_isize {
+            Err(_) => Integer::Big(u.into()),
+            Ok(i) if SmallInteger::MAX_VALUE < i => Integer::Big(i.into()),
+            Ok(i) => Integer::Small(unsafe { SmallInteger::new_unchecked(i) }),
+        }
+    }
+}
 impl From<usize> for Integer {
     #[inline]
     fn from(n: usize) -> Integer {
@@ -206,6 +217,15 @@ impl From<i32> for Integer {
 impl From<i64> for Integer {
     fn from(n: i64) -> Integer {
         if (SmallInteger::MIN_VALUE as i64) <= n && n <= (SmallInteger::MAX_VALUE as i64) {
+            Integer::Small(unsafe { SmallInteger::new_unchecked(n as isize) })
+        } else {
+            Integer::Big(n.into())
+        }
+    }
+}
+impl From<i128> for Integer {
+    fn from(n: i128) -> Integer {
+        if (SmallInteger::MIN_VALUE as i128) <= n && n <= (SmallInteger::MAX_VALUE as i128) {
             Integer::Small(unsafe { SmallInteger::new_unchecked(n as isize) })
         } else {
             Integer::Big(n.into())

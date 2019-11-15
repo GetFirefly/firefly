@@ -55,13 +55,15 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(pid_td.is_resource_reference());
     let text = arc_process.stack_pop().unwrap();
 
-    label_7::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text)?;
+    label_7::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text)
+        .unwrap();
     lumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,
         Placement::Push,
         tr,
         pid_td,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

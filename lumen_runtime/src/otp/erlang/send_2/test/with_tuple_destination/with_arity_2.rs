@@ -71,7 +71,7 @@ fn with_local_pid_name_errors_badarg() {
 
 #[test]
 fn with_external_pid_name_errors_badarg() {
-    with_name_errors_badarg(|process| process.external_pid_with_node_id(1, 2, 3).unwrap());
+    with_name_errors_badarg(|process| process.external_pid(external_arc_node(), 2, 3).unwrap());
 }
 
 #[test]

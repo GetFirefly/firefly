@@ -50,7 +50,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         last,
         new_acc,
         reducer,
-    )?;
+    )
+    .unwrap();
 
     Process::call_code(arc_process)
 }

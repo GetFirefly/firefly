@@ -155,7 +155,7 @@ Lumen is different than BEAM in the following ways:
 * The runtime library provided by Lumen is written in Rust, and while very
   similar, differs in mostly transparent ways. One of the goals is to provide a
   better foundation for learning how the runtime is implemented, and to take
-  advantage of Rusts' more powerful static analysis to catch bugs early.
+  advantage of Rust's more powerful static analysis to catch bugs early.
 * It has support for targeting WebAssembly
 
 The result of compiling a BEAM application via Lumen is a static executable. This differs

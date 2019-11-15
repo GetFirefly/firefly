@@ -39,8 +39,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let n = arc_process.stack_pop().unwrap();
     assert!(n.is_integer());
 
-    let none_output_closure = none_output_1::closure(arc_process)?;
-    run_2::place_frame_with_arguments(arc_process, Placement::Replace, n, none_output_closure)?;
+    let none_output_closure = none_output_1::closure(arc_process).unwrap();
+    run_2::place_frame_with_arguments(arc_process, Placement::Replace, n, none_output_closure)
+        .unwrap();
 
     Process::call_code(arc_process)
 }

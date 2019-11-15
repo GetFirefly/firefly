@@ -4,9 +4,9 @@ use super::*;
 fn with_different_process_sends_message_when_timer_expires() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
-            &(milliseconds(), strategy::process()).prop_flat_map(|(milliseconds, arc_process)| {
+            &strategy::process().prop_flat_map(|arc_process| {
                 (
-                    Just(milliseconds),
+                    milliseconds(),
                     Just(arc_process.clone()),
                     strategy::term(arc_process),
                 )

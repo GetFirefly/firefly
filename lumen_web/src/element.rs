@@ -29,7 +29,7 @@ fn from_term(term: Term) -> Result<&'static Element, exception::Exception> {
     if resource_type_id == TypeId::of::<Element>() {
         let element: &Element = resource_reference.downcast_ref().unwrap();
         let static_element: &'static Element =
-            unsafe { mem::transmute::<&Element, &'static Element>(element.as_ref()) };
+            unsafe { mem::transmute::<&Element, &'static Element>(element) };
 
         Ok(static_element)
     } else if resource_type_id == TypeId::of::<HtmlBodyElement>() {

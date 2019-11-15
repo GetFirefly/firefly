@@ -91,7 +91,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
             last,
             acc,
             reducer,
-        )?;
+        )
+        .unwrap();
 
         // ```elixir
         // # pushed to stack: (first, inc)
@@ -100,8 +101,8 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         // # returns: new_first
         // first + 1
         // ```
-        let inc = arc_process.integer(1)?;
-        add_2::place_frame_with_arguments(arc_process, Placement::Push, first, inc)?;
+        let inc = arc_process.integer(1).unwrap();
+        add_2::place_frame_with_arguments(arc_process, Placement::Push, first, inc).unwrap();
 
         Process::call_code(arc_process)
     }

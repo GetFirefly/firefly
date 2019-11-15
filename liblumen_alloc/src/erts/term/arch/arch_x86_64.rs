@@ -16,9 +16,6 @@ use core::fmt;
 
 use crate::erts::exception;
 
-use liblumen_core::sys::sysconf::MIN_ALIGN;
-const_assert!(MIN_ALIGN >= 8);
-
 use crate::erts::term::prelude::*;
 
 use super::{Repr, Tag};

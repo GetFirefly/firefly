@@ -10,7 +10,6 @@ compile_error!(
 use core::alloc::Layout;
 use core::cmp;
 use core::convert::TryFrom;
-use core::fmt;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;

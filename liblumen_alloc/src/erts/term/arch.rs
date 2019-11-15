@@ -163,6 +163,9 @@ cfg_if! {
     if #[cfg(target_pointer_width = "32")] {
         pub use self::arch_32 as target;
     } else if #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))] {
+        use liblumen_core::sys::sysconf::MIN_ALIGN;
+        const_assert!(MIN_ALIGN >= 8);
+
         pub use self::arch_x86_64 as target;
     } else if #[cfg(target_pointer_width = "64")] {
         pub use self::arch_64 as target;

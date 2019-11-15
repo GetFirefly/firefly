@@ -1,15 +1,15 @@
+use core::alloc::Layout;
 use core::fmt;
 use core::mem;
 use core::ptr::{self, NonNull};
-use core::alloc::Layout;
 
-use liblumen_core::alloc::utils::{is_aligned_at, is_aligned, align_up_to};
+use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 
-use crate::mem::bit_size_of;
-use crate::erts::*;
-use crate::erts::term::prelude::*;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::*;
+use crate::erts::term::prelude::*;
+use crate::erts::*;
+use crate::mem::bit_size_of;
 
 /// This type represents the old generation process heap
 ///

@@ -5,7 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, raise, atom};
+use liblumen_alloc::{atom, badarg, raise};
 
 use crate::otp::erlang::raise_3::native;
 use crate::scheduler::with_process_arc;

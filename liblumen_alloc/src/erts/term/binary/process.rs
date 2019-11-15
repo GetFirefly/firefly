@@ -1,19 +1,19 @@
 use core::alloc::Layout;
+use core::convert::TryFrom;
 use core::fmt::{self, Debug};
+use core::iter;
 use core::ptr::{self, NonNull};
 use core::slice;
 use core::str;
-use core::iter;
 use core::sync::atomic::{self, AtomicUsize};
-use core::convert::TryFrom;
 
 use intrusive_collections::LinkedListLink;
 use liblumen_core::offset_of;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
-use crate::erts::process::Process;
 use crate::erts::process::alloc::TermAlloc;
+use crate::erts::process::Process;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
 
@@ -28,7 +28,7 @@ use crate::erts::term::prelude::*;
 pub struct ProcBinInner {
     refc: AtomicUsize,
     flags: BinaryFlags,
-    data: [u8]
+    data: [u8],
 }
 impl_static_header!(ProcBin, Term::HEADER_PROCBIN);
 impl ProcBinInner {
@@ -130,15 +130,11 @@ impl ProcBin {
         use liblumen_core::sys::alloc as sys_alloc;
 
         let (base_layout, flags_offset) = ProcBinInner::base_layout();
-        let (unpadded_layout, data_offset) = base_layout
-            .extend(Layout::for_value(s))
-            .unwrap();
+        let (unpadded_layout, data_offset) = base_layout.extend(Layout::for_value(s)).unwrap();
         // We pad to alignment so that the Layout produced here
         // matches that returned by `Layout::for_value` on the
         // final `ProcBinInner`
-        let layout = unpadded_layout
-            .pad_to_align()
-            .unwrap();
+        let layout = unpadded_layout.pad_to_align().unwrap();
 
         unsafe {
             let non_null = sys_alloc::alloc(layout)?;
@@ -147,8 +143,7 @@ impl ProcBin {
             let ptr: *mut u8 = non_null.as_ptr();
             ptr::write(ptr as *mut AtomicUsize, AtomicUsize::new(1));
             let flags_ptr = ptr.offset(flags_offset as isize) as *mut BinaryFlags;
-            let flags = BinaryFlags::new(encoding)
-                .set_size(len);
+            let flags = BinaryFlags::new(encoding).set_size(len);
             ptr::write(flags_ptr, flags);
             let data_ptr = ptr.offset(data_offset as isize);
             ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, len);

@@ -18,12 +18,15 @@ impl Region {
     {
         let start = start as *const u8;
         let end = end as *const u8;
-        assert!(start < end, "invalid region bounds, `start` must have a lower address than `end`");
-        assert!(end as usize - start as usize > 0, "invalid region bounds, must represent at least one byte");
-        Self {
-            start,
-            end,
-        }
+        assert!(
+            start < end,
+            "invalid region bounds, `start` must have a lower address than `end`"
+        );
+        assert!(
+            end as usize - start as usize > 0,
+            "invalid region bounds, must represent at least one byte"
+        );
+        Self { start, end }
     }
 
     /// Returns the size of this region in bytes

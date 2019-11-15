@@ -83,7 +83,9 @@ fn with_utf8_binary_with_valid_encoding_with_existing_atom_returns_atom() {
                     let byte_vec: Vec<u8> = match binary.decode().unwrap() {
                         TypedTerm::HeapBinary(heap_binary) => heap_binary.as_bytes().to_vec(),
                         TypedTerm::ProcBin(process_binary) => process_binary.as_bytes().to_vec(),
-                        TypedTerm::BinaryLiteral(process_binary) => process_binary.as_bytes().to_vec(),
+                        TypedTerm::BinaryLiteral(process_binary) => {
+                            process_binary.as_bytes().to_vec()
+                        }
                         TypedTerm::SubBinary(subbinary) => subbinary.full_byte_iter().collect(),
                         typed_term => panic!("typed_term = {:?}", typed_term),
                     };

@@ -1,5 +1,5 @@
-use core::convert::{TryFrom, TryInto};
 use core::cmp;
+use core::convert::{TryFrom, TryInto};
 use core::ops;
 use core::slice;
 
@@ -179,7 +179,7 @@ impl TryFrom<TypedTerm> for ZeroBasedIndex {
         match term {
             TypedTerm::SmallInteger(n) => Ok(Self::new(n.try_into()?)),
             TypedTerm::BigInteger(n) => Ok(Self::new(n.try_into()?)),
-            _ => Err(IndexError::BadArgument)
+            _ => Err(IndexError::BadArgument),
         }
     }
 }
@@ -330,7 +330,6 @@ where
         ops::Index::index(self.elements(), ops::RangeTo { end: uindex })
     }
 }
-
 
 impl<I> ops::Index<ops::RangeFrom<I>> for Tuple
 where

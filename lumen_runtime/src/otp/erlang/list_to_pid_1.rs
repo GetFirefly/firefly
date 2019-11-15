@@ -72,10 +72,7 @@ fn next_decimal_digit(cons: Boxed<Cons>) -> exception::Result<(u8, Term)> {
     }
 }
 
-fn rest_decimal_digits(
-    first_digit: u8,
-    first_tail: Term,
-) -> exception::Result<(usize, Term)> {
+fn rest_decimal_digits(first_digit: u8, first_tail: Term) -> exception::Result<(usize, Term)> {
     match first_tail.try_into() {
         Ok(first_tail_cons) => {
             let mut acc_decimal: usize = first_digit as usize;

@@ -9,11 +9,10 @@ compile_error!("Target does not support an immediate float representation");
 use core::convert::TryFrom;
 
 use crate::borrow::CloneToProcess;
+use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::Process;
-use crate::erts::exception::AllocResult;
-use crate::erts::term::prelude::{Term, TypedTerm, TypeError, Encode};
-
+use crate::erts::term::prelude::{Encode, Term, TypeError, TypedTerm};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[repr(transparent)]

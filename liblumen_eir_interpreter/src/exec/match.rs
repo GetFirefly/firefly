@@ -4,7 +4,7 @@ use libeir_ir::{BasicType, Block, MatchKind};
 
 use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded, ExactEq};
+use liblumen_alloc::erts::term::prelude::{Encoded, ExactEq, TypedTerm};
 
 use super::{CallExecutor, OpResult};
 use crate::module::ErlangFunction;
@@ -20,7 +20,8 @@ pub fn match_op(
 
     let branches_dests = reads[0];
 
-    let unpack_term = exec.make_term(proc, fun, reads[1])
+    let unpack_term = exec
+        .make_term(proc, fun, reads[1])
         .unwrap()
         .decode()
         .unwrap();

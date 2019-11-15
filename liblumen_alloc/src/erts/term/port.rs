@@ -1,7 +1,7 @@
 use core::cmp;
+use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
-use core::convert::TryFrom;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
@@ -74,7 +74,7 @@ impl TryFrom<TypedTerm> for Port {
     fn try_from(term: TypedTerm) -> Result<Self, Self::Error> {
         match term {
             TypedTerm::Port(p) => Ok(p),
-            _ => Err(TypeError)
+            _ => Err(TypeError),
         }
     }
 }
@@ -152,7 +152,7 @@ impl TryFrom<TypedTerm> for Boxed<ExternalPort> {
     fn try_from(term: TypedTerm) -> Result<Self, Self::Error> {
         match term {
             TypedTerm::ExternalPort(p) => Ok(p),
-            _ => Err(TypeError)
+            _ => Err(TypeError),
         }
     }
 }

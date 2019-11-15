@@ -1,50 +1,50 @@
-mod heap;
-mod match_context;
-mod process;
-mod literal;
-mod sub;
-mod iter;
-mod compare;
 mod aligned_binary;
+mod compare;
+mod heap;
+mod iter;
+mod literal;
+mod match_context;
 mod maybe_aligned_maybe_binary;
 mod primitives;
+mod process;
+mod sub;
 
 use core::str::Utf8Error;
 
 use thiserror::Error;
 
-use crate::erts::string::Encoding;
 use crate::erts::exception::Alloc;
+use crate::erts::string::Encoding;
 
 use super::prelude::Boxed;
 
 // This module provides a limited set of exported types/traits for convenience
 pub mod prelude {
     // Expose the iterator traits for bytes/bits
-    pub use super::iter::{ByteIterator, BitIterator};
+    pub use super::iter::{BitIterator, ByteIterator};
     // Expose the concrete iterator types for use within the `binary` module only
-    pub(in crate::erts::term) use super::iter::{FullByteIter, BitsIter, PartialByteBitIter};
+    pub(in crate::erts::term) use super::iter::{BitsIter, FullByteIter, PartialByteBitIter};
     // Expose the various binary/bitstring traits
-    pub use super::{Bitstring, Binary, IndexByte, MaybePartialByte};
     pub use super::aligned_binary::AlignedBinary;
     pub use super::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
+    pub use super::{Binary, Bitstring, IndexByte, MaybePartialByte};
     // Expose the type for binary flags
     pub use super::BinaryFlags;
     // Expose the concrete binary types
     pub use super::heap::HeapBin;
-    pub use super::process::ProcBin;
     pub use super::literal::BinaryLiteral;
     pub use super::match_context::MatchContext;
+    pub use super::process::ProcBin;
     pub use super::sub::SubBinary;
     // Expose the error types
     pub use super::{BytesFromBinaryError, StrFromBinaryError};
 
     // Expose the low-level binary helpers
     pub use super::primitives::CopyDirection;
-    pub use super::primitives::{copy_bits, copy_binary_to_buffer};
+    pub use super::primitives::{copy_binary_to_buffer, copy_bits};
 
     // Expose the low-level binary helpers that are restricted to the `binary` module only
-    pub(super) use super::primitives::{num_bytes, bit_offset, byte_offset};
+    pub(super) use super::primitives::{bit_offset, byte_offset, num_bytes};
 }
 
 /// This trait provides common behavior for all types which represent
@@ -81,7 +81,6 @@ impl<T: ?Sized + Bitstring> Bitstring for Boxed<T> {
         self.as_ref().as_byte_ptr()
     }
 }
-
 
 /// This trait provides common behavior for all binary types which represent a collection of bytes
 pub trait Binary: Bitstring {
@@ -136,10 +135,10 @@ pub trait IndexByte {
 /// This struct represents three pieces of information about a binary:
 ///
 /// - The type of encoding, i.e. latin1, utf8, or unknown/raw
-/// - Whether the binary data was compiled in as a literal, and so
-///   should never be garbage collected/freed
-/// - The size in bytes of binary data, which is used to reify fat
-///   pointers to the underlying slice of bytes
+/// - Whether the binary data was compiled in as a literal, and so should never be garbage
+///   collected/freed
+/// - The size in bytes of binary data, which is used to reify fat pointers to the underlying slice
+///   of bytes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct BinaryFlags(usize);
@@ -200,13 +199,16 @@ impl BinaryFlags {
             Self::FLAG_IS_RAW_BIN => Encoding::Raw,
             Self::FLAG_IS_LATIN1_BIN => Encoding::Latin1,
             Self::FLAG_IS_UTF8_BIN => Encoding::Utf8,
-            value => unreachable!("{}", value)
+            value => unreachable!("{}", value),
         }
     }
 
     #[inline]
     pub fn set_size(self, size: usize) -> Self {
-        assert!(size <= (usize::max_value() << Self::FLAG_BITS), "binary size is too large!");
+        assert!(
+            size <= (usize::max_value() << Self::FLAG_BITS),
+            "binary size is too large!"
+        );
         Self(self.0 | (size << Self::FLAG_BITS))
     }
 
@@ -266,7 +268,6 @@ pub trait MaybePartialByte {
     /// The total of number of bytes needed to hold `total_bit_len`
     fn total_byte_len(&self) -> usize;
 }
-
 
 /// Represents an error converting a binary term to `Vec<u8>`
 #[derive(Error, Debug)]

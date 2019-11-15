@@ -1,5 +1,5 @@
-use core::alloc::AllocErr;
 use alloc::sync::Arc;
+use core::alloc::AllocErr;
 
 use thiserror::Error;
 

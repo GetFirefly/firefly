@@ -8,9 +8,9 @@ use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{self, AllocResult, Exception};
+use crate::erts::process::alloc::{StackAlloc, TermAlloc};
 use crate::erts::term::prelude::*;
 use crate::erts::to_word_size;
-use crate::erts::process::alloc::{TermAlloc, StackAlloc};
 
 pub enum List {
     Empty,
@@ -374,8 +374,8 @@ impl TryInto<String> for Boxed<Cons> {
             .into_iter()
             .map(|result| match result {
                 Ok(element) => {
-                    let result_char: exception::Result<char> = element.try_into()
-                        .map_err(|_| badarg!().into());
+                    let result_char: exception::Result<char> =
+                        element.try_into().map_err(|_| badarg!().into());
 
                     result_char
                 }
@@ -864,7 +864,6 @@ mod tests {
             assert_eq!(list_iter.next(), None);
             assert_eq!(list_iter.next(), None);
         }
-
 
         #[test]
         fn list_builder_improper_list_iter() {

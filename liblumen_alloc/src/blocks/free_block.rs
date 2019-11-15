@@ -18,8 +18,10 @@ use super::{Block, BlockFooter, BlockRef, FreeBlockRef, FreeBlocks};
 macro_rules! unlikely {
     ($e:expr) => {{
         #[allow(unused_unsafe)]
-        unsafe { core::intrinsics::unlikely($e) }
-    }}
+        unsafe {
+            core::intrinsics::unlikely($e)
+        }
+    }};
 }
 
 /// This struct extends `Block` with extra metadata when free.

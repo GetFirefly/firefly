@@ -1,9 +1,8 @@
 ///! This module defines an error type which distinguishes between runtime and system exceptions.
 ///!
 ///! Errors which are part of the normal execution of an Erlang program are represented by the
-///! `RuntimeException` type, while errors which are not recoverable from Erlang code are represented
-///! by the `SystemException` type.
-
+///! `RuntimeException` type, while errors which are not recoverable from Erlang code are
+/// represented ! by the `SystemException` type.
 // Allocation errors
 mod alloc;
 pub use self::alloc::Alloc;
@@ -14,7 +13,7 @@ pub use self::arc::ArcError;
 
 // The concrete implementations of the runtime exception classes
 mod classes;
-pub use self::classes::{Class, Exit, Throw, Error};
+pub use self::classes::{Class, Error, Exit, Throw};
 
 // A location represents file/line/column info about an error
 mod location;
@@ -30,14 +29,14 @@ pub use self::runtime::RuntimeException;
 mod system;
 pub use self::system::SystemException;
 
+use core::any::type_name;
 use core::convert::Into;
 use core::marker::PhantomData;
-use core::any::type_name;
 
 use thiserror::Error;
 
-use super::term::prelude::*;
 use super::string::InvalidEncodingNameError;
+use super::term::prelude::*;
 
 /// A convenience type alias for results which fail with `Exception`
 pub type Result<T> = core::result::Result<T, Exception>;

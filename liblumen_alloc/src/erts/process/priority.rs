@@ -1,7 +1,7 @@
 use core::convert::{TryFrom, TryInto};
 
 use crate::erts::exception::Exception;
-use crate::erts::term::prelude::{Atom, Term, TypedTerm, Encoded};
+use crate::erts::term::prelude::{Atom, Encoded, Term, TypedTerm};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Priority {

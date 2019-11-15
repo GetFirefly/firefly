@@ -8,7 +8,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::{Float, Encoded};
+use liblumen_alloc::erts::term::prelude::{Encoded, Float};
 
 use crate::otp::erlang::floor_1::native;
 use crate::scheduler::with_process_arc;

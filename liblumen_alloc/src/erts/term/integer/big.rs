@@ -238,7 +238,6 @@ where
     }
 }
 
-
 impl Ord for BigInteger {
     #[inline]
     fn cmp(&self, other: &BigInteger) -> Ordering {
@@ -430,7 +429,6 @@ impl Shr<usize> for BigInteger {
         BigInteger::new(self.value.shr(rhs))
     }
 }
-
 
 fn f64_cmp_f64(left: f64, right: f64) -> Ordering {
     match left.partial_cmp(&right) {

@@ -17,7 +17,12 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::binary::{start_length_to_part_range, PartRange};
 
 #[native_implemented_function(binary_part/3)]
-pub fn native(process: &Process, binary: Term, start: Term, length: Term) -> exception::Result<Term> {
+pub fn native(
+    process: &Process,
+    binary: Term,
+    start: Term,
+    length: Term,
+) -> exception::Result<Term> {
     let start_usize: usize = start.try_into()?;
     let length_isize: isize = length.try_into()?;
 
@@ -56,11 +61,7 @@ pub fn native(process: &Process, binary: Term, start: Term, length: Term) -> exc
             let PartRange {
                 byte_offset,
                 byte_len,
-            } = start_length_to_part_range(
-                start_usize,
-                length_isize,
-                subbinary.full_byte_len(),
-            )?;
+            } = start_length_to_part_range(start_usize, length_isize, subbinary.full_byte_len())?;
 
             // new subbinary is entire subbinary
             if (subbinary.is_binary())

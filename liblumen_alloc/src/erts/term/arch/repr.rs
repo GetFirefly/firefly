@@ -6,7 +6,9 @@ use crate::erts::term::prelude::*;
 
 use super::Tag;
 
-pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self> + Ord + Hash + Send {
+pub trait Repr:
+    Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialOrd<Self> + Ord + Hash + Send
+{
     type Word: Clone + Copy + PartialEq + Eq + Debug + fmt::Binary;
 
     fn as_usize(&self) -> usize;
@@ -20,8 +22,12 @@ pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialO
     fn encode_immediate(value: Self::Word, tag: Self::Word) -> Self;
     fn encode_header(value: Self::Word, tag: Self::Word) -> Self;
     fn encode_list(value: *const Cons) -> Self;
-    fn encode_box<U>(value: *const U) -> Self where U: ?Sized;
-    fn encode_literal<U>(value: *const U) -> Self where U: ?Sized;
+    fn encode_box<U>(value: *const U) -> Self
+    where
+        U: ?Sized;
+    fn encode_literal<U>(value: *const U) -> Self
+    where
+        U: ?Sized;
 
     unsafe fn decode_box(self) -> *mut Self;
     unsafe fn decode_list(self) -> Boxed<Cons>;
@@ -41,12 +47,16 @@ pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialO
     /// will result if this is invoked on any other term.
     unsafe fn decode_header_value(&self) -> Self::Word;
 
-    fn decode_header(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> exception::Result<TypedTerm>
+    fn decode_header(
+        &self,
+        tag: Tag<Self::Word>,
+        literal: Option<bool>,
+    ) -> exception::Result<TypedTerm>
     where
         Self: Encoded,
     {
-        let ptr = Boxed::new(self as *const _ as *mut u64)
-            .ok_or_else(|| TermDecodingError::NoneValue)?;
+        let ptr =
+            Boxed::new(self as *const _ as *mut u64).ok_or_else(|| TermDecodingError::NoneValue)?;
         match tag {
             // Tuple cannot be constructed directly, as it is a dynamically-sized type,
             // instead we construct a fat pointer which requires the length of the tuple;
@@ -71,33 +81,34 @@ pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialO
             Tag::BigInteger => Ok(TypedTerm::BigInteger(ptr.cast::<BigInteger>())),
             Tag::Reference => Ok(TypedTerm::Reference(ptr.cast::<Reference>())),
             Tag::ResourceReference => Ok(TypedTerm::ResourceReference(ptr.cast::<Resource>())),
-            Tag::ProcBin => {
-                match literal {
-                    Some(false) => Ok(TypedTerm::ProcBin(ptr.cast::<ProcBin>())),
-                    Some(true) => Ok(TypedTerm::BinaryLiteral(ptr.cast::<BinaryLiteral>())),
-                    None => {
-                        let offset = BinaryLiteral::flags_offset();
-                        debug_assert_eq!(offset, ProcBin::inner_offset());
-                        let flags_ptr = unsafe { 
-                            (self as *const _ as *const u8).offset(offset as isize) as *const BinaryFlags 
-                        };
-                        let flags = unsafe { *flags_ptr };
-                        if flags.is_literal() {
-                            Ok(TypedTerm::BinaryLiteral(ptr.cast::<BinaryLiteral>()))
-                        } else {
-                            Ok(TypedTerm::ProcBin(ptr.cast::<ProcBin>()))
-                        }
+            Tag::ProcBin => match literal {
+                Some(false) => Ok(TypedTerm::ProcBin(ptr.cast::<ProcBin>())),
+                Some(true) => Ok(TypedTerm::BinaryLiteral(ptr.cast::<BinaryLiteral>())),
+                None => {
+                    let offset = BinaryLiteral::flags_offset();
+                    debug_assert_eq!(offset, ProcBin::inner_offset());
+                    let flags_ptr = unsafe {
+                        (self as *const _ as *const u8).offset(offset as isize)
+                            as *const BinaryFlags
+                    };
+                    let flags = unsafe { *flags_ptr };
+                    if flags.is_literal() {
+                        Ok(TypedTerm::BinaryLiteral(ptr.cast::<BinaryLiteral>()))
+                    } else {
+                        Ok(TypedTerm::ProcBin(ptr.cast::<ProcBin>()))
                     }
                 }
-            }
+            },
             Tag::SubBinary => Ok(TypedTerm::SubBinary(ptr.cast::<SubBinary>())),
             Tag::MatchContext => Ok(TypedTerm::MatchContext(ptr.cast::<MatchContext>())),
             Tag::ExternalPid => Ok(TypedTerm::ExternalPid(ptr.cast::<ExternalPid>())),
             Tag::ExternalPort => Ok(TypedTerm::ExternalPort(ptr.cast::<ExternalPort>())),
-            Tag::ExternalReference => Ok(TypedTerm::ExternalReference(ptr.cast::<ExternalReference>())),
+            Tag::ExternalReference => Ok(TypedTerm::ExternalReference(
+                ptr.cast::<ExternalReference>(),
+            )),
             Tag::Map => Ok(TypedTerm::Map(ptr.cast::<Map>())),
             Tag::None => Err(TermDecodingError::NoneValue.into()),
-            _ => Err(TermDecodingError::InvalidTag.into())
+            _ => Err(TermDecodingError::InvalidTag.into()),
         }
     }
 
@@ -106,13 +117,17 @@ pub trait Repr: Sized + Copy + Debug + Display + PartialEq<Self> + Eq + PartialO
     /// NOTE: This is assumed to be used during decoding when this term has already been
     /// typechecked as a header type.
     #[inline]
-    unsafe fn decode_header_unchecked(&self, tag: Tag<Self::Word>, literal: Option<bool>) -> TypedTerm
+    unsafe fn decode_header_unchecked(
+        &self,
+        tag: Tag<Self::Word>,
+        literal: Option<bool>,
+    ) -> TypedTerm
     where
         Self: Encoded,
     {
         match self.decode_header(tag.clone(), literal) {
             Ok(term) => term,
-            Err(_) => panic!("invalid type tag: {:?}", tag)
+            Err(_) => panic!("invalid type tag: {:?}", tag),
         }
     }
 }

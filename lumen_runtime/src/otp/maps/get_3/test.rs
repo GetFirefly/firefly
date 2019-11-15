@@ -4,7 +4,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::{badmap, atom};
+use liblumen_alloc::{atom, badmap};
 
 use crate::otp::maps::get_3::native;
 use crate::scheduler::with_process_arc;

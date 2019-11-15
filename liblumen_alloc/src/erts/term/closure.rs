@@ -10,10 +10,10 @@ use alloc::sync::Arc;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::{Heap, TermAlloc};
 use crate::erts::process::code::stack::frame::{Frame, Placement};
 use crate::erts::process::code::Code;
 use crate::erts::process::Process;
-use crate::erts::process::alloc::{TermAlloc, Heap};
 use crate::erts::{self, Arity, ModuleFunctionArity};
 
 use super::prelude::*;
@@ -26,7 +26,7 @@ pub struct Closure {
     arity: u8,
     /// Pointer to function entry.  When a closure is received over ETF, `code` may be `None`.
     code: Option<Code>,
-    env: [Term]
+    env: [Term],
 }
 impl_dynamic_header!(Closure, Term::HEADER_CLOSURE);
 
@@ -44,15 +44,9 @@ impl ClosureLayout {
         let (layout, _module_offset) = Layout::new::<Header<Closure>>()
             .extend(Layout::new::<Atom>())
             .unwrap();
-        let (layout, _definition_offset) = layout
-            .extend(Layout::new::<Definition>())
-            .unwrap();
-        let (layout, _arity_offset) = layout
-            .extend(Layout::new::<usize>())
-            .unwrap();
-        let (layout, _code_offset) = layout
-            .extend(Layout::new::<Option<Code>>())
-            .unwrap();
+        let (layout, _definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
+        let (layout, _arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
+        let (layout, _code_offset) = layout.extend(Layout::new::<Option<Code>>()).unwrap();
         layout.size()
     }
 
@@ -60,18 +54,10 @@ impl ClosureLayout {
         let (layout, module_offset) = Layout::new::<Header<Closure>>()
             .extend(Layout::new::<Atom>())
             .unwrap();
-        let (layout, definition_offset) = layout
-            .extend(Layout::new::<Definition>())
-            .unwrap();
-        let (layout, arity_offset) = layout
-            .extend(Layout::new::<usize>())
-            .unwrap();
-        let (layout, code_offset) = layout
-            .extend(Layout::new::<Option<Code>>())
-            .unwrap();
-        let (layout, env_offset) = layout
-            .extend(Layout::for_value(env))
-            .unwrap();
+        let (layout, definition_offset) = layout.extend(Layout::new::<Definition>()).unwrap();
+        let (layout, arity_offset) = layout.extend(Layout::new::<usize>()).unwrap();
+        let (layout, code_offset) = layout.extend(Layout::new::<Option<Code>>()).unwrap();
+        let (layout, env_offset) = layout.extend(Layout::for_value(env)).unwrap();
 
         let layout = layout.pad_to_align().unwrap();
 
@@ -95,7 +81,8 @@ impl ClosureLayout {
     }
 }
 impl Closure {
-    /// Constructs a new `Closure` with an anonymous definition, with an env of size `len` using `heap`
+    /// Constructs a new `Closure` with an anonymous definition, with an env of size `len` using
+    /// `heap`
     ///
     /// The constructed closure will contain an environment of invalid words until
     /// individual elements are written, this is intended for cases where we don't
@@ -145,7 +132,7 @@ impl Closure {
         definition: Definition,
         arity: Arity,
         code: Option<Code>,
-        env_len: usize
+        env_len: usize,
     ) -> AllocResult<Boxed<Self>>
     where
         A: ?Sized + Heap,
@@ -163,7 +150,8 @@ impl Closure {
             // Construct pointer to each field and write the corresponding value
             let module_ptr = ptr.offset(closure_layout.module_offset as isize) as *mut Atom;
             module_ptr.write(module);
-            let definition_ptr = ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
+            let definition_ptr =
+                ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
             definition_ptr.write(definition);
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
             arity_ptr.write(arity);
@@ -225,7 +213,8 @@ impl Closure {
             // Construct pointer to each field and write the corresponding value
             let module_ptr = ptr.offset(closure_layout.module_offset as isize) as *mut Atom;
             module_ptr.write(module);
-            let definition_ptr = ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
+            let definition_ptr =
+                ptr.offset(closure_layout.definition_offset as isize) as *mut Definition;
             definition_ptr.write(definition);
             let arity_ptr = ptr.offset(closure_layout.arity_offset as isize) as *mut Arity;
             arity_ptr.write(arity);

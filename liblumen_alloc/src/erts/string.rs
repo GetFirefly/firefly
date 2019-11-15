@@ -1,12 +1,12 @@
+use core::convert::{TryFrom, TryInto};
 use core::fmt;
 use core::str;
-use core::convert::{TryFrom, TryInto};
 
 use alloc::string::String;
 
 use thiserror::Error;
 
-use super::term::prelude::{Term, TypedTerm, Atom, Encoded};
+use super::term::prelude::{Atom, Encoded, Term, TypedTerm};
 
 // The largest value as an integer of a latin-1 ASCII character
 const MAX_LATIN1_CHAR: u16 = 255;
@@ -20,7 +20,7 @@ const MAX_LATIN1_CHAR: u16 = 255;
 pub enum Encoding {
     Raw,
     Latin1,
-    Utf8
+    Utf8,
 }
 impl Encoding {
     pub fn from_str(s: &str) -> Self {
@@ -50,7 +50,7 @@ impl TryFrom<Atom> for Encoding {
         match term.name() {
             "unicode" | "utf8" => Ok(Self::Utf8),
             "latin1" => Ok(Self::Latin1),
-            name => Err(InvalidEncodingNameError::InvalidEncoding(name))
+            name => Err(InvalidEncodingNameError::InvalidEncoding(name)),
         }
     }
 }
@@ -68,7 +68,7 @@ pub enum InvalidEncodingNameError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Direction {
     ToBytes,
-    ToString
+    ToString,
 }
 
 /// Represents an error which occurs when converting a string to bytes
@@ -94,15 +94,19 @@ impl fmt::Display for InvalidEncodingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let to_bytes = self.direction == Direction::ToBytes;
         match self.encoding {
-            Encoding::Latin1 if to_bytes => {
-                write!(f, "cannot encode string as latin-1 bytes (character code = {}, index = {})", self.code, self.index)
-            }
-            Encoding::Utf8 => {
-                write!(f, "cannot decode bytes to UTF-8 string (character code = {}, index = {})", self.code, self.index)
-            }
+            Encoding::Latin1 if to_bytes => write!(
+                f,
+                "cannot encode string as latin-1 bytes (character code = {}, index = {})",
+                self.code, self.index
+            ),
+            Encoding::Utf8 => write!(
+                f,
+                "cannot decode bytes to UTF-8 string (character code = {}, index = {})",
+                self.code, self.index
+            ),
             // It is never possible to fail decoding a slice of u8 to latin-1,
             // or encoding Rust strings as UTF-8 bytes
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -114,7 +118,7 @@ pub fn is_latin1(s: &str) -> bool {
 
 /// Converts a Latin-1 encoded binary slice to a `String`
 pub fn to_latin1_string(bytes: &[u8]) -> String {
-    bytes.iter().copied().map(|b| { b as char }).collect()
+    bytes.iter().copied().map(|b| b as char).collect()
 }
 
 /// Converts a `str` to valid Latin-1 bytes, if composed of Latin-1 encodable characters
@@ -125,7 +129,12 @@ pub fn to_latin1_bytes(s: &str) -> Result<Vec<u8>, InvalidEncodingError> {
     for (index, c) in s.char_indices() {
         let code = c as u16;
         if code > MAX_LATIN1_CHAR {
-            return Err(InvalidEncodingError::new(code, index, Encoding::Latin1, Direction::ToBytes))
+            return Err(InvalidEncodingError::new(
+                code,
+                index,
+                Encoding::Latin1,
+                Direction::ToBytes,
+            ));
         }
         bytes.push(code as u8);
     }

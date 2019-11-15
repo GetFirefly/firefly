@@ -1,9 +1,9 @@
 use std::convert::TryInto;
 
 use liblumen_alloc::badarg;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::exception;
 
 use crate::process::spawn::options::Options;
 use crate::scheduler::Scheduler;

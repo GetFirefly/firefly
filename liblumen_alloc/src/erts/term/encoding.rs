@@ -1,18 +1,18 @@
 use core::alloc::Layout;
-use core::fmt::{self, Debug};
-use core::mem;
-use core::marker::PhantomData;
 use core::convert::TryInto;
+use core::fmt::{self, Debug};
+use core::marker::PhantomData;
+use core::mem;
 
 use hashbrown::HashMap;
 use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::process::alloc::TermAlloc;
 use crate::erts::exception::{AllocResult, Result};
+use crate::erts::process::alloc::TermAlloc;
 
-use super::prelude::*;
 use super::arch::{Repr, Word};
+use super::prelude::*;
 
 /// Represents the various conditions under which encoding can fail
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,7 +65,7 @@ pub trait Encode<T: Encoded> {
 pub trait Boxable<T: Repr> {}
 
 /// This is a marker trait for boxed terms which are stored as literals
-pub trait Literal<T: Repr> : Boxable<T> {}
+pub trait Literal<T: Repr>: Boxable<T> {}
 
 /// This trait provides functionality for obtaining a pointer to an
 /// unsized type from a raw term. For example, the `Tuple` type consists
@@ -129,11 +129,11 @@ pub trait Literal<T: Repr> : Boxable<T> {}
 /// - It is necessary to know the size of the variable-length region, which is generally true
 /// for the types we are using this on, thanks to storing the arity in words of all non-immediate
 /// types; but it has to be in terms of the element size. For example, `HeapBin` has a slice
-/// of bytes, not `Term`, and the arity of the `HeapBin` is the size in words including extra fields,
-/// so if we used that arity value, we'd get completely incorrect results. In the case of `HeapBin`,
-/// we actually store the binary data size in the `flags` field, so we are able to use that to obtain
-/// the `N` for our `[u8; N]` slice. Just be aware that similar steps will be necessary for types that
-/// have non-word-sized elements.
+/// of bytes, not `Term`, and the arity of the `HeapBin` is the size in words including extra
+/// fields, so if we used that arity value, we'd get completely incorrect results. In the case of
+/// `HeapBin`, we actually store the binary data size in the `flags` field, so we are able to use
+/// that to obtain the `N` for our `[u8; N]` slice. Just be aware that similar steps will be
+/// necessary for types that have non-word-sized elements.
 ///
 /// - [DST Coercion RFC](https://github.com/rust-lang/rfcs/blob/master/text/0982-dst-coercion.md)
 /// - [Unsize Trait](http://doc.rust-lang.org/1.38.0/std/marker/trait.Unsize.html)
@@ -234,7 +234,10 @@ impl Header<Map> {
         let map_size = layout.size();
         let arity = Self::static_arity() + Self::to_word_size(map_size);
         let value = Term::encode_header(arity.try_into().unwrap(), Term::HEADER_MAP);
-        Self { value, _phantom: PhantomData }
+        Self {
+            value,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -263,7 +266,10 @@ impl<T: ?Sized + DynamicHeader> Header<T> {
     pub fn from_arity(arity: usize) -> Self {
         let arity = arity.try_into().unwrap();
         let value = Term::encode_header(arity, T::TAG);
-        Self { value, _phantom: PhantomData }
+        Self {
+            value,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -286,16 +292,18 @@ macro_rules! impl_static_header {
                 self.header
             }
         }
-    }
+    };
 }
 impl<T: StaticHeader> Default for Header<T> {
     fn default() -> Self {
         let arity = Self::to_word_size(Self::static_arity());
         let value = Term::encode_header(arity.try_into().unwrap(), T::TAG);
-        Self { value, _phantom: PhantomData }
+        Self {
+            value,
+            _phantom: PhantomData,
+        }
     }
 }
-
 
 /// This trait is used to implement unsafe dynamic casts from an implementation
 /// of `Encoded` to some type `T`.
@@ -397,7 +405,7 @@ pub trait Encoded: Repr + Copy {
         }
         match self.decode() {
             Ok(TypedTerm::BigInteger(_)) => true,
-            _ => false
+            _ => false,
         }
     }
     /// Returns `true` if the encoded value is a float
@@ -419,7 +427,7 @@ pub trait Encoded: Repr + Copy {
             Ok(TypedTerm::SmallInteger(_))
             | Ok(TypedTerm::BigInteger(_))
             | Ok(TypedTerm::Float(_)) => true,
-            _ => false
+            _ => false,
         }
     }
     /// Returns `true` if the encoded value is the header of a `Tuple`
@@ -551,9 +559,7 @@ pub trait Encoded: Repr + Copy {
     /// where the number of bits is evenly divisible by 8 (i.e. one byte)
     fn is_binary(&self) -> bool {
         match self.decode().expect("invalid term") {
-            TypedTerm::HeapBinary(_)
-            | TypedTerm::ProcBin(_)
-            | TypedTerm::BinaryLiteral(_) => true,
+            TypedTerm::HeapBinary(_) | TypedTerm::ProcBin(_) | TypedTerm::BinaryLiteral(_) => true,
             TypedTerm::SubBinary(bin) => bin.partial_byte_bit_len() == 0,
             TypedTerm::MatchContext(bin) => bin.partial_byte_bit_len() == 0,
             _ => false,
@@ -579,7 +585,7 @@ pub trait Encoded: Repr + Copy {
         }
         match self.decode() {
             Ok(TypedTerm::ExternalPid(_)) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -590,7 +596,7 @@ pub trait Encoded: Repr + Copy {
         }
         match self.decode() {
             Ok(TypedTerm::ExternalPort(_)) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -598,9 +604,9 @@ pub trait Encoded: Repr + Copy {
     fn is_reference(&self) -> bool {
         match self.decode() {
             Ok(TypedTerm::Reference(_))
-                | Ok(TypedTerm::ExternalReference(_))
-                | Ok(TypedTerm::ResourceReference(_)) => true,
-            _ => false
+            | Ok(TypedTerm::ExternalReference(_))
+            | Ok(TypedTerm::ResourceReference(_)) => true,
+            _ => false,
         }
     }
 

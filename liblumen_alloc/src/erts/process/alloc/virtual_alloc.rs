@@ -1,6 +1,6 @@
 use core::ops::DerefMut;
 
-use crate::erts::term::prelude::{Term, Boxed, Boxable, ProcBin};
+use crate::erts::term::prelude::{Boxable, Boxed, ProcBin, Term};
 
 /// Marker trait for virtual allocators
 pub trait VirtualAlloc: VirtualHeap<ProcBin> {}
@@ -54,15 +54,13 @@ pub trait VirtualAllocator<T: Boxable<Term>> {
     unsafe fn virtual_clear(&mut self);
 }
 
-impl<A> VirtualAlloc for A
-where
-    A: VirtualHeap<ProcBin> {}
+impl<A> VirtualAlloc for A where A: VirtualHeap<ProcBin> {}
 
 impl<A, T, V> VirtualAllocator<T> for A
 where
     T: Boxable<Term>,
     V: VirtualAllocator<T>,
-    A: DerefMut<Target=V>,
+    A: DerefMut<Target = V>,
 {
     #[inline]
     fn virtual_alloc(&mut self, value: Boxed<T>) {
@@ -122,7 +120,7 @@ impl<T, V, B> VirtualHeap<B> for T
 where
     B: Boxable<Term>,
     V: VirtualHeap<B>,
-    T: DerefMut<Target=V>,
+    T: DerefMut<Target = V>,
 {
     #[inline]
     fn virtual_size(&self) -> usize {

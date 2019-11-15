@@ -21,7 +21,12 @@ use crate::binary::start_length_to_part_range;
 ///
 /// * `Ok(Term)` - the list of bytes
 /// * `Err(BadArgument)` - binary is not a binary; position is invalid; length is invalid.
-pub fn bin_to_list(binary: Term, position: Term, length: Term, process: &Process) -> exception::Result<Term> {
+pub fn bin_to_list(
+    binary: Term,
+    position: Term,
+    length: Term,
+    process: &Process,
+) -> exception::Result<Term> {
     let position_usize: usize = position.try_into()?;
     let length_isize: isize = length.try_into()?;
 

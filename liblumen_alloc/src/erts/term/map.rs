@@ -26,7 +26,7 @@ impl Map {
     pub(in crate::erts) fn from_hash_map(value: HashMap<Term, Term>) -> Self {
         Self {
             header: Header::from_map(&value),
-            value
+            value,
         }
     }
 

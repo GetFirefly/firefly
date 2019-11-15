@@ -3,10 +3,10 @@ use core::ptr::NonNull;
 use wasm_bindgen::prelude::*;
 
 use liblumen_alloc::atom;
+use liblumen_alloc::erts::fragment::HeapFragment;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term;
-use liblumen_alloc::erts::term::prelude::{Term, Atom, Encode};
-use liblumen_alloc::erts::fragment::HeapFragment;
+use liblumen_alloc::erts::term::prelude::{Atom, Encode, Term};
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::registry::pid_to_process;
 use lumen_runtime::scheduler::{Scheduler, Spawned};

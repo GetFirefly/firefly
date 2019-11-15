@@ -1,9 +1,9 @@
+use core::alloc::Layout;
 use core::cmp;
-use core::mem;
 use core::convert::TryInto;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
-use core::alloc::Layout;
+use core::mem;
 
 use num_bigint::{BigInt, Sign};
 
@@ -246,8 +246,8 @@ impl Display for TypedTerm {
 
 impl Hash for TypedTerm {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        use TypedTerm::*;
         use crate::erts::term::arch::Repr;
+        use TypedTerm::*;
 
         match self {
             Atom(term) => term.hash(state),
@@ -443,33 +443,19 @@ impl Ord for TypedTerm {
                 TypedTerm::SmallInteger(rhs) => lhs.cmp(rhs),
                 // Flip order so that only type that will be conversion target needs to
                 // implement `PartialOrd` between types.
-                TypedTerm::Float(rhs) => (*lhs)
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::BigInteger(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::Float(rhs) => (*lhs).partial_cmp(rhs).unwrap(),
+                TypedTerm::BigInteger(rhs) => lhs.partial_cmp(rhs).unwrap(),
                 _ => Less,
             },
             TypedTerm::Float(lhs) => match other {
-                TypedTerm::SmallInteger(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::Float(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::BigInteger(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::SmallInteger(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::Float(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::BigInteger(rhs) => lhs.partial_cmp(rhs).unwrap(),
                 _ => Less,
             },
             TypedTerm::BigInteger(lhs) => match other {
-                TypedTerm::SmallInteger(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::Float(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::SmallInteger(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::Float(rhs) => lhs.partial_cmp(rhs).unwrap(),
                 TypedTerm::BigInteger(rhs) => lhs.cmp(rhs),
                 _ => Less,
             },
@@ -477,24 +463,15 @@ impl Ord for TypedTerm {
                 TypedTerm::SmallInteger(_) => Greater,
                 TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
                 TypedTerm::Reference(rhs) => lhs.cmp(rhs),
-                TypedTerm::ExternalReference(rhs) => lhs
-                        .as_ref()
-                        .partial_cmp(rhs)
-                        .unwrap(),
+                TypedTerm::ExternalReference(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
                 TypedTerm::Atom(_) => Greater,
                 _ => Less,
             },
             TypedTerm::ExternalReference(lhs) => match other {
                 TypedTerm::SmallInteger(_) => Greater,
                 TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
-                TypedTerm::Reference(rhs) => rhs
-                        .as_ref()
-                        .partial_cmp(lhs)
-                        .unwrap()
-                        .reverse(),
-                TypedTerm::ExternalReference(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::Reference(rhs) => rhs.as_ref().partial_cmp(lhs).unwrap().reverse(),
+                TypedTerm::ExternalReference(rhs) => lhs.partial_cmp(rhs).unwrap(),
                 TypedTerm::Atom(_) => Greater,
                 _ => Less,
             },
@@ -549,104 +526,49 @@ impl Ord for TypedTerm {
             // Bitstrings in likely order
             TypedTerm::HeapBinary(lhs) => match other {
                 TypedTerm::HeapBinary(rhs) => lhs.cmp(rhs),
-                TypedTerm::ProcBin(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::BinaryLiteral(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::SubBinary(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::MatchContext(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::ProcBin(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::BinaryLiteral(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::SubBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::MatchContext(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
                 _ => Greater,
             },
             TypedTerm::ProcBin(lhs) => match other {
-                TypedTerm::HeapBinary(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::ProcBin(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::BinaryLiteral(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::SubBinary(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::MatchContext(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::HeapBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::ProcBin(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::BinaryLiteral(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::SubBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::MatchContext(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
                 _ => Greater,
-            }
+            },
             TypedTerm::BinaryLiteral(lhs) => match other {
-                TypedTerm::HeapBinary(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::ProcBin(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::BinaryLiteral(rhs) => lhs
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::SubBinary(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::MatchContext(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::HeapBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::ProcBin(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::BinaryLiteral(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::SubBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::MatchContext(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
                 _ => Greater,
             },
             TypedTerm::SubBinary(lhs) => match other {
-                TypedTerm::HeapBinary(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::ProcBin(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
-                TypedTerm::BinaryLiteral(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::HeapBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::ProcBin(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::BinaryLiteral(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
                 TypedTerm::SubBinary(rhs) => lhs.cmp(rhs),
-                TypedTerm::MatchContext(rhs) => lhs
-                    .as_ref()
-                    .partial_cmp(rhs)
-                    .unwrap(),
+                TypedTerm::MatchContext(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
                 _ => Greater,
             },
-            TypedTerm::MatchContext(lhs) =>
-                unimplemented!(
-                    "match_context ({:?}) cmp {:?}",
-                    lhs,
-                    other
-                ),
+            TypedTerm::MatchContext(lhs) => {
+                unimplemented!("match_context ({:?}) cmp {:?}", lhs, other)
+            }
             TypedTerm::Atom(lhs) => match other {
                 TypedTerm::SmallInteger(_) => Greater,
                 TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
                 TypedTerm::Atom(rhs) => lhs.cmp(rhs),
                 _ => Less,
             },
-            TypedTerm::Port(lhs) =>
-                unimplemented!("Port {:?} cmp {:?}", lhs, other),
-            TypedTerm::ExternalPort(lhs) =>
-                unimplemented!("ExternalPort {:?} cmp {:?}", lhs, other),
+            TypedTerm::Port(lhs) => unimplemented!("Port {:?} cmp {:?}", lhs, other),
+            TypedTerm::ExternalPort(lhs) => {
+                unimplemented!("ExternalPort {:?} cmp {:?}", lhs, other)
+            }
             TypedTerm::Pid(lhs) => match other {
                 TypedTerm::SmallInteger(_) => Greater,
                 TypedTerm::Float(_)
@@ -691,8 +613,9 @@ impl Ord for TypedTerm {
                 TypedTerm::List(rhs) => lhs.as_ref().cmp(rhs),
                 _ => Less,
             },
-            TypedTerm::ResourceReference(lhs) =>
-                unimplemented!("ResourceReference {:?} cmp {:?}", lhs, other),
+            TypedTerm::ResourceReference(lhs) => {
+                unimplemented!("ResourceReference {:?} cmp {:?}", lhs, other)
+            }
         }
     }
 }

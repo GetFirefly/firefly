@@ -31,5 +31,7 @@ fn without_non_negative_integer_time_errors_badarg() {
 }
 
 fn options(process: &Process) -> Term {
-    process.cons(Atom::str_to_term("invalid"), Term::NIL).unwrap()
+    process
+        .cons(Atom::str_to_term("invalid"), Term::NIL)
+        .unwrap()
 }

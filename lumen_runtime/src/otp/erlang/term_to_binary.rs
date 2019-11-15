@@ -7,10 +7,10 @@ use num_bigint::{BigInt, Sign};
 
 use liblumen_alloc::badarg;
 
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::exception::{self, Exception};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::closure::{Creator, Definition};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
 use crate::distribution::external_term_format::{Tag, VERSION_NUMBER};
@@ -237,8 +237,8 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
             TypedTerm::Float(float) => {
                 let float_f64: f64 = float.into();
 
-                    push_tag(&mut byte_vec, Tag::NewFloat);
-                    byte_vec.extend_from_slice(&float_f64.to_be_bytes());
+                push_tag(&mut byte_vec, Tag::NewFloat);
+                byte_vec.extend_from_slice(&float_f64.to_be_bytes());
             }
             TypedTerm::Closure(closure) => {
                 match closure.definition() {
@@ -269,8 +269,7 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
                         let env_len_u32: u32 = closure.env_len().try_into().unwrap();
                         sized_byte_vec.extend_from_slice(&env_len_u32.to_be_bytes());
 
-                        sized_byte_vec
-                            .append(&mut atom_to_byte_vec(module_function_arity.module));
+                        sized_byte_vec.append(&mut atom_to_byte_vec(module_function_arity.module));
 
                         // > [index] encoded using SMALL_INTEGER_EXT or INTEGER_EXT.
                         try_append_isize_as_small_integer_or_integer(
@@ -291,8 +290,7 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
                         append_creator(&mut sized_byte_vec, &creator);
 
                         for term in closure.env_slice() {
-                            sized_byte_vec
-                                .append(&mut term_to_byte_vec(process, options, *term));
+                            sized_byte_vec.append(&mut term_to_byte_vec(process, options, *term));
                         }
 
                         const SIZE_BYTE_LEN: usize = mem::size_of::<u32>();
@@ -331,7 +329,9 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
             TypedTerm::MatchContext(match_context) => {
                 if match_context.is_binary() {
                     if match_context.is_aligned() {
-                        append_binary_bytes(&mut byte_vec, unsafe { match_context.as_bytes_unchecked() });
+                        append_binary_bytes(&mut byte_vec, unsafe {
+                            match_context.as_bytes_unchecked()
+                        });
                     } else {
                         unimplemented!()
                     }
@@ -363,7 +363,6 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
 
                 let creation_u32 = CREATION as u32;
                 byte_vec.extend_from_slice(&creation_u32.to_be_bytes());
-
 
                 byte_vec.extend_from_slice(&scheduler_id_u32.to_be_bytes());
                 byte_vec.extend_from_slice(&number.to_be_bytes());

@@ -1,21 +1,20 @@
 use core::alloc::Layout;
 use core::convert::TryFrom;
+use core::iter;
+use core::mem;
 use core::ptr;
 use core::slice;
 use core::str;
-use core::iter;
-use core::mem;
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::process::alloc::{TermAlloc, HeapAlloc};
 use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::{HeapAlloc, TermAlloc};
 use crate::erts::string::Encoding;
-use crate::erts::term::prelude::*;
 use crate::erts::term::encoding::Header;
+use crate::erts::term::prelude::*;
 
 use super::prelude::*;
-
 
 /// Process heap allocated binary, smaller than 64 bytes
 #[derive(Debug)]
@@ -23,7 +22,7 @@ use super::prelude::*;
 pub struct HeapBin {
     header: Header<HeapBin>,
     flags: BinaryFlags,
-    data: [u8]
+    data: [u8],
 }
 impl_dynamic_header!(HeapBin, Term::HEADER_HEAPBIN);
 impl HeapBin {
@@ -48,9 +47,13 @@ impl HeapBin {
 
         unsafe {
             match heap.alloc_layout(layout) {
-                Ok(non_null) => {
-                    Ok(Self::copy_slice_to_internal(non_null.as_ptr() as *mut u8, s, encoding, flags_offset, data_offset))
-                }
+                Ok(non_null) => Ok(Self::copy_slice_to_internal(
+                    non_null.as_ptr() as *mut u8,
+                    s,
+                    encoding,
+                    flags_offset,
+                    data_offset,
+                )),
                 Err(_) => Err(alloc!()),
             }
         }
@@ -58,7 +61,13 @@ impl HeapBin {
 
     // This function handles the low-level parts of creating a `HeapBin` at the given pointer
     #[inline]
-    unsafe fn copy_slice_to_internal(dst: *mut u8, s: &[u8], encoding: Encoding, flags_offset: usize, data_offset: usize) -> Boxed<Self> {
+    unsafe fn copy_slice_to_internal(
+        dst: *mut u8,
+        s: &[u8],
+        encoding: Encoding,
+        flags_offset: usize,
+        data_offset: usize,
+    ) -> Boxed<Self> {
         let len = s.len();
         // Write header
         let arity = erts::to_word_size(len + mem::size_of::<BinaryFlags>());
@@ -77,15 +86,11 @@ impl HeapBin {
         let (base_layout, flags_offset) = Layout::new::<Header<HeapBin>>()
             .extend(Layout::new::<BinaryFlags>())
             .unwrap();
-        let (unpadded_layout, data_offset) = base_layout
-            .extend(Layout::for_value(s))
-            .unwrap();
+        let (unpadded_layout, data_offset) = base_layout.extend(Layout::for_value(s)).unwrap();
         // We pad to alignment so that the Layout produced here
         // matches that returned by `Layout::for_value` on the
         // final `HeapBin`
-        let layout = unpadded_layout
-            .pad_to_align()
-            .unwrap();
+        let layout = unpadded_layout.pad_to_align().unwrap();
 
         (layout, flags_offset, data_offset)
     }

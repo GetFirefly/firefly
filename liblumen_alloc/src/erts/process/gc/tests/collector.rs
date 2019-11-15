@@ -1,16 +1,16 @@
-use core::mem;
-use core::ops::Deref;
 use core::alloc::Layout;
 use core::convert::TryInto;
+use core::mem;
+use core::ops::Deref;
 
 use ::alloc::sync::Arc;
 
-use crate::{atom, fixnum};
-use crate::erts::term::prelude::*;
-use crate::erts::term::closure::*;
-use crate::erts::process::alloc::{TermAlloc, GenerationalHeap};
+use crate::erts::process::alloc::{GenerationalHeap, TermAlloc};
 use crate::erts::process::test::process;
+use crate::erts::term::closure::*;
+use crate::erts::term::prelude::*;
 use crate::erts::*;
+use crate::{atom, fixnum};
 
 // This test ensures that after a full collection, expected garbage was cleaned up
 #[test]
@@ -48,7 +48,6 @@ fn gc_fullsweep_after_tenuring_test() {
     let process = process();
     tenuring_gc_test(process, true);
 }
-
 
 fn simple_gc_test(process: Process) {
     // Allocate an `{:ok, "hello world"}` tuple
@@ -97,9 +96,7 @@ fn simple_gc_test(process: Process) {
     // Allocate a closure with an environment [999, "this is a binary"]
     let closure_num = fixnum!(999);
     let closure_string = "this is a binary";
-    let closure_string_term = process
-        .binary_from_str(closure_string)
-        .unwrap();
+    let closure_string_term = process.binary_from_str(closure_string).unwrap();
 
     let creator = Pid::new(1, 0).unwrap();
     let module = atom_from_str!("module");
@@ -136,9 +133,7 @@ fn simple_gc_test(process: Process) {
 
     // Now, we will simulate updating the greeting of the above tuple with a new one,
     // leaving the original greeting dead, and a target for collection
-    let new_greeting_term = process
-        .binary_from_str("goodbye!")
-        .unwrap();
+    let new_greeting_term = process.binary_from_str("goodbye!").unwrap();
 
     // Update second element of the tuple above
     let tuple_unwrapped = unsafe { &*tuple_ptr };
@@ -290,8 +285,7 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
     let new_greeting_term = process.binary_from_str(new_greeting).unwrap();
 
     // Update second element of the tuple above
-    tup.set_element(1, new_greeting_term)
-        .unwrap();
+    tup.set_element(1, new_greeting_term).unwrap();
     let t1 = tup.get_element(0).unwrap();
     assert!(t1.is_smallint());
     let t2 = tup.get_element(1).unwrap();

@@ -3,8 +3,8 @@ use core::cmp;
 use core::intrinsics::unlikely;
 use core::ptr::{self, NonNull};
 
-use crate::sys::sysconf;
 use crate::alloc::utils as alloc_utils;
+use crate::sys::sysconf;
 
 mod constants {
     pub use libc::{PROT_READ, PROT_WRITE};

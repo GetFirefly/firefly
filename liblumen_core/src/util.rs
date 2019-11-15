@@ -6,7 +6,7 @@ pub mod reference;
 
 #[macro_export]
 macro_rules! offset_of {
-    ($strukt:path, $field:ident) => ({
+    ($strukt:path, $field:ident) => {{
         // Using a separate function to minimize unhygienic hazards
         // (e.g. unsafety of #[repr(packed)] field borrows).
         // Uncomment `const` when `const fn`s can juggle pointers.
@@ -20,5 +20,5 @@ macro_rules! offset_of {
             o
         }
         offset()
-    })
+    }};
 }

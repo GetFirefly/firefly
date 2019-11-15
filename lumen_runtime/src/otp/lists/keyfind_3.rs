@@ -22,7 +22,7 @@ pub fn native(key: Term, index: Term, tuple_list: Term) -> exception::Result<Ter
         TypedTerm::List(cons) => match cons.keyfind(index, key)? {
             Some(found) => Ok(found),
             None => Ok(false.into()),
-        }
+        },
         _ => Err(badarg!().into()),
     }
 }

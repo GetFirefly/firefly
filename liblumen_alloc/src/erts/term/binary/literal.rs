@@ -1,14 +1,14 @@
 use core::alloc::Layout;
+use core::iter;
 use core::ptr;
 use core::slice;
-use core::iter;
 use core::str;
 
 use liblumen_core::offset_of;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::process::alloc::TermAlloc;
 use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::string::{self, Encoding};
 use crate::erts::term::prelude::*;
 
@@ -50,8 +50,7 @@ impl BinaryLiteral {
 
     #[inline]
     pub fn from_raw_bytes(bytes: *mut u8, size: usize, encoding: Option<Encoding>) -> Self {
-        let flags = BinaryFlags::new_literal(encoding.unwrap_or(Encoding::Raw))
-            .set_size(size);
+        let flags = BinaryFlags::new_literal(encoding.unwrap_or(Encoding::Raw)).set_size(size);
         Self {
             header: Default::default(),
             flags,
@@ -88,7 +87,6 @@ impl BinaryLiteral {
             .as_u32();
         (header, flags)
     }
-
 
     #[inline]
     pub fn make_arch64_parts_from_slice(s: &'static [u8]) -> (u64, u64) {
@@ -134,9 +132,7 @@ impl Binary for BinaryLiteral {
 }
 impl AlignedBinary for BinaryLiteral {
     fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            slice::from_raw_parts(self.bytes, self.full_byte_len())
-        }
+        unsafe { slice::from_raw_parts(self.bytes, self.full_byte_len()) }
     }
 }
 impl IndexByte for BinaryLiteral {

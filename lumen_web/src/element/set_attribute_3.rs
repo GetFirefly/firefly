@@ -16,9 +16,13 @@ use lumen_runtime::binary_to_string::binary_to_string;
 
 use crate::element;
 
-
 #[native_implemented_function(set_attribute/3)]
-pub fn native(process: &Process, element_term: Term, name: Term, value: Term) -> exception::Result<Term> {
+pub fn native(
+    process: &Process,
+    element_term: Term,
+    name: Term,
+    value: Term,
+) -> exception::Result<Term> {
     let element = element::from_term(element_term)?;
 
     let name_string: String = binary_to_string(name)?;

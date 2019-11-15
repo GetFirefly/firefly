@@ -1,23 +1,25 @@
-pub mod collector;
-mod rootset;
 mod collection_type;
-mod sweep;
+pub mod collector;
 mod old_heap;
+mod rootset;
+mod sweep;
 mod young_heap;
 
 #[cfg(test)]
 mod tests;
 
-pub use self::collector::{GarbageCollector, SimpleCollector, ProcessCollector};
-pub use self::rootset::RootSet;
-pub use self::collection_type::{CollectionType, FullCollection, MinorCollection, ReferenceCollection};
-pub use self::sweep::{Sweeper, Sweep, Sweepable};
+pub use self::collection_type::{
+    CollectionType, FullCollection, MinorCollection, ReferenceCollection,
+};
+pub use self::collector::{GarbageCollector, ProcessCollector, SimpleCollector};
 pub use self::old_heap::OldHeap;
+pub use self::rootset::RootSet;
+pub use self::sweep::{Sweep, Sweepable, Sweeper};
 pub use self::young_heap::YoungHeap;
 
-use thiserror::Error;
-use crate::erts::exception;
 use super::alloc::SemispaceHeap;
+use crate::erts::exception;
+use thiserror::Error;
 
 /// Represents the types of errors that can occur during garbage collection.
 ///

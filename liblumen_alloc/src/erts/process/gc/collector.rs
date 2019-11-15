@@ -1,8 +1,8 @@
-mod simple_collector;
 mod process_collector;
+mod simple_collector;
 
-pub use self::simple_collector::SimpleCollector;
 pub use self::process_collector::ProcessCollector;
+pub use self::simple_collector::SimpleCollector;
 
 use super::{CollectionType, GcError};
 

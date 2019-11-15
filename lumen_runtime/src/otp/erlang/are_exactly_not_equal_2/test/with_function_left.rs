@@ -56,7 +56,6 @@ fn with_same_value_function_right_returns_false() {
                         };
 
                         let left_term = arc_process
-
                             .export_closure(module, function, arity, Some(code))
                             .unwrap();
                         let right_term = arc_process

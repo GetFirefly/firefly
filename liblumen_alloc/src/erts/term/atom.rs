@@ -82,10 +82,8 @@ impl Atom {
     #[inline]
     pub fn str_to_term<S: AsRef<str>>(s: S) -> Term {
         use crate::erts::term::prelude::Encode;
-       
-        Self::from_str(s)
-            .encode()
-            .unwrap()
+
+        Self::from_str(s).encode().unwrap()
     }
 
     /// Creates a new atom from a `str`.

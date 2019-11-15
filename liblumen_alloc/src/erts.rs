@@ -5,8 +5,8 @@ mod module_function_arity;
 pub mod node;
 pub mod process;
 pub mod scheduler;
-pub mod term;
 pub mod string;
+pub mod term;
 #[cfg(test)]
 pub mod testing;
 

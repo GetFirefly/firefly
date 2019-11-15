@@ -1,18 +1,18 @@
+use core::cmp;
+use core::convert::TryInto;
 ///! This module exposes 32-bit architecture specific values and functions
 ///!
 ///! See the module doc in arch_64.rs for more information
 use core::fmt;
-use core::cmp;
-use core::convert::TryInto;
 
-use crate::erts::exception::{Result, Exception};
+use crate::erts::exception::{Exception, Result};
 
 use liblumen_core::sys::sysconf::MIN_ALIGN;
 const_assert!(MIN_ALIGN >= 4);
 
 use crate::erts::term::prelude::*;
 
-use super::{Tag, Repr};
+use super::{Repr, Tag};
 
 #[cfg_attr(not(target_pointer_width = "32"), allow(unused))]
 pub type Word = u32;
@@ -34,35 +34,35 @@ const HEADER_SHIFT: u32 = 8;
 const HEADER_TAG_SHIFT: u32 = 3;
 
 // Primary tags (use lowest 3 bits, since minimum alignment is 8)
-const FLAG_HEADER: u32 = 0;        // 0b000
-const FLAG_BOXED: u32 = 1;         // 0b001
-const FLAG_LIST: u32 = 2;          // 0b010
-const FLAG_LITERAL: u32 = 3;       // 0b011
+const FLAG_HEADER: u32 = 0; // 0b000
+const FLAG_BOXED: u32 = 1; // 0b001
+const FLAG_LIST: u32 = 2; // 0b010
+const FLAG_LITERAL: u32 = 3; // 0b011
 const FLAG_SMALL_INTEGER: u32 = 4; // 0b100
-const FLAG_ATOM: u32 = 5;          // 0b101
-const FLAG_PID: u32 = 6;           // 0b110
-const FLAG_PORT: u32 = 7;          // 0b111
+const FLAG_ATOM: u32 = 5; // 0b101
+const FLAG_PID: u32 = 6; // 0b110
+const FLAG_PORT: u32 = 7; // 0b111
 
 // Header tags (uses an additional 5 bits beyond the primary tag)
 // NONE is a special case where all bits of the header are zero
-const FLAG_NONE: u32 = 0;                                                   // 0b00000_000
-const FLAG_TUPLE: u32 = (1 << HEADER_TAG_SHIFT) | FLAG_HEADER;              // 0b00001_000
-const FLAG_BIG_INTEGER: u32 = (2 << HEADER_TAG_SHIFT) | FLAG_HEADER;        // 0b00010_000
+const FLAG_NONE: u32 = 0; // 0b00000_000
+const FLAG_TUPLE: u32 = (1 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00001_000
+const FLAG_BIG_INTEGER: u32 = (2 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00010_000
 #[allow(unused)]
-const FLAG_UNUSED: u32 = (3 << HEADER_TAG_SHIFT) | FLAG_HEADER;             // 0b00011_000
-const FLAG_REFERENCE: u32 = (4 << HEADER_TAG_SHIFT) | FLAG_HEADER;          // 0b00100_000
-const FLAG_CLOSURE: u32 = (5 << HEADER_TAG_SHIFT) | FLAG_HEADER;            // 0b00101_000
-const FLAG_FLOAT: u32 = (6 << HEADER_TAG_SHIFT) | FLAG_HEADER;              // 0b00110_000
+const FLAG_UNUSED: u32 = (3 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00011_000
+const FLAG_REFERENCE: u32 = (4 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00100_000
+const FLAG_CLOSURE: u32 = (5 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00101_000
+const FLAG_FLOAT: u32 = (6 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00110_000
 const FLAG_RESOURCE_REFERENCE: u32 = (7 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b00111_000
-const FLAG_PROCBIN: u32 = (8 << HEADER_TAG_SHIFT) | FLAG_HEADER;            // 0b01000_000
-const FLAG_HEAPBIN: u32 = (9 << HEADER_TAG_SHIFT) | FLAG_HEADER;            // 0b01001_000
-const FLAG_SUBBINARY: u32 = (10 << HEADER_TAG_SHIFT) | FLAG_HEADER;         // 0b01010_000
-const FLAG_MATCH_CTX: u32 = (11 << HEADER_TAG_SHIFT) | FLAG_HEADER;         // 0b01011_000
-const FLAG_EXTERN_PID: u32 = (12 << HEADER_TAG_SHIFT) | FLAG_HEADER;        // 0b01100_000
-const FLAG_EXTERN_PORT: u32 = (13 << HEADER_TAG_SHIFT) | FLAG_HEADER;       // 0b01101_000
-const FLAG_EXTERN_REF: u32 = (14 << HEADER_TAG_SHIFT) | FLAG_HEADER;        // 0b01110_000
-const FLAG_MAP: u32 = (15 << HEADER_TAG_SHIFT) | FLAG_HEADER;               // 0b01111_000
-const FLAG_NIL: u32 = (16 << HEADER_TAG_SHIFT) | FLAG_HEADER;               // 0b10000_000
+const FLAG_PROCBIN: u32 = (8 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b01000_000
+const FLAG_HEAPBIN: u32 = (9 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b01001_000
+const FLAG_SUBBINARY: u32 = (10 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b01010_000
+const FLAG_MATCH_CTX: u32 = (11 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b01011_000
+const FLAG_EXTERN_PID: u32 = (12 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b01100_000
+const FLAG_EXTERN_PORT: u32 = (13 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b01101_000
+const FLAG_EXTERN_REF: u32 = (14 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b01110_000
+const FLAG_MAP: u32 = (15 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b01111_000
+const FLAG_NIL: u32 = (16 << HEADER_TAG_SHIFT) | FLAG_HEADER; // 0b10000_000
 
 // The primary tag is given by masking bits 1-3
 const MASK_PRIMARY: u32 = 0b111;
@@ -122,7 +122,7 @@ impl Repr for RawTerm {
         let term = self.0;
         let tag = match term & MASK_PRIMARY {
             FLAG_HEADER => term & MASK_HEADER,
-            tag => tag
+            tag => tag,
         };
 
         match tag {
@@ -141,7 +141,7 @@ impl Repr for RawTerm {
             FLAG_EXTERN_REF => Tag::ExternalReference,
             FLAG_MAP => Tag::Map,
             FLAG_NONE if term == NONE => Tag::None,
-            _ => Tag::Unknown(tag)
+            _ => Tag::Unknown(tag),
         }
     }
 
@@ -157,12 +157,18 @@ impl Repr for RawTerm {
     }
 
     #[inline]
-    fn encode_box<T>(value: *const T) -> Self where T: ?Sized {
+    fn encode_box<T>(value: *const T) -> Self
+    where
+        T: ?Sized,
+    {
         Self(value as *const () as u32 | FLAG_BOXED)
     }
 
     #[inline]
-    fn encode_literal<T>(value: *const T) -> Self where T: ?Sized {
+    fn encode_literal<T>(value: *const T) -> Self
+    where
+        T: ?Sized,
+    {
         Self(value as *const () as u32 | FLAG_LITERAL)
     }
 
@@ -221,13 +227,17 @@ unsafe impl Send for RawTerm {}
 
 impl Encode<RawTerm> for u8 {
     fn encode(&self) -> Result<RawTerm> {
-        Ok(RawTerm::encode_immediate((*self) as u32, FLAG_SMALL_INTEGER))
+        Ok(RawTerm::encode_immediate(
+            (*self) as u32,
+            FLAG_SMALL_INTEGER,
+        ))
     }
 }
 
 impl Encode<RawTerm> for SmallInteger {
     fn encode(&self) -> Result<RawTerm> {
-        let i: i32 = (*self).try_into()
+        let i: i32 = (*self)
+            .try_into()
             .map_err(|_| Exception::from(TermEncodingError::ValueOutOfRange))?;
         Ok(RawTerm::encode_immediate(i as u32, FLAG_SMALL_INTEGER))
     }
@@ -359,14 +369,17 @@ impl Encoded for RawTerm {
             Tag::Port => Ok(TypedTerm::Port(unsafe { self.decode_port() })),
             Tag::Box | Tag::Literal => {
                 // NOTE: If the pointer we extract here is bogus or unmapped memory, we'll segfault,
-                // but that is reflective of a bug where a term is being created or dereferenced incorrectly,
-                // to find the source, you'll need to examine the trace to see where the input term is defined
+                // but that is reflective of a bug where a term is being created or dereferenced
+                // incorrectly, to find the source, you'll need to examine the trace
+                // to see where the input term is defined
                 let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { *ptr };
                 match unboxed.type_of() {
                     Tag::Nil => Ok(TypedTerm::Nil),
                     Tag::List => Ok(TypedTerm::List(unsafe { unboxed.decode_list() })),
-                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unsafe { unboxed.decode_smallint() })),
+                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unsafe {
+                        unboxed.decode_smallint()
+                    })),
                     Tag::Atom => Ok(TypedTerm::Atom(unsafe { unboxed.decode_atom() })),
                     Tag::Pid => Ok(TypedTerm::Pid(unsafe { unboxed.decode_pid() })),
                     Tag::Port => Ok(TypedTerm::Port(unsafe { unboxed.decode_port() })),
@@ -552,15 +565,11 @@ impl fmt::Debug for RawTerm {
                 let ptr = (self.0 & !MASK_PRIMARY) as *const RawTerm;
                 write!(f, "Box({:p})", ptr)
             }
-            Tag::Unknown(invalid_tag) => {
-                write!(f, "InvalidTerm(tag: {:064b})", invalid_tag)
-            }
-            header => {
-                match self.decode_header(header, None) {
-                    Ok(term) => write!(f, "Term({:?})", term),
-                    Err(_) => write!(f, "InvalidHeader(tag: {:?})", header)
-                }
-            }
+            Tag::Unknown(invalid_tag) => write!(f, "InvalidTerm(tag: {:064b})", invalid_tag),
+            header => match self.decode_header(header, None) {
+                Ok(term) => write!(f, "Term({:?})", term),
+                Err(_) => write!(f, "InvalidHeader(tag: {:?})", header),
+            },
         }
     }
 }
@@ -569,7 +578,7 @@ impl fmt::Display for RawTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.decode() {
             Ok(term) => write!(f, "{}", term),
-            Err(err) => write!(f, "{:?}", err)
+            Err(err) => write!(f, "{:?}", err),
         }
     }
 }
@@ -614,8 +623,8 @@ mod tests {
     use core::convert::TryInto;
 
     use crate::borrow::CloneToProcess;
-    use crate::erts::testing::RegionHeap;
     use crate::erts::process::alloc::TermAlloc;
+    use crate::erts::testing::RegionHeap;
 
     use super::*;
 
@@ -882,10 +891,10 @@ mod tests {
 
     #[test]
     fn closure_encoding_x86_64() {
-        use alloc::sync::Arc;
-        use crate::erts::ModuleFunctionArity;
         use crate::erts::process::Process;
         use crate::erts::term::closure::*;
+        use crate::erts::ModuleFunctionArity;
+        use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::make_term(0, 0).unwrap();
@@ -898,25 +907,25 @@ mod tests {
             function,
             arity,
         });
-        let code = |_arc_process: &Arc<Process>| {
-            Ok(())
-        };
+        let code = |_arc_process: &Arc<Process>| Ok(());
 
         let one = fixnum!(1);
         let two = fixnum!(2);
         let index = 1 as Index;
         let old_unique = 2 as OldUnique;
         let unique = [0u8; 16];
-        let closure = heap.anonymous_closure_with_env_from_slices(
-            module,
-            index,
-            old_unique,
-            unique,
-            2,
-            Some(code),
-            Creator::Local(creator),
-            &[&[one, two]]
-        ).unwrap();
+        let closure = heap
+            .anonymous_closure_with_env_from_slices(
+                module,
+                index,
+                old_unique,
+                unique,
+                2,
+                Some(code),
+                Creator::Local(creator),
+                &[&[one, two]],
+            )
+            .unwrap();
         let closure_term: RawTerm = closure.into();
         assert!(closure_term.is_boxed());
         assert_eq!(closure_term.type_of(), Tag::Box);
@@ -1002,7 +1011,9 @@ mod tests {
         // Slice out 'world!'
         let byte_offset = 6;
         let len = 6;
-        let sub = heap.subbinary_from_original(bin_term, byte_offset, 0, len, 0).unwrap();
+        let sub = heap
+            .subbinary_from_original(bin_term, byte_offset, 0, len, 0)
+            .unwrap();
         let sub_term: RawTerm = sub.into();
 
         assert!(sub_term.is_boxed());
@@ -1043,7 +1054,8 @@ mod tests {
         assert!(match_ctx_header.is_match_context());
         assert_eq!(match_ctx_header.type_of(), Tag::MatchContext);
 
-        let match_ctx_decoded: Result<Boxed<MatchContext>, _> = match_ctx_term.decode().unwrap().try_into();
+        let match_ctx_decoded: Result<Boxed<MatchContext>, _> =
+            match_ctx_term.decode().unwrap().try_into();
         assert!(match_ctx_decoded.is_ok());
         let match_ctx_box = match_ctx_decoded.unwrap();
         assert_eq!(&match_ctx, match_ctx_box.as_ref());
@@ -1072,7 +1084,8 @@ mod tests {
         assert!(resource_header.is_resource_reference());
         assert_eq!(resource_header.type_of(), Tag::ResourceReference);
 
-        let resource_decoded: Result<Boxed<Resource>, _> = resource_term.decode().unwrap().try_into();
+        let resource_decoded: Result<Boxed<Resource>, _> =
+            resource_term.decode().unwrap().try_into();
         assert!(resource_decoded.is_ok());
         let resource_box = resource_decoded.unwrap();
         assert_eq!(&resource, resource_box.as_ref());
@@ -1097,7 +1110,8 @@ mod tests {
         assert!(reference_header.is_local_reference());
         assert_eq!(reference_header.type_of(), Tag::Reference);
 
-        let reference_decoded: Result<Boxed<Reference>, _> = reference_term.decode().unwrap().try_into();
+        let reference_decoded: Result<Boxed<Reference>, _> =
+            reference_term.decode().unwrap().try_into();
         assert!(reference_decoded.is_ok());
         let reference_box = reference_decoded.unwrap();
         assert_eq!(&reference, reference_box.as_ref());
@@ -1146,13 +1160,14 @@ mod tests {
         // Waiting on implementation of this type
     }
 
-
     struct Predicate {
         pred: Box<dyn Fn(bool) -> Option<bool>>,
     }
     impl Predicate {
         pub(super) fn new(pred: impl Fn(bool) -> Option<bool> + 'static) -> Self {
-            Self { pred: Box::new(pred) }
+            Self {
+                pred: Box::new(pred),
+            }
         }
 
         pub(super) fn invoke(&self, input: bool) -> Option<bool> {

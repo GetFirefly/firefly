@@ -1,22 +1,22 @@
 mod heap;
 mod iter;
-mod term_alloc;
 mod process_heap_alloc;
+mod semispace;
 mod stack_alloc;
 mod stack_primitives;
+mod term_alloc;
 mod virtual_alloc;
 mod virtual_binary_heap;
-mod semispace;
 
 pub use self::heap::{Heap, HeapAlloc};
 pub use self::iter::HeapIter;
-pub use self::term_alloc::TermAlloc;
 pub use self::process_heap_alloc::ProcessHeapAlloc;
+pub use self::semispace::{GenerationalHeap, SemispaceHeap};
 pub use self::stack_alloc::StackAlloc;
 pub use self::stack_primitives::StackPrimitives;
+pub use self::term_alloc::TermAlloc;
 pub use self::virtual_alloc::{VirtualAlloc, VirtualAllocator, VirtualHeap};
 pub use self::virtual_binary_heap::VirtualBinaryHeap;
-pub use self::semispace::{GenerationalHeap, SemispaceHeap};
 
 use core::alloc::CannotReallocInPlace;
 

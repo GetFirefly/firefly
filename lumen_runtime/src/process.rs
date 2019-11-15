@@ -9,8 +9,8 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLockWriteGuard;
 
-use liblumen_alloc::erts::exception::{self, RuntimeException, AllocResult};
-use liblumen_alloc::erts::process::alloc::{TermAlloc, Heap};
+use liblumen_alloc::erts::exception::{self, AllocResult, RuntimeException};
+use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::{self, Process, ProcessHeap};
 use liblumen_alloc::erts::term::prelude::*;
@@ -84,7 +84,10 @@ pub fn monitor(process: &Process, monitored_process: &Process) -> AllocResult<Te
     let monitor = Monitor::Pid {
         monitoring_pid: process.pid(),
     };
-    process.monitor(reference_reference.as_ref().clone(), monitored_process.pid());
+    process.monitor(
+        reference_reference.as_ref().clone(),
+        monitored_process.pid(),
+    );
     monitored_process.monitored(reference_reference.as_ref().clone(), monitor);
 
     Ok(reference)
@@ -152,7 +155,8 @@ fn send_self_exit_message(
     heap: &mut ProcessHeap,
     exit_message_elements: &[Term],
 ) {
-    let data = heap.tuple_from_slice(exit_message_elements)
+    let data = heap
+        .tuple_from_slice(exit_message_elements)
         .unwrap()
         .encode()
         .unwrap();
@@ -165,7 +169,9 @@ fn send_heap_exit_message(process: &Process, exit_message_elements: &[Term]) {
     let mut heap_fragment = HeapFragment::new(layout).unwrap();
     let heap_fragment_ref = unsafe { heap_fragment.as_mut() };
 
-    let ptr = heap_fragment_ref.tuple_from_slice(exit_message_elements).unwrap();
+    let ptr = heap_fragment_ref
+        .tuple_from_slice(exit_message_elements)
+        .unwrap();
     process.send_heap_message(heap_fragment, ptr.into());
 }
 

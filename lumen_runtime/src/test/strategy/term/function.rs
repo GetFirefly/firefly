@@ -8,9 +8,9 @@ use num_bigint::BigInt;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::Process;
 use liblumen_alloc::erts::process::code::{self, Code, DebuggableCode};
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::Process;
 
 use crate::test::strategy;
 

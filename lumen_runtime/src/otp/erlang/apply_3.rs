@@ -6,8 +6,8 @@ use liblumen_core::locks::RwLock;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::{Arity, ModuleFunctionArity};
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{Arity, ModuleFunctionArity};
 
 /// Returns the `Code` that should be used in `otp::erlang::spawn_3` to look up and call a known
 /// BIF or user function using the MFA.

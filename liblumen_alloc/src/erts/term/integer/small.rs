@@ -5,7 +5,7 @@ use core::ops::*;
 
 use num_bigint::BigInt;
 
-use crate::erts::term::arch::{MIN_SMALLINT_VALUE, MAX_SMALLINT_VALUE};
+use crate::erts::term::arch::{MAX_SMALLINT_VALUE, MIN_SMALLINT_VALUE};
 use crate::erts::term::prelude::*;
 
 use super::*;

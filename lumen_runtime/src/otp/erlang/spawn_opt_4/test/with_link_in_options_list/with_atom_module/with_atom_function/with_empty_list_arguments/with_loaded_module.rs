@@ -50,10 +50,9 @@ fn without_exported_function_when_run_exits_undef_and_parent_exits() {
 
     match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: RuntimeException =
-                undef!(&arc_process, module, function, arguments)
-                    .try_into()
-                    .unwrap();
+            let runtime_undef: RuntimeException = undef!(&arc_process, module, function, arguments)
+                .try_into()
+                .unwrap();
 
             assert_eq!(runtime_exception, &runtime_undef);
         }

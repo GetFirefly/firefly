@@ -1,12 +1,12 @@
-use core::convert::{From, TryInto, Infallible};
+use core::convert::{From, Infallible, TryInto};
 
 use thiserror::Error;
 
 use crate::erts::exception::Exception;
 
+use super::arch::{arch_32, arch_64, arch_x86_64};
 use super::integer::TryIntoIntegerError;
 use super::prelude::*;
-use super::arch::{arch_32, arch_64, arch_x86_64};
 
 /// This error type is used to indicate a type conversion error
 #[derive(Error, Debug)]
@@ -96,7 +96,7 @@ macro_rules! impl_term_conversions {
             default fn from(boxed: Option<Boxed<T>>) -> Self {
                 match boxed {
                     None => <$raw>::NIL,
-                    Some(ptr) => ptr.encode().unwrap()
+                    Some(ptr) => ptr.encode().unwrap(),
                 }
             }
         }
@@ -186,7 +186,10 @@ macro_rules! impl_term_conversions {
             type Error = TryIntoIntegerError;
 
             fn try_into(self) -> Result<SmallInteger, Self::Error> {
-                self.decode().unwrap().try_into().map_err(|_| TryIntoIntegerError::Type)
+                self.decode()
+                    .unwrap()
+                    .try_into()
+                    .map_err(|_| TryIntoIntegerError::Type)
             }
         }
 
@@ -333,7 +336,7 @@ macro_rules! impl_term_conversions {
                 self.decode().unwrap().try_into()
             }
         }
-    }
+    };
 }
 
 impl_term_conversions!(arch_32::RawTerm);

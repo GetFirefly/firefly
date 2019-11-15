@@ -1,15 +1,15 @@
 use core::alloc::Layout;
 use core::convert::TryFrom;
-use core::slice;
 use core::mem;
 use core::ptr;
+use core::slice;
 
 use alloc::boxed::Box;
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::process::alloc::TermAlloc;
 use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::string::Encoding;
 use crate::erts::term::prelude::*;
 
@@ -119,23 +119,20 @@ impl SubBinary {
         match self.original.follow_moved().decode().unwrap() {
             TypedTerm::ProcBin(bin) => {
                 let bytes = bin.as_byte_ptr().add(self.byte_offset);
-                let flags = BinaryFlags::new(Encoding::Raw)
-                    .set_size(len);
+                let flags = BinaryFlags::new(Encoding::Raw).set_size(len);
                 (flags, bytes, len)
             }
             TypedTerm::BinaryLiteral(bin) => {
                 let bytes = bin.as_byte_ptr().add(self.byte_offset);
-                let flags = BinaryFlags::new_literal(Encoding::Raw)
-                    .set_size(len);
+                let flags = BinaryFlags::new_literal(Encoding::Raw).set_size(len);
                 (flags, bytes, len)
             }
             TypedTerm::HeapBinary(bin) => {
                 let bytes = bin.as_byte_ptr().add(self.byte_offset);
-                let flags = BinaryFlags::new(Encoding::Raw)
-                    .set_size(len);
+                let flags = BinaryFlags::new(Encoding::Raw).set_size(len);
                 (flags, bytes, len)
             }
-            t => panic!("invalid term, expected binary but got {:?}", t)
+            t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
 
@@ -151,33 +148,27 @@ impl SubBinary {
         let max_bit_offset = improper_bit_offset % 8;
 
         match self.original.decode().unwrap() {
-            TypedTerm::ProcBin(bin_ptr) => {
-                Box::new(PartialByteBitIter::new(
-                    bin_ptr,
-                    current_byte_offset,
-                    current_bit_offset,
-                    max_byte_offset,
-                    max_bit_offset
-                ))
-            }
-            TypedTerm::BinaryLiteral(bin_ptr) => {
-                Box::new(PartialByteBitIter::new(
-                    bin_ptr,
-                    current_byte_offset,
-                    current_bit_offset,
-                    max_byte_offset,
-                    max_bit_offset
-                ))
-            }
-            TypedTerm::HeapBinary(bin_ptr) => {
-                Box::new(PartialByteBitIter::new(
-                    bin_ptr,
-                    current_byte_offset,
-                    current_bit_offset,
-                    max_byte_offset,
-                    max_bit_offset
-                ))
-            }
+            TypedTerm::ProcBin(bin_ptr) => Box::new(PartialByteBitIter::new(
+                bin_ptr,
+                current_byte_offset,
+                current_bit_offset,
+                max_byte_offset,
+                max_bit_offset,
+            )),
+            TypedTerm::BinaryLiteral(bin_ptr) => Box::new(PartialByteBitIter::new(
+                bin_ptr,
+                current_byte_offset,
+                current_bit_offset,
+                max_byte_offset,
+                max_bit_offset,
+            )),
+            TypedTerm::HeapBinary(bin_ptr) => Box::new(PartialByteBitIter::new(
+                bin_ptr,
+                current_byte_offset,
+                current_bit_offset,
+                max_byte_offset,
+                max_bit_offset,
+            )),
             t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
@@ -191,34 +182,28 @@ impl SubBinary {
         let max_byte_offset = self.full_byte_len;
 
         match self.original.decode().unwrap() {
-            TypedTerm::ProcBin(bin_ptr) => {
-                Box::new(FullByteIter::new(
-                    bin_ptr,
-                    base_byte_offset,
-                    bit_offset,
-                    current_byte_offset,
-                    max_byte_offset
-                ))
-            }
-            TypedTerm::BinaryLiteral(bin_ptr) => {
-                Box::new(FullByteIter::new(
-                    bin_ptr,
-                    base_byte_offset,
-                    bit_offset,
-                    current_byte_offset,
-                    max_byte_offset
-                ))
-            }
-            TypedTerm::HeapBinary(bin_ptr) => {
-                Box::new(FullByteIter::new(
-                    bin_ptr,
-                    base_byte_offset,
-                    bit_offset,
-                    current_byte_offset,
-                    max_byte_offset
-                ))
-            }
-            t => panic!("invalid term, expected binary but got {:?}", t)
+            TypedTerm::ProcBin(bin_ptr) => Box::new(FullByteIter::new(
+                bin_ptr,
+                base_byte_offset,
+                bit_offset,
+                current_byte_offset,
+                max_byte_offset,
+            )),
+            TypedTerm::BinaryLiteral(bin_ptr) => Box::new(FullByteIter::new(
+                bin_ptr,
+                base_byte_offset,
+                bit_offset,
+                current_byte_offset,
+                max_byte_offset,
+            )),
+            TypedTerm::HeapBinary(bin_ptr) => Box::new(FullByteIter::new(
+                bin_ptr,
+                base_byte_offset,
+                bit_offset,
+                current_byte_offset,
+                max_byte_offset,
+            )),
+            t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
 }
@@ -235,7 +220,7 @@ impl Bitstring for SubBinary {
             TypedTerm::ProcBin(bin_ptr) => bin_ptr.as_ref().as_byte_ptr(),
             TypedTerm::BinaryLiteral(bin_ptr) => bin_ptr.as_ref().as_byte_ptr(),
             TypedTerm::HeapBinary(bin_ptr) => bin_ptr.as_ref().as_byte_ptr(),
-            t => panic!("invalid term, expected binary but got {:?}", t)
+            t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
 }
@@ -267,8 +252,8 @@ impl CloneToProcess for SubBinary {
                         Ok(ptr.into())
                     }
                 } else {
-                    // Need to make sure that the heapbin is cloned as well, and that the header is suitably
-                    // updated
+                    // Need to make sure that the heapbin is cloned as well, and that the header is
+                    // suitably updated
                     let new_bin = bin.clone_to_heap(heap)?;
                     unsafe {
                         // Allocate space for header
@@ -291,7 +276,7 @@ impl CloneToProcess for SubBinary {
                     }
                 }
             }
-            t => panic!("expected ProcBin or HeapBin, but got {:?}", t)
+            t => panic!("expected ProcBin or HeapBin, but got {:?}", t),
         }
     }
 
@@ -351,13 +336,19 @@ impl PartialOrd<MatchContext> for SubBinary {
     fn partial_cmp(&self, other: &MatchContext) -> Option<core::cmp::Ordering> {
         if self.is_binary() && other.is_binary() {
             if self.is_aligned() && other.is_aligned() {
-                unsafe { self.as_bytes_unchecked().partial_cmp(other.as_bytes_unchecked()) }
+                unsafe {
+                    self.as_bytes_unchecked()
+                        .partial_cmp(other.as_bytes_unchecked())
+                }
             } else {
                 self.full_byte_iter().partial_cmp(other.full_byte_iter())
             }
         } else {
             let bytes_partial_ordering = if self.is_aligned() && other.is_aligned() {
-                unsafe { self.as_bytes_unchecked().partial_cmp(other.as_bytes_unchecked()) }
+                unsafe {
+                    self.as_bytes_unchecked()
+                        .partial_cmp(other.as_bytes_unchecked())
+                }
             } else {
                 self.full_byte_iter().partial_cmp(other.full_byte_iter())
             };

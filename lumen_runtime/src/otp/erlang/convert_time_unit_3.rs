@@ -18,7 +18,12 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::time;
 
 #[native_implemented_function(convert_time_unit/3)]
-pub fn native(process: &Process, time: Term, from_unit: Term, to_unit: Term) -> exception::Result<Term> {
+pub fn native(
+    process: &Process,
+    time: Term,
+    from_unit: Term,
+    to_unit: Term,
+) -> exception::Result<Term> {
     let time_big_int: BigInt = time.try_into()?;
     let from_unit_unit: time::Unit = from_unit.try_into()?;
     let to_unit_unit: time::Unit = to_unit.try_into()?;

@@ -1,8 +1,8 @@
 use core::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::exception::{self, Exception};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub struct Options {
     pub reference_frame: ReferenceFrame,

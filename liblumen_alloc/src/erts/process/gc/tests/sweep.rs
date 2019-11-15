@@ -42,15 +42,13 @@ fn sweep_tuple() {
 #[test]
 fn sweep_heapbin() {
     use crate::erts::string::Encoding;
-   
+
     let mut fromspace = RegionHeap::new(default_heap_layout());
     let young = RegionHeap::new(default_heap_layout());
     let old = RegionHeap::new(default_heap_layout());
     let mut tospace = SemispaceHeap::new(young, old);
     // Allocate term in fromspace
-    let heapbin = fromspace
-        .heapbin_from_str("hello world!")
-        .unwrap();
+    let heapbin = fromspace.heapbin_from_str("hello world!").unwrap();
     let heapbin_ref = heapbin.as_ref();
     let heapbin_size = mem::size_of_val(heapbin_ref);
     // Sanity check
@@ -74,7 +72,6 @@ fn sweep_heapbin() {
     assert_eq!(new_heapbin_ref.encoding(), Encoding::Latin1);
 }
 
-
 #[test]
 fn sweep_procbin() {
     use crate::erts::string::Encoding;
@@ -84,9 +81,7 @@ fn sweep_procbin() {
     let old = RegionHeap::new(default_heap_layout());
     let mut tospace = SemispaceHeap::new(young, old);
     // Allocate term in fromspace
-    let bin = fromspace
-        .procbin_from_str("hello world!")
-        .unwrap();
+    let bin = fromspace.procbin_from_str("hello world!").unwrap();
     let bin_ref = bin.as_ref();
     let bin_size = mem::size_of_val(bin_ref);
     // Sanity check
@@ -112,17 +107,15 @@ fn sweep_procbin() {
 
 #[test]
 fn sweep_procbin_matured() {
-    use liblumen_core::util::pointer::in_area;
     use crate::erts::string::Encoding;
+    use liblumen_core::util::pointer::in_area;
 
     let mut fromspace = RegionHeap::new(default_heap_layout());
     let young = RegionHeap::new(default_heap_layout());
     let old = RegionHeap::new(default_heap_layout());
     let mut tospace = SemispaceHeap::new(young, old);
     // Allocate term in fromspace
-    let bin = fromspace
-        .procbin_from_str("hello world!")
-        .unwrap();
+    let bin = fromspace.procbin_from_str("hello world!").unwrap();
     let bin_ref = bin.as_ref();
     let bin_size = mem::size_of_val(bin_ref);
     // Sanity check
@@ -131,7 +124,11 @@ fn sweep_procbin_matured() {
     fromspace.set_high_water_mark();
     assert_ne!(fromspace.heap_start(), fromspace.high_water_mark());
     // Make sure allocation is in mature region
-    assert!(in_area(bin.as_ptr(), fromspace.heap_start(), fromspace.high_water_mark()));
+    assert!(in_area(
+        bin.as_ptr(),
+        fromspace.heap_start(),
+        fromspace.high_water_mark()
+    ));
 
     // Sweep into new young heap
     let mut sweeper = MinorCollection::new(&mut fromspace, &mut tospace);

@@ -6,7 +6,10 @@ pub fn new(first: Term, last: Term, process: &Process) -> exception::Result<Term
     if first.is_integer() & last.is_integer() {
         process
             .map_from_slice(&[
-                (Atom::str_to_term("__struct__"), Atom::str_to_term("Elixir.Range")),
+                (
+                    Atom::str_to_term("__struct__"),
+                    Atom::str_to_term("Elixir.Range"),
+                ),
                 (Atom::str_to_term("first"), first),
                 (Atom::str_to_term("last"), last),
             ])

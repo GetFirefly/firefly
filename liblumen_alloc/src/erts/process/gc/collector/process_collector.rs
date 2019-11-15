@@ -1,8 +1,8 @@
 use core::mem;
 
-use crate::erts::process::gc::{CollectionType, GcError, RootSet, OldHeap};
+use crate::erts::process::alloc::{GenerationalHeap, Heap, VirtualAlloc};
+use crate::erts::process::gc::{CollectionType, GcError, OldHeap, RootSet};
 use crate::erts::process::gc::{FullSweep, MinorSweep, ReferenceCollection};
-use crate::erts::process::alloc::{Heap, GenerationalHeap, VirtualAlloc};
 
 use super::GarbageCollector;
 
@@ -58,7 +58,7 @@ pub struct ProcessCollector<T: CollectionType> {
 impl<G, T> ProcessCollector<G>
 where
     T: Heap + VirtualAlloc,
-    G: CollectionType<Target=T>,
+    G: CollectionType<Target = T>,
 {
     pub fn new(roots: RootSet, gc: G) -> Self {
         Self {
@@ -145,7 +145,6 @@ impl<'h> GarbageCollector<FullSweep<'h>> for ProcessCollector<FullSweep<'h>> {
     }
 }
 
-
 impl<'h> GarbageCollector<MinorSweep<'h>> for ProcessCollector<MinorSweep<'h>> {
     /// Invokes the collector and uses the provided `need` (in words)
     /// to determine whether or not collection was successful/aggressive enough
@@ -190,7 +189,9 @@ impl<'h> GarbageCollector<MinorSweep<'h>> for ProcessCollector<MinorSweep<'h>> {
         young.set_high_water_mark();
 
         // Copy stack to end of new heap
-        unsafe { young.copy_stack_from(self.gc.source()); }
+        unsafe {
+            young.copy_stack_from(self.gc.source());
+        }
 
         // Check invariants
         self.sanity_check();

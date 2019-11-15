@@ -10,9 +10,9 @@ use alloc::sync::Arc;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
-use crate::erts::scheduler;
 use crate::erts::node::Node;
 use crate::erts::process::alloc::TermAlloc;
+use crate::erts::scheduler;
 
 use super::prelude::*;
 

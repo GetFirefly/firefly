@@ -1,6 +1,6 @@
+use core::alloc::Layout;
 use core::mem;
 use core::ptr;
-use core::alloc::Layout;
 
 use crate::erts::process::alloc::*;
 use crate::erts::term::prelude::*;
@@ -11,7 +11,10 @@ pub trait Sweeper: CollectionType {
     fn should_sweep(&self, raw: *mut Term) -> bool;
 }
 
-impl<G> Sweeper for G where G: CollectionType {
+impl<G> Sweeper for G
+where
+    G: CollectionType,
+{
     #[inline]
     default fn should_sweep(&self, raw: *mut Term) -> bool {
         self.target().contains(raw) == false
@@ -47,7 +50,7 @@ where
 {
     unsafe fn sweep(self, sweeper: &mut G) -> (*mut Term, usize) {
         use core::any::Any;
-       
+
         let header = &*self;
         // The only context this should be used in is when moving a header
         assert!(header.is_header());
@@ -131,8 +134,8 @@ where
     G: Sweeper,
 {
     unsafe fn sweep(self, sweeper: &mut G) -> (*mut Term, usize) {
-        use core::slice;
         use crate::erts::string::Encoding;
+        use core::slice;
 
         let sub = self.as_ref();
         let size = mem::size_of::<SubBinary>();
@@ -217,7 +220,10 @@ where
             let bin: Boxed<ProcBin> = original_ptr.into();
             bin.sweep(sweeper)
         } else {
-            panic!("encountered invalid binary reference in sub-binary: {:?}", original);
+            panic!(
+                "encountered invalid binary reference in sub-binary: {:?}",
+                original
+            );
         };
 
         if new_original_ptr != original_ptr {
@@ -245,7 +251,10 @@ where
         let bytes = bin.as_bytes();
         let copy = HeapBin::from_slice(sweeper, bytes, bin.encoding()).unwrap();
 
-        (copy.cast::<Term>().as_ptr(), mem::size_of_val(copy.as_ref()))
+        (
+            copy.cast::<Term>().as_ptr(),
+            mem::size_of_val(copy.as_ref()),
+        )
     }
 }
 

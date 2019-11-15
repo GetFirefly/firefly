@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::Process;
 use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::Process;
 
 use crate::test::strategy::term::binary::sub::{bit_offset, byte_count, byte_offset};
 

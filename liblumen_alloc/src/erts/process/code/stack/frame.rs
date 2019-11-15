@@ -3,8 +3,8 @@ use core::fmt::{self, Debug};
 use alloc::sync::Arc;
 
 use crate::erts::process::code::Code;
-use crate::erts::term::prelude::Atom;
 use crate::erts::term::closure::Definition;
+use crate::erts::term::prelude::Atom;
 use crate::erts::ModuleFunctionArity;
 
 pub struct Frame {

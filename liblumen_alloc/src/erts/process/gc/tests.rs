@@ -3,13 +3,13 @@ use core::mem;
 
 use liblumen_core::sys::sysconf::MIN_ALIGN;
 
-use crate::erts::testing::DEFAULT_HEAP_SIZE;
-use crate::erts::process::alloc::*;
 use super::*;
+use crate::erts::process::alloc::*;
+use crate::erts::testing::DEFAULT_HEAP_SIZE;
 
-mod sweep;
-mod simple_collector;
 mod collector;
+mod simple_collector;
+mod sweep;
 
 #[inline]
 fn default_heap_layout() -> Layout {

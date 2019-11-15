@@ -34,8 +34,8 @@ use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::term::prelude::{Pid as LocalPid, *};
 use liblumen_alloc::erts::term::closure::Creator;
+use liblumen_alloc::erts::term::prelude::{Pid as LocalPid, *};
 use liblumen_alloc::erts::{Node, Process};
 use liblumen_alloc::{badarg, CloneToProcess};
 

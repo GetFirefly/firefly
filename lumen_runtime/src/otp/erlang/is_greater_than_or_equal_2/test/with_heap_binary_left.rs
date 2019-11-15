@@ -86,7 +86,9 @@ fn with_prefix_subbinary_right_returns_true() {
             let mut heap = process.acquire_heap();
             let original = heap.binary_from_bytes(&[1]).unwrap();
 
-            process.subbinary_from_original(original, 0, 0, 1, 0).unwrap()
+            process
+                .subbinary_from_original(original, 0, 0, 1, 0)
+                .unwrap()
         },
         true,
     );
@@ -99,7 +101,9 @@ fn with_same_length_subbinary_with_greater_byte_right_returns_true() {
             let mut heap = process.acquire_heap();
             let original = heap.binary_from_bytes(&[0, 1]).unwrap();
 
-            process.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
+            process
+                .subbinary_from_original(original, 0, 0, 2, 0)
+                .unwrap()
         },
         true,
     );
@@ -117,7 +121,9 @@ fn with_same_value_subbinary_right_returns_true() {
             let mut heap = process.acquire_heap();
             let original = heap.binary_from_bytes(&[1, 1]).unwrap();
 
-            process.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
+            process
+                .subbinary_from_original(original, 0, 0, 2, 0)
+                .unwrap()
         },
         true,
     )
@@ -130,7 +136,9 @@ fn with_shorter_subbinary_with_greater_byte_right_returns_false() {
             let mut heap = process.acquire_heap();
             let original = heap.binary_from_bytes(&[2]).unwrap();
 
-            process.subbinary_from_original(original, 0, 0, 1, 0).unwrap()
+            process
+                .subbinary_from_original(original, 0, 0, 1, 0)
+                .unwrap()
         },
         false,
     );
@@ -143,7 +151,9 @@ fn with_subbinary_with_greater_byte_right_returns_false() {
             let mut heap = process.acquire_heap();
             let original = heap.binary_from_bytes(&[2, 1]).unwrap();
 
-            process.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
+            process
+                .subbinary_from_original(original, 0, 0, 2, 0)
+                .unwrap()
         },
         false,
     );
@@ -156,7 +166,9 @@ fn with_subbinary_with_different_greater_byte_right_returns_false() {
             let mut heap = process.acquire_heap();
             let original = heap.binary_from_bytes(&[1, 2]).unwrap();
 
-            process.subbinary_from_original(original, 0, 0, 2, 0).unwrap()
+            process
+                .subbinary_from_original(original, 0, 0, 2, 0)
+                .unwrap()
         },
         false,
     );

@@ -135,7 +135,9 @@ impl Scheduler {
                                 SystemException::Alloc(_) => {
                                     match arc_process.garbage_collect(0, &mut []) {
                                         Ok(_freed) => (),
-                                        Err(gc_err) => panic!("fatal garbage collection error: {:?}", gc_err),
+                                        Err(gc_err) => {
+                                            panic!("fatal garbage collection error: {:?}", gc_err)
+                                        }
                                     }
                                 }
                                 err => panic!("system error: {}", err),
@@ -269,10 +271,7 @@ impl Scheduler {
         })
     }
 
-    pub fn spawn_init(
-        self: Arc<Scheduler>,
-        minimum_heap_size: usize,
-    ) -> Result<Arc<Process>> {
+    pub fn spawn_init(self: Arc<Scheduler>, minimum_heap_size: usize) -> Result<Arc<Process>> {
         let process = process::init(minimum_heap_size)?;
         let arc_process = Arc::new(process);
         let scheduler_arc_process = Arc::clone(&arc_process);

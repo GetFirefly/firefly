@@ -20,12 +20,10 @@ pub fn native(binary: Term, encoding: Term) -> exception::Result<Term> {
 
     match binary.decode()? {
         TypedTerm::HeapBinary(heap_binary) => {
-            Atom::try_from_latin1_bytes(heap_binary.as_bytes())?
-                .encode()
+            Atom::try_from_latin1_bytes(heap_binary.as_bytes())?.encode()
         }
         TypedTerm::ProcBin(process_binary) => {
-            Atom::try_from_latin1_bytes(process_binary.as_bytes())?
-                .encode()
+            Atom::try_from_latin1_bytes(process_binary.as_bytes())?.encode()
         }
         TypedTerm::SubBinary(subbinary) => {
             if subbinary.is_binary() {

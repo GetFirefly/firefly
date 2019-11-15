@@ -1,7 +1,7 @@
 use core::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Tag<T> 
+pub enum Tag<T>
 where
     T: Clone + Copy + PartialEq + Eq,
 {
@@ -28,7 +28,7 @@ where
     None,
     Box,
     Literal,
-    Unknown(T)
+    Unknown(T),
 }
 
 impl<T> fmt::Debug for Tag<T>

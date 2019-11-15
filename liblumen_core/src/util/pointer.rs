@@ -34,7 +34,7 @@ where
         false
     } else {
         let start = start as *const () as usize;
-        let end = end as *const() as usize;
+        let end = end as *const () as usize;
         debug_assert!(start <= end);
 
         let ptr = ptr as *const () as usize;

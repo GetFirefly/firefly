@@ -54,8 +54,14 @@ fn with_same_value_list_right_returns_true() {
 
                         match vec.len() {
                             1 => (
-                                heap.list_from_slice(&vec).unwrap().map(|l| l.into()).unwrap_or(Term::NIL),
-                                heap.list_from_slice(&vec).unwrap().map(|l| l.into()).unwrap_or(Term::NIL),
+                                heap.list_from_slice(&vec)
+                                    .unwrap()
+                                    .map(|l| l.into())
+                                    .unwrap_or(Term::NIL),
+                                heap.list_from_slice(&vec)
+                                    .unwrap()
+                                    .map(|l| l.into())
+                                    .unwrap_or(Term::NIL),
                             ),
                             len => {
                                 let last_index = len - 1;

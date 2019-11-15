@@ -3,13 +3,13 @@ use core::cmp;
 use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
-use core::slice;
 use core::ptr;
+use core::slice;
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::process::alloc::{TermAlloc, HeapAlloc};
 use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::{HeapAlloc, TermAlloc};
 
 use super::prelude::*;
 
@@ -29,7 +29,7 @@ use super::prelude::*;
 #[repr(C)]
 pub struct Tuple {
     header: Header<Tuple>,
-    elements: [Term]
+    elements: [Term],
 }
 impl_dynamic_header!(Tuple, Term::HEADER_TUPLE);
 impl Tuple {
@@ -112,9 +112,7 @@ impl Tuple {
         // We pad to alignment so that the Layout produced here
         // matches that returned by `Layout::for_value` on the
         // final `Tuple`
-        let layout = base_layout
-            .pad_to_align()
-            .unwrap();
+        let layout = base_layout.pad_to_align().unwrap();
 
         (layout, data_offset)
     }
@@ -168,7 +166,11 @@ impl Tuple {
 
     /// Sets the element at the given index
     #[inline]
-    pub fn set_element<I: TupleIndex>(&mut self, index: I, element: Term) -> Result<(), IndexError> {
+    pub fn set_element<I: TupleIndex>(
+        &mut self,
+        index: I,
+        element: Term,
+    ) -> Result<(), IndexError> {
         let index: usize = index.into();
         if let Some(term) = self.elements.get_mut(index) {
             *term = element;
@@ -188,7 +190,10 @@ impl Tuple {
             return Ok(*term);
         }
 
-        Err(IndexError::OutOfBounds { index, len: self.elements.len() })
+        Err(IndexError::OutOfBounds {
+            index,
+            len: self.elements.len(),
+        })
     }
 
     /// Given a raw pointer to some memory, and a length in units of `Self::Element`,
@@ -225,8 +230,7 @@ impl CloneToProcess for Tuple {
     where
         A: ?Sized + TermAlloc,
     {
-        Tuple::from_slice(heap, &self.elements)
-            .map(|nn| nn.into())
+        Tuple::from_slice(heap, &self.elements).map(|nn| nn.into())
     }
 
     fn size_in_words(&self) -> usize {
@@ -329,8 +333,8 @@ mod tests {
 
     use alloc::sync::Arc;
 
-    use crate::erts::testing::RegionHeap;
     use crate::erts::process::Process;
+    use crate::erts::testing::RegionHeap;
     use crate::erts::{scheduler, Node};
 
     mod get_element {
@@ -361,27 +365,17 @@ mod tests {
         #[test]
         fn tuple_zerobased_index_in_bounds() {
             let mut heap = RegionHeap::default();
-            let tuple = heap
-                .tuple_from_slice(&[fixnum!(0)])
-                .unwrap();
+            let tuple = heap.tuple_from_slice(&[fixnum!(0)]).unwrap();
 
-            assert_eq!(
-                tuple.get_element(ZeroBasedIndex::default()),
-                Ok(fixnum!(0))
-            );
+            assert_eq!(tuple.get_element(ZeroBasedIndex::default()), Ok(fixnum!(0)));
         }
 
         #[test]
         fn tuple_onebased_index_in_bounds() {
             let mut heap = RegionHeap::default();
-            let tuple = heap
-                .tuple_from_slice(&[fixnum!(0)])
-                .unwrap();
+            let tuple = heap.tuple_from_slice(&[fixnum!(0)]).unwrap();
 
-            assert_eq!(
-                tuple.get_element(OneBasedIndex::default()),
-                Ok(fixnum!(0))
-            );
+            assert_eq!(tuple.get_element(OneBasedIndex::default()), Ok(fixnum!(0)));
         }
     }
 
@@ -391,9 +385,7 @@ mod tests {
         #[test]
         fn tuple_zerobased_index_out_of_bounds() {
             let mut heap = RegionHeap::default();
-            let mut tuple = heap
-                .tuple_from_slice(&[])
-                .unwrap();
+            let mut tuple = heap.tuple_from_slice(&[]).unwrap();
             let index = ZeroBasedIndex::new(1);
 
             assert_eq!(
@@ -405,9 +397,7 @@ mod tests {
         #[test]
         fn tuple_onebased_index_out_of_bounds() {
             let mut heap = RegionHeap::default();
-            let mut tuple = heap
-                .tuple_from_slice(&[])
-                .unwrap();
+            let mut tuple = heap.tuple_from_slice(&[]).unwrap();
             let index = OneBasedIndex::new(2).unwrap();
 
             assert_eq!(
@@ -419,40 +409,23 @@ mod tests {
         #[test]
         fn tuple_zerobased_index_in_bounds() {
             let mut heap = RegionHeap::default();
-            let mut tuple = heap
-                .tuple_from_slice(&[fixnum!(0)])
-                .unwrap();
+            let mut tuple = heap.tuple_from_slice(&[fixnum!(0)]).unwrap();
             let index = ZeroBasedIndex::default();
 
-            assert_eq!(
-                tuple.set_element(index, fixnum!(1234)),
-                Ok(()),
-            );
-            assert_eq!(
-                tuple.get_element(index),
-                Ok(fixnum!(1234))
-            )
+            assert_eq!(tuple.set_element(index, fixnum!(1234)), Ok(()),);
+            assert_eq!(tuple.get_element(index), Ok(fixnum!(1234)))
         }
 
         #[test]
         fn tuple_onebased_index_in_bounds() {
             let mut heap = RegionHeap::default();
-            let mut tuple = heap
-                .tuple_from_slice(&[fixnum!(0)])
-                .unwrap();
+            let mut tuple = heap.tuple_from_slice(&[fixnum!(0)]).unwrap();
             let index = OneBasedIndex::default();
 
-            assert_eq!(
-                tuple.set_element(index, fixnum!(1234)),
-                Ok(()),
-            );
-            assert_eq!(
-                tuple.get_element(index),
-                Ok(fixnum!(1234))
-            )
+            assert_eq!(tuple.set_element(index, fixnum!(1234)), Ok(()),);
+            assert_eq!(tuple.get_element(index), Ok(fixnum!(1234)))
         }
     }
-
 
     mod eq {
         use super::*;
@@ -471,12 +444,8 @@ mod tests {
         #[test]
         fn tuple_with_unequal_length() {
             let mut heap = RegionHeap::default();
-            let lhs = heap
-                .tuple_from_slice(&[fixnum!(0)])
-                .unwrap();
-            let rhs = heap
-                .tuple_from_slice(&[fixnum!(0), fixnum!(1)])
-                .unwrap();
+            let lhs = heap.tuple_from_slice(&[fixnum!(0)]).unwrap();
+            let rhs = heap.tuple_from_slice(&[fixnum!(0), fixnum!(1)]).unwrap();
 
             assert_ne!(lhs, rhs);
             assert_ne!(rhs, lhs);
@@ -511,16 +480,28 @@ mod tests {
                 fixnum!(0),
                 // big integer
                 heap.integer(SmallInteger::MAX_VALUE + 1).unwrap(),
-                heap.reference(scheduler::id::next(), 0).map(|r| r.into()).unwrap(),
+                heap.reference(scheduler::id::next(), 0)
+                    .map(|r| r.into())
+                    .unwrap(),
                 closure(&mut heap),
                 heap.float(0.0).map(|f| f.into()).unwrap(),
                 heap.external_pid(arc_node, 0, 0).map(|p| p.into()).unwrap(),
                 Term::NIL,
                 Pid::make_term(0, 0).unwrap(),
                 atom!("atom"),
-                heap.tuple_from_slice(&[atom!("tuple")]).unwrap().encode().unwrap(),
-                heap.map_from_slice(&[(atom!("key"), atom!("value"))]).unwrap().encode().unwrap(),
-                heap.list_from_slice(&[atom!("list")]).unwrap().unwrap().encode().unwrap(),
+                heap.tuple_from_slice(&[atom!("tuple")])
+                    .unwrap()
+                    .encode()
+                    .unwrap(),
+                heap.map_from_slice(&[(atom!("key"), atom!("value"))])
+                    .unwrap()
+                    .encode()
+                    .unwrap(),
+                heap.list_from_slice(&[atom!("list")])
+                    .unwrap()
+                    .unwrap()
+                    .encode()
+                    .unwrap(),
             ];
             let num_terms = slice.len();
             let tuple = heap.tuple_from_slice(slice).unwrap();

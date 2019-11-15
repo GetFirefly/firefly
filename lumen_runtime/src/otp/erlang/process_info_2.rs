@@ -8,10 +8,10 @@ mod test;
 use std::convert::TryInto;
 
 use crate::registry::pid_to_process;
-use liblumen_alloc::{badarg, atom};
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{atom, badarg};
 
 use lumen_runtime_macros::native_implemented_function;
 

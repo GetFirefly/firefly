@@ -1,13 +1,12 @@
-use core::fmt;
 use core::convert::TryFrom;
+use core::fmt;
 
 use thiserror::Error;
 
-use crate::erts::term::prelude::{Term, TypedTerm, Encoded};
+use crate::erts::term::prelude::{Encoded, Term, TypedTerm};
 
 use super::Location;
 use super::RuntimeException;
-
 
 #[derive(Error, Clone)]
 #[error("** throw: {reason} at {location}")]
@@ -67,7 +66,12 @@ impl Error {
     pub fn new(reason: Term, arguments: Option<Term>, location: Location) -> Self {
         Self::new_with_trace(reason, arguments, location, None)
     }
-    pub fn new_with_trace(reason: Term, arguments: Option<Term>, location: Location, trace: Option<Term>) -> Self {
+    pub fn new_with_trace(
+        reason: Term,
+        arguments: Option<Term>,
+        location: Location,
+        trace: Option<Term>,
+    ) -> Self {
         Self {
             reason,
             arguments,
@@ -76,7 +80,9 @@ impl Error {
         }
     }
     pub fn class(&self) -> Class {
-        Class::Error { arguments: self.arguments }
+        Class::Error {
+            arguments: self.arguments,
+        }
     }
     pub fn reason(&self) -> Term {
         self.reason

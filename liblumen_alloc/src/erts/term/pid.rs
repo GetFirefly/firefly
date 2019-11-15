@@ -1,10 +1,10 @@
 use core::alloc::Layout;
 use core::cmp;
-use core::ptr;
 use core::convert::TryFrom;
 use core::default::Default;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
+use core::ptr;
 
 use alloc::sync::Arc;
 
@@ -68,7 +68,6 @@ impl From<Boxed<ExternalPid>> for AnyPid {
         AnyPid::External(pid)
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -203,7 +202,6 @@ impl TryFrom<TypedTerm> for Pid {
         }
     }
 }
-
 
 #[derive(Debug, Clone)]
 #[repr(C)]

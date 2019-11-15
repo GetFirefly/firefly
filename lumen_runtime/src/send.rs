@@ -1,9 +1,9 @@
 use core::convert::{TryFrom, TryInto};
 use core::result::Result;
 
+use liblumen_alloc::erts::exception::{self, Exception};
 use liblumen_alloc::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
-use liblumen_alloc::erts::exception::{self, Exception};
 
 use crate::distribution::nodes::node;
 use crate::registry::{self, pid_to_process};
@@ -84,10 +84,7 @@ pub struct Options {
 }
 
 impl Options {
-    fn put_option_term(
-        &mut self,
-        option: Term,
-    ) -> exception::Result<&Options> {
+    fn put_option_term(&mut self, option: Term) -> exception::Result<&Options> {
         let atom: Atom = option.try_into()?;
 
         match atom.name() {

@@ -27,20 +27,20 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::exception::{self, RuntimeException, AllocResult};
-use crate::erts::term::prelude::*;
-use crate::erts::term::closure::{Creator, Index, OldUnique, Unique, Definition};
+use crate::erts::exception::{self, AllocResult, RuntimeException};
 use crate::erts::module_function_arity::Arity;
+use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
+use crate::erts::term::prelude::*;
 
 use super::*;
 
-use self::code::Code;
+use self::alloc::VirtualAllocator;
+use self::alloc::{Heap, HeapAlloc, TermAlloc};
+use self::alloc::{StackAlloc, StackPrimitives};
 use self::code::stack;
 use self::code::stack::frame::{Frame, Placement};
+use self::code::Code;
 use self::gc::{GcError, RootSet};
-use self::alloc::{Heap, HeapAlloc, TermAlloc};
-use self::alloc::VirtualAllocator;
-use self::alloc::{StackAlloc, StackPrimitives};
 
 pub use self::flags::*;
 pub use self::heap::ProcessHeap;
@@ -472,7 +472,9 @@ impl Process {
     }
 
     pub fn charlist_from_str(&self, s: &str) -> AllocResult<Term> {
-        self.acquire_heap().charlist_from_str(s).map(|list| list.into())
+        self.acquire_heap()
+            .charlist_from_str(s)
+            .map(|list| list.into())
     }
 
     pub fn anonymous_closure_with_env_from_slice(
@@ -488,14 +490,7 @@ impl Process {
     ) -> AllocResult<Term> {
         self.acquire_heap()
             .anonymous_closure_with_env_from_slice(
-                module,
-                index,
-                old_unique,
-                unique,
-                arity,
-                code,
-                creator,
-                slice,
+                module, index, old_unique, unique, arity, code, creator, slice,
             )
             .map(|term_ptr| term_ptr.into())
     }
@@ -539,37 +534,51 @@ impl Process {
     }
 
     pub fn list_from_chars(&self, chars: Chars) -> AllocResult<Term> {
-        self.acquire_heap().list_from_chars(chars).map(|list| list.into())
+        self.acquire_heap()
+            .list_from_chars(chars)
+            .map(|list| list.into())
     }
 
     pub fn list_from_iter<I>(&self, iter: I) -> AllocResult<Term>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
-        self.acquire_heap().list_from_iter(iter).map(|list| list.into())
+        self.acquire_heap()
+            .list_from_iter(iter)
+            .map(|list| list.into())
     }
 
     pub fn list_from_slice(&self, slice: &[Term]) -> AllocResult<Term> {
-        self.acquire_heap().list_from_slice(slice).map(|list| list.into())
+        self.acquire_heap()
+            .list_from_slice(slice)
+            .map(|list| list.into())
     }
 
     pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> AllocResult<Term>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
-        self.acquire_heap().improper_list_from_iter(iter, last).map(|list| list.into())
+        self.acquire_heap()
+            .improper_list_from_iter(iter, last)
+            .map(|list| list.into())
     }
 
     pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> AllocResult<Term> {
-        self.acquire_heap().improper_list_from_slice(slice, tail).map(|list| list.into())
+        self.acquire_heap()
+            .improper_list_from_slice(slice, tail)
+            .map(|list| list.into())
     }
 
     pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> AllocResult<Term> {
-        self.acquire_heap().map_from_hash_map(hash_map).map(|map| map.into())
+        self.acquire_heap()
+            .map_from_hash_map(hash_map)
+            .map(|map| map.into())
     }
 
     pub fn map_from_slice(&self, slice: &[(Term, Term)]) -> AllocResult<Term> {
-        self.acquire_heap().map_from_slice(slice).map(|map| map.into())
+        self.acquire_heap()
+            .map_from_slice(slice)
+            .map(|map| map.into())
     }
 
     pub fn reference(&self, number: ReferenceNumber) -> AllocResult<Term> {
@@ -686,13 +695,13 @@ impl Process {
         if need_in_words <= heap.heap_available() {
             let entry_vec: Vec<Term> = dictionary
                 .iter()
-                .map(|(key, value)| heap
-                     .tuple_from_slice(&[*key, *value])
-                     .unwrap()
-                     .into())
+                .map(|(key, value)| heap.tuple_from_slice(&[*key, *value]).unwrap().into())
                 .collect();
 
-            Ok(heap.list_from_slice(&entry_vec).map(|list| list.into()).unwrap())
+            Ok(heap
+                .list_from_slice(&entry_vec)
+                .map(|list| list.into())
+                .unwrap())
         } else {
             Err(alloc!())
         }
@@ -709,7 +718,10 @@ impl Process {
         if need_in_words <= heap.heap_available() {
             let entry_vec: Vec<Term> = dictionary.keys().copied().collect();
 
-            Ok(heap.list_from_slice(&entry_vec).map(|list| list.into()).unwrap())
+            Ok(heap
+                .list_from_slice(&entry_vec)
+                .map(|list| list.into())
+                .unwrap())
         } else {
             Err(alloc!())
         }
@@ -747,13 +759,13 @@ impl Process {
         if need_in_words <= heap.heap_available() {
             let entry_vec: Vec<Term> = dictionary
                 .drain()
-                .map(|(key, value)| heap
-                     .tuple_from_slice(&[key, value])
-                     .unwrap()
-                     .into())
+                .map(|(key, value)| heap.tuple_from_slice(&[key, value]).unwrap().into())
                 .collect();
 
-            Ok(heap.list_from_slice(&entry_vec).map(|list| list.into()).unwrap())
+            Ok(heap
+                .list_from_slice(&entry_vec)
+                .map(|list| list.into())
+                .unwrap())
         } else {
             Err(alloc!())
         }
@@ -877,7 +889,10 @@ impl Process {
 
     /// Returns true if the given pointer belongs to memory owned by this process
     #[inline]
-    pub fn is_owner<T>(&self, ptr: *const T) -> bool where T: ?Sized {
+    pub fn is_owner<T>(&self, ptr: *const T) -> bool
+    where
+        T: ?Sized,
+    {
         let heap = self.heap.lock();
         if heap.is_owner(ptr) {
             return true;

@@ -7,5 +7,5 @@ mod system;
 macro_rules! location {
     () => {
         $crate::erts::exception::Location::new(file!(), line!(), column!())
-    }
+    };
 }

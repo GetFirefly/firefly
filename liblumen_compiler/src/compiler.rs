@@ -16,8 +16,8 @@ use libeir_ir::Module;
 use libeir_passes::PassManager;
 use libeir_syntax_erl::{ParseConfig, Parser};
 
+use super::config::{CompilerSettings, FileType, Verbosity};
 use super::errors::CompilerError;
-use super::config::{FileType, Verbosity, CompilerSettings};
 
 /// The result produced by compiler functions
 

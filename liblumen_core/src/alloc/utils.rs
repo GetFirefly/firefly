@@ -107,8 +107,8 @@ pub fn is_aligned_at<T>(ptr: *mut T, align: usize) -> bool {
 
 // Returns true if `ptr` fulfills minimum alignment requirements for its type
 pub fn is_aligned<T>(ptr: *mut T) -> bool {
-    use core::cmp;
     use crate::sys::sysconf::MIN_ALIGN;
+    use core::cmp;
 
     let raw = ptr as usize;
     let align = cmp::max(mem::align_of::<T>(), MIN_ALIGN);

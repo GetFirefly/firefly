@@ -1,7 +1,7 @@
-use core::ptr;
 use core::mem;
+use core::ptr;
 
-use crate::erts::term::prelude::{ProcBin, Boxed, Bitstring};
+use crate::erts::term::prelude::{Bitstring, Boxed, ProcBin};
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedList, LinkedListLink, UnsafeRef};
@@ -39,7 +39,9 @@ impl VirtualAllocator<ProcBin> for VirtualBinaryHeap {
         let raw = ptr.as_ptr();
         debug_assert!(self.virtual_contains(raw));
         // Remove from list
-        unsafe { self.unlink_raw(raw); }
+        unsafe {
+            self.unlink_raw(raw);
+        }
         // Clone reference on to the stack
         // NOTE: this invalidates any pointers to the old location,
         // including the pointer we were given

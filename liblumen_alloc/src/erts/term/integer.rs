@@ -8,7 +8,7 @@ use num_bigint::{BigInt, Sign};
 use thiserror::Error;
 
 use core::cmp::Ordering;
-use core::convert::{TryInto, TryFrom};
+use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ops::*;
@@ -74,7 +74,7 @@ impl TryFrom<u64> for Arch32Integer {
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         match value.try_into() {
             Err(_) => Err(TryFromIntError),
-            Ok(i) => Ok(Self::Small(i))
+            Ok(i) => Ok(Self::Small(i)),
         }
     }
 }

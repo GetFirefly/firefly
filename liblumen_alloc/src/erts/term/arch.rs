@@ -151,11 +151,11 @@ macro_rules! impl_list {
     };
 }
 
-mod repr;
-mod tag;
 pub mod arch_32;
 pub mod arch_64;
 pub mod arch_x86_64;
+mod repr;
+mod tag;
 
 use cfg_if::cfg_if;
 
@@ -171,7 +171,7 @@ cfg_if! {
 
 use core::mem;
 
-use super::prelude::{TypedTerm, Cons};
+use super::prelude::{Cons, TypedTerm};
 
 pub(super) use self::repr::Repr;
 pub(super) use self::tag::Tag;
@@ -186,13 +186,13 @@ impl RawTerm {
     /// NOTE: This will panic if the term is not a valid binary type, and does not include
     /// `MatchContext` or `SubBinary`.
     pub(in crate::erts) unsafe fn as_binary_ptr<'a>(&self) -> *mut u8 {
-        use super::prelude::{Encoded, Bitstring};
+        use super::prelude::{Bitstring, Encoded};
 
         match self.decode().unwrap() {
             TypedTerm::ProcBin(bin_ptr) => bin_ptr.as_ref().as_byte_ptr(),
             TypedTerm::BinaryLiteral(bin_ptr) => bin_ptr.as_ref().as_byte_ptr(),
             TypedTerm::HeapBinary(bin_ptr) => bin_ptr.as_ref().as_byte_ptr(),
-            t => panic!("tried to cast invalid term type to binary: {:?}", t)
+            t => panic!("tried to cast invalid term type to binary: {:?}", t),
         }
     }
 
@@ -214,7 +214,7 @@ impl RawTerm {
     /// cons cell
     #[inline]
     pub(crate) fn follow_moved(self) -> RawTerm {
-        use super::prelude::{Encoded, Cast};
+        use super::prelude::{Cast, Encoded};
 
         if self.is_boxed() {
             let ptr: *const RawTerm = self.dyn_cast();

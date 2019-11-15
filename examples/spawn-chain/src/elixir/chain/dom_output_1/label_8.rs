@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use std::convert::TryInto;
+use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::prelude::{Term, Boxed, Resource};
+use liblumen_alloc::erts::term::prelude::{Boxed, Resource, Term};
 
 use crate::elixir::chain::dom_output_1::label_9;
 

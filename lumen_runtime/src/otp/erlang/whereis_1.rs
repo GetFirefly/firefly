@@ -8,8 +8,8 @@ mod test;
 use std::convert::TryInto;
 
 use liblumen_alloc::atom;
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -19,8 +19,7 @@ use crate::registry;
 pub fn native(name: Term) -> exception::Result<Term> {
     let atom: Atom = name.try_into()?;
 
-    let option = registry::atom_to_process(&atom)
-        .map(|arc_process| arc_process.pid());
+    let option = registry::atom_to_process(&atom).map(|arc_process| arc_process.pid());
 
     let term = match option {
         Some(pid) => pid.encode()?,

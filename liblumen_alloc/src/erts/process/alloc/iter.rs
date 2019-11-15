@@ -1,9 +1,9 @@
-use core::mem;
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
+use core::mem;
 
 use crate::erts;
-use crate::erts::term::prelude::{Term, Closure, HeapBin, Encoded};
+use crate::erts::term::prelude::{Closure, Encoded, HeapBin, Term};
 
 use super::Heap;
 
@@ -60,7 +60,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         use crate::erts::term::prelude::UnsizedBoxable;
-       
+
         let heap = unsafe { &*self.heap };
         // Seek to the next valid term (boxed/list pointer or header)
         // We skip immediates because we only care about terms that

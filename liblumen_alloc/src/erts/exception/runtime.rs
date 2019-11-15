@@ -1,6 +1,6 @@
-use core::num::TryFromIntError;
 use core::array::TryFromSliceError;
 use core::convert::TryFrom;
+use core::num::TryFromIntError;
 
 use thiserror::Error;
 
@@ -8,8 +8,8 @@ use crate::erts::string::InvalidEncodingNameError;
 use crate::erts::term::index::IndexError;
 use crate::erts::term::prelude::*;
 
-use super::{Exception, SystemException, UnexpectedExceptionError};
 use super::location::Location;
+use super::{Exception, SystemException, UnexpectedExceptionError};
 
 #[derive(Error, Debug, Clone)]
 pub enum RuntimeException {
@@ -31,7 +31,7 @@ impl PartialEq for RuntimeException {
             (Error(ref lhs), Error(ref rhs)) => lhs.eq(rhs),
             (Exit(ref lhs), Exit(ref rhs)) => lhs.eq(rhs),
             (Unknown(_), Unknown(_)) => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -145,9 +145,9 @@ impl TryFrom<Exception> for RuntimeException {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::atom;
     use crate::erts::exception::Class;
-    use super::*;
 
     mod error {
         use super::*;

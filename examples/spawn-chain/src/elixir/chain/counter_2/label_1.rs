@@ -1,10 +1,10 @@
-use std::sync::Arc;
 use std::convert::TryInto;
+use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::prelude::{Term, Encoded, Boxed, Closure};
+use liblumen_alloc::erts::term::prelude::{Boxed, Closure, Encoded, Term};
 
 use lumen_runtime::otp::erlang;
 

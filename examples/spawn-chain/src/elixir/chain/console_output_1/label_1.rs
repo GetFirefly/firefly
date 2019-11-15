@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use std::convert::TryInto;
+use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::prelude::{Term, Pid};
+use liblumen_alloc::erts::term::prelude::{Pid, Term};
 
 use crate::elixir;
 
@@ -31,10 +31,7 @@ pub fn place_frame_with_arguments(
 fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
-    let self_pid: Pid = arc_process.stack_pop()
-        .unwrap()
-        .try_into()
-        .unwrap();
+    let self_pid: Pid = arc_process.stack_pop().unwrap().try_into().unwrap();
 
     let text = arc_process.stack_pop().unwrap();
 

@@ -18,9 +18,9 @@
 //! Lumen.Web.Node.append_child(element_with_id, div)
 //! ```
 
-use liblumen_alloc::{badarg, atom};
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{atom, badarg};
 
 use lumen_runtime_macros::native_implemented_function;
 

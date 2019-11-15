@@ -9,11 +9,7 @@ pub struct Location {
 impl Location {
     #[inline]
     pub fn new(file: &'static str, line: u32, column: u32) -> Self {
-        Self {
-            file,
-            line,
-            column,
-        }
+        Self { file, line, column }
     }
 }
 impl Default for Location {

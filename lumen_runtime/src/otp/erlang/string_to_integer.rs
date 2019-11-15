@@ -9,7 +9,11 @@ use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::base::Base;
 
-pub fn base_string_to_integer(process: &Process, base: Term, string: &str) -> exception::Result<Term> {
+pub fn base_string_to_integer(
+    process: &Process,
+    base: Term,
+    string: &str,
+) -> exception::Result<Term> {
     let base: Base = base.try_into()?;
     let bytes = string.as_bytes();
 

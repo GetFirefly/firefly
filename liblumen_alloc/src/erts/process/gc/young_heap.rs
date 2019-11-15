@@ -1,10 +1,10 @@
+use core::alloc::Layout;
 use core::fmt;
 use core::mem;
 use core::ptr::{self, NonNull};
-use core::alloc::Layout;
 
+use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 use liblumen_core::util::pointer::{distance_absolute, in_area, in_area_inclusive};
-use liblumen_core::alloc::utils::{is_aligned, is_aligned_at, align_up_to};
 
 use crate::erts::exception::AllocResult;
 use crate::erts::process;
@@ -89,7 +89,8 @@ impl YoungHeap {
 
         // Reallocate the heap to shrink it, if the heap is moved, there is a bug
         // in the allocator which must have been introduced in a recent change
-        let new_heap = process::alloc::realloc(old_start, total_size, new_size).unwrap_or(old_start);
+        let new_heap =
+            process::alloc::realloc(old_start, total_size, new_size).unwrap_or(old_start);
         assert_eq!(
             new_heap, old_start,
             "expected reallocation of heap during shrink to occur in-place!"
@@ -581,12 +582,12 @@ impl fmt::Debug for YoungHeap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::ptr;
     use core::convert::TryInto;
+    use core::ptr;
 
-    use crate::{atom, fixnum};
     use crate::erts;
     use crate::erts::process::alloc::{self, HeapAlloc};
+    use crate::{atom, fixnum};
 
     #[test]
     fn young_heap_alloc() {
@@ -618,8 +619,7 @@ mod tests {
         let num = fixnum!(101);
         let string = "test";
         let string_len = string.len();
-        let string_term = yh.heapbin_from_str(string)
-            .unwrap();
+        let string_term = yh.heapbin_from_str(string).unwrap();
         let string_term_size = Layout::for_value(string_term.as_ref()).size();
         let list = ListBuilder::new(&mut yh)
             .push(num)

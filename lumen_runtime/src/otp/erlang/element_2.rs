@@ -18,6 +18,5 @@ pub fn native(index: Term, tuple: Term) -> exception::Result<Term> {
     let tuple_tuple: Boxed<Tuple> = tuple.try_into()?;
     let index: OneBasedIndex = index.try_into()?;
 
-    tuple_tuple.get_element(index)
-        .map_err(|error| error.into())
+    tuple_tuple.get_element(index).map_err(|error| error.into())
 }

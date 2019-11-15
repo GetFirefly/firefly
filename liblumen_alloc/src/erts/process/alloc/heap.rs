@@ -1,8 +1,8 @@
+use core::alloc::Layout;
 use core::cmp;
 use core::mem;
-use core::ptr::NonNull;
-use core::alloc::Layout;
 use core::ops::DerefMut;
+use core::ptr::NonNull;
 
 use liblumen_core::sys::sysconf::MIN_ALIGN;
 use liblumen_core::util::pointer::{distance_absolute, in_area};
@@ -28,11 +28,10 @@ pub trait HeapAlloc {
     unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>>;
 }
 
-
 impl<T, H> HeapAlloc for T
 where
     H: HeapAlloc,
-    T: DerefMut<Target=H>,
+    T: DerefMut<Target = H>,
 {
     #[inline]
     unsafe fn alloc(&mut self, need: usize) -> AllocResult<NonNull<Term>> {
@@ -126,7 +125,7 @@ pub trait Heap: HeapAlloc {
 impl<T, H> Heap for T
 where
     H: Heap,
-    T: DerefMut<Target=H>,
+    T: DerefMut<Target = H>,
 {
     #[inline]
     fn heap_start(&self) -> *mut Term {

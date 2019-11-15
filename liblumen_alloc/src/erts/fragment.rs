@@ -1,11 +1,11 @@
 use core::alloc::Layout;
-use core::ptr::{self, NonNull};
 use core::mem;
+use core::ptr::{self, NonNull};
 
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{LinkedListLink, UnsafeRef};
 
-use liblumen_core::alloc::utils::{is_aligned, is_aligned_at, align_up_to};
+use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::{Heap, HeapAlloc};
@@ -65,7 +65,11 @@ impl HeapFragment {
                 ptr,
                 Self {
                     link: LinkedListLink::new(),
-                    raw: RawFragment { size, align, base: data },
+                    raw: RawFragment {
+                        size,
+                        align,
+                        base: data,
+                    },
                     top,
                 },
             );

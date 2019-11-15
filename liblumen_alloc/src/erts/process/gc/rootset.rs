@@ -2,7 +2,7 @@ use core::slice;
 
 use alloc::vec::Vec;
 
-use crate::erts::term::prelude::{Term, Boxed, Encoded};
+use crate::erts::term::prelude::{Boxed, Encoded, Term};
 
 /// This struct contains the set of roots which are to be scanned during garbage collection
 ///
@@ -69,9 +69,9 @@ impl Default for RootSet {
 mod tests {
     use core::ptr;
 
+    use crate::erts::process::alloc::TermAlloc;
     use crate::erts::term::prelude::*;
     use crate::erts::testing::RegionHeap;
-    use crate::erts::process::alloc::TermAlloc;
 
     use super::*;
 
@@ -79,7 +79,9 @@ mod tests {
     fn modified_rootset_updates_roots() {
         let mut heap = RegionHeap::default();
 
-        let tuple = heap.tuple_from_slice(&[atom!("hello"), atom!("world")]).unwrap();
+        let tuple = heap
+            .tuple_from_slice(&[atom!("hello"), atom!("world")])
+            .unwrap();
         let mut stack_ref: Term = tuple.into();
 
         let mut rootset = RootSet::empty();
@@ -88,7 +90,9 @@ mod tests {
         for root in rootset.iter() {
             let root_ref = root.as_ref();
             assert!(root_ref.is_boxed());
-            unsafe { ptr::write(root.as_ptr(), Term::NIL); }
+            unsafe {
+                ptr::write(root.as_ptr(), Term::NIL);
+            }
         }
 
         assert_eq!(stack_ref, Term::NIL);

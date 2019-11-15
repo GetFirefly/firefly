@@ -20,7 +20,6 @@ use lumen_runtime::binary_to_string::binary_to_string;
 
 use crate::html_form_element;
 
-
 #[native_implemented_function(element/2)]
 fn native(process: &Process, html_form_element_term: Term, name: Term) -> exception::Result<Term> {
     let html_form_element_term = html_form_element::from_term(html_form_element_term)?;

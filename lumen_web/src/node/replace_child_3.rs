@@ -26,9 +26,13 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::node::node_from_term;
 use crate::ok_tuple;
 
-
 #[native_implemented_function(replace_child/3)]
-fn native(process: &Process, parent: Term, old_child: Term, new_child: Term) -> exception::Result<Term> {
+fn native(
+    process: &Process,
+    parent: Term,
+    old_child: Term,
+    new_child: Term,
+) -> exception::Result<Term> {
     let parent_node = node_from_term(parent)?;
     let old_child_node = node_from_term(old_child)?;
     let new_child_node = node_from_term(new_child)?;

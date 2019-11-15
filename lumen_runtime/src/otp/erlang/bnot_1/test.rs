@@ -6,7 +6,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarith;
-use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
+use liblumen_alloc::erts::term::prelude::{Encoded, TypedTerm};
 
 use crate::otp::erlang::bnot_1::native;
 use crate::scheduler::{with_process, with_process_arc};

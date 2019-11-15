@@ -20,25 +20,21 @@ pub fn native(binary: Term, encoding: Term) -> exception::Result<Term> {
 
     match binary.decode()? {
         TypedTerm::HeapBinary(heap_binary) => {
-            Atom::try_from_latin1_bytes_existing(heap_binary.as_bytes())?
-                .encode()
+            Atom::try_from_latin1_bytes_existing(heap_binary.as_bytes())?.encode()
         }
         TypedTerm::ProcBin(process_binary) => {
-            Atom::try_from_latin1_bytes_existing(process_binary.as_bytes())?
-                .encode()
+            Atom::try_from_latin1_bytes_existing(process_binary.as_bytes())?.encode()
         }
         TypedTerm::SubBinary(subbinary) => {
             if subbinary.is_binary() {
                 if subbinary.is_aligned() {
                     let bytes = unsafe { subbinary.as_bytes_unchecked() };
 
-                    Atom::try_from_latin1_bytes_existing(bytes)?
-                        .encode()
+                    Atom::try_from_latin1_bytes_existing(bytes)?.encode()
                 } else {
                     let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
-                    Atom::try_from_latin1_bytes_existing(&byte_vec)?
-                        .encode()
+                    Atom::try_from_latin1_bytes_existing(&byte_vec)?.encode()
                 }
             } else {
                 Err(badarg!().into())

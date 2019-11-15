@@ -1,18 +1,18 @@
 use core::alloc::Layout;
+use core::convert::TryFrom;
 use core::ptr;
 use core::slice;
-use core::convert::TryFrom;
 
 use alloc::boxed::Box;
 
 use liblumen_core::util::pointer::distance_absolute;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::process::alloc::TermAlloc;
 use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::term::prelude::*;
 
-use super::prelude::{num_bytes, byte_offset};
+use super::prelude::{byte_offset, num_bytes};
 
 /// Represents a binary being matched
 ///
@@ -66,7 +66,7 @@ impl MatchBuffer {
                         bin.partial_byte_bit_len(),
                     )
                 }
-                t => panic!("expected valid binary term, but got {:?}", t)
+                t => panic!("expected valid binary term, but got {:?}", t),
             };
 
         let improper_bit_offset = 8 * byte_offset + (bit_offset as usize);
@@ -142,23 +142,20 @@ impl MatchContext {
         match self.buffer.original.decode().unwrap() {
             TypedTerm::ProcBin(bin) => {
                 let bytes = bin.as_byte_ptr().add(byte_offset(self.buffer.bit_offset));
-                let flags = BinaryFlags::new(bin.encoding())
-                    .set_size(size);
+                let flags = BinaryFlags::new(bin.encoding()).set_size(size);
                 (flags, bytes, size)
             }
             TypedTerm::BinaryLiteral(bin) => {
                 let bytes = bin.as_byte_ptr().add(byte_offset(self.buffer.bit_offset));
-                let flags = BinaryFlags::new_literal(bin.encoding())
-                    .set_size(size);
+                let flags = BinaryFlags::new_literal(bin.encoding()).set_size(size);
                 (flags, bytes, size)
             }
             TypedTerm::HeapBinary(bin) => {
                 let bytes = bin.as_byte_ptr().add(byte_offset(self.buffer.bit_offset));
-                let flags = BinaryFlags::new(bin.encoding())
-                    .set_size(size);
+                let flags = BinaryFlags::new(bin.encoding()).set_size(size);
                 (flags, bytes, size)
             }
-            t => panic!("invalid term, expected binary but got {:?}", t)
+            t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
 
@@ -174,33 +171,27 @@ impl MatchContext {
         let max_bit_offset = improper_bit_offset % 8;
 
         match self.buffer.original.decode().unwrap() {
-            TypedTerm::ProcBin(bin_ptr) => {
-                Box::new(PartialByteBitIter::new(
-                    bin_ptr,
-                    current_byte_offset,
-                    current_bit_offset as u8,
-                    max_byte_offset,
-                    max_bit_offset
-                ))
-            }
-            TypedTerm::BinaryLiteral(bin_ptr) => {
-                Box::new(PartialByteBitIter::new(
-                    bin_ptr,
-                    current_byte_offset,
-                    current_bit_offset as u8,
-                    max_byte_offset,
-                    max_bit_offset
-                ))
-            }
-            TypedTerm::HeapBinary(bin_ptr) => {
-                Box::new(PartialByteBitIter::new(
-                    bin_ptr,
-                    current_byte_offset,
-                    current_bit_offset as u8,
-                    max_byte_offset,
-                    max_bit_offset
-                ))
-            }
+            TypedTerm::ProcBin(bin_ptr) => Box::new(PartialByteBitIter::new(
+                bin_ptr,
+                current_byte_offset,
+                current_bit_offset as u8,
+                max_byte_offset,
+                max_bit_offset,
+            )),
+            TypedTerm::BinaryLiteral(bin_ptr) => Box::new(PartialByteBitIter::new(
+                bin_ptr,
+                current_byte_offset,
+                current_bit_offset as u8,
+                max_byte_offset,
+                max_bit_offset,
+            )),
+            TypedTerm::HeapBinary(bin_ptr) => Box::new(PartialByteBitIter::new(
+                bin_ptr,
+                current_byte_offset,
+                current_bit_offset as u8,
+                max_byte_offset,
+                max_bit_offset,
+            )),
             t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
@@ -215,34 +206,28 @@ impl MatchContext {
         let max_byte_offset = self.full_byte_len();
 
         match self.buffer.original.decode().unwrap() {
-            TypedTerm::ProcBin(bin_ptr) => {
-                Box::new(FullByteIter::new(
-                    bin_ptr,
-                    base_byte_offset,
-                    bit_offset,
-                    current_byte_offset,
-                    max_byte_offset
-                ))
-            }
-            TypedTerm::BinaryLiteral(bin_ptr) => {
-                Box::new(FullByteIter::new(
-                    bin_ptr,
-                    base_byte_offset,
-                    bit_offset,
-                    current_byte_offset,
-                    max_byte_offset
-                ))
-            }
-            TypedTerm::HeapBinary(bin_ptr) => {
-                Box::new(FullByteIter::new(
-                    bin_ptr,
-                    base_byte_offset,
-                    bit_offset,
-                    current_byte_offset,
-                    max_byte_offset
-                ))
-            }
-            t => panic!("invalid term, expected binary but got {:?}", t)
+            TypedTerm::ProcBin(bin_ptr) => Box::new(FullByteIter::new(
+                bin_ptr,
+                base_byte_offset,
+                bit_offset,
+                current_byte_offset,
+                max_byte_offset,
+            )),
+            TypedTerm::BinaryLiteral(bin_ptr) => Box::new(FullByteIter::new(
+                bin_ptr,
+                base_byte_offset,
+                bit_offset,
+                current_byte_offset,
+                max_byte_offset,
+            )),
+            TypedTerm::HeapBinary(bin_ptr) => Box::new(FullByteIter::new(
+                bin_ptr,
+                base_byte_offset,
+                bit_offset,
+                current_byte_offset,
+                max_byte_offset,
+            )),
+            t => panic!("invalid term, expected binary but got {:?}", t),
         }
     }
 }
@@ -303,8 +288,8 @@ impl CloneToProcess for MatchContext {
                         Ok(ptr.into())
                     }
                 } else {
-                    // Need to make sure that the heapbin is cloned as well, and that the header is suitably
-                    // updated
+                    // Need to make sure that the heapbin is cloned as well, and that the header is
+                    // suitably updated
                     let new_bin = bin.clone_to_heap(heap)?;
                     let new_bin_ptr: *mut Term = new_bin.dyn_cast();
                     let new_bin_box: Boxed<HeapBin> = new_bin_ptr.into();
@@ -332,7 +317,7 @@ impl CloneToProcess for MatchContext {
                     }
                 }
             }
-            t => panic!("expected binary term, but got {:?}", t)
+            t => panic!("expected binary term, but got {:?}", t),
         }
     }
 }

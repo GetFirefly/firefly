@@ -3,19 +3,21 @@
 ///!
 ///! Where supported, the immediate representation should be preferred.
 #[cfg(target_arch = "x86_64")]
-compile_error!("Packed floats should not be compiled on x86_64, this architecture uses immediate floats!");
+compile_error!(
+    "Packed floats should not be compiled on x86_64, this architecture uses immediate floats!"
+);
 
-use core::fmt;
-use core::cmp;
-use core::ptr;
 use core::alloc::Layout;
+use core::cmp;
 use core::convert::TryFrom;
+use core::fmt;
+use core::ptr;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::TermAlloc;
 
-use crate::erts::term::prelude::{Term, Boxed, TypedTerm, Header, StaticHeader, TypeError};
+use crate::erts::term::prelude::{Boxed, Header, StaticHeader, Term, TypeError, TypedTerm};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -38,7 +40,9 @@ impl Float {
     }
 }
 
-impl StaticHeader for Float { const TAG: Term = Term::HEADER_FLOAT; }
+impl StaticHeader for Float {
+    const TAG: Term = Term::HEADER_FLOAT;
+}
 
 impl Eq for Float {}
 impl PartialEq for Float {

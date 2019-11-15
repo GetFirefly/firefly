@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use std::convert::Into;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 use super::errors::{self, CompilerError};
 

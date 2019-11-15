@@ -5,10 +5,10 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLock;
 
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::Process;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::exception;
+use liblumen_alloc::Process;
 
 use crate::process;
 

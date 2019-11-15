@@ -10,7 +10,7 @@ use core::sync::atomic::{self, AtomicUsize};
 use liblumen_core::sys::alloc as sys_alloc;
 
 use crate::erts::exception::AllocResult;
-use crate::erts::process::alloc::{TermAlloc, Heap};
+use crate::erts::process::alloc::{Heap, TermAlloc};
 use crate::CloneToProcess;
 
 use super::prelude::*;
@@ -40,9 +40,7 @@ impl Resource {
         let layout = Layout::new::<Self>();
 
         unsafe {
-            let ptr = heap.alloc_layout(layout)?
-                .cast::<Self>()
-                .as_ptr();
+            let ptr = heap.alloc_layout(layout)?.cast::<Self>().as_ptr();
             ptr.write(resource);
 
             Ok(Boxed::new_unchecked(ptr))
@@ -66,13 +64,18 @@ impl Resource {
     /// returned.
     #[inline]
     pub fn downcast<T: 'static>(self) -> Result<Box<T>, Self> {
+        use atomic::Ordering::{Acquire, Relaxed, Release};
         use core::mem;
-        use atomic::Ordering::{Acquire, Release, Relaxed};
 
         if self.downcast_ref::<T>().is_none() {
             return Err(self);
         }
-        if self.inner().reference_count.compare_exchange(1, 0, Release, Relaxed).is_err() {
+        if self
+            .inner()
+            .reference_count
+            .compare_exchange(1, 0, Release, Relaxed)
+            .is_err()
+        {
             return Err(self);
         }
 
@@ -111,7 +114,12 @@ impl Resource {
     // Non-inlined part of `drop`.
     #[inline(never)]
     unsafe fn drop_slow(&mut self) {
-        if self.inner().reference_count.fetch_sub(1, atomic::Ordering::Release) == 1 {
+        if self
+            .inner()
+            .reference_count
+            .fetch_sub(1, atomic::Ordering::Release)
+            == 1
+        {
             atomic::fence(atomic::Ordering::Acquire);
             let inner = self.inner.as_mut();
             // Drop the resource data
@@ -146,7 +154,9 @@ where
 impl Clone for Resource {
     #[inline]
     fn clone(&self) -> Self {
-        self.inner().reference_count.fetch_add(1, atomic::Ordering::AcqRel);
+        self.inner()
+            .reference_count
+            .fetch_add(1, atomic::Ordering::AcqRel);
 
         Self {
             header: self.header.clone(),
@@ -160,7 +170,9 @@ impl CloneToProcess for Resource {
     where
         A: ?Sized + TermAlloc,
     {
-        self.inner().reference_count.fetch_add(1, atomic::Ordering::AcqRel);
+        self.inner()
+            .reference_count
+            .fetch_add(1, atomic::Ordering::AcqRel);
         unsafe {
             // Allocate space for the header
             let layout = Layout::new::<Self>();
@@ -181,7 +193,12 @@ impl CloneToProcess for Resource {
 
 impl Drop for Resource {
     fn drop(&mut self) {
-        if self.inner().reference_count.fetch_sub(1, atomic::Ordering::Release) != 1 {
+        if self
+            .inner()
+            .reference_count
+            .fetch_sub(1, atomic::Ordering::Release)
+            != 1
+        {
             return;
         }
         atomic::fence(atomic::Ordering::Acquire);
@@ -196,7 +213,10 @@ impl Debug for Resource {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Resource")
             .field("header", &self.header)
-            .field("inner", &format_args!("{:p} => {:?}", self.inner, self.value()))
+            .field(
+                "inner",
+                &format_args!("{:p} => {:?}", self.inner, self.value()),
+            )
             .finish()
     }
 }
@@ -236,7 +256,6 @@ impl TryFrom<TypedTerm> for Boxed<Resource> {
         }
     }
 }
-
 
 /// A wrapper around a boxed resource value that contains a reference count,
 /// similar to `ProcBinInner`

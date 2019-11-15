@@ -1,11 +1,11 @@
-use core::ptr::NonNull;
 use core::alloc::Layout;
+use core::ptr::NonNull;
 
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::*;
 use crate::erts::term::prelude::*;
 
-use super::{Generation, Sweeper, Sweep, Sweepable};
+use super::{Generation, Sweep, Sweepable, Sweeper};
 
 /// Represents a collection algorithm that sweeps for references in `Target`
 /// into `Source`, and moving them into `Target`
@@ -47,10 +47,7 @@ where
     T: Heap + VirtualAlloc,
 {
     pub fn new(source: &'a mut S, target: &'a mut T) -> Self {
-        Self {
-            source,
-            target
-        }
+        Self { source, target }
     }
 }
 impl<'a, S, T> HeapAlloc for FullCollection<'a, S, T>
@@ -71,13 +68,17 @@ where
     type Source = S;
     type Target = T;
 
-    fn source(&self) -> &Self::Source { self.source }
+    fn source(&self) -> &Self::Source {
+        self.source
+    }
 
     fn source_mut(&self) -> &mut Self::Source {
         unsafe { &mut *(self.source as *const S as *mut S) }
     }
 
-    fn target(&self) -> &Self::Target { self.target }
+    fn target(&self) -> &Self::Target {
+        self.target
+    }
 
     fn target_mut(&self) -> &mut Self::Target {
         unsafe { &mut *(self.target as *const T as *mut T) }
@@ -162,13 +163,17 @@ where
     type Source = S;
     type Target = T;
 
-    fn source(&self) -> &Self::Source { self.source }
+    fn source(&self) -> &Self::Source {
+        self.source
+    }
 
     fn source_mut(&self) -> &mut Self::Source {
         unsafe { &mut *(self.source as *const S as *mut S) }
     }
 
-    fn target(&self) -> &Self::Target { self.target }
+    fn target(&self) -> &Self::Target {
+        self.target
+    }
 
     fn target_mut(&self) -> &mut Self::Target {
         unsafe { &mut *(self.target as *const T as *mut T) }
@@ -212,7 +217,7 @@ where
                 self.mode = prev_mode;
                 Some(result)
             }
-            None => None
+            None => None,
         }
     }
 }
@@ -231,10 +236,7 @@ where
     T: Heap + VirtualAlloc,
 {
     pub fn new(source: &'a mut S, target: &'a mut T) -> Self {
-        Self {
-            source,
-            target
-        }
+        Self { source, target }
     }
 }
 impl<'a, S, T> HeapAlloc for ReferenceCollection<'a, S, T>
@@ -255,13 +257,17 @@ where
     type Source = S;
     type Target = T;
 
-    fn source(&self) -> &Self::Source { self.source }
+    fn source(&self) -> &Self::Source {
+        self.source
+    }
 
     fn source_mut(&self) -> &mut Self::Source {
         unsafe { &mut *(self.source as *const S as *mut S) }
     }
 
-    fn target(&self) -> &Self::Target { self.target }
+    fn target(&self) -> &Self::Target {
+        self.target
+    }
 
     fn target_mut(&self) -> &mut Self::Target {
         unsafe { &mut *(self.target as *const T as *mut T) }
@@ -284,12 +290,12 @@ where
 // Internally this delegates to `sweep_term` to do the sweep of the inner value
 pub(super) unsafe fn sweep_root<G>(sweeper: &mut G, term: &mut Term) -> usize
 where
-    G: Sweeper +
-    Sweep<*mut Term> +
-    Sweep<Boxed<ProcBin>> +
-    Sweep<Boxed<SubBinary>> +
-    Sweep<Boxed<MatchContext>> +
-    Sweep<Boxed<Cons>>,
+    G: Sweeper
+        + Sweep<*mut Term>
+        + Sweep<Boxed<ProcBin>>
+        + Sweep<Boxed<SubBinary>>
+        + Sweep<Boxed<MatchContext>>
+        + Sweep<Boxed<Cons>>,
 {
     let pos = term as *mut Term;
 
@@ -348,12 +354,12 @@ where
 // are handled by implementations of the `Sweepable` trait.
 pub(super) unsafe fn sweep_term<G>(sweeper: &mut G, term: &mut Term) -> usize
 where
-    G: Sweeper +
-    Sweep<*mut Term> +
-    Sweep<Boxed<ProcBin>> +
-    Sweep<Boxed<SubBinary>> +
-    Sweep<Boxed<MatchContext>> +
-    Sweep<Boxed<Cons>>,
+    G: Sweeper
+        + Sweep<*mut Term>
+        + Sweep<Boxed<ProcBin>>
+        + Sweep<Boxed<SubBinary>>
+        + Sweep<Boxed<MatchContext>>
+        + Sweep<Boxed<Cons>>,
 {
     let pos = term as *mut Term;
 
@@ -430,7 +436,8 @@ where
         return 0;
     }
 
-    // When we encounter a header for a match context, check if we should also move its referenced binary
+    // When we encounter a header for a match context, check if we should also move its referenced
+    // binary
     if term.is_match_context() {
         let bin: Boxed<MatchContext> = Boxed::new_unchecked(pos as *mut MatchContext);
         if let Some((new_ptr, moved)) = sweeper.sweep(bin) {

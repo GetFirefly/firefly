@@ -1,8 +1,8 @@
 use std::convert::TryInto;
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn binary_to_string(binary: Term) -> exception::Result<String> {
     match binary.decode()? {

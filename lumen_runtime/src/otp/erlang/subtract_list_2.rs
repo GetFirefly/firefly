@@ -15,10 +15,7 @@ use lumen_runtime_macros::native_implemented_function;
 /// `--/2`
 #[native_implemented_function(--/2)]
 pub fn native(process: &Process, minuend: Term, subtrahend: Term) -> exception::Result<Term> {
-    match (
-        minuend.decode().unwrap(),
-        subtrahend.decode().unwrap(),
-    ) {
+    match (minuend.decode().unwrap(), subtrahend.decode().unwrap()) {
         (TypedTerm::Nil, TypedTerm::Nil) => Ok(minuend),
         (TypedTerm::Nil, TypedTerm::List(subtrahend_cons)) => {
             if subtrahend_cons.is_proper() {

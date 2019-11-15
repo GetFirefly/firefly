@@ -2,9 +2,9 @@ use core::convert::{TryFrom, TryInto};
 use core::ops::Range;
 
 use liblumen_alloc::badarg;
+use liblumen_alloc::erts::exception::{self, Exception};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
-use liblumen_alloc::erts::exception::{self, Exception};
 
 pub(crate) struct PartRange {
     pub byte_offset: usize,

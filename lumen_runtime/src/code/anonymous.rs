@@ -4,8 +4,8 @@ use liblumen_core::locks::RwLock;
 
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::term::closure::{Index, OldUnique, Unique};
-use liblumen_alloc::erts::Arity;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::Arity;
 
 pub fn get(
     module: &Atom,

@@ -1,9 +1,9 @@
-use core::mem;
 use core::convert::Infallible;
+use core::mem;
 
 use thiserror::Error;
 
-use crate::erts::term::prelude::{TermEncodingError, TermDecodingError};
+use crate::erts::term::prelude::{TermDecodingError, TermEncodingError};
 
 #[derive(Error, Debug, Clone)]
 pub enum SystemException {

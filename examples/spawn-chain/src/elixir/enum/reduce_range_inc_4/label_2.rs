@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use std::convert::TryInto;
+use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::prelude::{Term, Boxed, Closure, Encoded};
+use liblumen_alloc::erts::term::prelude::{Boxed, Closure, Encoded, Term};
 
 use crate::elixir::r#enum::reduce_range_inc_4;
 

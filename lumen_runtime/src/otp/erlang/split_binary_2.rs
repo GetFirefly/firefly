@@ -8,9 +8,9 @@ mod test;
 use std::convert::TryInto;
 
 use liblumen_alloc::badarg;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
@@ -45,13 +45,9 @@ pub fn native(process: &Process, binary: Term, position: Term) -> exception::Res
                     let prefix = heap
                         .subbinary_from_original(binary, 0, 0, index, 0)?
                         .encode()?;
-                    let suffix = heap.subbinary_from_original(
-                        binary,
-                        index,
-                        0,
-                        full_byte_length - index,
-                        0,
-                    )?.encode()?;
+                    let suffix = heap
+                        .subbinary_from_original(binary, index, 0, full_byte_length - index, 0)?
+                        .encode()?;
 
                     heap.tuple_from_slice(&[prefix, suffix])
                         .map_err(|e| e.into())
@@ -75,13 +71,15 @@ pub fn native(process: &Process, binary: Term, position: Term) -> exception::Res
         TypedTerm::SubBinary(subbinary) => {
             if index == 0 {
                 let mut heap = process.acquire_heap();
-                let empty_prefix = heap.subbinary_from_original(
-                    subbinary.original(),
-                    subbinary.byte_offset() + index,
-                    subbinary.bit_offset(),
-                    0,
-                    0,
-                )?.encode()?;
+                let empty_prefix = heap
+                    .subbinary_from_original(
+                        subbinary.original(),
+                        subbinary.byte_offset() + index,
+                        subbinary.bit_offset(),
+                        0,
+                        0,
+                    )?
+                    .encode()?;
 
                 // Don't make a subbinary of the suffix since it is the same as the
                 // `binary`.
@@ -98,36 +96,34 @@ pub fn native(process: &Process, binary: Term, position: Term) -> exception::Res
                     let byte_offset = subbinary.byte_offset();
                     let bit_offset = subbinary.bit_offset();
 
-                    let prefix = heap.subbinary_from_original(
-                        original,
-                        byte_offset,
-                        bit_offset,
-                        index,
-                        0,
-                    )?.encode()?;
-                    let suffix = heap.subbinary_from_original(
-                        original,
-                        byte_offset + index,
-                        bit_offset,
-                        // full_byte_count does not include bits
-                        subbinary.full_byte_len() - index,
-                        subbinary.partial_byte_bit_len(),
-                    )?.encode()?;
+                    let prefix = heap
+                        .subbinary_from_original(original, byte_offset, bit_offset, index, 0)?
+                        .encode()?;
+                    let suffix = heap
+                        .subbinary_from_original(
+                            original,
+                            byte_offset + index,
+                            bit_offset,
+                            // full_byte_count does not include bits
+                            subbinary.full_byte_len() - index,
+                            subbinary.partial_byte_bit_len(),
+                        )?
+                        .encode()?;
 
                     heap.tuple_from_slice(&[prefix, suffix])
                         .map_err(|e| e.into())
                         .and_then(|t| t.encode())
-                } else if (index == total_byte_length)
-                    & (subbinary.partial_byte_bit_len() == 0)
-                {
+                } else if (index == total_byte_length) & (subbinary.partial_byte_bit_len() == 0) {
                     let mut heap = process.acquire_heap();
-                    let empty_suffix = heap.subbinary_from_original(
-                        subbinary.original(),
-                        subbinary.byte_offset() + index,
-                        subbinary.bit_offset(),
-                        0,
-                        0,
-                    )?.encode()?;
+                    let empty_suffix = heap
+                        .subbinary_from_original(
+                            subbinary.original(),
+                            subbinary.byte_offset() + index,
+                            subbinary.bit_offset(),
+                            0,
+                            0,
+                        )?
+                        .encode()?;
 
                     heap.tuple_from_slice(&[binary, empty_suffix])
                         .map_err(|e| e.into())

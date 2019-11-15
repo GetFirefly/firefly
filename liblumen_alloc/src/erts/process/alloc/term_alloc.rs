@@ -11,15 +11,15 @@ use hashbrown::HashMap;
 use liblumen_core::util::reference::bytes;
 use liblumen_core::util::reference::str::inherit_lifetime as inherit_str_lifetime;
 
-use crate::scheduler;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{self, AllocResult};
+use crate::erts::module_function_arity::Arity;
 use crate::erts::process::code::Code;
 use crate::erts::string::Encoding;
-use crate::erts::term::prelude::*;
 use crate::erts::term::closure::{Creator, Index, OldUnique, Unique};
-use crate::erts::module_function_arity::Arity;
+use crate::erts::term::prelude::*;
 use crate::erts::Node;
+use crate::scheduler;
 
 use super::{Heap, VirtualAllocator};
 
@@ -57,8 +57,7 @@ pub trait TermAlloc: Heap {
                 }
             }
         } else {
-            self.heapbin_from_bytes(bytes)
-                .map(|nn| nn.into())
+            self.heapbin_from_bytes(bytes).map(|nn| nn.into())
         }
     }
 
@@ -76,12 +75,8 @@ pub trait TermAlloc: Heap {
             TypedTerm::HeapBinary(bin_ptr) => {
                 Ok(unsafe { bytes::inherit_lifetime(bin_ptr.as_ref().as_bytes()) })
             }
-            TypedTerm::ProcBin(bin) => {
-                Ok(unsafe { bytes::inherit_lifetime(bin.as_bytes()) })
-            }
-            TypedTerm::BinaryLiteral(bin) => {
-                Ok(unsafe { bytes::inherit_lifetime(bin.as_bytes()) })
-            }
+            TypedTerm::ProcBin(bin) => Ok(unsafe { bytes::inherit_lifetime(bin.as_bytes()) }),
+            TypedTerm::BinaryLiteral(bin) => Ok(unsafe { bytes::inherit_lifetime(bin.as_bytes()) }),
             TypedTerm::SubBinary(bin) => {
                 if bin.is_binary() {
                     if bin.bit_offset() == 0 {
@@ -132,8 +127,7 @@ pub trait TermAlloc: Heap {
                 }
             }
         } else {
-            self.heapbin_from_str(s)
-                .map(|nn| nn.into())
+            self.heapbin_from_str(s).map(|nn| nn.into())
         }
     }
 
@@ -186,8 +180,11 @@ pub trait TermAlloc: Heap {
         }
     }
 
-
-    fn improper_list_from_iter<I>(&mut self, iter: I, last: Term) -> AllocResult<Option<Boxed<Cons>>>
+    fn improper_list_from_iter<I>(
+        &mut self,
+        iter: I,
+        last: Term,
+    ) -> AllocResult<Option<Boxed<Cons>>>
     where
         I: DoubleEndedIterator + Iterator<Item = Term>,
     {
@@ -202,7 +199,11 @@ pub trait TermAlloc: Heap {
         Ok(Boxed::new(head))
     }
 
-    fn improper_list_from_slice(&mut self, slice: &[Term], tail: Term) -> AllocResult<Option<Boxed<Cons>>> {
+    fn improper_list_from_slice(
+        &mut self,
+        slice: &[Term],
+        tail: Term,
+    ) -> AllocResult<Option<Boxed<Cons>>> {
         self.improper_list_from_iter(slice.iter().copied(), tail)
     }
 
@@ -223,8 +224,7 @@ pub trait TermAlloc: Heap {
 
         for character in chars.rev() {
             let codepoint = self.integer(character)?;
-            head = self.cons(codepoint, acc)?
-                       .as_ptr();
+            head = self.cons(codepoint, acc)?.as_ptr();
             acc = head.into();
         }
 
@@ -283,8 +283,7 @@ pub trait TermAlloc: Heap {
     where
         Self: Sized,
     {
-        let pid = ExternalPid::new(arc_node, number, serial)?
-            .clone_to_heap(self)?;
+        let pid = ExternalPid::new(arc_node, number, serial)?.clone_to_heap(self)?;
         let boxed: *mut ExternalPid = pid.dyn_cast();
 
         Ok(unsafe { Boxed::new_unchecked(boxed) })
@@ -411,7 +410,8 @@ pub trait TermAlloc: Heap {
         let match_ctx = MatchContext::new(binary.into());
 
         unsafe {
-            let ptr = self.alloc_layout(Layout::new::<MatchContext>())?.as_ptr() as *mut MatchContext;
+            let ptr =
+                self.alloc_layout(Layout::new::<MatchContext>())?.as_ptr() as *mut MatchContext;
             ptr.write(match_ctx);
 
             Ok(Boxed::new_unchecked(ptr))
@@ -440,14 +440,22 @@ pub trait TermAlloc: Heap {
         // Write each element
         let mut count = 0;
         for (index, element) in iterator.enumerate() {
-            assert!(index < len, "unexpected out of bounds access in tuple_from_iter: len = {}, index = {}", len, index);
+            assert!(
+                index < len,
+                "unexpected out of bounds access in tuple_from_iter: len = {}, index = {}",
+                len,
+                index
+            );
             unsafe {
                 elements_ptr.write(element);
                 elements_ptr = elements_ptr.offset(1);
             }
             count += 1;
         }
-        debug_assert_eq!(len, count, "expected number of elements in iterator to match provided length");
+        debug_assert_eq!(
+            len, count,
+            "expected number of elements in iterator to match provided length"
+        );
 
         Ok(tuple_box)
     }
@@ -513,15 +521,7 @@ pub trait TermAlloc: Heap {
         slice: &[Term],
     ) -> AllocResult<Boxed<Closure>> {
         Closure::from_slice(
-            self,
-            module,
-            index,
-            old_unique,
-            unique,
-            arity,
-            code,
-            creator,
-            slice,
+            self, module, index, old_unique, unique, arity, code, creator, slice,
         )
     }
 
@@ -546,15 +546,7 @@ pub trait TermAlloc: Heap {
     ) -> AllocResult<Boxed<Closure>> {
         let len = slices.iter().map(|slice| slice.len()).sum();
         let mut closure_box = Closure::new_anonymous(
-            self,
-            module,
-            index,
-            old_unique,
-            unique,
-            arity,
-            code,
-            creator,
-            len,
+            self, module, index, old_unique, unique, arity, code, creator, len,
         )?;
 
         unsafe {
@@ -581,26 +573,16 @@ pub trait TermAlloc: Heap {
         arity: u8,
         code: Option<Code>,
     ) -> AllocResult<Boxed<Closure>> {
-        Closure::new_export(
-            self,
-            module,
-            function,
-            arity,
-            code,
-        )
+        Closure::new_export(self, module, function, arity, code)
     }
 }
 
-impl<T> TermAlloc for T
-where
-    T: Heap,
-{
-}
+impl<T> TermAlloc for T where T: Heap {}
 
 impl<T, H> TermAlloc for T
 where
     H: TermAlloc,
-    T: core::ops::DerefMut<Target=H>,
+    T: core::ops::DerefMut<Target = H>,
 {
 }
 

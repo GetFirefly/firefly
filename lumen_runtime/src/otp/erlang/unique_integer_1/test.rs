@@ -2,8 +2,8 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::{badarg, atom};
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{atom, badarg};
 
 use crate::otp::erlang::unique_integer_1::native;
 use crate::scheduler::{with_process, with_process_arc};
@@ -84,9 +84,7 @@ fn without_options_returns_non_monotonic_negative_and_positive_integer() {
 #[test]
 fn with_monotonic_returns_monotonic_negative_and_positiver_integer() {
     with_process(|process| {
-        let options = process
-            .list_from_slice(&[atom!("monotonic")])
-            .unwrap();
+        let options = process.list_from_slice(&[atom!("monotonic")]).unwrap();
 
         let result_first_unique_integer = native(process, options);
 
@@ -144,9 +142,7 @@ fn with_monotonic_and_positive_returns_monotonic_positiver_integer() {
 #[test]
 fn with_positive_returns_non_monotonic_and_positive_integer() {
     with_process(|process| {
-        let options = process
-            .list_from_slice(&[atom!("positive")])
-            .unwrap();
+        let options = process.list_from_slice(&[atom!("positive")]).unwrap();
 
         let result_first_unique_integer = native(process, options);
 

@@ -1,17 +1,19 @@
 use core::alloc::Layout;
-use core::ptr::NonNull;
-use core::mem;
 use core::fmt;
+use core::mem;
+use core::ptr::NonNull;
 
+use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 use liblumen_core::sys::alloc as sys_alloc;
 use liblumen_core::sys::sysconf::MIN_ALIGN;
 use liblumen_core::util::pointer::distance_absolute;
-use liblumen_core::alloc::utils::{is_aligned, is_aligned_at, align_up_to};
 
-use crate::mem::bit_size_of;
-use crate::erts::term::prelude::*;
 use crate::erts::exception::AllocResult;
-use crate::erts::process::alloc::{Heap, HeapAlloc, VirtualHeap, VirtualAllocator, VirtualBinaryHeap};
+use crate::erts::process::alloc::{
+    Heap, HeapAlloc, VirtualAllocator, VirtualBinaryHeap, VirtualHeap,
+};
+use crate::erts::term::prelude::*;
+use crate::mem::bit_size_of;
 
 // We allocate 64 words for default scratch heaps, which amounts
 // to 512 bytes for 64-bit systems, and 256 for 32-bit systems;
@@ -35,10 +37,8 @@ impl RegionHeap {
     /// Creates a new scratch heap from the given layout
     pub fn new(layout: Layout) -> Self {
         let size = layout.size();
-        let ptr = unsafe {
-            sys_alloc::alloc(layout.clone())
-                .expect("unable to allocate scratch heap!")
-        };
+        let ptr =
+            unsafe { sys_alloc::alloc(layout.clone()).expect("unable to allocate scratch heap!") };
         let raw = ptr.as_ptr();
         let end = unsafe { raw.add(size) };
         let top = raw;
@@ -163,7 +163,12 @@ impl HeapAlloc for RegionHeap {
             align_up_to(top as *mut Term, align)
         };
         // Success!
-        debug_assert!(is_aligned(ptr), "unaligned pointer ({:b}); requested alignment is {}", ptr as usize, align);
+        debug_assert!(
+            is_aligned(ptr),
+            "unaligned pointer ({:b}); requested alignment is {}",
+            ptr as usize,
+            align
+        );
         Ok(NonNull::new_unchecked(ptr))
     }
 }

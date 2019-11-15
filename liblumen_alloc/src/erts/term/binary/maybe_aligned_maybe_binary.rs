@@ -1,13 +1,13 @@
+use core::convert::TryInto;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
-use core::convert::TryInto;
 use core::str;
 
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::erts::term::prelude::Boxed;
 use crate::erts::exception::Exception;
+use crate::erts::term::prelude::Boxed;
 
 use super::aligned_binary;
 use super::prelude::{MatchContext, SubBinary};
@@ -196,8 +196,7 @@ macro_rules! impl_maybe_aligned_try_into {
                     } else {
                         let byte_vec: Vec<u8> = self.full_byte_iter().collect();
 
-                        String::from_utf8(byte_vec)
-                            .map_err(|_| badarg!().into())
+                        String::from_utf8(byte_vec).map_err(|_| badarg!().into())
                     }
                 } else {
                     Err(badarg!().into())
@@ -248,7 +247,7 @@ macro_rules! impl_maybe_aligned_try_into {
                 self.as_ref().try_into()
             }
         }
-    }
+    };
 }
 
 impl_maybe_aligned_try_into!(MatchContext);

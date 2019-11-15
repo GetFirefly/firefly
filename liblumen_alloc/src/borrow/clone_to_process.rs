@@ -1,11 +1,11 @@
+use core::alloc::Layout;
 use core::mem;
 use core::ptr::NonNull;
-use core::alloc::Layout;
 
 use crate::erts::exception::AllocResult;
-use crate::erts::{self, HeapFragment, Process};
 use crate::erts::process::alloc::TermAlloc;
 use crate::erts::term::prelude::Term;
+use crate::erts::{self, HeapFragment, Process};
 
 /// This trait represents cloning, like `Clone`, but specifically
 /// in the context of terms which need to be cloned into the heap
@@ -42,7 +42,8 @@ pub trait CloneToProcess {
     /// the amount of memory available, this returns `Err(Alloc)`, otherwise
     /// it returns `Ok(Term)`
     fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
-        where A: ?Sized + TermAlloc;
+    where
+        A: ?Sized + TermAlloc;
 
     /// Returns boxed copy of this value and the heap fragment it was allocated into
     ///

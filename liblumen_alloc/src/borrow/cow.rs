@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use crate::erts::Process;
 use crate::erts::term::prelude::Term;
+use crate::erts::Process;
 
 use super::CloneToProcess;
 

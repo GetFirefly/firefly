@@ -1,9 +1,9 @@
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 
+use liblumen_alloc::erts::exception::{AllocResult, Exception};
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
 use liblumen_alloc::erts::process::{Priority, Process};
-use liblumen_alloc::erts::exception::{Exception, AllocResult};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 

@@ -9,9 +9,9 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::{atom, fixnum_from};
-use liblumen_alloc::erts::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::Process;
+use liblumen_alloc::{atom, fixnum_from};
 
 use super::size_range;
 

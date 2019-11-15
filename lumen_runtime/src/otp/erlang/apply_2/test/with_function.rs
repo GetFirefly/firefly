@@ -30,7 +30,8 @@ fn without_proper_list_arguments_errors_badarg() {
                                 Placement::Push,
                                 child_function,
                                 child_arguments,
-                            ).map_err(|e| e.into())
+                            )
+                            .map_err(|e| e.into())
                         },
                         5_000,
                     )

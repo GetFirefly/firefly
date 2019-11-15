@@ -228,18 +228,11 @@ fn return_throw(arc_process: &Arc<Process>) -> code::Result {
         })
         .unwrap();
 
-    let class: exception::Class = argument_vec[0]
-       .try_into()
-       .unwrap();
+    let class: exception::Class = argument_vec[0].try_into().unwrap();
 
     let reason = argument_vec[1];
     let stacktrace = Some(argument_vec[2]);
-    let exc = exception::raise(
-        class,
-        reason,
-        exception::Location::default(),
-        stacktrace,
-    );
+    let exc = exception::raise(class, reason, exception::Location::default(), stacktrace);
 
     code::result_from_exception(arc_process, exc.into())
 }

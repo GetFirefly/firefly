@@ -1,12 +1,12 @@
+use core::convert::TryInto;
 use core::fmt;
 use core::hash;
 use core::str;
-use core::convert::TryInto;
 
 use crate::erts::exception::Exception;
 use crate::erts::term::prelude::Boxed;
 
-use super::prelude::{HeapBin, ProcBin, BinaryLiteral, Binary, MaybePartialByte, IndexByte};
+use super::prelude::{Binary, BinaryLiteral, HeapBin, IndexByte, MaybePartialByte, ProcBin};
 
 /// A `BitString` that is guaranteed to always be a binary of aligned bytes
 pub trait AlignedBinary: Binary {
@@ -23,9 +23,7 @@ pub trait AlignedBinary: Binary {
             self.is_latin1() || self.is_utf8(),
             "cannot convert a binary containing non-UTF-8/non-ASCII characters to &str"
         );
-        unsafe {
-            str::from_utf8_unchecked(self.as_bytes())
-        }
+        unsafe { str::from_utf8_unchecked(self.as_bytes()) }
     }
 }
 
@@ -83,7 +81,6 @@ impl<A: AlignedBinary> MaybePartialByte for Boxed<A> {
 
 macro_rules! impl_aligned_binary {
     ($t:ty) => {
-
         impl fmt::Display for $t {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 display(self.as_bytes(), f)
@@ -178,7 +175,7 @@ macro_rules! impl_aligned_binary {
                 self.as_ref().try_into()
             }
         }
-    }
+    };
 }
 
 impl_aligned_binary!(HeapBin);
@@ -209,14 +206,14 @@ macro_rules! impl_aligned_try_into {
                 Ok(self.as_bytes().to_vec())
             }
         }
-    }
+    };
 }
 
 impl_aligned_try_into!(ProcBin);
 impl_aligned_try_into!(BinaryLiteral);
 
 /// Displays a binary using Erlang-style formatting
-pub(in super) fn display(bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
+pub(super) fn display(bytes: &[u8], f: &mut fmt::Formatter) -> fmt::Result {
     match str::from_utf8(bytes) {
         Ok(s) => write!(f, "{}", s),
         Err(_) => {

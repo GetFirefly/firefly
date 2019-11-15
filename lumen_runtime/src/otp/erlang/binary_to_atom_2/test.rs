@@ -60,7 +60,9 @@ fn with_utf8_binary_with_encoding_returns_atom_with_binary_name() {
                         TypedTerm::HeapBinary(heap_binary) => heap_binary.as_bytes().to_vec(),
                         TypedTerm::SubBinary(subbinary) => subbinary.full_byte_iter().collect(),
                         TypedTerm::ProcBin(process_binary) => process_binary.as_bytes().to_vec(),
-                        TypedTerm::BinaryLiteral(process_binary) => process_binary.as_bytes().to_vec(),
+                        TypedTerm::BinaryLiteral(process_binary) => {
+                            process_binary.as_bytes().to_vec()
+                        }
                         typed_term => panic!("typed_term = {:?}", typed_term),
                     };
 

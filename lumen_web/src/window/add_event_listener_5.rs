@@ -9,10 +9,10 @@ use std::convert::TryInto;
 
 use web_sys::Window;
 
-use liblumen_alloc::{badarg, atom};
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{atom, badarg};
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -20,7 +20,6 @@ use lumen_runtime::otp::erlang;
 use lumen_runtime::process::spawn::options::Options;
 
 use crate::window::add_event_listener;
-
 
 #[native_implemented_function(add_event_listener/4)]
 fn native(window: Term, event: Term, module: Term, function: Term) -> exception::Result<Term> {
@@ -48,7 +47,8 @@ fn native(window: Term, event: Term, module: Term, function: Term) -> exception:
                 module,
                 function,
                 arguments,
-            ).map_err(|e| e.into())
+            )
+            .map_err(|e| e.into())
         },
     );
 

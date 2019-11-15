@@ -1,9 +1,9 @@
-use core::mem;
 use core::alloc::Layout;
+use core::mem;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception::RuntimeException;
-use liblumen_alloc::erts::process::alloc::{TermAlloc, Heap};
+use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{self, Message};
@@ -102,22 +102,14 @@ fn down_message_layout(monitor: &Monitor, info: Term) -> Layout {
     let (layout, _) = Tuple::layout_for_len(DOWN_LEN)
         .extend(Layout::new::<Atom>())
         .unwrap();
-    let (layout, _) = layout
-        .extend(Reference::layout())
-        .unwrap();
-    let (layout, _) = layout
-        .extend(Layout::new::<Atom>())
-        .unwrap();
-    let (layout, _) = layout
-        .extend(id_layout)
-        .unwrap();
+    let (layout, _) = layout.extend(Reference::layout()).unwrap();
+    let (layout, _) = layout.extend(Layout::new::<Atom>()).unwrap();
+    let (layout, _) = layout.extend(id_layout).unwrap();
 
     let info_bytes = info.size_in_words() * mem::size_of::<usize>();
     let info_align = mem::align_of::<usize>();
     let info_layout = Layout::from_size_align(info_bytes, info_align).unwrap();
-    let (layout, _) = layout
-        .extend(info_layout)
-        .unwrap();
+    let (layout, _) = layout.extend(info_layout).unwrap();
 
     layout
 }
@@ -145,12 +137,8 @@ fn identifier_layout(monitor: &Monitor) -> Layout {
     match monitor {
         Monitor::Pid { .. } => Layout::new::<Pid>(),
         Monitor::Name { .. } => {
-            let (atoms, _) = Layout::new::<Atom>()
-                .repeat(2)
-                .unwrap();
-            let (layout, _) = Tuple::layout_for_len(2)
-                .extend(atoms)
-                .unwrap();
+            let (atoms, _) = Layout::new::<Atom>().repeat(2).unwrap();
+            let (layout, _) = Tuple::layout_for_len(2).extend(atoms).unwrap();
             layout
         }
     }
@@ -164,8 +152,7 @@ fn send_heap_down_message(
     monitor: &Monitor,
     info: Term,
 ) {
-    let mut non_null_heap_fragment =
-        HeapFragment::new(down_layout).unwrap();
+    let mut non_null_heap_fragment = HeapFragment::new(down_layout).unwrap();
     let heap_fragment = unsafe { non_null_heap_fragment.as_mut() };
 
     let heap_fragment_data = down(heap_fragment, reference, monitored_process, monitor, info);

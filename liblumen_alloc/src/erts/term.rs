@@ -1,22 +1,22 @@
 mod arch;
-mod encoding;
-mod typed_term;
 mod atom;
 mod binary;
 mod boxed;
 pub mod closure;
+pub mod convert;
+mod encoding;
 mod float;
+pub mod index;
 mod integer;
 mod list;
 mod map;
+pub(super) mod pid;
 mod port;
+pub(super) mod reference;
+mod release;
 mod resource;
 mod tuple;
-mod release;
-pub(super) mod pid;
-pub(super) mod reference;
-pub mod index;
-pub mod convert;
+mod typed_term;
 
 use core::fmt;
 
@@ -28,10 +28,10 @@ pub mod prelude {
     pub use super::arch::RawTerm as Term;
     pub use super::release::Release;
     // Export the encoding traits and types as they are used hand-in-hand with Term
-    pub use super::encoding::{Encode, Encoded, Boxable, UnsizedBoxable, Literal, Cast};
-    pub use super::encoding::{Header, DynamicHeader, StaticHeader};
+    pub use super::encoding::{Boxable, Cast, Encode, Encoded, Literal, UnsizedBoxable};
+    pub use super::encoding::{DynamicHeader, Header, StaticHeader};
     // Export the encoding errors
-    pub use super::encoding::{TermEncodingError, TermDecodingError};
+    pub use super::encoding::{TermDecodingError, TermEncodingError};
     // Export the boxed term wrapper
     pub use super::boxed::Boxed;
     // Export the typed term wrapper
@@ -40,20 +40,22 @@ pub mod prelude {
     pub use super::atom::{Atom, AtomError};
     pub use super::closure::Closure;
     pub use super::float::Float;
-    pub use super::integer::{Integer, SmallInteger, BigInteger};
-    pub use super::list::{List, ImproperList, MaybeImproper, Cons, ListBuilder, HeaplessListBuilder};
+    pub use super::integer::{BigInteger, Integer, SmallInteger};
+    pub use super::list::{
+        Cons, HeaplessListBuilder, ImproperList, List, ListBuilder, MaybeImproper,
+    };
     pub use super::map::Map;
-    pub use super::pid::{AnyPid, Pid, ExternalPid, InvalidPidError};
-    pub use super::port::{Port, ExternalPort};
-    pub use super::reference::{Reference, ExternalReference, ReferenceNumber};
-    pub use super::tuple::Tuple;
+    pub use super::pid::{AnyPid, ExternalPid, InvalidPidError, Pid};
+    pub use super::port::{ExternalPort, Port};
+    pub use super::reference::{ExternalReference, Reference, ReferenceNumber};
     pub use super::resource::Resource;
+    pub use super::tuple::Tuple;
     // Re-export the binary type prelude
     pub use super::binary::prelude::*;
     // Export tuple indexing
-    pub use super::index::{TupleIndex, ZeroBasedIndex, OneBasedIndex, IndexError};
+    pub use super::index::{IndexError, OneBasedIndex, TupleIndex, ZeroBasedIndex};
     // Export error types
-    pub use super::convert::{TypeError, BoolError};
+    pub use super::convert::{BoolError, TypeError};
     pub use super::integer::TryIntoIntegerError;
     pub use super::BadArgument;
 

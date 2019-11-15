@@ -11,8 +11,8 @@ use wasm_bindgen::JsCast;
 
 use web_sys::{Event, EventTarget, Window};
 
-use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::process::code;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::process::spawn::options::Options;

@@ -185,10 +185,10 @@ use core::convert::TryInto;
 
 use alloc::sync::Arc;
 
-use liblumen_alloc::{badarg, atom};
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{atom, badarg};
 
 use crate::registry::pid_to_self_or_process;
 use crate::time::monotonic;
@@ -280,7 +280,11 @@ fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Res
     }
 }
 
-fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Process) -> exception::Result<Term> {
+fn read_timer(
+    timer_reference: Term,
+    options: timer::read::Options,
+    process: &Process,
+) -> exception::Result<Term> {
     match timer_reference.decode()? {
         TypedTerm::Reference(ref local_reference) => {
             let read = timer::read(local_reference);
@@ -292,11 +296,8 @@ fn read_timer(timer_reference: Term, options: timer::read::Options, process: &Pr
             };
 
             let term = if options.r#async {
-                let read_timer_message = heap.tuple_from_slice(&[
-                    atom!("read_timer"),
-                    timer_reference,
-                    read_term,
-                ])?;
+                let read_timer_message =
+                    heap.tuple_from_slice(&[atom!("read_timer"), timer_reference, read_term])?;
                 process.send_from_self(read_timer_message.encode()?);
 
                 atom!("ok")

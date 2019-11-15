@@ -1,9 +1,9 @@
+use core::alloc::Layout;
 use core::mem;
 use core::ptr::NonNull;
-use core::alloc::Layout;
 
 use crate::erts::exception::AllocResult;
-use crate::erts::term::prelude::{Term, Boxed, ProcBin};
+use crate::erts::term::prelude::{Boxed, ProcBin, Term};
 
 use super::*;
 
@@ -64,7 +64,6 @@ pub trait GenerationalHeap: Heap + VirtualAlloc {
 /// same as #3
 /// 5.) During a full sweep, the old generation is replaced with an empty heap, just like during
 /// initialization, resetting the lifecycle
-///
 #[derive(Debug)]
 pub struct SemispaceHeap<A, B>
 where
@@ -80,10 +79,7 @@ where
     B: Heap + VirtualAlloc,
 {
     pub fn new(young: A, old: B) -> Self {
-        Self {
-            young,
-            old
-        }
+        Self { young, old }
     }
 
     // Check if either the young generation, or the virtual heap, require
@@ -304,21 +300,30 @@ where
     #[inline]
     fn virtual_free(&mut self, value: Boxed<ProcBin>) {
         let ptr = value.as_ptr();
-        assert!(self.young.virtual_contains(ptr), "can't free term not linked to this virtual heap");
+        assert!(
+            self.young.virtual_contains(ptr),
+            "can't free term not linked to this virtual heap"
+        );
         self.young.virtual_free(value);
     }
 
     #[inline]
     fn virtual_unlink(&mut self, value: Boxed<ProcBin>) {
         let ptr = value.as_ptr();
-        assert!(self.young.virtual_contains(ptr), "can't unlink term not linked to this virtual heap");
+        assert!(
+            self.young.virtual_contains(ptr),
+            "can't unlink term not linked to this virtual heap"
+        );
         self.young.virtual_unlink(value);
     }
 
     #[inline]
     fn virtual_pop(&mut self, value: Boxed<ProcBin>) -> ProcBin {
         let ptr = value.as_ptr();
-        assert!(self.young.virtual_contains(ptr), "can't pop binary not linked to this virtual heap");
+        assert!(
+            self.young.virtual_contains(ptr),
+            "can't pop binary not linked to this virtual heap"
+        );
         self.young.virtual_pop(value)
     }
 

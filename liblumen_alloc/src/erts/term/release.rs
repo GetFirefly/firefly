@@ -15,7 +15,10 @@ pub trait Release: Encoded {
     fn release(self);
 }
 
-impl<T> Release for T where T: Encoded {
+impl<T> Release for T
+where
+    T: Encoded,
+{
     default fn release(self) {
         // Skip entirely for headers
         if self.is_header() {

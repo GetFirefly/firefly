@@ -5,8 +5,8 @@ use proptest::arbitrary::any;
 use proptest::collection::SizeRange;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::Process;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
+use liblumen_alloc::erts::Process;
 
 use crate::process;
 

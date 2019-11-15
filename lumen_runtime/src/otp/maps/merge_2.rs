@@ -10,9 +10,9 @@ use std::convert::TryInto;
 use hashbrown::HashMap;
 
 use liblumen_alloc::badmap;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::erts::exception;
 
 use lumen_runtime_macros::native_implemented_function;
 

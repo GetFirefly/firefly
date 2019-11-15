@@ -1,6 +1,6 @@
 use std::convert::{AsRef, TryInto};
-use std::sync::Arc;
 use std::process::abort;
+use std::sync::Arc;
 
 use hashbrown::HashMap;
 
@@ -12,12 +12,12 @@ use libeir_ir::{
     Value, ValueKind,
 };
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception::{Exception, RuntimeException, SystemException};
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::gc::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::atom;
 
 use crate::module::{ErlangFunction, NativeFunctionKind, ResolvedFunction};
 use crate::vm::VMState;
@@ -143,12 +143,7 @@ fn call_closure(proc: &Arc<Process>, mut closure: Term, args: &mut [Term]) {
         closure_term,
         args,
     )| {
-        call_closure_inner(
-            proc,
-            **closure_term,
-            closure_term.decode().unwrap(),
-            args,
-        )
+        call_closure_inner(proc, **closure_term, closure_term.decode().unwrap(), args)
     })
 }
 
@@ -282,12 +277,21 @@ impl CallExecutor {
             NativeFunctionKind::Simple(ptr) => match ptr(proc, &args[2..]) {
                 Ok(ret) => Ok(call_closure(proc, args[0], &mut [ret])),
                 Err(err) => match err {
-                    Exception::Runtime(RuntimeException::Throw(err)) =>
-                        Ok(call_closure(proc, args[1], &mut [atom!("throw"), err.reason(), atom!("trace")])),
-                    Exception::Runtime(RuntimeException::Exit(err)) =>
-                        Ok(call_closure(proc, args[1], &mut [atom!("EXIT"), err.reason(), atom!("trace")])),
-                    Exception::Runtime(RuntimeException::Error(err)) =>
-                        Ok(call_closure(proc, args[1], &mut [atom!("error"), err.reason(), atom!("trace")])),
+                    Exception::Runtime(RuntimeException::Throw(err)) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom!("throw"), err.reason(), atom!("trace")],
+                    )),
+                    Exception::Runtime(RuntimeException::Exit(err)) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom!("EXIT"), err.reason(), atom!("trace")],
+                    )),
+                    Exception::Runtime(RuntimeException::Error(err)) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom!("error"), err.reason(), atom!("trace")],
+                    )),
                     // Promote unknown runtime errors to SystemException
                     Exception::Runtime(RuntimeException::Unknown(err)) => return Err(err.into()),
                     Exception::System(err) => return Err(err),

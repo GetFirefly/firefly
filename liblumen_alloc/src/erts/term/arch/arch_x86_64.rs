@@ -1,3 +1,4 @@
+use core::cmp;
 ///! This module contains constants for 64-bit architectures used by the term
 ///! implementation.
 ///!
@@ -12,7 +13,6 @@
 ///! behavior when compiled for those platforms. Intel is also planning extensions to its
 ///! processors to use up to 54 bits for addresses, which would cause issues as well.
 use core::fmt;
-use core::cmp;
 
 use crate::erts::exception;
 
@@ -21,7 +21,7 @@ const_assert!(MIN_ALIGN >= 8);
 
 use crate::erts::term::prelude::*;
 
-use super::{Tag, Repr};
+use super::{Repr, Tag};
 
 pub type Word = u64;
 
@@ -199,7 +199,7 @@ impl Repr for RawTerm {
                     tag => Tag::Unknown(tag),
                 },
                 // External types have a subtag of 2 bits, but only 3 combinations are used
-                FLAG_EXTERNAL =>  match term & SUBTAG_MASK {
+                FLAG_EXTERNAL => match term & SUBTAG_MASK {
                     FLAG_EXTERN_PID => Tag::ExternalPid,
                     FLAG_EXTERN_PORT => Tag::ExternalPort,
                     FLAG_EXTERN_REF => Tag::ExternalReference,
@@ -217,7 +217,7 @@ impl Repr for RawTerm {
                 FLAG_RESOURCE_REFERENCE => Tag::ResourceReference,
                 FLAG_MAP => Tag::Map,
                 FLAG_NONE if term == NONE => Tag::None,
-                tag => Tag::Unknown(tag)
+                tag => Tag::Unknown(tag),
             }
         }
     }
@@ -241,21 +241,36 @@ impl Repr for RawTerm {
     #[inline]
     fn encode_list(ptr: *const Cons) -> Self {
         let value = ptr as u64;
-        debug_assert!(value <= MAX_ADDR, "cannot encode pointers using more than 48 bits of addressable memory");
+        debug_assert!(
+            value <= MAX_ADDR,
+            "cannot encode pointers using more than 48 bits of addressable memory"
+        );
         Self(value | FLAG_LIST)
     }
 
     #[inline]
-    fn encode_box<T>(ptr: *const T) -> Self where T: ?Sized {
-        let value = ptr as *const() as u64;
-        debug_assert!(value <= MAX_ADDR, "cannot encode pointers using more than 48 bits of addressable memory");
+    fn encode_box<T>(ptr: *const T) -> Self
+    where
+        T: ?Sized,
+    {
+        let value = ptr as *const () as u64;
+        debug_assert!(
+            value <= MAX_ADDR,
+            "cannot encode pointers using more than 48 bits of addressable memory"
+        );
         Self(value | FLAG_BOXED)
     }
 
     #[inline]
-    fn encode_literal<T>(ptr: *const T) -> Self where T: ?Sized {
-        let value = ptr as *const() as u64;
-        debug_assert!(value <= MAX_ADDR, "cannot encode pointers using more than 48 bits of addressable memory");
+    fn encode_literal<T>(ptr: *const T) -> Self
+    where
+        T: ?Sized,
+    {
+        let value = ptr as *const () as u64;
+        debug_assert!(
+            value <= MAX_ADDR,
+            "cannot encode pointers using more than 48 bits of addressable memory"
+        );
         Self(value | FLAG_LITERAL | FLAG_BOXED)
     }
 
@@ -306,7 +321,10 @@ impl Repr for RawTerm {
 
     #[inline]
     unsafe fn decode_header_value(&self) -> u64 {
-        debug_assert!(self.0 < MIN_DOUBLE, "invalid use of immediate float value as header");
+        debug_assert!(
+            self.0 < MIN_DOUBLE,
+            "invalid use of immediate float value as header"
+        );
         debug_assert!(self.0 > MAX_ADDR, "invalid use of boxed value as header");
         self.0 & MAX_HEADER_VALUE
     }
@@ -316,14 +334,20 @@ unsafe impl Send for RawTerm {}
 
 impl Encode<RawTerm> for u8 {
     fn encode(&self) -> exception::Result<RawTerm> {
-        Ok(RawTerm::encode_immediate((*self) as u64, FLAG_SMALL_INTEGER))
+        Ok(RawTerm::encode_immediate(
+            (*self) as u64,
+            FLAG_SMALL_INTEGER,
+        ))
     }
 }
 
 impl Encode<RawTerm> for SmallInteger {
     fn encode(&self) -> exception::Result<RawTerm> {
         let i: i64 = (*self).into();
-        Ok(RawTerm::encode_immediate((i as u64) & MAX_ADDR, FLAG_SMALL_INTEGER))
+        Ok(RawTerm::encode_immediate(
+            (i as u64) & MAX_ADDR,
+            FLAG_SMALL_INTEGER,
+        ))
     }
 }
 
@@ -469,7 +493,9 @@ impl Encoded for RawTerm {
                 match unboxed.type_of() {
                     Tag::Nil => Ok(TypedTerm::Nil),
                     Tag::List => Ok(TypedTerm::List(unsafe { unboxed.decode_list() })),
-                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unsafe { unboxed.decode_smallint() })),
+                    Tag::SmallInteger => Ok(TypedTerm::SmallInteger(unsafe {
+                        unboxed.decode_smallint()
+                    })),
                     Tag::Float => Ok(TypedTerm::Float(unboxed.decode_float())),
                     Tag::Atom => Ok(TypedTerm::Atom(unsafe { unboxed.decode_atom() })),
                     Tag::Pid => Ok(TypedTerm::Pid(unsafe { unboxed.decode_pid() })),
@@ -477,9 +503,7 @@ impl Encoded for RawTerm {
                     Tag::Box => Err(TermDecodingError::MoveMarker.into()),
                     Tag::Unknown(_) => Err(TermDecodingError::InvalidTag.into()),
                     Tag::None => Err(TermDecodingError::NoneValue.into()),
-                    header => {
-                        unboxed.decode_header(header, Some(self.is_literal()))
-                    }
+                    header => unboxed.decode_header(header, Some(self.is_literal())),
                 }
             }
             header => self.decode_header(header, None),
@@ -531,7 +555,7 @@ impl Encoded for RawTerm {
         }
         match self.decode() {
             Ok(TypedTerm::BigInteger(_)) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -552,7 +576,7 @@ impl Encoded for RawTerm {
         }
         match self.decode() {
             Ok(TypedTerm::BigInteger(_)) => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -694,17 +718,17 @@ impl fmt::Debug for RawTerm {
                 let is_literal = self.0 & FLAG_LITERAL == FLAG_LITERAL;
                 let ptr = unsafe { self.decode_box() };
                 let unboxed = unsafe { &*ptr };
-                write!(f, "Box({:p}, literal={}, value={:?})", ptr, is_literal, unboxed)
+                write!(
+                    f,
+                    "Box({:p}, literal={}, value={:?})",
+                    ptr, is_literal, unboxed
+                )
             }
-            Tag::Unknown(invalid_tag) => {
-                write!(f, "InvalidTerm(tag: {:064b})", invalid_tag)
-            }
-            header => {
-                match self.decode_header(header, None) {
-                    Ok(term) => write!(f, "Term({:?})", &term),
-                    Err(_) => write!(f, "InvalidHeader(tag: {:?})", &header)
-                }
-            }
+            Tag::Unknown(invalid_tag) => write!(f, "InvalidTerm(tag: {:064b})", invalid_tag),
+            header => match self.decode_header(header, None) {
+                Ok(term) => write!(f, "Term({:?})", &term),
+                Err(_) => write!(f, "InvalidHeader(tag: {:?})", &header),
+            },
         }
     }
 }
@@ -713,7 +737,7 @@ impl fmt::Display for RawTerm {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.decode() {
             Ok(term) => write!(f, "{}", term),
-            Err(err) => write!(f, "{:?}", err)
+            Err(err) => write!(f, "{:?}", err),
         }
     }
 }
@@ -758,9 +782,9 @@ mod tests {
     use core::convert::TryInto;
 
     use crate::borrow::CloneToProcess;
-    use crate::erts::testing::RegionHeap;
     use crate::erts::process::alloc::TermAlloc;
-  
+    use crate::erts::testing::RegionHeap;
+
     use super::*;
 
     #[test]
@@ -1036,34 +1060,34 @@ mod tests {
 
     #[test]
     fn closure_encoding_x86_64() {
-        use alloc::sync::Arc;
         use crate::erts::process::Process;
         use crate::erts::term::closure::*;
+        use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
         let arity = 0;
-        let code = |_arc_process: &Arc<Process>| {
-            Ok(())
-        };
+        let code = |_arc_process: &Arc<Process>| Ok(());
 
         let one = fixnum!(1);
         let two = fixnum!(2);
         let index = 1 as Index;
         let old_unique = 2 as OldUnique;
         let unique = [0u8; 16];
-        let closure = heap.anonymous_closure_with_env_from_slices(
-            module,
-            index,
-            old_unique,
-            unique,
-            arity,
-            Some(code),
-            Creator::Local(creator),
-            &[&[one, two]]
-        ).unwrap();
+        let closure = heap
+            .anonymous_closure_with_env_from_slices(
+                module,
+                index,
+                old_unique,
+                unique,
+                arity,
+                Some(code),
+                Creator::Local(creator),
+                &[&[one, two]],
+            )
+            .unwrap();
         let mfa = closure.module_function_arity();
         assert_eq!(closure.env_len(), 2);
         let closure_term: RawTerm = closure.into();
@@ -1153,7 +1177,9 @@ mod tests {
         // Slice out 'world!'
         let byte_offset = 6;
         let len = 6;
-        let sub = heap.subbinary_from_original(bin_term, byte_offset, 0, len, 0).unwrap();
+        let sub = heap
+            .subbinary_from_original(bin_term, byte_offset, 0, len, 0)
+            .unwrap();
         let sub_term: RawTerm = sub.into();
 
         assert!(sub_term.is_boxed());
@@ -1194,7 +1220,8 @@ mod tests {
         assert!(match_ctx_header.is_match_context());
         assert_eq!(match_ctx_header.type_of(), Tag::MatchContext);
 
-        let match_ctx_decoded: Result<Boxed<MatchContext>, _> = match_ctx_term.decode().unwrap().try_into();
+        let match_ctx_decoded: Result<Boxed<MatchContext>, _> =
+            match_ctx_term.decode().unwrap().try_into();
         assert!(match_ctx_decoded.is_ok());
         let match_ctx_box = match_ctx_decoded.unwrap();
         assert_eq!(&match_ctx, match_ctx_box.as_ref());
@@ -1223,7 +1250,8 @@ mod tests {
         assert!(resource_header.is_resource_reference());
         assert_eq!(resource_header.type_of(), Tag::ResourceReference);
 
-        let resource_decoded: Result<Boxed<Resource>, _> = resource_term.decode().unwrap().try_into();
+        let resource_decoded: Result<Boxed<Resource>, _> =
+            resource_term.decode().unwrap().try_into();
         assert!(resource_decoded.is_ok());
         let resource_box = resource_decoded.unwrap();
         assert_eq!(&resource, resource_box.as_ref());
@@ -1248,7 +1276,8 @@ mod tests {
         assert!(reference_header.is_local_reference());
         assert_eq!(reference_header.type_of(), Tag::Reference);
 
-        let reference_decoded: Result<Boxed<Reference>, _> = reference_term.decode().unwrap().try_into();
+        let reference_decoded: Result<Boxed<Reference>, _> =
+            reference_term.decode().unwrap().try_into();
         assert!(reference_decoded.is_ok());
         let reference_box = reference_decoded.unwrap();
         assert_eq!(&reference, reference_box.as_ref());
@@ -1259,8 +1288,8 @@ mod tests {
 
     #[test]
     fn external_pid_encoding_x86_64() {
-        use alloc::sync::Arc;
         use crate::erts::Node;
+        use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
 
@@ -1305,13 +1334,14 @@ mod tests {
         // Waiting on implementation of this type
     }
 
-
     struct Predicate {
         pred: Box<dyn Fn(bool) -> Option<bool>>,
     }
     impl Predicate {
         pub(super) fn new(pred: impl Fn(bool) -> Option<bool> + 'static) -> Self {
-            Self { pred: Box::new(pred) }
+            Self {
+                pred: Box::new(pred),
+            }
         }
 
         pub(super) fn invoke(&self, input: bool) -> Option<bool> {

@@ -24,7 +24,13 @@ pub struct FullByteIter<T: ?Sized + IndexByte> {
 }
 
 impl<T: ?Sized + IndexByte> FullByteIter<T> {
-    pub fn new(bin: Boxed<T>, base_byte_offset: usize, bit_offset: u8, current_byte_offset: usize, max_byte_offset: usize) -> Self {
+    pub fn new(
+        bin: Boxed<T>,
+        base_byte_offset: usize,
+        bit_offset: u8,
+        current_byte_offset: usize,
+        max_byte_offset: usize,
+    ) -> Self {
         Self {
             bin,
             base_byte_offset,
@@ -142,7 +148,13 @@ pub struct PartialByteBitIter<T: ?Sized + IndexByte> {
 }
 impl<T: ?Sized + IndexByte> PartialByteBitIter<T> {
     #[inline]
-    pub fn new(bin: Boxed<T>, current_byte_offset: usize, current_bit_offset: u8, max_byte_offset: usize, max_bit_offset: u8) -> Self {
+    pub fn new(
+        bin: Boxed<T>,
+        current_byte_offset: usize,
+        current_bit_offset: u8,
+        max_byte_offset: usize,
+        max_bit_offset: u8,
+    ) -> Self {
         Self {
             bin,
             current_byte_offset,

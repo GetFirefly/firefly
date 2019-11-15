@@ -1,12 +1,12 @@
-use core::ptr::NonNull;
 use core::alloc::Layout;
+use core::ptr::NonNull;
 
 use log::trace;
 
 use liblumen_core::util::pointer::distance_absolute;
 
 use crate::erts::exception::AllocResult;
-use crate::erts::term::prelude::{Term, Boxed, ProcBin};
+use crate::erts::term::prelude::{Boxed, ProcBin, Term};
 
 use super::alloc::{self, *};
 use super::gc::{self, *};
@@ -85,12 +85,13 @@ impl ProcessHeap {
         }
     }
 
-    /// Handles the specific details required to initialize and execute a full sweep garbage collection
+    /// Handles the specific details required to initialize and execute a full sweep garbage
+    /// collection
     fn collect_full(
         &mut self,
         process: &Process,
         needed: usize,
-        roots: RootSet
+        roots: RootSet,
     ) -> Result<usize, GcError> {
         trace!("Performing a full sweep garbage collection");
 
@@ -100,18 +101,20 @@ impl ProcessHeap {
         let off_heap_size = process.off_heap_size();
         let size_before = young.heap_used() + old_heap_size + off_heap_size;
 
-        // Conservatively pad out estimated size to include space for the number of words `needed` free
+        // Conservatively pad out estimated size to include space for the number of words `needed`
+        // free
         let baseline_estimate = young.stack_used() + size_before;
         let padded_estimate = baseline_estimate + needed;
         // If we already have a large enough heap, we don't need to grow it, but if the GROW flag is
         // set, then we should do it anyway, since it will prevent us from doing another full
         // collection for awhile (assuming one is not forced)
         let baseline_size = alloc::next_heap_size(padded_estimate);
-        let new_heap_size = if baseline_size == young.heap_size() && process.should_force_heap_growth() {
-            alloc::next_heap_size(baseline_size)
-        } else {
-            baseline_size
-        };
+        let new_heap_size =
+            if baseline_size == young.heap_size() && process.should_force_heap_growth() {
+                alloc::next_heap_size(baseline_size)
+            } else {
+                baseline_size
+            };
 
         // Verify that our projected heap size is not going to blow the max heap size, if set
         // NOTE: When this happens, we will be left with no choice but to kill the process
@@ -125,8 +128,7 @@ impl ProcessHeap {
             .clear(ProcessFlags::GrowHeap | ProcessFlags::NeedFullSweep);
 
         // Allocate target heap (new young generation)
-        let ptr = alloc::heap(new_heap_size)
-            .map_err(|alloc| GcError::Alloc(alloc))?;
+        let ptr = alloc::heap(new_heap_size).map_err(|alloc| GcError::Alloc(alloc))?;
         let mut target = YoungHeap::new(ptr, new_heap_size);
 
         // Initialize collector
@@ -225,7 +227,12 @@ impl ProcessHeap {
     }
 
     /// Handles the specific details required to initialize and execute a minor garbage collection
-    fn collect_minor(&mut self, process: &Process, needed: usize, roots: RootSet) -> Result<usize, GcError> {
+    fn collect_minor(
+        &mut self,
+        process: &Process,
+        needed: usize,
+        roots: RootSet,
+    ) -> Result<usize, GcError> {
         trace!("Performing a minor garbage collection");
 
         // Determine the estimated size for the new heap which will receive immature live data
@@ -270,8 +277,7 @@ impl ProcessHeap {
         // Allocate an old heap if we don't have one and one is needed
         if !self.heap.old_generation().active() && mature_size > 0 {
             let size = alloc::next_heap_size(size_before);
-            let ptr = alloc::heap(size)
-                .map_err(|alloc| GcError::Alloc(alloc))?;
+            let ptr = alloc::heap(size).map_err(|alloc| GcError::Alloc(alloc))?;
             let _ = self.heap.swap_old(OldHeap::new(ptr, size));
         }
 
@@ -292,8 +298,7 @@ impl ProcessHeap {
         let new_size = alloc::next_heap_size(baseline_size);
 
         // Allocate new young generation heap
-        let ptr = alloc::heap(new_size)
-            .map_err(|alloc| GcError::Alloc(alloc))?;
+        let ptr = alloc::heap(new_size).map_err(|alloc| GcError::Alloc(alloc))?;
         let new_young = YoungHeap::new(ptr, new_size);
 
         // Swap it with the existing young generation heap

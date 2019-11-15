@@ -3,7 +3,7 @@ mod compiler;
 use std::process;
 
 use clap::{crate_description, crate_name, crate_version};
-use clap::{App, Arg, SubCommand, ArgMatches};
+use clap::{App, Arg, ArgMatches, SubCommand};
 
 use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
 use liblumen_compiler::CompilerError;
@@ -103,9 +103,7 @@ fn main() -> anyhow::Result<()> {
             Some(CompilerError::Parser { codemap, errs }) => {
                 let emitter = emitter.set_codemap(codemap.clone());
                 for err in errs.iter() {
-                    emitter
-                        .diagnostic(&err)
-                        .expect("stdout failed");
+                    emitter.diagnostic(&err).expect("stdout failed");
                 }
                 process::exit(2);
             }

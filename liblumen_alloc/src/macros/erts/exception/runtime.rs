@@ -49,7 +49,7 @@ macro_rules! undef {
             $function,
             $arguments,
             $crate::location!(),
-            $crate::erts::term::prelude::Term::NIL
+            $crate::erts::term::prelude::Term::NIL,
         )
     };
     ($process:expr, $module:expr, $function:expr, $arguments:expr, $stacktrace_tail:expr) => {{
@@ -59,7 +59,7 @@ macro_rules! undef {
             $function,
             $arguments,
             $crate::location!(),
-            $stacktrace_tail
+            $stacktrace_tail,
         )
     }};
 }
@@ -77,38 +77,20 @@ macro_rules! raise {
 #[macro_export]
 macro_rules! error {
     ($reason:expr) => {
-        $crate::erts::exception::error(
-            $reason,
-            None,
-            $crate::location!(),
-            None,
-        )
+        $crate::erts::exception::error($reason, None, $crate::location!(), None)
     };
     ($reason:expr, $arguments:expr) => {
-        $crate::erts::exception::error(
-            $reason,
-            Some($arguments),
-            $crate::location!(),
-            None,
-        )
+        $crate::erts::exception::error($reason, Some($arguments), $crate::location!(), None)
     };
 }
 
 #[macro_export]
 macro_rules! exit {
     ($reason:expr) => {
-        $crate::erts::exception::exit(
-            $reason,
-            $crate::location!(),
-            None,
-        )
+        $crate::erts::exception::exit($reason, $crate::location!(), None)
     };
     ($reason:expr, $stacktrace:expr) => {
-        $crate::erts::exception::exit(
-            $reason,
-            $crate::location!(),
-            Some($stacktrace)
-        )
+        $crate::erts::exception::exit($reason, $crate::location!(), Some($stacktrace))
     };
 }
 

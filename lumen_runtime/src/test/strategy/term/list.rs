@@ -4,8 +4,8 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::Process;
 use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::Process;
 
 use crate::test::strategy::{self, NON_EMPTY_RANGE_INCLUSIVE};
 

@@ -1,8 +1,8 @@
 use std::convert::{TryFrom, TryInto};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::term::prelude::*;
 
 pub struct Options {
     pub flush: bool,

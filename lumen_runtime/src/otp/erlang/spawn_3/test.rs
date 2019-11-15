@@ -10,7 +10,7 @@ use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::{Priority, Status};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
-use liblumen_alloc::{badarg, badarith, exit, undef, atom, atom_from};
+use liblumen_alloc::{atom, atom_from, badarg, badarith, exit, undef};
 
 use crate::otp::erlang::apply_3;
 use crate::otp::erlang::spawn_3;

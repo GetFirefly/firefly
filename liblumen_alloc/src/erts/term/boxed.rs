@@ -1,12 +1,12 @@
 use core::cmp;
+use core::convert::Into;
 use core::fmt;
 use core::hash;
-use core::ptr::NonNull;
 use core::ops::{Deref, DerefMut};
-use core::convert::Into;
+use core::ptr::NonNull;
 
-use super::prelude::Term;
 use super::encoding::{self, Boxable, UnsizedBoxable};
+use super::prelude::Term;
 
 /// Represents boxed terms.
 ///
@@ -90,7 +90,6 @@ impl<T: ?Sized> Clone for Boxed<T> {
     }
 }
 
-
 /// `NonNull` pointers are not `Send` because the data they reference may be aliased.
 // N.B., this impl is unnecessary, but should provide better error messages.
 //impl<T: ?Sized> !Send for Boxed<T> { }
@@ -99,7 +98,7 @@ impl<T: ?Sized> Clone for Boxed<T> {
 // N.B., this impl is unnecessary, but should provide better error messages.
 //impl<T: ?Sized> !Sync for Boxed<T> { }
 
-impl<T: ?Sized> Copy for Boxed<T> { }
+impl<T: ?Sized> Copy for Boxed<T> {}
 
 impl<T: ?Sized> fmt::Debug for Boxed<T> {
     default fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -7,13 +7,15 @@ compile_error!("Packed floats should not be compiled on x86_64, this architectur
 
 use core::fmt;
 use core::cmp;
+use core::ptr;
+use core::alloc::Layout;
 use core::convert::TryFrom;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::TermAlloc;
 
-use crate::erts::term::prelude::{Term, TypedTerm, Header, StaticHeader, TypeError};
+use crate::erts::term::prelude::{Term, Boxed, TypedTerm, Header, StaticHeader, TypeError};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -49,15 +51,6 @@ impl PartialOrd for Float {
     #[inline]
     fn partial_cmp(&self, other: &Float) -> Option<cmp::Ordering> {
         self.value.partial_cmp(&other.value)
-    }
-}
-
-impl fmt::Debug for Float {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Float")
-            .field("header", &self.header)
-            .field("value", &self.value)
-            .finish()
     }
 }
 

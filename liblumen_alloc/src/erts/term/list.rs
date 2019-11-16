@@ -613,7 +613,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
     #[inline]
     pub fn push(mut self, term: Term) -> Self {
         assert!(
-            term.is_runtime(),
+            term.is_valid(),
             "invalid list element for stack-allocated list"
         );
         if self.failed {

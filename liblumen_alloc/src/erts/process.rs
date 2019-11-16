@@ -307,7 +307,7 @@ impl Process {
     /// Returns `Err(Alloc)` if the process is out of stack space
     #[inline]
     pub fn stack_push(&self, term: Term) -> AllocResult<()> {
-        assert!(term.is_runtime());
+        assert!(term.is_valid());
         unsafe {
             let stack0 = self.alloca(1)?.as_ptr();
             ptr::write(stack0, term);
@@ -651,9 +651,9 @@ impl Process {
 
     /// Puts a new value under the given key in the process dictionary
     pub fn put(&self, key: Term, value: Term) -> exception::Result<Term> {
-        assert!(key.is_runtime(), "invalid key term for process dictionary");
+        assert!(key.is_valid(), "invalid key term for process dictionary");
         assert!(
-            value.is_runtime(),
+            value.is_valid(),
             "invalid value term for process dictionary"
         );
 
@@ -679,7 +679,7 @@ impl Process {
 
     /// Gets a value from the process dictionary using the given key
     pub fn get_value_from_key(&self, key: Term) -> Term {
-        assert!(key.is_runtime(), "invalid key term for process dictionary");
+        assert!(key.is_valid(), "invalid key term for process dictionary");
 
         match self.dictionary.lock().get(&key) {
             None => atom!("undefined"),
@@ -782,7 +782,7 @@ impl Process {
     /// Removes key/value pair from process dictionary and returns value for `key`.  If `key` is not
     /// there, it returns `:undefined`.
     pub fn erase_value_from_key(&self, key: Term) -> Term {
-        assert!(key.is_runtime(), "invalid key term for process dictionary");
+        assert!(key.is_valid(), "invalid key term for process dictionary");
 
         match self.dictionary.lock().remove(&key) {
             None => atom!("undefined"),

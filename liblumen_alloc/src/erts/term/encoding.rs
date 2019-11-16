@@ -610,9 +610,11 @@ pub trait Encoded: Repr + Copy {
         }
     }
 
-    /// Returns true if this a term that the runtime should accept as an argument.
-    fn is_runtime(&self) -> bool {
-        self.is_immediate() || self.is_boxed() || self.is_literal() || self.is_non_empty_list()
+    /// Returns true if this is a term that is valid for use as an argument
+    /// in the runtime, as a key in a datstructure, or other position in which
+    /// an immediate or a reference is required or desirable
+    fn is_valid(&self) -> bool {
+        !self.is_none() && !self.is_header()
     }
 
     /// Returns the size in bytes of the term in memory
@@ -651,7 +653,6 @@ impl CloneToProcess for Term {
     where
         A: ?Sized + TermAlloc,
     {
-        debug_assert!(self.is_runtime());
         if self.is_immediate() || self.is_literal() {
             Ok(*self)
         } else if self.is_boxed() || self.is_non_empty_list() {

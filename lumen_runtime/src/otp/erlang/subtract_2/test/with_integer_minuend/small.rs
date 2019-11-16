@@ -14,7 +14,7 @@ fn with_small_integer_subtrahend_with_underflow_returns_big_integer() {
 
         let difference = result.unwrap();
 
-        assert!(difference.is_bigint());
+        assert!(difference.is_boxed_bigint());
     })
 }
 
@@ -31,7 +31,7 @@ fn with_small_integer_subtrahend_with_overflow_returns_big_integer() {
 
         let difference = result.unwrap();
 
-        assert!(difference.is_bigint());
+        assert!(difference.is_boxed_bigint());
     })
 }
 

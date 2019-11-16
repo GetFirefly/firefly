@@ -604,7 +604,7 @@ fn with_big_integer_returns_small_big_ext() {
     with_process(|process| {
         let big_integer = process.integer(9_223_372_036_854_775_807_i64).unwrap();
 
-        assert!(big_integer.is_bigint());
+        assert!(big_integer.is_boxed_bigint());
 
         assert_eq!(
             native(process, big_integer),

@@ -47,7 +47,7 @@ fn with_small_integer_multiplicand_with_underflow_returns_big_integer() {
 
         let product = result.unwrap();
 
-        assert!(product.is_bigint());
+        assert!(product.is_boxed_bigint());
     })
 }
 
@@ -64,7 +64,7 @@ fn with_small_integer_multiplicand_with_overflow_returns_big_integer() {
 
         let product = result.unwrap();
 
-        assert!(product.is_bigint());
+        assert!(product.is_boxed_bigint());
     })
 }
 
@@ -84,7 +84,7 @@ fn with_big_integer_multiplicand_returns_big_integer() {
 
                     let product = result.unwrap();
 
-                    prop_assert!(product.is_bigint());
+                    prop_assert!(product.is_boxed_bigint());
 
                     Ok(())
                 },

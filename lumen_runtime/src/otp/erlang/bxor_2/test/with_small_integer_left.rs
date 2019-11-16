@@ -37,7 +37,7 @@ fn with_big_integer_right_returns_big_integer() {
             )
             .unwrap();
 
-        assert!(right.is_bigint());
+        assert!(right.is_boxed_bigint());
 
         let result = native(&process, left, right);
 
@@ -45,6 +45,6 @@ fn with_big_integer_right_returns_big_integer() {
 
         let output = result.unwrap();
 
-        assert!(output.is_bigint());
+        assert!(output.is_boxed_bigint());
     })
 }

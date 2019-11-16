@@ -12,7 +12,7 @@ pub(in crate::otp::erlang) fn native(
     options: Options,
     function: Term,
 ) -> exception::Result<Term> {
-    if function.is_function() {
+    if function.is_boxed_function() {
         let arguments = &[function, Term::NIL];
 
         // The :badarity error is raised in the child process and not in the parent process, so the

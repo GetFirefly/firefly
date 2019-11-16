@@ -15,10 +15,10 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_second_returns
                             second.is_number()
                                 || second.is_atom()
                                 || second.is_reference()
-                                || second.is_function()
+                                || second.is_boxed_function()
                                 || second.is_port()
                                 || second.is_pid()
-                                || second.is_tuple()
+                                || second.is_boxed_tuple()
                                 || second.is_list()
                         }),
                 ),

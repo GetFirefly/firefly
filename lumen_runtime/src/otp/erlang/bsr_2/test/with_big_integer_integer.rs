@@ -68,7 +68,7 @@ where
             )
             .unwrap();
 
-        assert!(integer.is_bigint());
+        assert!(integer.is_boxed_bigint());
 
         f(integer, &process)
     })

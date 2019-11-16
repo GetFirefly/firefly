@@ -99,7 +99,7 @@ fn tuple_is_item(tuple: Boxed<Tuple>) -> bool {
     match tuple.len() {
         // {function, args}
         // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1107-L1114
-        2 => tuple[0].is_function(),
+        2 => tuple[0].is_boxed_function(),
         // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1115-L1128
         3 => {
             let first_element = tuple[0];

@@ -47,7 +47,7 @@ where
     with_process(|process| {
         let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
-        assert!(dividend.is_bigint());
+        assert!(dividend.is_boxed_bigint());
 
         f(dividend, &process)
     })

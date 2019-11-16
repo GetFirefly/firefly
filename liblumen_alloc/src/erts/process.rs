@@ -536,7 +536,7 @@ impl Process {
     pub fn list_from_chars(&self, chars: Chars) -> AllocResult<Term> {
         self.acquire_heap()
             .list_from_chars(chars)
-            .map(|list| list.into())
+            .map(Self::optional_cons_to_term)
     }
 
     pub fn list_from_iter<I>(&self, iter: I) -> AllocResult<Term>
@@ -545,13 +545,13 @@ impl Process {
     {
         self.acquire_heap()
             .list_from_iter(iter)
-            .map(|list| list.into())
+            .map(Self::optional_cons_to_term)
     }
 
     pub fn list_from_slice(&self, slice: &[Term]) -> AllocResult<Term> {
         self.acquire_heap()
             .list_from_slice(slice)
-            .map(|list| list.into())
+            .map(Self::optional_cons_to_term)
     }
 
     pub fn improper_list_from_iter<I>(&self, iter: I, last: Term) -> AllocResult<Term>
@@ -560,13 +560,21 @@ impl Process {
     {
         self.acquire_heap()
             .improper_list_from_iter(iter, last)
-            .map(|list| list.into())
+            .map(Self::optional_cons_to_term)
     }
 
     pub fn improper_list_from_slice(&self, slice: &[Term], tail: Term) -> AllocResult<Term> {
         self.acquire_heap()
             .improper_list_from_slice(slice, tail)
-            .map(|list| list.into())
+            .map(Self::optional_cons_to_term)
+    }
+
+    #[inline]
+    fn optional_cons_to_term(cons: Option<Boxed<Cons>>) -> Term {
+        match cons {
+            None => Term::NIL,
+            Some(boxed) => boxed.into(),
+        }
     }
 
     pub fn map_from_hash_map(&self, hash_map: HashMap<Term, Term>) -> AllocResult<Term> {

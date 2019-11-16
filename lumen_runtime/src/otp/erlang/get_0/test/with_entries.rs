@@ -48,7 +48,7 @@ fn with_heap_available_returns_entries_as_list() {
 
     let head = boxed_cons.head;
 
-    assert!(head.is_tuple());
+    assert!(head.is_boxed_tuple());
 
     let head_boxed_tuple: Boxed<Tuple> = head.try_into().unwrap();
 

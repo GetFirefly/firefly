@@ -1,42 +1,44 @@
 macro_rules! bitwise_infix_operator {
-    ($left:ident, $right:ident, $process:ident, $infix:tt) => {{
+    ($left:ident, $right:ident, $process:ident, $infix:ident) => {{
+        use core::ops::*;
+
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
+        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded, BigInteger};
 
         match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();
-                let output = left_isize $infix right_isize;
+                let output = left_isize.$infix(right_isize);
                 let output_term = $process.integer(output)?;
 
                 Ok(output_term)
             }
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::BigInteger(right_big_integer)) => {
-                let left_big_int: BigInt = left_small_integer.into();
-                let right_big_int: &BigInt = right_big_integer.as_ref().into();
+                let left_big_int: BigInteger = left_small_integer.into();
+                let right_big_int = right_big_integer.as_ref();
 
-                let output_big_int = left_big_int $infix right_big_int;
+                let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
                 let output_term = $process.integer(output_big_int)?;
 
                 Ok(output_term)
             }
             (TypedTerm::BigInteger(left_big_integer), TypedTerm::SmallInteger(right_small_integer)) => {
-                let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                let right_big_int: BigInt = right_small_integer.into();
+                let left_big_int = left_big_integer.as_ref();
+                let right_big_int: BigInteger = right_small_integer.into();
 
-                let output_big_int = left_big_int $infix right_big_int;
+                let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
                 let output_term = $process.integer(output_big_int)?;
 
                 Ok(output_term)
             }
             (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
-                let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                let right_big_int: &BigInt = right_big_integer.as_ref().into();
+                let left_big_int = left_big_integer.as_ref();
+                let right_big_int = right_big_integer.as_ref();
 
-                let output_big_int: BigInt = left_big_int $infix right_big_int;
+                let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
                 let output_term = $process.integer(output_big_int)?;
 
                 Ok(output_term)
@@ -96,7 +98,7 @@ macro_rules! bitshift_infix_operator {
                 }
             }
             TypedTerm::BigInteger(integer_big_integer) => {
-                let big_int: &BigInt = integer_big_integer.as_ref().into();
+                let big_int = integer_big_integer.as_ref();
                 let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
 
                 // Rust doesn't support negative shift, so negative left shifts need to be right
@@ -111,6 +113,8 @@ macro_rules! bitshift_infix_operator {
                     big_int $negative shift_usize
                 };
 
+                // Provide a chance to convert to SmallInteger if possible
+                let shifted: BigInt = shifted.into();
                 let shifted_term = $process.integer(shifted)?;
 
                 Some(shifted_term)
@@ -130,7 +134,7 @@ macro_rules! integer_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
+        use liblumen_alloc::erts::term::prelude::{TypedTerm, BigInteger, Encoded};
 
         match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
@@ -146,11 +150,12 @@ macro_rules! integer_infix_operator {
                     Ok(quotient_term)
                 }
             }
-            (TypedTerm::SmallInteger(left_small_integre), TypedTerm::BigInteger(right_big_integer)) => {
-                let left_big_int: BigInt = left_small_integre.into();
-                let right_big_int: &BigInt = right_big_integer.as_ref().into();
+            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::BigInteger(right_big_integer)) => {
+                let left_big_int: BigInteger = left_small_integer.into();
+                let right_big_int = right_big_integer.as_ref();
 
-                let quotient: BigInt = &left_big_int $infix right_big_int;
+                let quotient = left_big_int $infix right_big_int;
+                let quotient: BigInt = quotient.into();
                 let quotient_term = $process.integer(quotient)?;
 
                 Ok(quotient_term)
@@ -161,20 +166,22 @@ macro_rules! integer_infix_operator {
                 if right_isize == 0 {
                     Err(badarith!())
                 } else {
-                    let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                    let right_big_int: &BigInt = &right_isize.into();
+                    let left_big_int = left_big_integer.as_ref();
+                    let right_big_int: BigInteger = right_isize.into();
 
                     let quotient = left_big_int $infix right_big_int;
+                    let quotient: BigInt = quotient.into();
                     let quotient_term = $process.integer(quotient)?;
 
                     Ok(quotient_term)
                 }
             }
             (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
-                let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                let right_big_int: &BigInt = right_big_integer.as_ref().into();
+                let left_big_int = left_big_integer.as_ref();
+                let right_big_int = right_big_integer.as_ref();
 
                 let quotient = left_big_int $infix right_big_int;
+                let quotient: BigInt = quotient.into();
                 let quotient_term = $process.integer(quotient)?;
 
                 Ok(quotient_term)

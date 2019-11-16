@@ -10,7 +10,7 @@ fn without_float_returns_true() {
                 &(
                     strategy::term::float(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a float", |v| !v.is_float()),
+                        .prop_filter("Right must not be a float", |v| !v.is_boxed_float()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), true.into());

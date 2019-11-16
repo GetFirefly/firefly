@@ -9,7 +9,7 @@ fn with_number_atom_reference_function_port_pid_tuple_map_or_list_returns_false(
             .run(
                 &(
                     strategy::term::binary::heap(arc_process.clone()),
-                    strategy::term(arc_process.clone()).prop_filter("Right must be number, atom, reference, function, port, pid, tuple, map, or list", |right| right.is_number() || right.is_atom() || right.is_reference() || right.is_function() || right.is_port() || right.is_pid() || right.is_tuple() || right.is_list()),
+                    strategy::term(arc_process.clone()).prop_filter("Right must be number, atom, reference, function, port, pid, tuple, map, or list", |right| right.is_number() || right.is_atom() || right.is_reference() || right.is_boxed_function() || right.is_port() || right.is_pid() || right.is_boxed_tuple() || right.is_list()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), false.into());

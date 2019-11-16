@@ -69,7 +69,7 @@ fn with_big_integer_inverts_bits() {
         .unwrap();
         let integer = process.integer(integer_big_int).unwrap();
 
-        assert!(integer.is_bigint());
+        assert!(integer.is_boxed_bigint());
 
         assert_eq!(
             native(&process, integer),

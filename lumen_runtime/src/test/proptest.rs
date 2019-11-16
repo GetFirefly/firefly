@@ -1,8 +1,6 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 
-use num_bigint::BigInt;
-
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -18,24 +16,10 @@ pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Proce
 
 pub fn count_ones(term: Term) -> u32 {
     match term.decode().unwrap() {
-        TypedTerm::SmallInteger(small_integer) => {
-            let i: isize = small_integer.into();
-
-            i.count_ones()
-        }
-        TypedTerm::BigInteger(big_integer) => count_ones_in_big_integer(big_integer),
+        TypedTerm::SmallInteger(n) => n.count_ones(),
+        TypedTerm::BigInteger(n) => n.as_ref().count_ones(),
         _ => panic!("Can't count 1s in non-integer"),
     }
-}
-
-pub fn count_ones_in_big_integer(big_integer: Boxed<BigInteger>) -> u32 {
-    let big_int: &BigInt = big_integer.as_ref().into();
-
-    big_int
-        .to_signed_bytes_be()
-        .iter()
-        .map(|b| b.count_ones())
-        .sum()
 }
 
 pub fn errors_badarg<F>(actual: F)

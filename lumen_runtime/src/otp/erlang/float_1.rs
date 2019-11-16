@@ -15,7 +15,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(float/1)]
 pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
-    if number.is_float() {
+    if number.is_boxed_float() {
         Ok(number)
     } else {
         let f: f64 = number.try_into()?;

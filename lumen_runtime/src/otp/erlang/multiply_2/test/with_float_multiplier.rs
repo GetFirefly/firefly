@@ -38,7 +38,7 @@ fn with_number_multiplicand_returns_float() {
 
                     let product = result.unwrap();
 
-                    prop_assert!(product.is_float());
+                    prop_assert!(product.is_boxed_float());
 
                     Ok(())
                 },

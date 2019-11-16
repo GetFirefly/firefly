@@ -18,7 +18,7 @@ fn without_tuple_or_bitstring_errors_badarg() {
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Term must not be a tuple or bitstring", |term| {
-                            !(term.is_tuple() || term.is_bitstring())
+                            !(term.is_boxed_tuple() || term.is_bitstring())
                         }),
                 )
             }),

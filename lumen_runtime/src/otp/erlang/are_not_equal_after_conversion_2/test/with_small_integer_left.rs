@@ -11,7 +11,7 @@ fn without_small_integer_or_float_returns_true() {
                     strategy::term::integer::small(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be a small integer or float", |v| {
-                            !(v.is_smallint() || v.is_float())
+                            !(v.is_smallint() || v.is_boxed_float())
                         }),
                 ),
                 |(left, right)| {

@@ -16,7 +16,7 @@ fn with_negative_without_big_integer_underflow_shifts_right_and_returns_big_inte
 
         let shifted = result.unwrap();
 
-        assert!(shifted.is_bigint());
+        assert!(shifted.is_boxed_bigint());
 
         assert_eq!(
             shifted,
@@ -73,7 +73,7 @@ fn with_positive_returns_big_integer() {
 
         let shifted = result.unwrap();
 
-        assert!(shifted.is_bigint());
+        assert!(shifted.is_boxed_bigint());
 
         assert_eq!(
             shifted,
@@ -105,7 +105,7 @@ where
             )
             .unwrap();
 
-        assert!(integer.is_bigint());
+        assert!(integer.is_boxed_bigint());
 
         f(integer, &process)
     })

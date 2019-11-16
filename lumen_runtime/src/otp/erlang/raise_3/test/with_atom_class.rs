@@ -92,7 +92,7 @@ fn with_class_with_stacktrace_without_atom_module_errors_badarg() {
                                 // {M, F, arity | args}
                                 module.is_atom() ||
                                     // {function, args, location}
-                                    module.is_function()
+                                    module.is_boxed_function()
                             )
                         },
                     ),

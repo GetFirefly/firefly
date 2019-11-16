@@ -196,6 +196,23 @@ pub trait TermAlloc: Heap {
             acc = head.into();
         }
 
+        if head.is_null() {
+            // There were no elements in the iterator,
+            // which actually makes this a proper list
+            if last.is_nil() {
+                // Empty list, no elements
+                return Ok(None);
+            } else if last.is_list() {
+                // We were given a cons cell as the last element,
+                // so just return that
+                let tail: Boxed<Cons> = last.dyn_cast();
+                return Ok(Some(tail));
+            } else {
+                // Just a single element list
+                return Ok(Some(self.cons(acc, Term::NIL)?));
+            }
+        }
+
         Ok(Boxed::new(head))
     }
 

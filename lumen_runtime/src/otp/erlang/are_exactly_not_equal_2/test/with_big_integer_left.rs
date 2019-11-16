@@ -10,7 +10,7 @@ fn without_big_integer_returns_true() {
                 &(
                     strategy::term::integer::big(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be a big integer", |v| !v.is_bigint()),
+                        .prop_filter("Right must not be a big integer", |v| !v.is_boxed_bigint()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), true.into());

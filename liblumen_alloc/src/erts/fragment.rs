@@ -7,6 +7,7 @@ use intrusive_collections::{LinkedListLink, UnsafeRef};
 
 use liblumen_core::alloc::utils::{align_up_to, is_aligned, is_aligned_at};
 
+use crate::erts;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::{Heap, HeapAlloc};
 use crate::erts::term::prelude::*;
@@ -126,7 +127,7 @@ impl HeapAlloc for HeapFragment {
         // Calculate available space and fail if not enough is free
         let needed = layout.size();
         let end = self.heap_end() as *mut u8;
-        if needed > self.heap_available() {
+        if erts::to_word_size(needed) > self.heap_available() {
             return Err(alloc!());
         }
         // Calculate new top of the heap

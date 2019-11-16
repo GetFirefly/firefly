@@ -11,5 +11,5 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(is_map/1)]
 pub fn native(term: Term) -> Term {
-    term.is_map().into()
+    term.is_boxed_map().into()
 }

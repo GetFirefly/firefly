@@ -17,7 +17,7 @@ use crate::erts::term::prelude::*;
 use super::*;
 
 /// Represents big integer terms.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct BigInteger {
     header: Header<BigInteger>,
@@ -33,8 +33,44 @@ impl BigInteger {
             value,
         }
     }
-}
 
+    /// Returns the number of one bits in the byte representation
+    ///
+    /// NOTE: The byte representation of BigInt is compacting, and
+    /// as a result, this count cannot be compared against other
+    /// counts reliably, for example, `-1` will be represented as a
+    /// single byte of `0b11111111`, whereas `-1` of any other primitive
+    /// integer type (other than u8) will be `size_of::<T>` bytes of
+    /// the same.
+    pub fn count_ones(&self) -> u32 {
+        self.value
+            .to_signed_bytes_be()
+            .clone()
+            .iter()
+            .map(|b| b.count_ones())
+            .sum()
+    }
+
+    /// Returns the underlying byte representation, in little-endian order
+    pub fn to_signed_bytes_le(&self) -> Vec<u8> {
+        self.value.clone().to_signed_bytes_le()
+    }
+}
+impl fmt::Debug for BigInteger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let bytes = self.value
+                        .clone()
+                        .to_signed_bytes_be()
+                        .iter()
+                        .map(|b| format!("{:08b}", b))
+                        .collect::<Vec<String>>()
+                        .join("");
+        f.debug_struct("BigInteger")
+         .field("header", &self.header)
+         .field("value", &format_args!("{} ({})", &self.value, &bytes))
+         .finish()
+    }
+}
 impl fmt::Display for BigInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.value)
@@ -228,6 +264,12 @@ impl PartialEq<usize> for BigInteger {
         self.value.eq(&(*other).into())
     }
 }
+impl PartialEq<isize> for &BigInteger {
+    #[inline]
+    fn eq(&self, other: &isize) -> bool {
+        self.value.eq(&(*other).into())
+    }
+}
 impl PartialEq<isize> for BigInteger {
     #[inline]
     fn eq(&self, other: &isize) -> bool {
@@ -402,6 +444,13 @@ macro_rules! bigint_binop_trait_impl {
                 Self::new(self.value.$fun(rhs.value))
             }
         }
+        impl $trait for &BigInteger {
+            type Output = BigInteger;
+            #[inline]
+            fn $fun(self, rhs: &BigInteger) -> Self::Output {
+                BigInteger::new(self.value.clone().$fun(rhs.value.clone()))
+            }
+        }
     };
 }
 macro_rules! bigint_unaryop_trait_impl {
@@ -413,6 +462,13 @@ macro_rules! bigint_unaryop_trait_impl {
                 Self::new(self.value.$fun())
             }
         }
+        impl $trait for &BigInteger {
+            type Output = BigInteger;
+            #[inline]
+            fn $fun(self) -> Self::Output {
+                BigInteger::new(self.value.clone().$fun())
+            }
+        }
     };
 }
 
@@ -420,25 +476,213 @@ bigint_binop_trait_impl!(Add, add);
 bigint_binop_trait_impl!(Sub, sub);
 bigint_binop_trait_impl!(Mul, mul);
 bigint_binop_trait_impl!(Div, div);
-bigint_binop_trait_impl!(BitAnd, bitand);
-bigint_binop_trait_impl!(BitOr, bitor);
-bigint_binop_trait_impl!(BitXor, bitxor);
 bigint_binop_trait_impl!(Rem, rem);
 bigint_unaryop_trait_impl!(Neg, neg);
 bigint_unaryop_trait_impl!(Not, not);
 
+impl Add<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn add(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().add(rhs.value))
+    }
+}
+impl Add<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn add(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.add(rhs.value.clone()))
+    }
+}
+
+impl Sub<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn sub(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().sub(rhs.value))
+    }
+}
+impl Sub<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn sub(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.sub(rhs.value.clone()))
+    }
+}
+
+impl Mul<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn mul(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().mul(rhs.value))
+    }
+}
+impl Mul<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn mul(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.mul(rhs.value.clone()))
+    }
+}
+
+impl Div<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn div(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().div(rhs.value))
+    }
+}
+impl Div<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn div(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.div(rhs.value.clone()))
+    }
+}
+
+impl BitAnd for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitand(self, rhs: BigInteger) -> Self::Output {
+        let lhs = self.value.to_signed_bytes_le();
+        let rhs = rhs.value.to_signed_bytes_le();
+        let bytes = lhs
+            .iter()
+            .zip(rhs.iter())
+            .map(|(l, r)| l.bitand(r))
+            .collect::<Vec<u8>>();
+        let result = BigInt::from_signed_bytes_le(bytes.as_slice());
+        BigInteger::new(result)
+    }
+}
+impl BitAnd for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitand(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitand(rhs.value.clone()))
+    }
+}
+impl BitAnd<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitand(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitand(rhs.value))
+    }
+}
+impl BitAnd<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitand(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.bitand(rhs.value.clone()))
+    }
+}
+impl BitOr for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitor(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.bitor(rhs.value))
+    }
+}
+impl BitOr for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitor(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitor(rhs.value.clone()))
+    }
+}
+impl BitOr<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitor(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitor(rhs.value))
+    }
+}
+impl BitOr<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitor(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.bitor(rhs.value.clone()))
+    }
+}
+
+impl BitXor for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitxor(self, rhs: BigInteger) -> Self::Output {
+        let lhs = self.value.to_signed_bytes_le();
+        let rhs = rhs.value.to_signed_bytes_le();
+        let bytes = lhs
+            .iter()
+            .zip(rhs.iter())
+            .map(|(l, r)| l.bitxor(r))
+            .collect::<Vec<u8>>();
+        let result = BigInt::from_signed_bytes_le(bytes.as_slice());
+        BigInteger::new(result)
+    }
+}
+impl BitXor for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitxor(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitxor(rhs.value.clone()))
+    }
+}
+impl BitXor<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitxor(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitxor(rhs.value))
+    }
+}
+impl BitXor<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitxor(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.bitxor(rhs.value.clone()))
+    }
+}
+
+impl Rem<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn rem(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().rem(rhs.value))
+    }
+}
+impl Rem<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn rem(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.rem(rhs.value.clone()))
+    }
+}
+
 impl Shl<usize> for BigInteger {
     type Output = BigInteger;
 
-    fn shl(self, rhs: usize) -> Self {
+    fn shl(self, rhs: usize) -> Self::Output {
         BigInteger::new(self.value.shl(rhs))
+    }
+}
+impl Shl<usize> for &BigInteger {
+    type Output = BigInteger;
+
+    fn shl(self, rhs: usize) -> Self::Output {
+        BigInteger::new(self.value.clone().shl(rhs))
     }
 }
 impl Shr<usize> for BigInteger {
     type Output = BigInteger;
 
-    fn shr(self, rhs: usize) -> Self {
+    fn shr(self, rhs: usize) -> Self::Output {
         BigInteger::new(self.value.shr(rhs))
+    }
+}
+impl Shr<usize> for &BigInteger {
+    type Output = BigInteger;
+
+    fn shr(self, rhs: usize) -> Self::Output {
+        BigInteger::new(self.value.clone().shr(rhs))
     }
 }
 

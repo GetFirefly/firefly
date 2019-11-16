@@ -18,5 +18,5 @@ pub fn native(
     left_integer: Term,
     right_integer: Term,
 ) -> exception::Result<Term> {
-    bitwise_infix_operator!(left_integer, right_integer, process, &)
+    bitwise_infix_operator!(left_integer, right_integer, process, bitand)
 }

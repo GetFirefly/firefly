@@ -10,7 +10,7 @@ fn without_map_right_returns_false() {
                 (
                     strategy::term::map(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right cannot be a map", |right| !right.is_map()),
+                        .prop_filter("Right cannot be a map", |right| !right.is_boxed_map()),
                 )
             }),
             |(left, right)| {

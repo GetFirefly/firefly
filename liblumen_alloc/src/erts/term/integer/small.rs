@@ -45,6 +45,17 @@ impl SmallInteger {
         );
         Self(i)
     }
+
+    /// Returns the number of one bits in the underlying byte representation
+    #[inline]
+    pub fn count_ones(&self) -> u32 {
+        self.0.count_ones()
+    }
+
+    /// Returns the underlying byte representation, in little-endian order
+    pub fn to_le_bytes(&self) -> Vec<u8> {
+        self.0.to_le_bytes().to_vec()
+    }
 }
 
 impl From<u8> for SmallInteger {
@@ -192,6 +203,11 @@ impl Debug for SmallInteger {
 impl Display for SmallInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+impl fmt::Binary for SmallInteger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:b}", self.0)
     }
 }
 

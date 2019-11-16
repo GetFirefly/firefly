@@ -1,4 +1,3 @@
-use std::any::TypeId;
 use std::convert::TryInto;
 use std::str;
 use std::sync::Arc;
@@ -87,41 +86,40 @@ fn pid_to_js_value(pid: Pid) -> JsValue {
 }
 
 fn resource_reference_to_js_value(resource_reference: Resource) -> JsValue {
-    let resource_type_id = resource_reference.type_id();
-
-    if resource_type_id == TypeId::of::<Document>() {
+    if resource_reference.is::<Document>() {
         let document: &Document = resource_reference.downcast_ref().unwrap();
 
         document.into()
-    } else if resource_type_id == TypeId::of::<Element>() {
+    } else if resource_reference.is::<Element>() {
         let element: &Element = resource_reference.downcast_ref().unwrap();
 
         element.into()
-    } else if resource_type_id == TypeId::of::<HtmlBodyElement>() {
+    } else if resource_reference.is::<HtmlBodyElement>() {
         let html_body_element: &HtmlBodyElement = resource_reference.downcast_ref().unwrap();
 
         html_body_element.into()
-    } else if resource_type_id == TypeId::of::<HtmlElement>() {
+    } else if resource_reference.is::<HtmlElement>() {
         let html_element: &HtmlElement = resource_reference.downcast_ref().unwrap();
 
         html_element.into()
-    } else if resource_type_id == TypeId::of::<HtmlTableElement>() {
+    } else if resource_reference.is::<HtmlTableElement>() {
         let html_table_element: &HtmlTableElement = resource_reference.downcast_ref().unwrap();
 
         html_table_element.into()
-    } else if resource_type_id == TypeId::of::<Node>() {
+    } else if resource_reference.is::<Node>() {
         let node: &Node = resource_reference.downcast_ref().unwrap();
 
         node.into()
-    } else if resource_type_id == TypeId::of::<Text>() {
+    } else if resource_reference.is::<Text>() {
         let text: &Text = resource_reference.downcast_ref().unwrap();
 
         text.into()
-    } else if resource_type_id == TypeId::of::<WebSocket>() {
+    } else if resource_reference.is::<WebSocket>() {
         let web_socket: &WebSocket = resource_reference.downcast_ref().unwrap();
 
         web_socket.into()
     } else {
+        //panic!("{:?}", &resource_reference);
         unimplemented!("Convert {:?} to JsValue", resource_reference);
     }
 }

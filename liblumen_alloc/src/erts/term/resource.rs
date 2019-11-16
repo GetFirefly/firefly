@@ -97,6 +97,11 @@ impl Resource {
     }
 
     #[inline]
+    pub fn is<T: 'static>(&self) -> bool {
+        self.inner().resource.is::<T>()
+    }
+
+    #[inline]
     pub fn type_id(&self) -> TypeId {
         self.inner().resource.type_id()
     }
@@ -215,7 +220,12 @@ impl Debug for Resource {
             .field("header", &self.header)
             .field(
                 "inner",
-                &format_args!("{:p} => {:?}", self.inner, self.value()),
+                &format_args!(
+                    "{:p} => (type_id: {:?}) {:?}",
+                    self.inner,
+                    self.type_id(),
+                    self.value()
+                ),
             )
             .finish()
     }

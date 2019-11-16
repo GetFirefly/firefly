@@ -5,7 +5,7 @@ use core::ops::Deref;
 
 use ::alloc::sync::Arc;
 
-use crate::erts::process::alloc::{GenerationalHeap, TermAlloc};
+use crate::erts::process::alloc::TermAlloc;
 use crate::erts::process::test::process;
 use crate::erts::term::closure::*;
 use crate::erts::term::prelude::*;
@@ -144,7 +144,7 @@ fn simple_gc_test(process: Process) {
     // Grab current heap size
     let peak_size = process.young_heap_used();
     assert_eq!(process.stack_used(), 0);
-    dbg!(process.acquire_heap().heap().young_generation());
+    //dbg!(process.acquire_heap().heap().young_generation());
 
     // Run garbage collection
     let mut roots = [tuple_term, list_term, closure_term];
@@ -153,7 +153,7 @@ fn simple_gc_test(process: Process) {
     // Grab post-collection size
     let collected_size_first = process.young_heap_used();
 
-    dbg!(process.acquire_heap().heap().young_generation());
+    //dbg!(process.acquire_heap().heap().young_generation());
     // Run it again and make sure the heap size stays the same
     process.garbage_collect(0, &mut roots).unwrap();
     let collected_size_second = process.young_heap_used();

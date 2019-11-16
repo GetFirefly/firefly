@@ -42,13 +42,13 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok, Atom::str_to_term("ok"));
 
     let document = arc_process.stack_pop().unwrap();
-    assert!(document.is_resource_reference());
+    assert!(document.is_boxed_resource_reference());
 
     let parent = arc_process.stack_pop().unwrap();
-    assert!(parent.is_resource_reference());
+    assert!(parent.is_boxed_resource_reference());
 
     let reference_child = arc_process.stack_pop().unwrap();
-    assert!(reference_child.is_resource_reference());
+    assert!(reference_child.is_boxed_resource_reference());
 
     label_5::place_frame_with_arguments(
         arc_process,

@@ -31,7 +31,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_parent_document = arc_process.stack_pop().unwrap();
     assert!(
-        ok_parent_document.is_tuple(),
+        ok_parent_document.is_boxed_tuple(),
         "ok_parent_document ({:?}) is not a tuple",
         ok_parent_document
     );
@@ -39,7 +39,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok_parent_document_tuple.len(), 2);
     assert_eq!(ok_parent_document_tuple[0], Atom::str_to_term("ok"));
     let parent_document = ok_parent_document_tuple[1];
-    assert!(parent_document.is_resource_reference());
+    assert!(parent_document.is_boxed_resource_reference());
 
     label_2::place_frame_with_arguments(arc_process, Placement::Replace, parent_document)?;
 

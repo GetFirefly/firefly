@@ -32,7 +32,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_window = arc_process.stack_pop().unwrap();
     assert!(
-        ok_window.is_tuple(),
+        ok_window.is_boxed_tuple(),
         "ok_window ({:?}) is not a tuple",
         ok_window
     );

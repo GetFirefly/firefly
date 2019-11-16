@@ -11,7 +11,7 @@ pub fn place_frame_with_arguments(
     placement: Placement,
     child: Term,
 ) -> Result<(), Alloc> {
-    assert!(child.is_resource_reference());
+    assert!(child.is_boxed_resource_reference());
     process.stack_push(child)?;
     process.place_frame(frame(), placement);
 
@@ -36,7 +36,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok, Atom::str_to_term("ok"));
 
     let child = arc_process.stack_pop().unwrap();
-    assert!(child.is_resource_reference());
+    assert!(child.is_boxed_resource_reference());
 
     lumen_web::element::remove_1::place_frame_with_arguments(
         arc_process,

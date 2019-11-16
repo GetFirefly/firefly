@@ -25,12 +25,12 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok_body = arc_process.stack_pop().unwrap();
-    assert!(ok_body.is_tuple(), "ok_body ({:?}) is not a tuple", ok_body);
+    assert!(ok_body.is_boxed_tuple(), "ok_body ({:?}) is not a tuple", ok_body);
     let ok_body_tuple: Boxed<Tuple> = ok_body.try_into().unwrap();
     assert_eq!(ok_body_tuple.len(), 2);
     assert_eq!(ok_body_tuple[0], Atom::str_to_term("ok"));
     let body = ok_body_tuple[1];
-    assert!(body.is_resource_reference());
+    assert!(body.is_boxed_resource_reference());
 
     lumen_web::element::class_name_1::place_frame_with_arguments(
         arc_process,

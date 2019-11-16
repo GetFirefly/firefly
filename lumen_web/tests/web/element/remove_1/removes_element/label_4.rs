@@ -16,7 +16,7 @@ pub fn place_frame_with_arguments(
     placement: Placement,
     body: Term,
 ) -> Result<(), Alloc> {
-    assert!(body.is_resource_reference());
+    assert!(body.is_boxed_resource_reference());
     process.stack_push(body)?;
     process.place_frame(frame(), placement);
 
@@ -40,7 +40,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_child = arc_process.stack_pop().unwrap();
     assert!(
-        ok_child.is_tuple(),
+        ok_child.is_boxed_tuple(),
         "ok_child ({:?}) is not a tuple",
         ok_child
     );
@@ -53,7 +53,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let _: &Element = child_reference.downcast_ref().unwrap();
 
     let body = arc_process.stack_pop().unwrap();
-    assert!(body.is_resource_reference());
+    assert!(body.is_boxed_resource_reference());
 
     label_5::place_frame_with_arguments(arc_process, Placement::Replace, child)?;
 

@@ -35,9 +35,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let ok = arc_process.stack_pop().unwrap();
     assert_eq!(ok, Atom::str_to_term("ok"));
     let parent = arc_process.stack_pop().unwrap();
-    assert!(parent.is_resource_reference());
+    assert!(parent.is_boxed_resource_reference());
     let old_child = arc_process.stack_pop().unwrap();
-    assert!(old_child.is_resource_reference());
+    assert!(old_child.is_boxed_resource_reference());
 
     lumen_web::node::replace_child_3::place_frame_with_arguments(
         arc_process,

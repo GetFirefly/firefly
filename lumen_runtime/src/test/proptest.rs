@@ -6,9 +6,9 @@ use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::{exception, Node};
 
-use crate::test::r#loop;
 use crate::process::spawn::options::Options;
 use crate::scheduler::{with_process, Scheduler, Spawned};
+use crate::test::r#loop;
 
 pub fn cancel_timer_message(timer_reference: Term, result: Term, process: &Process) -> Term {
     timer_message("cancel_timer", timer_reference, result, process)

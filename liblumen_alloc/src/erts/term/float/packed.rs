@@ -12,10 +12,10 @@ use core::cmp;
 use core::convert::TryFrom;
 use core::ptr;
 
-use crate::impl_static_header;
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::TermAlloc;
+use crate::impl_static_header;
 
 use crate::erts::term::prelude::{Boxed, Header, Term, TypeError, TypedTerm};
 

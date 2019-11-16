@@ -1,11 +1,11 @@
 mod with_big_integer_left;
 mod with_small_integer_left;
 
-use proptest::test_runner::{Config, TestRunner, TestCaseError};
+use proptest::test_runner::{Config, TestCaseError, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarith;
-use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
+use liblumen_alloc::erts::term::prelude::{Encoded, TypedTerm};
 
 use crate::otp::erlang::bor_2::native;
 use crate::scheduler::{with_process, with_process_arc};
@@ -69,7 +69,7 @@ fn typed_count_ones(term: &TypedTerm) -> u32 {
     match term {
         &TypedTerm::BigInteger(big) => big.as_ref().count_ones(),
         &TypedTerm::SmallInteger(small) => small.count_ones(),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -77,11 +77,15 @@ fn get_bytes(term: &TypedTerm) -> Vec<u8> {
     match term {
         &TypedTerm::BigInteger(big) => big.as_ref().to_signed_bytes_le(),
         &TypedTerm::SmallInteger(small) => small.to_le_bytes(),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
-fn is_correct_bit_representation(counted: u32, mut lhs: Vec<u8>, mut rhs: Vec<u8>) -> Result<(), TestCaseError> {
+fn is_correct_bit_representation(
+    counted: u32,
+    mut lhs: Vec<u8>,
+    mut rhs: Vec<u8>,
+) -> Result<(), TestCaseError> {
     let lhs_len = lhs.len();
     let rhs_len = rhs.len();
 

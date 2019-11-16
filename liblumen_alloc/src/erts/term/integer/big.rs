@@ -58,17 +58,18 @@ impl BigInteger {
 }
 impl fmt::Debug for BigInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let bytes = self.value
-                        .clone()
-                        .to_signed_bytes_be()
-                        .iter()
-                        .map(|b| format!("{:08b}", b))
-                        .collect::<Vec<String>>()
-                        .join("");
+        let bytes = self
+            .value
+            .clone()
+            .to_signed_bytes_be()
+            .iter()
+            .map(|b| format!("{:08b}", b))
+            .collect::<Vec<String>>()
+            .join("");
         f.debug_struct("BigInteger")
-         .field("header", &self.header)
-         .field("value", &format_args!("{} ({})", &self.value, &bytes))
-         .finish()
+            .field("header", &self.header)
+            .field("value", &format_args!("{} ({})", &self.value, &bytes))
+            .finish()
     }
 }
 impl fmt::Display for BigInteger {

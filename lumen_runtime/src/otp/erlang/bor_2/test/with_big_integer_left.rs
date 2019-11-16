@@ -55,4 +55,3 @@ fn with_integer_right_returns_bitwise_and() {
             .unwrap();
     });
 }
-

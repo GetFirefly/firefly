@@ -486,7 +486,9 @@ impl Encoded for RawTerm {
             #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
             Tag::Float => Ok(TypedTerm::Float(self.decode_float())),
             #[cfg(not(all(target_pointer_width = "64", target_arch = "x86_64")))]
-            Tag::Float => Ok(TypedTerm::Float(unsafe { Boxed::new_unchecked(self as *const _ as *mut Float) })),
+            Tag::Float => Ok(TypedTerm::Float(unsafe {
+                Boxed::new_unchecked(self as *const _ as *mut Float)
+            })),
             Tag::Atom => Ok(TypedTerm::Atom(unsafe { self.decode_atom() })),
             Tag::Pid => Ok(TypedTerm::Pid(unsafe { self.decode_pid() })),
             Tag::Port => Ok(TypedTerm::Port(unsafe { self.decode_port() })),
@@ -502,7 +504,9 @@ impl Encoded for RawTerm {
                     #[cfg(all(target_pointer_width = "64", target_arch = "x86_64"))]
                     Tag::Float => Ok(TypedTerm::Float(unboxed.decode_float())),
                     #[cfg(not(all(target_pointer_width = "64", target_arch = "x86_64")))]
-                    Tag::Float => Ok(TypedTerm::Float(unsafe { Boxed::new_unchecked(ptr as *mut Float) })),
+                    Tag::Float => Ok(TypedTerm::Float(unsafe {
+                        Boxed::new_unchecked(ptr as *mut Float)
+                    })),
                     Tag::Atom => Ok(TypedTerm::Atom(unsafe { unboxed.decode_atom() })),
                     Tag::Pid => Ok(TypedTerm::Pid(unsafe { unboxed.decode_pid() })),
                     Tag::Port => Ok(TypedTerm::Port(unsafe { unboxed.decode_port() })),

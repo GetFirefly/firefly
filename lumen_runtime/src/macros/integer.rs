@@ -5,10 +5,13 @@ macro_rules! bitwise_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded, BigInteger};
+        use liblumen_alloc::erts::term::prelude::{BigInteger, Encoded, TypedTerm};
 
         match ($left.decode().unwrap(), $right.decode().unwrap()) {
-            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
+            (
+                TypedTerm::SmallInteger(left_small_integer),
+                TypedTerm::SmallInteger(right_small_integer),
+            ) => {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();
                 let output = left_isize.$infix(right_isize);
@@ -16,7 +19,10 @@ macro_rules! bitwise_infix_operator {
 
                 Ok(output_term)
             }
-            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::BigInteger(right_big_integer)) => {
+            (
+                TypedTerm::SmallInteger(left_small_integer),
+                TypedTerm::BigInteger(right_big_integer),
+            ) => {
                 let left_big_int: BigInteger = left_small_integer.into();
                 let right_big_int = right_big_integer.as_ref();
 
@@ -25,7 +31,10 @@ macro_rules! bitwise_infix_operator {
 
                 Ok(output_term)
             }
-            (TypedTerm::BigInteger(left_big_integer), TypedTerm::SmallInteger(right_small_integer)) => {
+            (
+                TypedTerm::BigInteger(left_big_integer),
+                TypedTerm::SmallInteger(right_small_integer),
+            ) => {
                 let left_big_int = left_big_integer.as_ref();
                 let right_big_int: BigInteger = right_small_integer.into();
 

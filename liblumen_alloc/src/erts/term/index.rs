@@ -43,7 +43,7 @@ impl From<core::num::TryFromIntError> for IndexError {
 }
 
 /// Represents indices which start at 1 and progress upwards
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct OneBasedIndex(usize);
 impl OneBasedIndex {
@@ -111,7 +111,7 @@ impl Into<usize> for OneBasedIndex {
 impl PartialEq<usize> for OneBasedIndex {
     #[inline]
     fn eq(&self, other: &usize) -> bool {
-        self.0 == *other
+        (self.0 - 1) == *other
     }
 }
 impl PartialEq<ZeroBasedIndex> for OneBasedIndex {
@@ -123,7 +123,7 @@ impl PartialEq<ZeroBasedIndex> for OneBasedIndex {
 impl PartialOrd<usize> for OneBasedIndex {
     #[inline]
     fn partial_cmp(&self, other: &usize) -> Option<cmp::Ordering> {
-        self.0.partial_cmp(other)
+        (self.0 - 1).partial_cmp(other)
     }
 }
 impl PartialOrd<ZeroBasedIndex> for OneBasedIndex {
@@ -149,7 +149,7 @@ impl ops::Add<usize> for OneBasedIndex {
 }
 
 /// Represents indices which start at 0 and progress upwards
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct ZeroBasedIndex(usize);
 impl ZeroBasedIndex {

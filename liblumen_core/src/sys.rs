@@ -20,13 +20,12 @@ pub use self::arch::alloc;
 pub use self::arch::mmap;
 
 pub mod sysconf {
-    use core::mem;
     use lazy_static::lazy_static;
 
     use super::arch::sysconf;
 
-    /// The minimum alignment guaranteed by the target
-    pub const MIN_ALIGN: usize = mem::align_of::<*const ()>();
+    /// The minimum alignment required for all targets
+    pub const MIN_ALIGN: usize = 8;
 
     lazy_static! {
         static ref PAGE_SIZE: usize = { sysconf::pagesize() };

@@ -142,7 +142,7 @@ impl HeapAlloc for RegionHeap {
     /// process heap during garbage collection
     unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
         // Ensure layout has alignment padding
-        let layout = layout.pad_to_align().unwrap();
+        let layout = layout.align_to(MIN_ALIGN).unwrap().pad_to_align().unwrap();
         // Capture the base pointer for this allocation
         let top = self.top;
         // Calculate available space and fail if not enough is free

@@ -4,7 +4,6 @@ use core::convert::TryFrom;
 use core::default::Default;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
-use core::ptr;
 
 use alloc::sync::Arc;
 
@@ -243,7 +242,7 @@ impl CloneToProcess for ExternalPid {
         unsafe {
             let layout = Layout::new::<Self>();
             let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
-            ptr::copy_nonoverlapping(self as *const Self, ptr, 1);
+            ptr.write(self.clone());
 
             Ok(ptr.into())
         }

@@ -35,7 +35,11 @@ version = "0.8"
 features = ["nightly"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2"
+wasm-bindgen-test = "0.2"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
+version = "0.2.48"
+features = ["nightly"]
 
 # for debugging
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]

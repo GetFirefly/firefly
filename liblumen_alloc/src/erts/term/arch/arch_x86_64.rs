@@ -532,7 +532,7 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_literal(self) -> bool {
-        !self.is_float() && (self.0 & FLAG_LITERAL == FLAG_LITERAL)
+        self.0 <= MAX_ADDR && self.0 & FLAG_LITERAL == FLAG_LITERAL && (self.0 & !FLAG_LITERAL > 0)
     }
 
     #[inline]
@@ -662,7 +662,8 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_boxed(self) -> bool {
-        self.0 <= MAX_ADDR && !self.is_none()
+        // >1 means it is not null or a null literal pointer
+        self.0 <= MAX_ADDR && self.0 > 1
     }
 
     #[inline]
@@ -817,6 +818,15 @@ mod tests {
     #[test]
     fn literal_encoding_x86_64() {
         let literal: *const BigInteger = core::ptr::null();
+        let literal_boxed = RawTerm::encode_literal(literal);
+
+        assert!(!literal_boxed.is_boxed());
+        assert!(!literal_boxed.is_literal());
+        assert_eq!(literal_boxed.type_of(), Tag::Literal);
+        assert!(!literal_boxed.is_header());
+        assert!(!literal_boxed.is_immediate());
+
+        let literal: *const BigInteger = 0xABCDusize as *const usize as *const BigInteger;
         let literal_boxed = RawTerm::encode_literal(literal);
 
         assert!(literal_boxed.is_boxed());

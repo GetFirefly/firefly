@@ -381,7 +381,7 @@ impl Encoded for RawTerm {
                 // incorrectly, to find the source, you'll need to examine the trace
                 // to see where the input term is defined
                 let ptr = unsafe { self.decode_box() };
-                let unboxed = unsafe { *ptr };
+                let unboxed = unsafe { &*ptr };
                 match unboxed.type_of() {
                     Tag::Nil => Ok(TypedTerm::Nil),
                     Tag::List => Ok(TypedTerm::List(unsafe { unboxed.decode_list() })),

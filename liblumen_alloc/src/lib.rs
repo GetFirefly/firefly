@@ -31,6 +31,9 @@
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;
 
+#[cfg(target_arch = "wasm32")]
+extern crate wasm_bindgen_test;
+
 #[macro_use]
 extern crate static_assertions;
 

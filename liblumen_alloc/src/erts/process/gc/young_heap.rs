@@ -351,7 +351,9 @@ impl Heap for YoungHeap {
 impl HeapAlloc for YoungHeap {
     #[inline]
     unsafe fn alloc_layout(&mut self, layout: Layout) -> AllocResult<NonNull<Term>> {
-        let layout = layout.pad_to_align().unwrap();
+        use liblumen_core::sys::sysconf::MIN_ALIGN;
+
+        let layout = layout.align_to(MIN_ALIGN).unwrap().pad_to_align().unwrap();
 
         let needed = layout.size();
         let available = self.heap_available() * mem::size_of::<Term>();

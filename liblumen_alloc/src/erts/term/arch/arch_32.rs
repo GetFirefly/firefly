@@ -126,6 +126,26 @@ impl Repr for RawTerm {
         };
 
         match tag {
+            FLAG_BOXED => {
+                if term & !MASK_PRIMARY == NONE {
+                    Tag::None
+                } else {
+                    Tag::Box
+                }
+            }
+            FLAG_LITERAL => {
+                if term & !MASK_PRIMARY == NONE {
+                    Tag::None
+                } else {
+                    Tag::Literal
+                }
+            }
+            FLAG_NIL => Tag::Nil,
+            FLAG_SMALL_INTEGER => Tag::SmallInteger,
+            FLAG_ATOM => Tag::Atom,
+            FLAG_PID => Tag::Pid,
+            FLAG_PORT => Tag::Port,
+            FLAG_LIST => Tag::List,
             FLAG_TUPLE => Tag::Tuple,
             FLAG_CLOSURE => Tag::Closure,
             FLAG_HEAPBIN => Tag::HeapBinary,
@@ -153,7 +173,11 @@ impl Repr for RawTerm {
 
     #[inline]
     fn encode_list(value: *const Cons) -> Self {
-        Self(value as u32 | FLAG_LIST)
+        if value.is_null() {
+            Self::NONE
+        } else {
+            Self(value as u32 | FLAG_LIST)
+        }
     }
 
     #[inline]
@@ -161,7 +185,9 @@ impl Repr for RawTerm {
     where
         T: ?Sized,
     {
-        Self(value as *const () as u32 | FLAG_BOXED)
+        let ptr = value as *const () as u32;
+        assert_eq!(ptr & MASK_PRIMARY, 0);
+        Self(ptr | FLAG_BOXED)
     }
 
     #[inline]
@@ -169,7 +195,9 @@ impl Repr for RawTerm {
     where
         T: ?Sized,
     {
-        Self(value as *const () as u32 | FLAG_LITERAL)
+        let ptr = value as *const () as u32;
+        assert_eq!(ptr & MASK_PRIMARY, 0);
+        Self(ptr | FLAG_LITERAL)
     }
 
     #[inline]
@@ -218,7 +246,6 @@ impl Repr for RawTerm {
 
     #[inline]
     unsafe fn decode_header_value(&self) -> u32 {
-        debug_assert_eq!(self.0 & MASK_HEADER, 0);
         self.0 >> HEADER_SHIFT
     }
 }
@@ -373,7 +400,7 @@ impl Encoded for RawTerm {
                 // incorrectly, to find the source, you'll need to examine the trace
                 // to see where the input term is defined
                 let ptr = unsafe { self.decode_box() };
-                let unboxed = unsafe { *ptr };
+                let unboxed = unsafe { &*ptr };
                 match unboxed.type_of() {
                     Tag::Nil => Ok(TypedTerm::Nil),
                     Tag::List => Ok(TypedTerm::List(unsafe { unboxed.decode_list() })),
@@ -397,7 +424,7 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_none(self) -> bool {
-        self.0 == NONE
+        self.0 == NONE || self.0 & !MASK_PRIMARY == NONE
     }
 
     #[inline]
@@ -407,7 +434,7 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_literal(self) -> bool {
-        self.0 & MASK_PRIMARY == FLAG_LITERAL
+        self.0 & MASK_PRIMARY == FLAG_LITERAL && self.0 & !MASK_PRIMARY > 0
     }
 
     #[inline]
@@ -507,12 +534,13 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_boxed(self) -> bool {
-        self.0 & MASK_PRIMARY == FLAG_BOXED
+        let tag = self.0 & MASK_PRIMARY;
+        (tag == FLAG_BOXED || tag == FLAG_LITERAL) && self.0 & !MASK_PRIMARY != NONE
     }
 
     #[inline]
     fn is_header(self) -> bool {
-        self.0 & MASK_PRIMARY == FLAG_HEADER
+        self.0 & MASK_PRIMARY == FLAG_HEADER && self.0 != NONE
     }
 
     #[inline]
@@ -619,7 +647,10 @@ impl core::hash::Hash for RawTerm {
 }
 
 #[cfg(all(test, target_pointer_width = "32"))]
-mod tests {
+pub mod tests {
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::*;
+
     use core::convert::TryInto;
 
     use crate::borrow::CloneToProcess;
@@ -628,8 +659,9 @@ mod tests {
 
     use super::*;
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn none_encoding_x86_64() {
+    fn none_encoding_arch32() {
         assert_eq!(RawTerm::NONE, RawTerm::NONE);
         assert!(RawTerm::NONE.is_none());
         assert_eq!(RawTerm::NONE.type_of(), Tag::None);
@@ -645,9 +677,19 @@ mod tests {
         assert!(!none_boxed.is_bigint());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn literal_encoding_x86_64() {
+    fn literal_encoding_arch32() {
         let literal: *const BigInteger = core::ptr::null();
+        let literal_boxed = RawTerm::encode_literal(literal);
+
+        assert!(!literal_boxed.is_boxed());
+        assert!(!literal_boxed.is_literal());
+        assert_eq!(literal_boxed.type_of(), Tag::None);
+        assert!(!literal_boxed.is_header());
+        assert!(!literal_boxed.is_immediate());
+
+        let literal: *const BigInteger = 0xABCD00usize as *const usize as *const BigInteger;
         let literal_boxed = RawTerm::encode_literal(literal);
 
         assert!(literal_boxed.is_boxed());
@@ -657,8 +699,9 @@ mod tests {
         assert!(!literal_boxed.is_immediate());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn float_encoding_x86_64() {
+    fn float_encoding_arch32() {
         let mut heap = RegionHeap::default();
 
         let float = heap.float(std::f64::MAX).unwrap();
@@ -679,8 +722,9 @@ mod tests {
         assert_eq!(&float, float_box.as_ref());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn fixnum_encoding_x86_64() {
+    fn fixnum_encoding_arch32() {
         let max: SmallInteger = MAX_SMALLINT_VALUE.try_into().unwrap();
         let min: SmallInteger = MIN_SMALLINT_VALUE.try_into().unwrap();
 
@@ -708,8 +752,9 @@ mod tests {
         assert_eq!(min, min_decoded.unwrap());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn atom_encoding_x86_64() {
+    fn atom_encoding_arch32() {
         let atom = unsafe { Atom::from_id(MAX_ATOM_ID as usize) };
 
         let atom_term: RawTerm = atom.encode().unwrap();
@@ -725,8 +770,9 @@ mod tests {
         assert_eq!(atom, atom_decoded.unwrap());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn pid_encoding_x86_64() {
+    fn pid_encoding_arch32() {
         let pid = unsafe { Pid::from_raw(MAX_IMMEDIATE_VALUE as usize) };
 
         let pid_term: RawTerm = pid.encode().unwrap();
@@ -746,8 +792,9 @@ mod tests {
         assert!(pid_term.is_pid());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn port_encoding_x86_64() {
+    fn port_encoding_arch32() {
         let port = unsafe { Port::from_raw(MAX_IMMEDIATE_VALUE as usize) };
 
         let port_term: RawTerm = port.encode().unwrap();
@@ -767,8 +814,9 @@ mod tests {
         assert!(port_term.is_port());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn bigint_encoding_x86_64() {
+    fn bigint_encoding_arch32() {
         let big: BigInteger = (MAX_SMALLINT_VALUE + 1).try_into().unwrap();
         let boxed = Boxed::new(&big as *const _ as *mut BigInteger).unwrap();
 
@@ -788,8 +836,9 @@ mod tests {
         assert_eq!(&big, big_decoded.unwrap().as_ref());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn tuple_encoding_x86_64() {
+    fn tuple_encoding_arch32() {
         let mut heap = RegionHeap::default();
 
         // Empty tuple
@@ -834,8 +883,9 @@ mod tests {
         assert_eq!(tuple2_box.get_element(3), Ok(fixnum!(4)));
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn list_encoding_x86_64() {
+    fn list_encoding_arch32() {
         let mut heap = RegionHeap::default();
 
         // Empty list
@@ -864,8 +914,9 @@ mod tests {
         assert_eq!(list_box.count(), Some(2));
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn map_encoding_x86_64() {
+    fn map_encoding_arch32() {
         let mut heap = RegionHeap::default();
 
         let pairs = vec![(atom!("foo"), fixnum!(1)), (atom!("bar"), fixnum!(2))];
@@ -889,24 +940,18 @@ mod tests {
         assert_eq!(map.get(atom!("bar")), Some(fixnum!(2)));
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn closure_encoding_x86_64() {
+    fn closure_encoding_arch32() {
         use crate::erts::process::Process;
         use crate::erts::term::closure::*;
-        use crate::erts::ModuleFunctionArity;
         use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
-        let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
-        let mfa = Arc::new(ModuleFunctionArity {
-            module: module.clone(),
-            function,
-            arity,
-        });
         let code = |_arc_process: &Arc<Process>| Ok(());
 
         let one = fixnum!(1);
@@ -920,12 +965,14 @@ mod tests {
                 index,
                 old_unique,
                 unique,
-                2,
+                arity,
                 Some(code),
                 Creator::Local(creator),
                 &[&[one, two]],
             )
             .unwrap();
+        let mfa = closure.module_function_arity();
+        assert_eq!(closure.env_len(), 2);
         let closure_term: RawTerm = closure.into();
         assert!(closure_term.is_boxed());
         assert_eq!(closure_term.type_of(), Tag::Box);
@@ -941,12 +988,15 @@ mod tests {
         assert!(closure_decoded.is_ok());
         let closure_box = closure_decoded.unwrap();
         assert_eq!(&closure, closure_box.as_ref());
-        assert_eq!(closure_box.arity(), 0);
+        assert_eq!(closure_box.env_len(), 2);
         assert_eq!(closure_box.module_function_arity(), mfa);
+        assert_eq!(closure_box.get_env_element(0), one);
+        assert_eq!(closure_box.get_env_element(1), two);
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn procbin_encoding_x86_64() {
+    fn procbin_encoding_arch32() {
         let mut heap = RegionHeap::default();
 
         let bin = heap.procbin_from_str("hello world!").unwrap();
@@ -973,8 +1023,9 @@ mod tests {
         assert!(bin_term.is_bitstring());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn heapbin_encoding_x86_64() {
+    fn heapbin_encoding_arch32() {
         let mut heap = RegionHeap::default();
 
         let bin = heap.heapbin_from_str("hello world!").unwrap();
@@ -994,7 +1045,6 @@ mod tests {
         assert!(bin_decoded.is_ok());
         let bin_box = bin_decoded.unwrap();
         assert_eq!(&bin, bin_box.as_ref());
-        //panic!("ok");
         assert_eq!(bin_box.as_str(), "hello world!");
 
         // These functions pierce the box
@@ -1002,8 +1052,9 @@ mod tests {
         assert!(bin_term.is_bitstring());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn subbinary_encoding_x86_64() {
+    fn subbinary_encoding_arch32() {
         let mut heap = RegionHeap::default();
 
         let bin = heap.heapbin_from_str("hello world!").unwrap();
@@ -1036,8 +1087,9 @@ mod tests {
         assert_eq!(sub_box.try_into(), Ok("world!".to_owned()));
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn match_context_encoding_x86_64() {
+    fn match_context_encoding_arch32() {
         let mut heap = RegionHeap::default();
 
         let bin = heap.heapbin_from_str("hello world!").unwrap();
@@ -1064,8 +1116,9 @@ mod tests {
         assert_eq!(match_ctx_box.try_into(), Ok("hello world!".to_owned()));
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn resource_encoding_x86_64() {
+    fn resource_encoding_arch32() {
         use core::any::Any;
 
         let mut heap = RegionHeap::default();
@@ -1093,8 +1146,9 @@ mod tests {
         assert_eq!(resource_code.invoke(true), Some(true));
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn reference_encoding_x86_64() {
+    fn reference_encoding_arch32() {
         use crate::erts::scheduler;
         let mut heap = RegionHeap::default();
 
@@ -1120,8 +1174,9 @@ mod tests {
         assert!(reference_term.is_reference());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
-    fn external_pid_encoding_x86_64() {
+    fn external_pid_encoding_arch32() {
         use crate::erts::Node;
         use alloc::sync::Arc;
 
@@ -1154,16 +1209,18 @@ mod tests {
         assert!(pid_term.is_pid());
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     #[ignore]
-    fn external_port_encoding_x86_64() {
+    fn external_port_encoding_arch32() {
         // TODO: let mut heap = RegionHeap::default();
         // Waiting on implementation of this type
     }
 
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
     #[test]
     #[ignore]
-    fn external_reference_encoding_x86_64() {
+    fn external_reference_encoding_arch32() {
         // TODO: let mut heap = RegionHeap::default();
         // Waiting on implementation of this type
     }

@@ -439,7 +439,7 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_list(self) -> bool {
-        self.0 & MASK_PRIMARY == FLAG_LIST
+        self.0 == FLAG_NIL || self.0 & MASK_PRIMARY == FLAG_LIST
     }
 
     #[inline]

@@ -537,7 +537,7 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_list(self) -> bool {
-        !self.is_float() && (self.0 & TAG_MASK == FLAG_LIST)
+        !self.is_float() && ((self.0 == FLAG_NIL) || (self.0 & TAG_MASK == FLAG_LIST))
     }
 
     #[inline]

@@ -136,6 +136,26 @@ impl Repr for RawTerm {
         };
 
         match tag {
+            FLAG_BOXED => {
+                if term & !MASK_PRIMARY == NONE {
+                    Tag::None
+                } else {
+                    Tag::Box
+                }
+            }
+            FLAG_LITERAL => {
+                if term & !MASK_PRIMARY == NONE {
+                    Tag::None
+                } else {
+                    Tag::Literal
+                }
+            }
+            FLAG_NIL => Tag::Nil,
+            FLAG_SMALL_INTEGER => Tag::SmallInteger,
+            FLAG_ATOM => Tag::Atom,
+            FLAG_PID => Tag::Pid,
+            FLAG_PORT => Tag::Port,
+            FLAG_LIST => Tag::List,
             FLAG_TUPLE => Tag::Tuple,
             FLAG_CLOSURE => Tag::Closure,
             FLAG_HEAPBIN => Tag::HeapBinary,
@@ -176,7 +196,9 @@ impl Repr for RawTerm {
     where
         T: ?Sized,
     {
-        Self(value as *const () as u64 | FLAG_BOXED)
+        let ptr = value as *const () as u64;
+        assert_eq!(ptr & MASK_PRIMARY, 0);
+        Self(ptr | FLAG_BOXED)
     }
 
     #[inline]
@@ -184,7 +206,9 @@ impl Repr for RawTerm {
     where
         T: ?Sized,
     {
-        Self(value as *const () as u64 | FLAG_LITERAL)
+        let ptr = value as *const () as u64;
+        assert_eq!(ptr & MASK_PRIMARY, 0);
+        Self(ptr | FLAG_LITERAL)
     }
 
     #[inline]
@@ -228,7 +252,6 @@ impl Repr for RawTerm {
 
     #[inline]
     unsafe fn decode_header_value(&self) -> u64 {
-        debug_assert_eq!(self.0 & MASK_HEADER, 0);
         self.0 >> HEADER_SHIFT
     }
 }
@@ -420,7 +443,7 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_list(self) -> bool {
-        self.0 & MASK_PRIMARY == FLAG_LIST
+        self.0 == FLAG_NIL || self.0 & MASK_PRIMARY == FLAG_LIST
     }
 
     #[inline]

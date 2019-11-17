@@ -1,8 +1,8 @@
-use core::cmp;
-use core::convert::TryInto;
 ///! This module exposes 32-bit architecture specific values and functions
 ///!
 ///! See the module doc in arch_64.rs for more information
+use core::cmp;
+use core::convert::TryInto;
 use core::fmt;
 
 use crate::erts::exception;
@@ -173,11 +173,7 @@ impl Repr for RawTerm {
 
     #[inline]
     fn encode_list(value: *const Cons) -> Self {
-        if value.is_null() {
-            Self::NONE
-        } else {
-            Self(value as u32 | FLAG_LIST)
-        }
+        Self(value as u32 | FLAG_LIST)
     }
 
     #[inline]
@@ -207,7 +203,7 @@ impl Repr for RawTerm {
 
     #[inline]
     unsafe fn decode_box(self) -> *mut Self {
-        (self.0 & !MASK_PRIMARY) as *const RawTerm as *mut RawTerm
+        (self.0 & !MASK_PRIMARY) as *mut RawTerm
     }
 
     #[inline]

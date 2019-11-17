@@ -1,5 +1,4 @@
 #![cfg_attr(not(target_pointer_width = "64"), allow(unused))]
-use core::cmp;
 ///! This module contains constants for 64-bit architectures used by the term
 ///! implementation.
 ///!
@@ -13,6 +12,7 @@ use core::cmp;
 ///! such as AArch64 and SPARC, have no such restriction and could result in erroneous
 ///! behavior when compiled for those platforms. Intel is also planning extensions to its
 ///! processors to use up to 54 bits for addresses, which would cause issues as well.
+use core::cmp;
 use core::fmt;
 
 use crate::erts::exception;
@@ -182,11 +182,6 @@ impl Repr for RawTerm {
     }
 
     #[inline]
-    fn encode_header(value: u64, tag: u64) -> Self {
-        Self((value << HEADER_SHIFT) | tag)
-    }
-
-    #[inline]
     fn encode_list(value: *const Cons) -> Self {
         Self(value as u64 | FLAG_LIST)
     }
@@ -212,14 +207,19 @@ impl Repr for RawTerm {
     }
 
     #[inline]
+    fn encode_header(value: u64, tag: u64) -> Self {
+        Self((value << HEADER_SHIFT) | tag)
+    }
+
+    #[inline]
     unsafe fn decode_box(self) -> *mut Self {
-        (self.0 & !MASK_PRIMARY) as *const RawTerm as *mut RawTerm
+        (self.0 & !MASK_PRIMARY) as *mut RawTerm
     }
 
     #[inline]
     unsafe fn decode_list(self) -> Boxed<Cons> {
         debug_assert_eq!(self.0 & MASK_PRIMARY, FLAG_LIST);
-        let ptr = (self.0 & !MASK_PRIMARY) as *const Cons as *mut Cons;
+        let ptr = (self.0 & !MASK_PRIMARY) as *mut Cons;
         Boxed::new_unchecked(ptr)
     }
 
@@ -383,7 +383,7 @@ impl Cast<*const Cons> for RawTerm {
     #[inline]
     fn dyn_cast(self) -> *const Cons {
         assert!(self.is_non_empty_list());
-        (self.0 & !MASK_PRIMARY) as *const Cons
+        unsafe { self.decode_box() as *const Cons }
     }
 }
 
@@ -438,7 +438,7 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_literal(self) -> bool {
-        self.0 & MASK_PRIMARY == FLAG_LITERAL
+        self.0 & MASK_PRIMARY == FLAG_LITERAL && self.0 & !MASK_PRIMARY > 0
     }
 
     #[inline]
@@ -538,12 +538,13 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_boxed(self) -> bool {
-        self.0 & MASK_PRIMARY == FLAG_BOXED
+        let tag = self.0 & MASK_PRIMARY;
+        (tag == FLAG_BOXED || tag == FLAG_LITERAL) && self.0 & !MASK_PRIMARY != NONE
     }
 
     #[inline]
     fn is_header(self) -> bool {
-        self.0 & MASK_PRIMARY == FLAG_HEADER
+        self.0 & MASK_PRIMARY == FLAG_HEADER && self.0 != NONE
     }
 
     #[inline]
@@ -681,6 +682,15 @@ mod tests {
         let literal: *const BigInteger = core::ptr::null();
         let literal_boxed = RawTerm::encode_literal(literal);
 
+        assert!(!literal_boxed.is_boxed());
+        assert!(!literal_boxed.is_literal());
+        assert_eq!(literal_boxed.type_of(), Tag::None);
+        assert!(!literal_boxed.is_header());
+        assert!(!literal_boxed.is_immediate());
+
+        let literal: *const BigInteger = 0xABCD00usize as *const usize as *const BigInteger;
+        let literal_boxed = RawTerm::encode_literal(literal);
+
         assert!(literal_boxed.is_boxed());
         assert!(literal_boxed.is_literal());
         assert_eq!(literal_boxed.type_of(), Tag::Literal);
@@ -777,7 +787,7 @@ mod tests {
 
     #[test]
     fn port_encoding_x86_64() {
-        let port = unsafe { Port::from_raw(IMMEDIATE_VALUE_ADDR as usize) };
+        let port = unsafe { Port::from_raw(MAX_IMMEDIATE_VALUE as usize) };
 
         let port_term: RawTerm = port.encode().unwrap();
         assert!(port_term.is_local_port());
@@ -923,20 +933,13 @@ mod tests {
     fn closure_encoding_x86_64() {
         use crate::erts::process::Process;
         use crate::erts::term::closure::*;
-        use crate::erts::ModuleFunctionArity;
         use alloc::sync::Arc;
 
         let mut heap = RegionHeap::default();
         let creator = Pid::new(1, 0).unwrap();
 
         let module = Atom::try_from_str("module").unwrap();
-        let function = Atom::try_from_str("function").unwrap();
         let arity = 0;
-        let mfa = Arc::new(ModuleFunctionArity {
-            module: module.clone(),
-            function,
-            arity,
-        });
         let code = |_arc_process: &Arc<Process>| Ok(());
 
         let one = fixnum!(1);
@@ -950,12 +953,14 @@ mod tests {
                 index,
                 old_unique,
                 unique,
-                2,
+                arity,
                 Some(code),
                 Creator::Local(creator),
                 &[&[one, two]],
             )
             .unwrap();
+        let mfa = closure.module_function_arity();
+        assert_eq!(closure.env_len(), 2);
         let closure_term: RawTerm = closure.into();
         assert!(closure_term.is_boxed());
         assert_eq!(closure_term.type_of(), Tag::Box);
@@ -971,8 +976,10 @@ mod tests {
         assert!(closure_decoded.is_ok());
         let closure_box = closure_decoded.unwrap();
         assert_eq!(&closure, closure_box.as_ref());
-        assert_eq!(closure_box.arity(), 0);
+        assert_eq!(closure_box.env_len(), 2);
         assert_eq!(closure_box.module_function_arity(), mfa);
+        assert_eq!(closure_box.get_env_element(0), one);
+        assert_eq!(closure_box.get_env_element(1), two);
     }
 
     #[test]

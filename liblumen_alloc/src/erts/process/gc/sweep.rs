@@ -49,36 +49,40 @@ where
     G: Sweeper,
 {
     unsafe fn sweep(self, sweeper: &mut G) -> (*mut Term, usize) {
-        use core::any::Any;
+        use crate::erts;
+        use liblumen_core::sys::sysconf::MIN_ALIGN;
 
         let header = &*self;
         // The only context this should be used in is when moving a header
-        assert!(header.is_header());
+        assert!(header.is_header(), "invalid header {:?}", header);
 
         // Handle dynamically-sized types with large headers specially
-        let layout = if header.is_heapbin() {
+        let size = if header.is_heapbin() {
             let bin = HeapBin::from_raw_term(self);
-            Layout::for_value(bin.as_ref())
+            mem::size_of_val(bin.as_ref())
         } else if header.is_function() {
             let closure = Closure::from_raw_term(self);
-            Layout::for_value(closure.as_ref())
+            mem::size_of_val(closure.as_ref())
         } else {
-            let size = header.sizeof();
-            let align = mem::align_of::<Header<dyn Any>>();
-            Layout::from_size_align(size, align)
-                .unwrap()
-                .pad_to_align()
-                .unwrap()
+            header.sizeof()
         };
 
+        // Round up to size in words
+        let words = erts::to_word_size(size);
+
+        let layout = Layout::from_size_align(words * mem::size_of::<Term>(), MIN_ALIGN)
+            .unwrap()
+            .pad_to_align()
+            .unwrap();
+        let total_size = layout.size();
+
         // Allocate space for move
-        let size = layout.size();
         let dst = sweeper.alloc_layout(layout).unwrap().as_ptr();
 
         // Copy object to the destination, byte-wise
         ptr::copy_nonoverlapping(self as *const u8, dst as *mut u8, size);
 
-        (dst, size)
+        (dst, total_size)
     }
 }
 

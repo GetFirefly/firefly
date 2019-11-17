@@ -89,7 +89,7 @@ impl HeapAlloc for OldHeap {
 
         let needed = layout.size();
         let available = self.heap_available() * mem::size_of::<Term>();
-        if needed >= available {
+        if needed > available {
             return Err(alloc!());
         }
 

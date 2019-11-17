@@ -17,6 +17,10 @@ impl RootSet {
         let mut set = Vec::with_capacity(len);
         if len > 0 {
             for root in roots {
+                // Skip immediates
+                if root.is_immediate() {
+                    continue;
+                }
                 set.push(unsafe { Boxed::new_unchecked(root) });
             }
         }
@@ -29,6 +33,11 @@ impl RootSet {
 
     #[inline]
     pub fn push(&mut self, root: *mut Term) {
+        let root = unsafe { &mut *root };
+        // Ignore immediates
+        if root.is_immediate() {
+            return;
+        }
         self.0.push(Boxed::new(root).unwrap());
     }
 

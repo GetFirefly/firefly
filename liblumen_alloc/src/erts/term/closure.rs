@@ -410,6 +410,7 @@ impl Debug for Closure {
             .field("arity", &self.arity)
             .field("code", &self.code_address())
             .field("env_len", &self.env.len())
+            .field("env", &self.env.iter().copied().collect::<Vec<Term>>())
             .finish()
     }
 }

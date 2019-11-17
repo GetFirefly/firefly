@@ -889,7 +889,8 @@ pub mod tests {
         let mut heap = RegionHeap::default();
 
         // Empty list
-        assert!(!RawTerm::NIL.is_list());
+        assert!(RawTerm::NIL.is_list());
+        assert!(!RawTerm::NIL.is_non_empty_list());
         assert_eq!(RawTerm::NIL.type_of(), Tag::Nil);
         assert!(RawTerm::NIL.is_nil());
         assert!(RawTerm::NIL.is_immediate());

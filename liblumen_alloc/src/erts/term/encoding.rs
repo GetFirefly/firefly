@@ -366,12 +366,13 @@ pub trait Encoded: Repr + Copy {
 
     /// Returns `true` if the encoded value represents the empty list
     fn is_nil(self) -> bool;
-    /// Returns `true` if the encoded value represents a `Cons` value (non-empty list)
+    /// Returns `true` if the encoded value represents a nil or `Cons` value (empty or non-empty
+    /// list)
     fn is_list(self) -> bool;
-    /// This is an alias for `is_list` which better expresses intent in some instances
+    /// Returns `true` if the encoded value represents a `Cons` value (non-empty list)
     #[inline(always)]
     fn is_non_empty_list(self) -> bool {
-        self.is_list()
+        self.is_list() && !self.is_nil()
     }
     /// Returns `true` if the encoded value is an atom
     fn is_atom(self) -> bool;

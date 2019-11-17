@@ -17,7 +17,7 @@ pub fn place_frame_with_arguments(
     output: Term,
 ) -> code::Result {
     assert!(next_pid.is_pid());
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     process.stack_push(output)?;
     process.stack_push(next_pid)?;
     process.place_frame(frame(process), placement);

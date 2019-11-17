@@ -44,9 +44,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let ok = arc_process.stack_pop().unwrap();
     assert_eq!(ok, Atom::str_to_term("ok"));
     let document = arc_process.stack_pop().unwrap();
-    assert!(document.is_resource_reference());
+    assert!(document.is_boxed_resource_reference());
     let tr = arc_process.stack_pop().unwrap();
-    assert!(tr.is_resource_reference());
+    assert!(tr.is_boxed_resource_reference());
     let text = arc_process.stack_pop().unwrap();
 
     label_8::place_frame_with_arguments(arc_process, Placement::Replace, document, tr).unwrap();

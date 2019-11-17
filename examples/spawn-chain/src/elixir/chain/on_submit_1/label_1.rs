@@ -29,7 +29,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_event_target = arc_process.stack_pop().unwrap();
     assert!(
-        ok_event_target.is_tuple(),
+        ok_event_target.is_boxed_tuple(),
         "ok_event_target ({:?}) is not a tuple",
         ok_event_target
     );
@@ -37,7 +37,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok_event_target_tuple.len(), 2);
     assert_eq!(ok_event_target_tuple[0], Atom::str_to_term("ok"));
     let event_target = ok_event_target_tuple[1];
-    assert!(event_target.is_resource_reference());
+    assert!(event_target.is_boxed_resource_reference());
 
     // ```elixir
     // # label: 2

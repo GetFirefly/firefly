@@ -18,7 +18,7 @@ pub fn place_frame_with_arguments(
     placement: Placement,
     time_value: Term,
 ) -> Result<(), Alloc> {
-    assert!(time_value.is_tuple());
+    assert!(time_value.is_boxed_tuple());
     process.stack_push(time_value).unwrap();
     process.place_frame(frame(process), placement);
 

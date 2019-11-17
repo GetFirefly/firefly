@@ -66,7 +66,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                     let sent = arc_process.stack_pop().unwrap();
                     assert!(sent.is_integer());
                     let output = arc_process.stack_pop().unwrap();
-                    assert!(output.is_function());
+                    assert!(output.is_boxed_function());
 
                     label_3::place_frame_with_arguments(
                         arc_process,

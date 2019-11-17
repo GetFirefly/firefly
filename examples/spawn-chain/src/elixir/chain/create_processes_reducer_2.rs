@@ -37,7 +37,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     // from environment
     let output = arc_process.stack_pop().unwrap();
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     // from arguments
     let element = arc_process.stack_pop().unwrap();
     assert!(element.is_integer());

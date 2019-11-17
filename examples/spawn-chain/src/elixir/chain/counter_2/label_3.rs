@@ -34,7 +34,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let sent = arc_process.stack_pop().unwrap();
     assert!(sent.is_integer());
     let output = arc_process.stack_pop().unwrap();
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     let next_pid = arc_process.stack_pop().unwrap();
     assert!(next_pid.is_pid());
 

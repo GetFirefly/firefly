@@ -23,7 +23,7 @@ pub fn place_frame_with_arguments(
     output: Term,
     n: Term,
 ) -> Result<(), Alloc> {
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     assert!(n.is_integer());
     process.stack_push(n)?;
     process.stack_push(output)?;
@@ -39,12 +39,12 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let time_value = arc_process.stack_pop().unwrap();
     assert!(
-        time_value.is_tuple(),
+        time_value.is_boxed_tuple(),
         "time_value ({:?}) isn't a tuple",
         time_value
     );
     let output = arc_process.stack_pop().unwrap();
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     let n = arc_process.stack_pop().unwrap();
     assert!(n.is_integer());
 

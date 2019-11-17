@@ -47,7 +47,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_window = arc_process.stack_pop().unwrap();
     assert!(
-        ok_window.is_tuple(),
+        ok_window.is_boxed_tuple(),
         "ok_window ({:?}) is not a tuple",
         ok_window
     );
@@ -55,7 +55,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert_eq!(ok_window_tuple.len(), 2);
     assert_eq!(ok_window_tuple[0], Atom::str_to_term("ok"));
     let window = ok_window_tuple[1];
-    assert!(window.is_resource_reference());
+    assert!(window.is_boxed_resource_reference());
 
     let text = arc_process.stack_pop().unwrap();
     assert!(text.is_binary());

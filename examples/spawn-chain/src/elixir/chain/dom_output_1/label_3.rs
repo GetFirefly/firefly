@@ -46,16 +46,16 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok_tr = arc_process.stack_pop().unwrap();
-    assert!(ok_tr.is_tuple());
+    assert!(ok_tr.is_boxed_tuple());
     let document = arc_process.stack_pop().unwrap();
-    assert!(document.is_resource_reference());
+    assert!(document.is_boxed_resource_reference());
     let text = arc_process.stack_pop().unwrap();
 
     let ok_tr_tuple: Boxed<Tuple> = ok_tr.try_into().unwrap();
     assert_eq!(ok_tr_tuple.len(), 2);
     assert_eq!(ok_tr_tuple[0], Atom::str_to_term("ok"));
     let tr = ok_tr_tuple[1];
-    assert!(tr.is_resource_reference());
+    assert!(tr.is_boxed_resource_reference());
 
     label_4::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text)
         .unwrap();

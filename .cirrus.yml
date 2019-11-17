@@ -18,7 +18,7 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
   liblumen_eir_interpreter_test_script: |
     cargo test -p liblumen_eir_interpreter
   examples_spawn_chain_test_script: |
-    cargo test -p examples/spawn-chain
+    cargo test -p spawn-chain
 
 task:
   name: Linux x86_64
@@ -84,7 +84,7 @@ task:
       throw "cargo test exited $$LastExitCode"
     }
   examples_spawn_chain_test_script: |
-    cargo test -p examples/spawn-chain
+    cargo test -p spawn-chain
     if ($LastExitCode -ne 0) {
       throw "cargo test exited $$LastExitCode"
     }

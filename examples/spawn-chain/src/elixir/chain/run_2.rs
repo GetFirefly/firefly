@@ -18,7 +18,7 @@ pub fn place_frame_with_arguments(
     output: Term,
 ) -> Result<(), Alloc> {
     assert!(n.is_integer());
-    assert!(output.is_function(), "{:?} is not a function", output);
+    assert!(output.is_boxed_function(), "{:?} is not a function", output);
 
     process.stack_push(output)?;
     process.stack_push(n)?;

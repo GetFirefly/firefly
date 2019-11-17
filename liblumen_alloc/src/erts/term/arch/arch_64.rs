@@ -428,7 +428,14 @@ impl Encoded for RawTerm {
 
     #[inline]
     fn is_none(self) -> bool {
-        self.0 == NONE
+        if self.0 == NONE {
+            return true;
+        }
+        // Check for null pointers
+        match self.0 & MASK_PRIMARY {
+            FLAG_LITERAL | FLAG_BOXED | FLAG_LIST => self.0 & !MASK_PRIMARY == NONE,
+            _ => false,
+        }
     }
 
     #[inline]

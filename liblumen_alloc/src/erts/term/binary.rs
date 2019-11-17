@@ -9,6 +9,7 @@ mod primitives;
 mod process;
 mod sub;
 
+use core::fmt;
 use core::str::Utf8Error;
 
 use thiserror::Error;
@@ -139,7 +140,7 @@ pub trait IndexByte {
 ///   collected/freed
 /// - The size in bytes of binary data, which is used to reify fat pointers to the underlying slice
 ///   of bytes
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct BinaryFlags(usize);
 impl BinaryFlags {
@@ -252,6 +253,16 @@ impl BinaryFlags {
         let size = (self.0 >> Self::FLAG_BITS) as u32;
         let flags = (self.0 & !Self::BIN_TYPE_MASK) as u32;
         (size << (Self::FLAG_BITS as u32)) | flags
+    }
+}
+impl fmt::Debug for BinaryFlags {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BinaryFlags")
+            .field("raw", &format_args!("{:b}", self.0))
+            .field("encoding", &format_args!("{}", self.as_encoding()))
+            .field("size", &self.get_size())
+            .field("is_literal", &self.is_literal())
+            .finish()
     }
 }
 

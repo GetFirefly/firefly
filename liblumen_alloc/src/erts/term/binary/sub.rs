@@ -1,5 +1,6 @@
 use core::alloc::Layout;
 use core::convert::TryFrom;
+use core::fmt;
 use core::ptr;
 use core::slice;
 
@@ -15,7 +16,7 @@ use crate::erts::term::prelude::*;
 use super::prelude::{bit_offset, byte_offset};
 
 /// A slice of a binary
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct SubBinary {
     header: Header<SubBinary>,
@@ -33,6 +34,21 @@ pub struct SubBinary {
     original: Term,
 }
 impl_static_header!(SubBinary, Term::HEADER_SUBBINARY);
+impl fmt::Debug for SubBinary {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("SubBinary")
+            .field("header", &self.header)
+            .field("byte_offset", &self.byte_offset)
+            .field("bit_offset", &self.bit_offset)
+            .field("full_byte_len", &self.full_byte_len)
+            .field("partial_byte_bit_len", &self.partial_byte_bit_len)
+            .field("writable", &self.writable)
+            .field("is_binary", &self.is_binary())
+            .field("is_aligned", &self.is_aligned())
+            .field("original", &self.original)
+            .finish()
+    }
+}
 impl SubBinary {
     /// See erts_bs_get_binary_2 in erl_bits.c:460
     #[inline]

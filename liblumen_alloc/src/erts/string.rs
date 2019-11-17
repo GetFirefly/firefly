@@ -31,6 +31,15 @@ impl Encoding {
         }
     }
 }
+impl fmt::Display for Encoding {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Raw => f.write_str("raw"),
+            Self::Latin1 => f.write_str("latin1"),
+            Self::Utf8 => f.write_str("utf8"),
+        }
+    }
+}
 // Support converting from atom terms to `Encoding` type
 impl TryFrom<Term> for Encoding {
     type Error = InvalidEncodingNameError;

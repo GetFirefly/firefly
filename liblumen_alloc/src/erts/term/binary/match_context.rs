@@ -1,5 +1,6 @@
 use core::alloc::Layout;
 use core::convert::TryFrom;
+use core::fmt;
 use core::ptr;
 use core::slice;
 
@@ -83,13 +84,24 @@ impl MatchBuffer {
 /// Used in match contexts
 ///
 /// See `ErlBinMatchState` and `ErlBinMatchBuffer` in `erl_bits.h`
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct MatchContext {
     header: Header<MatchContext>,
     pub(super) buffer: MatchBuffer,
     // Saved offsets for contexts created via `bs_start_match2`
     save_offset: Option<usize>,
+}
+impl fmt::Debug for MatchContext {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("MatchContext")
+            .field("header", &self.header)
+            .field("is_binary", &self.is_binary())
+            .field("is_aligned", &self.is_aligned())
+            .field("buffer", &self.buffer)
+            .field("save_offset", &self.save_offset)
+            .finish()
+    }
 }
 impl MatchContext {
     /// Create a new MatchContext from a boxed procbin/heapbin/sub-bin

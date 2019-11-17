@@ -50,11 +50,9 @@ pub trait CloneToProcess: Debug {
     ///
     /// If unable to allocate a heap fragment that fits this value, `Err(Alloc)` is returned
     fn clone_to_fragment(&self) -> AllocResult<(Term, NonNull<HeapFragment>)> {
-        dbg!(self);
         let size = self.size_in_words() * mem::size_of::<Term>();
         let align = mem::align_of_val(self);
         let layout = Layout::from_size_align(size, align).unwrap();
-        dbg!(&layout);
         let mut frag = HeapFragment::new(layout)?;
         let frag_ref = unsafe { frag.as_mut() };
         let term = self.clone_to_heap(frag_ref)?;

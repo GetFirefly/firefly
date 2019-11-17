@@ -769,8 +769,6 @@ impl PartialOrd<RawTerm> for RawTerm {
     fn partial_cmp(&self, other: &RawTerm) -> Option<core::cmp::Ordering> {
         if let Ok(ref lhs) = self.decode() {
             if let Ok(ref rhs) = other.decode() {
-                dbg!(lhs);
-                dbg!(rhs);
                 return lhs.partial_cmp(rhs);
             }
         }

@@ -230,7 +230,6 @@ impl CloneToProcess for Tuple {
     where
         A: ?Sized + TermAlloc,
     {
-        dbg!(self);
         Tuple::from_slice(heap, &self.elements).map(|nn| nn.into())
     }
 
@@ -239,7 +238,6 @@ impl CloneToProcess for Tuple {
         for element in &self.elements {
             size += element.size_in_words()
         }
-        dbg!(size);
         size
     }
 }

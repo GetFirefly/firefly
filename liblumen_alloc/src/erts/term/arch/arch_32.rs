@@ -321,7 +321,7 @@ impl_literal!(BinaryLiteral, RawTerm);
 impl Cast<*mut RawTerm> for RawTerm {
     #[inline]
     default fn dyn_cast(self) -> *mut RawTerm {
-        assert!(self.is_boxed() || self.is_literal() || self.is_list());
+        assert!(self.is_boxed() || self.is_literal() || self.is_non_empty_list());
         unsafe { self.decode_box() }
     }
 }
@@ -332,7 +332,7 @@ where
 {
     #[inline]
     default fn dyn_cast(self) -> Boxed<T> {
-        assert!(self.is_boxed() || self.is_literal() || self.is_list());
+        assert!(self.is_boxed() || self.is_literal() || self.is_non_empty_list());
         Boxed::new(unsafe { self.decode_box() as *mut T }).unwrap()
     }
 }
@@ -351,7 +351,7 @@ where
 impl Cast<*mut Cons> for RawTerm {
     #[inline]
     fn dyn_cast(self) -> *mut Cons {
-        assert!(self.is_list());
+        assert!(self.is_non_empty_list());
         unsafe { self.decode_box() as *mut Cons }
     }
 }
@@ -359,7 +359,7 @@ impl Cast<*mut Cons> for RawTerm {
 impl Cast<*const RawTerm> for RawTerm {
     #[inline]
     default fn dyn_cast(self) -> *const RawTerm {
-        assert!(self.is_boxed() || self.is_literal() || self.is_list());
+        assert!(self.is_boxed() || self.is_literal() || self.is_non_empty_list());
         unsafe { self.decode_box() as *const RawTerm }
     }
 }
@@ -378,7 +378,7 @@ where
 impl Cast<*const Cons> for RawTerm {
     #[inline]
     fn dyn_cast(self) -> *const Cons {
-        assert!(self.is_list());
+        assert!(self.is_non_empty_list());
         unsafe { self.decode_box() as *const Cons }
     }
 }
@@ -899,7 +899,7 @@ pub mod tests {
         let list = cons!(heap, fixnum!(1), fixnum!(2));
         let list_term: RawTerm = list.encode().unwrap();
         assert!(!list_term.is_boxed());
-        assert!(list_term.is_list());
+        assert!(list_term.is_non_empty_list());
         assert_eq!(list_term.type_of(), Tag::List);
 
         let unboxed: *const RawTerm = list_term.dyn_cast();

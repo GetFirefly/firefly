@@ -45,6 +45,13 @@ impl CloneToProcess for AnyPid {
             AnyPid::External(pid) => pid.clone_to_heap(heap),
         }
     }
+
+    fn size_in_words(&self) -> usize {
+        match self {
+            AnyPid::Local(_pid) => 1,
+            AnyPid::External(pid) => pid.size_in_words(),
+        }
+    }
 }
 impl TryFrom<TypedTerm> for AnyPid {
     type Error = TypeError;
@@ -246,6 +253,10 @@ impl CloneToProcess for ExternalPid {
 
             Ok(ptr.into())
         }
+    }
+
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
     }
 }
 

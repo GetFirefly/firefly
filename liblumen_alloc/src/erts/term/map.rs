@@ -54,8 +54,6 @@ impl Map {
                                 map.insert(tuple[0], tuple[1]);
                                 continue;
                             }
-                        } else {
-                            continue;
                         }
                     }
 
@@ -191,6 +189,10 @@ impl crate::borrow::CloneToProcess for Map {
         mem::forget(heap_self);
 
         Ok((ptr as *mut Self).into())
+    }
+
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
     }
 }
 

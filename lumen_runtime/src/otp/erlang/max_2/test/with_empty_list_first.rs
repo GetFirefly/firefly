@@ -10,7 +10,7 @@ fn without_non_empty_list_or_bitstring_second_returns_firsts() {
             .run(
                 &strategy::term(arc_process.clone())
                     .prop_filter("Second cannot be a list or bitstring", |second| {
-                        !(second.is_list() || second.is_bitstring())
+                        !(second.is_non_empty_list() || second.is_bitstring())
                     }),
                 |second| {
                     let first = Term::NIL;

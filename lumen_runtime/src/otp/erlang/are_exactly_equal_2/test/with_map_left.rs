@@ -50,17 +50,16 @@ fn with_same_value_map_right_returns_true() {
                     strategy::size_range(),
                 )
                 .prop_map(move |mut hash_map| {
-                    let mut heap = arc_process.acquire_heap();
                     let entry_vec: Vec<(Term, Term)> = hash_map.drain().collect();
 
                     (
-                        heap.map_from_slice(&entry_vec).unwrap(),
-                        heap.map_from_slice(&entry_vec).unwrap(),
+                        arc_process.map_from_slice(&entry_vec).unwrap(),
+                        arc_process.map_from_slice(&entry_vec).unwrap(),
                     )
                 })
             }),
             |(left, right)| {
-                prop_assert_eq!(native(left.into(), right.into()), true.into());
+                prop_assert_eq!(native(left, right), true.into());
 
                 Ok(())
             },

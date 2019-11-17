@@ -72,6 +72,10 @@ impl CloneToProcess for Reference {
             Ok(ptr.into())
         }
     }
+
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
+    }
 }
 impl Display for Reference {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -158,6 +162,10 @@ impl CloneToProcess for ExternalReference {
         A: ?Sized + TermAlloc,
     {
         unimplemented!()
+    }
+
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
     }
 }
 

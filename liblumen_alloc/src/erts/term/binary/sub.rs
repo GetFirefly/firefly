@@ -1,6 +1,5 @@
 use core::alloc::Layout;
 use core::convert::TryFrom;
-use core::mem;
 use core::ptr;
 use core::slice;
 
@@ -282,7 +281,7 @@ impl CloneToProcess for SubBinary {
 
     fn size_in_words(&self) -> usize {
         // Worst-case size if original also needs to be cloned
-        erts::to_word_size(mem::size_of::<Self>() + self.original.sizeof())
+        erts::to_word_size(Layout::for_value(self).size()) + self.original.size_in_words()
     }
 }
 

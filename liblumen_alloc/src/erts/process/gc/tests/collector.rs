@@ -191,7 +191,7 @@ fn simple_gc_test(process: Process) {
     assert_eq!("goodbye!", greeting_str.as_str());
 
     let list_root = roots[1];
-    assert!(list_root.is_list());
+    assert!(list_root.is_non_empty_list());
     let new_list_ptr: *const Cons = list_root.follow_moved().dyn_cast();
     assert_ne!(new_list_ptr, list_ptr);
     // Assert that we can still access list elements
@@ -199,7 +199,7 @@ fn simple_gc_test(process: Process) {
     // The first value should be the integer
     assert!(new_list.head.is_smallint());
     // The tail should be another cons cell
-    assert!(new_list.tail.is_list());
+    assert!(new_list.tail.is_non_empty_list());
     let new_list_tail: Boxed<Cons> = new_list.tail.try_into().unwrap();
     // The last value should be a heapbin
     assert!(new_list_tail.head.is_boxed());
@@ -256,9 +256,8 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
         .finish()
         .unwrap();
     let list_term: Term = list.encode().unwrap();
-    assert!(list_term.is_list());
+    assert!(list_term.is_non_empty_list());
     // Verify the resulting list is valid
-    assert!(list_term.is_list());
     let cons_ptr: *const Cons = list_term.dyn_cast();
     let cons = unsafe { &*cons_ptr };
     let mut cons_iter = cons.into_iter();
@@ -366,7 +365,7 @@ fn tenuring_gc_test(process: Process, _perform_fullsweep: bool) {
         .unwrap();
     let second_list_term: Term = second_list.encode().unwrap();
     let second_list_ptr: *const Cons = second_list_term.dyn_cast();
-    assert!(list_term.is_list());
+    assert!(list_term.is_non_empty_list());
     let second_list = unsafe { &*second_list_ptr };
     let mut list_iter = second_list.into_iter();
     let l0 = list_iter.next().unwrap().unwrap();

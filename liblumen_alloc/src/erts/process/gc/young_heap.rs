@@ -632,11 +632,11 @@ mod tests {
         let list_size =
             erts::to_word_size((mem::size_of::<Cons>() * 2) + string_term_size + string_len);
         assert_eq!(yh.heap_used(), list_size);
-        assert!(list_term.is_list());
+        assert!(list_term.is_non_empty_list());
         let list_ptr: *mut Cons = list_term.dyn_cast();
         let first_cell = unsafe { &*list_ptr };
         assert!(first_cell.head.is_smallint());
-        assert!(first_cell.tail.is_list());
+        assert!(first_cell.tail.is_non_empty_list());
         let tail_ptr: *mut Cons = first_cell.tail.dyn_cast();
         let second_cell = unsafe { &*tail_ptr };
         assert!(second_cell.head.is_boxed());

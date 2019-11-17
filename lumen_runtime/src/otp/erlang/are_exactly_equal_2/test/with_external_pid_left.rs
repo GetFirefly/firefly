@@ -51,15 +51,15 @@ fn with_same_value_external_pid_right_returns_true() {
                     strategy::term::pid::serial(),
                 )
                     .prop_map(|(arc_node, number, serial)| {
-                        let mut heap = arc_process.acquire_heap();
-
                         (
-                            heap.external_pid(arc_node.clone(), number, serial).unwrap(),
-                            heap.external_pid(arc_node, number, serial).unwrap(),
+                            arc_process
+                                .external_pid(arc_node.clone(), number, serial)
+                                .unwrap(),
+                            arc_process.external_pid(arc_node, number, serial).unwrap(),
                         )
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left.into(), right.into()), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },

@@ -127,30 +127,30 @@ fn with_same_value_subbinary_right_returns_true() {
                     })
                     .prop_map(
                         move |(byte_offset, bit_offset, byte_count, bit_count, original)| {
-                            let mut heap = subbinary_arc_process.acquire_heap();
-
                             (
-                                heap.subbinary_from_original(
-                                    original,
-                                    byte_offset,
-                                    bit_offset,
-                                    byte_count,
-                                    bit_count,
-                                )
-                                .unwrap(),
-                                heap.subbinary_from_original(
-                                    original,
-                                    byte_offset,
-                                    bit_offset,
-                                    byte_count,
-                                    bit_count,
-                                )
-                                .unwrap(),
+                                subbinary_arc_process
+                                    .subbinary_from_original(
+                                        original,
+                                        byte_offset,
+                                        bit_offset,
+                                        byte_count,
+                                        bit_count,
+                                    )
+                                    .unwrap(),
+                                subbinary_arc_process
+                                    .subbinary_from_original(
+                                        original,
+                                        byte_offset,
+                                        bit_offset,
+                                        byte_count,
+                                        bit_count,
+                                    )
+                                    .unwrap(),
                             )
                         },
                     ),
                 |(left, right)| {
-                    prop_assert_eq!(native(left.into(), right.into()), true.into());
+                    prop_assert_eq!(native(left, right), true.into());
 
                     Ok(())
                 },

@@ -203,7 +203,7 @@ impl CloneToProcess for HeapBin {
     }
 
     fn size_in_words(&self) -> usize {
-        self.header.arity()
+        crate::erts::to_word_size(Layout::for_value(self).size())
     }
 }
 

@@ -20,8 +20,8 @@ pub struct Float(f64);
 
 impl Float {
     #[inline(always)]
-    pub const fn new(value: f64) -> Self {
-        Self(value)
+    pub fn new(value: f64) -> Self {
+        Self(Self::clamp_value(value))
     }
 
     #[inline]
@@ -54,6 +54,11 @@ impl CloneToProcess for Float {
         A: ?Sized + TermAlloc,
     {
         Ok(self.encode().unwrap())
+    }
+
+    #[inline(always)]
+    fn size_in_words(&self) -> usize {
+        1
     }
 }
 

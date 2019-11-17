@@ -12,7 +12,7 @@ use liblumen_core::cmp::ExactEq;
 use crate::borrow::CloneToProcess;
 use crate::erts::alloc::TermAlloc;
 use crate::erts::exception::{AllocResult, Exception};
-use crate::erts::{self, Process};
+use crate::erts::Process;
 
 use super::prelude::*;
 
@@ -158,7 +158,7 @@ impl TypedTerm {
         if let &Self::List(cons) = self {
             cons.is_proper()
         } else {
-            false
+            self.is_nil()
         }
     }
 
@@ -709,7 +709,32 @@ impl CloneToProcess for TypedTerm {
     }
 
     fn size_in_words(&self) -> usize {
-        erts::to_word_size(self.sizeof())
+        use TypedTerm::*;
+        // Immediates are just copied and returned, all other terms
+        // are expected to require allocation, so we delegate to those types
+        match self {
+            &Atom(_term) => 1,
+            &Pid(_term) => 1,
+            &Port(_term) => 1,
+            &SmallInteger(_term) => 1,
+            &Float(ref term) => term.size_in_words(),
+            &List(term_ptr) => term_ptr.size_in_words(),
+            &Map(term_ptr) => term_ptr.size_in_words(),
+            &Reference(term_ptr) => term_ptr.size_in_words(),
+            &ExternalPid(term_ptr) => term_ptr.size_in_words(),
+            &ExternalPort(term_ptr) => term_ptr.size_in_words(),
+            &ExternalReference(term_ptr) => term_ptr.size_in_words(),
+            &ResourceReference(term_ptr) => term_ptr.size_in_words(),
+            &MatchContext(term_ptr) => term_ptr.size_in_words(),
+            &BinaryLiteral(term_ptr) => term_ptr.size_in_words(),
+            &SubBinary(term_ptr) => term_ptr.size_in_words(),
+            &ProcBin(term_ptr) => term_ptr.size_in_words(),
+            &BigInteger(term_ptr) => term_ptr.size_in_words(),
+            &Tuple(term_ptr) => term_ptr.size_in_words(),
+            &Closure(term_ptr) => term_ptr.size_in_words(),
+            &HeapBinary(term_ptr) => term_ptr.size_in_words(),
+            &Nil => 1,
+        }
     }
 }
 

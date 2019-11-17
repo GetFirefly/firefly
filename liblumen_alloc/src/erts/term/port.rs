@@ -1,3 +1,4 @@
+use core::alloc::Layout;
 use core::cmp;
 use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display};
@@ -94,6 +95,10 @@ impl CloneToProcess for ExternalPort {
         A: ?Sized + TermAlloc,
     {
         unimplemented!()
+    }
+
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
     }
 }
 

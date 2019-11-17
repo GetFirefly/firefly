@@ -55,9 +55,7 @@ fn with_longer_heap_binary_with_lesser_byte_right_returns_false() {
 fn with_same_value_heap_binary_right_returns_true() {
     super::is_equal_or_less_than(
         |process| {
-            let mut heap = process.acquire_heap();
-
-            let original = heap.binary_from_bytes(&[1]).unwrap();
+            let original = process.binary_from_bytes(&[1]).unwrap();
 
             process
                 .subbinary_from_original(original, 0, 0, 1, 0)
@@ -93,9 +91,7 @@ fn with_heap_binary_with_greater_byte_than_bits_right_returns_true() {
 fn with_prefix_subbinary_right_returns_false() {
     is_equal_or_less_than(
         |_, process| {
-            let mut heap = process.acquire_heap();
-
-            let original = heap.binary_from_bytes(&[1]).unwrap();
+            let original = process.binary_from_bytes(&[1]).unwrap();
 
             process
                 .subbinary_from_original(original, 0, 0, 1, 0)
@@ -109,8 +105,7 @@ fn with_prefix_subbinary_right_returns_false() {
 fn with_same_length_subbinary_with_lesser_byte_right_returns_false() {
     is_equal_or_less_than(
         |_, process| {
-            let mut heap = process.acquire_heap();
-            let original = heap.binary_from_bytes(&[0, 1]).unwrap();
+            let original = process.binary_from_bytes(&[0, 1]).unwrap();
 
             process
                 .subbinary_from_original(original, 0, 0, 2, 0)
@@ -134,8 +129,7 @@ fn with_same_value_subbinary_right_returns_true() {
 fn with_shorter_subbinary_with_greater_byte_right_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            let mut heap = process.acquire_heap();
-            let original = heap.binary_from_bytes(&[2]).unwrap();
+            let original = process.binary_from_bytes(&[2]).unwrap();
 
             process
                 .subbinary_from_original(original, 0, 0, 1, 0)
@@ -149,8 +143,7 @@ fn with_shorter_subbinary_with_greater_byte_right_returns_true() {
 fn with_subbinary_with_greater_byte_right_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            let mut heap = process.acquire_heap();
-            let original = heap.binary_from_bytes(&[2, 1]).unwrap();
+            let original = process.binary_from_bytes(&[2, 1]).unwrap();
 
             process
                 .subbinary_from_original(original, 0, 0, 2, 0)
@@ -164,8 +157,7 @@ fn with_subbinary_with_greater_byte_right_returns_true() {
 fn with_subbinary_with_different_greater_byte_right_returns_true() {
     is_equal_or_less_than(
         |_, process| {
-            let mut heap = process.acquire_heap();
-            let original = heap.binary_from_bytes(&[1, 2]).unwrap();
+            let original = process.binary_from_bytes(&[1, 2]).unwrap();
 
             process
                 .subbinary_from_original(original, 0, 0, 2, 0)

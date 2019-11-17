@@ -10,7 +10,7 @@ use std::convert::TryInto;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::index::ZeroBasedIndex;
+use liblumen_alloc::erts::term::index::OneBasedIndex;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
@@ -19,7 +19,7 @@ use lumen_runtime_macros::native_implemented_function;
 #[native_implemented_function(delete_element/2)]
 pub fn native(process: &Process, index: Term, tuple: Term) -> exception::Result<Term> {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let index_zero_based: ZeroBasedIndex = index.try_into()?;
+    let index_zero_based: OneBasedIndex = index.try_into()?;
     let initial_len = initial_inner_tuple.len();
 
     if index_zero_based < initial_len {

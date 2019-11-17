@@ -163,7 +163,7 @@ impl Cons {
                 if let Ok(tuple) = tuple_item {
                     if let Ok(candidate) = tuple.get_element(index) {
                         if candidate == key {
-                            return Ok(Some(candidate));
+                            return Ok(Some(item));
                         }
                     }
                 }

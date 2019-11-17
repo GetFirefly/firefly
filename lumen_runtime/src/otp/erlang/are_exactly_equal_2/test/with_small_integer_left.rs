@@ -44,9 +44,10 @@ fn with_same_value_small_integer_right_returns_true() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
-                    let mut heap = arc_process.acquire_heap();
-
-                    (heap.integer(i).unwrap(), heap.integer(i).unwrap())
+                    (
+                        arc_process.integer(i).unwrap(),
+                        arc_process.integer(i).unwrap(),
+                    )
                 }),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), true.into());
@@ -64,9 +65,10 @@ fn with_different_small_integer_right_returns_false() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(SmallInteger::MIN_VALUE..SmallInteger::MAX_VALUE).prop_map(move |i| {
-                    let mut heap = arc_process.acquire_heap();
-
-                    (heap.integer(i).unwrap(), heap.integer(i + 1).unwrap())
+                    (
+                        arc_process.integer(i).unwrap(),
+                        arc_process.integer(i + 1).unwrap(),
+                    )
                 }),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), false.into());

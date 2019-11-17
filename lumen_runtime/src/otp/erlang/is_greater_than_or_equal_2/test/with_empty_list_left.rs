@@ -10,7 +10,7 @@ fn without_non_empty_list_or_bitstring_returns_true() {
             .run(
                 &strategy::term(arc_process.clone())
                     .prop_filter("Right cannot be a list or bitstring", |right| {
-                        !(right.is_list() || right.is_bitstring())
+                        !(right.is_non_empty_list() || right.is_bitstring())
                     }),
                 |right| {
                     let left = Term::NIL;

@@ -3,12 +3,14 @@ use core::convert::TryInto;
 use core::fmt::{self, Debug};
 use core::marker::PhantomData;
 use core::mem;
+use core::ptr::NonNull;
 
 use hashbrown::HashMap;
 use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{AllocResult, Result};
+use crate::erts::fragment::HeapFragment;
 use crate::erts::process::alloc::TermAlloc;
 
 use super::arch::{Repr, Word};
@@ -673,7 +675,13 @@ impl CloneToProcess for Term {
         }
     }
 
+    fn clone_to_fragment(&self) -> AllocResult<(Term, NonNull<HeapFragment>)> {
+        let tt = self.decode().unwrap();
+        tt.clone_to_fragment()
+    }
+
     fn size_in_words(&self) -> usize {
-        self.sizeof()
+        let tt = self.decode().unwrap();
+        tt.size_in_words()
     }
 }

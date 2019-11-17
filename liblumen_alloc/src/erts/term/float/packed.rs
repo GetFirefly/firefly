@@ -68,6 +68,10 @@ impl CloneToProcess for Float {
             Ok(ptr.into())
         }
     }
+
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
+    }
 }
 
 impl TryFrom<TypedTerm> for Boxed<Float> {

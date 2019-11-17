@@ -393,7 +393,11 @@ impl CloneToProcess for Closure {
     }
 
     fn size_in_words(&self) -> usize {
-        erts::to_word_size(Layout::for_value(self).size())
+        let mut size = erts::to_word_size(Layout::for_value(self).size());
+        for element in &self.env {
+            size += element.size_in_words()
+        }
+        size
     }
 }
 

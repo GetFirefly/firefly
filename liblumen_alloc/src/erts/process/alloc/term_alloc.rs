@@ -202,7 +202,7 @@ pub trait TermAlloc: Heap {
             if last.is_nil() {
                 // Empty list, no elements
                 return Ok(None);
-            } else if last.is_list() {
+            } else if last.is_non_empty_list() {
                 // We were given a cons cell as the last element,
                 // so just return that
                 let tail: Boxed<Cons> = last.dyn_cast();

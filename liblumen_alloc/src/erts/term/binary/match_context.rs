@@ -320,6 +320,11 @@ impl CloneToProcess for MatchContext {
             t => panic!("expected binary term, but got {:?}", t),
         }
     }
+
+    fn size_in_words(&self) -> usize {
+        let size = crate::erts::to_word_size(Layout::for_value(self).size());
+        size + self.buffer.original.size_in_words()
+    }
 }
 
 impl Eq for MatchContext {}

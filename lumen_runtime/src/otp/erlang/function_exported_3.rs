@@ -15,7 +15,7 @@
 //! or directly registering the `code` function like
 //!
 //! ```
-//! # use liblumen_alloc::erts::term::Atom;
+//! # use liblumen_alloc::erts::term::prelude::Atom;
 //! let module = Atom::try_from_str("erlang").unwrap();
 //! let function = Atom::try_from_str("self").unwrap();
 //! let arity = 0;

@@ -324,6 +324,9 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
             TypedTerm::HeapBinary(heap_bin) => {
                 push_tag(&mut byte_vec, Tag::Binary);
 
+                let len_usize = heap_bin.full_byte_len();
+                append_usize_as_u32(&mut byte_vec, len_usize);
+
                 byte_vec.extend_from_slice(heap_bin.as_bytes());
             }
             TypedTerm::MatchContext(match_context) => {
@@ -381,9 +384,6 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
                     }
                 } else {
                     push_tag(&mut byte_vec, Tag::BitBinary);
-
-                    let len_usize = subbinary.total_byte_len();
-                    append_usize_as_u32(&mut byte_vec, len_usize);
 
                     let len_usize = subbinary.total_byte_len();
                     append_usize_as_u32(&mut byte_vec, len_usize);

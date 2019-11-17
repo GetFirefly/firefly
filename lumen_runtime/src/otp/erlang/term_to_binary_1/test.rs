@@ -115,12 +115,11 @@ fn with_subbinary_without_binary_with_aligned_returns_bit_binary_ext() {
             .unwrap();
         let subbinary = process.subbinary_from_original(binary, 0, 0, 1, 1).unwrap();
 
-        assert_eq!(
-            native(process, subbinary),
-            Ok(process
-                .binary_from_bytes(&[131, 77, 0, 0, 0, 2, 1, 0b1010_1010, 0b1000_0000])
-                .unwrap())
-        );
+        let expected = process
+            .binary_from_bytes(&[131, 77, 0, 0, 0, 2, 1, 0b1010_1010, 0b1000_0000])
+            .unwrap();
+
+        assert_eq!(native(process, subbinary), Ok(expected));
     });
 }
 

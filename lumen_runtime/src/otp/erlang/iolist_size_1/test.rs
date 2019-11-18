@@ -1,6 +1,7 @@
 use crate::otp;
 use crate::scheduler::with_process;
 use liblumen_alloc::badarg;
+use liblumen_alloc::erts::term::atom_unchecked;
 
 // > iolist_size([1,2|<<3,4>>]).
 // 4
@@ -119,6 +120,22 @@ fn with_improper_list_smallint_tail_errors_badarg() {
           process.binary_from_bytes(&[1, 2, 3]).unwrap(),
           ],
           process.integer(42).unwrap()
+        ).unwrap();
+
+        assert_eq!(
+            otp::erlang::iolist_size_1::native(process, iolist),
+            Err(badarg!().into())
+        )
+    });
+}
+
+// List elements must be smallint, binary, or lists thereof
+#[test]
+fn with_atom_in_iolist_errors_badarg() {
+    with_process(|process| {
+        let iolist = process.list_from_slice(&[
+          atom_unchecked("foo")
+          ],
         ).unwrap();
 
         assert_eq!(

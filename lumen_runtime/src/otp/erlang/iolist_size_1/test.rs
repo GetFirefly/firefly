@@ -1,5 +1,6 @@
 use crate::otp;
 use crate::scheduler::with_process;
+use liblumen_alloc::badarg;
 
 // > iolist_size([1,2|<<3,4>>]).
 // 4
@@ -68,6 +69,61 @@ fn with_binary_returns_size() {
         assert_eq!(
             otp::erlang::iolist_size_1::native(process, bin),
             Ok(process.integer(3).unwrap())
+        )
+    });
+}
+
+#[test]
+fn with_subbinary_in_list_returns_size() {
+    with_process(|process| {
+        let iolist = process.list_from_slice(&[
+          process.subbinary_from_original(
+            process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
+            1,
+            0,
+            3,
+            0
+            ).unwrap()
+          ]
+        ).unwrap();
+
+        assert_eq!(
+            otp::erlang::iolist_size_1::native(process, iolist),
+            Ok(process.integer(3).unwrap())
+        )
+    });
+}
+
+#[test]
+fn with_subbinary_returns_size() {
+    with_process(|process| {
+        let iolist = process.subbinary_from_original(
+          process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
+          1,
+          0,
+          3,
+          0
+        ).unwrap();
+
+        assert_eq!(
+            otp::erlang::iolist_size_1::native(process, iolist),
+            Ok(process.integer(3).unwrap())
+        )
+    });
+}
+
+#[test]
+fn with_improper_list_smallint_tail_errors_badarg() {
+    with_process(|process| {
+        let iolist = process.improper_list_from_slice(&[
+          process.binary_from_bytes(&[1, 2, 3]).unwrap(),
+          ],
+          process.integer(42).unwrap()
+        ).unwrap();
+
+        assert_eq!(
+            otp::erlang::iolist_size_1::native(process, iolist),
+            Err(badarg!().into())
         )
     });
 }

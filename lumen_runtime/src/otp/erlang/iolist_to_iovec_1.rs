@@ -21,26 +21,26 @@ pub fn native(process: &Process, iolist_or_binary: Term) -> exception::Result {
     } else {
         match iolist_or_binary.to_typed_term().unwrap() {
             TypedTerm::List(boxed_cons) => {
-              let mut binaries: Vec<Term> = Vec::new();
-              
-              for item in boxed_cons.into_iter() {
-                let term: Term = match item {
-                    Ok(term) => term,
-                    _ => return Err(badarg!().into())
-                };
+                let mut binaries: Vec<Term> = Vec::new();
 
-                if term.is_binary() {
-                    binaries.push(term);
-                } else {
-                  match otp::erlang::list_to_binary_1::native(process, term) {
-                      Ok(term) => binaries.push(term),
-                      _ => return Err(badarg!().into())
-                  }
+                for item in boxed_cons.into_iter() {
+                    let term: Term = match item {
+                        Ok(term) => term,
+                        _ => return Err(badarg!().into()),
+                    };
+
+                    if term.is_binary() {
+                        binaries.push(term);
+                    } else {
+                        match otp::erlang::list_to_binary_1::native(process, term) {
+                            Ok(term) => binaries.push(term),
+                            _ => return Err(badarg!().into()),
+                        }
+                    }
                 }
-              }
 
-              binaries 
-            },
+                binaries
+            }
             _ => return Err(badarg!().into()),
         }
     };

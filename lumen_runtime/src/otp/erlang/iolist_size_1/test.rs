@@ -77,16 +77,17 @@ fn with_binary_returns_size() {
 #[test]
 fn with_subbinary_in_list_returns_size() {
     with_process(|process| {
-        let iolist = process.list_from_slice(&[
-          process.subbinary_from_original(
-            process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
-            1,
-            0,
-            3,
-            0
-            ).unwrap()
-          ]
-        ).unwrap();
+        let iolist = process
+            .list_from_slice(&[process
+                .subbinary_from_original(
+                    process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
+                    1,
+                    0,
+                    3,
+                    0,
+                )
+                .unwrap()])
+            .unwrap();
 
         assert_eq!(
             otp::erlang::iolist_size_1::native(process, iolist),
@@ -98,13 +99,15 @@ fn with_subbinary_in_list_returns_size() {
 #[test]
 fn with_subbinary_returns_size() {
     with_process(|process| {
-        let iolist = process.subbinary_from_original(
-          process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
-          1,
-          0,
-          3,
-          0
-        ).unwrap();
+        let iolist = process
+            .subbinary_from_original(
+                process.binary_from_bytes(&[1, 2, 3, 4, 5]).unwrap(),
+                1,
+                0,
+                3,
+                0,
+            )
+            .unwrap();
 
         assert_eq!(
             otp::erlang::iolist_size_1::native(process, iolist),
@@ -116,11 +119,12 @@ fn with_subbinary_returns_size() {
 #[test]
 fn with_improper_list_smallint_tail_errors_badarg() {
     with_process(|process| {
-        let iolist = process.improper_list_from_slice(&[
-          process.binary_from_bytes(&[1, 2, 3]).unwrap(),
-          ],
-          process.integer(42).unwrap()
-        ).unwrap();
+        let iolist = process
+            .improper_list_from_slice(
+                &[process.binary_from_bytes(&[1, 2, 3]).unwrap()],
+                process.integer(42).unwrap(),
+            )
+            .unwrap();
 
         assert_eq!(
             otp::erlang::iolist_size_1::native(process, iolist),
@@ -133,10 +137,7 @@ fn with_improper_list_smallint_tail_errors_badarg() {
 #[test]
 fn with_atom_in_iolist_errors_badarg() {
     with_process(|process| {
-        let iolist = process.list_from_slice(&[
-          atom_unchecked("foo")
-          ],
-        ).unwrap();
+        let iolist = process.list_from_slice(&[atom_unchecked("foo")]).unwrap();
 
         assert_eq!(
             otp::erlang::iolist_size_1::native(process, iolist),

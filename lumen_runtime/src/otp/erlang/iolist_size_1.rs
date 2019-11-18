@@ -19,7 +19,7 @@ pub fn native(process: &Process, iolist_or_binary: Term) -> exception::Result {
     let mut stack: Vec<Term> = vec![iolist_or_binary];
     match size(process, &mut stack, 0) {
         Ok(size) => Ok(process.integer(size).unwrap()),
-        Err(bad) => Err(bad)
+        Err(bad) => Err(bad),
     }
 }
 
@@ -48,11 +48,11 @@ fn size(process: &Process, vec: &mut Vec<Term>, acc: usize) -> Result<usize, Exc
 
             TypedTerm::List(boxed_cons) => {
                 if boxed_cons.tail.is_smallint() {
-                  Err(badarg!().into())
+                    Err(badarg!().into())
                 } else {
-                  vec.push(boxed_cons.tail);
-                  vec.push(boxed_cons.head);
-                  size(process, vec, acc)
+                    vec.push(boxed_cons.tail);
+                    vec.push(boxed_cons.head);
+                    size(process, vec, acc)
                 }
             }
 

@@ -17,7 +17,10 @@ use lumen_runtime_macros::native_implemented_function;
 #[native_implemented_function(iolist_size/1)]
 pub fn native(process: &Process, iolist_or_binary: Term) -> exception::Result {
     let mut stack: Vec<Term> = vec![iolist_or_binary];
-    Ok(process.integer(size(process, &mut stack, 0).unwrap())?)
+    match size(process, &mut stack, 0) {
+        Ok(size) => Ok(process.integer(size).unwrap()),
+        Err(bad) => Err(bad)
+    }
 }
 
 fn size(process: &Process, vec: &mut Vec<Term>, acc: usize) -> Result<usize, Exception> {
@@ -44,9 +47,13 @@ fn size(process: &Process, vec: &mut Vec<Term>, acc: usize) -> Result<usize, Exc
             },
 
             TypedTerm::List(boxed_cons) => {
-                vec.push(boxed_cons.tail);
-                vec.push(boxed_cons.head);
-                size(process, vec, acc)
+                if boxed_cons.tail.is_smallint() {
+                  Err(badarg!().into())
+                } else {
+                  vec.push(boxed_cons.tail);
+                  vec.push(boxed_cons.head);
+                  size(process, vec, acc)
+                }
             }
 
             _ => Err(badarg!().into()),

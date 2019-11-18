@@ -8,7 +8,7 @@ fn errors_badarg() {
                 &(milliseconds(), strategy::term(arc_process.clone())),
                 |(milliseconds, message)| {
                     let time = arc_process.integer(milliseconds).unwrap();
-                    let destination = next_pid();
+                    let destination = Pid::next_term();
                     let options = options(&arc_process);
 
                     prop_assert_eq!(

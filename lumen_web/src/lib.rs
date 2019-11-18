@@ -20,10 +20,11 @@ use wasm_bindgen::JsCast;
 
 use web_sys::{DomException, Window};
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::atom;
+use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime::scheduler::Scheduler;
 use lumen_runtime::time::monotonic::time_in_milliseconds;
@@ -64,17 +65,13 @@ fn add_submit_listener(window: &Window) {
     );
 }
 
-fn error() -> Term {
-    atom_unchecked("error")
-}
-
-fn error_tuple(process: &Process, js_value: JsValue) -> Result<Term, Alloc> {
-    let error = error();
+fn error_tuple(process: &Process, js_value: JsValue) -> AllocResult<Term> {
+    let error = atom!("error");
     let dom_exception = js_value.dyn_ref::<DomException>().unwrap();
 
     match dom_exception.name().as_ref() {
         "SyntaxError" => {
-            let tag = atom_unchecked("syntax");
+            let tag = atom!("syntax");
             let message = process.binary_from_str(&dom_exception.message())?;
             let reason = process.tuple_from_slice(&[tag, message])?;
 
@@ -88,12 +85,8 @@ fn error_tuple(process: &Process, js_value: JsValue) -> Result<Term, Alloc> {
     }
 }
 
-fn ok() -> Term {
-    atom_unchecked("ok")
-}
-
-fn ok_tuple(process: &Process, value: Box<dyn Any>) -> Result<Term, Alloc> {
-    let ok = ok();
+fn ok_tuple(process: &Process, value: Box<dyn Any>) -> AllocResult<Term> {
+    let ok = atom!("ok");
     let resource_term = process.resource(value)?;
 
     process.tuple_from_slice(&[ok, resource_term])
@@ -102,10 +95,10 @@ fn ok_tuple(process: &Process, value: Box<dyn Any>) -> Result<Term, Alloc> {
 fn option_to_ok_tuple_or_error<T: 'static>(
     process: &Process,
     option: Option<T>,
-) -> Result<Term, Alloc> {
+) -> AllocResult<Term> {
     match option {
         Some(value) => ok_tuple(process, Box::new(value)),
-        None => Ok(error()),
+        None => Ok(atom!("error")),
     }
 }
 

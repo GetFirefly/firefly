@@ -5,7 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::{Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::{Boxed, Tuple};
 
 use crate::otp::erlang::append_element_2::native;
 use crate::scheduler::with_process_arc;

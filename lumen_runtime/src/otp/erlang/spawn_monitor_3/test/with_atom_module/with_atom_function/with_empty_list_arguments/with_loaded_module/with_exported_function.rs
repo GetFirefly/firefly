@@ -1,7 +1,7 @@
 use super::*;
 
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::term::{Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::test::has_message;
@@ -17,10 +17,10 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
     erlang::self_0::export();
 
     let module_atom = erlang::module();
-    let module = unsafe { module_atom.as_term() };
+    let module: Term = module_atom.encode().unwrap();
 
     let function_atom = erlang::self_0::function();
-    let function = unsafe { function_atom.as_term() };
+    let function: Term = function_atom.encode().unwrap();
 
     let arguments = Term::NIL;
 
@@ -58,7 +58,7 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
     assert_eq!(child_arc_process.code_stack_len(), 0);
     assert_eq!(child_arc_process.current_module_function_arity(), None);
 
-    let reason = atom_unchecked("normal");
+    let reason = atom!("normal");
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
@@ -69,7 +69,7 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
+    let tag = atom!("DOWN");
 
     assert!(has_message(
         &parent_arc_process,
@@ -77,7 +77,7 @@ fn with_arity_when_run_exits_normal_and_sends_exit_message_to_parent() {
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                atom!("process"),
                 child_pid_term,
                 reason
             ])
@@ -93,11 +93,8 @@ fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.as_term() };
-
-    let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let module = atom!("erlang");
+    let function = atom!("+");
 
     // `+` is arity 1, not 0
     let arguments = Term::NIL;
@@ -140,7 +137,7 @@ fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: runtime::Exception =
+            let runtime_undef: RuntimeException =
                 undef!(&child_arc_process, module, function, arguments)
                     .try_into()
                     .unwrap();
@@ -152,9 +149,9 @@ fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
+    let tag = atom!("DOWN");
     let reason = match undef!(&parent_arc_process, module, function, arguments) {
-        Exception::Runtime(runtime_exception) => runtime_exception.reason,
+        Exception::Runtime(runtime_exception) => runtime_exception.reason().unwrap(),
         _ => unreachable!("parent process out-of-memory"),
     };
 
@@ -164,7 +161,7 @@ fn without_arity_when_run_exits_undef_and_send_exit_message_to_parent() {
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                atom!("process"),
                 child_pid_term,
                 reason
             ])

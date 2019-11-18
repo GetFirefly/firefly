@@ -11,7 +11,7 @@ pub mod take_2;
 pub mod update_3;
 pub mod values_1;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 fn module() -> Atom {
     Atom::try_from_str("maps").unwrap()

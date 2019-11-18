@@ -11,7 +11,7 @@ fn without_external_pid_left_returns_false() {
                     strategy::term::pid::external(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Left cannot be an external pid", |left| {
-                            !left.is_external_pid()
+                            !left.is_boxed_remote_pid()
                         }),
                 ),
                 |(left, right)| {
@@ -51,11 +51,11 @@ fn with_same_value_external_pid_right_returns_true() {
                     strategy::term::pid::serial(),
                 )
                     .prop_map(|(arc_node, number, serial)| {
-                        let mut heap = arc_process.acquire_heap();
-
                         (
-                            heap.external_pid(arc_node.clone(), number, serial).unwrap(),
-                            heap.external_pid(arc_node, number, serial).unwrap(),
+                            arc_process
+                                .external_pid(arc_node.clone(), number, serial)
+                                .unwrap(),
+                            arc_process.external_pid(arc_node, number, serial).unwrap(),
                         )
                     }),
                 |(left, right)| {

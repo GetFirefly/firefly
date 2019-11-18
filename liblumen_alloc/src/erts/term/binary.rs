@@ -1,58 +1,274 @@
-pub mod aligned_binary;
+mod aligned_binary;
+mod compare;
 mod heap;
+mod iter;
+mod literal;
 mod match_context;
-pub mod maybe_aligned_maybe_binary;
+mod maybe_aligned_maybe_binary;
+mod primitives;
 mod process;
 mod sub;
 
-use core::mem;
-use core::ptr;
-use core::slice;
+use core::fmt;
+use core::str::Utf8Error;
 
-use crate::borrow::CloneToProcess;
-use crate::erts::term::binary::aligned_binary::AlignedBinary;
-use crate::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use crate::mem::bit_size_of;
+use thiserror::Error;
 
-use super::*;
+use crate::erts::exception::Alloc;
+use crate::erts::string::Encoding;
 
-pub use heap::HeapBin;
-pub use match_context::MatchContext;
-pub use process::ProcBin;
-pub use sub::{Original, SubBinary};
+use super::prelude::Boxed;
 
-struct PartialByteBitIter {
-    byte: u8,
-    current_bit_offset: u8,
-    max_bit_offset: u8,
+// This module provides a limited set of exported types/traits for convenience
+pub mod prelude {
+    // Expose the iterator traits for bytes/bits
+    pub use super::iter::{BitIterator, ByteIterator};
+    // Expose the concrete iterator types for use within the `binary` module only
+    pub(in crate::erts::term) use super::iter::{BitsIter, FullByteIter, PartialByteBitIter};
+    // Expose the various binary/bitstring traits
+    pub use super::aligned_binary::AlignedBinary;
+    pub use super::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
+    pub use super::{Binary, Bitstring, IndexByte, MaybePartialByte};
+    // Expose the type for binary flags
+    pub use super::BinaryFlags;
+    // Expose the concrete binary types
+    pub use super::heap::HeapBin;
+    pub use super::literal::BinaryLiteral;
+    pub use super::match_context::MatchContext;
+    pub use super::process::ProcBin;
+    pub use super::sub::SubBinary;
+    // Expose the error types
+    pub use super::{BytesFromBinaryError, StrFromBinaryError};
+
+    // Expose the low-level binary helpers
+    pub use super::primitives::CopyDirection;
+    pub use super::primitives::{copy_binary_to_buffer, copy_bits};
+
+    // Expose the low-level binary helpers that are restricted to the `binary` module only
+    pub(super) use super::primitives::{bit_offset, byte_offset, num_bytes};
 }
 
-impl PartialByteBitIter {
-    fn new(byte: u8, bit_len: u8) -> Self {
-        Self {
-            byte,
-            current_bit_offset: 0,
-            max_bit_offset: bit_len,
-        }
+/// This trait provides common behavior for all types which represent
+/// binary data, either as a collection of bytes, or a collection of bits.
+///
+/// Bitstrings are strictly a superset of binaries, as binaries are simply
+/// bitstrings which have a number of bits divisible by 8
+pub trait Bitstring {
+    /// The total number of full bytes, not including any final partial byte.
+    fn full_byte_len(&self) -> usize;
+
+    /// Returns a raw pointer to the data underlying this binary
+    ///
+    /// # Safety
+    ///
+    /// Obtaining a raw pointer to the binary data like this is very unsafe,
+    /// and is intended for use cases where low-level access is needed.
+    ///
+    /// Instead, you should prefer the use of `as_bytes`, which is available
+    /// on binary types which implement `AlignedBinary` and which is totally
+    /// safe. For bitstrings specifically, you should use one of the iterators
+    /// supplied by the `iter` module.
+    unsafe fn as_byte_ptr(&self) -> *mut u8;
+}
+
+impl<T: ?Sized + Bitstring> Bitstring for Boxed<T> {
+    #[inline]
+    default fn full_byte_len(&self) -> usize {
+        self.as_ref().full_byte_len()
+    }
+
+    #[inline]
+    default unsafe fn as_byte_ptr(&self) -> *mut u8 {
+        self.as_ref().as_byte_ptr()
     }
 }
 
-impl Iterator for PartialByteBitIter {
-    type Item = u8;
+/// This trait provides common behavior for all binary types which represent a collection of bytes
+pub trait Binary: Bitstring {
+    /// Returns the set of flags that apply to this binary
+    fn flags(&self) -> &BinaryFlags;
 
-    fn next(&mut self) -> Option<u8> {
-        if self.current_bit_offset == self.max_bit_offset {
-            None
-        } else {
-            let bit = (self.byte >> (7 - self.current_bit_offset)) & 0b1;
+    /// Returns true if this binary is a raw binary
+    #[inline]
+    fn is_raw(&self) -> bool {
+        self.flags().is_raw()
+    }
 
-            self.current_bit_offset += 1;
+    /// Returns true if this binary is a Latin-1 binary
+    #[inline]
+    fn is_latin1(&self) -> bool {
+        self.flags().is_latin1()
+    }
 
-            Some(bit)
-        }
+    /// Returns true if this binary is a UTF-8 binary
+    #[inline]
+    fn is_utf8(&self) -> bool {
+        self.flags().is_utf8()
+    }
+
+    /// Returns a `Encoding` representing the encoding type of this binary
+    #[inline]
+    fn encoding(&self) -> Encoding {
+        self.flags().as_encoding()
+    }
+
+    /// Returns the size of just the binary data of this HeapBin in bytes
+    #[inline]
+    fn size(&self) -> usize {
+        self.flags().get_size()
     }
 }
 
+impl<T: ?Sized + Binary> Binary for Boxed<T> {
+    default fn flags(&self) -> &BinaryFlags {
+        self.as_ref().flags()
+    }
+}
+
+/// Implementors of this trait allow indexing their underlying bytes directly.
+///
+/// It is expected that an implementation performs such indexing in constant-time
+pub trait IndexByte {
+    /// Returns the byte found at the given index
+    fn byte(&self, index: usize) -> u8;
+}
+
+/// This struct represents three pieces of information about a binary:
+///
+/// - The type of encoding, i.e. latin1, utf8, or unknown/raw
+/// - Whether the binary data was compiled in as a literal, and so should never be garbage
+///   collected/freed
+/// - The size in bytes of binary data, which is used to reify fat pointers to the underlying slice
+///   of bytes
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct BinaryFlags(usize);
+impl BinaryFlags {
+    // We use the lowest 3 bits to store flags, as this
+    // coincidentally allows us to disambiguate `ProcBin`
+    // and `BinaryLiteral` without having to know the type
+    // in advance. This works because the layouts of both
+    // structs start out structurally identical, but while
+    // the flags field of `BinaryLiteral` is a usize, the
+    // field at that same offset in `ProcBin` is actually
+    // a pointer to its `ProcBinInner` companion type. Since
+    // we know that all pointers have a minimum alignment
+    // of at least 8, the lowest 3 bits are always zero in
+    // `ProcBin`, and non-zero in `BinaryLiteral` and all
+    // other binary types
+    //
+    // Note the order here: we're using a more compressed
+    // format, so rather than 1 bit per flag, we're counting on
+    // the fact that values 1-3 use only the lowest 2 bits,
+    // while value 4 is the only value which uses the 3rd bit.
+    // This means we can distinguish the binary type flags from
+    // the literal flag, allowing a type to have both at the same
+    // time, while allowing us to avoid wasting a bit for values
+    // which are stored in the remaining bits of the flags field
+    const FLAG_BITS: usize = 3;
+    const FLAG_IS_RAW_BIN: usize = 1;
+    const FLAG_IS_LATIN1_BIN: usize = 2;
+    const FLAG_IS_UTF8_BIN: usize = 3;
+    const FLAG_IS_LITERAL: usize = 4;
+    #[allow(unused)]
+    const FLAG_MASK: usize = 0b111;
+    const BIN_TYPE_MASK: usize = 0b011;
+
+    /// Converts an `Encoding` to a raw flags bitset
+    #[inline]
+    pub fn new(encoding: Encoding) -> Self {
+        match encoding {
+            Encoding::Raw => Self(Self::FLAG_IS_RAW_BIN),
+            Encoding::Latin1 => Self(Self::FLAG_IS_LATIN1_BIN),
+            Encoding::Utf8 => Self(Self::FLAG_IS_UTF8_BIN),
+        }
+    }
+
+    /// Converts an `Encoding` to a raw flags bitset for a binary literal
+    #[inline]
+    pub fn new_literal(encoding: Encoding) -> Self {
+        match encoding {
+            Encoding::Raw => Self(Self::FLAG_IS_LITERAL + Self::FLAG_IS_RAW_BIN),
+            Encoding::Latin1 => Self(Self::FLAG_IS_LITERAL + Self::FLAG_IS_LATIN1_BIN),
+            Encoding::Utf8 => Self(Self::FLAG_IS_LITERAL + Self::FLAG_IS_UTF8_BIN),
+        }
+    }
+
+    #[inline]
+    pub fn as_encoding(&self) -> Encoding {
+        match self.0 & Self::BIN_TYPE_MASK {
+            Self::FLAG_IS_RAW_BIN => Encoding::Raw,
+            Self::FLAG_IS_LATIN1_BIN => Encoding::Latin1,
+            Self::FLAG_IS_UTF8_BIN => Encoding::Utf8,
+            value => unreachable!("{}", value),
+        }
+    }
+
+    #[inline]
+    pub fn set_size(self, size: usize) -> Self {
+        assert!(
+            size <= (usize::max_value() << Self::FLAG_BITS),
+            "binary size is too large!"
+        );
+        Self(self.0 | (size << Self::FLAG_BITS))
+    }
+
+    #[inline]
+    pub fn get_size(&self) -> usize {
+        self.0 >> Self::FLAG_BITS
+    }
+
+    #[inline]
+    pub fn is_literal(&self) -> bool {
+        self.0 & Self::FLAG_IS_LITERAL == Self::FLAG_IS_LITERAL
+    }
+
+    /// Returns true if this binary is a raw binary
+    #[inline]
+    pub fn is_raw(&self) -> bool {
+        self.0 & Self::BIN_TYPE_MASK == Self::FLAG_IS_RAW_BIN
+    }
+
+    /// Returns true if this binary is a Latin-1 binary
+    #[inline]
+    pub fn is_latin1(&self) -> bool {
+        self.0 & Self::BIN_TYPE_MASK == Self::FLAG_IS_LATIN1_BIN
+    }
+
+    /// Returns true if this binary is a UTF-8 binary
+    #[inline]
+    pub fn is_utf8(&self) -> bool {
+        self.0 & Self::BIN_TYPE_MASK == Self::FLAG_IS_UTF8_BIN
+    }
+
+    #[inline]
+    pub fn as_u64(&self) -> u64 {
+        let size = (self.0 >> Self::FLAG_BITS) as u64;
+        let flags = (self.0 & !Self::BIN_TYPE_MASK) as u64;
+        (size << (Self::FLAG_BITS as u64)) | flags
+    }
+
+    #[inline]
+    pub fn as_u32(&self) -> u32 {
+        let size = (self.0 >> Self::FLAG_BITS) as u32;
+        let flags = (self.0 & !Self::BIN_TYPE_MASK) as u32;
+        (size << (Self::FLAG_BITS as u32)) | flags
+    }
+}
+impl fmt::Debug for BinaryFlags {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("BinaryFlags")
+            .field("raw", &format_args!("{:b}", self.0))
+            .field("encoding", &format_args!("{}", self.as_encoding()))
+            .field("size", &self.get_size())
+            .field("is_literal", &self.is_literal())
+            .finish()
+    }
+}
+
+/// This trait provides common behavior for bitstrings which are possibly byte-aligned,
+/// i.e. the number of bits in the bitstring may or may not be evenly divisible by 8 and
+/// does not start at an unaligned bit offset.
 pub trait MaybePartialByte {
     /// The number of bits in the partial byte.
     fn partial_byte_bit_len(&self) -> u8;
@@ -64,443 +280,38 @@ pub trait MaybePartialByte {
     fn total_byte_len(&self) -> usize;
 }
 
-pub trait Bitstring {
-    /// The total number of full bytes, not including any final partial byte.
-    fn full_byte_len(&self) -> usize;
+/// Represents an error converting a binary term to `Vec<u8>`
+#[derive(Error, Debug)]
+pub enum BytesFromBinaryError {
+    #[error("unable to allocate memory for binary")]
+    Alloc(#[from] Alloc),
+    #[error("not a binary value")]
+    NotABinary,
+    #[error("expected binary term, but got another type")]
+    Type,
 }
 
-pub trait ByteIterator<'a>: ExactSizeIterator + DoubleEndedIterator + Iterator<Item = u8>
-where
-    Self: Sized,
-{
+/// Represents an error converting a binary term to `&str`
+#[derive(Error, Debug)]
+pub enum StrFromBinaryError {
+    #[error("unable to allocate memory for binary")]
+    Alloc(#[from] Alloc),
+    #[error("not a binary value")]
+    NotABinary,
+    #[error("expected binary term, but got another type")]
+    Type,
+    #[error("invalid utf-8 encoding")]
+    Utf8Error(#[from] Utf8Error),
 }
 
-impl<'a> ByteIterator<'a> for core::iter::Copied<core::slice::Iter<'a, u8>> {}
+impl From<BytesFromBinaryError> for StrFromBinaryError {
+    fn from(bytes_from_binary_error: BytesFromBinaryError) -> StrFromBinaryError {
+        use BytesFromBinaryError::*;
 
-impl<A: AlignedBinary + Bitstring> MaybePartialByte for A {
-    fn partial_byte_bit_len(&self) -> u8 {
-        0
-    }
-
-    fn total_bit_len(&self) -> usize {
-        self.full_byte_len() * 8
-    }
-
-    fn total_byte_len(&self) -> usize {
-        self.full_byte_len()
-    }
-}
-
-pub trait IterableBitstring<'a, I: ByteIterator<'a>> {
-    fn full_byte_iter(&'a self) -> I;
-}
-
-impl<'a, A: AlignedBinary> IterableBitstring<'a, core::iter::Copied<core::slice::Iter<'a, u8>>>
-    for A
-{
-    fn full_byte_iter(&'a self) -> core::iter::Copied<core::slice::Iter<'a, u8>> {
-        self.as_bytes().iter().copied()
-    }
-}
-
-// Has to have explicit types to prevent E0119: conflicting implementations of trait
-macro_rules! partial_eq_aligned_binary_maybe_aligned_maybe_binary {
-    ($o:tt for $s:tt) => {
-        impl PartialEq<$o> for $s {
-            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-            fn eq(&self, other: &$o) -> bool {
-                if self.is_binary() {
-                    if self.is_aligned() {
-                        unsafe { self.as_bytes() }.eq(other.as_bytes())
-                    } else {
-                        self.full_byte_iter().eq(other.full_byte_iter())
-                    }
-                } else {
-                    false
-                }
-            }
-        }
-    };
-}
-
-partial_eq_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for MatchContext);
-partial_eq_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for MatchContext);
-partial_eq_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for SubBinary);
-partial_eq_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for SubBinary);
-
-// Has to have explicit types to prevent E0119: conflicting implementations of trait
-macro_rules! partial_ord_aligned_binary_maybe_aligned_maybe_binary {
-    ($o:tt for $s:tt) => {
-        impl PartialOrd<$o> for $s {
-            /// > * Bitstrings are compared byte by byte, incomplete bytes are compared bit by bit.
-            /// > -- https://hexdocs.pm/elixir/operators.html#term-ordering
-            fn partial_cmp(&self, other: &$o) -> Option<core::cmp::Ordering> {
-                use core::cmp::Ordering::*;
-
-                let mut self_full_byte_iter = self.full_byte_iter();
-                let mut other_full_byte_iter = other.full_byte_iter();
-                let mut partial_ordering = Some(Equal);
-
-                while let Some(Equal) = partial_ordering {
-                    match (self_full_byte_iter.next(), other_full_byte_iter.next()) {
-                        (Some(self_byte), Some(other_byte)) => {
-                            partial_ordering = self_byte.partial_cmp(&other_byte)
-                        }
-                        (None, Some(other_byte)) => {
-                            let partial_byte_bit_len = self.partial_byte_bit_len();
-
-                            partial_ordering =
-                                if partial_byte_bit_len > 0 {
-                                    self.partial_byte_bit_iter().partial_cmp(
-                                        PartialByteBitIter::new(other_byte, partial_byte_bit_len),
-                                    )
-                                } else {
-                                    Some(Less)
-                                };
-
-                            break;
-                        }
-                        (Some(_), None) => {
-                            partial_ordering = Some(Greater);
-
-                            break;
-                        }
-                        (None, None) => {
-                            if 0 < self.partial_byte_bit_len() {
-                                partial_ordering = Some(Greater);
-                            }
-
-                            break;
-                        }
-                    }
-                }
-
-                partial_ordering
-            }
-        }
-    };
-}
-
-partial_ord_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for MatchContext);
-partial_ord_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for MatchContext);
-partial_ord_aligned_binary_maybe_aligned_maybe_binary!(HeapBin for SubBinary);
-partial_ord_aligned_binary_maybe_aligned_maybe_binary!(ProcBin for SubBinary);
-
-const FLAG_SHIFT: usize = bit_size_of::<usize>() - 2;
-const FLAG_IS_RAW_BIN: usize = 1 << FLAG_SHIFT;
-const FLAG_IS_LATIN1_BIN: usize = 2 << FLAG_SHIFT;
-const FLAG_IS_UTF8_BIN: usize = 3 << FLAG_SHIFT;
-const FLAG_MASK: usize = FLAG_IS_RAW_BIN | FLAG_IS_LATIN1_BIN | FLAG_IS_UTF8_BIN;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum BinaryType {
-    Raw,
-    Latin1,
-    Utf8,
-}
-impl BinaryType {
-    #[inline]
-    pub fn to_flags(&self) -> usize {
-        match self {
-            &BinaryType::Raw => FLAG_IS_RAW_BIN,
-            &BinaryType::Latin1 => FLAG_IS_LATIN1_BIN,
-            &BinaryType::Utf8 => FLAG_IS_UTF8_BIN,
-        }
-    }
-
-    #[inline]
-    pub fn from_flags(flags: usize) -> Self {
-        match flags & FLAG_MASK {
-            FLAG_IS_RAW_BIN => BinaryType::Raw,
-            FLAG_IS_LATIN1_BIN => BinaryType::Latin1,
-            FLAG_IS_UTF8_BIN => BinaryType::Utf8,
-            _ => panic!(
-                "invalid flags value given to BinaryType::from_flags: {}",
-                flags
-            ),
-        }
-    }
-
-    pub fn from_str(s: &str) -> Self {
-        if s.is_ascii() {
-            Self::Latin1
-        } else {
-            Self::Utf8
-        }
-    }
-}
-
-/// This function is intended for internal use only, specifically for use
-/// by the garbage collector, which occasionally needs to update pointers
-/// which reference the underlying bytes of a heap-allocated binary
-#[inline]
-pub(crate) fn binary_bytes(term: Term) -> *mut u8 {
-    // This function is only intended to be called on boxed binary terms
-    assert!(term.is_boxed());
-    let ptr = term.boxed_val();
-    let boxed = unsafe { *ptr };
-    if boxed.is_heapbin() {
-        let heapbin = unsafe { &*(ptr as *mut HeapBin) };
-        return heapbin.bytes();
-    }
-    // This function is only valid if called on a procbin or a heapbin
-    assert!(boxed.is_procbin());
-    let procbin = unsafe { &*(ptr as *mut ProcBin) };
-    procbin.bytes()
-}
-
-/// Creates a mask which can be used to extract bits from a byte
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let mask = make_bitmask(3);
-/// assert_eq!(0b00000111, mask);
-/// ```
-#[inline(always)]
-fn make_bitmask(n: u8) -> u8 {
-    debug_assert!(n < 8);
-    (1 << n) - 1
-}
-
-/// Assigns the bits from `src` to `dst` using the given mask,
-/// preserving the bits in `dst` outside of the mask
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let mask = make_bitmask(3);
-/// let src = 0b00000101;
-/// let dst = 0b01000010;
-/// let result = mask_bits(src, dst, mask);
-/// assert_eq!(0b01000101);
-/// ```
-#[inline(always)]
-fn mask_bits(src: u8, dst: u8, mask: u8) -> u8 {
-    (src & mask) | (dst & !mask)
-}
-
-/// Returns true if the given bit in `byte` is set
-///
-/// # Example
-///
-/// ```rust,ignore
-/// let byte = 0b01000000;
-/// assert_eq!(is_bit_set(byte, 7), true);
-/// ```
-#[allow(unused)]
-#[inline(always)]
-fn is_bit_set(byte: u8, bit: u8) -> bool {
-    byte & ((1 << (bit - 1)) >> (bit - 1)) == 1
-}
-
-/// Returns the value stored in the bit of `byte` at `offset`
-#[allow(unused)]
-#[inline(always)]
-fn get_bit(byte: u8, offset: usize) -> u8 {
-    byte >> (7 - (offset as u8)) & 1
-}
-
-/// Returns the number of bytes needed to store `bits` bits
-#[inline]
-fn num_bytes(bits: usize) -> usize {
-    (bits + 7) >> 3
-}
-
-#[inline]
-fn bit_offset(offset: usize) -> usize {
-    offset & 7
-}
-
-#[inline]
-fn byte_offset(offset: usize) -> usize {
-    offset >> 3
-}
-
-/// Higher-level bit copy operation
-///
-/// This function copies `bits` bits from `src` to `dst`. If the source and destination
-/// are both binaries (i.e. bit offsets are 0, and the number of bits is divisible by 8),
-/// then the copy is performed using a more efficient primitive (essentially memcpy). In
-/// all other cases, the copy is delegated to `copy_bits`, which handles bitstrings.
-#[inline]
-pub unsafe fn copy_binary_to_buffer(
-    src: *mut u8,
-    src_offs: usize,
-    dst: *mut u8,
-    dst_offs: usize,
-    bits: usize,
-) {
-    if bit_offset(dst_offs) == 0 && src_offs == 0 && bit_offset(bits) == 0 && bits != 0 {
-        let dst = dst.add(byte_offset(dst_offs));
-        ptr::copy_nonoverlapping(src, dst, num_bytes(bits));
-    } else {
-        copy_bits(
-            src,
-            src_offs,
-            CopyDirection::Forward,
-            dst,
-            dst_offs,
-            CopyDirection::Forward,
-            bits,
-        );
-    }
-}
-
-/// This enum defines which direction to copy from/to in `copy_bits`
-///
-/// When copying from `Forward` to `Backward`, or vice versa,
-/// the bits are reversed during the copy. When the values match,
-/// then it is just a normal copy.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum CopyDirection {
-    Forward,
-    Backward,
-}
-impl CopyDirection {
-    #[inline]
-    fn as_isize(&self) -> isize {
-        match self {
-            &CopyDirection::Forward => 1,
-            &CopyDirection::Backward => -1,
-        }
-    }
-}
-
-/// Fundamental bit copy operation.
-///
-/// This function copies `bits` bits from `src` to `dst`. By specifying
-/// the copy directions, it is possible to reverse the copied bits, see
-/// the `CopyDirection` enum for more info.
-pub unsafe fn copy_bits(
-    src: *mut u8,
-    src_offs: usize,
-    src_d: CopyDirection,
-    dst: *mut u8,
-    dst_offs: usize,
-    dst_d: CopyDirection,
-    bits: usize,
-) {
-    if bits == 0 {
-        return;
-    }
-
-    let src_di = src_d.as_isize();
-    let dst_di = dst_d.as_isize();
-    let mut src = src.offset(src_di * byte_offset(src_offs) as isize);
-    let mut dst = dst.offset(dst_di * byte_offset(dst_offs) as isize);
-    let src_offs = bit_offset(src_offs);
-    let dst_offs = bit_offset(dst_offs);
-    let dste_offs = bit_offset(dst_offs + bits);
-    let lmask = if dst_offs > 0 {
-        make_bitmask(8 - dst_offs as u8)
-    } else {
-        0
-    };
-    let rmask = if dste_offs > 0 {
-        make_bitmask(dst_offs as u8) << (8 - dst_offs) as u8
-    } else {
-        0
-    };
-
-    // Take care of the case that all bits are in the same byte
-    if dst_offs + bits < 8 {
-        let lmask = if (lmask & rmask) > 0 {
-            lmask & rmask
-        } else {
-            lmask | rmask
-        };
-
-        if src_offs == dst_offs {
-            ptr::write(dst, mask_bits(*src, *dst, lmask));
-        } else if src_offs > dst_offs {
-            let mut n = *src << (src_offs - dst_offs);
-            if src_offs + bits > 8 {
-                src = src.offset(src_di);
-                n |= *src >> (8 - (src_offs - dst_offs));
-            }
-            ptr::write(dst, mask_bits(n, *dst, lmask));
-        } else {
-            ptr::write(dst, mask_bits(*src >> (dst_offs - src_offs), *dst, lmask));
-        }
-
-        return;
-    }
-
-    // Beyond this point, we know that the bits span at least 2 bytes or more
-    let mut count = (if lmask > 0 {
-        bits - (8 - dst_offs)
-    } else {
-        bits
-    }) >> 3;
-    if src_offs == dst_offs {
-        // The bits are aligned in the same way. We can just copy the bytes,
-        // except the first and last.
-        //
-        // NOTE: The directions might be different, so we can't use `ptr::copy`
-
-        if lmask > 0 {
-            ptr::write(dst, mask_bits(*src, *dst, lmask));
-            dst = dst.offset(dst_di);
-            src = src.offset(src_di);
-        }
-
-        while count > 0 {
-            count -= 1;
-            ptr::write(dst, *src);
-            dst = dst.offset(dst_di);
-            src = src.offset(src_di);
-        }
-
-        if rmask > 0 {
-            ptr::write(dst, mask_bits(*src, *dst, rmask));
-        }
-    } else {
-        // The tricky case - the bits must be shifted into position
-        let lshift;
-        let rshift;
-        let mut src_bits;
-        let mut src_bits1;
-
-        if src_offs > dst_offs {
-            lshift = src_offs - dst_offs;
-            rshift = 8 - lshift;
-            src_bits = *src;
-            if src_offs + bits > 8 {
-                src = src.offset(src_di);
-            }
-        } else {
-            rshift = dst_offs - src_offs;
-            lshift = 8 - rshift;
-            src_bits = 0;
-        }
-
-        if lmask > 0 {
-            src_bits1 = src_bits << lshift;
-            src_bits = *src;
-            src = src.offset(src_di);
-            src_bits1 |= src_bits >> rshift;
-            ptr::write(dst, mask_bits(src_bits1, *dst, lmask));
-            dst = dst.offset(dst_di);
-        }
-
-        while count > 0 {
-            count -= 1;
-            src_bits1 = src_bits << lshift;
-            src_bits = *src;
-            src = src.offset(src_di);
-            ptr::write(dst, src_bits1 | (src_bits >> rshift));
-            dst = dst.offset(dst_di);
-        }
-
-        if rmask > 0 {
-            src_bits1 = src_bits << lshift;
-            if ((rmask << rshift) & 0xff) > 0 {
-                src_bits = *src;
-                src_bits1 |= src_bits >> rshift;
-            }
-            ptr::write(dst, mask_bits(src_bits1, *dst, rmask));
+        match bytes_from_binary_error {
+            Alloc(alloc_err) => StrFromBinaryError::Alloc(alloc_err),
+            NotABinary => StrFromBinaryError::NotABinary,
+            Type => StrFromBinaryError::NotABinary,
         }
     }
 }

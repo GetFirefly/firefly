@@ -8,10 +8,7 @@ mod test;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
-use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use liblumen_alloc::erts::term::binary::{Bitstring, IterableBitstring, MaybePartialByte};
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -19,48 +16,45 @@ use lumen_runtime_macros::native_implemented_function;
 /// `bitstring` is not divisible by `8`, the last element of the list is a `bitstring` containing
 /// the remaining `1`-`7` bits.
 #[native_implemented_function(bitstring_to_list/1)]
-pub fn native<'process>(process: &'process Process, bitstring: Term) -> exception::Result {
-    match bitstring.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => {
-                let byte_term_iter = heap_binary.as_bytes().iter().map(|byte| (*byte).into());
-                let last = Term::NIL;
+pub fn native<'process>(process: &'process Process, bitstring: Term) -> exception::Result<Term> {
+    match bitstring.decode().unwrap() {
+        TypedTerm::HeapBinary(heap_binary) => {
+            let byte_term_iter = heap_binary.as_bytes().iter().map(|byte| (*byte).into());
+            let last = Term::NIL;
 
-                process
-                    .improper_list_from_iter(byte_term_iter, last)
-                    .map_err(|error| error.into())
-            }
-            TypedTerm::ProcBin(process_binary) => {
-                let byte_term_iter = process_binary.as_bytes().iter().map(|byte| (*byte).into());
-                let last = Term::NIL;
+            process
+                .improper_list_from_iter(byte_term_iter, last)
+                .map_err(|error| error.into())
+        }
+        TypedTerm::ProcBin(process_binary) => {
+            let byte_term_iter = process_binary.as_bytes().iter().map(|byte| (*byte).into());
+            let last = Term::NIL;
 
-                process
-                    .improper_list_from_iter(byte_term_iter, last)
-                    .map_err(|error| error.into())
-            }
-            TypedTerm::SubBinary(subbinary) => {
-                let last = if subbinary.is_binary() {
-                    Term::NIL
-                } else {
-                    let partial_byte_subbinary = process.subbinary_from_original(
-                        subbinary.original(),
-                        subbinary.byte_offset() + subbinary.full_byte_len(),
-                        subbinary.bit_offset(),
-                        0,
-                        subbinary.partial_byte_bit_len(),
-                    )?;
+            process
+                .improper_list_from_iter(byte_term_iter, last)
+                .map_err(|error| error.into())
+        }
+        TypedTerm::SubBinary(subbinary) => {
+            let last = if subbinary.is_binary() {
+                Term::NIL
+            } else {
+                let partial_byte_subbinary = process.subbinary_from_original(
+                    subbinary.original(),
+                    subbinary.byte_offset() + subbinary.full_byte_len(),
+                    subbinary.bit_offset(),
+                    0,
+                    subbinary.partial_byte_bit_len(),
+                )?;
 
-                    process.cons(partial_byte_subbinary, Term::NIL)?
-                };
+                process.cons(partial_byte_subbinary, Term::NIL)?
+            };
 
-                let byte_term_iter = subbinary.full_byte_iter().map(|byte| byte.into());
+            let byte_term_iter = subbinary.full_byte_iter().map(|byte| byte.into());
 
-                process
-                    .improper_list_from_iter(byte_term_iter, last)
-                    .map_err(|error| error.into())
-            }
-            _ => Err(badarg!().into()),
-        },
+            process
+                .improper_list_from_iter(byte_term_iter, last)
+                .map_err(|error| error.into())
+        }
         _ => Err(badarg!().into()),
     }
 }

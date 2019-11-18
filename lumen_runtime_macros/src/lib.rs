@@ -342,7 +342,7 @@ impl Signatures {
                      process: &liblumen_alloc::erts::process::Process,
                      placement: liblumen_alloc::erts::process::code::stack::frame::Placement,
                      #(#argument_ident: Term),*
-                   ) -> Result<(), liblumen_alloc::erts::exception::system::Alloc> {
+                   ) -> liblumen_alloc::erts::exception::AllocResult<()> {
                 #(process.stack_push(#pushed_argument_ident)?;)*
 
                 process.place_frame(frame(), placement);
@@ -372,8 +372,8 @@ impl FunctionArity {
         let function = &self.function;
 
         quote! {
-            pub fn function() -> liblumen_alloc::erts::term::Atom {
-                liblumen_alloc::erts::term::Atom::try_from_str(#function).unwrap()
+            pub fn function() -> liblumen_alloc::erts::term::prelude::Atom {
+                liblumen_alloc::erts::term::prelude::Atom::try_from_str(#function).unwrap()
             }
         }
     }

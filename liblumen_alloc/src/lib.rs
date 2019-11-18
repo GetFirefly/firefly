@@ -20,9 +20,19 @@
 #![feature(underscore_const_names)]
 #![feature(const_compare_raw_pointers)]
 #![feature(const_raw_ptr_to_usize_cast)]
+#![feature(const_raw_ptr_deref)]
+// Support specialization of traits
+#![feature(specialization)]
+// Support SliceIndex trait
+#![feature(slice_index_methods)]
+// Support backtraces in errors
+#![feature(backtrace)]
 
 #[cfg_attr(not(test), macro_use)]
 extern crate alloc;
+
+#[cfg(target_arch = "wasm32")]
+extern crate wasm_bindgen_test;
 
 #[macro_use]
 extern crate static_assertions;

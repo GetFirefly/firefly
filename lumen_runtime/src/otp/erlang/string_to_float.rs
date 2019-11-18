@@ -3,8 +3,9 @@ use std::num::FpCategory;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::prelude::*;
 
-pub fn string_to_float(process: &Process, string: &str) -> exception::Result {
+pub fn string_to_float(process: &Process, string: &str) -> exception::Result<Term> {
     match string.parse::<f64>() {
         Ok(inner) => {
             match inner.classify() {

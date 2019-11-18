@@ -15,7 +15,7 @@ fn with_invalid_option_errors_badarg() {
                     strategy::term(arc_process.clone()),
                     strategy::term(arc_process.clone()).prop_filter(
                         "Option must be invalid",
-                        |option| match option.to_typed_term().unwrap() {
+                        |option| match option.decode().unwrap() {
                             TypedTerm::Atom(atom) => match atom.name() {
                                 "noconnect" | "nosuspend" => false,
                                 _ => true,

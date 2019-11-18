@@ -15,7 +15,7 @@
 //! or directly registering the `code` function like
 //!
 //! ```
-//! # use liblumen_alloc::erts::term::Atom;
+//! # use liblumen_alloc::erts::term::prelude::Atom;
 //! let module = Atom::try_from_str("erlang").unwrap();
 //! let function = Atom::try_from_str("self").unwrap();
 //! let arity = 0;
@@ -30,13 +30,13 @@ mod test;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::{Atom, Term};
 use liblumen_alloc::Arity;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(function_exported/3)]
-pub fn native(module: Term, function: Term, arity: Term) -> exception::Result {
+pub fn native(module: Term, function: Term, arity: Term) -> exception::Result<Term> {
     let module_atom: Atom = module.try_into()?;
     let function_atom: Atom = function.try_into()?;
     let arity_arity: Arity = arity.try_into()?;

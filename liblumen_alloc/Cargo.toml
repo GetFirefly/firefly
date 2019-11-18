@@ -13,10 +13,13 @@ instrument = []
 log = "0.4"
 cfg-if = "0.1"
 lazy_static = "1.2"
+anyhow = "1.0.11"
+thiserror = "1.0.1"
 num-traits = "0.2"
 num-bigint = "0.2"
 thread_local = "0.3"
 heapless = { git = "https://github.com/japaric/heapless" }
+static_assertions = "1.0.0"
 liblumen_core = { path = "../liblumen_core" }
 liblumen_arena = { path = "../liblumen_arena"}
 liblumen_alloc_macros = { path = "../liblumen_alloc_macros" }
@@ -31,12 +34,12 @@ features = ["nightly"]
 version = "0.8"
 features = ["nightly"]
 
-[dependencies.static_assertions]
-version = "0.3"
-features = ["nightly"]
-
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = "0.2"
+wasm-bindgen-test = "0.2"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
+version = "0.2.48"
+features = ["nightly"]
 
 # for debugging
 [target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]

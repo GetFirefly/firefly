@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Arity;
 
 pub fn export() {
@@ -36,7 +36,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let event = arc_process.stack_pop().unwrap();
-    assert!(event.is_resource_reference());
+    assert!(event.is_boxed_resource_reference());
 
     // ```elixir
     // # label: 1

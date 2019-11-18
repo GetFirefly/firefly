@@ -3,10 +3,9 @@ mod test;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::elixir::chain::{none_output_1, run_2};
@@ -24,7 +23,7 @@ pub fn place_frame_with_arguments(
     process: &Process,
     placement: Placement,
     n: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     assert!(n.is_integer());
     process.stack_push(n)?;
     process.place_frame(frame(), placement);

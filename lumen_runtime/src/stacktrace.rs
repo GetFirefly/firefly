@@ -3,10 +3,10 @@ use core::result::Result;
 
 use num_bigint::BigInt;
 
-use liblumen_alloc::erts::term::{list, Atom, Boxed, Cons, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn is(term: Term) -> bool {
-    match term.to_typed_term().unwrap() {
+    match term.decode().unwrap() {
         TypedTerm::Nil => true,
         TypedTerm::List(cons) => cons.into_iter().all(|result| match result {
             Ok(term) => term_is_item(term),
@@ -17,7 +17,7 @@ pub fn is(term: Term) -> bool {
 }
 
 fn term_is_location(term: Term) -> bool {
-    match term.to_typed_term().unwrap() {
+    match term.decode().unwrap() {
         TypedTerm::Nil => true,
         TypedTerm::List(cons) => cons.into_iter().all(|result| match result {
             Ok(term) => term_is_location_keyword_pair(term),
@@ -58,8 +58,8 @@ fn is_file(term: Term) -> bool {
 fn is_charlist(term: Term) -> bool {
     match term.try_into() {
         Ok(list) => match list {
-            list::List::Empty => true,
-            list::List::NonEmpty(cons) => cons_is_charlist(cons),
+            List::Empty => true,
+            List::NonEmpty(cons) => cons_is_charlist(cons),
         },
         Err(_) => false,
     }
@@ -76,18 +76,14 @@ fn cons_is_charlist(cons: Boxed<Cons>) -> bool {
 }
 
 fn is_line(term: Term) -> bool {
-    match term.to_typed_term().unwrap() {
+    match term.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => 0_isize < small_integer.into(),
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::BigInteger(big_integer) => {
-                let big_int: &BigInt = big_integer.as_ref().into();
-                let zero_big_int: &BigInt = &0.into();
+        TypedTerm::BigInteger(big_integer) => {
+            let big_int: &BigInt = big_integer.as_ref().into();
+            let zero_big_int: &BigInt = &1.into();
 
-                zero_big_int < big_int
-            }
-            _ => false,
-        },
-
+            zero_big_int < big_int
+        }
         _ => false,
     }
 }
@@ -103,16 +99,16 @@ fn tuple_is_item(tuple: Boxed<Tuple>) -> bool {
     match tuple.len() {
         // {function, args}
         // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1107-L1114
-        2 => tuple[0].is_closure(),
+        2 => tuple[0].is_boxed_function(),
         // https://github.com/erlang/otp/blob/b51f61b5f32a28737d0b03a29f19f48f38e4db19/erts/emulator/beam/bif.c#L1115-L1128
         3 => {
             let first_element = tuple[0];
 
-            match first_element.to_typed_term().unwrap() {
+            match first_element.decode().unwrap() {
                 // {M, F, arity | args}
                 TypedTerm::Atom(_) => tuple[1].is_atom() && is_arity_or_arguments(tuple[2]),
                 // {function, args, location}
-                TypedTerm::Boxed(boxed) => boxed.is_closure() && term_is_location(tuple[2]),
+                TypedTerm::Closure(_) => term_is_location(tuple[2]),
                 _ => false,
             }
         }
@@ -129,7 +125,7 @@ fn tuple_is_item(tuple: Boxed<Tuple>) -> bool {
 }
 
 fn is_arity_or_arguments(term: Term) -> bool {
-    match term.to_typed_term().unwrap() {
+    match term.decode().unwrap() {
         // args
         TypedTerm::Nil | TypedTerm::List(_) => true,
         // arity
@@ -139,15 +135,12 @@ fn is_arity_or_arguments(term: Term) -> bool {
             0 <= arity
         }
         // arity
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::BigInteger(big_integer) => {
-                let big_int = big_integer.as_ref().into();
-                let zero_big_int: &BigInt = &0.into();
+        TypedTerm::BigInteger(big_integer) => {
+            let big_int = big_integer.as_ref().into();
+            let zero_big_int: &BigInt = &0.into();
 
-                zero_big_int <= big_int
-            }
-            _ => false,
-        },
+            zero_big_int <= big_int
+        }
         _ => false,
     }
 }

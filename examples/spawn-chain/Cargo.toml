@@ -22,7 +22,7 @@ js-sys = "0.3.25"
 liblumen_alloc = { path = "../../liblumen_alloc" }
 lumen_runtime = { path = "../../lumen_runtime" }
 lumen_web = { path = "../../lumen_web" }
-num-bigint = "0.2.2"
+num-bigint = "0.2"
 wasm-bindgen = "0.2"
 
 # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size

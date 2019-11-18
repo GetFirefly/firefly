@@ -2,9 +2,9 @@ use super::*;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Cons};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
 use crate::scheduler::Spawned;
@@ -13,8 +13,8 @@ use crate::scheduler::Spawned;
 fn without_heap_available_does_not_modify_dictionary() {
     let init_arc_process = process::test_init();
     let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
-    let key = atom_unchecked("key");
-    let value = atom_unchecked("value");
+    let key = Atom::str_to_term("key");
+    let value = Atom::str_to_term("value");
 
     arc_process.put(key, value).unwrap();
 
@@ -31,8 +31,8 @@ fn without_heap_available_does_not_modify_dictionary() {
 fn with_heap_available_returns_entries_as_list() {
     let init_arc_process = process::test_init();
     let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
-    let key = atom_unchecked("key");
-    let value = atom_unchecked("value");
+    let key = Atom::str_to_term("key");
+    let value = Atom::str_to_term("value");
 
     arc_process.put(key, value).unwrap();
 
@@ -61,9 +61,9 @@ fn with_heap_available_returns_entries_as_list() {
 fn doc_test() {
     let init_arc_process = process::test_init();
     let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
-    let animal = atom_unchecked("animal");
+    let animal = Atom::str_to_term("animal");
 
-    let dog = atom_unchecked("dog");
+    let dog = Atom::str_to_term("dog");
     arc_process
         .put(
             dog,
@@ -73,7 +73,7 @@ fn doc_test() {
         )
         .unwrap();
 
-    let cow = atom_unchecked("cow");
+    let cow = Atom::str_to_term("cow");
     arc_process
         .put(
             cow,
@@ -83,7 +83,7 @@ fn doc_test() {
         )
         .unwrap();
 
-    let lamb = atom_unchecked("lamb");
+    let lamb = Atom::str_to_term("lamb");
     arc_process
         .put(
             lamb,
@@ -117,6 +117,6 @@ fn fill_heap(process: &Process) {
     {
         let mut heap = process.acquire_heap();
 
-        while let Ok(_) = heap.cons(atom_unchecked("hd"), atom_unchecked("tl")) {}
+        while let Ok(_) = heap.cons(Atom::str_to_term("hd"), Atom::str_to_term("tl")) {}
     }
 }

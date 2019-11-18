@@ -99,5 +99,5 @@ fn with_binary_encoding_small_atom_utf8_that_does_not_exist_errors_badarg() {
 }
 
 fn options(process: &Process) -> Term {
-    process.cons(atom_unchecked("safe"), Term::NIL).unwrap()
+    process.cons(Atom::str_to_term("safe"), Term::NIL).unwrap()
 }

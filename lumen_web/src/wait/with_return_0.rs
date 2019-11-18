@@ -1,4 +1,3 @@
-use std::any::TypeId;
 use std::convert::TryInto;
 use std::str;
 use std::sync::Arc;
@@ -13,10 +12,9 @@ use web_sys::{
 
 use liblumen_core::locks::Mutex;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::binary::aligned_binary::AlignedBinary;
-use liblumen_alloc::erts::term::{resource, Atom, Pid, SmallInteger, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::process::spawn::options::Options;
 use lumen_runtime::process::spawn::Spawned;
@@ -25,9 +23,9 @@ use lumen_runtime::{process, registry};
 
 /// Spawns process with this as the first frame, so that the next frame added in `call` can fulfill
 /// the promise.
-pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> Result<Promise, Alloc>
+pub fn spawn<F>(options: Options, place_frame_with_arguments: F) -> exception::Result<Promise>
 where
-    F: Fn(&Process) -> Result<(), Alloc>,
+    F: Fn(&Process) -> code::Result,
 {
     let (process, promise) = spawn_unscheduled(options)?;
 
@@ -63,10 +61,10 @@ fn bytes_to_js_value(bytes: &[u8]) -> JsValue {
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let return_term = arc_process.stack_pop().unwrap();
     let executor_term = arc_process.stack_pop().unwrap();
-    assert!(executor_term.is_resource_reference());
 
-    let executor_resource_reference: resource::Reference = executor_term.try_into().unwrap();
-    let executor_mutex: &Mutex<Executor> = executor_resource_reference.downcast_ref().unwrap();
+    let executor_resource_boxed: Boxed<Resource> = executor_term.try_into().unwrap();
+    let executor_resource: Resource = executor_resource_boxed.into();
+    let executor_mutex: &Mutex<Executor> = executor_resource.downcast_ref().unwrap();
     executor_mutex.lock().resolve(return_term);
 
     arc_process.remove_last_frame();
@@ -87,42 +85,41 @@ fn pid_to_js_value(pid: Pid) -> JsValue {
     array.into()
 }
 
-fn resource_reference_to_js_value(resource_reference: resource::Reference) -> JsValue {
-    let resource_type_id = resource_reference.type_id();
-
-    if resource_type_id == TypeId::of::<Document>() {
+fn resource_reference_to_js_value(resource_reference: Resource) -> JsValue {
+    if resource_reference.is::<Document>() {
         let document: &Document = resource_reference.downcast_ref().unwrap();
 
         document.into()
-    } else if resource_type_id == TypeId::of::<Element>() {
+    } else if resource_reference.is::<Element>() {
         let element: &Element = resource_reference.downcast_ref().unwrap();
 
         element.into()
-    } else if resource_type_id == TypeId::of::<HtmlBodyElement>() {
+    } else if resource_reference.is::<HtmlBodyElement>() {
         let html_body_element: &HtmlBodyElement = resource_reference.downcast_ref().unwrap();
 
         html_body_element.into()
-    } else if resource_type_id == TypeId::of::<HtmlElement>() {
+    } else if resource_reference.is::<HtmlElement>() {
         let html_element: &HtmlElement = resource_reference.downcast_ref().unwrap();
 
         html_element.into()
-    } else if resource_type_id == TypeId::of::<HtmlTableElement>() {
+    } else if resource_reference.is::<HtmlTableElement>() {
         let html_table_element: &HtmlTableElement = resource_reference.downcast_ref().unwrap();
 
         html_table_element.into()
-    } else if resource_type_id == TypeId::of::<Node>() {
+    } else if resource_reference.is::<Node>() {
         let node: &Node = resource_reference.downcast_ref().unwrap();
 
         node.into()
-    } else if resource_type_id == TypeId::of::<Text>() {
+    } else if resource_reference.is::<Text>() {
         let text: &Text = resource_reference.downcast_ref().unwrap();
 
         text.into()
-    } else if resource_type_id == TypeId::of::<WebSocket>() {
+    } else if resource_reference.is::<WebSocket>() {
         let web_socket: &WebSocket = resource_reference.downcast_ref().unwrap();
 
         web_socket.into()
     } else {
+        //panic!("{:?}", &resource_reference);
         unimplemented!("Convert {:?} to JsValue", resource_reference);
     }
 }
@@ -143,7 +140,7 @@ fn small_integer_to_js_value(small_integer: SmallInteger) -> JsValue {
 /// the frame that will return to this frame can be added prior to running the process to
 /// prevent a race condition on the `parent_process`'s scheduler running the new child process
 /// when only the `with_return/0` frame is there.
-fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
+fn spawn_unscheduled(options: Options) -> exception::Result<(Process, Promise)> {
     assert!(!options.link, "Cannot link without a parent process");
     assert!(!options.monitor, "Cannot monitor without a parent process");
 
@@ -167,17 +164,14 @@ fn spawn_unscheduled(options: Options) -> Result<(Process, Promise), Alloc> {
 }
 
 fn term_to_js_value(term: Term) -> JsValue {
-    match term.to_typed_term().unwrap() {
+    match term.decode().unwrap() {
         TypedTerm::Atom(atom) => atom_to_js_value(atom),
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => aligned_binary_to_js_value(heap_binary),
-            TypedTerm::ProcBin(process_binary) => aligned_binary_to_js_value(process_binary),
-            TypedTerm::ResourceReference(resource_reference) => {
-                resource_reference_to_js_value(resource_reference)
-            }
-            TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
-            _ => unimplemented!("Convert {:?} to JsValue", term),
-        },
+        TypedTerm::HeapBinary(heap_binary) => aligned_binary_to_js_value(heap_binary),
+        TypedTerm::ProcBin(process_binary) => aligned_binary_to_js_value(process_binary),
+        TypedTerm::ResourceReference(resource_reference) => {
+            resource_reference_to_js_value(resource_reference.into())
+        }
+        TypedTerm::Tuple(tuple) => tuple_to_js_value(&tuple),
         TypedTerm::Pid(pid) => pid_to_js_value(pid),
         TypedTerm::SmallInteger(small_integer) => small_integer_to_js_value(small_integer),
         _ => unimplemented!("Convert {:?} to JsValue", term),
@@ -188,7 +182,7 @@ fn tuple_to_js_value(tuple: &Tuple) -> JsValue {
     let array = js_sys::Array::new();
 
     for element_term in tuple.iter() {
-        let element_js_value = term_to_js_value(element_term);
+        let element_js_value = term_to_js_value(*element_term);
         array.push(&element_js_value);
     }
 

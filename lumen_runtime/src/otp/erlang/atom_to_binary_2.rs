@@ -10,13 +10,14 @@ use std::convert::TryInto;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Encoding, Term, TypedTerm};
+use liblumen_alloc::erts::string::Encoding;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(atom_to_binary/2)]
-pub fn native(process: &Process, atom: Term, encoding: Term) -> exception::Result {
-    match atom.to_typed_term().unwrap() {
+pub fn native(process: &Process, atom: Term, encoding: Term) -> exception::Result<Term> {
+    match atom.decode().unwrap() {
         TypedTerm::Atom(atom) => {
             let _: Encoding = encoding.try_into()?;
             let binary = process.binary_from_str(atom.name())?;

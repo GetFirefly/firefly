@@ -40,7 +40,7 @@ fn with_small_integer_addend_returns_float() {
 
                     let sum = result.unwrap();
 
-                    prop_assert!(sum.is_float());
+                    prop_assert!(sum.is_boxed_float());
 
                     Ok(())
                 },
@@ -65,7 +65,7 @@ fn with_big_integer_addend_returns_float() {
 
                     let sum = result.unwrap();
 
-                    prop_assert!(sum.is_float());
+                    prop_assert!(sum.is_boxed_float());
 
                     Ok(())
                 },
@@ -101,7 +101,7 @@ fn with_float_addend_without_underflow_or_overflow_returns_float() {
 
                     let sum = result.unwrap();
 
-                    prop_assert!(sum.is_float());
+                    prop_assert!(sum.is_boxed_float());
 
                     Ok(())
                 },

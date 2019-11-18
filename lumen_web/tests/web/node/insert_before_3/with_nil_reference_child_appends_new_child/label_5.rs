@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 
 use super::label_6;
@@ -36,13 +36,13 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok = arc_process.stack_pop().unwrap();
-    assert_eq!(ok, atom_unchecked("ok"));
+    assert_eq!(ok, Atom::str_to_term("ok"));
 
     let document = arc_process.stack_pop().unwrap();
-    assert!(document.is_resource_reference());
+    assert!(document.is_boxed_resource_reference());
 
     let parent = arc_process.stack_pop().unwrap();
-    assert!(parent.is_resource_reference());
+    assert!(parent.is_boxed_resource_reference());
 
     label_6::place_frame_with_arguments(arc_process, Placement::Replace, parent)?;
 

@@ -3,8 +3,7 @@ use std::sync::Arc;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::{SmallInteger, Term};
-use liblumen_alloc::erts::Process;
+use super::*;
 
 pub fn isize() -> BoxedStrategy<isize> {
     prop_oneof![

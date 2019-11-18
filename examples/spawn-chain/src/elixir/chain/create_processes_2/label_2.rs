@@ -2,11 +2,11 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use liblumen_alloc::borrow::clone_to_process::CloneToProcess;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::message::{self, Message};
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{Boxed, Closure, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir::chain::create_processes_2::label_3;
 
@@ -66,7 +66,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                     let sent = arc_process.stack_pop().unwrap();
                     assert!(sent.is_integer());
                     let output = arc_process.stack_pop().unwrap();
-                    assert!(output.is_function());
+                    assert!(output.is_boxed_function());
 
                     label_3::place_frame_with_arguments(
                         arc_process,

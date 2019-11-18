@@ -7,14 +7,14 @@ mod test;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang::integer_to_string::base_integer_to_string;
 
 #[native_implemented_function(integer_to_binary/2)]
-pub fn native(process: &Process, integer: Term, base: Term) -> exception::Result {
+pub fn native(process: &Process, integer: Term, base: Term) -> exception::Result<Term> {
     base_integer_to_string(base, integer).and_then(|string| {
         process
             .charlist_from_str(&string)

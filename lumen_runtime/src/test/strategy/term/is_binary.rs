@@ -4,7 +4,8 @@ use std::sync::Arc;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::{Process, Term};
+use liblumen_alloc::erts::term::prelude::Term;
+use liblumen_alloc::erts::Process;
 
 use super::binary::sub::{bit_offset, byte_offset};
 use super::binary::{heap, sub};

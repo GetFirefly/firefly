@@ -2,12 +2,12 @@ use std::str;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::term::{AsTerm, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use super::{atom_utf8, small_atom_utf8, u16, Tag};
 
 pub fn atom_bytes_to_term_bytes((atom, bytes): (Atom, &[u8])) -> (Term, &[u8]) {
-    let term = unsafe { atom.as_term() };
+    let term: Term = atom.encode().unwrap();
 
     (term, bytes)
 }

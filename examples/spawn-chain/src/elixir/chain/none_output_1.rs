@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
     process.export_closure(super::module(), function(), ARITY, Some(code))
@@ -20,7 +20,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let _text = arc_process.stack_pop().unwrap();
 
-    Process::return_from_call(arc_process, atom_unchecked("ok")).unwrap();
+    Process::return_from_call(arc_process, Atom::str_to_term("ok"))?;
 
     Process::call_code(arc_process)
 }

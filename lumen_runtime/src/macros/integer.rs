@@ -1,60 +1,56 @@
 macro_rules! bitwise_infix_operator {
-    ($left:ident, $right:ident, $process:ident, $infix:tt) => {{
+    ($left:ident, $right:ident, $process:ident, $infix:ident) => {{
+        use core::ops::*;
+
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::TypedTerm;
+        use liblumen_alloc::erts::term::prelude::{BigInteger, Encoded, TypedTerm};
 
-        match ($left.to_typed_term().unwrap(), $right.to_typed_term().unwrap()) {
-            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
+        match ($left.decode().unwrap(), $right.decode().unwrap()) {
+            (
+                TypedTerm::SmallInteger(left_small_integer),
+                TypedTerm::SmallInteger(right_small_integer),
+            ) => {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();
-                let output = left_isize $infix right_isize;
+                let output = left_isize.$infix(right_isize);
                 let output_term = $process.integer(output)?;
 
                 Ok(output_term)
             }
-            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::Boxed(right_unboxed)) => {
-                match right_unboxed.to_typed_term().unwrap() {
-                    TypedTerm::BigInteger(right_big_integer) => {
-                        let left_big_int: BigInt = left_small_integer.into();
-                        let right_big_int: &BigInt = right_big_integer.as_ref().into();
+            (
+                TypedTerm::SmallInteger(left_small_integer),
+                TypedTerm::BigInteger(right_big_integer),
+            ) => {
+                let left_big_int: BigInteger = left_small_integer.into();
+                let right_big_int = right_big_integer.as_ref();
 
-                        let output_big_int = left_big_int $infix right_big_int;
-                        let output_term = $process.integer(output_big_int)?;
+                let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
+                let output_term = $process.integer(output_big_int)?;
 
-                        Ok(output_term)
-                    }
-                    _ => Err(badarith!().into()),
-                }
+                Ok(output_term)
             }
-            (TypedTerm::Boxed(left_unboxed), TypedTerm::SmallInteger(right_small_integer)) => {
-                match left_unboxed.to_typed_term().unwrap() {
-                    TypedTerm::BigInteger(left_big_integer) => {
-                        let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                        let right_big_int: BigInt = right_small_integer.into();
+            (
+                TypedTerm::BigInteger(left_big_integer),
+                TypedTerm::SmallInteger(right_small_integer),
+            ) => {
+                let left_big_int = left_big_integer.as_ref();
+                let right_big_int: BigInteger = right_small_integer.into();
 
-                        let output_big_int = left_big_int $infix right_big_int;
-                        let output_term = $process.integer(output_big_int)?;
+                let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
+                let output_term = $process.integer(output_big_int)?;
 
-                        Ok(output_term)
-                    }
-                    _ => Err(badarith!().into()),
-                }
+                Ok(output_term)
             }
-            (TypedTerm::Boxed(left_unboxed), TypedTerm::Boxed(right_unboxed)) => {
-                match (left_unboxed.to_typed_term().unwrap(), right_unboxed.to_typed_term().unwrap()) {
-                    (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
-                        let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                        let right_big_int: &BigInt = right_big_integer.as_ref().into();
+            (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
+                let left_big_int = left_big_integer.as_ref();
+                let right_big_int = right_big_integer.as_ref();
 
-                        let output_big_int: BigInt = left_big_int $infix right_big_int;
-                        let output_term = $process.integer(output_big_int)?;
+                let output_big_int: BigInt = left_big_int.$infix(right_big_int).into();
+                let output_term = $process.integer(output_big_int)?;
 
-                        Ok(output_term)
-                    }
-                    _ => Err(badarith!().into()),
-                }
+                Ok(output_term)
             }
             _ => Err(badarith!().into()),
         }
@@ -68,11 +64,11 @@ macro_rules! bitshift_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::TypedTerm;
+        use liblumen_alloc::erts::term::prelude::{TypedTerm, Encoded};
 
         pub const MAX_SHIFT: usize = std::mem::size_of::<isize>() * 8 - 1;
 
-        let option_shifted = match $integer.to_typed_term().unwrap() {
+        let option_shifted = match $integer.decode().unwrap() {
             TypedTerm::SmallInteger(integer_small_integer) => {
                 let integer_isize: isize = integer_small_integer.into();
                 let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
@@ -110,30 +106,27 @@ macro_rules! bitshift_infix_operator {
                     }
                 }
             }
-            TypedTerm::Boxed(integer_unboxed) => {
-                match integer_unboxed.to_typed_term().unwrap() {
-                    TypedTerm::BigInteger(integer_big_integer) => {
-                        let big_int: &BigInt = integer_big_integer.as_ref().into();
-                        let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
+            TypedTerm::BigInteger(integer_big_integer) => {
+                let big_int = integer_big_integer.as_ref();
+                let shift_isize: isize = $shift.try_into().map_err(|_| badarith!())?;
 
-                        // Rust doesn't support negative shift, so negative left shifts need to be right
-                        // shifts
-                        let shifted = if 0 <= shift_isize {
-                            let shift_usize = shift_isize as usize;
+                // Rust doesn't support negative shift, so negative left shifts need to be right
+                // shifts
+                let shifted = if 0 <= shift_isize {
+                    let shift_usize = shift_isize as usize;
 
-                            big_int $positive shift_usize
-                        } else {
-                            let shift_usize = (-shift_isize) as usize;
+                    big_int $positive shift_usize
+                } else {
+                    let shift_usize = (-shift_isize) as usize;
 
-                            big_int $negative shift_usize
-                        };
+                    big_int $negative shift_usize
+                };
 
-                        let shifted_term = $process.integer(shifted)?;
+                // Provide a chance to convert to SmallInteger if possible
+                let shifted: BigInt = shifted.into();
+                let shifted_term = $process.integer(shifted)?;
 
-                        Some(shifted_term)
-                    }
-                    _ => None,
-                }
+                Some(shifted_term)
             }
             _ => None,
         };
@@ -150,9 +143,9 @@ macro_rules! integer_infix_operator {
         use num_bigint::BigInt;
 
         use liblumen_alloc::badarith;
-        use liblumen_alloc::erts::term::TypedTerm;
+        use liblumen_alloc::erts::term::prelude::{TypedTerm, BigInteger, Encoded};
 
-        match ($left.to_typed_term().unwrap(), $right.to_typed_term().unwrap()) {
+        match ($left.decode().unwrap(), $right.decode().unwrap()) {
             (TypedTerm::SmallInteger(left_small_integer), TypedTerm::SmallInteger(right_small_integer)) => {
                 let left_isize: isize = left_small_integer.into();
                 let right_isize: isize = right_small_integer.into();
@@ -166,53 +159,41 @@ macro_rules! integer_infix_operator {
                     Ok(quotient_term)
                 }
             }
-            (TypedTerm::SmallInteger(left_small_integre), TypedTerm::Boxed(right_unboxed)) => {
-                match right_unboxed.to_typed_term().unwrap() {
-                    TypedTerm::BigInteger(right_big_integer) => {
-                        let left_big_int: BigInt = left_small_integre.into();
-                        let right_big_int: &BigInt = right_big_integer.as_ref().into();
+            (TypedTerm::SmallInteger(left_small_integer), TypedTerm::BigInteger(right_big_integer)) => {
+                let left_big_int: BigInteger = left_small_integer.into();
+                let right_big_int = right_big_integer.as_ref();
 
-                        let quotient: BigInt = &left_big_int $infix right_big_int;
-                        let quotient_term = $process.integer(quotient)?;
+                let quotient = left_big_int $infix right_big_int;
+                let quotient: BigInt = quotient.into();
+                let quotient_term = $process.integer(quotient)?;
 
-                        Ok(quotient_term)
-                    }
-                    _ => Err(badarith!()),
+                Ok(quotient_term)
+            }
+            (TypedTerm::BigInteger(left_big_integer), TypedTerm::SmallInteger(right_small_integer)) => {
+                let right_isize: isize = right_small_integer.into();
+
+                if right_isize == 0 {
+                    Err(badarith!())
+                } else {
+                    let left_big_int = left_big_integer.as_ref();
+                    let right_big_int: BigInteger = right_isize.into();
+
+                    let quotient = left_big_int $infix right_big_int;
+                    let quotient: BigInt = quotient.into();
+                    let quotient_term = $process.integer(quotient)?;
+
+                    Ok(quotient_term)
                 }
             }
-            (TypedTerm::Boxed(left_unboxed), TypedTerm::SmallInteger(right_small_integer)) => {
-                match left_unboxed.to_typed_term().unwrap() {
-                    TypedTerm::BigInteger(left_big_integer) => {
-                        let right_isize: isize = right_small_integer.into();
+            (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
+                let left_big_int = left_big_integer.as_ref();
+                let right_big_int = right_big_integer.as_ref();
 
-                        if right_isize == 0 {
-                            Err(badarith!())
-                        } else {
-                            let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                            let right_big_int: &BigInt = &right_isize.into();
+                let quotient = left_big_int $infix right_big_int;
+                let quotient: BigInt = quotient.into();
+                let quotient_term = $process.integer(quotient)?;
 
-                            let quotient = left_big_int $infix right_big_int;
-                            let quotient_term = $process.integer(quotient)?;
-
-                            Ok(quotient_term)
-                        }
-                    }
-                    _ => Err(badarith!()),
-                }
-            }
-            (TypedTerm::Boxed(left_unboxed), TypedTerm::Boxed(right_unboxed)) => {
-                match (left_unboxed.to_typed_term().unwrap(), right_unboxed.to_typed_term().unwrap()) {
-                    (TypedTerm::BigInteger(left_big_integer), TypedTerm::BigInteger(right_big_integer)) => {
-                        let left_big_int: &BigInt = left_big_integer.as_ref().into();
-                        let right_big_int: &BigInt = right_big_integer.as_ref().into();
-
-                        let quotient = left_big_int $infix right_big_int;
-                        let quotient_term = $process.integer(quotient)?;
-
-                        Ok(quotient_term)
-                    }
-                    _ => Err(badarith!()),
-                }
+                Ok(quotient_term)
             }
             _ => Err(badarith!()),
         }.map_err(|error| error.into())

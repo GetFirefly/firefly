@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::{Atom, Term};
 use liblumen_alloc::erts::Process;
 
 use crate::test::strategy;

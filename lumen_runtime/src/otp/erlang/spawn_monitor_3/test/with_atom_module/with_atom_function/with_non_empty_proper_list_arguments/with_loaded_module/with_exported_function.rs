@@ -10,11 +10,8 @@ fn without_arity_when_run_exits_undef_and_sends_exit_message_to_parent() {
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.as_term() };
-
-    let function_atom = Atom::try_from_str("+").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let module = atom!("erlang");
+    let function = atom!("+");
 
     // erlang.+/1 and erlang.+/2 exists so use 3 for invalid arity
     let arguments = parent_arc_process
@@ -64,7 +61,7 @@ fn without_arity_when_run_exits_undef_and_sends_exit_message_to_parent() {
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: runtime::Exception =
+            let runtime_undef: RuntimeException =
                 undef!(&child_arc_process, module, function, arguments)
                     .try_into()
                     .unwrap();
@@ -76,9 +73,9 @@ fn without_arity_when_run_exits_undef_and_sends_exit_message_to_parent() {
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
+    let tag = Atom::str_to_term("DOWN");
     let reason = match undef!(&parent_arc_process, module, function, arguments) {
-        Exception::Runtime(runtime_exception) => runtime_exception.reason,
+        Exception::Runtime(runtime_exception) => runtime_exception.reason().unwrap(),
         _ => unreachable!("parent process out-of-memory"),
     };
 
@@ -88,7 +85,7 @@ fn without_arity_when_run_exits_undef_and_sends_exit_message_to_parent() {
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                Atom::str_to_term("process"),
                 child_pid_term,
                 reason
             ])

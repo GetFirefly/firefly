@@ -4,7 +4,7 @@ use proptest::arbitrary::any;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::erts::Process;
 
 use crate::test::strategy::size_range;

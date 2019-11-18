@@ -10,7 +10,7 @@ fn without_function_right_returns_false() {
                 &(
                     strategy::term::is_function(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be function", |v| !v.is_closure()),
+                        .prop_filter("Right must not be function", |v| !v.is_function()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), false.into());

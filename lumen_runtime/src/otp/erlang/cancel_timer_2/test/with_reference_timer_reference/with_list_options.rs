@@ -33,6 +33,6 @@ fn info_option(value: bool, process: &Process) -> Term {
 
 fn option(key: &str, value: bool, process: &Process) -> Term {
     process
-        .tuple_from_slice(&[atom_unchecked(key), value.into()])
+        .tuple_from_slice(&[Atom::str_to_term(key), value.into()])
         .unwrap()
 }

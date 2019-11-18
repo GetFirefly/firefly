@@ -8,27 +8,22 @@ mod test;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang;
 
 #[native_implemented_function(binary_part/2)]
-pub fn native(process: &Process, binary: Term, start_length: Term) -> exception::Result {
-    let option_result = match start_length.to_typed_term().unwrap() {
-        TypedTerm::Boxed(unboxed_start_length) => {
-            match unboxed_start_length.to_typed_term().unwrap() {
-                TypedTerm::Tuple(tuple) => {
-                    if tuple.len() == 2 {
-                        Some(erlang::binary_part_3::native(
-                            process, binary, tuple[0], tuple[1],
-                        ))
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
+pub fn native(process: &Process, binary: Term, start_length: Term) -> exception::Result<Term> {
+    let option_result = match start_length.decode().unwrap() {
+        TypedTerm::Tuple(tuple) => {
+            if tuple.len() == 2 {
+                Some(erlang::binary_part_3::native(
+                    process, binary, tuple[0], tuple[1],
+                ))
+            } else {
+                None
             }
         }
         _ => None,

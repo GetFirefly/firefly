@@ -8,18 +8,20 @@
 //! end
 //! ```
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::{error, ok_tuple};
+use crate::ok_tuple;
 
 #[native_implemented_function(new/0)]
-fn native(process: &Process) -> exception::Result {
+fn native(process: &Process) -> exception::Result<Term> {
     match web_sys::Document::new() {
         Ok(document) => ok_tuple(process, Box::new(document)).map_err(|error| error.into()),
         // Not sure how this can happen
-        Err(_) => Ok(error()),
+        Err(_) => Ok(atom!("error")),
     }
 }

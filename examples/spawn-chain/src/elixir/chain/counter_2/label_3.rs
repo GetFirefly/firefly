@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{Boxed, Closure, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -34,12 +34,12 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     let sent = arc_process.stack_pop().unwrap();
     assert!(sent.is_integer());
     let output = arc_process.stack_pop().unwrap();
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     let next_pid = arc_process.stack_pop().unwrap();
     assert!(next_pid.is_pid());
 
     let output_closure: Boxed<Closure> = output.try_into().unwrap();
-    assert_eq!(output_closure.arity, 1);
+    assert_eq!(output_closure.arity(), 1);
 
     // TODO use `<>` and `to_string` instead of `format!` to properly emulate interpolation
     let data = arc_process

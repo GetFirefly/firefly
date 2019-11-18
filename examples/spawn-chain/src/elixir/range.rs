@@ -1,14 +1,17 @@
-use liblumen_alloc::erts::exception::Result;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
-pub fn new(first: Term, last: Term, process: &Process) -> Result {
+pub fn new(first: Term, last: Term, process: &Process) -> exception::Result<Term> {
     if first.is_integer() & last.is_integer() {
         process
             .map_from_slice(&[
-                (atom_unchecked("__struct__"), atom_unchecked("Elixir.Range")),
-                (atom_unchecked("first"), first),
-                (atom_unchecked("last"), last),
+                (
+                    Atom::str_to_term("__struct__"),
+                    Atom::str_to_term("Elixir.Range"),
+                ),
+                (Atom::str_to_term("first"), first),
+                (Atom::str_to_term("last"), last),
             ])
             .map_err(|alloc_err| alloc_err.into())
     } else {

@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLock;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
 pub fn atom_to_arc_node(atom: &Atom) -> Option<Arc<Node>> {

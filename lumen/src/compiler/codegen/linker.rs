@@ -1,76 +1,39 @@
-#![allow(dead_code)]
+mod lld;
+mod llvm;
 
-use std::path::{Path,PathBuf};
-use std::fs::OpenOptions;
-use std::process::Command;
+use std::path::PathBuf;
 
-use tempfile::NamedTempFile;
+use super::config::Config;
 
-use super::CodeGenError;
-
-pub fn link(obj: &Path, out: &Path) -> Result<(), CodeGenError> {
-    // Crate temp file to hold linker output
-    let mut temp_out = NamedTempFile::new().expect("could not create temp file");
-    // Invoke linker
-    ld(obj, temp_out.path())?;
-    // Create a new file to hold final output
-    let mut oo = OpenOptions::new();
-    oo.create(true)
-      .write(true);
-    // Make executable on *NIX
-    if cfg!(unix) {
-        use std::os::unix::fs::OpenOptionsExt;
-        oo.mode(0o777);
-    }
-    // Write final output
-    match oo.open(out) {
-        Err(err) => Err(CodeGenError::LinkerError(err.to_string())),
-        Ok(mut out) => {
-            // Finally, copy the linked executable to its final destination
-            match std::io::copy(&mut temp_out, &mut out) {
-                Err(err) => Err(CodeGenError::LinkerError(err.to_string())),
-                Ok(_) => Ok(())
-            }
-        }
-    }
+#[derive(Debug)]
+pub enum LinkerError {
+    LinkingFailed,
 }
 
-fn ld(obj: &Path, out: &Path) -> Result<(), CodeGenError> {
-    let result = Command::new("ld")
-        .arg("-o")
-        .arg(out)
-        .arg(obj)
-        .output();
-    match result {
-        Err(e) => {
-            let msg = format!("Failed to execute linker: {}", e.to_string());
-            Err(CodeGenError::LinkerError(msg.to_string()))
-        }
-        Ok(ref output) => {
-            if output.status.success() {
-                if cfg!(unix) {
-                    let _ = Command::new("chown")
-                        .arg("+x")
-                        .arg(out)
-                        .status()
-                        .ok();
-                }
-                Ok(())
-            } else {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let msg = format!("Linker failed (status {}):\n{}\n{}", output.status, stdout, stderr);
-                Err(CodeGenError::LinkerError(msg.to_string()))
-            }
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputType {
+    DynamicLibrary,
+    DynamicExecutable,
+    MainExecutable,
+    Preload,
+    RelocatableObject,
+    StaticExecutable,
 }
 
-fn with_linker_extension(path: &Path) -> PathBuf {
-    if cfg!(target_os = "windows") {
-        path.with_extension(".exe").as_path().to_owned()
-    } else {
-        let stem = path.file_stem().unwrap();
-        path.parent().unwrap().join(stem).as_path().to_owned()
-    }
+/// Links LLVM assembly/bitcode files into a single object file
+pub fn link(inputs: Vec<PathBuf>, config: Config) -> Result<(), LinkerError> {
+    use self::llvm::Linker;
+
+    let mut linker = Linker::new(config);
+    linker.add_inputs(inputs);
+    linker.link()
+}
+
+/// Links object files together and generates a native executable/library
+pub fn link_native(inputs: Vec<PathBuf>, config: Config) -> Result<(), LinkerError> {
+    use self::lld::NativeLinker;
+
+    let mut linker = NativeLinker::new(config);
+    linker.add_inputs(inputs);
+    linker.link()
 }

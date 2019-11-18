@@ -5,8 +5,8 @@ use core::ops::*;
 
 use num_bigint::BigInt;
 
-use crate::erts::term::{Float, TypeError, TypedTerm};
-use crate::erts::{AsTerm, Term};
+use crate::erts::term::arch::{MAX_SMALLINT_VALUE, MIN_SMALLINT_VALUE};
+use crate::erts::term::prelude::*;
 
 use super::*;
 
@@ -15,8 +15,8 @@ use super::*;
 #[repr(transparent)]
 pub struct SmallInteger(pub(in crate::erts::term) isize);
 impl SmallInteger {
-    pub const MIN_VALUE: isize = Term::MIN_SMALLINT_VALUE;
-    pub const MAX_VALUE: isize = Term::MAX_SMALLINT_VALUE;
+    pub const MIN_VALUE: isize = MIN_SMALLINT_VALUE;
+    pub const MAX_VALUE: isize = MAX_SMALLINT_VALUE;
 
     /// Create new `SmallInteger` from an `isize` value, returning `Err`
     /// if the value is out of range
@@ -45,13 +45,19 @@ impl SmallInteger {
         );
         Self(i)
     }
-}
-unsafe impl AsTerm for SmallInteger {
+
+    /// Returns the number of one bits in the underlying byte representation
     #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_smallint(self.0)
+    pub fn count_ones(&self) -> u32 {
+        self.0.count_ones()
+    }
+
+    /// Returns the underlying byte representation, in little-endian order
+    pub fn to_le_bytes(&self) -> Vec<u8> {
+        self.0.to_le_bytes().to_vec()
     }
 }
+
 impl From<u8> for SmallInteger {
     fn from(n: u8) -> Self {
         unsafe { Self::new_unchecked(n as isize) }
@@ -139,6 +145,25 @@ impl Into<isize> for SmallInteger {
         self.0
     }
 }
+#[cfg(target_pointer_width = "64")]
+impl Into<i32> for SmallInteger {
+    fn into(self) -> i32 {
+        self.0 as i32
+    }
+}
+#[cfg(target_pointer_width = "32")]
+impl TryInto<i32> for SmallInteger {
+    type Error = TryFromIntError;
+
+    fn try_into(self) -> Result<i32, Self::Error> {
+        self.0.try_into().map_err(|_| TryFromIntError)
+    }
+}
+impl Into<i64> for SmallInteger {
+    fn into(self) -> i64 {
+        self.0 as i64
+    }
+}
 impl Into<f64> for SmallInteger {
     fn into(self) -> f64 {
         self.0 as f64
@@ -178,6 +203,11 @@ impl Debug for SmallInteger {
 impl Display for SmallInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+impl fmt::Binary for SmallInteger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:b}", self.0)
     }
 }
 
@@ -307,7 +337,7 @@ smallint_bitop_trait_impl!(BitXor, bitxor);
 impl PartialEq<Float> for SmallInteger {
     #[inline]
     fn eq(&self, other: &Float) -> bool {
-        (self.0 as f64).eq(&other.value)
+        (self.0 as f64).eq(&other.value())
     }
 }
 impl PartialEq<BigInteger> for SmallInteger {
@@ -331,10 +361,20 @@ impl PartialEq<isize> for SmallInteger {
         self.0.eq(other)
     }
 }
+impl<T> PartialEq<Boxed<T>> for SmallInteger
+where
+    T: PartialEq<SmallInteger>,
+{
+    #[inline]
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+
 impl PartialOrd<Float> for SmallInteger {
     #[inline]
     fn partial_cmp(&self, other: &Float) -> Option<Ordering> {
-        (self.0 as f64).partial_cmp(&other.value)
+        (self.0 as f64).partial_cmp(&other.value())
     }
 }
 impl PartialOrd<BigInteger> for SmallInteger {
@@ -343,12 +383,13 @@ impl PartialOrd<BigInteger> for SmallInteger {
         Some(BigInt::from(self.0 as i64).cmp(&other.value))
     }
 }
-
-impl TryFrom<Term> for SmallInteger {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+impl<T> PartialOrd<Boxed<T>> for SmallInteger
+where
+    T: PartialOrd<SmallInteger>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
 

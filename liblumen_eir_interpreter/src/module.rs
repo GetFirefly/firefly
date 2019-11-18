@@ -6,7 +6,7 @@ use libeir_ir::{Function, FunctionIndex, LiveValues, Module};
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 macro_rules! trace {
     ($($t:tt)*) => (lumen_runtime::system::io::puts(&format_args!($($t)*).to_string()))

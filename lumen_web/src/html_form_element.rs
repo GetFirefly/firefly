@@ -1,6 +1,5 @@
 pub mod element_2;
 
-use std::any::TypeId;
 use std::convert::TryInto;
 use std::mem;
 
@@ -10,16 +9,15 @@ use web_sys::{EventTarget, HtmlFormElement};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{resource, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 // Private
 
 fn from_term(term: Term) -> Result<&'static HtmlFormElement, exception::Exception> {
-    let resource_reference: resource::Reference = term.try_into()?;
+    let boxed: Boxed<Resource> = term.try_into()?;
+    let resource_reference: Resource = boxed.into();
 
-    let resource_type_id = resource_reference.type_id();
-
-    if resource_type_id == TypeId::of::<EventTarget>() {
+    if resource_reference.is::<EventTarget>() {
         let event_target: &EventTarget = resource_reference.downcast_ref().unwrap();
 
         if let Some(html_form_element) = event_target.dyn_ref() {

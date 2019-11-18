@@ -4,7 +4,7 @@ use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::scheduler;
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Pid, Reference, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::binary_to_term_1;
 use crate::otp::erlang::term_to_binary_1::native;
@@ -115,12 +115,11 @@ fn with_subbinary_without_binary_with_aligned_returns_bit_binary_ext() {
             .unwrap();
         let subbinary = process.subbinary_from_original(binary, 0, 0, 1, 1).unwrap();
 
-        assert_eq!(
-            native(process, subbinary),
-            Ok(process
-                .binary_from_bytes(&[131, 77, 0, 0, 0, 2, 1, 0b1010_1010, 0b1000_0000])
-                .unwrap())
-        );
+        let expected = process
+            .binary_from_bytes(&[131, 77, 0, 0, 0, 2, 1, 0b1010_1010, 0b1000_0000])
+            .unwrap();
+
+        assert_eq!(native(process, subbinary), Ok(expected));
     });
 }
 
@@ -147,7 +146,7 @@ fn with_subbinary_without_binary_without_aligned_returns_bit_binary_ext() {
 fn with_reference_returns_new_reference_ext() {
     with_process(|process| {
         let scheduler_id: scheduler::ID = 1.into();
-        let reference = unsafe { Reference::new(scheduler_id, 2).as_term() };
+        let reference = Reference::new(scheduler_id, 2).encode().unwrap();
 
         assert_eq!(
             native(process, reference),
@@ -225,7 +224,7 @@ fn with_positive_i32_small_integer_returns_integer_ext() {
 fn with_empty_atom_returns_atom_ext() {
     with_process(|process| {
         assert_eq!(
-            native(process, atom_unchecked("")),
+            native(process, Atom::str_to_term("")),
             Ok(process
                 .binary_from_bytes(&[VERSION_NUMBER, ATOM_EXT, 0, 0])
                 .unwrap())
@@ -252,7 +251,7 @@ fn with_non_empty_atom_returns_atom_ext() {
 #[test]
 fn with_pid_returns_pid_ext() {
     with_process(|process| {
-        let pid = unsafe { Pid::new(1, 2).unwrap().as_term() };
+        let pid = Pid::new(1, 2).unwrap().encode().unwrap();
 
         assert_eq!(
             native(process, pid),
@@ -364,7 +363,7 @@ fn with_improper_list_returns_list_ext() {
             native(
                 process,
                 process
-                    .improper_list_from_slice(&[atom_unchecked("hd")], atom_unchecked("tl"))
+                    .improper_list_from_slice(&[Atom::str_to_term("hd")], Atom::str_to_term("tl"))
                     .unwrap()
             ),
             Ok(process
@@ -604,7 +603,7 @@ fn with_big_integer_returns_small_big_ext() {
     with_process(|process| {
         let big_integer = process.integer(9_223_372_036_854_775_807_i64).unwrap();
 
-        assert!(big_integer.is_bigint());
+        assert!(big_integer.is_boxed_bigint());
 
         assert_eq!(
             native(process, big_integer),
@@ -635,9 +634,9 @@ fn non_empty_map_returns_map_ext() {
                 process,
                 process
                     .map_from_slice(&[(
-                        atom_unchecked("k"),
+                        Atom::str_to_term("k"),
                         process
-                            .map_from_slice(&[(atom_unchecked("v_k"), atom_unchecked("v_v"))])
+                            .map_from_slice(&[(Atom::str_to_term("v_k"), Atom::str_to_term("v_v"))])
                             .unwrap()
                     )])
                     .unwrap()
@@ -657,7 +656,7 @@ fn non_empty_map_returns_map_ext() {
 fn with_small_utf8_atom_returns_small_atom_utf8_ext() {
     with_process(|process| {
         assert_eq!(
-            native(process, atom_unchecked("😈")),
+            native(process, Atom::str_to_term("😈")),
             Ok(process
                 .binary_from_bytes(&[131, 119, 4, 240, 159, 152, 136])
                 .unwrap())
@@ -678,7 +677,7 @@ const STRING_EXT: u8 = 107;
 const BINARY_EXT: u8 = 109;
 
 fn non_empty_atom_term() -> Term {
-    atom_unchecked("atom")
+    Atom::str_to_term("atom")
 }
 
 fn non_empty_atom_byte_vec() -> Vec<u8> {

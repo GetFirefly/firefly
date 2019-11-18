@@ -7,7 +7,7 @@ use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::monotonic_time_1::native;
 use crate::scheduler::{with_process, with_process_arc};

@@ -6,8 +6,9 @@ edition = "2018"
 publish = false
 
 [dependencies]
+anyhow = "1.0.11"
+thiserror = "1.0.1"
 walkdir = "2.2"
-failure = "0.1"
 libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
 libeir_intern = { git = "https://github.com/eirproject/eir.git" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git" }

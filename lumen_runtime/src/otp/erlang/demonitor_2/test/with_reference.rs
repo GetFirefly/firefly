@@ -8,7 +8,7 @@ use super::*;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::otp::erlang::exit_1;
 use crate::process;
@@ -64,7 +64,7 @@ fn with_unknown_option_errors_badarg() {
 fn unknown_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term(arc_process)
         .prop_filter("Option cannot be flush or info", |option| {
-            match option.to_typed_term().unwrap() {
+            match option.decode().unwrap() {
                 TypedTerm::Atom(atom) => match atom.name() {
                     "flush" | "info" => false,
                     _ => true,
@@ -76,5 +76,5 @@ fn unknown_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 fn r#type() -> Term {
-    atom_unchecked("process")
+    Atom::str_to_term("process")
 }

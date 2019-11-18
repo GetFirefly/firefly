@@ -7,7 +7,7 @@ use proptest::strategy::Strategy;
 use liblumen_alloc::badarity;
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use crate::test::strategy::term::export_closure;
 
@@ -40,6 +40,7 @@ fn without_arity_errors_badarity() {
                                 child_function,
                                 child_arguments,
                             )
+                            .map_err(|e| e.into())
                         },
                         5_000,
                     )
@@ -68,7 +69,7 @@ fn with_arity_returns_function_return() {
                     .prop_map(|(module, function)| {
                         let arity = 0;
                         let code: Code = |arc_process: &Arc<Process>| {
-                            arc_process.return_from_call(atom_unchecked("return_from_fn"))?;
+                            arc_process.return_from_call(Atom::str_to_term("return_from_fn"))?;
 
                             Process::call_code(arc_process)
                         };
@@ -93,12 +94,13 @@ fn with_arity_returns_function_return() {
                                 child_function,
                                 child_arguments,
                             )
+                            .map_err(|e| e.into())
                         },
                         5_000,
                     )
                     .unwrap();
 
-                    prop_assert_eq!(result, Ok(atom_unchecked("return_from_fn")));
+                    prop_assert_eq!(result, Ok(Atom::str_to_term("return_from_fn")));
 
                     mem::drop(child_arc_process);
 

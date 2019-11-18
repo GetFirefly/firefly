@@ -8,12 +8,11 @@ mod test;
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, badarity};
 
 use liblumen_alloc::ModuleFunctionArity;
@@ -30,7 +29,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
         Ok(function_boxed_closure) => {
             let mut argument_vec = Vec::new();
 
-            match arguments.to_typed_term().unwrap() {
+            match arguments.decode().unwrap() {
                 TypedTerm::Nil => (),
                 TypedTerm::List(argument_boxed_cons) => {
                     for result in argument_boxed_cons.into_iter() {
@@ -51,7 +50,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                 }
             }
 
-            if argument_vec.len() == (function_boxed_closure.arity as usize) {
+            if argument_vec.len() == (function_boxed_closure.arity() as usize) {
                 function_boxed_closure.place_frame_with_arguments(
                     arc_process,
                     Placement::Replace,
@@ -60,14 +59,8 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
                 Process::call_code(arc_process)
             } else {
-                match badarity!(arc_process, function, arguments) {
-                    exception::Exception::Runtime(runtime_exception) => {
-                        arc_process.exception(runtime_exception);
-
-                        Ok(())
-                    }
-                    exception::Exception::System(system_exception) => Err(system_exception),
-                }
+                let exception = badarity!(arc_process, function, arguments);
+                code::result_from_exception(arc_process, exception)
             }
         }
         Err(_) => {

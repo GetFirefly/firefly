@@ -11,7 +11,7 @@ fn without_big_integer_or_float_returns_false() {
                     strategy::term::integer::big(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be a big integer or float", |v| {
-                            !(v.is_bigint() || v.is_float())
+                            !(v.is_boxed_bigint() || v.is_boxed_float())
                         }),
                 ),
                 |(left, right)| {
@@ -75,7 +75,7 @@ fn with_same_value_float_right_returns_true() {
                             (heap.integer(i).unwrap(), heap.float(i as f64).unwrap())
                         }),
                         |(left, right)| {
-                            prop_assert_eq!(native(left, right), true.into());
+                            prop_assert_eq!(native(left, right.into()), true.into());
 
                             Ok(())
                         },
@@ -100,7 +100,7 @@ fn with_different_value_float_right_returns_false() {
                             (heap.integer(i + 1).unwrap(), heap.float(i as f64).unwrap())
                         }),
                         |(left, right)| {
-                            prop_assert_eq!(native(left, right), false.into());
+                            prop_assert_eq!(native(left, right.into()), false.into());
 
                             Ok(())
                         },

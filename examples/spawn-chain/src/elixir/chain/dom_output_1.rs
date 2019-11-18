@@ -13,10 +13,10 @@ mod label_9;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn closure(process: &Process) -> Result<Term, Alloc> {
     process.export_closure(super::module(), function(), ARITY, Some(code))

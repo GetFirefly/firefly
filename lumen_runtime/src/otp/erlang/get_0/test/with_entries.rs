@@ -2,9 +2,9 @@ use super::*;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Cons, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
 use crate::scheduler::Spawned;
@@ -13,8 +13,8 @@ use crate::scheduler::Spawned;
 fn without_heap_available_errors_alloc() {
     let init_arc_process = process::test_init();
     let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
-    let key = atom_unchecked("key");
-    let value = atom_unchecked("value");
+    let key = Atom::str_to_term("key");
+    let value = Atom::str_to_term("value");
 
     arc_process.put(key, value).unwrap();
 
@@ -29,8 +29,8 @@ fn without_heap_available_errors_alloc() {
 fn with_heap_available_returns_entries_as_list() {
     let init_arc_process = process::test_init();
     let Spawned { arc_process, .. } = crate::test::process(&init_arc_process, Default::default());
-    let key = atom_unchecked("key");
-    let value = atom_unchecked("value");
+    let key = Atom::str_to_term("key");
+    let value = Atom::str_to_term("value");
 
     arc_process.put(key, value).unwrap();
 
@@ -48,7 +48,7 @@ fn with_heap_available_returns_entries_as_list() {
 
     let head = boxed_cons.head;
 
-    assert!(head.is_tuple());
+    assert!(head.is_boxed_tuple());
 
     let head_boxed_tuple: Boxed<Tuple> = head.try_into().unwrap();
 
@@ -64,6 +64,6 @@ fn fill_heap(process: &Process) {
     {
         let mut heap = process.acquire_heap();
 
-        while let Ok(_) = heap.cons(atom_unchecked("hd"), atom_unchecked("tl")) {}
+        while let Ok(_) = heap.cons(Atom::str_to_term("hd"), Atom::str_to_term("tl")) {}
     }
 }

@@ -8,17 +8,14 @@ mod test;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{ImproperList, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 /// `--/2`
 #[native_implemented_function(--/2)]
-pub fn native(process: &Process, minuend: Term, subtrahend: Term) -> exception::Result {
-    match (
-        minuend.to_typed_term().unwrap(),
-        subtrahend.to_typed_term().unwrap(),
-    ) {
+pub fn native(process: &Process, minuend: Term, subtrahend: Term) -> exception::Result<Term> {
+    match (minuend.decode().unwrap(), subtrahend.decode().unwrap()) {
         (TypedTerm::Nil, TypedTerm::Nil) => Ok(minuend),
         (TypedTerm::Nil, TypedTerm::List(subtrahend_cons)) => {
             if subtrahend_cons.is_proper() {

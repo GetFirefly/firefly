@@ -5,12 +5,14 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 /// `=/=/2` infix operator.  Unlike `!=`, does not convert between floats and integers.
 #[native_implemented_function(=/=/2)]
 pub fn native(left: Term, right: Term) -> Term {
-    left.exactly_ne(&right).into()
+    let left = left.decode().unwrap();
+    let right = right.decode().unwrap();
+    left.exact_ne(&right).into()
 }

@@ -54,8 +54,14 @@ fn with_same_value_list_right_returns_true() {
 
                         match vec.len() {
                             1 => (
-                                heap.list_from_slice(&vec).unwrap(),
-                                heap.list_from_slice(&vec).unwrap(),
+                                heap.list_from_slice(&vec)
+                                    .unwrap()
+                                    .map(|l| l.into())
+                                    .unwrap_or(Term::NIL),
+                                heap.list_from_slice(&vec)
+                                    .unwrap()
+                                    .map(|l| l.into())
+                                    .unwrap_or(Term::NIL),
                             ),
                             len => {
                                 let last_index = len - 1;
@@ -65,18 +71,22 @@ fn with_same_value_list_right_returns_true() {
                                         &vec[0..last_index],
                                         vec[last_index],
                                     )
-                                    .unwrap(),
+                                    .unwrap()
+                                    .map(|l| l.into())
+                                    .unwrap_or(Term::NIL),
                                     heap.improper_list_from_slice(
                                         &vec[0..last_index],
                                         vec[last_index],
                                     )
-                                    .unwrap(),
+                                    .unwrap()
+                                    .map(|l| l.into())
+                                    .unwrap_or(Term::NIL),
                                 )
                             }
                         }
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
+                    prop_assert_eq!(native(left.into(), right.into()), true.into());
 
                     Ok(())
                 },

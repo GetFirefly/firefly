@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use super::label_3;
 
@@ -34,9 +34,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     );
     let ok_n_input_tuple: Boxed<Tuple> = ok_n_input.try_into().unwrap();
     assert_eq!(ok_n_input_tuple.len(), 2);
-    assert_eq!(ok_n_input_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_n_input_tuple[0], Atom::str_to_term("ok"));
     let n_input = ok_n_input_tuple[1];
-    assert!(n_input.is_resource_reference());
+    assert!(n_input.is_boxed_resource_reference());
 
     // ```elixir
     // # label: 3

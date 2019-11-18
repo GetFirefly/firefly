@@ -12,7 +12,7 @@ use web_sys::Document;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{resource, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 // Private
 
@@ -21,7 +21,8 @@ fn module() -> Atom {
 }
 
 fn document_from_term(term: Term) -> Result<&'static Document, exception::Exception> {
-    let document_reference: resource::Reference = term.try_into()?;
+    let boxed: Boxed<Resource> = term.try_into()?;
+    let document_reference: Resource = boxed.into();
 
     match document_reference.downcast_ref() {
         Some(document) => {

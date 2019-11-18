@@ -1,7 +1,7 @@
 use proptest::arbitrary::any;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 pub fn external() -> BoxedStrategy<Atom> {
     any::<String>()

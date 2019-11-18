@@ -21,7 +21,7 @@ fn with_number_second_returns_second() {
 
 #[test]
 fn with_lesser_atom_returns_second() {
-    min(|_, _| atom_unchecked("eirst"), Second);
+    min(|_, _| Atom::str_to_term("eirst"), Second);
 }
 
 #[test]
@@ -31,12 +31,12 @@ fn with_same_atom_returns_first() {
 
 #[test]
 fn with_same_atom_value_returns_first() {
-    min(|_, _| atom_unchecked("first"), First);
+    min(|_, _| Atom::str_to_term("first"), First);
 }
 
 #[test]
 fn with_greater_atom_returns_first() {
-    min(|_, _| atom_unchecked("second"), First);
+    min(|_, _| Atom::str_to_term("second"), First);
 }
 
 #[test]
@@ -65,5 +65,5 @@ fn min<R>(second: R, which: FirstSecond)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::min(|_| atom_unchecked("first"), second, which);
+    super::min(|_| Atom::str_to_term("first"), second, which);
 }

@@ -1,12 +1,11 @@
 use super::*;
 
-use liblumen_alloc::erts::term::atom_unchecked;
-use liblumen_alloc::exit;
+use liblumen_alloc::{atom, exit};
 
 #[test]
 fn without_stacktrace_returns_empty_list() {
     with_process(|process| {
-        process.exception(exit!(atom_unchecked("reason")));
+        process.exception(exit!(atom!("reason")));
 
         assert_eq!(native(process), Term::NIL);
     });
@@ -15,15 +14,15 @@ fn without_stacktrace_returns_empty_list() {
 #[test]
 fn with_stacktrace_returns_stacktrace() {
     with_process(|process| {
-        let module = atom_unchecked("module");
-        let function = atom_unchecked("function");
+        let module = atom!("module");
+        let function = atom!("function");
         let arity = 0.into();
 
-        let file_key = atom_unchecked("file");
+        let file_key = atom!("file");
         let file_value = process.charlist_from_str("path.ex").unwrap();
         let file_tuple = process.tuple_from_slice(&[file_key, file_value]).unwrap();
 
-        let line_key = atom_unchecked("line");
+        let line_key = atom!("line");
         let line_value = 1.into();
         let line_tuple = process.tuple_from_slice(&[line_key, line_value]).unwrap();
 
@@ -35,7 +34,7 @@ fn with_stacktrace_returns_stacktrace() {
 
         let stacktrace = process.list_from_slice(&[stack_item]).unwrap();
 
-        process.exception(exit!(atom_unchecked("reason"), Some(stacktrace)));
+        process.exception(exit!(atom!("reason"), stacktrace));
 
         assert_eq!(native(process), stacktrace);
     })

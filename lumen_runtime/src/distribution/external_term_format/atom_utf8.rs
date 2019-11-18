@@ -1,5 +1,5 @@
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use super::atom::{atom_bytes_to_term_bytes, bytes_len_try_into_atom};
 use super::u16;

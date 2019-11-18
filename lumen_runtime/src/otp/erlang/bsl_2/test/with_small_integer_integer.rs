@@ -57,7 +57,7 @@ fn with_positive_with_overflow_returns_big_integer() {
 
         let shifted = result.unwrap();
 
-        assert!(shifted.is_bigint());
+        assert!(shifted.is_boxed_bigint());
 
         assert_eq!(
             shifted,

@@ -4,7 +4,10 @@
     "rust-client.updateOnStartup": true,
     "rust.cfg_test": true,
     "rust.clippy_preference": "opt-in",
+    "lldb.adapterType": "classic",
     "lldb.displayFormat": "auto",
     "lldb.showDisassembly": "auto",
     "lldb.dereferencePointers": false,
+    "lldb.library": "/Users/paulschoenfelder/.local/share/llvm/lumen/lib/liblldb.dylib",
+    "lldb.executable": "/Users/paulschoenfelder/.local/share/llvm/lumen/bin/lldb"
 }

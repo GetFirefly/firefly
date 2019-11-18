@@ -3,7 +3,7 @@ use core::cmp;
 use core::intrinsics::unlikely;
 use core::ptr::{self, NonNull};
 
-use crate::alloc::alloc_utils;
+use crate::alloc::utils as alloc_utils;
 use crate::sys::sysconf;
 
 mod constants {

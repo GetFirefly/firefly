@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::{atom_unchecked, Atom};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::module::NativeModule;
 
@@ -7,7 +7,7 @@ pub fn make_lumen_intrinsics() -> NativeModule {
 
     native.add_simple(Atom::try_from_str("println").unwrap(), 1, |_proc, args| {
         lumen_runtime::system::io::puts(&format!("{}", args[0]));
-        Ok(atom_unchecked("ok"))
+        Ok(Atom::str_to_term("ok"))
     });
 
     native.add_simple(Atom::try_from_str("format").unwrap(), 1, |proc, args| {
@@ -21,7 +21,7 @@ pub fn make_lumen_intrinsics() -> NativeModule {
         0,
         |proc, _args| {
             lumen_runtime::system::io::puts(&format!("{:?}", proc.acquire_heap()));
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         },
     );
 

@@ -1,6 +1,6 @@
 mod with_exception;
 
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::get_stacktrace_0::native;
 use crate::scheduler::with_process;

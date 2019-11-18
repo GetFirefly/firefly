@@ -7,12 +7,12 @@ mod test;
 
 use liblumen_alloc::badarith;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(+/1)]
-fn native(term: Term) -> exception::Result {
+pub fn native(term: Term) -> exception::Result<Term> {
     if term.is_number() {
         Ok(term)
     } else {

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Strategy};
 
-use liblumen_alloc::erts::term::{make_pid, Pid, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
 use crate::test::strategy::node;
@@ -21,7 +21,7 @@ pub fn external(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 pub fn local() -> BoxedStrategy<Term> {
     (number(), serial())
-        .prop_map(|(number, serial)| make_pid(number, serial).unwrap())
+        .prop_map(|(number, serial)| Pid::make_term(number, serial).unwrap())
         .boxed()
 }
 

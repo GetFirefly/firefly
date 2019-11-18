@@ -4,7 +4,7 @@ use core::hash::{Hash, Hasher};
 
 use liblumen_core::locks::Mutex;
 
-use crate::erts::term::Atom;
+use crate::erts::term::prelude::Atom;
 
 #[derive(Debug)]
 pub struct Node {

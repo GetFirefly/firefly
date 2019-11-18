@@ -1,27 +1,26 @@
 use core::cmp;
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display, Write};
 use core::mem;
+
 use core::ptr;
 use core::slice;
-use core::str;
+use core::str::{self, Utf8Error};
 
 use alloc::vec::Vec;
 
 use hashbrown::HashMap;
 use lazy_static::lazy_static;
+use thiserror::Error;
 
 use liblumen_arena::DroplessArena;
 
 use liblumen_core::locks::RwLock;
 
-use super::{AsTerm, Term, TypeError, TypedTerm};
+use super::prelude::{Term, TypeError, TypedTerm};
 
 /// The maximum number of atoms allowed
-///
-/// This is derived from the fact that atom values are
-/// tagged in their highest 6 bits, so they are unusable.
-pub const MAX_ATOMS: usize = usize::max_value() >> 6;
+pub const MAX_ATOMS: usize = super::arch::MAX_ATOM_ID - 1;
 
 /// The maximum length of an atom (255)
 pub const MAX_ATOM_LENGTH: usize = u16::max_value() as usize;
@@ -31,9 +30,9 @@ lazy_static! {
     static ref ATOMS: RwLock<AtomTable> = Default::default();
 }
 
-/// An interned string, represented in memory as a tagged integer id.
+/// An interned string, represented in memory as a integer ID.
 ///
-/// This struct contains the untagged id
+/// This struct is simply a transparent wrapper around the ID.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Atom(usize);
@@ -52,12 +51,20 @@ impl Atom {
         ATOMS.read().get_name(self.0).unwrap()
     }
 
+    /// Returns true if this atom is a boolean value
+    #[inline]
+    pub fn is_boolean(&self) -> bool {
+        // NOTE: This relies on the fact that the atom table is
+        // initialized such that true/false are at indices 1 and 0
+        self.0 < 2
+    }
+
     /// Creates a new atom from a slice of bytes interpreted as Latin-1.
     ///
     /// Returns `Err` if the atom name is invalid or the table overflows
     #[inline]
     pub fn try_from_latin1_bytes(name: &[u8]) -> Result<Self, AtomError> {
-        Self::try_from_str(str::from_utf8(name).unwrap())
+        Self::try_from_str(str::from_utf8(name)?)
     }
 
     /// Like `try_from_latin1_bytes`, but requires that the atom already exists
@@ -65,7 +72,26 @@ impl Atom {
     /// Returns `Err` if the atom does not exist
     #[inline]
     pub fn try_from_latin1_bytes_existing(name: &[u8]) -> Result<Self, AtomError> {
-        Self::try_from_str_existing(str::from_utf8(name).unwrap())
+        Self::try_from_str_existing(str::from_utf8(name)?)
+    }
+
+    /// For convenience, this function takes a `str`, creates an atom
+    /// from it, and immediately encodes the resulting `Atom` as a `Term`
+    ///
+    /// Panics if the name is invalid, the table overflows, or term encoding fails
+    #[inline]
+    pub fn str_to_term<S: AsRef<str>>(s: S) -> Term {
+        use crate::erts::term::prelude::Encode;
+
+        Self::from_str(s).encode().unwrap()
+    }
+
+    /// Creates a new atom from a `str`.
+    ///
+    /// Panics if the name is invalid or the table overflows
+    #[inline]
+    pub fn from_str<S: AsRef<str>>(s: S) -> Self {
+        Self::try_from_str(s).unwrap()
     }
 
     /// Creates a new atom from a `str`.
@@ -92,7 +118,7 @@ impl Atom {
         if let Some(id) = ATOMS.read().get_id(name) {
             return Ok(Atom(id));
         }
-        Err(AtomError(AtomErrorKind::NonExistent))
+        Err(AtomError::NonExistent.into())
     }
 
     /// Creates a new atom from its id.
@@ -112,9 +138,35 @@ impl Atom {
     fn validate(name: &str) -> Result<(), AtomError> {
         let len = name.len();
         if len > MAX_ATOM_LENGTH {
-            return Err(AtomError(AtomErrorKind::InvalidLength(len)));
+            return Err(AtomError::InvalidLength(len));
         }
         Ok(())
+    }
+}
+
+impl PartialEq<bool> for Atom {
+    fn eq(&self, b: &bool) -> bool {
+        // NOTE: This relies on the fact that we initialize the
+        // atom table with 'false' at index 0, and 'true' at
+        // index 1; and that Rust will convert bools to integers
+        // such at false is 0 and true is 1
+        let id = self.id();
+        let b = *b;
+        id == (b as usize)
+    }
+}
+
+impl From<bool> for Atom {
+    #[inline]
+    fn from(b: bool) -> Self {
+        // NOTE: We can make these assumptions because the AtomTable
+        // is initialized in a deterministic way - it is critical that
+        // if the initialization changes that these values get updated
+        if b {
+            unsafe { Atom::from_id(1) }
+        } else {
+            unsafe { Atom::from_id(0) }
+        }
     }
 }
 
@@ -143,12 +195,6 @@ impl Debug for Atom {
     }
 }
 
-unsafe impl AsTerm for Atom {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_atom(self.0)
-    }
-}
 impl PartialOrd for Atom {
     #[inline]
     fn partial_cmp(&self, other: &Atom) -> Option<cmp::Ordering> {
@@ -167,14 +213,6 @@ impl Ord for Atom {
     }
 }
 
-impl TryFrom<Term> for Atom {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
-    }
-}
-
 impl TryFrom<TypedTerm> for Atom {
     type Error = TypeError;
 
@@ -187,33 +225,21 @@ impl TryFrom<TypedTerm> for Atom {
 }
 
 /// Produced by operations which create atoms
-#[derive(Debug)]
-pub struct AtomError(AtomErrorKind);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AtomErrorKind {
+#[derive(Error, Debug)]
+pub enum AtomError {
+    #[error("exceeded system limit: maximum number of atoms ({})", MAX_ATOMS)]
     TooManyAtoms,
+    #[error("invalid atom, length is {}, maximum length is {}", .0, MAX_ATOM_LENGTH)]
     InvalidLength(usize),
+    #[error("tried to convert to an atom that doesn't exist")]
     NonExistent,
+    #[error("invalid utf-8 bytes: {}", .0)]
+    InvalidString(#[from] Utf8Error),
 }
-
-impl Display for AtomError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            AtomErrorKind::TooManyAtoms => write!(
-                f,
-                "exceeded system limit: maximum number of atoms ({})",
-                MAX_ATOMS
-            ),
-            AtomErrorKind::InvalidLength(len) => write!(
-                f,
-                "invalid atom, length is {}, maximum length is {}",
-                len, MAX_ATOM_LENGTH
-            ),
-            AtomErrorKind::NonExistent => {
-                write!(f, "tried to convert to an atom that doesn't exist")
-            }
-        }
+impl Eq for AtomError {}
+impl PartialEq for AtomError {
+    fn eq(&self, other: &AtomError) -> bool {
+        mem::discriminant(self) == mem::discriminant(other)
     }
 }
 
@@ -261,7 +287,7 @@ impl AtomTable {
     unsafe fn insert(&mut self, name: &str) -> Result<usize, AtomError> {
         let id = self.names.len();
         if id > MAX_ATOMS {
-            return Err(AtomError(AtomErrorKind::TooManyAtoms));
+            return Err(AtomError::TooManyAtoms);
         }
 
         let size = name.len();
@@ -286,7 +312,9 @@ impl AtomTable {
 }
 impl Default for AtomTable {
     fn default() -> Self {
-        let atoms = &["true", "false", "undefined", "nil", "ok", "error"];
+        // Do not change the order of these atoms without updating any `From`
+        // impls that may take advantage of the static order, i.e. From<bool>
+        let atoms = &["false", "true", "undefined", "nil", "ok", "error"];
         AtomTable::new(atoms)
     }
 }
@@ -294,58 +322,3 @@ impl Default for AtomTable {
 /// This is safe to implement because the only usage is the ATOMS static, which is wrapped in an
 /// `RwLock`, but it is _not_ `Sync` in general, so don't try and use it as such in other situations
 unsafe impl Sync for AtomTable {}
-
-pub enum Encoding {
-    Latin1,
-    Unicode,
-    Utf8,
-}
-
-impl TryFrom<Term> for Encoding {
-    type Error = EncodingError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        match term.to_typed_term().unwrap() {
-            TypedTerm::Atom(atom) => {
-                let unicode_atom = Atom::try_from_str("unicode").unwrap();
-
-                if atom == unicode_atom {
-                    Ok(Encoding::Unicode)
-                } else {
-                    let utf8_atom = Atom::try_from_str("utf8").unwrap();
-
-                    if atom == utf8_atom {
-                        Ok(Encoding::Utf8)
-                    } else {
-                        let latin1_atom = Atom::try_from_str("latin1").unwrap();
-
-                        if atom == latin1_atom {
-                            Ok(Encoding::Latin1)
-                        } else {
-                            Err(EncodingError::NotAnEncodingName(term))
-                        }
-                    }
-                }
-            }
-            _ => Err(EncodingError::NotAnAtom(term)),
-        }
-    }
-}
-
-pub enum EncodingError {
-    NotAnAtom(Term),
-    NotAnEncodingName(Term),
-}
-
-impl Display for EncodingError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            EncodingError::NotAnAtom(term) => write!(f, "Encoding ({:#?}) is not an atom", term),
-            EncodingError::NotAnEncodingName(term) => write!(
-                f,
-                "Encoding atom ({:#?}) is not one of the supported values (latin1, unicode, or utf8)",
-                term
-            ),
-        }
-    }
-}

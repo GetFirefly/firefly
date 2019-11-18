@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use liblumen_alloc::ModuleFunctionArity;
 
@@ -36,21 +36,21 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_new_child = arc_process.stack_pop().unwrap();
     assert!(
-        ok_new_child.is_tuple(),
+        ok_new_child.is_boxed_tuple(),
         "ok_new_child ({:?}) is not a tuple",
         ok_new_child
     );
     let ok_new_child_tuple: Boxed<Tuple> = ok_new_child.try_into().unwrap();
     assert_eq!(ok_new_child_tuple.len(), 2);
-    assert_eq!(ok_new_child_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_new_child_tuple[0], Atom::str_to_term("ok"));
     let new_child = ok_new_child_tuple[1];
-    assert!(new_child.is_resource_reference());
+    assert!(new_child.is_boxed_resource_reference());
 
     let parent = arc_process.stack_pop().unwrap();
-    assert!(parent.is_resource_reference());
+    assert!(parent.is_boxed_resource_reference());
 
     let old_child = arc_process.stack_pop().unwrap();
-    assert!(old_child.is_resource_reference());
+    assert!(old_child.is_boxed_resource_reference());
 
     lumen_web::node::replace_child_3::place_frame_with_arguments(
         arc_process,

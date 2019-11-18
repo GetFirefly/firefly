@@ -8,76 +8,14 @@ use heapless::consts::U152 as UHEAP_SIZES_LEN;
 use heapless::consts::U57 as UHEAP_SIZES_LEN;
 use heapless::Vec;
 
-use lazy_static::lazy_static;
-
 use liblumen_alloc_macros::generate_heap_sizes;
 
 use liblumen_core::alloc::mmap;
 use liblumen_core::alloc::size_classes::SizeClass;
 
-use crate::erts::exception::system::Alloc;
-use crate::erts::Term;
+use crate::erts::exception::AllocResult;
+use crate::erts::term::prelude::Term;
 use crate::SizeClassAlloc;
-
-// The global process heap allocator
-lazy_static! {
-    static ref PROC_ALLOC: ProcessHeapAlloc = ProcessHeapAlloc::new();
-}
-
-/// Allocate a new default sized process heap
-#[inline]
-pub fn default_heap() -> Result<(*mut Term, usize), Alloc> {
-    let size = default_heap_size();
-    PROC_ALLOC.alloc(size).map(|ptr| (ptr, size))
-}
-
-pub fn default_heap_size() -> usize {
-    ProcessHeapAlloc::HEAP_SIZES[ProcessHeapAlloc::MIN_HEAP_SIZE_INDEX]
-}
-
-/// Allocate a new process heap of the given size
-#[inline]
-pub fn heap(size: usize) -> Result<*mut Term, Alloc> {
-    PROC_ALLOC.alloc(size)
-}
-
-/// Reallocate a process heap, in place
-///
-/// If reallocating and trying to grow the heap, if the allocation cannot be done
-/// in place, then `Err(CannotReallocInPlace)` will be returned
-#[inline]
-pub unsafe fn realloc(
-    heap: *mut Term,
-    size: usize,
-    new_size: usize,
-) -> Result<*mut Term, CannotReallocInPlace> {
-    PROC_ALLOC.realloc_in_place(heap, size, new_size)
-}
-
-/// Deallocate a heap previously allocated via `heap`
-#[inline]
-pub unsafe fn free(heap: *mut Term, size: usize) {
-    PROC_ALLOC.dealloc(heap, size)
-}
-
-/// Calculates the next largest heap size equal to or greater than `size`
-#[inline]
-pub fn next_heap_size(size: usize) -> usize {
-    let mut next_size = 0;
-    for i in 0..ProcessHeapAlloc::HEAP_SIZES.len() {
-        next_size = ProcessHeapAlloc::HEAP_SIZES[i];
-        if next_size > size {
-            return next_size;
-        }
-    }
-    // If we reach this point, we just grow by 20% until
-    // we have a large enough region, these will be allocated
-    // using `mmap` directly
-    while size >= next_size {
-        next_size = next_size + next_size / 5;
-    }
-    next_size
-}
 
 /// This allocator is used to allocate process heaps globally.
 ///
@@ -95,11 +33,11 @@ impl ProcessHeapAlloc {
     /// Fibonnaci growth from 233 words, until 1M words, at which point
     /// the growth increases 20% at a time
     generate_heap_sizes! {
-        const HEAP_SIZES: [usize; PLACEHOLDER] = [];
+        pub(super) const HEAP_SIZES: [usize; PLACEHOLDER] = [];
     }
 
     /// Corresponds to the first heap size of 233 words
-    const MIN_HEAP_SIZE_INDEX: usize = 0;
+    pub(super) const MIN_HEAP_SIZE_INDEX: usize = 0;
 
     /// Creates a new `ProcessAlloc` instance
     pub fn new() -> Self {
@@ -121,7 +59,7 @@ impl ProcessHeapAlloc {
     /// If this fails, either there is an issue with the given size,
     /// the system is out of memory, or there is a bug in the allocator
     /// framework
-    pub fn alloc(&self, size: usize) -> Result<*mut Term, Alloc> {
+    pub fn alloc(&self, size: usize) -> AllocResult<*mut Term> {
         // Determine layout, require word alignment
         let layout = self.heap_layout(size);
         let total_size = layout.size();
@@ -145,7 +83,7 @@ impl ProcessHeapAlloc {
     }
 
     #[inline]
-    fn alloc_oversized_heap(layout: Layout) -> Result<*mut Term, Alloc> {
+    fn alloc_oversized_heap(layout: Layout) -> AllocResult<*mut Term> {
         match unsafe { mmap::map(layout) } {
             Ok(non_null) => {
                 let ptr = non_null.as_ptr() as *mut Term;
@@ -202,6 +140,23 @@ impl ProcessHeapAlloc {
             self.alloc
                 .deallocate(NonNull::new_unchecked(heap as *mut u8), layout);
         }
+    }
+
+    pub(super) fn next_heap_size(size: usize) -> usize {
+        let mut next_size = 0;
+        for i in 0..ProcessHeapAlloc::HEAP_SIZES.len() {
+            next_size = ProcessHeapAlloc::HEAP_SIZES[i];
+            if next_size > size {
+                return next_size;
+            }
+        }
+        // If we reach this point, we just grow by 20% until
+        // we have a large enough region, these will be allocated
+        // using `mmap` directly
+        while size >= next_size {
+            next_size = next_size + next_size / 5;
+        }
+        next_size
     }
 
     #[inline]

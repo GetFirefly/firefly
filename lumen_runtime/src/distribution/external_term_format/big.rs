@@ -4,7 +4,8 @@ pub mod small;
 use num_bigint::BigInt;
 
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::{badarg, Process, Term};
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{badarg, Process};
 
 use super::sign;
 

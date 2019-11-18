@@ -5,14 +5,16 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(is_reference/1)]
 pub fn native(term: Term) -> Term {
-    match term.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().is_reference(),
+    match term.decode().unwrap() {
+        TypedTerm::Reference(_) => true,
+        TypedTerm::ExternalReference(_) => true,
+        TypedTerm::ResourceReference(_) => true,
         _ => false,
     }
     .into()

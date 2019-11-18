@@ -16,9 +16,8 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, make_pid, SmallInteger, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::is_greater_than_or_equal_2::native;
 use crate::scheduler::{with_process, with_process_arc};

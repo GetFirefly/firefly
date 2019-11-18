@@ -8,13 +8,13 @@ mod test;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(length/1)]
-pub fn native(process: &Process, list: Term) -> exception::Result {
-    match list.to_typed_term().unwrap() {
+pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
+    match list.decode().unwrap() {
         TypedTerm::Nil => Ok(0.into()),
         TypedTerm::List(cons) => match cons.count() {
             Some(count) => Ok(process.integer(count)?),

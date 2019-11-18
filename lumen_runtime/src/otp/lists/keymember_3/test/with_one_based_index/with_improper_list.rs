@@ -3,10 +3,10 @@ use super::*;
 #[test]
 fn without_found_errors_badarg() {
     with_process_arc(|arc_process| {
-        let key = atom_unchecked("not_found");
+        let key = Atom::str_to_term("not_found");
         let one_based_index = arc_process.integer(1).unwrap();
         let slice = &[arc_process.tuple_from_slice(&[]).unwrap()];
-        let tail = atom_unchecked("tail");
+        let tail = Atom::str_to_term("tail");
         let tuple_list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
         assert_eq!(
@@ -38,7 +38,7 @@ fn with_non_tuple_in_list_with_found_returns_true() {
                                 .tuple_from_slices(&[&before_key_vec, &[key], &after_key_vec])
                                 .unwrap();
 
-                            let tail = atom_unchecked("tail");
+                            let tail = Atom::str_to_term("tail");
                             let tuple_list = arc_process
                                 .improper_list_from_slice(&[non_tuple, tuple_with_key], tail)
                                 .unwrap();
@@ -93,7 +93,7 @@ fn with_shorter_tuple_in_list_with_found_returns_true() {
                                 .tuple_from_slices(&[&before_key_vec, &[key], &after_key_vec])
                                 .unwrap();
 
-                            let tail = atom_unchecked("tail");
+                            let tail = Atom::str_to_term("tail");
                             let tuple_list = arc_process
                                 .improper_list_from_slice(&[short_tuple, tuple_with_key], tail)
                                 .unwrap();
@@ -114,11 +114,11 @@ fn with_shorter_tuple_in_list_with_found_returns_true() {
 #[test]
 fn with_found_returns_true() {
     with_process_arc(|arc_process| {
-        let key = atom_unchecked("found");
+        let key = Atom::str_to_term("found");
         let one_based_index = arc_process.integer(1).unwrap();
         let element = arc_process.tuple_from_slice(&[key]).unwrap();
         let slice = &[element];
-        let tail = atom_unchecked("tail");
+        let tail = Atom::str_to_term("tail");
         let tuple_list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
         assert_eq!(native(key, one_based_index, tuple_list), Ok(true.into()));

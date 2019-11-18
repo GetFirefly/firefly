@@ -4,7 +4,7 @@ use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::{make_pid, Atom};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
 use crate::distribution::nodes;
@@ -43,7 +43,7 @@ fn with_list_encoding_local_pid() {
 
         assert_eq!(
             native(&process, process.charlist_from_str("<0.1.2>").unwrap()),
-            Ok(make_pid(1, 2).unwrap())
+            Ok(Pid::make_term(1, 2).unwrap())
         );
 
         assert_badarg!(native(

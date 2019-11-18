@@ -1,5 +1,6 @@
+use core::alloc::Layout;
 use core::cmp::Ordering;
-use core::fmt::{self, Debug, Display};
+use core::fmt;
 use core::hash::{self, Hash};
 use core::mem;
 use core::ops::*;
@@ -9,9 +10,9 @@ use num_bigint::{BigInt, Sign};
 use num_traits::cast::ToPrimitive;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
-use crate::erts::term::{AsTerm, Boxed, Float, Term, TryIntoIntegerError};
-use crate::erts::{to_word_size, HeapAlloc};
+use crate::erts::exception::AllocResult;
+use crate::erts::process::alloc::TermAlloc;
+use crate::erts::term::prelude::*;
 
 use super::*;
 
@@ -19,52 +20,94 @@ use super::*;
 #[derive(Clone)]
 #[repr(C)]
 pub struct BigInteger {
-    header: Term,
+    header: Header<BigInteger>,
     pub(crate) value: BigInt,
 }
+impl_static_header!(BigInteger, Term::HEADER_BIG_INTEGER);
 impl BigInteger {
     /// Creates a new BigInteger from a BigInt value
     #[inline]
     pub fn new(value: BigInt) -> Self {
-        let flag = match value.sign() {
-            Sign::NoSign | Sign::Plus => Term::FLAG_POS_BIG_INTEGER,
-            Sign::Minus => Term::FLAG_NEG_BIG_INTEGER,
-        };
-        let arity = to_word_size(mem::size_of_val(&value) - mem::size_of::<Term>());
-        let header = Term::make_header(arity, flag);
-        Self { header, value }
-    }
-}
-unsafe impl AsTerm for BigInteger {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self as *const Self)
-    }
-}
-impl CloneToProcess for BigInteger {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
-        let size = mem::size_of_val(self);
-        let size_in_words = to_word_size(size);
-        let ptr = unsafe { heap.alloc(size_in_words)?.as_ptr() };
-
-        // the `Vec<u32>` `data` in the `BigUInt` that is the `data` in `self` is not copied by
-        // `ptr::copy_nonoverlapping`, so clone `self` first to make a disconnected `Vec<u32>`
-        // that can't be dropped if `self` is dropped.
-        //
-        // It would be better if we could allocate directly on the `heap`, but until `BigInt`
-        // supports setting the allocator, which only happens when `Vec` does, we can't.
-        let heap_clone = self.clone();
-
-        unsafe {
-            ptr::copy_nonoverlapping(&heap_clone as *const _ as *const u8, ptr as *mut u8, size);
+        Self {
+            header: Default::default(),
+            value,
         }
+    }
 
-        // make sure the heap_clone `Vec<u32>` address is not dropped
-        mem::forget(heap_clone);
+    /// Returns the number of one bits in the byte representation
+    ///
+    /// NOTE: The byte representation of BigInt is compacting, and
+    /// as a result, this count cannot be compared against other
+    /// counts reliably, for example, `-1` will be represented as a
+    /// single byte of `0b11111111`, whereas `-1` of any other primitive
+    /// integer type (other than u8) will be `size_of::<T>` bytes of
+    /// the same.
+    pub fn count_ones(&self) -> u32 {
+        self.value
+            .to_signed_bytes_be()
+            .clone()
+            .iter()
+            .map(|b| b.count_ones())
+            .sum()
+    }
 
-        let boxed = Term::make_boxed(ptr);
+    /// Returns the underlying byte representation, in little-endian order
+    pub fn to_signed_bytes_le(&self) -> Vec<u8> {
+        self.value.clone().to_signed_bytes_le()
+    }
+}
+impl fmt::Debug for BigInteger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let bytes = self
+            .value
+            .clone()
+            .to_signed_bytes_be()
+            .iter()
+            .map(|b| format!("{:08b}", b))
+            .collect::<Vec<String>>()
+            .join("");
+        f.debug_struct("BigInteger")
+            .field("header", &self.header)
+            .field("value", &format_args!("{} ({})", &self.value, &bytes))
+            .finish()
+    }
+}
+impl fmt::Display for BigInteger {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
 
-        Ok(boxed)
+impl CloneToProcess for BigInteger {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
+    where
+        A: ?Sized + TermAlloc,
+    {
+        let layout = Layout::for_value(self);
+        let size = layout.size();
+
+        let ptr = unsafe {
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
+            // the `Vec<u32>` `data` in the `BigUInt` that is the `data` in `self` is not copied by
+            // `ptr::copy_nonoverlapping`, so clone `self` first to make a disconnected `Vec<u32>`
+            // that can't be dropped if `self` is dropped.
+            //
+            // It would be better if we could allocate directly on the `heap`, but until `BigInt`
+            // supports setting the allocator, which only happens when `Vec` does, we can't.
+            let heap_clone = self.clone();
+            ptr::copy_nonoverlapping(&heap_clone as *const _ as *const u8, ptr as *mut u8, size);
+
+            // Make sure the heap_clone `Vec<u32>` address is not dropped
+            mem::forget(heap_clone);
+
+            ptr
+        };
+
+        Ok(ptr.into())
+    }
+
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
     }
 }
 impl From<SmallInteger> for BigInteger {
@@ -73,13 +116,15 @@ impl From<SmallInteger> for BigInteger {
         Self::new(BigInt::from(n.0 as i64))
     }
 }
-impl From<u64> for BigInteger {
-    fn from(n: u64) -> Self {
+impl From<u32> for BigInteger {
+    #[inline]
+    fn from(n: u32) -> Self {
         Self::new(BigInt::from(n))
     }
 }
-impl From<u128> for BigInteger {
-    fn from(n: u128) -> Self {
+impl From<i32> for BigInteger {
+    #[inline]
+    fn from(n: i32) -> Self {
         Self::new(BigInt::from(n))
     }
 }
@@ -87,6 +132,12 @@ impl From<usize> for BigInteger {
     #[inline]
     fn from(n: usize) -> Self {
         Self::new(BigInt::from(n as u64))
+    }
+}
+impl From<u64> for BigInteger {
+    #[inline]
+    fn from(n: u64) -> Self {
+        Self::new(BigInt::from(n))
     }
 }
 impl From<isize> for BigInteger {
@@ -107,14 +158,29 @@ impl From<i128> for BigInteger {
         Self::new(BigInt::from(n))
     }
 }
+impl From<u128> for BigInteger {
+    fn from(n: u128) -> Self {
+        Self::new(BigInt::from(n))
+    }
+}
 impl Into<BigInt> for BigInteger {
     fn into(self) -> BigInt {
         self.value
     }
 }
+impl Into<BigInt> for Boxed<BigInteger> {
+    fn into(self) -> BigInt {
+        self.as_ref().value.clone()
+    }
+}
 impl<'a> Into<&'a BigInt> for &'a BigInteger {
     fn into(self) -> &'a BigInt {
         &self.value
+    }
+}
+impl Into<f64> for Boxed<BigInteger> {
+    fn into(self) -> f64 {
+        self.as_ref().into()
     }
 }
 impl Into<f64> for &BigInteger {
@@ -130,21 +196,60 @@ impl Into<f64> for &BigInteger {
         }
     }
 }
-impl Into<f64> for Boxed<BigInteger> {
-    fn into(self) -> f64 {
-        self.as_ref().into()
+impl TryInto<usize> for Boxed<BigInteger> {
+    type Error = TryIntoIntegerError;
+
+    #[inline]
+    fn try_into(self) -> Result<usize, Self::Error> {
+        self.as_ref().try_into()
     }
 }
+impl TryInto<usize> for &BigInteger {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<usize, Self::Error> {
+        let u: u64 = self.try_into()?;
+        u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
+    }
+}
+impl TryInto<u64> for Boxed<BigInteger> {
+    type Error = TryIntoIntegerError;
+
+    #[inline]
+    fn try_into(self) -> Result<u64, Self::Error> {
+        self.as_ref().try_into()
+    }
+}
+impl TryInto<u64> for &BigInteger {
+    type Error = TryIntoIntegerError;
+
+    fn try_into(self) -> Result<u64, Self::Error> {
+        let big_int: &BigInt = self.into();
+
+        match big_int.to_u64() {
+            Some(self_u64) => self_u64
+                .try_into()
+                .map_err(|_| TryIntoIntegerError::OutOfRange),
+            None => Err(TryIntoIntegerError::OutOfRange),
+        }
+    }
+}
+impl TryFrom<TypedTerm> for Boxed<BigInteger> {
+    type Error = TypeError;
+
+    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
+        match typed_term {
+            TypedTerm::BigInteger(big) => Ok(big),
+            _ => Err(TypeError),
+        }
+    }
+}
+
 impl Eq for BigInteger {}
 impl PartialEq for BigInteger {
     #[inline]
     fn eq(&self, other: &BigInteger) -> bool {
         self.value.eq(&other.value)
-    }
-}
-impl PartialEq<Boxed<BigInteger>> for BigInteger {
-    fn eq(&self, other: &Boxed<BigInteger>) -> bool {
-        self.eq(other.as_ref())
     }
 }
 impl PartialEq<SmallInteger> for BigInteger {
@@ -153,24 +258,20 @@ impl PartialEq<SmallInteger> for BigInteger {
         self.value == BigInt::from(other.0 as i64)
     }
 }
-impl PartialEq<SmallInteger> for Boxed<BigInteger> {
-    fn eq(&self, other: &SmallInteger) -> bool {
-        self.as_ref().eq(other)
-    }
-}
 impl PartialEq<Float> for BigInteger {
     fn eq(&self, other: &Float) -> bool {
         self.partial_cmp(other) == Some(Ordering::Equal)
     }
 }
-impl PartialEq<Float> for Boxed<BigInteger> {
-    fn eq(&self, other: &Float) -> bool {
-        self.as_ref().eq(other)
-    }
-}
 impl PartialEq<usize> for BigInteger {
     #[inline]
     fn eq(&self, other: &usize) -> bool {
+        self.value.eq(&(*other).into())
+    }
+}
+impl PartialEq<isize> for &BigInteger {
+    #[inline]
+    fn eq(&self, other: &isize) -> bool {
         self.value.eq(&(*other).into())
     }
 }
@@ -186,6 +287,16 @@ impl PartialEq<f64> for BigInteger {
         self.value.eq(&(*other as usize).into())
     }
 }
+impl<T> PartialEq<Boxed<T>> for BigInteger
+where
+    T: PartialEq<BigInteger>,
+{
+    #[inline]
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+
 impl Ord for BigInteger {
     #[inline]
     fn cmp(&self, other: &BigInteger) -> Ordering {
@@ -198,20 +309,10 @@ impl PartialOrd for BigInteger {
         Some(self.cmp(other))
     }
 }
-impl PartialOrd<Boxed<BigInteger>> for BigInteger {
-    fn partial_cmp(&self, other: &Boxed<BigInteger>) -> Option<Ordering> {
-        self.partial_cmp(other.as_ref())
-    }
-}
 impl PartialOrd<SmallInteger> for BigInteger {
     #[inline]
     fn partial_cmp(&self, other: &SmallInteger) -> Option<Ordering> {
         self.partial_cmp(&other.0)
-    }
-}
-impl PartialOrd<SmallInteger> for Boxed<BigInteger> {
-    fn partial_cmp(&self, other: &SmallInteger) -> Option<Ordering> {
-        self.as_ref().partial_cmp(other)
     }
 }
 impl PartialOrd<Float> for BigInteger {
@@ -220,7 +321,7 @@ impl PartialOrd<Float> for BigInteger {
         use Sign::*;
 
         let self_big_int = &self.value;
-        let other_f64 = other.value;
+        let other_f64 = other.value();
 
         let ordering = match self_big_int.sign() {
             Minus => {
@@ -304,11 +405,6 @@ impl PartialOrd<Float> for BigInteger {
         Some(ordering)
     }
 }
-impl PartialOrd<Float> for Boxed<BigInteger> {
-    fn partial_cmp(&self, other: &Float) -> Option<Ordering> {
-        self.as_ref().partial_cmp(other)
-    }
-}
 impl PartialOrd<usize> for BigInteger {
     #[inline]
     fn partial_cmp(&self, other: &usize) -> Option<Ordering> {
@@ -327,19 +423,16 @@ impl PartialOrd<f64> for BigInteger {
         self.value.partial_cmp(&(*other as usize).into())
     }
 }
-impl Debug for BigInteger {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("BigInteger")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("value", &self.value)
-            .finish()
+impl<T> PartialOrd<Boxed<T>> for BigInteger
+where
+    T: PartialOrd<BigInteger>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
-impl Display for BigInteger {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
+
 impl Hash for BigInteger {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
@@ -356,6 +449,13 @@ macro_rules! bigint_binop_trait_impl {
                 Self::new(self.value.$fun(rhs.value))
             }
         }
+        impl $trait for &BigInteger {
+            type Output = BigInteger;
+            #[inline]
+            fn $fun(self, rhs: &BigInteger) -> Self::Output {
+                BigInteger::new(self.value.clone().$fun(rhs.value.clone()))
+            }
+        }
     };
 }
 macro_rules! bigint_unaryop_trait_impl {
@@ -367,6 +467,13 @@ macro_rules! bigint_unaryop_trait_impl {
                 Self::new(self.value.$fun())
             }
         }
+        impl $trait for &BigInteger {
+            type Output = BigInteger;
+            #[inline]
+            fn $fun(self) -> Self::Output {
+                BigInteger::new(self.value.clone().$fun())
+            }
+        }
     };
 }
 
@@ -374,50 +481,213 @@ bigint_binop_trait_impl!(Add, add);
 bigint_binop_trait_impl!(Sub, sub);
 bigint_binop_trait_impl!(Mul, mul);
 bigint_binop_trait_impl!(Div, div);
-bigint_binop_trait_impl!(BitAnd, bitand);
-bigint_binop_trait_impl!(BitOr, bitor);
-bigint_binop_trait_impl!(BitXor, bitxor);
 bigint_binop_trait_impl!(Rem, rem);
 bigint_unaryop_trait_impl!(Neg, neg);
 bigint_unaryop_trait_impl!(Not, not);
 
+impl Add<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn add(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().add(rhs.value))
+    }
+}
+impl Add<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn add(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.add(rhs.value.clone()))
+    }
+}
+
+impl Sub<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn sub(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().sub(rhs.value))
+    }
+}
+impl Sub<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn sub(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.sub(rhs.value.clone()))
+    }
+}
+
+impl Mul<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn mul(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().mul(rhs.value))
+    }
+}
+impl Mul<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn mul(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.mul(rhs.value.clone()))
+    }
+}
+
+impl Div<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn div(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().div(rhs.value))
+    }
+}
+impl Div<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn div(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.div(rhs.value.clone()))
+    }
+}
+
+impl BitAnd for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitand(self, rhs: BigInteger) -> Self::Output {
+        let lhs = self.value.to_signed_bytes_le();
+        let rhs = rhs.value.to_signed_bytes_le();
+        let bytes = lhs
+            .iter()
+            .zip(rhs.iter())
+            .map(|(l, r)| l.bitand(r))
+            .collect::<Vec<u8>>();
+        let result = BigInt::from_signed_bytes_le(bytes.as_slice());
+        BigInteger::new(result)
+    }
+}
+impl BitAnd for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitand(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitand(rhs.value.clone()))
+    }
+}
+impl BitAnd<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitand(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitand(rhs.value))
+    }
+}
+impl BitAnd<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitand(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.bitand(rhs.value.clone()))
+    }
+}
+impl BitOr for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitor(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.bitor(rhs.value))
+    }
+}
+impl BitOr for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitor(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitor(rhs.value.clone()))
+    }
+}
+impl BitOr<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitor(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitor(rhs.value))
+    }
+}
+impl BitOr<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitor(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.bitor(rhs.value.clone()))
+    }
+}
+
+impl BitXor for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitxor(self, rhs: BigInteger) -> Self::Output {
+        let lhs = self.value.to_signed_bytes_le();
+        let rhs = rhs.value.to_signed_bytes_le();
+        let bytes = lhs
+            .iter()
+            .zip(rhs.iter())
+            .map(|(l, r)| l.bitxor(r))
+            .collect::<Vec<u8>>();
+        let result = BigInt::from_signed_bytes_le(bytes.as_slice());
+        BigInteger::new(result)
+    }
+}
+impl BitXor for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitxor(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitxor(rhs.value.clone()))
+    }
+}
+impl BitXor<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitxor(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().bitxor(rhs.value))
+    }
+}
+impl BitXor<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn bitxor(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.bitxor(rhs.value.clone()))
+    }
+}
+
+impl Rem<BigInteger> for &BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn rem(self, rhs: BigInteger) -> Self::Output {
+        BigInteger::new(self.value.clone().rem(rhs.value))
+    }
+}
+impl Rem<&BigInteger> for BigInteger {
+    type Output = BigInteger;
+    #[inline]
+    fn rem(self, rhs: &BigInteger) -> Self::Output {
+        BigInteger::new(self.value.rem(rhs.value.clone()))
+    }
+}
+
 impl Shl<usize> for BigInteger {
     type Output = BigInteger;
 
-    fn shl(self, rhs: usize) -> Self {
+    fn shl(self, rhs: usize) -> Self::Output {
         BigInteger::new(self.value.shl(rhs))
+    }
+}
+impl Shl<usize> for &BigInteger {
+    type Output = BigInteger;
+
+    fn shl(self, rhs: usize) -> Self::Output {
+        BigInteger::new(self.value.clone().shl(rhs))
     }
 }
 impl Shr<usize> for BigInteger {
     type Output = BigInteger;
 
-    fn shr(self, rhs: usize) -> Self {
+    fn shr(self, rhs: usize) -> Self::Output {
         BigInteger::new(self.value.shr(rhs))
     }
 }
+impl Shr<usize> for &BigInteger {
+    type Output = BigInteger;
 
-impl TryInto<u64> for Boxed<BigInteger> {
-    type Error = TryIntoIntegerError;
-
-    fn try_into(self) -> Result<u64, Self::Error> {
-        let big_int: &BigInt = self.as_ref().into();
-
-        match big_int.to_u64() {
-            Some(self_u64) => self_u64
-                .try_into()
-                .map_err(|_| TryIntoIntegerError::OutOfRange),
-            None => Err(TryIntoIntegerError::OutOfRange),
-        }
-    }
-}
-
-impl TryInto<usize> for Boxed<BigInteger> {
-    type Error = TryIntoIntegerError;
-
-    fn try_into(self) -> Result<usize, Self::Error> {
-        let u: u64 = self.try_into()?;
-
-        u.try_into().map_err(|_| TryIntoIntegerError::OutOfRange)
+    fn shr(self, rhs: usize) -> Self::Output {
+        BigInteger::new(self.value.clone().shr(rhs))
     }
 }
 

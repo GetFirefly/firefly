@@ -2,12 +2,10 @@ mod with_process;
 
 use super::*;
 
-use liblumen_alloc::erts::term::next_pid;
-
 #[test]
 fn without_process_returns_reference_but_immediate_sends_noproc_message() {
     with_process_arc(|monitoring_arc_process| {
-        let monitored_pid = next_pid();
+        let monitored_pid = Pid::next_term();
 
         let monitor_reference_result = native(&monitoring_arc_process, r#type(), monitored_pid);
 
@@ -17,8 +15,8 @@ fn without_process_returns_reference_but_immediate_sends_noproc_message() {
 
         assert!(monitor_reference.is_reference());
 
-        let tag = atom_unchecked("DOWN");
-        let reason = atom_unchecked("noproc");
+        let tag = Atom::str_to_term("DOWN");
+        let reason = Atom::str_to_term("noproc");
 
         assert!(has_message(
             &monitoring_arc_process,

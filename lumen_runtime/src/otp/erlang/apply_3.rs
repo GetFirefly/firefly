@@ -3,12 +3,10 @@ use std::sync::Arc;
 
 use liblumen_core::locks::RwLock;
 
-use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, Code};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{Arity, ModuleFunctionArity};
 
 /// Returns the `Code` that should be used in `otp::erlang::spawn_3` to look up and call a known
@@ -49,7 +47,7 @@ pub fn place_frame_with_arguments(
     module: Term,
     function: Term,
     arguments: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     process.stack_push(arguments)?;
     process.stack_push(function)?;
     process.stack_push(module)?;
@@ -69,7 +67,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let mut argument_vec: Vec<Term> = Vec::new();
 
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -127,10 +125,7 @@ fn undef(
 ) -> code::Result {
     arc_process.reduce();
     let exception = liblumen_alloc::undef!(arc_process, module, function, arguments);
-    let runtime_exception: runtime::Exception = exception.try_into().unwrap();
-    arc_process.exception(runtime_exception);
-
-    Ok(())
+    code::result_from_exception(arc_process, exception)
 }
 
 lazy_static! {

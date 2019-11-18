@@ -51,6 +51,7 @@ fn without_arity_errors_badarg() {
                             child_function,
                             child_arguments,
                         )
+                        .map_err(|e| e.into())
                     },
                     5_000,
                 )
@@ -111,6 +112,7 @@ fn with_arity_returns_function_return() {
                                 child_function,
                                 child_arguments,
                             )
+                            .map_err(|e| e.into())
                         },
                         5_000,
                     )

@@ -9,10 +9,10 @@ use std::convert::TryInto;
 
 use web_sys::Window;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::{atom_unchecked, resource, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{atom, badarg};
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -22,8 +22,9 @@ use lumen_runtime::process::spawn::options::Options;
 use crate::window::add_event_listener;
 
 #[native_implemented_function(add_event_listener/4)]
-fn native(window: Term, event: Term, module: Term, function: Term) -> exception::Result {
-    let window_reference: resource::Reference = window.try_into()?;
+fn native(window: Term, event: Term, module: Term, function: Term) -> exception::Result<Term> {
+    let boxed: Boxed<Resource> = window.try_into()?;
+    let window_reference: Resource = boxed.into();
     let window_window: &Window = window_reference.downcast_ref().ok_or_else(|| badarg!())?;
 
     let event_atom: Atom = event.try_into()?;
@@ -47,8 +48,9 @@ fn native(window: Term, event: Term, module: Term, function: Term) -> exception:
                 function,
                 arguments,
             )
+            .map_err(|e| e.into())
         },
     );
 
-    Ok(atom_unchecked("ok"))
+    Ok(atom!("ok"))
 }

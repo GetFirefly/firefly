@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{Boxed, Closure, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::otp::erlang;
 
@@ -51,7 +51,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(last.is_local_pid(), "last ({:?}) is not a local pid", last);
     let output = arc_process.stack_pop().unwrap();
     let output_closure: Boxed<Closure> = output.try_into().unwrap();
-    assert_eq!(output_closure.arity, 1);
+    assert_eq!(output_closure.arity(), 1);
 
     // ```elixir
     // # label 2

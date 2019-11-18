@@ -1,11 +1,11 @@
 use std::convert::TryInto;
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::term::prelude::*;
 
-pub fn list_to_string(list: Term) -> Result<String, Exception> {
-    match list.to_typed_term().unwrap() {
+pub fn list_to_string(list: Term) -> exception::Result<String> {
+    match list.decode().unwrap() {
         TypedTerm::Nil => Ok("".to_owned()),
         TypedTerm::List(cons) => cons
             .into_iter()
@@ -17,7 +17,7 @@ pub fn list_to_string(list: Term) -> Result<String, Exception> {
                 }
                 Err(_) => Err(badarg!().into()),
             })
-            .collect::<Result<String, Exception>>(),
+            .collect::<exception::Result<String>>(),
         _ => Err(badarg!().into()),
     }
 }

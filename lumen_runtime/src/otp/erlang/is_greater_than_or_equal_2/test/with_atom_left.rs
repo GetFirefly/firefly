@@ -23,17 +23,17 @@ fn with_number_returns_true() {
 
 #[test]
 fn with_greater_atom_returns_true() {
-    is_greater_than_or_equal(|_, _| atom_unchecked("keft"), true);
+    is_greater_than_or_equal(|_, _| Atom::str_to_term("keft"), true);
 }
 
 #[test]
 fn with_same_atom_value_returns_true() {
-    is_greater_than_or_equal(|_, _| atom_unchecked("left"), true);
+    is_greater_than_or_equal(|_, _| Atom::str_to_term("left"), true);
 }
 
 #[test]
 fn with_greater_atom_returns_false() {
-    is_greater_than_or_equal(|_, _| atom_unchecked("meft"), false);
+    is_greater_than_or_equal(|_, _| Atom::str_to_term("meft"), false);
 }
 
 #[test]
@@ -62,5 +62,5 @@ fn is_greater_than_or_equal<R>(right: R, expected: bool)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::is_greater_than_or_equal(|_| atom_unchecked("left"), right, expected);
+    super::is_greater_than_or_equal(|_| Atom::str_to_term("left"), right, expected);
 }

@@ -3,8 +3,7 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::binary::Bitstring;
-use liblumen_alloc::erts::term::TypedTerm;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::size_1::native;
 use crate::scheduler::with_process_arc;
@@ -19,7 +18,7 @@ fn without_tuple_or_bitstring_errors_badarg() {
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Term must not be a tuple or bitstring", |term| {
-                            !(term.is_tuple() || term.is_bitstring())
+                            !(term.is_boxed_tuple() || term.is_bitstring())
                         }),
                 )
             }),
@@ -65,12 +64,9 @@ fn with_bitstring_is_byte_len() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_bitstring(arc_process.clone()), |term| {
-                let full_byte_len = match term.to_typed_term().unwrap() {
-                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                        TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
-                        TypedTerm::SubBinary(subbinary) => subbinary.full_byte_len(),
-                        _ => unreachable!(),
-                    },
+                let full_byte_len = match term.decode().unwrap() {
+                    TypedTerm::HeapBinary(heap_binary) => heap_binary.full_byte_len(),
+                    TypedTerm::SubBinary(subbinary) => subbinary.full_byte_len(),
                     _ => unreachable!(),
                 };
 

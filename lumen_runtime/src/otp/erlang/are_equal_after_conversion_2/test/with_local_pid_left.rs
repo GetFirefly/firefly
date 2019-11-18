@@ -40,8 +40,8 @@ fn with_same_value_local_pid_right_returns_true() {
             &(strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
                 |(number, serial)| {
                     (
-                        make_pid(number, serial).unwrap(),
-                        make_pid(number, serial).unwrap(),
+                        Pid::make_term(number, serial).unwrap(),
+                        Pid::make_term(number, serial).unwrap(),
                     )
                 },
             ),
@@ -61,8 +61,8 @@ fn with_different_local_pid_right_returns_false() {
             &(strategy::term::pid::number(), strategy::term::pid::serial()).prop_map(
                 |(number, serial)| {
                     (
-                        make_pid(number, serial).unwrap(),
-                        make_pid(number + 1, serial).unwrap(),
+                        Pid::make_term(number, serial).unwrap(),
+                        Pid::make_term(number + 1, serial).unwrap(),
                     )
                 },
             ),

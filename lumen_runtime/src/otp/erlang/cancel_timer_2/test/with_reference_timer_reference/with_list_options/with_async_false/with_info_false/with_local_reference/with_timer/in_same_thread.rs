@@ -19,13 +19,13 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
 
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
 
         // again before timeout
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
 
         thread::sleep(Duration::from_millis(half_milliseconds + 1));
@@ -36,7 +36,7 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
         // again after timeout
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
     })
 }
@@ -57,13 +57,13 @@ fn with_timeout_returns_ok_after_timeout_message_was_sent() {
 
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
 
         // again
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
     })
 }
@@ -75,11 +75,11 @@ where
     let same_thread_process_arc = process::test(&process::test_init());
     let milliseconds: u64 = 100;
 
-    let message = atom_unchecked("message");
+    let message = Atom::str_to_term("message");
     let timer_reference = erlang::start_timer_3::native(
         same_thread_process_arc.clone(),
         same_thread_process_arc.integer(milliseconds).unwrap(),
-        unsafe { same_thread_process_arc.pid().as_term() },
+        same_thread_process_arc.pid().into(),
         message,
     )
     .unwrap();

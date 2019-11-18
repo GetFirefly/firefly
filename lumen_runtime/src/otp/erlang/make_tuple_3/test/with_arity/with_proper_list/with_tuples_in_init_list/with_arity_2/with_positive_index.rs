@@ -83,17 +83,20 @@ fn with_positive_index_less_than_or_equal_to_length_replaces_default_value_at_in
 
                 let tuple_term = result.unwrap();
 
-                prop_assert!(tuple_term.is_tuple());
+                prop_assert!(tuple_term.is_boxed());
 
-                let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+                let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
+                prop_assert!(boxed_tuple.is_ok());
 
-                prop_assert_eq!(boxed_tuple.len(), arity_usize);
+                let tuple = boxed_tuple.unwrap();
 
-                for (index, element) in boxed_tuple.iter().enumerate() {
+                prop_assert_eq!(tuple.len(), arity_usize);
+
+                for (index, element) in tuple.iter().enumerate() {
                     if index == zero_based_index {
-                        prop_assert_eq!(element, init_list_element);
+                        prop_assert_eq!(element, &init_list_element);
                     } else {
-                        prop_assert_eq!(element, default_value);
+                        prop_assert_eq!(element, &default_value);
                     }
                 }
 
@@ -159,17 +162,20 @@ fn with_multiple_values_at_same_index_then_last_value_is_used() {
 
                 let tuple_term = result.unwrap();
 
-                prop_assert!(tuple_term.is_tuple());
+                prop_assert!(tuple_term.is_boxed());
 
-                let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+                let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
+                prop_assert!(boxed_tuple.is_ok());
 
-                prop_assert_eq!(boxed_tuple.len(), arity_usize);
+                let tuple = boxed_tuple.unwrap();
 
-                for (index, element) in boxed_tuple.iter().enumerate() {
+                prop_assert_eq!(tuple.len(), arity_usize);
+
+                for (index, element) in tuple.iter().enumerate() {
                     if index == init_list_zero_based_index {
-                        prop_assert_eq!(element, init_list_used_element);
+                        prop_assert_eq!(element, &init_list_used_element);
                     } else {
-                        prop_assert_eq!(element, default_value);
+                        prop_assert_eq!(element, &default_value);
                     }
                 }
 

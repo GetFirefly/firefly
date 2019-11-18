@@ -6,8 +6,8 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::{Boxed, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{badarg, fixnum};
 
 use crate::otp::erlang::make_tuple_3::native;
 use crate::scheduler::with_process_arc;

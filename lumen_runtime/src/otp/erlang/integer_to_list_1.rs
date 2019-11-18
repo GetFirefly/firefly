@@ -7,14 +7,14 @@ mod test;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang::integer_to_string::decimal_integer_to_string;
 
 #[native_implemented_function(integer_to_list/1)]
-pub fn native(process: &Process, integer: Term) -> exception::Result {
+pub fn native(process: &Process, integer: Term) -> exception::Result<Term> {
     decimal_integer_to_string(integer).and_then(|string| {
         process
             .list_from_chars(string.chars())

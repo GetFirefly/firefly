@@ -5,22 +5,28 @@ pub use big::*;
 pub use small::*;
 
 use num_bigint::{BigInt, Sign};
+use thiserror::Error;
 
 use core::cmp::Ordering;
-use core::convert::TryInto;
+use core::convert::{TryFrom, TryInto};
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
 use core::ops::*;
 
-use crate::erts::{AsTerm, Term};
+use super::prelude::Boxed;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TryFromIntError;
-impl Display for TryFromIntError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("attempted to convert to small integer with out of range value")
-    }
+/// This error type is used to indicate that a value cannot be converted to an integer
+#[derive(Error, Debug)]
+pub enum TryIntoIntegerError {
+    #[error("invalid integer conversion: wrong type")]
+    Type,
+    #[error("invalid integer conversion: value out of range")]
+    OutOfRange,
 }
+
+#[derive(Error, Debug, Clone, Copy, PartialEq)]
+#[error("attempted to convert to small integer with out of range value")]
+pub struct TryFromIntError;
 impl From<core::num::TryFromIntError> for TryFromIntError {
     fn from(_: core::num::TryFromIntError) -> Self {
         TryFromIntError
@@ -34,6 +40,48 @@ macro_rules! unwrap_integer_self {
             &Self::Small(ref $name) => $blk,
         }
     };
+}
+
+#[derive(Clone)]
+pub enum Arch64Integer {
+    Small(u64),
+    Big(BigInt),
+}
+impl From<u64> for Arch64Integer {
+    fn from(value: u64) -> Self {
+        Self::Small(value)
+    }
+}
+impl From<BigInt> for Arch64Integer {
+    fn from(value: BigInt) -> Self {
+        Self::Big(value)
+    }
+}
+
+#[derive(Clone)]
+pub enum Arch32Integer {
+    Small(u32),
+    Big(BigInt),
+}
+impl From<u32> for Arch32Integer {
+    fn from(value: u32) -> Self {
+        Self::Small(value)
+    }
+}
+impl TryFrom<u64> for Arch32Integer {
+    type Error = TryFromIntError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value.try_into() {
+            Err(_) => Err(TryFromIntError),
+            Ok(i) => Ok(Self::Small(i)),
+        }
+    }
+}
+impl From<BigInt> for Arch32Integer {
+    fn from(value: BigInt) -> Self {
+        Self::Big(value)
+    }
 }
 
 /// A wrapped type for integers that transparently handles promotion/demotion
@@ -220,6 +268,14 @@ impl PartialEq<BigInteger> for Integer {
         }
     }
 }
+impl<T> PartialEq<Boxed<T>> for Integer
+where
+    Integer: PartialEq<T>,
+{
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        self.eq(other.as_ref())
+    }
+}
 impl Eq for Integer {}
 impl Ord for Integer {
     #[inline]
@@ -256,6 +312,14 @@ impl PartialOrd<BigInteger> for Integer {
         }
     }
 }
+impl<T> PartialOrd<Boxed<T>> for Integer
+where
+    Integer: PartialOrd<T>,
+{
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        self.partial_cmp(other.as_ref())
+    }
+}
 impl Debug for Integer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -279,14 +343,6 @@ impl Hash for Integer {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         unwrap_integer_self!(self => value => { value.hash(state) })
-    }
-}
-unsafe impl AsTerm for Integer {
-    unsafe fn as_term(&self) -> Term {
-        match self {
-            &Self::Small(ref i) => i.as_term(),
-            &Self::Big(ref i) => i.as_term(),
-        }
     }
 }
 

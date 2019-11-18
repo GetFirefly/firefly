@@ -1,51 +1,34 @@
+use cfg_if::cfg_if;
+
+cfg_if! {
+    if #[cfg(not(target_arch = "x86_64"))] {
+        mod packed;
+        use self::packed as layout;
+    } else if #[cfg(target_arch = "x86_64")] {
+        mod immediate;
+        use self::immediate as layout;
+    }
+}
+
+// Export the target-specific float representation
+pub use layout::Float;
+
 use core::cmp::Ordering;
-use core::convert::{TryFrom, TryInto};
-use core::fmt::{self, Debug, Display};
+use core::fmt::{self, Display};
 use core::hash::{self, Hash};
 use core::ops::*;
-use core::ptr;
 
 use num_bigint::{BigInt, Sign};
 
-use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
-use crate::erts::term::{TypeError, TypedTerm};
+use super::prelude::*;
 
-use super::{AsTerm, HeapAlloc, Term};
-use super::{BigInteger, SmallInteger};
-
-/// A machine-width float, but stored alongside a header value used to identify it in memory
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct Float {
-    header: Term,
-    pub(crate) value: f64,
-}
 impl Float {
     pub const INTEGRAL_MIN: f64 = -9007199254740992.0;
     pub const INTEGRAL_MAX: f64 = 9007199254740992.0;
 
-    #[cfg(target_pointer_width = "32")]
-    const ARITYVAL: usize = 2;
-    #[cfg(target_pointer_width = "64")]
-    const ARITYVAL: usize = 1;
-
     pub fn clamp_inclusive_range(overflowing_range: RangeInclusive<f64>) -> RangeInclusive<f64> {
         Self::clamp_value(overflowing_range.start().clone())
             ..=Self::clamp_value(overflowing_range.end().clone())
-    }
-
-    #[inline]
-    pub fn new(value: f64) -> Self {
-        Self {
-            header: Term::make_header(Self::ARITYVAL, Term::FLAG_FLOAT),
-            value: Self::clamp_value(value),
-        }
-    }
-
-    #[inline]
-    pub fn from_raw(term: *mut Float) -> Self {
-        unsafe { *term }
     }
 
     fn clamp_value(overflowing: f64) -> f64 {
@@ -58,22 +41,7 @@ impl Float {
         }
     }
 }
-unsafe impl AsTerm for Float {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self as *const Self)
-    }
-}
-impl CloneToProcess for Float {
-    #[inline]
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
-        unsafe {
-            let ptr = heap.alloc(self.size_in_words())?.as_ptr() as *mut Self;
-            ptr::copy_nonoverlapping(self as *const Self, ptr, 1);
-            Ok(Term::make_boxed(ptr))
-        }
-    }
-}
+
 impl From<SmallInteger> for Float {
     #[inline]
     fn from(n: SmallInteger) -> Self {
@@ -86,40 +54,25 @@ impl From<f64> for Float {
         Self::new(f)
     }
 }
-impl From<f32> for Float {
-    #[inline]
-    fn from(f: f32) -> Self {
-        Self::new(f.into())
-    }
-}
 impl Into<f64> for Float {
     #[inline]
     fn into(self) -> f64 {
-        self.value
+        self.value()
     }
 }
-impl Eq for Float {}
-impl Ord for Float {
-    fn cmp(&self, other: &Float) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-impl PartialEq for Float {
-    #[inline]
-    fn eq(&self, other: &Float) -> bool {
-        self.value == other.value
+
+impl<T> PartialEq<Boxed<T>> for Float
+where
+    T: PartialEq<Float>,
+{
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
     }
 }
 impl PartialEq<f64> for Float {
     #[inline]
     fn eq(&self, other: &f64) -> bool {
-        self.value == *other
-    }
-}
-impl PartialEq<f32> for Float {
-    #[inline]
-    fn eq(&self, other: &f32) -> bool {
-        self.value == (*other).into()
+        self.value() == *other
     }
 }
 impl PartialEq<SmallInteger> for Float {
@@ -140,23 +93,20 @@ impl PartialEq<BigInteger> for Float {
         }
     }
 }
-impl PartialOrd for Float {
+
+impl<T> PartialOrd<Boxed<T>> for Float
+where
+    T: PartialOrd<Float>,
+{
     #[inline]
-    fn partial_cmp(&self, other: &Float) -> Option<Ordering> {
-        self.value.partial_cmp(&other.value)
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
 impl PartialOrd<f64> for Float {
     #[inline]
     fn partial_cmp(&self, other: &f64) -> Option<Ordering> {
-        self.value.partial_cmp(other)
-    }
-}
-impl PartialOrd<f32> for Float {
-    #[inline]
-    fn partial_cmp(&self, other: &f32) -> Option<Ordering> {
-        let n: f64 = (*other).into();
-        self.value.partial_cmp(&n)
+        self.value().partial_cmp(other)
     }
 }
 impl PartialOrd<SmallInteger> for Float {
@@ -164,12 +114,13 @@ impl PartialOrd<SmallInteger> for Float {
     fn partial_cmp(&self, other: &SmallInteger) -> Option<Ordering> {
         use core::num::FpCategory;
 
-        let is_negative = self.value.is_sign_negative();
-        match self.value.classify() {
+        let value = self.value();
+        let is_negative = value.is_sign_negative();
+        match value.classify() {
             FpCategory::Nan => None,
             FpCategory::Subnormal => {
                 // The float is less precise, so convert to isize
-                let f = self.value as isize;
+                let f = value as isize;
                 Some(f.cmp(&other.0))
             }
             FpCategory::Infinite if is_negative => Some(Ordering::Less),
@@ -178,7 +129,7 @@ impl PartialOrd<SmallInteger> for Float {
             FpCategory::Normal => {
                 // Float is higher precision
                 let i = other.0 as f64;
-                self.value.partial_cmp(&i)
+                value.partial_cmp(&i)
             }
         }
     }
@@ -189,12 +140,13 @@ impl PartialOrd<BigInteger> for Float {
         use core::num::FpCategory;
         use num_traits::Zero;
 
-        let is_negative = self.value.is_sign_negative();
-        match self.value.classify() {
+        let value = self.value();
+        let is_negative = value.is_sign_negative();
+        match value.classify() {
             FpCategory::Nan => None,
             FpCategory::Subnormal => {
                 // The float is less precise, so convert to isize
-                let f = BigInt::from(self.value as isize);
+                let f = BigInt::from(value as isize);
                 Some(f.cmp(&other.value))
             }
             FpCategory::Infinite if is_negative => Some(Ordering::Less),
@@ -209,7 +161,7 @@ impl PartialOrd<BigInteger> for Float {
                 // if we fail, then the bigint is larger in either direction,
                 // which we must determine based on its sign
                 if let Some(i) = other.value.to_isize() {
-                    return self.value.partial_cmp(&(i as f64));
+                    return value.partial_cmp(&(i as f64));
                 }
                 if let Sign::Minus = other.value.sign() {
                     return Some(Ordering::Greater);
@@ -220,45 +172,17 @@ impl PartialOrd<BigInteger> for Float {
     }
 }
 
-impl TryFrom<Term> for Float {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
-    }
-}
-
-impl TryFrom<TypedTerm> for Float {
-    type Error = TypeError;
-
-    fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
-        match typed_term {
-            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
-            TypedTerm::Float(float) => Ok(float),
-            _ => Err(TypeError),
-        }
-    }
-}
-
-impl Debug for Float {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Float")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("value", &self.value)
-            .finish()
-    }
-}
 impl Display for Float {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Use Debug format so that decimal point is always included so that it is obvious it is a
         // float and not an integer
-        write!(f, "{:?}", self.value)
+        write!(f, "{:?}", self.value())
     }
 }
 impl Hash for Float {
     #[inline]
     fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.value.to_bits().hash(state);
+        self.value().to_bits().hash(state);
     }
 }
 
@@ -268,7 +192,7 @@ macro_rules! float_op_trait_impl {
             type Output = Float;
             #[inline]
             fn $fun(self, rhs: Float) -> Self::Output {
-                Self::new(self.value.$fun(rhs.value))
+                Self::new(self.value().$fun(rhs.value()))
             }
         }
     };
@@ -282,8 +206,9 @@ float_op_trait_impl!(Rem, rem);
 
 impl Neg for Float {
     type Output = Float;
+
     #[inline]
     fn neg(self) -> Self::Output {
-        Self::new(self.value.neg())
+        Self::new(self.value().neg())
     }
 }

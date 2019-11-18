@@ -10,7 +10,7 @@ use proptest::{prop_assert_eq, prop_oneof};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::convert_time_unit_3::native;
 use crate::scheduler::{with_process, with_process_arc};
@@ -519,7 +519,7 @@ fn hertz() -> BoxedStrategy<Unit> {
 fn is_not_unit_term(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     strategy::term::is_not_integer(arc_process)
         .prop_filter("Term must not be a unit name", |term| {
-            match term.to_typed_term().unwrap() {
+            match term.decode().unwrap() {
                 TypedTerm::Atom(atom) => match atom.name() {
                     "second" | "millisecond" | "microsecond" | "nanosecond" | "native"
                     | "perf_counter" => false,

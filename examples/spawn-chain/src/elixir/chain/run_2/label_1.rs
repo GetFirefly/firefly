@@ -1,11 +1,11 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Boxed, Closure, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir::chain::run_2::label_2;
 
@@ -23,7 +23,7 @@ pub fn place_frame_with_arguments(
     output: Term,
     n: Term,
 ) -> Result<(), Alloc> {
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     assert!(n.is_integer());
     process.stack_push(n)?;
     process.stack_push(output)?;
@@ -39,12 +39,12 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let time_value = arc_process.stack_pop().unwrap();
     assert!(
-        time_value.is_tuple(),
+        time_value.is_boxed_tuple(),
         "time_value ({:?}) isn't a tuple",
         time_value
     );
     let output = arc_process.stack_pop().unwrap();
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     let n = arc_process.stack_pop().unwrap();
     assert!(n.is_integer());
 
@@ -56,7 +56,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     assert!(value.is_integer());
 
     let output_closure: Boxed<Closure> = output.try_into().unwrap();
-    assert_eq!(output_closure.arity, 1);
+    assert_eq!(output_closure.arity(), 1);
 
     label_2::place_frame_with_arguments(arc_process, Placement::Replace, time_value).unwrap();
 

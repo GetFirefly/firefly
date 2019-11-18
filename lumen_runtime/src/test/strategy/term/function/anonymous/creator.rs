@@ -1,7 +1,7 @@
 use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::term::closure::Creator;
-use liblumen_alloc::erts::term::{ExternalPid, Pid};
+use liblumen_alloc::erts::term::prelude::{ExternalPid, Pid};
 
 use crate::test::strategy::node;
 use crate::test::strategy::term::pid;

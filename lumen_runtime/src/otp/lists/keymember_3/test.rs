@@ -5,7 +5,7 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::lists::keymember_3::native;
 use crate::scheduler::with_process_arc;

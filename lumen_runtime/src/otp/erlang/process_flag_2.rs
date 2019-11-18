@@ -10,12 +10,12 @@ use std::convert::TryInto;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(process_flag/2)]
-pub fn native(process: &Process, flag: Term, value: Term) -> exception::Result {
+pub fn native(process: &Process, flag: Term, value: Term) -> exception::Result<Term> {
     let flag_atom: Atom = flag.try_into()?;
 
     match flag_atom.name() {

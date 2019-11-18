@@ -10,14 +10,14 @@ use std::convert::TryInto;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{make_pid, Boxed, Cons, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::distribution::nodes;
 
 #[native_implemented_function(list_to_pid/1)]
-pub fn native(process: &Process, string: Term) -> exception::Result {
+pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
     let cons: Boxed<Cons> = string.try_into()?;
 
     let prefix_tail = skip_char(cons, '<')?;
@@ -42,7 +42,7 @@ pub fn native(process: &Process, string: Term) -> exception::Result {
 
     if suffix_tail.is_nil() {
         if node_id == nodes::node::id() {
-            make_pid(number, serial).map_err(|error| error.into())
+            Pid::make_term(number, serial).map_err(|error| error.into())
         } else {
             match nodes::id_to_arc_node(&node_id) {
                 Some(arc_node) => process
@@ -58,12 +58,12 @@ pub fn native(process: &Process, string: Term) -> exception::Result {
 
 // Private
 
-fn next_decimal(cons: Boxed<Cons>) -> Result<(usize, Term), exception::Exception> {
+fn next_decimal(cons: Boxed<Cons>) -> exception::Result<(usize, Term)> {
     next_decimal_digit(cons)
         .and_then(|(first_digit, first_tail)| rest_decimal_digits(first_digit, first_tail))
 }
 
-fn next_decimal_digit(cons: Boxed<Cons>) -> Result<(u8, Term), exception::Exception> {
+fn next_decimal_digit(cons: Boxed<Cons>) -> exception::Result<(u8, Term)> {
     let head_char: char = cons.head.try_into()?;
 
     match head_char.to_digit(10) {
@@ -72,10 +72,7 @@ fn next_decimal_digit(cons: Boxed<Cons>) -> Result<(u8, Term), exception::Except
     }
 }
 
-fn rest_decimal_digits(
-    first_digit: u8,
-    first_tail: Term,
-) -> Result<(usize, Term), exception::Exception> {
+fn rest_decimal_digits(first_digit: u8, first_tail: Term) -> exception::Result<(usize, Term)> {
     match first_tail.try_into() {
         Ok(first_tail_cons) => {
             let mut acc_decimal: usize = first_digit as usize;
@@ -100,7 +97,7 @@ fn rest_decimal_digits(
     }
 }
 
-fn skip_char(cons: Boxed<Cons>, skip: char) -> exception::Result {
+fn skip_char(cons: Boxed<Cons>, skip: char) -> exception::Result<Term> {
     let c: char = cons.head.try_into()?;
 
     if c == skip {

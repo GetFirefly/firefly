@@ -1,6 +1,6 @@
 use super::*;
 
-use liblumen_alloc::erts::term::{atom_unchecked, Atom};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
 use crate::scheduler::Spawned;
@@ -9,7 +9,7 @@ use crate::scheduler::Spawned;
 fn different_processes_have_different_pids() {
     let erlang = Atom::try_from_str("erlang").unwrap();
     let exit = Atom::try_from_str("exit").unwrap();
-    let normal = atom_unchecked("normal");
+    let normal = Atom::str_to_term("normal");
     let parent_arc_process = process::test_init();
 
     let first_process_arguments = parent_arc_process.list_from_slice(&[normal]).unwrap();

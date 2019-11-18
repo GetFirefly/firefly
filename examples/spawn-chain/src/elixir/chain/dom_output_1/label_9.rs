@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir::chain::dom_output_1::label_10;
 
@@ -41,19 +41,19 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     arc_process.reduce();
 
     let ok_text_td = arc_process.stack_pop().unwrap();
-    assert!(ok_text_td.is_tuple());
+    assert!(ok_text_td.is_boxed_tuple());
     let document = arc_process.stack_pop().unwrap();
-    assert!(document.is_resource_reference());
+    assert!(document.is_boxed_resource_reference());
     let tr = arc_process.stack_pop().unwrap();
-    assert!(tr.is_resource_reference());
+    assert!(tr.is_boxed_resource_reference());
     let text_text = arc_process.stack_pop().unwrap();
-    assert!(text_text.is_resource_reference());
+    assert!(text_text.is_boxed_resource_reference());
 
     let ok_text_td_tuple: Boxed<Tuple> = ok_text_td.try_into().unwrap();
     assert_eq!(ok_text_td_tuple.len(), 2);
-    assert_eq!(ok_text_td_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_text_td_tuple[0], Atom::str_to_term("ok"));
     let text_td = ok_text_td_tuple[1];
-    assert!(text_td.is_resource_reference());
+    assert!(text_td.is_boxed_resource_reference());
 
     label_10::place_frame_with_arguments(arc_process, Placement::Replace, document, tr, text_td)
         .unwrap();

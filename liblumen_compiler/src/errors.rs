@@ -1,30 +1,26 @@
-use std::convert::From;
 use std::sync::{Arc, Mutex};
 
-use failure::Fail;
+use thiserror::Error;
 
-use libeir_diagnostics::CodeMap;
-use libeir_syntax_erl::ParserError;
+use libeir_diagnostics::{CodeMap, Diagnostic};
 
 /// Represents various compilation errors to compiler consumers
-#[derive(Fail, Debug)]
+#[derive(Error, Debug)]
 pub enum CompilerError {
-    #[fail(display = "{}", _0)]
-    IO(#[fail(cause)] std::io::Error),
+    #[error("i/o error: {0}")]
+    IO(#[from] std::io::Error),
 
-    #[fail(display = "parsing failed")]
+    #[error("parsing failed")]
     Parser {
         codemap: Arc<Mutex<CodeMap>>,
-        errs: Vec<ParserError>,
+        errs: Vec<Diagnostic>,
     },
 
-    #[fail(display = "compilation failed")]
+    #[error("compilation failed")]
     Failed,
-}
-impl From<std::io::Error> for CompilerError {
-    fn from(err: std::io::Error) -> Self {
-        CompilerError::IO(err)
-    }
+
+    #[error("invalid file type: '{0}'")]
+    FileType(String),
 }
 
 unsafe impl Send for CompilerError {}

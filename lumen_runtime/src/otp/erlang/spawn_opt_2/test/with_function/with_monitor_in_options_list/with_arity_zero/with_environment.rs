@@ -3,7 +3,7 @@ use super::*;
 use std::sync::Arc;
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 use liblumen_alloc::exit;
 
 #[test]
@@ -41,7 +41,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                                 arity,
                                 Some(code),
                                 creator,
-                                &[atom_unchecked("first"), atom_unchecked("second")],
+                                &[Atom::str_to_term("first"), Atom::str_to_term("second")],
                             )
                             .unwrap(),
                     )
@@ -76,7 +76,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                 prop_assert!(scheduler.run_once());
 
                 let reason = child_arc_process
-                    .list_from_slice(&[atom_unchecked("first"), atom_unchecked("second")])
+                    .list_from_slice(&[Atom::str_to_term("first"), Atom::str_to_term("second")])
                     .unwrap();
 
                 match *child_arc_process.status.read() {
@@ -93,7 +93,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
 
                 prop_assert!(!parent_arc_process.is_exiting());
 
-                let tag = atom_unchecked("DOWN");
+                let tag = Atom::str_to_term("DOWN");
 
                 prop_assert!(has_message(
                     &parent_arc_process,
@@ -101,7 +101,7 @@ fn without_expected_exit_in_child_process_sends_exit_message_to_parent() {
                         .tuple_from_slice(&[
                             tag,
                             monitor_reference,
-                            atom_unchecked("process"),
+                            Atom::str_to_term("process"),
                             child_pid_term,
                             reason
                         ])
@@ -150,8 +150,8 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                                 Some(code),
                                 creator,
                                 &[
-                                    atom_unchecked("shutdown"),
-                                    atom_unchecked("shutdown_reason"),
+                                    Atom::str_to_term("shutdown"),
+                                    Atom::str_to_term("shutdown_reason"),
                                 ],
                             )
                             .unwrap(),
@@ -188,8 +188,8 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
 
                 let reason = child_arc_process
                     .tuple_from_slice(&[
-                        atom_unchecked("shutdown"),
-                        atom_unchecked("shutdown_reason"),
+                        Atom::str_to_term("shutdown"),
+                        Atom::str_to_term("shutdown_reason"),
                     ])
                     .unwrap();
 
@@ -207,7 +207,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
 
                 prop_assert!(!parent_arc_process.is_exiting());
 
-                let tag = atom_unchecked("DOWN");
+                let tag = Atom::str_to_term("DOWN");
 
                 prop_assert!(has_message(
                     &parent_arc_process,
@@ -215,7 +215,7 @@ fn with_expected_exit_in_child_process_send_exit_message_to_parent() {
                         .tuple_from_slice(&[
                             tag,
                             monitor_reference,
-                            atom_unchecked("process"),
+                            Atom::str_to_term("process"),
                             child_pid_term,
                             reason
                         ])

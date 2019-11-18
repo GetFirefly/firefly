@@ -15,7 +15,7 @@ fn without_locked_adds_process_message_to_mailbox_and_returns_ok() {
 
                     prop_assert_eq!(
                         native(&arc_process, destination, message, options),
-                        Ok(atom_unchecked("ok"))
+                        Ok(Atom::str_to_term("ok"))
                     );
 
                     prop_assert!(has_process_message(&different_arc_process, message));
@@ -44,7 +44,7 @@ fn with_locked_adds_process_message_to_mailbox_and_returns_ok() {
 
                     assert_eq!(
                         native(&arc_process, destination, message, options),
-                        Ok(atom_unchecked("ok"))
+                        Ok(Atom::str_to_term("ok"))
                     );
 
                     assert!(has_heap_message(&different_arc_process, message));

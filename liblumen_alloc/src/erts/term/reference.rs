@@ -1,38 +1,36 @@
 use core::alloc::Layout;
-use core::cmp;
-use core::convert::{TryFrom, TryInto};
+use core::cmp::Ordering;
+use core::convert::TryFrom;
 use core::fmt::{self, Debug, Display};
 use core::hash::{Hash, Hasher};
-use core::mem::{self, size_of};
+use core::mem;
 use core::ptr;
 
 use alloc::sync::Arc;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::system::Alloc;
-use crate::erts::term::{arity_of, to_word_size, AsTerm, Boxed, Term, TypeError, TypedTerm};
-use crate::erts::{scheduler, HeapAlloc, Node};
+use crate::erts::exception::AllocResult;
+use crate::erts::node::Node;
+use crate::erts::process::alloc::TermAlloc;
+use crate::erts::scheduler;
 
-pub type Number = u64;
+use super::prelude::*;
 
-#[derive(Clone, Copy, Eq)]
+pub type ReferenceNumber = u64;
+
+#[derive(Debug, Clone, Copy, Eq)]
 #[repr(C)]
 pub struct Reference {
-    #[allow(dead_code)]
-    header: Term,
+    header: Header<Reference>,
     scheduler_id: scheduler::ID,
-    number: Number,
+    number: ReferenceNumber,
 }
-
+impl_static_header!(Reference, Term::HEADER_REFERENCE);
 impl Reference {
-    pub fn need_in_words() -> usize {
-        to_word_size(size_of::<Self>())
-    }
-
     /// Create a new `Reference` struct
-    pub fn new(scheduler_id: scheduler::ID, number: Number) -> Self {
+    pub fn new(scheduler_id: scheduler::ID, number: ReferenceNumber) -> Self {
         Self {
-            header: Term::make_header(arity_of::<Self>(), Term::FLAG_REFERENCE),
+            header: Default::default(),
             scheduler_id,
             number,
         }
@@ -55,36 +53,28 @@ impl Reference {
         self.scheduler_id
     }
 
-    pub fn number(&self) -> Number {
+    pub fn number(&self) -> ReferenceNumber {
         self.number
     }
 }
 
-unsafe impl AsTerm for Reference {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self)
-    }
-}
 impl CloneToProcess for Reference {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
+    where
+        A: ?Sized + TermAlloc,
+    {
         unsafe {
-            let word_size = self.size_in_words();
-            let ptr = heap.alloc(word_size)?.as_ptr() as *mut Self;
-            let byte_size = mem::size_of_val(self);
+            let layout = Layout::new::<Self>();
+            let byte_size = layout.size();
+            let ptr = heap.alloc_layout(layout)?.as_ptr() as *mut Self;
             ptr::copy_nonoverlapping(self as *const Self, ptr, byte_size);
 
-            Ok(Term::make_boxed(ptr))
+            Ok(ptr.into())
         }
     }
-}
-impl Debug for Reference {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Reference")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("scheduler_id", &self.scheduler_id)
-            .field("number", &self.number)
-            .finish()
+
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
     }
 }
 impl Display for Reference {
@@ -99,13 +89,13 @@ impl Hash for Reference {
     }
 }
 impl Ord for Reference {
-    fn cmp(&self, other: &Reference) -> cmp::Ordering {
+    fn cmp(&self, other: &Reference) -> Ordering {
         self.scheduler_id
             .cmp(&other.scheduler_id)
             .then_with(|| self.number.cmp(&other.number))
     }
 }
-impl PartialEq<Reference> for Reference {
+impl PartialEq for Reference {
     fn eq(&self, other: &Reference) -> bool {
         (self.scheduler_id == other.scheduler_id) && (self.number == other.number)
     }
@@ -116,17 +106,33 @@ impl PartialEq<ExternalReference> for Reference {
         false
     }
 }
-impl PartialOrd<Reference> for Reference {
-    fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
-        Some(self.cmp(other))
+impl<T> PartialEq<Boxed<T>> for Reference
+where
+    T: PartialEq<Reference>,
+{
+    #[inline]
+    default fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+impl PartialEq<Boxed<ExternalReference>> for Reference {
+    #[inline(always)]
+    fn eq(&self, _other: &Boxed<ExternalReference>) -> bool {
+        false
     }
 }
 
-impl TryFrom<Term> for Boxed<Reference> {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+impl PartialOrd<Reference> for Reference {
+    fn partial_cmp(&self, other: &Reference) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl<T> PartialOrd<Boxed<T>> for Reference
+where
+    T: PartialOrd<Reference>,
+{
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }
 
@@ -135,44 +141,31 @@ impl TryFrom<TypedTerm> for Boxed<Reference> {
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::Reference(reference) => Ok(reference),
-                _ => Err(TypeError),
-            },
+            TypedTerm::Reference(reference) => Ok(reference),
             _ => Err(TypeError),
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct ExternalReference {
-    header: Term,
+    header: Header<ExternalReference>,
     arc_node: Arc<Node>,
     reference: Reference,
 }
-
-unsafe impl AsTerm for ExternalReference {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_boxed(self)
-    }
-}
-
+impl_static_header!(ExternalReference, Term::HEADER_EXTERN_REF);
 impl CloneToProcess for ExternalReference {
     #[inline]
-    fn clone_to_heap<A: HeapAlloc>(&self, _heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, _heap: &mut A) -> AllocResult<Term>
+    where
+        A: ?Sized + TermAlloc,
+    {
         unimplemented!()
     }
-}
 
-impl Debug for ExternalReference {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ExternalReference")
-            .field("header", &format_args!("{:#b}", &self.header.as_usize()))
-            .field("arc_node", &self.arc_node)
-            .field("reference", &self.reference)
-            .finish()
+    fn size_in_words(&self) -> usize {
+        crate::erts::to_word_size(Layout::for_value(self).size())
     }
 }
 
@@ -189,55 +182,52 @@ impl Hash for ExternalReference {
     }
 }
 
+impl PartialEq for ExternalReference {
+    fn eq(&self, other: &ExternalReference) -> bool {
+        self.arc_node == other.arc_node && self.reference == other.reference
+    }
+}
 impl PartialEq<Reference> for ExternalReference {
     fn eq(&self, _other: &Reference) -> bool {
         false
     }
 }
-
-impl PartialEq<Reference> for Boxed<ExternalReference> {
-    fn eq(&self, other: &Reference) -> bool {
-        self.as_ref().eq(other)
-    }
-}
-
-impl PartialEq<Boxed<Reference>> for Boxed<ExternalReference> {
-    fn eq(&self, other: &Boxed<Reference>) -> bool {
-        self.as_ref().eq(other.as_ref())
-    }
-}
-
-impl PartialEq<ExternalReference> for ExternalReference {
-    fn eq(&self, other: &ExternalReference) -> bool {
-        self.arc_node == other.arc_node && self.reference == other.reference
-    }
-}
-
-impl PartialOrd<Reference> for ExternalReference {
+impl<T> PartialEq<Boxed<T>> for ExternalReference
+where
+    T: PartialEq<ExternalReference>,
+{
     #[inline]
-    fn partial_cmp(&self, _other: &Reference) -> Option<cmp::Ordering> {
-        Some(cmp::Ordering::Greater)
+    default fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+impl PartialEq<Boxed<Reference>> for ExternalReference {
+    #[inline(always)]
+    fn eq(&self, _other: &Boxed<Reference>) -> bool {
+        false
     }
 }
 
-impl PartialOrd<Reference> for Boxed<ExternalReference> {
-    fn partial_cmp(&self, other: &Reference) -> Option<cmp::Ordering> {
-        self.as_ref().partial_cmp(other)
-    }
-}
-
-impl PartialOrd<Boxed<Reference>> for Boxed<ExternalReference> {
-    fn partial_cmp(&self, other: &Boxed<Reference>) -> Option<cmp::Ordering> {
-        self.as_ref().partial_cmp(other.as_ref())
-    }
-}
-
-impl PartialOrd<ExternalReference> for ExternalReference {
-    fn partial_cmp(&self, other: &ExternalReference) -> Option<cmp::Ordering> {
-        use cmp::Ordering;
+impl PartialOrd for ExternalReference {
+    fn partial_cmp(&self, other: &ExternalReference) -> Option<Ordering> {
         match self.arc_node.partial_cmp(&other.arc_node) {
             Some(Ordering::Equal) => self.reference.partial_cmp(&other.reference),
             result => result,
         }
+    }
+}
+impl PartialOrd<Reference> for ExternalReference {
+    #[inline]
+    fn partial_cmp(&self, _other: &Reference) -> Option<Ordering> {
+        Some(Ordering::Greater)
+    }
+}
+impl<T> PartialOrd<Boxed<T>> for ExternalReference
+where
+    T: PartialOrd<ExternalReference>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
     }
 }

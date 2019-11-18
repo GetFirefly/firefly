@@ -28,7 +28,7 @@ fn unregistered_sends_nothing_when_timer_expires() {
 
                 let timer_reference = result.unwrap();
 
-                prop_assert!(timer_reference.is_local_reference());
+                prop_assert!(timer_reference.is_boxed_local_reference());
                 prop_assert!(!has_message(&arc_process, message));
 
                 thread::sleep(Duration::from_millis(milliseconds + 1));

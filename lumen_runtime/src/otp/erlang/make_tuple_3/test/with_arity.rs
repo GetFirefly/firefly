@@ -49,14 +49,16 @@ fn with_empty_list_init_list_returns_tuple_with_arity_copies_of_default_value() 
 
                 let tuple_term = result.unwrap();
 
-                prop_assert!(tuple_term.is_tuple());
+                prop_assert!(tuple_term.is_boxed());
 
-                let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+                let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
+                prop_assert!(boxed_tuple.is_ok());
 
-                prop_assert_eq!(boxed_tuple.len(), arity_usize);
+                let tuple = boxed_tuple.unwrap();
+                prop_assert_eq!(tuple.len(), arity_usize);
 
-                for element in boxed_tuple.iter() {
-                    prop_assert_eq!(element, default_value);
+                for element in tuple.iter() {
+                    prop_assert_eq!(element, &default_value);
                 }
 
                 Ok(())

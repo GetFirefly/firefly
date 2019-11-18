@@ -1,6 +1,6 @@
 use core::fmt::{self, Display};
 
-use crate::erts::term::Atom;
+use crate::erts::term::prelude::Atom;
 
 pub type Arity = u8;
 

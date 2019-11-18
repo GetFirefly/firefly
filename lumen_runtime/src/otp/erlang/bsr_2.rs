@@ -7,12 +7,12 @@ mod test;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
 /// `bsr/2` infix operator.
 #[native_implemented_function(bsr/2)]
-pub fn native(process: &Process, integer: Term, shift: Term) -> exception::Result {
+pub fn native(process: &Process, integer: Term, shift: Term) -> exception::Result<Term> {
     bitshift_infix_operator!(integer, shift, process, >>, <<)
 }

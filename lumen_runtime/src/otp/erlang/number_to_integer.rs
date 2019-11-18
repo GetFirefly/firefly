@@ -1,8 +1,8 @@
 use num_bigint::BigInt;
 
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Float, SmallInteger, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub enum NumberToInteger {
     NotANumber,
@@ -12,19 +12,16 @@ pub enum NumberToInteger {
 
 impl From<Term> for NumberToInteger {
     fn from(number: Term) -> Self {
-        match number.to_typed_term().unwrap() {
+        match number.decode().unwrap() {
             TypedTerm::SmallInteger(_) => Self::Integer(number),
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::BigInteger(_) => Self::Integer(number),
-                TypedTerm::Float(float) => Self::F64(float.into()),
-                _ => Self::NotANumber,
-            },
+            TypedTerm::BigInteger(_) => Self::Integer(number),
+            TypedTerm::Float(float) => Self::F64(float.into()),
             _ => Self::NotANumber,
         }
     }
 }
 
-pub fn f64_to_integer(process: &Process, f: f64) -> Result<Term, Exception> {
+pub fn f64_to_integer(process: &Process, f: f64) -> exception::Result<Term> {
     // skip creating a BigInt if f64 can fit in small integer.
     if (SmallInteger::MIN_VALUE as f64).max(Float::INTEGRAL_MIN) <= f
         && f <= (SmallInteger::MAX_VALUE as f64).min(Float::INTEGRAL_MAX)

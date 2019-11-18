@@ -38,7 +38,7 @@ fn with_positive_start_and_positive_length_returns_subbinary() {
 
                     let returned = result.unwrap();
 
-                    prop_assert!(returned.is_subbinary());
+                    prop_assert!(returned.is_boxed_subbinary());
 
                     Ok(())
                 },
@@ -69,7 +69,10 @@ fn with_size_start_and_negative_size_length_returns_binary() {
 
                     let returned_binary = native(&arc_process, binary, start, length).unwrap();
 
-                    prop_assert_eq!(returned_binary.is_subbinary(), binary.is_subbinary());
+                    prop_assert_eq!(
+                        returned_binary.is_boxed_subbinary(),
+                        binary.is_boxed_subbinary()
+                    );
 
                     Ok(())
                 },
@@ -97,7 +100,10 @@ fn with_zero_start_and_size_length_returns_binary() {
 
                     let returned_binary = native(&arc_process, binary, start, length).unwrap();
 
-                    prop_assert_eq!(returned_binary.is_subbinary(), binary.is_subbinary());
+                    prop_assert_eq!(
+                        returned_binary.is_boxed_subbinary(),
+                        binary.is_boxed_subbinary()
+                    );
 
                     Ok(())
                 },

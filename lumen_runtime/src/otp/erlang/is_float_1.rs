@@ -5,11 +5,11 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(is_float/1)]
 pub fn native(term: Term) -> Term {
-    term.is_float().into()
+    term.is_boxed_float().into()
 }

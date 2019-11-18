@@ -1,7 +1,6 @@
 use super::*;
 
 use liblumen_alloc::badkey;
-use liblumen_alloc::erts::term::atom_unchecked;
 
 #[test]
 fn without_key_errors_badkey() {
@@ -19,8 +18,7 @@ fn without_key_errors_badkey() {
                     key != non_key
                 })
                 .prop_map(|(arc_process, key, non_key)| {
-                    let value = atom_unchecked("value");
-
+                    let value = atom!("value");
                     (
                         arc_process.clone(),
                         non_key,
@@ -45,12 +43,12 @@ fn with_key_returns_value() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term(arc_process.clone()).prop_map(|key| {
-                    let value = atom_unchecked("value");
+                    let value = atom!("value");
 
                     (key, arc_process.map_from_slice(&[(key, value)]).unwrap())
                 }),
                 |(key, map)| {
-                    let value = atom_unchecked("value");
+                    let value = atom!("value");
                     prop_assert_eq!(native(&arc_process, key, map), Ok(value.into()));
 
                     Ok(())

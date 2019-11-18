@@ -7,12 +7,13 @@ use web_sys::Event;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{resource, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 // Private
 
 fn from_term(term: Term) -> Result<&'static Event, exception::Exception> {
-    let event_reference: resource::Reference = term.try_into()?;
+    let boxed: Boxed<Resource> = term.try_into()?;
+    let event_reference: Resource = boxed.into();
 
     match event_reference.downcast_ref() {
         Some(event) => {

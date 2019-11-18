@@ -4,7 +4,7 @@ mod without_compact;
 use super::*;
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 fn option(process: &Process, digits: u8) -> Term {
     process
@@ -13,5 +13,5 @@ fn option(process: &Process, digits: u8) -> Term {
 }
 
 fn tag() -> Term {
-    atom_unchecked("decimals")
+    Atom::str_to_term("decimals")
 }

@@ -34,8 +34,8 @@ use std::sync::Arc;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::term::{AsTerm, ExternalPid, Term};
-use liblumen_alloc::erts::term::{Creator, Pid as LocalPid};
+use liblumen_alloc::erts::term::closure::Creator;
+use liblumen_alloc::erts::term::prelude::{Pid as LocalPid, *};
 use liblumen_alloc::erts::{Node, Process};
 use liblumen_alloc::{badarg, CloneToProcess};
 
@@ -121,7 +121,7 @@ impl Pid {
 
     fn clone_to_process(&self, process: &Process) -> Term {
         match self {
-            Pid::Local(local_pid) => unsafe { local_pid.as_term() },
+            Pid::Local(local_pid) => local_pid.clone().into(),
             Pid::External(external_pid) => external_pid.clone_to_process(process),
         }
     }

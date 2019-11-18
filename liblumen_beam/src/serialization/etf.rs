@@ -539,7 +539,7 @@ impl std::fmt::Display for Binary {
         Ok(())
     }
 }
-impl<'a> From<(&'a [u8])> for Binary {
+impl<'a> From<&'a [u8]> for Binary {
     fn from(bytes: &'a [u8]) -> Self {
         Binary {
             bytes: Vec::from(bytes),

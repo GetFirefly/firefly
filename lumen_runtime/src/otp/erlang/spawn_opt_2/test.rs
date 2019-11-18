@@ -6,7 +6,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::erts::process::Status;
-use liblumen_alloc::erts::term::{Pid, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, badarity};
 
 use crate::otp::erlang::spawn_opt_2::native;

@@ -8,7 +8,7 @@ use winapi::um::memoryapi::{OfferVirtualMemory, VirtualAlloc, VirtualFree, Virtu
 use winapi::um::winnt::{MEM_COMMIT, MEM_DECOMMIT, MEM_RELEASE, MEM_RESERVE};
 use winapi::um::winnt::{PAGE_NOACCESS, PAGE_READWRITE};
 
-use crate::alloc::alloc_utils;
+use crate::alloc::utils as alloc_utils;
 use crate::sys::sysconf;
 
 /// Requests a new memory mapping from the OS.

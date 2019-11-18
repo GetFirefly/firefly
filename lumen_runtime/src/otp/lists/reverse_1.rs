@@ -7,13 +7,13 @@ mod test;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::lists::reverse_2;
 
 #[native_implemented_function(reverse/1)]
-fn native(process: &Process, list: Term) -> exception::Result {
+fn native(process: &Process, list: Term) -> exception::Result<Term> {
     reverse_2::native(process, list, Term::NIL)
 }

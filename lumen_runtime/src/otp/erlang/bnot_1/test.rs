@@ -6,7 +6,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarith;
-use liblumen_alloc::erts::term::TypedTerm;
+use liblumen_alloc::erts::term::prelude::{Encoded, TypedTerm};
 
 use crate::otp::erlang::bnot_1::native;
 use crate::scheduler::{with_process, with_process_arc};
@@ -69,7 +69,7 @@ fn with_big_integer_inverts_bits() {
         .unwrap();
         let integer = process.integer(integer_big_int).unwrap();
 
-        assert!(integer.is_bigint());
+        assert!(integer.is_boxed_bigint());
 
         assert_eq!(
             native(&process, integer),
@@ -93,11 +93,8 @@ fn with_big_integer_returns_big_integer() {
 
                     let inverted = result.unwrap();
 
-                    match inverted.to_typed_term().unwrap() {
-                        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                            TypedTerm::BigInteger(_) => prop_assert!(true),
-                            _ => prop_assert!(false),
-                        },
+                    match inverted.decode().unwrap() {
+                        TypedTerm::BigInteger(_) => prop_assert!(true),
                         _ => prop_assert!(false),
                     }
 

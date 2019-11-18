@@ -7,7 +7,7 @@ pub mod label_3;
 #[path = "with_new_child_is_parent_returns_error_hierarchy_request/label_4.rs"]
 pub mod label_4;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 fn function() -> Atom {
     Atom::try_from_str("replace_child_3_with_new_child_is_parent_returns_error_hierarchy_request")

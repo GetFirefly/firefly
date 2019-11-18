@@ -10,7 +10,7 @@ use js_sys::{Reflect, Symbol};
 
 use wasm_bindgen::JsCast;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use lumen_web::{document, window};
 

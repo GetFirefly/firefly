@@ -1,4 +1,4 @@
-use crate::erts::term::{Atom, Pid};
+use crate::erts::term::prelude::{Atom, Pid};
 
 pub enum Monitor {
     /// The monitor was created using a `Pid`, so the monitor message object should be the

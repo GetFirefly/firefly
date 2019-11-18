@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::ModuleFunctionArity;
 
 use super::label_2;
@@ -31,15 +31,15 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_parent_document = arc_process.stack_pop().unwrap();
     assert!(
-        ok_parent_document.is_tuple(),
+        ok_parent_document.is_boxed_tuple(),
         "ok_parent_document ({:?}) is not a tuple",
         ok_parent_document
     );
     let ok_parent_document_tuple: Boxed<Tuple> = ok_parent_document.try_into().unwrap();
     assert_eq!(ok_parent_document_tuple.len(), 2);
-    assert_eq!(ok_parent_document_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_parent_document_tuple[0], Atom::str_to_term("ok"));
     let parent_document = ok_parent_document_tuple[1];
-    assert!(parent_document.is_resource_reference());
+    assert!(parent_document.is_boxed_resource_reference());
 
     label_2::place_frame_with_arguments(arc_process, Placement::Replace, parent_document)?;
 

@@ -40,11 +40,8 @@ fn with_same_value_float_right_returns_true() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
-                &any::<f64>().prop_map(|f| {
-                    let mut heap = arc_process.acquire_heap();
-
-                    (heap.float(f).unwrap(), heap.float(f).unwrap())
-                }),
+                &any::<f64>()
+                    .prop_map(|f| (arc_process.float(f).unwrap(), arc_process.float(f).unwrap())),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), true.into());
 
@@ -61,9 +58,10 @@ fn with_different_float_right_returns_false() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &&any::<f64>().prop_map(|f| {
-                    let mut heap = arc_process.acquire_heap();
-
-                    (heap.float(f).unwrap(), heap.float(f / 2.0 + 1.0).unwrap())
+                    (
+                        arc_process.float(f).unwrap(),
+                        arc_process.float(f / 2.0 + 1.0).unwrap(),
+                    )
                 }),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), false.into());

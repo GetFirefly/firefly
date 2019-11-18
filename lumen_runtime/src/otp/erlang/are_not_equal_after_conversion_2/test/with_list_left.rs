@@ -13,7 +13,7 @@ fn without_list_right_returns_true() {
                 &(
                     strategy::term::list::non_empty_maybe_improper(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be list", |v| !v.is_list()),
+                        .prop_filter("Right must not be list", |v| !v.is_non_empty_list()),
                 ),
                 |(left, right)| {
                     prop_assert_eq!(native(left, right), true.into());

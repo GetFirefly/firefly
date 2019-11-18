@@ -8,20 +8,16 @@ mod test;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::binary::MaybePartialByte;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(bit_size/1)]
-pub fn native(process: &Process, bitstring: Term) -> exception::Result {
-    let option_total_bit_len = match bitstring.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_bit_len()),
-            TypedTerm::ProcBin(process_binary) => Some(process_binary.total_bit_len()),
-            TypedTerm::SubBinary(subbinary) => Some(subbinary.total_bit_len()),
-            _ => None,
-        },
+pub fn native(process: &Process, bitstring: Term) -> exception::Result<Term> {
+    let option_total_bit_len = match bitstring.decode().unwrap() {
+        TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.total_bit_len()),
+        TypedTerm::ProcBin(process_binary) => Some(process_binary.total_bit_len()),
+        TypedTerm::SubBinary(subbinary) => Some(subbinary.total_bit_len()),
         _ => None,
     };
 

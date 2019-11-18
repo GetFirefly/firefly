@@ -1,4 +1,5 @@
 use std::convert::{AsRef, TryInto};
+use std::process::abort;
 use std::sync::Arc;
 
 use hashbrown::HashMap;
@@ -11,13 +12,12 @@ use libeir_ir::{
     Value, ValueKind,
 };
 
-use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::exception::system;
-use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::process::code::Result;
-use liblumen_alloc::erts::process::RootSet;
+use liblumen_alloc::atom;
+use liblumen_alloc::erts::exception::{Exception, RuntimeException, SystemException};
+use liblumen_alloc::erts::process::code;
+use liblumen_alloc::erts::process::gc::RootSet;
 use liblumen_alloc::erts::process::{Process, ProcessFlags};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Boxed, Map, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::module::{ErlangFunction, NativeFunctionKind, ResolvedFunction};
 use crate::vm::VMState;
@@ -90,13 +90,13 @@ where
 fn try_gc<T, F, R>(proc: &Arc<Process>, terms: &mut T, fun: &mut F) -> R
 where
     T: TermCollection,
-    F: FnMut(&mut T) -> std::result::Result<R, system::Exception>,
+    F: FnMut(&mut T) -> Result<R, SystemException>,
 {
     // Loop, keep trying the inner function until we succeed
     loop {
         match fun(terms) {
             Ok(inner) => break inner,
-            Err(system::Exception::Alloc(_)) => {
+            Err(SystemException::Alloc(_)) => {
                 let mut heap = proc.acquire_heap();
 
                 let mut rootset = RootSet::new(&mut []);
@@ -129,6 +129,10 @@ where
                     }
                 }
             }
+            Err(fatal_err) => {
+                lumen_runtime::system::io::puts(&format!("FATAL_ERROR!\n\n{:?}", fatal_err));
+                abort();
+            }
         }
     }
 }
@@ -139,12 +143,7 @@ fn call_closure(proc: &Arc<Process>, mut closure: Term, args: &mut [Term]) {
         closure_term,
         args,
     )| {
-        call_closure_inner(
-            proc,
-            **closure_term,
-            closure_term.to_typed_term().unwrap(),
-            args,
-        )
+        call_closure_inner(proc, **closure_term, closure_term.decode().unwrap(), args)
     })
 }
 
@@ -153,7 +152,7 @@ fn call_closure_inner(
     closure_term: Term,
     closure_typed_term: TypedTerm,
     args: &mut [Term],
-) -> Result {
+) -> code::Result {
     match closure_typed_term {
         TypedTerm::Closure(closure) => {
             let is_closure = closure.env_len() > 0;
@@ -167,9 +166,6 @@ fn call_closure_inner(
 
             proc.replace_frame(closure.frame());
             Ok(())
-        }
-        TypedTerm::Boxed(boxed) => {
-            call_closure_inner(proc, closure_term, boxed.to_typed_term().unwrap(), args)
         }
         t => panic!("CALL TO: {:?}", t),
     }
@@ -198,11 +194,12 @@ impl CallExecutor {
 
         // Make sure no non-heap terms make it into the process
         {
-            let mut heap = proc.acquire_heap();
+            let heap = proc.acquire_heap();
             for arg in args.iter() {
                 if arg.is_boxed() {
-                    use liblumen_alloc::erts::process::alloc::HeapAlloc;
-                    if !heap.is_owner(arg.boxed_val()) {
+                    use liblumen_alloc::erts::process::alloc::Heap;
+                    let ptr: *const Term = arg.dyn_cast();
+                    if !heap.is_owner(ptr) {
                         println!("NON HEAP BOXED: {:?}", arg);
                         panic!();
                     }
@@ -261,11 +258,11 @@ impl CallExecutor {
         module: Atom,
         function: Atom,
         arity: usize,
-    ) -> Result {
+    ) -> code::Result {
         panic!("Undef: {} {} {}", module, function, arity);
-        //let exit_atom = atom_unchecked("EXIT");
-        //let undef_atom = atom_unchecked("undef");
-        //let trace_atom = atom_unchecked("trace");
+        //let exit_atom = Atom::str_to_term("EXIT");
+        //let undef_atom = Atom::str_to_term("undef");
+        //let trace_atom = Atom::str_to_term("trace");
         //self.call_closure(proc, throw_cont, &[exit_atom, undef_atom, trace_atom])
     }
 
@@ -280,34 +277,24 @@ impl CallExecutor {
             NativeFunctionKind::Simple(ptr) => match ptr(proc, &args[2..]) {
                 Ok(ret) => Ok(call_closure(proc, args[0], &mut [ret])),
                 Err(err) => match err {
+                    Exception::Runtime(RuntimeException::Throw(err)) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom!("throw"), err.reason(), atom!("trace")],
+                    )),
+                    Exception::Runtime(RuntimeException::Exit(err)) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom!("EXIT"), err.reason(), atom!("trace")],
+                    )),
+                    Exception::Runtime(RuntimeException::Error(err)) => Ok(call_closure(
+                        proc,
+                        args[1],
+                        &mut [atom!("error"), err.reason(), atom!("trace")],
+                    )),
+                    // Promote unknown runtime errors to SystemException
+                    Exception::Runtime(RuntimeException::Unknown(err)) => return Err(err.into()),
                     Exception::System(err) => return Err(err),
-                    Exception::Runtime(runtime::Exception {
-                        class: runtime::Class::Throw,
-                        reason,
-                        ..
-                    }) => Ok(call_closure(
-                        proc,
-                        args[1],
-                        &mut [atom_unchecked("throw"), reason, atom_unchecked("trace")],
-                    )),
-                    Exception::Runtime(runtime::Exception {
-                        class: runtime::Class::Exit,
-                        reason,
-                        ..
-                    }) => Ok(call_closure(
-                        proc,
-                        args[1],
-                        &mut [atom_unchecked("EXIT"), reason, atom_unchecked("trace")],
-                    )),
-                    Exception::Runtime(runtime::Exception {
-                        class: runtime::Class::Error { .. },
-                        reason,
-                        ..
-                    }) => Ok(call_closure(
-                        proc,
-                        args[1],
-                        &mut [atom_unchecked("error"), reason, atom_unchecked("trace")],
-                    )),
                 },
             },
             NativeFunctionKind::Yielding(ptr) => ptr(proc, args),
@@ -359,13 +346,13 @@ impl CallExecutor {
         proc: &Arc<Process>,
         fun: &ErlangFunction,
         const_val: Const,
-    ) -> std::result::Result<Term, system::Exception> {
+    ) -> Result<Term, SystemException> {
         let res = match fun.fun.cons().const_kind(const_val) {
-            ConstKind::Atomic(AtomicTerm::Atom(atom)) => Ok(atom_unchecked(&atom.0.as_str())),
+            ConstKind::Atomic(AtomicTerm::Atom(atom)) => Ok(Atom::str_to_term(&atom.0.as_str())),
             ConstKind::Atomic(AtomicTerm::Int(int)) => Ok(proc.integer(int.0)?),
             ConstKind::Atomic(AtomicTerm::Binary(bin)) => Ok(proc.binary_from_bytes(&bin.0)?),
             ConstKind::Tuple { entries } => {
-                let vec: std::result::Result<Vec<_>, _> = entries
+                let vec: Result<Vec<_>, _> = entries
                     .as_slice(&fun.fun.cons().const_pool)
                     .iter()
                     .map(|e| self.make_const_term(proc, fun, *e))
@@ -407,8 +394,8 @@ impl CallExecutor {
         proc: &Arc<Process>,
         fun: &ErlangFunction,
         block: Block,
-    ) -> std::result::Result<Term, system::Exception> {
-        let live = fun.live.live_at(block);
+    ) -> Result<Term, SystemException> {
+        let live = &fun.live.live_at(block);
 
         // FIXME vec alloc
         let mut env = Vec::new();
@@ -442,7 +429,7 @@ impl CallExecutor {
         proc: &Arc<Process>,
         fun: &ErlangFunction,
         value: Value,
-    ) -> std::result::Result<Term, system::Exception> {
+    ) -> Result<Term, SystemException> {
         match fun.fun.value_kind(value) {
             ValueKind::Block(block) => self.make_closure(proc, fun, block),
             ValueKind::Argument(_, _) => Ok(self.binds[&value]),
@@ -451,17 +438,17 @@ impl CallExecutor {
                 let reads = fun.fun.primop_reads(prim);
                 match fun.fun.primop_kind(prim) {
                     PrimOpKind::ValueList => {
-                        let terms: std::result::Result<Vec<_>, _> = reads
+                        let terms: Result<Vec<_>, _> = reads
                             .iter()
                             .map(|r| self.make_term(proc, fun, *r))
                             .collect();
                         let mut vec = terms?;
-                        vec.insert(0, atom_unchecked(VALUE_LIST_MARKER));
+                        vec.insert(0, Atom::str_to_term(VALUE_LIST_MARKER));
                         let term = proc.tuple_from_slice(&vec)?;
                         Ok(term)
                     }
                     PrimOpKind::Tuple => {
-                        let terms: std::result::Result<Vec<_>, _> = reads
+                        let terms: Result<Vec<_>, _> = reads
                             .iter()
                             .map(|r| self.make_term(proc, fun, *r))
                             .collect();
@@ -522,7 +509,7 @@ impl CallExecutor {
         proc: &Arc<Process>,
         fun: &ErlangFunction,
         value: Value,
-    ) -> std::result::Result<OpResult, system::Exception> {
+    ) -> Result<OpResult, SystemException> {
         if let ValueKind::Block(block) = fun.fun.value_kind(value) {
             Ok(OpResult::Block(block))
         } else {
@@ -537,7 +524,7 @@ impl CallExecutor {
         proc: &Arc<Process>,
         fun: &ErlangFunction,
         block: Block,
-    ) -> std::result::Result<OpResult, system::Exception> {
+    ) -> Result<OpResult, SystemException> {
         let reads = fun.fun.block_reads(block);
         let kind = fun.fun.block_kind(block).unwrap();
         trace!("OP: {:?} {}", kind, block);
@@ -556,21 +543,15 @@ impl CallExecutor {
             OpKind::UnpackValueList(num) => {
                 assert!(reads.len() == 2);
                 let term = self.make_term(proc, fun, reads[1])?;
-                match term.to_typed_term().unwrap() {
-                    TypedTerm::Boxed(inner) => match inner.to_typed_term().unwrap() {
-                        TypedTerm::Tuple(items) => match items[0].to_typed_term().unwrap() {
-                            TypedTerm::Atom(atom) if atom.name() == VALUE_LIST_MARKER => {
-                                assert!(items.len() - 1 == *num);
-                                for item in items.iter().skip(1) {
-                                    self.next_args.push(item);
-                                }
-                                self.val_call(proc, fun, reads[0])
+                match term.decode().unwrap() {
+                    TypedTerm::Tuple(items) => match items[0].decode().unwrap() {
+                        TypedTerm::Atom(atom) if atom.name() == VALUE_LIST_MARKER => {
+                            assert!(items.len() - 1 == *num);
+                            for item in items.iter().skip(1) {
+                                self.next_args.push(*item);
                             }
-                            _ => {
-                                self.next_args.push(term);
-                                self.val_call(proc, fun, reads[0])
-                            }
-                        },
+                            self.val_call(proc, fun, reads[0])
+                        }
                         _ => {
                             self.next_args.push(term);
                             self.val_call(proc, fun, reads[0])
@@ -630,7 +611,7 @@ impl CallExecutor {
             OpKind::Match { branches } => self::r#match::match_op(self, proc, fun, branches, block),
             OpKind::MapPut { action } => {
                 let map_term: Boxed<Map> = self.make_term(proc, fun, reads[2])?.try_into().unwrap();
-                let hashmap_ref: &HashMap<Term, Term> = map_term.as_ref();
+                let hashmap_ref: &HashMap<Term, Term> = map_term.as_ref().as_ref();
                 let mut hashmap = hashmap_ref.clone();
 
                 let mut idx = 3;
@@ -660,7 +641,7 @@ impl CallExecutor {
 
                 let timeout = self.make_term(proc, fun, reads[1])?;
                 // Only infinity supported
-                assert!(timeout == atom_unchecked("infinity"));
+                assert!(timeout == Atom::str_to_term("infinity"));
 
                 proc.mailbox.lock().borrow_mut().recv_start();
 

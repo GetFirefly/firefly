@@ -7,10 +7,12 @@ use std::sync::Arc;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::exception::runtime;
+use liblumen_alloc::erts::exception::RuntimeException;
 use liblumen_alloc::erts::process::{Priority, Status};
-use liblumen_alloc::erts::term::{atom_unchecked, AsTerm, Atom, Pid, Term};
-use liblumen_alloc::{badarg, badarith, exit, undef, ModuleFunctionArity, Process};
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{
+    atom, atom_from, badarg, badarith, exit, undef, ModuleFunctionArity, Process,
+};
 
 use crate::otp::erlang::apply_3;
 use crate::otp::erlang::spawn_opt_4::native;

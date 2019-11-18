@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::term::{AsTerm, Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
 pub const DEAD_ATOM_NAME: &str = "nonode@nohost";
@@ -22,7 +22,7 @@ pub fn id() -> usize {
 }
 
 pub fn term() -> Term {
-    unsafe { atom().as_term() }
+    atom().encode().unwrap()
 }
 
 lazy_static! {

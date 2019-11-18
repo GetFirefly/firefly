@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::apply_3;
 use crate::otp::timer::tc_3::label_2;
@@ -26,7 +25,7 @@ pub fn place_frame_with_arguments(
     module: Term,
     function: Term,
     arguments: Term,
-) -> Result<(), Alloc> {
+) -> code::Result {
     assert!(module.is_atom());
     assert!(function.is_atom());
     assert!(

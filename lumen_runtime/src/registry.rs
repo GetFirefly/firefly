@@ -5,9 +5,10 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLock;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{AsTerm, Atom, Pid, Term};
-use liblumen_alloc::{HeapAlloc, Process};
+use liblumen_alloc::erts::process::alloc::TermAlloc;
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::exception;
+use liblumen_alloc::Process;
 
 use crate::process;
 
@@ -21,14 +22,15 @@ pub fn atom_to_process(name: &Atom) -> Option<Arc<Process>> {
         })
 }
 
-pub fn names(process: &Process) -> exception::Result {
+pub fn names(process: &Process) -> exception::Result<Term> {
     let mut acc = Term::NIL;
     let mut heap = process.acquire_heap();
 
     for name in RW_LOCK_REGISTERED_BY_NAME.read().keys() {
-        let name_term = unsafe { name.as_term() };
+        let name_term: Term = name.encode()?;
 
-        acc = heap.cons(name_term, acc)?
+        let ptr = heap.cons(name_term, acc)?.as_ptr();
+        acc = ptr.into();
     }
 
     Ok(acc)

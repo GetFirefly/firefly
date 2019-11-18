@@ -9,13 +9,13 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(float/1)]
-pub fn native(process: &Process, number: Term) -> exception::Result {
-    if number.is_float() {
+pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
+    if number.is_boxed_float() {
         Ok(number)
     } else {
         let f: f64 = number.try_into()?;

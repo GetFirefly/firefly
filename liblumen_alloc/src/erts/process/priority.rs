@@ -1,7 +1,7 @@
 use core::convert::{TryFrom, TryInto};
 
-use crate::erts::exception::runtime;
-use crate::erts::term::{Atom, Term, TypedTerm};
+use crate::erts::exception::Exception;
+use crate::erts::term::prelude::{Atom, Encoded, Term, TypedTerm};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Priority {
@@ -18,7 +18,7 @@ impl Default for Priority {
 }
 
 impl TryFrom<Atom> for Priority {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(atom: Atom) -> Result<Self, Self::Error> {
         match atom.name() {
@@ -26,26 +26,26 @@ impl TryFrom<Atom> for Priority {
             "normal" => Ok(Priority::Normal),
             "high" => Ok(Priority::High),
             "max" => Ok(Priority::Max),
-            _ => Err(badarg!()),
+            _ => Err(badarg!().into()),
         }
     }
 }
 
 impl TryFrom<Term> for Priority {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
+        term.decode().unwrap().try_into()
     }
 }
 
 impl TryFrom<TypedTerm> for Priority {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_from(typed_term: TypedTerm) -> Result<Self, Self::Error> {
         match typed_term {
             TypedTerm::Atom(atom) => atom.try_into(),
-            _ => Err(badarg!()),
+            _ => Err(badarg!().into()),
         }
     }
 }

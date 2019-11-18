@@ -24,16 +24,20 @@ pub fn distance_absolute<T: Sized>(a: *const T, b: *const T) -> usize {
 ///
 /// NOTE: If any of the given pointers are null, then false will be returned
 #[inline]
-pub fn in_area<T, U>(ptr: *const T, start: *const U, end: *const U) -> bool {
+pub fn in_area<T, U>(ptr: *const T, start: *const U, end: *const U) -> bool
+where
+    T: ?Sized,
+    U: ?Sized,
+{
     // If any pointers are null, the only sensible answer is false
     if ptr.is_null() || start.is_null() || end.is_null() {
         false
     } else {
-        debug_assert!(start as usize <= end as usize);
+        let start = start as *const () as usize;
+        let end = end as *const () as usize;
+        debug_assert!(start <= end);
 
-        let start = start as usize;
-        let end = end as usize;
-        let ptr = ptr as usize;
+        let ptr = ptr as *const () as usize;
         start <= ptr && ptr < end
     }
 }
@@ -43,16 +47,20 @@ pub fn in_area<T, U>(ptr: *const T, start: *const U, end: *const U) -> bool {
 ///
 /// NOTE: If any of the given pointers are null, then false will be returned
 #[inline]
-pub fn in_area_inclusive<T, U>(ptr: *const T, start: *const U, end: *const U) -> bool {
+pub fn in_area_inclusive<T, U>(ptr: *const T, start: *const U, end: *const U) -> bool
+where
+    T: ?Sized,
+    U: ?Sized,
+{
     // If any pointers are null, the only sensible answer is false
     if ptr.is_null() || start.is_null() || end.is_null() {
         false
     } else {
-        debug_assert!(start as usize <= end as usize);
+        let start = start as *const () as usize;
+        let end = end as *const () as usize;
+        debug_assert!(start <= end);
 
-        let start = start as usize;
-        let end = end as usize;
-        let ptr = ptr as usize;
+        let ptr = ptr as *const () as usize;
         start <= ptr && ptr <= end
     }
 }

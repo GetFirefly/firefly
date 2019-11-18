@@ -10,7 +10,7 @@ fn without_tuple_right_returns_false() {
                 (
                     strategy::term::tuple(arc_process.clone()),
                     strategy::term(arc_process.clone())
-                        .prop_filter("Right must not be tuple", |v| !v.is_tuple()),
+                        .prop_filter("Right must not be tuple", |v| !v.is_boxed_tuple()),
                 )
             }),
             |(left, right)| {
@@ -45,11 +45,9 @@ fn with_same_value_tuple_right_returns_true() {
                     strategy::size_range(),
                 )
                 .prop_map(move |vec| {
-                    let mut heap = arc_process.acquire_heap();
-
                     (
-                        heap.tuple_from_slice(&vec).unwrap(),
-                        heap.tuple_from_slice(&vec).unwrap(),
+                        arc_process.tuple_from_slice(&vec).unwrap(),
+                        arc_process.tuple_from_slice(&vec).unwrap(),
                     )
                 }),
                 |(left, right)| {

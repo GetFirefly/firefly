@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn place_frame_with_arguments(
     process: &Process,
@@ -32,18 +32,18 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_tbody = arc_process.stack_pop().unwrap();
     assert!(
-        ok_tbody.is_tuple(),
+        ok_tbody.is_boxed_tuple(),
         "ok_tbody ({:?}) is not a tuple",
         ok_tbody
     );
     let tr = arc_process.stack_pop().unwrap();
-    assert!(tr.is_resource_reference());
+    assert!(tr.is_boxed_resource_reference());
 
     let ok_tbody_tuple: Boxed<Tuple> = ok_tbody.try_into().unwrap();
     assert_eq!(ok_tbody_tuple.len(), 2);
-    assert_eq!(ok_tbody_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_tbody_tuple[0], Atom::str_to_term("ok"));
     let tbody = ok_tbody_tuple[1];
-    assert!(tbody.is_resource_reference());
+    assert!(tbody.is_boxed_resource_reference());
 
     lumen_web::node::append_child_2::place_frame_with_arguments(
         arc_process,

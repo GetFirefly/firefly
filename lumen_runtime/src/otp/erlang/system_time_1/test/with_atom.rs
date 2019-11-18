@@ -5,13 +5,13 @@ use std::time::Duration;
 
 #[test]
 fn with_invalid_unit_errors_badarg() {
-    errors_badarg(|_| atom_unchecked("invalid"));
+    errors_badarg(|_| Atom::str_to_term("invalid"));
 }
 
 #[test]
 fn with_second_increases_after_2_seconds() {
     with_process(|process| {
-        let unit = atom_unchecked("second");
+        let unit = Atom::str_to_term("second");
 
         let first = native(process, unit).unwrap();
 
@@ -26,7 +26,7 @@ fn with_second_increases_after_2_seconds() {
 #[test]
 fn with_millisecond_increases_after_2_milliseconds() {
     with_process(|process| {
-        let unit = atom_unchecked("millisecond");
+        let unit = Atom::str_to_term("millisecond");
 
         let first = native(process, unit).unwrap();
 
@@ -41,7 +41,7 @@ fn with_millisecond_increases_after_2_milliseconds() {
 #[test]
 fn with_microsecond_increases_after_2_milliseconds() {
     with_process(|process| {
-        let unit = atom_unchecked("microsecond");
+        let unit = Atom::str_to_term("microsecond");
 
         let first = native(process, unit).unwrap();
 
@@ -56,7 +56,7 @@ fn with_microsecond_increases_after_2_milliseconds() {
 #[test]
 fn with_nanosecond_increases_after_2_milliseconds() {
     with_process(|process| {
-        let unit = atom_unchecked("nanosecond");
+        let unit = Atom::str_to_term("nanosecond");
 
         let first = native(process, unit).unwrap();
 
@@ -71,7 +71,7 @@ fn with_nanosecond_increases_after_2_milliseconds() {
 #[test]
 fn with_native_increases_after_2_native_time_units() {
     with_process(|process| {
-        let unit = atom_unchecked("native");
+        let unit = Atom::str_to_term("native");
 
         let first = native(process, unit).unwrap();
 
@@ -86,7 +86,7 @@ fn with_native_increases_after_2_native_time_units() {
 #[test]
 fn with_perf_counter_increases_after_2_perf_counter_ticks() {
     with_process(|process| {
-        let unit = atom_unchecked("perf_counter");
+        let unit = Atom::str_to_term("perf_counter");
 
         let first = native(process, unit).unwrap();
 

@@ -99,7 +99,7 @@ mod none_output_1;
 pub mod on_submit_1;
 mod run_2;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 pub fn module() -> Atom {
     Atom::try_from_str("Elixir.Chain").unwrap()

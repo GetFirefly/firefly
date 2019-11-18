@@ -8,12 +8,12 @@ mod test;
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{Boxed, Cons, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(hd/1)]
-pub fn native(list: Term) -> exception::Result {
+pub fn native(list: Term) -> exception::Result<Term> {
     let cons: Boxed<Cons> = list.try_into()?;
 
     Ok(cons.head)

@@ -3,20 +3,18 @@ mod with_self;
 
 use super::*;
 
-use liblumen_alloc::erts::term::next_pid;
-
 #[test]
 fn without_process_returns_undefined() {
     with_process_arc(|arc_process| {
-        let pid = next_pid();
+        let pid = Pid::next_term();
 
         assert_eq!(
             native(&arc_process, pid, item()),
-            Ok(atom_unchecked("undefined"))
+            Ok(Atom::str_to_term("undefined"))
         );
     });
 }
 
 fn item() -> Term {
-    atom_unchecked("registered_name")
+    Atom::str_to_term("registered_name")
 }

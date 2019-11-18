@@ -6,12 +6,12 @@
 mod test;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 use liblumen_alloc::exit;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(exit/1)]
-fn native(reason: Term) -> exception::Result {
+fn native(reason: Term) -> exception::Result<Term> {
     Err(exit!(reason).into())
 }

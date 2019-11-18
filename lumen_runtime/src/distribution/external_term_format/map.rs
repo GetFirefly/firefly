@@ -1,7 +1,8 @@
 use hashbrown::HashMap;
 
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::{Process, Term};
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::Process;
 
 use super::{term, u32};
 

@@ -11,12 +11,9 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
     let priority = Priority::Normal;
     let run_queue_length_before = arc_scheduler.run_queue_len(priority);
 
-    let module_atom = Atom::try_from_str("erlang").unwrap();
-    let module = unsafe { module_atom.as_term() };
-
+    let module = atom!("erlang");
     // Rust name instead of Erlang name
-    let function_atom = Atom::try_from_str("number_or_badarith_1").unwrap();
-    let function = unsafe { function_atom.as_term() };
+    let function = atom!("number_or_badarith_1");
 
     let arguments = parent_arc_process
         .cons(parent_arc_process.integer(0).unwrap(), Term::NIL)
@@ -61,7 +58,7 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: runtime::Exception =
+            let runtime_undef: RuntimeException =
                 undef!(&child_arc_process, module, function, arguments)
                     .try_into()
                     .unwrap();
@@ -76,9 +73,9 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
+    let tag = atom!("DOWN");
     let reason = match undef!(&parent_arc_process, module, function, arguments) {
-        Exception::Runtime(runtime_exception) => runtime_exception.reason,
+        Exception::Runtime(runtime_exception) => runtime_exception.reason().unwrap(),
         _ => unreachable!("parent process out-of-memory"),
     };
 
@@ -88,7 +85,7 @@ fn without_exported_function_when_run_exits_undef_and_sends_exit_message_to_pare
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                atom!("process"),
                 child_pid_term,
                 reason
             ])

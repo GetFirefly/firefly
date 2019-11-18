@@ -4,7 +4,7 @@ use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::list_to_existing_atom_1::native;
 use crate::scheduler::with_process_arc;
@@ -28,7 +28,7 @@ fn with_empty_list() {
     let list = Term::NIL;
 
     // as `""` can only be entered into the global atom table, can't test with non-existing atom
-    let existing_atom = atom_unchecked("");
+    let existing_atom = Atom::str_to_term("");
 
     assert_eq!(native(list), Ok(existing_atom));
 }
@@ -88,7 +88,7 @@ fn with_list_with_existing_atom_returns_atom() {
 
                     (
                         arc_process.list_from_slice(&codepoint_terms).unwrap(),
-                        atom_unchecked(&string),
+                        Atom::str_to_term(&string),
                     )
                 }),
                 |(list, atom)| {

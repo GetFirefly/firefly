@@ -22,10 +22,10 @@ fn with_different_process_sends_message_when_timer_expires() {
 
                     let timer_reference = result.unwrap();
 
-                    prop_assert!(timer_reference.is_local_reference());
+                    prop_assert!(timer_reference.is_boxed_local_reference());
 
                     let timeout_message = arc_process
-                        .tuple_from_slice(&[atom_unchecked("timeout"), timer_reference, message])
+                        .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
                         .unwrap();
 
                     prop_assert!(!has_message(&destination_arc_process, timeout_message));
@@ -69,10 +69,10 @@ fn with_same_process_sends_message_when_timer_expires() {
 
                 let timer_reference = result.unwrap();
 
-                prop_assert!(timer_reference.is_local_reference());
+                prop_assert!(timer_reference.is_boxed_local_reference());
 
                 let timeout_message = arc_process
-                    .tuple_from_slice(&[atom_unchecked("timeout"), timer_reference, message])
+                    .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
                     .unwrap();
 
                 prop_assert!(!has_message(&arc_process, timeout_message));
@@ -95,7 +95,7 @@ fn without_process_sends_nothing_when_timer_expires() {
             .run(
                 &(milliseconds(), strategy::term(arc_process.clone())),
                 |(milliseconds, message)| {
-                    let destination = next_pid();
+                    let destination = Pid::next_term();
 
                     let time = arc_process.integer(milliseconds).unwrap();
 
@@ -109,13 +109,13 @@ fn without_process_sends_nothing_when_timer_expires() {
 
                     let timer_reference = result.unwrap();
 
-                    prop_assert!(timer_reference.is_local_reference());
+                    prop_assert!(timer_reference.is_boxed_local_reference());
 
                     thread::sleep(Duration::from_millis(milliseconds + 1));
                     timer::timeout();
 
                     let timeout_message = arc_process
-                        .tuple_from_slice(&[atom_unchecked("timeout"), timer_reference, message])
+                        .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
                         .unwrap();
 
                     // does not send to original process either

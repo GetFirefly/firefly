@@ -22,7 +22,7 @@ fn with_big_integer_divisor_with_underflow_returns_small_integer() {
     with(|dividend, process| {
         let divisor = dividend;
 
-        assert!(divisor.is_bigint());
+        assert!(divisor.is_boxed_bigint());
 
         let result = native(process, dividend, divisor);
 
@@ -40,7 +40,7 @@ fn with_big_integer_divisor_without_underflow_returns_big_integer() {
     with_process(|process| {
         let divisor = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
-        assert!(divisor.is_bigint());
+        assert!(divisor.is_boxed_bigint());
 
         let dividend = erlang::multiply_2::native(&process, divisor, divisor).unwrap();
 
@@ -50,7 +50,7 @@ fn with_big_integer_divisor_without_underflow_returns_big_integer() {
 
         let quotient = result.unwrap();
 
-        assert!(quotient.is_bigint());
+        assert!(quotient.is_boxed_bigint());
         assert_eq!(quotient, divisor);
     })
 }
@@ -62,7 +62,7 @@ where
     with_process(|process| {
         let dividend: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
-        assert!(dividend.is_bigint());
+        assert!(dividend.is_boxed_bigint());
 
         f(dividend, &process)
     })

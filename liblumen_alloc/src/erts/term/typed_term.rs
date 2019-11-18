@@ -1,17 +1,20 @@
+use core::alloc::Layout;
 use core::cmp;
 use core::convert::TryInto;
 use core::fmt::{self, Display};
 use core::hash::{Hash, Hasher};
+use core::mem;
 
 use num_bigint::{BigInt, Sign};
 
+use liblumen_core::cmp::ExactEq;
+
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::runtime;
-use crate::erts::exception::system::Alloc;
-use crate::erts::term::resource;
+use crate::erts::alloc::TermAlloc;
+use crate::erts::exception::{AllocResult, Exception};
 use crate::erts::Process;
 
-use super::*;
+use super::prelude::*;
 
 /// Concrete `Term` types, i.e. resolved to concrete values, or pointers to values.
 ///
@@ -23,13 +26,10 @@ use super::*;
 /// inner types as well. In these situations, the pointer is _not_ the tagged value,
 /// instead, you must dereference the pointer as `Term` and ask it to resolve itself
 /// to its typed form.
-#[derive(Debug)]
 pub enum TypedTerm {
     List(Boxed<Cons>),
     Tuple(Boxed<Tuple>),
     Map(Boxed<Map>),
-    Boxed(Boxed<Term>),
-    Literal(Term),
     Pid(Pid),
     Port(Port),
     Reference(Boxed<Reference>),
@@ -38,32 +38,54 @@ pub enum TypedTerm {
     ExternalReference(Boxed<ExternalReference>),
     SmallInteger(SmallInteger),
     BigInteger(Boxed<BigInteger>),
+    #[cfg(target_arch = "x86_64")]
     Float(Float),
+    #[cfg(not(target_arch = "x86_64"))]
+    Float(Boxed<Float>),
     Atom(Atom),
-    ResourceReference(resource::Reference),
-    ProcBin(ProcBin),
+    ResourceReference(Boxed<Resource>),
+    BinaryLiteral(Boxed<BinaryLiteral>),
+    ProcBin(Boxed<ProcBin>),
     HeapBinary(Boxed<HeapBin>),
-    SubBinary(SubBinary),
-    MatchContext(MatchContext),
+    SubBinary(Boxed<SubBinary>),
+    MatchContext(Boxed<MatchContext>),
     Closure(Boxed<Closure>),
-    Catch,
     Nil,
-    None,
+}
+impl fmt::Debug for TypedTerm {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Self::Nil => write!(f, "Nil"),
+            &Self::Pid(pid) => write!(f, "{:?}", pid),
+            &Self::Port(port) => write!(f, "{:?}", port),
+            &Self::Atom(atom) => write!(f, "{:?}", atom),
+            &Self::SmallInteger(small) => write!(f, "{:?}", small),
+            #[cfg(target_arch = "x86_64")]
+            &Self::Float(float) => write!(f, "{:?}", float),
+            #[cfg(not(target_arch = "x86_64"))]
+            &Self::Float(boxed) => write!(f, "{:?}", boxed),
+            &Self::BigInteger(boxed) => write!(f, "{:?}", boxed),
+            &Self::List(boxed) => write!(f, "{:?}", boxed),
+            &Self::Tuple(boxed) => write!(f, "{:?}", boxed),
+            &Self::Map(boxed) => write!(f, "{:?}", boxed),
+            &Self::Reference(boxed) => write!(f, "{:?}", boxed),
+            &Self::ExternalPid(boxed) => write!(f, "{:?}", boxed),
+            &Self::ExternalPort(boxed) => write!(f, "{:?}", boxed),
+            &Self::ExternalReference(boxed) => write!(f, "{:?}", boxed),
+            &Self::ResourceReference(boxed) => write!(f, "{:?}", boxed),
+            &Self::BinaryLiteral(boxed) => write!(f, "{:?}", boxed),
+            &Self::ProcBin(boxed) => write!(f, "{:?}", boxed),
+            &Self::HeapBinary(boxed) => write!(f, "{:?}", boxed),
+            &Self::SubBinary(boxed) => write!(f, "{:?}", boxed),
+            &Self::MatchContext(boxed) => write!(f, "{:?}", boxed),
+            &Self::Closure(boxed) => write!(f, "{:?}", boxed),
+        }
+    }
 }
 impl TypedTerm {
     #[inline]
-    pub fn is_none(&self) -> bool {
-        self.eq(&Self::None)
-    }
-
-    #[inline]
     pub fn is_nil(&self) -> bool {
         self.eq(&Self::Nil)
-    }
-
-    #[inline]
-    pub fn is_catch(&self) -> bool {
-        self.eq(&Self::Catch)
     }
 
     #[inline]
@@ -79,6 +101,7 @@ impl TypedTerm {
     #[inline]
     pub fn is_binary(&self) -> bool {
         match self {
+            &Self::BinaryLiteral(_) => true,
             &Self::ProcBin(_) => true,
             &Self::HeapBinary(_) => true,
             &Self::SubBinary(_) => true,
@@ -98,10 +121,7 @@ impl TypedTerm {
 
     pub fn is_function_with_arity(&self, arity: u8) -> bool {
         match self {
-            Self::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                Self::Closure(closure) => closure.arity == arity,
-                _ => false,
-            },
+            Self::Closure(closure) => closure.as_ref().arity() == arity,
             _ => false,
         }
     }
@@ -134,6 +154,15 @@ impl TypedTerm {
     }
 
     #[inline]
+    pub fn is_proper_list(&self) -> bool {
+        if let &Self::List(cons) = self {
+            cons.is_proper()
+        } else {
+            self.is_nil()
+        }
+    }
+
+    #[inline]
     pub fn is_tuple(&self) -> bool {
         if let &Self::Tuple(_) = self {
             true
@@ -150,6 +179,39 @@ impl TypedTerm {
             false
         }
     }
+
+    #[inline]
+    pub fn sizeof(&self) -> usize {
+        use TypedTerm::*;
+
+        match self {
+            // These terms are either immediates or have statically known sizes,
+            // so we can just use mem::size_of_val(term)
+            Atom(term) => mem::size_of_val(term),
+            Pid(term) => mem::size_of_val(term),
+            Port(term) => mem::size_of_val(term),
+            SmallInteger(term) => mem::size_of_val(term),
+            Float(term) => mem::size_of_val(term.as_ref()),
+            List(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            Map(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            Reference(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            ExternalPid(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            ExternalPort(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            ExternalReference(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            ResourceReference(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            MatchContext(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            BinaryLiteral(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            SubBinary(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            ProcBin(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            BigInteger(term_ptr) => mem::size_of_val(term_ptr.as_ref()),
+            // These terms are dynamically-sized types, so we need to calculate their
+            // layouts dynamically as well, we rely on Layout::for_value for this
+            Tuple(term_ptr) => Layout::for_value(term_ptr.as_ref()).size(),
+            Closure(term_ptr) => Layout::for_value(term_ptr.as_ref()).size(),
+            HeapBinary(term_ptr) => Layout::for_value(term_ptr.as_ref()).size(),
+            Nil => mem::size_of::<Term>(),
+        }
+    }
 }
 
 impl Display for TypedTerm {
@@ -157,62 +219,71 @@ impl Display for TypedTerm {
         use TypedTerm::*;
 
         match self {
-            Atom(atom) => write!(f, "{}", atom),
-            BigInteger(big_integer) => write!(f, "{}", big_integer),
-            Boxed(boxed) => write!(f, "{}", boxed.to_typed_term().unwrap()),
-            Catch => write!(f, "Term(Catch)"),
-            Closure(closure) => write!(f, "{}", closure),
-            ExternalPid(external_pid) => write!(f, "{}", external_pid),
-            ExternalPort(external_port) => write!(f, "{}", external_port),
-            ExternalReference(external_reference) => write!(f, "{}", external_reference),
-            Float(float) => write!(f, "{}", float),
-            HeapBinary(heap_binary) => write!(f, "{}", heap_binary),
-            List(cons) => write!(f, "{}", cons),
-            Literal(literal) => write!(f, "{}", literal),
-            Map(map) => write!(f, "{}", map),
-            MatchContext(match_context) => write!(f, "{}", match_context),
+            Atom(term) => write!(f, "{}", term),
+            Pid(term) => write!(f, "{}", term),
+            Port(term) => write!(f, "{}", term),
+            SmallInteger(term) => write!(f, "{}", term),
+            Float(term) => write!(f, "{}", term.as_ref()),
+            List(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            Map(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            Reference(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            ExternalPid(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            ExternalPort(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            ExternalReference(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            ResourceReference(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            MatchContext(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            BinaryLiteral(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            SubBinary(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            ProcBin(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            BigInteger(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            Tuple(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            Closure(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
+            HeapBinary(term_ptr) => write!(f, "{}", term_ptr.as_ref()),
             Nil => write!(f, "[]"),
-            None => write!(f, "Term(None)"),
-            Pid(pid) => write!(f, "{}", pid),
-            Port(port) => write!(f, "{}", port),
-            ProcBin(process_binary) => write!(f, "{}", process_binary),
-            Reference(reference) => write!(f, "{}", reference),
-            ResourceReference(resource_reference) => write!(f, "{}", resource_reference),
-            SmallInteger(small_integer) => write!(f, "{}", small_integer),
-            SubBinary(subbinary) => write!(f, "{}", subbinary),
-            Tuple(tuple) => write!(f, "{}", tuple),
         }
     }
 }
 
 impl Hash for TypedTerm {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        use crate::erts::term::arch::Repr;
+        use TypedTerm::*;
+
         match self {
-            Self::List(cons) => cons.hash(state),
-            Self::Tuple(tuple) => tuple.hash(state),
-            Self::Map(map) => map.hash(state),
-            Self::Boxed(boxed) => boxed.to_typed_term().unwrap().hash(state),
-            Self::Literal(literal) => literal.hash(state),
-            Self::Pid(pid) => pid.hash(state),
-            Self::Port(port) => port.hash(state),
-            Self::Reference(reference) => reference.hash(state),
-            Self::ExternalPid(external_pid) => external_pid.hash(state),
-            Self::ExternalPort(external_port) => external_port.hash(state),
-            Self::ExternalReference(external_reference) => external_reference.hash(state),
-            Self::SmallInteger(small_integer) => small_integer.hash(state),
-            Self::BigInteger(big_integer) => big_integer.hash(state),
-            Self::Float(float) => float.hash(state),
-            Self::Atom(atom) => atom.hash(state),
-            Self::ResourceReference(resource_reference) => resource_reference.hash(state),
-            Self::ProcBin(process_binary) => process_binary.hash(state),
-            Self::HeapBinary(heap_binary) => heap_binary.hash(state),
-            Self::SubBinary(subbinary) => subbinary.hash(state),
-            Self::MatchContext(match_context) => match_context.hash(state),
-            Self::Closure(closure) => closure.hash(state),
-            Self::Catch => Term::CATCH.as_usize().hash(state),
-            Self::Nil => Term::NIL.as_usize().hash(state),
-            Self::None => Term::NONE.as_usize().hash(state),
+            Atom(term) => term.hash(state),
+            Pid(term) => term.hash(state),
+            Port(term) => term.hash(state),
+            SmallInteger(term) => term.hash(state),
+            Float(term) => term.as_ref().hash(state),
+            List(term_ptr) => term_ptr.as_ref().hash(state),
+            Map(term_ptr) => term_ptr.as_ref().hash(state),
+            Reference(term_ptr) => term_ptr.as_ref().hash(state),
+            ExternalPid(term_ptr) => term_ptr.as_ref().hash(state),
+            ExternalPort(term_ptr) => term_ptr.as_ref().hash(state),
+            ExternalReference(term_ptr) => term_ptr.as_ref().hash(state),
+            ResourceReference(term_ptr) => term_ptr.as_ref().hash(state),
+            MatchContext(term_ptr) => term_ptr.as_ref().hash(state),
+            BinaryLiteral(term_ptr) => term_ptr.as_ref().hash(state),
+            SubBinary(term_ptr) => term_ptr.as_ref().hash(state),
+            ProcBin(term_ptr) => term_ptr.as_ref().hash(state),
+            BigInteger(term_ptr) => term_ptr.as_ref().hash(state),
+            Tuple(term_ptr) => term_ptr.as_ref().hash(state),
+            Closure(term_ptr) => term_ptr.as_ref().hash(state),
+            HeapBinary(term_ptr) => term_ptr.as_ref().hash(state),
+            Nil => Term::NIL.as_usize().hash(state),
         };
+    }
+}
+
+impl ExactEq for TypedTerm {
+    fn exact_eq(&self, other: &Self) -> bool {
+        if self.is_number() && other.is_number() {
+            if mem::discriminant(self) != mem::discriminant(other) {
+                return false;
+            }
+        }
+
+        self.eq(other)
     }
 }
 
@@ -223,175 +294,119 @@ impl Hash for TypedTerm {
 impl PartialEq<TypedTerm> for TypedTerm {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            TypedTerm::SmallInteger(self_small_integer) => match other {
-                TypedTerm::SmallInteger(other_small_integer) => {
-                    self_small_integer.eq(other_small_integer)
-                }
-                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                    // Flip order so that only type that will be conversion target needs to
-                    // implement `PartialEq` between types.
-                    TypedTerm::Float(other_float) => other_float.eq(self_small_integer),
-                    TypedTerm::BigInteger(other_big_integer) => {
-                        other_big_integer.eq(self_small_integer)
-                    }
-                    _ => false,
-                },
+            TypedTerm::SmallInteger(lhs) => match other {
+                TypedTerm::SmallInteger(rhs) => lhs.eq(rhs),
+                // Flip order so that only type that will be conversion target needs to
+                // implement `PartialEq` between types.
+                TypedTerm::Float(rhs) => rhs.eq(lhs),
+                TypedTerm::BigInteger(rhs) => rhs.eq(lhs),
                 _ => false,
             },
-            //             In place of first boxed: Float.
-            TypedTerm::Boxed(self_boxed) => match self_boxed.to_typed_term().unwrap() {
-                TypedTerm::Float(self_float) => match other {
-                    TypedTerm::SmallInteger(other_small_integer) => {
-                        self_float.eq(other_small_integer)
-                    }
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::Float(other_float) => self_float.eq(&other_float),
-                        TypedTerm::BigInteger(other_big_integer) => {
-                            other_big_integer.eq(&self_float)
-                        }
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::BigInteger(self_big_integer) => match other {
-                    TypedTerm::SmallInteger(other_small_integer) => {
-                        self_big_integer.eq(other_small_integer)
-                    }
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::Float(other_float) => self_big_integer.eq(&other_float),
-                        TypedTerm::BigInteger(other_big_integer) => {
-                            self_big_integer.eq(&other_big_integer)
-                        }
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::Reference(self_reference) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::Reference(other_reference) => {
-                            self_reference.eq(&other_reference)
-                        }
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::ResourceReference(self_resource_reference) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::ResourceReference(other_resource_reference) => {
-                            self_resource_reference.eq(&other_resource_reference)
-                        }
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::Closure(self_closure) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::Closure(other_closure) => self_closure.eq(&other_closure),
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::ExternalPid(self_external_pid) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::ExternalPid(other_external_pid) => {
-                            self_external_pid.eq(&other_external_pid)
-                        }
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::Tuple(self_tuple) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::Tuple(other_tuple) => self_tuple.eq(&other_tuple),
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::Map(self_map) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::Map(other_map) => self_map.eq(&other_map),
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                // Bitstrings in likely order
-                TypedTerm::HeapBinary(self_heap_binary) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::HeapBinary(other_heap_binary) => {
-                            self_heap_binary.as_ref().eq(other_heap_binary.as_ref())
-                        }
-                        TypedTerm::ProcBin(other_process_binary) => {
-                            other_process_binary.eq(&self_heap_binary)
-                        }
-                        TypedTerm::SubBinary(other_subbinary) => {
-                            other_subbinary.eq(self_heap_binary.as_ref())
-                        }
-                        TypedTerm::MatchContext(other_match_context) => {
-                            other_match_context.eq(self_heap_binary.as_ref())
-                        }
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::ProcBin(self_process_binary) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::HeapBinary(other_heap_binary) => {
-                            self_process_binary.eq(&other_heap_binary)
-                        }
-                        TypedTerm::ProcBin(other_process_binary) => {
-                            self_process_binary.eq(&other_process_binary)
-                        }
-                        TypedTerm::SubBinary(other_subbinary) => {
-                            other_subbinary.eq(&self_process_binary)
-                        }
-                        TypedTerm::MatchContext(other_match_context) => {
-                            other_match_context.eq(&self_process_binary)
-                        }
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                TypedTerm::SubBinary(self_subbinary) => match other {
-                    TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                        TypedTerm::HeapBinary(other_heap_binary) => {
-                            self_subbinary.eq(other_heap_binary.as_ref())
-                        }
-                        TypedTerm::ProcBin(other_process_binary) => {
-                            self_subbinary.eq(&other_process_binary)
-                        }
-                        TypedTerm::SubBinary(other_subbinary) => {
-                            self_subbinary.eq(&other_subbinary)
-                        }
-                        TypedTerm::MatchContext(other_match_context) => {
-                            self_subbinary.eq(&other_match_context)
-                        }
-                        _ => false,
-                    },
-                    _ => false,
-                },
-                _ => unreachable!(),
-            },
-            TypedTerm::Atom(self_atom) => match other {
-                TypedTerm::Atom(other_atom) => self_atom.eq(other_atom),
+            TypedTerm::Float(lhs) => match other {
+                TypedTerm::SmallInteger(rhs) => lhs.eq(rhs),
+                TypedTerm::Float(rhs) => lhs.eq(rhs),
+                TypedTerm::BigInteger(rhs) => lhs.eq(rhs),
                 _ => false,
             },
-            TypedTerm::Port(self_port) => match other {
-                TypedTerm::Port(other_port) => self_port.eq(other_port),
+            TypedTerm::BigInteger(lhs) => match other {
+                TypedTerm::SmallInteger(rhs) => lhs.eq(rhs),
+                TypedTerm::Float(rhs) => lhs.eq(rhs),
+                TypedTerm::BigInteger(rhs) => lhs.eq(rhs),
                 _ => false,
             },
-            TypedTerm::Pid(self_pid) => match other {
-                TypedTerm::Pid(other_pid) => self_pid.eq(other_pid),
+            TypedTerm::Reference(lhs) => match other {
+                TypedTerm::Reference(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::ResourceReference(lhs) => match other {
+                TypedTerm::ResourceReference(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::Closure(lhs) => match other {
+                TypedTerm::Closure(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::ExternalPid(lhs) => match other {
+                TypedTerm::ExternalPid(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::ExternalPort(lhs) => match other {
+                TypedTerm::ExternalPort(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::ExternalReference(lhs) => match other {
+                TypedTerm::ExternalReference(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::Tuple(lhs) => match other {
+                TypedTerm::Tuple(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::Map(lhs) => match other {
+                TypedTerm::Map(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            // Bitstrings in likely order
+            TypedTerm::HeapBinary(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.eq(rhs),
+                TypedTerm::ProcBin(rhs) => rhs.eq(lhs),
+                TypedTerm::BinaryLiteral(rhs) => rhs.eq(lhs),
+                TypedTerm::SubBinary(rhs) => rhs.eq(lhs),
+                TypedTerm::MatchContext(rhs) => rhs.eq(lhs),
+                _ => false,
+            },
+            TypedTerm::ProcBin(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.eq(rhs),
+                TypedTerm::ProcBin(rhs) => lhs.eq(rhs),
+                TypedTerm::BinaryLiteral(rhs) => lhs.eq(rhs),
+                TypedTerm::SubBinary(rhs) => rhs.eq(lhs),
+                TypedTerm::MatchContext(rhs) => rhs.eq(lhs),
+                _ => false,
+            },
+            TypedTerm::BinaryLiteral(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.eq(rhs),
+                TypedTerm::ProcBin(rhs) => lhs.eq(rhs),
+                TypedTerm::BinaryLiteral(rhs) => lhs.eq(rhs),
+                TypedTerm::SubBinary(rhs) => rhs.eq(lhs),
+                TypedTerm::MatchContext(rhs) => rhs.eq(lhs),
+                _ => false,
+            },
+            TypedTerm::SubBinary(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.eq(rhs),
+                TypedTerm::ProcBin(rhs) => lhs.eq(rhs),
+                TypedTerm::BinaryLiteral(rhs) => lhs.eq(rhs),
+                TypedTerm::SubBinary(rhs) => lhs.eq(rhs),
+                TypedTerm::MatchContext(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::MatchContext(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.eq(rhs),
+                TypedTerm::ProcBin(rhs) => lhs.eq(rhs),
+                TypedTerm::BinaryLiteral(rhs) => lhs.eq(rhs),
+                TypedTerm::SubBinary(rhs) => rhs.eq(lhs),
+                TypedTerm::MatchContext(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::Atom(lhs) => match other {
+                TypedTerm::Atom(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::Port(lhs) => match other {
+                TypedTerm::Port(rhs) => lhs.eq(rhs),
+                _ => false,
+            },
+            TypedTerm::Pid(lhs) => match other {
+                TypedTerm::Pid(rhs) => lhs.eq(rhs),
                 _ => false,
             },
             TypedTerm::Nil => match other {
                 TypedTerm::Nil => true,
                 _ => false,
             },
-            TypedTerm::List(self_cons) => match other {
-                TypedTerm::List(other_cons) => self_cons.eq(other_cons),
+            TypedTerm::List(lhs) => match other {
+                TypedTerm::List(rhs) => lhs.eq(rhs),
                 _ => false,
             },
-            t => unreachable!("{:?}", t),
         }
     }
 }
@@ -424,328 +439,183 @@ impl Ord for TypedTerm {
         match self {
             // Numbers
             // Order is SmallInteger, Float, BigInt because of the order of their ranges
-            TypedTerm::SmallInteger(self_small_integer) => match other {
-                TypedTerm::SmallInteger(other_small_integer) => {
-                    self_small_integer.cmp(other_small_integer)
-                }
-                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                    // Flip order so that only type that will be conversion target needs to
-                    // implement `PartialOrd` between types.
-                    TypedTerm::Float(other_float) => other_float
-                        .partial_cmp(self_small_integer)
-                        .unwrap()
-                        .reverse(),
-                    TypedTerm::BigInteger(other_big_integer) => other_big_integer
-                        .partial_cmp(self_small_integer)
-                        .unwrap()
-                        .reverse(),
-                    _ => Less,
-                },
+            TypedTerm::SmallInteger(lhs) => match other {
+                TypedTerm::SmallInteger(rhs) => lhs.cmp(rhs),
+                // Flip order so that only type that will be conversion target needs to
+                // implement `PartialOrd` between types.
+                TypedTerm::Float(rhs) => (*lhs).partial_cmp(rhs).unwrap(),
+                TypedTerm::BigInteger(rhs) => lhs.partial_cmp(rhs).unwrap(),
                 _ => Less,
             },
-            // In place of first boxed: Float.
-            TypedTerm::Boxed(self_boxed) => {
-                let self_unboxed = self_boxed.to_typed_term().unwrap();
-
-                match self_unboxed {
-                    TypedTerm::Float(self_float) => match other {
-                        TypedTerm::SmallInteger(other_small_integer) => {
-                            self_float.partial_cmp(other_small_integer).unwrap()
-                        }
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(other_float) => self_float.cmp(&other_float),
-                            TypedTerm::BigInteger(other_big_integer) => other_big_integer
-                                .partial_cmp(&self_float)
-                                .unwrap()
-                                .reverse(),
-                            _ => Less,
-                        },
-                        _ => Less,
-                    },
-                    TypedTerm::BigInteger(self_big_integer) => match other {
-                        TypedTerm::SmallInteger(other_small_integer) => {
-                            self_big_integer.partial_cmp(other_small_integer).unwrap()
-                        }
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(other_float) => {
-                                self_big_integer.partial_cmp(&other_float).unwrap()
-                            }
-                            TypedTerm::BigInteger(other_big_integer) => {
-                                self_big_integer.cmp(&other_big_integer)
-                            }
-                            _ => Less,
-                        },
-                        _ => Less,
-                    },
-                    TypedTerm::Reference(self_reference) => match other {
-                        TypedTerm::SmallInteger(_) => Greater,
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
-                            TypedTerm::Reference(other_reference) => {
-                                self_reference.cmp(&other_reference)
-                            }
-                            TypedTerm::ExternalReference(other_external_reference) => {
-                                other_external_reference
-                                    .partial_cmp(&self_reference)
-                                    .unwrap()
-                                    .reverse()
-                            }
-                            _ => Less,
-                        },
-                        TypedTerm::Atom(_) => Greater,
-                        _ => Less,
-                    },
-                    TypedTerm::Closure(self_closure) => match other {
-                        TypedTerm::SmallInteger(_) => Greater,
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(_)
-                            | TypedTerm::BigInteger(_)
-                            | TypedTerm::Reference(_)
-                            | TypedTerm::ExternalReference(_) => Greater,
-                            TypedTerm::Closure(other_closure) => {
-                                self_closure.cmp(other_closure.as_ref())
-                            }
-                            _ => Less,
-                        },
-                        TypedTerm::Atom(_) => Greater,
-                        _ => Less,
-                    },
-                    TypedTerm::ExternalPid(self_external_pid) => match other {
-                        TypedTerm::SmallInteger(_) => Greater,
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(_)
-                            | TypedTerm::BigInteger(_)
-                            | TypedTerm::Reference(_)
-                            | TypedTerm::ExternalReference(_)
-                            | TypedTerm::Closure(_)
-                            | TypedTerm::ExternalPort(_) => Greater,
-                            TypedTerm::ExternalPid(other_external_pid) => {
-                                self_external_pid.cmp(&other_external_pid)
-                            }
-                            _ => Less,
-                        },
-                        TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
-                        _ => Less,
-                    },
-                    TypedTerm::Tuple(self_tuple) => match other {
-                        TypedTerm::SmallInteger(_) => Greater,
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(_)
-                            | TypedTerm::BigInteger(_)
-                            | TypedTerm::Reference(_)
-                            | TypedTerm::ExternalReference(_)
-                            | TypedTerm::Closure(_)
-                            | TypedTerm::ExternalPort(_)
-                            | TypedTerm::ExternalPid(_) => Greater,
-                            TypedTerm::Tuple(other_tuple) => self_tuple.cmp(other_tuple.as_ref()),
-                            _ => Less,
-                        },
-                        TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
-                        _ => Less,
-                    },
-                    TypedTerm::Map(self_map) => match other {
-                        TypedTerm::SmallInteger(_) => Greater,
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(_)
-                            | TypedTerm::BigInteger(_)
-                            | TypedTerm::Reference(_)
-                            | TypedTerm::Closure(_)
-                            | TypedTerm::ExternalPort(_)
-                            | TypedTerm::ExternalPid(_)
-                            | TypedTerm::Tuple(_) => Greater,
-                            TypedTerm::Map(other_map) => self_map.cmp(other_map.as_ref()),
-                            _ => Less,
-                        },
-                        TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
-                        _ => Less,
-                    },
-                    // Bitstrings in likely order
-                    TypedTerm::HeapBinary(self_heap_binary) => match other {
-                        TypedTerm::SmallInteger(_) => Greater,
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(_)
-                            | TypedTerm::BigInteger(_)
-                            | TypedTerm::Reference(_)
-                            | TypedTerm::ExternalReference(_)
-                            | TypedTerm::Closure(_)
-                            | TypedTerm::ExternalPort(_)
-                            | TypedTerm::ExternalPid(_)
-                            | TypedTerm::Tuple(_)
-                            | TypedTerm::Map(_) => Greater,
-                            TypedTerm::HeapBinary(other_heap_binary) => {
-                                self_heap_binary.as_ref().cmp(other_heap_binary.as_ref())
-                            }
-                            TypedTerm::ProcBin(other_process_binary) => other_process_binary
-                                .partial_cmp(&self_heap_binary)
-                                .unwrap()
-                                .reverse(),
-                            TypedTerm::SubBinary(other_subbinary) => other_subbinary
-                                .partial_cmp(self_heap_binary.as_ref())
-                                .unwrap()
-                                .reverse(),
-                            TypedTerm::MatchContext(other_match_context) => other_match_context
-                                .partial_cmp(self_heap_binary.as_ref())
-                                .unwrap()
-                                .reverse(),
-                            _ => unreachable!(),
-                        },
-                        TypedTerm::Atom(_)
-                        | TypedTerm::Pid(_)
-                        | TypedTerm::Nil
-                        | TypedTerm::List(_) => Greater,
-                        _ => unreachable!(),
-                    },
-                    TypedTerm::ProcBin(self_process_binary) => match other {
-                        TypedTerm::SmallInteger(_) => Greater,
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(_)
-                            | TypedTerm::BigInteger(_)
-                            | TypedTerm::Reference(_)
-                            | TypedTerm::ExternalReference(_)
-                            | TypedTerm::Closure(_)
-                            | TypedTerm::ExternalPort(_)
-                            | TypedTerm::ExternalPid(_)
-                            | TypedTerm::Tuple(_)
-                            | TypedTerm::Map(_) => Greater,
-                            TypedTerm::HeapBinary(other_heap_binary) => {
-                                self_process_binary.partial_cmp(&other_heap_binary).unwrap()
-                            }
-                            TypedTerm::ProcBin(other_process_binary) => self_process_binary
-                                .partial_cmp(&other_process_binary)
-                                .unwrap(),
-                            TypedTerm::SubBinary(other_subbinary) => other_subbinary
-                                .partial_cmp(&self_process_binary)
-                                .unwrap()
-                                .reverse(),
-                            TypedTerm::MatchContext(other_match_context) => other_match_context
-                                .partial_cmp(&self_process_binary)
-                                .unwrap()
-                                .reverse(),
-                            _ => unreachable!(),
-                        },
-                        TypedTerm::Atom(_)
-                        | TypedTerm::Pid(_)
-                        | TypedTerm::Nil
-                        | TypedTerm::List(_) => Greater,
-                        _ => unreachable!(),
-                    },
-                    TypedTerm::SubBinary(self_subbinary) => match other {
-                        TypedTerm::SmallInteger(_) => Greater,
-                        TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap()
-                        {
-                            TypedTerm::Float(_)
-                            | TypedTerm::BigInteger(_)
-                            | TypedTerm::Reference(_)
-                            | TypedTerm::ExternalReference(_)
-                            | TypedTerm::Closure(_)
-                            | TypedTerm::ExternalPort(_)
-                            | TypedTerm::ExternalPid(_)
-                            | TypedTerm::Tuple(_)
-                            | TypedTerm::Map(_) => Greater,
-                            TypedTerm::HeapBinary(other_heap_binary) => self_subbinary
-                                .partial_cmp(other_heap_binary.as_ref())
-                                .unwrap(),
-                            TypedTerm::ProcBin(other_process_binary) => {
-                                self_subbinary.partial_cmp(&other_process_binary).unwrap()
-                            }
-                            TypedTerm::SubBinary(other_subbinary) => {
-                                self_subbinary.cmp(&other_subbinary)
-                            }
-                            TypedTerm::MatchContext(other_match_context) => self_subbinary
-                                .partial_cmp(&other_match_context)
-                                .unwrap()
-                                .reverse(),
-                            _ => unreachable!(),
-                        },
-                        TypedTerm::Atom(_)
-                        | TypedTerm::Pid(_)
-                        | TypedTerm::Nil
-                        | TypedTerm::List(_) => Greater,
-                        _ => unimplemented!("{:?} == {:?}", self_subbinary, other),
-                    },
-                    TypedTerm::MatchContext(self_match_context) => match other {
-                        _ => unimplemented!(
-                            "unboxed match_context ({:?}) cmp {:?}",
-                            self_match_context,
-                            other
-                        ),
-                    },
-                    _ => unimplemented!("unboxed {:?} cmp {:?}", self_unboxed, other),
-                }
+            TypedTerm::Float(lhs) => match other {
+                TypedTerm::SmallInteger(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::Float(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::BigInteger(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                _ => Less,
+            },
+            TypedTerm::BigInteger(lhs) => match other {
+                TypedTerm::SmallInteger(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::Float(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::BigInteger(rhs) => lhs.cmp(rhs),
+                _ => Less,
+            },
+            TypedTerm::Reference(lhs) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
+                TypedTerm::Reference(rhs) => lhs.cmp(rhs),
+                TypedTerm::ExternalReference(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::Atom(_) => Greater,
+                _ => Less,
+            },
+            TypedTerm::ExternalReference(lhs) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
+                TypedTerm::Reference(rhs) => rhs.as_ref().partial_cmp(lhs).unwrap().reverse(),
+                TypedTerm::ExternalReference(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::Atom(_) => Greater,
+                _ => Less,
+            },
+            TypedTerm::Closure(lhs) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Float(_)
+                | TypedTerm::BigInteger(_)
+                | TypedTerm::Reference(_)
+                | TypedTerm::ExternalReference(_) => Greater,
+                TypedTerm::Closure(rhs) => lhs.cmp(rhs),
+                TypedTerm::Atom(_) => Greater,
+                _ => Less,
+            },
+            TypedTerm::ExternalPid(lhs) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Float(_)
+                | TypedTerm::BigInteger(_)
+                | TypedTerm::Reference(_)
+                | TypedTerm::ExternalReference(_)
+                | TypedTerm::Closure(_)
+                | TypedTerm::ExternalPort(_) => Greater,
+                TypedTerm::ExternalPid(rhs) => lhs.cmp(rhs),
+                TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
+                _ => Less,
+            },
+            TypedTerm::Tuple(lhs) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Float(_)
+                | TypedTerm::BigInteger(_)
+                | TypedTerm::Reference(_)
+                | TypedTerm::ExternalReference(_)
+                | TypedTerm::Closure(_)
+                | TypedTerm::ExternalPort(_)
+                | TypedTerm::ExternalPid(_) => Greater,
+                TypedTerm::Tuple(rhs) => lhs.cmp(rhs),
+                TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
+                _ => Less,
+            },
+            TypedTerm::Map(lhs) => match other {
+                TypedTerm::SmallInteger(_) => Greater,
+                TypedTerm::Float(_)
+                | TypedTerm::BigInteger(_)
+                | TypedTerm::Reference(_)
+                | TypedTerm::Closure(_)
+                | TypedTerm::ExternalPort(_)
+                | TypedTerm::ExternalPid(_)
+                | TypedTerm::Tuple(_) => Greater,
+                TypedTerm::Map(rhs) => lhs.cmp(rhs),
+                TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
+                _ => Less,
+            },
+            // Bitstrings in likely order
+            TypedTerm::HeapBinary(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.cmp(rhs),
+                TypedTerm::ProcBin(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::BinaryLiteral(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::SubBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::MatchContext(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                _ => Greater,
+            },
+            TypedTerm::ProcBin(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::ProcBin(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::BinaryLiteral(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::SubBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::MatchContext(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                _ => Greater,
+            },
+            TypedTerm::BinaryLiteral(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::ProcBin(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::BinaryLiteral(rhs) => lhs.partial_cmp(rhs).unwrap(),
+                TypedTerm::SubBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::MatchContext(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                _ => Greater,
+            },
+            TypedTerm::SubBinary(lhs) => match other {
+                TypedTerm::HeapBinary(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::ProcBin(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::BinaryLiteral(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                TypedTerm::SubBinary(rhs) => lhs.cmp(rhs),
+                TypedTerm::MatchContext(rhs) => lhs.as_ref().partial_cmp(rhs).unwrap(),
+                _ => Greater,
+            },
+            TypedTerm::MatchContext(lhs) => {
+                unimplemented!("match_context ({:?}) cmp {:?}", lhs, other)
             }
-            TypedTerm::Atom(self_atom) => match other {
+            TypedTerm::Atom(lhs) => match other {
                 TypedTerm::SmallInteger(_) => Greater,
-                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                    TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
-                    _ => Less,
-                },
-                TypedTerm::Atom(other_atom) => self_atom.cmp(other_atom),
+                TypedTerm::Float(_) | TypedTerm::BigInteger(_) => Greater,
+                TypedTerm::Atom(rhs) => lhs.cmp(rhs),
                 _ => Less,
             },
-            TypedTerm::Port(self_port) => match other {
-                _ => unimplemented!("Port {:?} cmp {:?}", self_port, other),
-            },
-            TypedTerm::Pid(self_pid) => match other {
+            TypedTerm::Port(lhs) => unimplemented!("Port {:?} cmp {:?}", lhs, other),
+            TypedTerm::ExternalPort(lhs) => {
+                unimplemented!("ExternalPort {:?} cmp {:?}", lhs, other)
+            }
+            TypedTerm::Pid(lhs) => match other {
                 TypedTerm::SmallInteger(_) => Greater,
-                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                    TypedTerm::Float(_)
-                    | TypedTerm::BigInteger(_)
-                    | TypedTerm::Reference(_)
-                    | TypedTerm::Closure(_)
-                    | TypedTerm::ExternalPort(_) => Greater,
-                    _ => Less,
-                },
+                TypedTerm::Float(_)
+                | TypedTerm::BigInteger(_)
+                | TypedTerm::Reference(_)
+                | TypedTerm::Closure(_)
+                | TypedTerm::ExternalPort(_) => Greater,
                 TypedTerm::Atom(_) | TypedTerm::Port(_) => Greater,
-                TypedTerm::Pid(other_pid) => self_pid.cmp(other_pid),
+                TypedTerm::Pid(rhs) => lhs.cmp(rhs),
                 _ => Less,
             },
             TypedTerm::Nil => match other {
-                TypedTerm::SmallInteger(_) => Greater,
-                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                    TypedTerm::Float(_)
-                    | TypedTerm::BigInteger(_)
-                    | TypedTerm::Reference(_)
-                    | TypedTerm::Closure(_)
-                    | TypedTerm::ExternalPort(_)
-                    | TypedTerm::ExternalPid(_)
-                    | TypedTerm::Tuple(_)
-                    | TypedTerm::Map(_) => Greater,
-                    _ => Less,
-                },
-                TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) => Greater,
+                TypedTerm::SmallInteger(_)
+                | TypedTerm::Float(_)
+                | TypedTerm::BigInteger(_)
+                | TypedTerm::Reference(_)
+                | TypedTerm::Closure(_)
+                | TypedTerm::ExternalPort(_)
+                | TypedTerm::ExternalPid(_)
+                | TypedTerm::Tuple(_)
+                | TypedTerm::Map(_)
+                | TypedTerm::Atom(_)
+                | TypedTerm::Port(_)
+                | TypedTerm::Pid(_) => Greater,
                 TypedTerm::Nil => Equal,
                 _ => Less,
             },
-            TypedTerm::List(self_cons) => match other {
-                TypedTerm::SmallInteger(_) => Greater,
-                TypedTerm::Boxed(other_boxed) => match other_boxed.to_typed_term().unwrap() {
-                    TypedTerm::Float(_)
-                    | TypedTerm::BigInteger(_)
-                    | TypedTerm::Reference(_)
-                    | TypedTerm::Closure(_)
-                    | TypedTerm::ExternalPort(_)
-                    | TypedTerm::ExternalPid(_)
-                    | TypedTerm::Tuple(_)
-                    | TypedTerm::Map(_) => Greater,
-                    _ => Less,
-                },
-                TypedTerm::Atom(_) | TypedTerm::Port(_) | TypedTerm::Pid(_) | TypedTerm::Nil => {
-                    Greater
-                }
-                TypedTerm::List(other_cons) => self_cons.cmp(other_cons),
+            TypedTerm::List(lhs) => match other {
+                TypedTerm::SmallInteger(_)
+                | TypedTerm::Float(_)
+                | TypedTerm::BigInteger(_)
+                | TypedTerm::Reference(_)
+                | TypedTerm::Closure(_)
+                | TypedTerm::ExternalPort(_)
+                | TypedTerm::ExternalPid(_)
+                | TypedTerm::Tuple(_)
+                | TypedTerm::Map(_)
+                | TypedTerm::Atom(_)
+                | TypedTerm::Port(_)
+                | TypedTerm::Pid(_)
+                | TypedTerm::Nil => Greater,
+                TypedTerm::List(rhs) => lhs.as_ref().cmp(rhs),
                 _ => Less,
             },
-            // rest are boxed or GC-only
-            _ => unreachable!(),
+            TypedTerm::ResourceReference(lhs) => {
+                unimplemented!("ResourceReference {:?} cmp {:?}", lhs, other)
+            }
         }
     }
 }
@@ -776,118 +646,94 @@ impl PartialOrd<TypedTerm> for TypedTerm {
     }
 }
 
-unsafe impl AsTerm for TypedTerm {
-    unsafe fn as_term(&self) -> Term {
-        match self {
-            &Self::List(ref inner) => inner.as_term(),
-            &Self::Tuple(ref inner) => inner.as_term(),
-            &Self::Map(ref inner) => inner.as_term(),
-            &Self::Boxed(ref inner) => Term::make_boxed(inner),
-            &Self::Literal(ref inner) => Term::make_boxed_literal(inner),
-            &Self::Pid(ref inner) => inner.as_term(),
-            &Self::Port(ref inner) => inner.as_term(),
-            &Self::Reference(ref inner) => inner.as_term(),
-            &Self::ExternalPid(ref inner) => inner.as_term(),
-            &Self::ExternalPort(ref inner) => inner.as_term(),
-            &Self::ExternalReference(ref inner) => inner.as_term(),
-            &Self::SmallInteger(ref inner) => inner.as_term(),
-            &Self::BigInteger(ref inner) => inner.as_term(),
-            &Self::Float(ref inner) => inner.as_term(),
-            &Self::Atom(ref inner) => inner.as_term(),
-            &Self::ResourceReference(ref inner) => inner.as_term(),
-            &Self::ProcBin(ref inner) => inner.as_term(),
-            &Self::HeapBinary(ref inner) => inner.as_term(),
-            &Self::SubBinary(ref inner) => inner.as_term(),
-            &Self::MatchContext(ref inner) => inner.as_term(),
-            &Self::Closure(ref inner) => inner.as_term(),
-            &Self::Catch => Term::CATCH,
-            &Self::Nil => Term::NIL,
-            &Self::None => Term::NONE,
-        }
-    }
-}
-
 impl CloneToProcess for TypedTerm {
     fn clone_to_process(&self, process: &Process) -> Term {
+        use TypedTerm::*;
         // Immediates are just copied and returned, all other terms
         // are expected to require allocation, so we delegate to those types
         match self {
-            &Self::List(ref inner) => inner.clone_to_process(process),
-            &Self::Tuple(ref inner) => inner.clone_to_process(process),
-            &Self::Map(ref inner) => inner.clone_to_process(process),
-            &Self::Boxed(ref inner) => inner.to_typed_term().unwrap().clone_to_process(process),
-            &Self::Literal(inner) => inner,
-            &Self::Pid(inner) => unsafe { inner.as_term() },
-            &Self::Port(inner) => unsafe { inner.as_term() },
-            &Self::Reference(ref inner) => inner.clone_to_process(process),
-            &Self::ExternalPid(ref inner) => inner.clone_to_process(process),
-            &Self::ExternalPort(ref inner) => inner.clone_to_process(process),
-            &Self::ExternalReference(ref inner) => inner.clone_to_process(process),
-            &Self::SmallInteger(inner) => unsafe { inner.as_term() },
-            &Self::BigInteger(ref inner) => inner.clone_to_process(process),
-            &Self::Float(inner) => inner.clone_to_process(process),
-            &Self::Atom(inner) => unsafe { inner.as_term() },
-            &Self::ResourceReference(ref inner) => inner.clone_to_process(process),
-            &Self::ProcBin(ref inner) => inner.clone_to_process(process),
-            &Self::HeapBinary(ref inner) => inner.clone_to_process(process),
-            &Self::SubBinary(ref inner) => inner.clone_to_process(process),
-            &Self::MatchContext(ref inner) => inner.clone_to_process(process),
-            &Self::Closure(ref inner) => inner.clone_to_process(process),
-            &Self::Catch => Term::CATCH,
-            &Self::Nil => Term::NIL,
-            &Self::None => Term::NONE,
+            &Atom(term) => term.encode().unwrap(),
+            &Pid(term) => term.encode().unwrap(),
+            &Port(term) => term.encode().unwrap(),
+            &SmallInteger(term) => term.encode().unwrap(),
+            &Float(ref term) => term.clone_to_process(process),
+            &List(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &Map(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &Reference(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &ExternalPid(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &ExternalPort(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &ExternalReference(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &ResourceReference(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &MatchContext(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &BinaryLiteral(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &SubBinary(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &ProcBin(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &BigInteger(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &Tuple(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &Closure(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &HeapBinary(term_ptr) => term_ptr.as_ref().clone_to_process(process),
+            &Nil => Term::NIL,
         }
     }
 
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
+    where
+        A: ?Sized + TermAlloc,
+    {
+        use TypedTerm::*;
         // Immediates are just copied and returned, all other terms
         // are expected to require allocation, so we delegate to those types
         match self {
-            &Self::List(ref inner) => inner.clone_to_heap(heap),
-            &Self::Tuple(ref inner) => inner.clone_to_heap(heap),
-            &Self::Map(ref inner) => inner.clone_to_heap(heap),
-            &Self::Boxed(ref inner) => inner.to_typed_term().unwrap().clone_to_heap(heap),
-            &Self::Literal(inner) => Ok(inner),
-            &Self::Pid(inner) => Ok(unsafe { inner.as_term() }),
-            &Self::Port(inner) => Ok(unsafe { inner.as_term() }),
-            &Self::Reference(ref inner) => inner.clone_to_heap(heap),
-            &Self::ExternalPid(ref inner) => inner.clone_to_heap(heap),
-            &Self::ExternalPort(ref inner) => inner.clone_to_heap(heap),
-            &Self::ExternalReference(ref inner) => inner.clone_to_heap(heap),
-            &Self::SmallInteger(inner) => Ok(unsafe { inner.as_term() }),
-            &Self::BigInteger(ref inner) => inner.clone_to_heap(heap),
-            &Self::Float(inner) => inner.clone_to_heap(heap),
-            &Self::Atom(inner) => Ok(unsafe { inner.as_term() }),
-            &Self::ResourceReference(ref inner) => inner.clone_to_heap(heap),
-            &Self::ProcBin(ref inner) => inner.clone_to_heap(heap),
-            &Self::HeapBinary(ref inner) => inner.clone_to_heap(heap),
-            &Self::SubBinary(ref inner) => inner.clone_to_heap(heap),
-            &Self::MatchContext(ref inner) => inner.clone_to_heap(heap),
-            &Self::Closure(ref inner) => inner.clone_to_heap(heap),
-            &Self::Catch => Ok(Term::CATCH),
-            &Self::Nil => Ok(Term::NIL),
-            &Self::None => Ok(Term::NONE),
+            &Atom(term) => Ok(term.encode().unwrap()),
+            &Pid(term) => Ok(term.encode().unwrap()),
+            &Port(term) => Ok(term.encode().unwrap()),
+            &SmallInteger(term) => Ok(term.encode().unwrap()),
+            &Float(ref term) => term.clone_to_heap(heap),
+            &List(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &Map(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &Reference(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &ExternalPid(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &ExternalPort(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &ExternalReference(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &ResourceReference(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &MatchContext(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &BinaryLiteral(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &SubBinary(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &ProcBin(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &BigInteger(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &Tuple(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &Closure(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &HeapBinary(term_ptr) => term_ptr.as_ref().clone_to_heap(heap),
+            &Nil => Ok(Term::NIL),
         }
     }
 
     fn size_in_words(&self) -> usize {
+        use TypedTerm::*;
+        // Immediates are just copied and returned, all other terms
+        // are expected to require allocation, so we delegate to those types
         match self {
-            &Self::List(ref inner) => inner.size_in_words(),
-            &Self::Tuple(ref inner) => inner.size_in_words(),
-            &Self::Map(ref inner) => inner.size_in_words(),
-            &Self::Boxed(ref inner) => inner.to_typed_term().unwrap().size_in_words(),
-            &Self::Reference(ref inner) => inner.size_in_words(),
-            &Self::ExternalPid(ref inner) => inner.size_in_words(),
-            &Self::ExternalPort(ref inner) => inner.size_in_words(),
-            &Self::ExternalReference(ref inner) => inner.size_in_words(),
-            &Self::BigInteger(ref inner) => inner.size_in_words(),
-            &Self::Float(inner) => inner.size_in_words(),
-            &Self::ProcBin(ref inner) => inner.size_in_words(),
-            &Self::HeapBinary(ref inner) => inner.size_in_words(),
-            &Self::SubBinary(ref inner) => inner.size_in_words(),
-            &Self::MatchContext(ref inner) => inner.size_in_words(),
-            &Self::Closure(ref inner) => inner.size_in_words(),
-            _ => 1,
+            &Atom(_term) => 1,
+            &Pid(_term) => 1,
+            &Port(_term) => 1,
+            &SmallInteger(_term) => 1,
+            &Float(ref term) => term.size_in_words(),
+            &List(term_ptr) => term_ptr.size_in_words(),
+            &Map(term_ptr) => term_ptr.size_in_words(),
+            &Reference(term_ptr) => term_ptr.size_in_words(),
+            &ExternalPid(term_ptr) => term_ptr.size_in_words(),
+            &ExternalPort(term_ptr) => term_ptr.size_in_words(),
+            &ExternalReference(term_ptr) => term_ptr.size_in_words(),
+            &ResourceReference(term_ptr) => term_ptr.size_in_words(),
+            &MatchContext(term_ptr) => term_ptr.size_in_words(),
+            &BinaryLiteral(term_ptr) => term_ptr.size_in_words(),
+            &SubBinary(term_ptr) => term_ptr.size_in_words(),
+            &ProcBin(term_ptr) => term_ptr.size_in_words(),
+            &BigInteger(term_ptr) => term_ptr.size_in_words(),
+            &Tuple(term_ptr) => term_ptr.size_in_words(),
+            &Closure(term_ptr) => term_ptr.size_in_words(),
+            &HeapBinary(term_ptr) => term_ptr.size_in_words(),
+            &Nil => 1,
         }
     }
 }
@@ -913,11 +759,8 @@ impl TryInto<f64> for TypedTerm {
     fn try_into(self) -> Result<f64, Self::Error> {
         match self {
             TypedTerm::SmallInteger(small_integer) => Ok(small_integer.into()),
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::BigInteger(big_integer) => Ok(big_integer.into()),
-                TypedTerm::Float(float) => Ok(float.into()),
-                _ => Err(TypeError),
-            },
+            TypedTerm::BigInteger(big_integer) => Ok(big_integer.as_ref().into()),
+            TypedTerm::Float(float) => Ok(float.into()),
             _ => Err(TypeError),
         }
     }
@@ -951,23 +794,22 @@ impl TryInto<isize> for TypedTerm {
                     }
                 }
             }
-            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
             _ => Err(TypeError),
         }
     }
 }
 
 impl TryInto<Vec<u8>> for TypedTerm {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_into(self) -> Result<Vec<u8>, Self::Error> {
         match self {
-            TypedTerm::Boxed(boxed) => boxed.to_typed_term().unwrap().try_into(),
-            TypedTerm::HeapBinary(heap_binary) => heap_binary.try_into(),
-            TypedTerm::SubBinary(subbinary) => subbinary.try_into(),
-            TypedTerm::ProcBin(process_binary) => process_binary.try_into(),
-            TypedTerm::MatchContext(match_context) => match_context.try_into(),
-            _ => Err(badarg!()),
+            TypedTerm::BinaryLiteral(bin_ptr) => bin_ptr.as_ref().try_into(),
+            TypedTerm::HeapBinary(bin_ptr) => bin_ptr.as_ref().try_into(),
+            TypedTerm::SubBinary(bin_ptr) => bin_ptr.as_ref().try_into(),
+            TypedTerm::ProcBin(bin_ptr) => bin_ptr.as_ref().try_into(),
+            TypedTerm::MatchContext(bin_ptr) => bin_ptr.as_ref().try_into(),
+            _ => Err(badarg!().into()),
         }
     }
 }

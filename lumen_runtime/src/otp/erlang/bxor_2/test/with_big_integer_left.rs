@@ -5,7 +5,7 @@ use std::mem::size_of;
 use num_traits::Num;
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 #[test]
 fn with_small_integer_right_returns_big_integer() {
@@ -22,7 +22,7 @@ fn with_small_integer_right_returns_big_integer() {
 
         let output = result.unwrap();
 
-        assert!(output.is_bigint());
+        assert!(output.is_boxed_bigint());
     });
 }
 
@@ -39,7 +39,7 @@ fn with_big_integer_right_returns_big_integer() {
             )
             .unwrap();
 
-        assert!(right.is_bigint());
+        assert!(right.is_boxed_bigint());
 
         let result = native(&process, left, right);
 
@@ -47,7 +47,7 @@ fn with_big_integer_right_returns_big_integer() {
 
         let output = result.unwrap();
 
-        assert!(output.is_bigint());
+        assert!(output.is_boxed_bigint());
 
         assert_eq!(
             output,

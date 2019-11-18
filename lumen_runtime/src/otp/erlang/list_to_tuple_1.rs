@@ -8,13 +8,13 @@ mod test;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(list_to_tuple/1)]
-pub fn native(process: &Process, list: Term) -> exception::Result {
-    match list.to_typed_term().unwrap() {
+pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
+    match list.decode().unwrap() {
         TypedTerm::Nil => process.tuple_from_slices(&[]).map_err(|error| error.into()),
         TypedTerm::List(cons) => {
             let vec: Vec<Term> = cons.into_iter().collect::<std::result::Result<_, _>>()?;

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::otp::erlang;
 
@@ -37,7 +37,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     // from environment
     let output = arc_process.stack_pop().unwrap();
-    assert!(output.is_function());
+    assert!(output.is_boxed_function());
     // from arguments
     let element = arc_process.stack_pop().unwrap();
     assert!(element.is_integer());
@@ -48,9 +48,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     // `Scheduler::spawn(arc_process, module, function, arguments, counter_0_code)`, but we want
     // to demonstrate the the `lumen_runtime::code::set_apply_fn` system works here.
 
-    let module = atom_unchecked("Elixir.Chain");
-    let function = atom_unchecked("counter");
-    let arguments = arc_process.list_from_slice(&[send_to, output]).unwrap();
+    let module = Atom::str_to_term("Elixir.Chain");
+    let function = Atom::str_to_term("counter");
+    let arguments = arc_process.list_from_slice(&[send_to, output])?;
     erlang::spawn_3::place_frame_with_arguments(
         arc_process,
         Placement::Replace,

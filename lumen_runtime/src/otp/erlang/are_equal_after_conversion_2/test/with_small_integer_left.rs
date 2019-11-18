@@ -11,7 +11,7 @@ fn without_small_integer_or_float_returns_false() {
                     strategy::term::integer::small(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right must not be a small integer or float", |v| {
-                            !(v.is_smallint() || v.is_float())
+                            !(v.is_smallint() || v.is_boxed_float())
                         }),
                 ),
                 |(left, right)| {
@@ -91,7 +91,7 @@ fn with_same_value_float_right_returns_true() {
                     (heap.integer(i).unwrap(), heap.float(i as f64).unwrap())
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
+                    prop_assert_eq!(native(left, right.into()), true.into());
 
                     Ok(())
                 },
@@ -116,7 +116,7 @@ fn with_different_value_float_right_returns_false() {
                     )
                 }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
+                    prop_assert_eq!(native(left, right.into()), false.into());
 
                     Ok(())
                 },

@@ -3,11 +3,11 @@ mod label_2;
 
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::{self, result_from_exception};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use lumen_runtime::otp::erlang::add_2;
@@ -50,33 +50,25 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
     //   fun.(first, acc)
     // end
     if first == last {
-        match reducer.to_typed_term().unwrap() {
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::Closure(closure) => {
-                    if closure.arity == 2 {
-                        closure
-                            .place_frame_with_arguments(
-                                arc_process,
-                                Placement::Replace,
-                                vec![first, acc],
-                            )
-                            .unwrap();
+        match reducer.decode().unwrap() {
+            TypedTerm::Closure(closure) => {
+                if closure.arity() == 2 {
+                    closure.place_frame_with_arguments(
+                        arc_process,
+                        Placement::Replace,
+                        vec![first, acc],
+                    )?;
 
-                        Process::call_code(arc_process)
-                    } else {
-                        let argument_list = arc_process.list_from_slice(&[first, acc]).unwrap();
+                    Process::call_code(arc_process)
+                } else {
+                    let argument_list = arc_process.list_from_slice(&[first, acc])?;
 
-                        result_from_exception(
-                            arc_process,
-                            liblumen_alloc::badarity!(arc_process, reducer, argument_list),
-                        )
-                    }
+                    result_from_exception(
+                        arc_process,
+                        liblumen_alloc::badarity!(arc_process, reducer, argument_list),
+                    )
                 }
-                _ => result_from_exception(
-                    arc_process,
-                    liblumen_alloc::badfun!(arc_process, reducer),
-                ),
-            },
+            }
             _ => result_from_exception(arc_process, liblumen_alloc::badfun!(arc_process, reducer)),
         }
     }

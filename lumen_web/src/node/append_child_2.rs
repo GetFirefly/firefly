@@ -18,23 +18,22 @@
 //! Lumen.Web.Node.append_child(element_with_id, div)
 //! ```
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::{atom, badarg};
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::node::node_from_term;
-use crate::ok;
 
 #[native_implemented_function(append_child/2)]
-pub fn native(parent: Term, child: Term) -> exception::Result {
+pub fn native(parent: Term, child: Term) -> exception::Result<Term> {
     let parent_node = node_from_term(parent)?;
     let child_node = node_from_term(child)?;
 
     // not sure how this could fail from `web-sys` or MDN docs.
     match parent_node.append_child(child_node) {
-        Ok(_) => Ok(ok()),
+        Ok(_) => Ok(atom!("ok")),
         // JsValue(HierarchyRequestError: Failed to execute 'appendChild' on 'Node': The new child
         // element contains the parent.
         Err(_) => Err(badarg!().into()),

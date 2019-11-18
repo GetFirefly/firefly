@@ -4,6 +4,6 @@ mod with_tuple_destination;
 
 fn options(process: &Process) -> Term {
     process
-        .cons(atom_unchecked("nosuspend"), Term::NIL)
+        .cons(Atom::str_to_term("nosuspend"), Term::NIL)
         .unwrap()
 }

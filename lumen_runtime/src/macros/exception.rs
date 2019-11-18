@@ -1,18 +1,18 @@
 #[cfg(test)]
 macro_rules! assert_badarg {
     ($left:expr) => {{
-        use liblumen_alloc::erts::term::atom_unchecked;
+        use liblumen_alloc::erts::term::prelude::Atom;
 
-        assert_error!($left, atom_unchecked("badarg"))
+        assert_error!($left, Atom::str_to_term("badarg"))
     }};
 }
 
 #[cfg(all(not(target_arch = "wasm32"), test))]
 macro_rules! assert_badarith {
     ($left:expr) => {{
-        use liblumen_alloc::erts::term::atom_unchecked;
+        use liblumen_alloc::erts::term::prelude::Atom;
 
-        assert_error!($left, atom_unchecked("badarith"))
+        assert_error!($left, Atom::str_to_term("badarith"))
     }};
 }
 

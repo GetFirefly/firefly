@@ -11,7 +11,7 @@ fn without_local_reference_right_returns_false() {
                     strategy::term::local_reference(arc_process.clone()),
                     strategy::term(arc_process.clone())
                         .prop_filter("Right cannot be a local reference", |right| {
-                            !right.is_local_reference()
+                            !right.is_boxed_local_reference()
                         }),
                 ),
                 |(left, right)| {

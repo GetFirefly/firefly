@@ -16,17 +16,23 @@ use wasm_bindgen::JsCast;
 
 use web_sys::DomException;
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::node::node_from_term;
-use crate::{error, ok_tuple};
+use crate::ok_tuple;
 
 #[native_implemented_function(replace_child/3)]
-fn native(process: &Process, parent: Term, old_child: Term, new_child: Term) -> exception::Result {
+fn native(
+    process: &Process,
+    parent: Term,
+    old_child: Term,
+    new_child: Term,
+) -> exception::Result<Term> {
     let parent_node = node_from_term(parent)?;
     let old_child_node = node_from_term(old_child)?;
     let new_child_node = node_from_term(new_child)?;
@@ -49,8 +55,8 @@ fn native(process: &Process, parent: Term, old_child: Term, new_child: Term) -> 
                     name
                 ),
             };
-            let reason = atom_unchecked(reason_name);
-            let error_tuple = process.tuple_from_slice(&[error(), reason])?;
+            let reason = atom!(reason_name);
+            let error_tuple = process.tuple_from_slice(&[atom!("error"), reason])?;
 
             Ok(error_tuple)
         }

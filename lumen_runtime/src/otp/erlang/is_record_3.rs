@@ -6,13 +6,13 @@
 mod test;
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::otp::erlang::is_record;
 
 #[native_implemented_function(is_record/3)]
-pub fn native(term: Term, record_tag: Term, size: Term) -> exception::Result {
+pub fn native(term: Term, record_tag: Term, size: Term) -> exception::Result<Term> {
     is_record(term, record_tag, Some(size))
 }

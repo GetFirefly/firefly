@@ -7,7 +7,7 @@ mod test;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -19,6 +19,6 @@ pub fn native(
     module: Term,
     function: Term,
     arguments: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     spawn_apply_3::native(process, Default::default(), module, function, arguments)
 }

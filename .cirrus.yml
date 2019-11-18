@@ -8,29 +8,17 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
   build_script: cargo build
   # `*_test_script`s in order of crate dependency graph
   liblumen_arena_test_script: |
-    pushd liblumen_arena
-    cargo test
-    popd
+    cargo test -p liblumen_arena
   liblumen_core_test_script: |
-    pushd liblumen_core
-    cargo test
-    popd
+    cargo test -p liblumen_core
   liblumen_alloc_test_script: |
-    pushd liblumen_alloc
-    cargo test
-    popd
+    cargo test -p liblumen_alloc
   lumen_runtime_test_script: |
-    pushd lumen_runtime
-    cargo test
-    popd
+    cargo test -p lumen_runtime
   liblumen_eir_interpreter_test_script: |
-    pushd liblumen_eir_interpreter
-    cargo test
-    popd
+    cargo test -p liblumen_eir_interpreter
   examples_spawn_chain_test_script: |
-    pushd examples/spawn-chain
-    cargo test
-    popd
+    cargo test -p spawn-chain
 
 task:
   name: Linux x86_64
@@ -71,47 +59,35 @@ task:
   build_script: cargo build
   # `*_test_script`s in order of crate dependency graph
   liblumen_arena_test_script: |
-    pushd liblumen_arena
-    cargo test
+    cargo test -p liblumen_arena
     if ($LastExitCode -ne 0) {
        throw "cargo test exited $$LastExitCode"
     }
-    popd
   liblumen_core_test_script: |
-    pushd liblumen_core
-    cargo test
+    cargo test -p liblumen_core
     if ($LastExitCode -ne 0) {
       throw "cargo test exited $$LastExitCode"
     }
-    popd
   liblumen_alloc_test_script: |
-    pushd liblumen_alloc
-    cargo test
+    cargo test -p liblumen_alloc
     if ($LastExitCode -ne 0) {
        throw "cargo test exited $$LastExitCode"
     }
-    popd
   lumen_runtime_test_script: |
-    pushd lumen_runtime
-    cargo test
+    cargo test -p lumen_runtime
     if ($LastExitCode -ne 0) {
       throw "cargo test exited $$LastExitCode"
     }
-    popd
   liblumen_eir_interpreter_test_script: |
-    pushd liblumen_eir_interpreter
-    cargo test
+    cargo test -p liblumen_eir_interpreter
     if ($LastExitCode -ne 0) {
       throw "cargo test exited $$LastExitCode"
     }
-    popd
   examples_spawn_chain_test_script: |
-    pushd examples/spawn-chain
-    cargo test
+    cargo test -p spawn-chain
     if ($LastExitCode -ne 0) {
       throw "cargo test exited $$LastExitCode"
     }
-    popd
 
 task:
   name: Linux wasm32
@@ -124,17 +100,11 @@ task:
   firefox_version_script: firefox --version
   gecko_driver_version_script: geckodriver --version
   lumen_web_test_script: |
-    pushd lumen_web
-    wasm-pack test --headless --chrome --firefox
-    popd
+    wasm-pack test --headless --chrome --firefox lumen_web
   examples_spawn_chain_build_script: |
-    pushd examples/spawn-chain
-    wasm-pack build
-    popd
+    wasm-pack build examples/spawn-chain
   examples_spawn_chain_test_script: |
-    pushd examples/spawn-chain
-    wasm-pack test --headless --chrome --firefox
-    popd
+    wasm-pack test --headless --chrome --firefox examples/spawn-chain
   examples_spawn_chain_package_script: |
     pushd examples/spawn-chain
     pushd www
@@ -188,15 +158,9 @@ task:
     geckodriver --version
   enable_safari_driver_script: sudo safaridriver --enable
   lumen_web_test_script: |
-    pushd lumen_web
-    wasm-pack test --headless --chrome --firefox --safari
-    popd
+    wasm-pack test --headless --chrome --firefox --safari lumen_web
   examples_spawn_chain_build_script: |
-    pushd examples/spawn-chain
-    wasm-pack build
-    popd
+    wasm-pack build examples/spawn-chain
   examples_spawn_chain_test_script: |
-    pushd examples/spawn-chain
-    wasm-pack test --headless --chrome --firefox --safari
-    popd
+    wasm-pack test --headless --chrome --firefox --safari examples/spawn-chain
   before_cache_script: rm -rf $CARGO_HOME/registry/index

@@ -13,13 +13,13 @@ use num_traits::Zero;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(abs/1)]
-pub fn native(process: &Process, number: Term) -> exception::Result {
-    let option_abs = match number.to_typed_term().unwrap() {
+pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
+    let option_abs = match number.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
             let i: isize = small_integer.into();
 
@@ -32,37 +32,34 @@ pub fn native(process: &Process, number: Term) -> exception::Result {
                 Some(number)
             }
         }
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::BigInteger(big_integer) => {
-                let big_int: &BigInt = big_integer.as_ref().into();
-                let zero_big_int: &BigInt = &Zero::zero();
+        TypedTerm::BigInteger(big_integer) => {
+            let big_int: &BigInt = big_integer.as_ref().into();
+            let zero_big_int: &BigInt = &Zero::zero();
 
-                let abs_number: Term = if big_int < zero_big_int {
-                    let positive_big_int: BigInt = -1 * big_int;
+            let abs_number: Term = if big_int < zero_big_int {
+                let positive_big_int: BigInt = -1 * big_int;
 
-                    process.integer(positive_big_int)?
-                } else {
-                    number
-                };
+                process.integer(positive_big_int)?
+            } else {
+                number
+            };
 
-                Some(abs_number)
-            }
-            TypedTerm::Float(float) => {
-                let f: f64 = float.into();
+            Some(abs_number)
+        }
+        TypedTerm::Float(float) => {
+            let f: f64 = float.into();
 
-                let abs_number = match f.partial_cmp(&0.0).unwrap() {
-                    Ordering::Less => {
-                        let positive_f = f.abs();
+            let abs_number = match f.partial_cmp(&0.0).unwrap() {
+                Ordering::Less => {
+                    let positive_f = f.abs();
 
-                        process.float(positive_f).unwrap()
-                    }
-                    _ => number,
-                };
+                    process.float(positive_f).unwrap()
+                }
+                _ => number,
+            };
 
-                Some(abs_number)
-            }
-            _ => None,
-        },
+            Some(abs_number)
+        }
         _ => None,
     };
 

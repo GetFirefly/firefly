@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
-use liblumen_alloc::erts::term::{atom_unchecked, Boxed, Term, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::elixir::chain::dom_output_1::label_3;
 
@@ -46,7 +46,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_document = arc_process.stack_pop().unwrap();
     assert!(
-        ok_document.is_tuple(),
+        ok_document.is_boxed_tuple(),
         "ok_document ({:?}) is not a tuple",
         ok_document
     );
@@ -54,9 +54,9 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
 
     let ok_document_tuple: Boxed<Tuple> = ok_document.try_into().unwrap();
     assert_eq!(ok_document_tuple.len(), 2);
-    assert_eq!(ok_document_tuple[0], atom_unchecked("ok"));
+    assert_eq!(ok_document_tuple[0], Atom::str_to_term("ok"));
     let document = ok_document_tuple[1];
-    assert!(document.is_resource_reference());
+    assert!(document.is_boxed_resource_reference());
 
     label_3::place_frame_with_arguments(arc_process, Placement::Replace, document, text).unwrap();
 

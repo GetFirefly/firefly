@@ -1,11 +1,10 @@
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::{AllocResult, Exception};
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
 use liblumen_alloc::erts::process::{Priority, Process};
-use liblumen_alloc::erts::term::{Atom, Boxed, Cons, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, ModuleFunctionArity};
 
 use crate::process;
@@ -69,7 +68,7 @@ impl Options {
         &self,
         parent_process: Option<&Process>,
         child_process: &Process,
-    ) -> Result<Connection, Alloc> {
+    ) -> AllocResult<Connection> {
         let linked = if self.link {
             parent_process.unwrap().link(child_process);
 
@@ -102,7 +101,7 @@ impl Options {
         module: Atom,
         function: Atom,
         arity: u8,
-    ) -> Result<Process, Alloc> {
+    ) -> AllocResult<Process> {
         let priority = self.cascaded_priority(parent_process);
         let module_function_arity = Arc::new(ModuleFunctionArity {
             module,
@@ -142,7 +141,7 @@ impl Options {
         }
     }
 
-    fn sized_heap(&self) -> Result<(*mut Term, usize), Alloc> {
+    fn sized_heap(&self) -> AllocResult<(*mut Term, usize)> {
         let heap_size = self.heap_size();
         let heap = heap(self.heap_size())?;
 
@@ -166,19 +165,16 @@ impl Options {
     }
 
     fn try_put_option_from_term(&mut self, term: Term) -> bool {
-        match term.to_typed_term().unwrap() {
+        match term.decode().unwrap() {
             TypedTerm::Atom(atom) => self.try_put_option_from_atom(atom),
-            TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                TypedTerm::Tuple(tuple) => self.try_put_option_from_tuple(&tuple),
-                _ => false,
-            },
+            TypedTerm::Tuple(tuple) => self.try_put_option_from_tuple(&tuple),
             _ => false,
         }
     }
 
     fn try_put_option_from_tuple(&mut self, tuple: &Tuple) -> bool {
         tuple.len() == 2 && {
-            match tuple[0].to_typed_term().unwrap() {
+            match tuple[0].decode().unwrap() {
                 TypedTerm::Atom(atom) => match atom.name() {
                     "fullsweep_after" => match tuple[1].try_into() {
                         Ok(fullsweep_after) => {
@@ -274,7 +270,7 @@ impl TryFrom<Term> for Options {
     type Error = Exception;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        match term.to_typed_term().unwrap() {
+        match term.decode().unwrap() {
             TypedTerm::Nil => Ok(Default::default()),
             TypedTerm::List(cons) => cons.try_into(),
             _ => Err(badarg!().into()),

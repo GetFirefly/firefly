@@ -3,14 +3,14 @@ use std::convert::From;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use anyhow::Result;
 use clap::{value_t, ArgMatches};
-use failure::Error;
 
 use libeir_diagnostics::{CodeMap, ColorChoice};
-use liblumen_compiler::{Compiler, CompilerMode, CompilerSettings, Verbosity};
+use liblumen_compiler::*;
 
 /// Dispatches command-line arguments to the compiler backend
-pub fn dispatch<'a>(args: &'a ArgMatches) -> Result<(), Error> {
+pub fn dispatch<'a>(args: &'a ArgMatches) -> Result<()> {
     let config = configure(args)?;
     let mut compiler = Compiler::new(config);
 
@@ -20,9 +20,9 @@ pub fn dispatch<'a>(args: &'a ArgMatches) -> Result<(), Error> {
 }
 
 /// Create a CompilerSettings struct from ArgMatches produced by clap
-fn configure<'a>(args: &'a ArgMatches) -> Result<CompilerSettings, Error> {
+fn configure<'a>(args: &'a ArgMatches) -> Result<CompilerSettings> {
     let codemap = Arc::new(Mutex::new(CodeMap::new()));
-    let mode = value_t!(args, "compiler", CompilerMode).unwrap_or_else(|e| e.exit());
+    let file_type = value_t!(args, "compiler", FileType).unwrap_or_else(|e| e.exit());
     let source_dir = args.value_of_os("path").map(PathBuf::from).unwrap();
     let output_dir = args.value_of_os("output").map(PathBuf::from).unwrap();
     let warnings_as_errors = args.is_present("warnings-as-errors");
@@ -39,7 +39,7 @@ fn configure<'a>(args: &'a ArgMatches) -> Result<CompilerSettings, Error> {
     };
     code_path.append(&mut append_dirs);
     Ok(CompilerSettings {
-        mode,
+        file_type,
         color: ColorChoice::Auto,
         source_dir,
         output_dir,

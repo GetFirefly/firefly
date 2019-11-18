@@ -9,7 +9,7 @@ pub mod label_4;
 #[path = "removes_element/label_5.rs"]
 pub mod label_5;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 fn function() -> Atom {
     Atom::try_from_str("remove_1_removes_element").unwrap()

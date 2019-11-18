@@ -7,10 +7,10 @@ use core::mem;
 use core::ptr;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::runtime;
-use crate::erts::exception::system::Alloc;
-use crate::erts::term::{AsTerm, Boxed, Term, TypeError, TypedTerm};
-use crate::erts::{to_word_size, HeapAlloc, StackAlloc};
+use crate::erts::exception::{self, AllocResult, Exception};
+use crate::erts::process::alloc::{StackAlloc, TermAlloc};
+use crate::erts::term::prelude::*;
+use crate::erts::to_word_size;
 
 pub enum List {
     Empty,
@@ -21,7 +21,7 @@ impl TryFrom<Term> for List {
     type Error = TypeError;
 
     fn try_from(term: Term) -> Result<List, TypeError> {
-        term.to_typed_term().unwrap().try_into()
+        term.decode().unwrap().try_into()
     }
 }
 
@@ -146,16 +146,33 @@ impl Cons {
             return None;
         }
         if self.tail.is_non_empty_list() {
-            let tail = self.tail.list_val();
+            let tail: *mut Cons = self.tail.dyn_cast();
             return Some(MaybeImproper::Proper(unsafe { *tail }));
         }
         Some(MaybeImproper::Improper(self.tail))
     }
-}
-unsafe impl AsTerm for Cons {
-    #[inline]
-    unsafe fn as_term(&self) -> Term {
-        Term::make_list(self as *const Self)
+
+    /// Searches this keyword list for the first element which has a matching key
+    /// at the given index.
+    ///
+    /// If no key is found, returns 'badarg'
+    pub fn keyfind(&self, index: OneBasedIndex, key: Term) -> exception::Result<Option<Term>> {
+        for result in self.into_iter() {
+            if let Ok(item) = result {
+                let tuple_item: Result<Boxed<Tuple>, _> = item.try_into();
+                if let Ok(tuple) = tuple_item {
+                    if let Ok(candidate) = tuple.get_element(index) {
+                        if candidate == key {
+                            return Ok(Some(item));
+                        }
+                    }
+                }
+            } else {
+                return Err(badarg!().into());
+            }
+        }
+
+        Ok(None)
     }
 }
 
@@ -207,18 +224,41 @@ impl Ord for Cons {
         self.into_iter().cmp(other.into_iter())
     }
 }
-impl PartialEq<Cons> for Cons {
+impl PartialEq for Cons {
     fn eq(&self, other: &Cons) -> bool {
         self.head.eq(&other.head) && self.tail.eq(&other.tail)
     }
 }
-impl PartialOrd<Cons> for Cons {
+impl<T> PartialEq<Boxed<T>> for Cons
+where
+    T: PartialEq<Cons>,
+{
+    #[inline]
+    fn eq(&self, other: &Boxed<T>) -> bool {
+        other.as_ref().eq(self)
+    }
+}
+
+impl PartialOrd for Cons {
     fn partial_cmp(&self, other: &Cons) -> Option<cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
+impl<T> PartialOrd<Boxed<T>> for Cons
+where
+    T: PartialOrd<Cons>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Boxed<T>) -> Option<cmp::Ordering> {
+        other.as_ref().partial_cmp(self).map(|o| o.reverse())
+    }
+}
+
 impl CloneToProcess for Cons {
-    fn clone_to_heap<A: HeapAlloc>(&self, heap: &mut A) -> Result<Term, Alloc> {
+    fn clone_to_heap<A>(&self, heap: &mut A) -> AllocResult<Term>
+    where
+        A: ?Sized + TermAlloc,
+    {
         let mut vec: alloc::vec::Vec<Term> = Default::default();
         let mut tail = Term::NIL;
 
@@ -232,6 +272,7 @@ impl CloneToProcess for Cons {
         }
 
         heap.improper_list_from_slice(&vec, tail)
+            .map(|list| list.into())
     }
 
     fn size_in_words(&self) -> usize {
@@ -292,12 +333,13 @@ impl Iterator for Iter {
             _ => {
                 let tail = self.tail.unwrap();
 
-                match tail.to_typed_term().unwrap() {
+                match tail.decode().unwrap() {
                     TypedTerm::Nil => {
                         self.head = None;
                         self.tail = None;
                     }
-                    TypedTerm::List(cons) => {
+                    TypedTerm::List(cons_ptr) => {
+                        let cons = cons_ptr.as_ref();
                         self.head = Some(Ok(cons.head));
                         self.tail = Some(cons.tail);
                     }
@@ -313,14 +355,6 @@ impl Iterator for Iter {
     }
 }
 
-impl TryFrom<Term> for Boxed<Cons> {
-    type Error = TypeError;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        term.to_typed_term().unwrap().try_into()
-    }
-}
-
 impl TryFrom<TypedTerm> for Boxed<Cons> {
     type Error = TypeError;
 
@@ -333,23 +367,25 @@ impl TryFrom<TypedTerm> for Boxed<Cons> {
 }
 
 impl TryInto<String> for Boxed<Cons> {
-    type Error = runtime::Exception;
+    type Error = Exception;
 
     fn try_into(self) -> Result<String, Self::Error> {
-        self.into_iter()
+        self.as_ref()
+            .into_iter()
             .map(|result| match result {
                 Ok(element) => {
-                    let result_char: Result<char, _> = element.try_into().map_err(|_| badarg!());
+                    let result_char: exception::Result<char> =
+                        element.try_into().map_err(|_| badarg!().into());
 
                     result_char
                 }
-                Err(_) => Err(badarg!()),
+                Err(_) => Err(badarg!().into()),
             })
             .collect()
     }
 }
 
-pub struct ListBuilder<'a, A: HeapAlloc> {
+pub struct ListBuilder<'a, A: TermAlloc> {
     heap: &'a mut A,
     element: Option<Term>,
     first: *mut Cons,
@@ -357,7 +393,7 @@ pub struct ListBuilder<'a, A: HeapAlloc> {
     size: usize,
     failed: bool,
 }
-impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
+impl<'a, A: TermAlloc> ListBuilder<'a, A> {
     /// Creates a new list builder that allocates on the given processes' heap
     #[inline]
     pub fn new(heap: &'a mut A) -> Self {
@@ -391,7 +427,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     }
 
     #[inline]
-    fn push_internal(&mut self, term: Term) -> Result<(), Alloc> {
+    fn push_internal(&mut self, term: Term) -> AllocResult<()> {
         if self.element.is_none() {
             // This is the very first push
             assert!(self.first.is_null());
@@ -420,7 +456,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
                 // cell
                 let cadr = current.tail;
                 let new_current = self.alloc_cell(cadr, Term::NIL)?;
-                current.tail = Term::make_list(new_current);
+                current.tail = new_current.into();
                 self.current = new_current;
                 self.size += 1;
             }
@@ -430,7 +466,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
 
     /// Consumes the builder and produces a `Term` which points to the allocated list
     #[inline]
-    pub fn finish(mut self) -> Result<Term, Alloc> {
+    pub fn finish(mut self) -> AllocResult<Boxed<Cons>> {
         if self.failed {
             // We can't clean up the heap until GC
             Err(alloc!())
@@ -439,7 +475,12 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
                 // Empty list
                 None => {
                     assert!(self.first.is_null());
-                    Ok(Term::NIL)
+                    // Allocate an empty cell for the list
+                    // Technically this is a bit wasteful, since we could just use NIL
+                    // as an immediate, but to return a `Boxed<Cons>` we need a value to
+                    // point to
+                    let first_ptr = self.alloc_cell(Term::NIL, Term::NIL)?;
+                    Ok(unsafe { Boxed::new_unchecked(first_ptr) })
                 }
                 // Non-empty list
                 Some(last) => {
@@ -450,17 +491,17 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
                     } else if current.tail.is_nil() {
                         // Typical case, we need to allocate a new tail to wrap up this list
                         let new_current = self.alloc_cell(last, Term::NIL)?;
-                        current.tail = Term::make_list(new_current);
+                        current.tail = new_current.into();
                     } else {
                         // This occurs when we've filled a cell, so we need to allocate two cells,
                         // one for the current tail and one for the last element
                         let cadr_cell = self.alloc_cell(last, Term::NIL)?;
-                        let cadr = Term::make_list(cadr_cell);
+                        let cadr = cadr_cell.into();
                         let cdr = self.alloc_cell(current.tail, cadr)?;
-                        current.tail = Term::make_list(cdr);
+                        current.tail = cdr.into();
                     }
                     // Return a reference to the first cell of the list
-                    Ok(Term::make_list(self.first))
+                    Ok(unsafe { Boxed::new_unchecked(self.first) })
                 }
             }
         }
@@ -468,7 +509,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
 
     /// Like `finish`, but produces an improper list if there is already at least one element
     #[inline]
-    pub fn finish_with(mut self, term: Term) -> Result<Term, Alloc> {
+    pub fn finish_with(mut self, term: Term) -> AllocResult<Boxed<Cons>> {
         if self.failed {
             // We can't clean up the heap until GC
             Err(alloc!())
@@ -489,26 +530,26 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
                     } else if current.tail.is_nil() {
                         let tail = self.clone_term_to_heap(term)?;
                         let cdr = self.alloc_cell(next, tail)?;
-                        current.tail = Term::make_list(cdr);
+                        current.tail = cdr.into();
                     } else {
                         let tail = self.clone_term_to_heap(term)?;
                         let cadr_cell = self.alloc_cell(next, tail)?;
-                        let cadr = Term::make_list(cadr_cell);
+                        let cadr = cadr_cell.into();
                         let cdr = self.alloc_cell(current.tail, cadr)?;
-                        current.tail = Term::make_list(cdr);
+                        current.tail = cdr.into();
                     }
-                    Ok(Term::make_list(self.first))
+                    Ok(unsafe { Boxed::new_unchecked(self.first) })
                 }
             }
         }
     }
 
     #[inline]
-    fn clone_term_to_heap(&mut self, term: Term) -> Result<Term, Alloc> {
+    fn clone_term_to_heap(&mut self, term: Term) -> AllocResult<Term> {
         if term.is_immediate() {
             Ok(term)
         } else if term.is_boxed() {
-            let ptr = term.boxed_val();
+            let ptr: *mut Term = term.dyn_cast();
             if !term.is_literal() && self.heap.is_owner(ptr) {
                 // No need to clone
                 Ok(term)
@@ -516,7 +557,7 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
                 term.clone_to_heap(self.heap)
             }
         } else if term.is_non_empty_list() {
-            let ptr = term.list_val();
+            let ptr: *mut Cons = term.dyn_cast();
             if !term.is_literal() && self.heap.is_owner(ptr) {
                 // No need to clone
                 Ok(term)
@@ -529,8 +570,9 @@ impl<'a, A: HeapAlloc> ListBuilder<'a, A> {
     }
 
     #[inline]
-    fn alloc_cell(&mut self, head: Term, tail: Term) -> Result<*mut Cons, Alloc> {
-        let ptr = unsafe { self.heap.alloc_layout(Layout::new::<Cons>())?.as_ptr() as *mut Cons };
+    fn alloc_cell(&mut self, head: Term, tail: Term) -> AllocResult<*mut Cons> {
+        let layout = Layout::new::<Cons>();
+        let ptr = unsafe { self.heap.alloc_layout(layout)?.as_ptr() as *mut Cons };
         let mut cell = unsafe { &mut *ptr };
         cell.head = head;
         cell.tail = tail;
@@ -571,7 +613,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
     #[inline]
     pub fn push(mut self, term: Term) -> Self {
         assert!(
-            term.is_runtime(),
+            term.is_valid(),
             "invalid list element for stack-allocated list"
         );
         if self.failed {
@@ -589,7 +631,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 
     /// Consumes the builder and produces a `Term` which points to the allocated list
     #[inline]
-    pub fn finish(self) -> Result<Term, Alloc> {
+    pub fn finish(self) -> AllocResult<Boxed<Cons>> {
         if self.failed {
             Err(alloc!())
         } else {
@@ -598,8 +640,8 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                 unsafe {
                     let ptr = self.stack.alloca(1)?.as_ptr();
                     ptr::write(ptr, Term::NIL);
+                    Ok(Boxed::new_unchecked(ptr as *mut Cons))
                 }
-                Ok(Term::NIL)
             } else {
                 // Construct allocation layout for list
                 let (elements_layout, _) = Layout::new::<Cons>().repeat(size).unwrap();
@@ -609,7 +651,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                 // Get pointer to first cell
                 let first_ptr = unsafe { ptr.add(1) as *mut Cons };
                 // Write header with pointer to first cell
-                unsafe { ptr::write(ptr, Term::make_list(first_ptr)) };
+                unsafe { ptr::write(ptr, first_ptr.into()) };
                 // For each element in the list, write a cell with a pointer to the next one
                 for (i, element) in self.elements.iter().copied().enumerate() {
                     // Offsets are relative to the first cell, first element has `i` of 0
@@ -620,21 +662,21 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                         // If we have future cells to write, generate a valid tail
                         let tail_ptr = unsafe { cell_ptr.add(1) };
                         cell.head = element;
-                        cell.tail = Term::make_list(tail_ptr);
+                        cell.tail = tail_ptr.into();
                     } else {
                         // This is the last element
                         cell.head = element;
                         cell.tail = Term::NIL;
                     }
                 }
-                Ok(unsafe { *ptr })
+                Ok(unsafe { Boxed::new_unchecked(first_ptr) })
             }
         }
     }
 
     /// Like `finish`, but produces an improper list if there is already at least one element
     #[inline]
-    pub fn finish_with(mut self, term: Term) -> Result<Term, Alloc> {
+    pub fn finish_with(mut self, term: Term) -> AllocResult<Boxed<Cons>> {
         if self.failed {
             Err(alloc!())
         } else {
@@ -652,7 +694,7 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                 // Get pointer to first cell
                 let first_ptr = unsafe { ptr.add(1) as *mut Cons };
                 // Write header with pointer to first cell
-                unsafe { ptr::write(ptr, Term::make_list(first_ptr)) };
+                unsafe { ptr::write(ptr, first_ptr.into()) };
                 // For each element in the list, write a cell with a pointer to the next one
                 for (i, element) in self.elements.iter().copied().enumerate() {
                     // Offsets are relative to the first cell, first element has `i` of 0
@@ -663,14 +705,14 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
                         // If we have future cells to write, generate a valid tail
                         let tail_ptr = unsafe { cell_ptr.add(1) };
                         cell.head = element;
-                        cell.tail = Term::make_list(tail_ptr);
+                        cell.tail = tail_ptr.into();
                     } else {
                         // This is the last cell
                         cell.head = element;
                         cell.tail = term;
                     }
                 }
-                Ok(unsafe { *ptr })
+                Ok(unsafe { Boxed::new_unchecked(first_ptr) })
             }
         }
     }
@@ -679,124 +721,75 @@ impl<'a, A: StackAlloc> HeaplessListBuilder<'a, A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::erts::term::SmallInteger;
+
+    use crate::erts::testing::RegionHeap;
 
     mod clone_to_heap {
         use super::*;
 
-        use ::alloc::sync::Arc;
-
-        use crate::erts::process::{alloc, Priority, Process};
-        use crate::erts::scheduler;
-        use crate::erts::term::{atom_unchecked, Atom};
-        use crate::erts::ModuleFunctionArity;
-
         #[test]
-        fn single_element() {
-            let process = process();
-            let head = atom_unchecked("head");
-            let tail = Term::NIL;
-            let cons_term = process.cons(head, tail).unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+        fn list_single_element() {
+            let mut heap = RegionHeap::default();
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = cons!(heap, atom!("head"));
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
 
         #[test]
-        fn two_element_proper() {
-            let process = process();
-            let element0 = process.integer(0).unwrap();
-            let element1 = process.integer(1).unwrap();
-            let tail = Term::NIL;
-            let cons_term = process
-                .cons(element0, process.cons(element1, tail).unwrap())
-                .unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+        fn list_two_element_proper() {
+            let mut heap = RegionHeap::default();
+            let element0 = fixnum!(0);
+            let element1 = fixnum!(1);
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = cons!(heap, element0, element1);
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
 
         #[test]
-        fn three_element_proper() {
-            let process = process();
-            let element0 = process.integer(0).unwrap();
-            let element1 = process.integer(1).unwrap();
-            let element2 = process.integer(2).unwrap();
-            let tail = Term::NIL;
-            let cons_term = process
-                .cons(
-                    element0,
-                    process
-                        .cons(element1, process.cons(element2, tail).unwrap())
-                        .unwrap(),
-                )
-                .unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+        fn list_three_element_proper() {
+            let mut heap = RegionHeap::default();
+            let element0 = fixnum!(0);
+            let element1 = fixnum!(1);
+            let element2 = heap.binary_from_str("hello world!").unwrap();
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = cons!(heap, element0, element1, element2);
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
 
         #[test]
-        fn tree_element_proper_with_nil_element() {
-            let process = process();
-            let element0 = process.integer(0).unwrap();
+        fn list_three_element_proper_with_nil_element() {
+            let mut heap = RegionHeap::default();
+            let element0 = fixnum!(0);
             let element1 = Term::NIL;
-            let element2 = process.integer(2).unwrap();
-            let tail = Term::NIL;
-            let cons_term = process
-                .cons(
-                    element0,
-                    process
-                        .cons(element1, process.cons(element2, tail).unwrap())
-                        .unwrap(),
-                )
-                .unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+            let element2 = fixnum!(2);
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = cons!(heap, element0, element1, element2);
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
 
         #[test]
-        fn two_element_improper() {
-            let process = process();
-            let head = atom_unchecked("head");
-            let tail = atom_unchecked("tail");
-            let cons_term = process.cons(head, tail).unwrap();
-            let cons: Boxed<Cons> = cons_term.try_into().unwrap();
+        fn list_two_element_improper() {
+            let mut heap = RegionHeap::default();
+            let head = atom!("head");
+            let tail = atom!("tail");
 
-            let (heap_fragment_cons_term, _) = cons.clone_to_fragment().unwrap();
+            let cons = improper_cons!(heap, head, tail);
 
-            assert_eq!(heap_fragment_cons_term, cons_term);
-        }
-
-        fn process() -> Process {
-            let init = Atom::try_from_str("init").unwrap();
-            let initial_module_function_arity = Arc::new(ModuleFunctionArity {
-                module: init,
-                function: init,
-                arity: 0,
-            });
-            let (heap, heap_size) = alloc::default_heap().unwrap();
-
-            let process = Process::new(
-                Priority::Normal,
-                None,
-                initial_module_function_arity,
-                heap,
-                heap_size,
-            );
-
-            process.schedule_with(scheduler::id::next());
-
-            process
+            let cloned_term = cons.clone_to_heap(&mut heap).unwrap();
+            let cloned: Boxed<Cons> = cloned_term.try_into().unwrap();
+            assert_eq!(cons, cloned);
         }
     }
 
@@ -804,17 +797,14 @@ mod tests {
         use super::*;
 
         #[test]
-        fn proper_list_iter() {
-            let a = unsafe { SmallInteger::new(42).unwrap().as_term() };
-            let b = unsafe { SmallInteger::new(24).unwrap().as_term() };
-            let c = unsafe { SmallInteger::new(11).unwrap().as_term() };
-            let last = Cons::new(c, Term::NIL);
-            let last_term = Term::make_list(&last);
-            let second = Cons::new(b, last_term);
-            let second_term = Term::make_list(&second);
-            let first = Cons::new(a, second_term);
+        fn list_proper_list_iter() {
+            let mut heap = RegionHeap::default();
+            let a = fixnum!(42);
+            let b = fixnum!(24);
+            let c = fixnum!(11);
+            let cons = cons!(heap, a, b, c);
 
-            let mut list_iter = first.into_iter();
+            let mut list_iter = cons.into_iter();
             let l0 = list_iter.next().unwrap();
             assert_eq!(l0, Ok(a));
             let l1 = list_iter.next().unwrap();
@@ -826,18 +816,70 @@ mod tests {
         }
 
         #[test]
-        fn improper_list_iter() {
-            let a = unsafe { SmallInteger::new(42).unwrap().as_term() };
-            let b = unsafe { SmallInteger::new(24).unwrap().as_term() };
-            let c = unsafe { SmallInteger::new(11).unwrap().as_term() };
-            let d = unsafe { SmallInteger::new(99).unwrap().as_term() };
-            let last = Cons::new(c, d);
-            let last_term = Term::make_list(&last);
-            let second = Cons::new(b, last_term);
-            let second_term = Term::make_list(&second);
-            let first = Cons::new(a, second_term);
+        fn list_improper_list_iter() {
+            let mut heap = RegionHeap::default();
+            let a = fixnum!(42);
+            let b = fixnum!(24);
+            let c = fixnum!(11);
+            let d = fixnum!(99);
+            let cons = improper_cons!(heap, a, b, c, d);
 
-            let mut list_iter = first.into_iter();
+            let mut list_iter = cons.into_iter();
+            let l0 = list_iter.next().unwrap();
+            assert_eq!(l0, Ok(a));
+            let l1 = list_iter.next().unwrap();
+            assert_eq!(l1, Ok(b));
+            let l2 = list_iter.next().unwrap();
+            assert_eq!(l2, Ok(c));
+            let l3 = list_iter.next().unwrap();
+            assert_eq!(l3, Err(ImproperList { tail: d }));
+            assert_eq!(list_iter.next(), None);
+            assert_eq!(list_iter.next(), None);
+        }
+    }
+
+    mod builder {
+        use super::*;
+
+        #[test]
+        fn list_builder_proper_list_iter() {
+            let mut heap = RegionHeap::default();
+            let a = fixnum!(42);
+            let b = fixnum!(24);
+            let c = fixnum!(11);
+            let cons = ListBuilder::new(&mut heap)
+                .push(a)
+                .push(b)
+                .push(c)
+                .finish()
+                .unwrap();
+
+            let mut list_iter = cons.into_iter();
+            let l0 = list_iter.next().unwrap();
+            assert_eq!(l0, Ok(a));
+            let l1 = list_iter.next().unwrap();
+            assert_eq!(l1, Ok(b));
+            let l2 = list_iter.next().unwrap();
+            assert_eq!(l2, Ok(c));
+            assert_eq!(list_iter.next(), None);
+            assert_eq!(list_iter.next(), None);
+        }
+
+        #[test]
+        fn list_builder_improper_list_iter() {
+            let mut heap = RegionHeap::default();
+            let a = fixnum!(42);
+            let b = fixnum!(24);
+            let c = fixnum!(11);
+            let d = fixnum!(99);
+            let cons = ListBuilder::new(&mut heap)
+                .push(a)
+                .push(b)
+                .push(c)
+                .finish_with(d)
+                .unwrap();
+
+            let mut list_iter = cons.into_iter();
             let l0 = list_iter.next().unwrap();
             assert_eq!(l0, Ok(a));
             let l1 = list_iter.next().unwrap();

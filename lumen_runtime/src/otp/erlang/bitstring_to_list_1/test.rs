@@ -5,9 +5,7 @@ use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::binary::maybe_aligned_maybe_binary::MaybeAlignedMaybeBinary;
-use liblumen_alloc::erts::term::binary::{IterableBitstring, MaybePartialByte};
-use liblumen_alloc::erts::term::{SubBinary, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::bitstring_to_list_1::native;
 use crate::scheduler::with_process_arc;
@@ -145,7 +143,7 @@ fn with_subbinary_with_bit_count_returns_list_of_integer_with_bitstring_for_bit_
             .run(
                 &strategy::term::binary::sub::is_not_binary(arc_process.clone()),
                 |bitstring| {
-                    let subbinary: SubBinary = bitstring.try_into().unwrap();
+                    let subbinary: Boxed<SubBinary> = bitstring.try_into().unwrap();
 
                     let byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 

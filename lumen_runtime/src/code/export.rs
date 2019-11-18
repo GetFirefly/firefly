@@ -4,11 +4,11 @@ use hashbrown::hash_map::HashMap;
 
 use liblumen_core::locks::RwLock;
 
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::AllocResult;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{Arity, ModuleFunctionArity};
 
 pub fn contains_key(module: &Atom, function: &Atom, arity: Arity) -> bool {
@@ -52,7 +52,7 @@ pub fn place_frame_with_arguments(
     arity: Arity,
     code: Code,
     argument_vec: Vec<Term>,
-) -> Result<(), Alloc> {
+) -> AllocResult<()> {
     assert_eq!(argument_vec.len(), arity as usize);
     for argument in argument_vec.iter().rev() {
         process.stack_push(*argument)?;

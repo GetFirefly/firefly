@@ -1,6 +1,6 @@
 use core::ops::DerefMut;
 
-use crate::erts::Term;
+use crate::erts::term::prelude::Term;
 
 pub trait StackPrimitives {
     /// Gets the number of terms currently allocated on the stack

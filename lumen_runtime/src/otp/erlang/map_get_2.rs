@@ -9,13 +9,13 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Boxed, Map, Term};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badkey, badmap};
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(map_get/2)]
-pub fn native(process: &Process, key: Term, map: Term) -> exception::Result {
+pub fn native(process: &Process, key: Term, map: Term) -> exception::Result<Term> {
     let result: core::result::Result<Boxed<Map>, _> = map.try_into();
 
     match result {

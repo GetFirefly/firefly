@@ -227,7 +227,7 @@ fn with_positive_start_and_negative_length_returns_subbinary() {
 
                     let returned = result.unwrap();
 
-                    prop_assert!(returned.is_subbinary());
+                    prop_assert!(returned.is_boxed_subbinary());
 
                     Ok(())
                 },

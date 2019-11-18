@@ -8,7 +8,7 @@ use std::sync::Arc;
 use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::TypedTerm;
+use liblumen_alloc::erts::term::prelude::TypedTerm;
 
 #[test]
 fn without_valid_option_errors_badarg() {
@@ -37,13 +37,13 @@ fn is_not_option(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 }
 
 fn is_option(term: &Term) -> bool {
-    match term.to_typed_term().unwrap() {
+    match term.decode().unwrap() {
         TypedTerm::Atom(atom) => atom.name() == "compact",
         TypedTerm::Tuple(tuple) => {
             (tuple.len() == 2) && {
-                match tuple[0].to_typed_term().unwrap() {
+                match tuple[0].decode().unwrap() {
                     TypedTerm::Atom(tag_atom) => match tag_atom.name() {
-                        "decimals" => match tuple[1].to_typed_term().unwrap() {
+                        "decimals" => match tuple[1].decode().unwrap() {
                             TypedTerm::SmallInteger(small_integer) => {
                                 let i: isize = small_integer.into();
 
@@ -51,7 +51,7 @@ fn is_option(term: &Term) -> bool {
                             }
                             _ => false,
                         },
-                        "scientific" => match tuple[1].to_typed_term().unwrap() {
+                        "scientific" => match tuple[1].decode().unwrap() {
                             TypedTerm::SmallInteger(small_integer) => {
                                 let i: isize = small_integer.into();
 

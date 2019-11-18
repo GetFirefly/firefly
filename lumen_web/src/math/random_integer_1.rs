@@ -8,12 +8,12 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(random_integer/1)]
-fn native(process: &Process, exclusive_max: Term) -> exception::Result {
+fn native(process: &Process, exclusive_max: Term) -> exception::Result<Term> {
     let exclusive_max_usize: usize = exclusive_max.try_into()?;
     let exclusive_max_f64 = exclusive_max_usize as f64;
     let random_usize = (js_sys::Math::random() * exclusive_max_f64).trunc() as usize;

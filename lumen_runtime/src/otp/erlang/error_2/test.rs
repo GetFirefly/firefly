@@ -19,7 +19,7 @@ fn errors_with_reason_and_arguments() {
                 |(reason, arguments)| {
                     prop_assert_eq!(
                         native(reason, arguments),
-                        Err(error!(reason, Some(arguments)).into())
+                        Err(error!(reason, arguments).into())
                     );
 
                     Ok(())

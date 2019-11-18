@@ -1,6 +1,8 @@
 use crate::otp::erlang::unique_integer_0::native;
 use crate::scheduler::with_process;
 
+use liblumen_alloc::erts::term::prelude::Encoded;
+
 #[test]
 fn returns_non_monotonic_negative_and_positive_integer() {
     with_process(|process| {

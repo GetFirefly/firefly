@@ -29,7 +29,7 @@ fn with_heap_binary_right_with_same_bytes_returns_true() {
             .run(
                 &strategy::term::binary::sub::is_binary(arc_process.clone()).prop_map(
                     |subbinary_term| {
-                        let subbinary: SubBinary = subbinary_term.try_into().unwrap();
+                        let subbinary: Boxed<SubBinary> = subbinary_term.try_into().unwrap();
                         let heap_binary_byte_vec: Vec<u8> = subbinary.full_byte_iter().collect();
 
                         let heap_binary = arc_process
@@ -39,7 +39,7 @@ fn with_heap_binary_right_with_same_bytes_returns_true() {
                     },
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), true.into());
+                    prop_assert_eq!(native(left.into(), right.into()), true.into());
 
                     Ok(())
                 },
@@ -55,7 +55,7 @@ fn with_heap_binary_right_with_different_bytes_returns_false() {
             .run(
                 &strategy::term::binary::sub::is_binary::is_not_empty(arc_process.clone())
                     .prop_map(|subbinary_term| {
-                        let subbinary: SubBinary = subbinary_term.try_into().unwrap();
+                        let subbinary: Boxed<SubBinary> = subbinary_term.try_into().unwrap();
                         // same size, but different values by inverting
                         let heap_binary_byte_vec: Vec<u8> =
                             subbinary.full_byte_iter().map(|b| !b).collect();
@@ -66,7 +66,7 @@ fn with_heap_binary_right_with_different_bytes_returns_false() {
                         (subbinary_term, heap_binary)
                     }),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), false.into());
+                    prop_assert_eq!(native(left.into(), right.into()), false.into());
 
                     Ok(())
                 },
@@ -127,25 +127,25 @@ fn with_same_value_subbinary_right_returns_true() {
                     })
                     .prop_map(
                         move |(byte_offset, bit_offset, byte_count, bit_count, original)| {
-                            let mut heap = subbinary_arc_process.acquire_heap();
-
                             (
-                                heap.subbinary_from_original(
-                                    original,
-                                    byte_offset,
-                                    bit_offset,
-                                    byte_count,
-                                    bit_count,
-                                )
-                                .unwrap(),
-                                heap.subbinary_from_original(
-                                    original,
-                                    byte_offset,
-                                    bit_offset,
-                                    byte_count,
-                                    bit_count,
-                                )
-                                .unwrap(),
+                                subbinary_arc_process
+                                    .subbinary_from_original(
+                                        original,
+                                        byte_offset,
+                                        bit_offset,
+                                        byte_count,
+                                        bit_count,
+                                    )
+                                    .unwrap(),
+                                subbinary_arc_process
+                                    .subbinary_from_original(
+                                        original,
+                                        byte_offset,
+                                        bit_offset,
+                                        byte_count,
+                                        bit_count,
+                                    )
+                                    .unwrap(),
                             )
                         },
                     ),

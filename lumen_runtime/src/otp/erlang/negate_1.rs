@@ -10,14 +10,14 @@ use num_bigint::BigInt;
 use liblumen_alloc::badarith;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 /// `-/1` prefix operator.
 #[native_implemented_function(-/1)]
-pub fn native(process: &Process, number: Term) -> exception::Result {
-    let option_negated = match number.to_typed_term().unwrap() {
+pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
+    let option_negated = match number.decode().unwrap() {
         TypedTerm::SmallInteger(small_integer) => {
             let number_isize: isize = small_integer.into();
             let negated_isize = -number_isize;
@@ -25,23 +25,20 @@ pub fn native(process: &Process, number: Term) -> exception::Result {
 
             Some(negated_number)
         }
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::BigInteger(big_integer) => {
-                let big_int: &BigInt = big_integer.as_ref().into();
-                let negated_big_int = -big_int;
-                let negated_number = process.integer(negated_big_int)?;
+        TypedTerm::BigInteger(big_integer) => {
+            let big_int: &BigInt = big_integer.as_ref().into();
+            let negated_big_int = -big_int;
+            let negated_number = process.integer(negated_big_int)?;
 
-                Some(negated_number)
-            }
-            TypedTerm::Float(float) => {
-                let number_f64: f64 = float.into();
-                let negated_f64: f64 = -number_f64;
-                let negated_number = process.float(negated_f64)?;
+            Some(negated_number)
+        }
+        TypedTerm::Float(float) => {
+            let number_f64: f64 = float.into();
+            let negated_f64: f64 = -number_f64;
+            let negated_number = process.float(negated_f64)?;
 
-                Some(negated_number)
-            }
-            _ => None,
-        },
+            Some(negated_number)
+        }
         _ => None,
     };
 

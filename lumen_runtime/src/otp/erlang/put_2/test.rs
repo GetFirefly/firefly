@@ -2,7 +2,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::put_2::native;
 use crate::scheduler::with_process_arc;
@@ -22,7 +22,7 @@ fn without_key_returns_undefined_for_previous_value() {
 
                     prop_assert_eq!(
                         native(&arc_process, key, value),
-                        Ok(atom_unchecked("undefined"))
+                        Ok(Atom::str_to_term("undefined"))
                     );
 
                     prop_assert_eq!(arc_process.get_value_from_key(key), value);

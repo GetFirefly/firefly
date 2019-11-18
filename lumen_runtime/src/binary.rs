@@ -3,7 +3,7 @@ use core::ops::Range;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::{self, Exception};
-use liblumen_alloc::erts::term::{Atom, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
 pub(crate) struct PartRange {
@@ -21,7 +21,7 @@ pub(crate) fn start_length_to_part_range(
     start: usize,
     length: isize,
     available_byte_count: usize,
-) -> Result<PartRange, Exception> {
+) -> exception::Result<PartRange> {
     if length >= 0 {
         let non_negative_length = length as usize;
 
@@ -52,7 +52,7 @@ pub(crate) fn start_length_to_part_range(
 }
 
 pub trait ToTerm {
-    fn to_term(&self, options: ToTermOptions, process: &Process) -> exception::Result;
+    fn to_term(&self, options: ToTermOptions, process: &Process) -> exception::Result<Term>;
 }
 
 pub struct ToTermOptions {
@@ -61,7 +61,7 @@ pub struct ToTermOptions {
 }
 
 impl ToTermOptions {
-    fn put_option_term(&mut self, option: Term) -> Result<&ToTermOptions, Exception> {
+    fn put_option_term(&mut self, option: Term) -> exception::Result<&ToTermOptions> {
         let atom: Atom = option.try_into()?;
 
         match atom.name() {
@@ -83,12 +83,12 @@ impl ToTermOptions {
 impl TryFrom<Term> for ToTermOptions {
     type Error = Exception;
 
-    fn try_from(term: Term) -> Result<ToTermOptions, Exception> {
+    fn try_from(term: Term) -> Result<ToTermOptions, Self::Error> {
         let mut options: ToTermOptions = Default::default();
         let mut options_term = term;
 
         loop {
-            match options_term.to_typed_term().unwrap() {
+            match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
                     options.put_option_term(cons.head)?;

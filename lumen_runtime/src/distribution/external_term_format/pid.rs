@@ -1,6 +1,6 @@
 use liblumen_alloc::erts::exception::Exception;
-use liblumen_alloc::erts::term::Term;
-use liblumen_alloc::Process;
+use liblumen_alloc::erts::term::prelude::*;
+use liblumen_alloc::erts::Process;
 
 use super::{arc_node, u32, u8, Pid};
 

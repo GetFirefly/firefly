@@ -5,12 +5,11 @@ use cranelift_entity::EntityRef;
 use libeir_ir::{Block, FunctionIndex};
 
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::process::code::result_from_exception;
+use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
-use liblumen_alloc::erts::process::code::Result;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Boxed, Closure, Definition, Term, TypedTerm};
+use liblumen_alloc::erts::term::closure::Definition;
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
 
 use crate::exec::CallExecutor;
@@ -19,13 +18,13 @@ fn module() -> Atom {
     Atom::try_from_str("lumen_eir_interpreter_intrinsics").unwrap()
 }
 
-pub fn return_clean(arc_process: &Arc<Process>) -> Result {
+pub fn return_clean(arc_process: &Arc<Process>) -> code::Result {
     let argument_list = arc_process.stack_pop().unwrap();
     arc_process.return_from_call(argument_list)?;
     Process::call_code(arc_process)
 }
 
-pub fn return_clean_closure(process: &Process) -> exception::Result {
+pub fn return_clean_closure(process: &Process) -> exception::Result<Term> {
     let function = Atom::try_from_str("return_clean").unwrap();
     const ARITY: u8 = 1;
 
@@ -34,11 +33,11 @@ pub fn return_clean_closure(process: &Process) -> exception::Result {
         .map_err(|error| error.into())
 }
 
-pub fn return_ok(arc_process: &Arc<Process>) -> Result {
+pub fn return_ok(arc_process: &Arc<Process>) -> code::Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -54,7 +53,7 @@ pub fn return_ok(arc_process: &Arc<Process>) -> Result {
     Ok(arc_process.return_from_call(argument_vec[0])?)
 }
 
-pub fn return_ok_closure(process: &Process) -> exception::Result {
+pub fn return_ok_closure(process: &Process) -> exception::Result<Term> {
     let function = Atom::try_from_str("return_ok").unwrap();
     const ARITY: u8 = 1;
 
@@ -63,11 +62,11 @@ pub fn return_ok_closure(process: &Process) -> exception::Result {
         .map_err(|error| error.into())
 }
 
-pub fn return_throw(arc_process: &Arc<Process>) -> Result {
+pub fn return_throw(arc_process: &Arc<Process>) -> code::Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -79,26 +78,15 @@ pub fn return_throw(arc_process: &Arc<Process>) -> Result {
         _ => panic!(),
     }
 
-    let class: Atom = argument_vec[0].try_into().unwrap();
-    let class = match class.name() {
-        "EXIT" => runtime::Class::Exit,
-        "throw" => runtime::Class::Throw,
-        "error" => runtime::Class::Error { arguments: None },
-        k => unreachable!("{:?}", k),
-    };
+    let class: exception::Class = argument_vec[0].try_into().unwrap();
 
-    let exc = runtime::Exception {
-        class,
-        reason: argument_vec[1],
-        stacktrace: Some(argument_vec[2]),
-        file: "",
-        line: 0,
-        column: 0,
-    };
-    result_from_exception(arc_process, exc.into())
+    let reason = argument_vec[1];
+    let stacktrace = Some(argument_vec[2]);
+    let exception = exception::raise(class, reason, exception::Location::default(), stacktrace);
+    code::result_from_exception(arc_process, exception.into())
 }
 
-pub fn return_throw_closure(process: &Process) -> exception::Result {
+pub fn return_throw_closure(process: &Process) -> exception::Result<Term> {
     let function = Atom::try_from_str("return_throw").unwrap();
     const ARITY: u8 = 3;
 
@@ -110,13 +98,13 @@ pub fn return_throw_closure(process: &Process) -> exception::Result {
 /// Expects the following on stack:
 /// * arity integer
 /// * argument list
-pub fn interpreter_mfa_code(arc_process: &Arc<Process>) -> Result {
+pub fn interpreter_mfa_code(arc_process: &Arc<Process>) -> code::Result {
     let argument_list = arc_process.stack_pop().unwrap();
 
     let mfa = arc_process.current_module_function_arity().unwrap();
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -147,7 +135,7 @@ pub fn interpreter_mfa_code(arc_process: &Arc<Process>) -> Result {
 /// * argument list
 /// * block id integer
 /// * environment list
-pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
+pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> code::Result {
     let argument_list = arc_process.stack_pop().unwrap();
     let closure_term = arc_process.stack_pop().unwrap();
 
@@ -173,7 +161,7 @@ pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
     let block = Block::new(block_id as usize);
 
     let mut argument_vec: Vec<Term> = Vec::new();
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => (),
         TypedTerm::List(argument_cons) => {
             for result in argument_cons.into_iter() {
@@ -203,7 +191,7 @@ pub fn interpreter_closure_code(arc_process: &Arc<Process>) -> Result {
     Ok(())
 }
 
-pub fn apply(arc_process: &Arc<Process>) -> Result {
+pub fn apply(arc_process: &Arc<Process>) -> code::Result {
     let module_term = arc_process.stack_pop().unwrap();
     let function_term = arc_process.stack_pop().unwrap();
     let argument_list = arc_process.stack_pop().unwrap();
@@ -212,7 +200,7 @@ pub fn apply(arc_process: &Arc<Process>) -> Result {
     let function: Atom = function_term.try_into().unwrap();
 
     let arity;
-    match argument_list.to_typed_term().unwrap() {
+    match argument_list.decode().unwrap() {
         TypedTerm::Nil => panic!(),
         TypedTerm::List(argument_cons) => arity = argument_cons.into_iter().count() - 2,
         _ => panic!(),

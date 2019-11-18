@@ -32,5 +32,5 @@ fn without_atom_module_errors_badarg() {
 }
 
 fn options(process: &Process) -> Term {
-    process.list_from_slice(&[atom_unchecked("link")]).unwrap()
+    process.list_from_slice(&[atom!("link")]).unwrap()
 }

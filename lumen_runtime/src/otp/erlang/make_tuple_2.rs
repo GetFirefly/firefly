@@ -9,12 +9,12 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(make_tuple/2)]
-pub fn native(process: &Process, arity: Term, initial_value: Term) -> exception::Result {
+pub fn native(process: &Process, arity: Term, initial_value: Term) -> exception::Result<Term> {
     // arity by definition is only 0-225, so `u8`, but ...
     let arity_u8: u8 = arity.try_into()?;
     // ... everything else uses `usize`, so cast it back up

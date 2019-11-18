@@ -8,7 +8,7 @@ use std::sync::Arc;
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Atom, Boxed, Closure};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::Arity;
 
 pub fn export() {

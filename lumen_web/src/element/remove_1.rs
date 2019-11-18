@@ -5,18 +5,19 @@
 //! end
 //! ```
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::{element, ok};
+use crate::element;
 
 #[native_implemented_function(remove/1)]
-fn native(element_term: Term) -> exception::Result {
+fn native(element_term: Term) -> exception::Result<Term> {
     let element = element::from_term(element_term)?;
 
     element.remove();
 
-    Ok(ok())
+    Ok(atom!("ok"))
 }

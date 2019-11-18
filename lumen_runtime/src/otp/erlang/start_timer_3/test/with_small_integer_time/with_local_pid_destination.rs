@@ -27,7 +27,7 @@ fn with_different_process_sends_message_when_timer_expires() {
 
                     let timer_reference = result.unwrap();
 
-                    prop_assert!(timer_reference.is_local_reference());
+                    prop_assert!(timer_reference.is_boxed_local_reference());
 
                     let timeout_message = timeout_message(timer_reference, message, &arc_process);
 
@@ -72,7 +72,7 @@ fn with_same_process_sends_message_when_timer_expires() {
 
                 let timer_reference = result.unwrap();
 
-                prop_assert!(timer_reference.is_local_reference());
+                prop_assert!(timer_reference.is_boxed_local_reference());
 
                 let timeout_message = timeout_message(timer_reference, message, &arc_process);
 
@@ -97,7 +97,7 @@ fn without_process_sends_nothing_when_timer_expires() {
                 &(milliseconds(), strategy::term(arc_process.clone())),
                 |(milliseconds, message)| {
                     let time = arc_process.integer(milliseconds).unwrap();
-                    let destination = next_pid();
+                    let destination = Pid::next_term();
 
                     let result = erlang::start_timer_3::native(
                         arc_process.clone(),
@@ -114,10 +114,10 @@ fn without_process_sends_nothing_when_timer_expires() {
 
                     let timer_reference = result.unwrap();
 
-                    prop_assert!(timer_reference.is_local_reference());
+                    prop_assert!(timer_reference.is_boxed_local_reference());
 
                     let timeout_message = arc_process
-                        .tuple_from_slice(&[atom_unchecked("timeout"), timer_reference, message])
+                        .tuple_from_slice(&[Atom::str_to_term("timeout"), timer_reference, message])
                         .unwrap();
 
                     thread::sleep(Duration::from_millis(milliseconds + 1));

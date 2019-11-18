@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use libeir_ir::{BasicType, Block, MatchKind};
 
-use liblumen_alloc::erts::exception::system;
+use liblumen_alloc::erts::exception::SystemException;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::TypedTerm;
+use liblumen_alloc::erts::term::prelude::{Encoded, ExactEq, TypedTerm};
 
 use super::{CallExecutor, OpResult};
 use crate::module::ErlangFunction;
@@ -15,12 +15,16 @@ pub fn match_op(
     fun: &ErlangFunction,
     branches: &[MatchKind],
     block: Block,
-) -> std::result::Result<OpResult, system::Exception> {
+) -> std::result::Result<OpResult, SystemException> {
     let reads = fun.fun.block_reads(block);
 
     let branches_dests = reads[0];
 
-    let unpack_term = exec.make_term(proc, fun, reads[1]).unwrap();
+    let unpack_term = exec
+        .make_term(proc, fun, reads[1])
+        .unwrap()
+        .decode()
+        .unwrap();
 
     for (idx, kind) in branches.iter().enumerate() {
         let branch = fun.fun.value_list_get_n(branches_dests, idx).unwrap();
@@ -34,7 +38,7 @@ pub fn match_op(
                 let arg = fun.fun.value_list_get_n(branch_args_val, 0).unwrap();
                 let rhs = exec.make_term(proc, fun, arg).unwrap();
 
-                if unpack_term.exactly_eq(&rhs) {
+                if unpack_term.exact_eq(&rhs.decode().unwrap()) {
                     return exec.val_call(proc, fun, branch);
                 }
             }
@@ -49,39 +53,33 @@ pub fn match_op(
                 let arg = fun.fun.value_list_get_n(branch_args_val, 0).unwrap();
                 let key = exec.make_term(proc, fun, arg).unwrap();
 
-                match unpack_term.to_typed_term().unwrap() {
-                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                        TypedTerm::Map(map) => {
-                            if let Some(val) = map.get(key) {
-                                exec.next_args.push(val);
-                                return exec.val_call(proc, fun, branch);
-                            }
+                match unpack_term {
+                    TypedTerm::Map(map) => {
+                        if let Some(val) = map.get(key) {
+                            exec.next_args.push(val);
+                            return exec.val_call(proc, fun, branch);
                         }
-                        _ => unreachable!(),
-                    },
+                    }
                     _ => unreachable!(),
                 }
             }
             MatchKind::Tuple(arity) => {
                 assert!(branch_args_len == 0);
 
-                match unpack_term.to_typed_term().unwrap() {
-                    TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-                        TypedTerm::Tuple(tup) => {
-                            if tup.len() == *arity {
-                                exec.next_args.extend(tup.iter());
-                                return exec.val_call(proc, fun, branch);
-                            }
+                match unpack_term {
+                    TypedTerm::Tuple(tup) => {
+                        if tup.len() == *arity {
+                            exec.next_args.extend(tup.iter());
+                            return exec.val_call(proc, fun, branch);
                         }
-                        _ => (),
-                    },
+                    }
                     _ => (),
                 }
             }
             MatchKind::ListCell => {
                 assert!(branch_args_len == 0);
 
-                match unpack_term.to_typed_term().unwrap() {
+                match unpack_term {
                     TypedTerm::List(cons) => {
                         exec.next_args.push(cons.head);
                         exec.next_args.push(cons.tail);

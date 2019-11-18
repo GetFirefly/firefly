@@ -7,13 +7,13 @@ mod test;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(member/2)]
-pub fn native(element: Term, list: Term) -> exception::Result {
-    match list.to_typed_term().unwrap() {
+pub fn native(element: Term, list: Term) -> exception::Result<Term> {
+    match list.decode()? {
         TypedTerm::Nil => Ok(false.into()),
         TypedTerm::List(cons) => {
             for result in cons.into_iter() {

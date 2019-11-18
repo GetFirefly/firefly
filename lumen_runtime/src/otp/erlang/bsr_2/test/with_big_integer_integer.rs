@@ -2,7 +2,7 @@ use super::*;
 
 use num_traits::Num;
 
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 #[test]
 fn with_negative_shifts_left_and_returns_big_integer() {
@@ -68,7 +68,7 @@ where
             )
             .unwrap();
 
-        assert!(integer.is_bigint());
+        assert!(integer.is_boxed_bigint());
 
         f(integer, &process)
     })

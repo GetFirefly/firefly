@@ -7,7 +7,7 @@ mod test;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, error};
 
 use lumen_runtime_macros::native_implemented_function;
@@ -15,8 +15,8 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::registry::pid_to_process;
 
 #[native_implemented_function(link/1)]
-fn native(process: &Process, pid_or_port: Term) -> exception::Result {
-    match pid_or_port.to_typed_term().unwrap() {
+fn native(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
+    match pid_or_port.decode().unwrap() {
         TypedTerm::Pid(pid) => {
             if pid == process.pid() {
                 Ok(true.into())
@@ -27,16 +27,13 @@ fn native(process: &Process, pid_or_port: Term) -> exception::Result {
 
                         Ok(true.into())
                     }
-                    None => Err(error!(atom_unchecked("noproc")).into()),
+                    None => Err(error!(Atom::str_to_term("noproc")).into()),
                 }
             }
         }
         TypedTerm::Port(_) => unimplemented!(),
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::ExternalPid(_) => unimplemented!(),
-            TypedTerm::ExternalPort(_) => unimplemented!(),
-            _ => Err(badarg!().into()),
-        },
+        TypedTerm::ExternalPid(_) => unimplemented!(),
+        TypedTerm::ExternalPort(_) => unimplemented!(),
         _ => Err(badarg!().into()),
     }
 }

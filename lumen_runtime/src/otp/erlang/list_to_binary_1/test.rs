@@ -10,8 +10,7 @@ use proptest::{prop_assert, prop_assert_eq, prop_oneof};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::binary::IterableBitstring;
-use liblumen_alloc::erts::term::{SubBinary, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::list_to_binary_1::native;
 use crate::scheduler::{with_process, with_process_arc};

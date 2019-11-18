@@ -23,17 +23,17 @@ fn with_number_returns_false() {
 
 #[test]
 fn with_lesser_atom_returns_false() {
-    is_less_than(|_, _| atom_unchecked("keft"), false);
+    is_less_than(|_, _| Atom::str_to_term("keft"), false);
 }
 
 #[test]
 fn with_same_atom_value_returns_false() {
-    is_less_than(|_, _| atom_unchecked("left"), false);
+    is_less_than(|_, _| Atom::str_to_term("left"), false);
 }
 
 #[test]
 fn with_greater_atom_returns_true() {
-    is_less_than(|_, _| atom_unchecked("meft"), true);
+    is_less_than(|_, _| Atom::str_to_term("meft"), true);
 }
 
 #[test]
@@ -62,5 +62,5 @@ fn is_less_than<R>(right: R, expected: bool)
 where
     R: FnOnce(Term, &Process) -> Term,
 {
-    super::is_less_than(|_| atom_unchecked("left"), right, expected);
+    super::is_less_than(|_| Atom::str_to_term("left"), right, expected);
 }

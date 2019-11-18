@@ -5,7 +5,7 @@ use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::{Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::make_tuple_2::native;
 use crate::scheduler::with_process_arc;
@@ -53,14 +53,17 @@ fn with_arity_returns_tuple_with_arity_copies_of_initial_value() {
 
                 let tuple_term = result.unwrap();
 
-                prop_assert!(tuple_term.is_tuple());
+                prop_assert!(tuple_term.is_boxed());
 
-                let boxed_tuple: Boxed<Tuple> = tuple_term.try_into().unwrap();
+                let boxed_tuple: Result<Boxed<Tuple>, _> = tuple_term.try_into();
+                prop_assert!(boxed_tuple.is_ok());
 
-                prop_assert_eq!(boxed_tuple.len(), arity_usize);
+                let tuple = boxed_tuple.unwrap();
 
-                for element in boxed_tuple.iter() {
-                    prop_assert_eq!(element, initial_value);
+                prop_assert_eq!(tuple.len(), arity_usize);
+
+                for element in tuple.iter() {
+                    prop_assert_eq!(element, &initial_value);
                 }
 
                 Ok(())

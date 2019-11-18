@@ -1,7 +1,7 @@
 use super::*;
 
 use liblumen_alloc::erts::process::code::stack::frame::Placement;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang;
 use crate::process;
@@ -67,7 +67,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_norma
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
 
-        let reason = atom_unchecked("normal");
+        let reason = Atom::str_to_term("normal");
 
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
@@ -94,7 +94,7 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_shutd
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
 
-        let reason = atom_unchecked("shutdown");
+        let reason = Atom::str_to_term("shutdown");
 
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
@@ -121,8 +121,8 @@ fn with_true_value_with_linked_and_does_not_exit_when_linked_process_exits_with_
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
 
-        let tag = atom_unchecked("shutdown");
-        let shutdown_reason = atom_unchecked("shutdown_reason");
+        let tag = Atom::str_to_term("shutdown");
+        let shutdown_reason = Atom::str_to_term("shutdown_reason");
         let reason = other_arc_process
             .tuple_from_slice(&[tag, shutdown_reason])
             .unwrap();
@@ -152,7 +152,7 @@ fn with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linke
         assert!(!other_arc_process.is_exiting());
         assert!(!process.is_exiting());
 
-        let reason = atom_unchecked("exit_reason");
+        let reason = Atom::str_to_term("exit_reason");
 
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
@@ -162,7 +162,7 @@ fn with_true_value_with_linked_receive_exit_message_and_does_not_exit_when_linke
         assert!(other_arc_process.is_exiting());
         assert!(!process.is_exiting());
 
-        let tag = atom_unchecked("EXIT");
+        let tag = Atom::str_to_term("EXIT");
         let from = other_arc_process.pid_term();
         let exit_message = process.tuple_from_slice(&[tag, from, reason]).unwrap();
 
@@ -186,7 +186,7 @@ fn with_true_value_then_false_value_exits_when_linked_process_exits() {
 
         assert_eq!(native(process, flag(), false.into()), Ok(true.into()));
 
-        let reason = atom_unchecked("exit_reason");
+        let reason = Atom::str_to_term("exit_reason");
 
         erlang::exit_1::place_frame_with_arguments(&other_arc_process, Placement::Replace, reason)
             .unwrap();
@@ -199,5 +199,5 @@ fn with_true_value_then_false_value_exits_when_linked_process_exits() {
 }
 
 fn flag() -> Term {
-    atom_unchecked("trap_exit")
+    Atom::str_to_term("trap_exit")
 }

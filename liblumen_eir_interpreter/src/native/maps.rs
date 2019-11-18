@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::{atom_unchecked, Atom};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::otp::maps;
 
@@ -16,7 +16,7 @@ pub fn make_maps() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("get").unwrap(), 2, |proc, args| {
-        maps::get_3::native(proc, args[0], args[1], atom_unchecked("nil"))
+        maps::get_3::native(proc, args[0], args[1], Atom::str_to_term("nil"))
     });
 
     native.add_simple(Atom::try_from_str("get").unwrap(), 3, |proc, args| {

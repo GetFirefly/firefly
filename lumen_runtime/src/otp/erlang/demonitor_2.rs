@@ -11,7 +11,7 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Boxed, Reference, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -20,7 +20,7 @@ use crate::process::monitor::is_down;
 use crate::registry::pid_to_process;
 
 #[native_implemented_function(demonitor/2)]
-pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result {
+pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {
     let reference_reference: Boxed<Reference> = reference.try_into()?;
     let options_options: Options = options.try_into()?;
 
@@ -33,7 +33,7 @@ pub(in crate::otp::erlang) fn demonitor(
     monitoring_process: &Process,
     reference: &Reference,
     Options { flush, info }: Options,
-) -> exception::Result {
+) -> exception::Result<Term> {
     match monitoring_process.demonitor(reference) {
         Some(monitored_pid) => {
             match pid_to_process(&monitored_pid) {

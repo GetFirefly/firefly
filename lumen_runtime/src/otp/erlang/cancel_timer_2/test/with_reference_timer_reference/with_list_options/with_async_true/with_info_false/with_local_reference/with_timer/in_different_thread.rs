@@ -10,7 +10,7 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
     with_timer(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
 
-        let message = atom_unchecked("different");
+        let message = Atom::str_to_term("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
         // flaky
@@ -18,13 +18,13 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
 
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
 
         // again before timeout
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
 
         timeout_after_half(milliseconds, barrier);
@@ -34,7 +34,7 @@ fn without_timeout_returns_ok_and_does_not_send_timeout_message() {
         // again after timeout
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
     });
 }
@@ -45,7 +45,7 @@ fn with_timeout_returns_ok_after_timeout_message_was_sent() {
         timeout_after_half(milliseconds, barrier);
         timeout_after_half(milliseconds, barrier);
 
-        let message = atom_unchecked("different");
+        let message = Atom::str_to_term("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
         assert!(
@@ -57,13 +57,13 @@ fn with_timeout_returns_ok_after_timeout_message_was_sent() {
 
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
 
         // again
         assert_eq!(
             native(process, timer_reference, options(process)),
-            Ok(atom_unchecked("ok"))
+            Ok(Atom::str_to_term("ok"))
         );
     });
 }
@@ -83,21 +83,21 @@ where
 
     let different_thread = thread::spawn(move || {
         let different_thread_process_arc = process::test(&different_thread_same_thread_process_arc);
-        let same_thread_pid = unsafe { different_thread_same_thread_process_arc.pid().as_term() };
+        let same_thread_pid = different_thread_same_thread_process_arc.pid();
 
         let timer_reference = erlang::start_timer_3::native(
             different_thread_process_arc.clone(),
             different_thread_process_arc.integer(milliseconds).unwrap(),
-            same_thread_pid,
-            atom_unchecked("different"),
+            same_thread_pid.into(),
+            Atom::str_to_term("different"),
         )
         .unwrap();
 
         erlang::send_2::native(
             &different_thread_process_arc,
-            same_thread_pid,
+            same_thread_pid.into(),
             different_thread_process_arc
-                .tuple_from_slice(&[atom_unchecked("timer_reference"), timer_reference])
+                .tuple_from_slice(&[Atom::str_to_term("timer_reference"), timer_reference])
                 .unwrap(),
         )
         .expect("Different thread could not send to same thread");

@@ -9,7 +9,7 @@ use proptest::strategy::{BoxedStrategy, Strategy};
 
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::closure::Creator;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::test::strategy::term;
 

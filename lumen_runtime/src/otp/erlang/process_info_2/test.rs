@@ -4,7 +4,7 @@ use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::process_info_2::native;
 use crate::scheduler::with_process_arc;
@@ -17,7 +17,7 @@ fn without_local_pid_errors_badarg() {
             .run(
                 &strategy::term::is_not_local_pid(arc_process.clone()),
                 |pid| {
-                    let item = atom_unchecked("registered_name");
+                    let item = Atom::str_to_term("registered_name");
 
                     prop_assert_eq!(native(&arc_process, pid, item), Err(badarg!().into()));
 

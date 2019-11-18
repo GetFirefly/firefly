@@ -8,21 +8,17 @@ mod test;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::binary::Bitstring;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(size/1)]
-pub fn native(process: &Process, binary_or_tuple: Term) -> exception::Result {
-    let option_size = match binary_or_tuple.to_typed_term().unwrap() {
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::Tuple(tuple) => Some(tuple.len()),
-            TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.full_byte_len()),
-            TypedTerm::ProcBin(process_binary) => Some(process_binary.full_byte_len()),
-            TypedTerm::SubBinary(subbinary) => Some(subbinary.full_byte_len()),
-            _ => None,
-        },
+pub fn native(process: &Process, binary_or_tuple: Term) -> exception::Result<Term> {
+    let option_size = match binary_or_tuple.decode().unwrap() {
+        TypedTerm::Tuple(tuple) => Some(tuple.len()),
+        TypedTerm::HeapBinary(heap_binary) => Some(heap_binary.full_byte_len()),
+        TypedTerm::ProcBin(process_binary) => Some(process_binary.full_byte_len()),
+        TypedTerm::SubBinary(subbinary) => Some(subbinary.full_byte_len()),
         _ => None,
     };
 

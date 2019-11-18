@@ -9,10 +9,9 @@ use proptest::collection::SizeRange;
 use proptest::prop_oneof;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
-use liblumen_alloc::erts::term::{
-    atom_unchecked, AsTerm, Atom, Float, SmallInteger, Term, TypedTerm,
-};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
+use liblumen_alloc::{atom, fixnum_from};
 
 use super::size_range;
 
@@ -31,7 +30,7 @@ pub const NON_EXISTENT_ATOM_PREFIX: &str = "non_existent";
 
 pub fn atom() -> BoxedStrategy<Term> {
     super::atom()
-        .prop_map(|atom| unsafe { atom.as_term() })
+        .prop_map(|atom| atom.encode().unwrap())
         .boxed()
 }
 
@@ -50,7 +49,8 @@ pub fn charlist(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .prop_map(move |string| {
             let codepoint_terms: Vec<Term> = string
                 .chars()
-                .map(|c| arc_process.integer(c).unwrap())
+                .map(|c| fixnum_from!(c as u32))
+                .map(|f| f.into())
                 .collect();
 
             arc_process.list_from_slice(&codepoint_terms).unwrap()
@@ -118,9 +118,9 @@ pub fn is_boolean() -> BoxedStrategy<Term> {
 
 pub fn is_encoding() -> BoxedStrategy<Term> {
     prop_oneof![
-        Just(atom_unchecked("latin1")),
-        Just(atom_unchecked("unicode")),
-        Just(atom_unchecked("utf8"))
+        Just(atom!("latin1")),
+        Just(atom!("unicode")),
+        Just(atom!("utf8"))
     ]
     .boxed()
 }
@@ -188,7 +188,7 @@ pub fn is_not_atom(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 pub(crate) fn is_not_base(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Cannot be a base (2-36)", |term| {
-            match term.to_typed_term().unwrap() {
+            match term.decode().unwrap() {
                 TypedTerm::SmallInteger(small_integer) => {
                     let integer: isize = small_integer.into();
 
@@ -268,7 +268,7 @@ pub fn is_not_destination(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
         .prop_filter(
             "Destination must not be an atom, pid, or tuple",
             |destination| {
-                !(destination.is_atom() || destination.is_pid() || destination.is_tuple())
+                !(destination.is_atom() || destination.is_pid() || destination.is_boxed_tuple())
             },
         )
         .boxed()
@@ -278,7 +278,7 @@ pub fn is_not_encoding(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter(
             "Must either not be an atom or not be an atom encoding atom",
-            |term| match term.to_typed_term().unwrap() {
+            |term| match term.decode().unwrap() {
                 TypedTerm::Atom(atom) => match atom.name() {
                     "latin1" | "unicode" | "utf8" => false,
                     _ => true,
@@ -291,13 +291,13 @@ pub fn is_not_encoding(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 pub fn is_not_float(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
-        .prop_filter("Term cannot be a float", |v| !v.is_float())
+        .prop_filter("Term cannot be a float", |v| !v.is_boxed_float())
         .boxed()
 }
 
 pub fn is_not_function(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
-        .prop_filter("Term cannot be a function", |v| !v.is_function())
+        .prop_filter("Term cannot be a function", |v| !v.is_boxed_function())
         .boxed()
 }
 
@@ -344,14 +344,14 @@ pub fn is_not_local_pid(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 pub fn is_not_local_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
         .prop_filter("Term cannot be a local reference", |term| {
-            !term.is_local_reference()
+            !term.is_boxed_local_reference()
         })
         .boxed()
 }
 
 pub fn is_not_map(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
-        .prop_filter("Term cannot be a map", |v| !v.is_map())
+        .prop_filter("Term cannot be a map", |v| !v.is_boxed_map())
         .boxed()
 }
 
@@ -414,7 +414,7 @@ pub fn is_not_reference(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
 
 pub fn is_not_tuple(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     super::term(arc_process)
-        .prop_filter("Value must not be a tuple", |v| !v.is_tuple())
+        .prop_filter("Value must not be a tuple", |v| !v.is_boxed_tuple())
         .boxed()
 }
 

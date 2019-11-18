@@ -11,7 +11,7 @@ fn without_timeout_returns_milliseconds_remaining() {
     with_timer(|milliseconds, barrier, timer_reference, process| {
         timeout_after_half(milliseconds, barrier);
 
-        let message = atom_unchecked("different");
+        let message = Atom::str_to_term("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
         assert!(!has_message(process, timeout_message));
@@ -48,7 +48,7 @@ fn with_timeout_returns_false_after_timeout_message_was_sent() {
         timeout_after_half(milliseconds, barrier);
         timeout_after_half(milliseconds, barrier);
 
-        let message = atom_unchecked("different");
+        let message = Atom::str_to_term("different");
         let timeout_message = timeout_message(timer_reference, message, process);
 
         assert!(
@@ -86,21 +86,21 @@ where
 
     let different_thread = thread::spawn(move || {
         let different_thread_process_arc = process::test(&different_thread_same_thread_process_arc);
-        let same_thread_pid = unsafe { different_thread_same_thread_process_arc.pid().as_term() };
+        let same_thread_pid = different_thread_same_thread_process_arc.pid();
 
         let timer_reference = erlang::start_timer_3::native(
             different_thread_process_arc.clone(),
             different_thread_process_arc.integer(milliseconds).unwrap(),
-            same_thread_pid,
-            atom_unchecked("different"),
+            same_thread_pid.into(),
+            Atom::str_to_term("different"),
         )
         .unwrap();
 
         erlang::send_2::native(
             &different_thread_process_arc,
-            same_thread_pid,
+            same_thread_pid.into(),
             different_thread_process_arc
-                .tuple_from_slice(&[atom_unchecked("timer_reference"), timer_reference])
+                .tuple_from_slice(&[Atom::str_to_term("timer_reference"), timer_reference])
                 .unwrap(),
         )
         .expect("Different thread could not send to same thread");

@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime::otp::erlang;
 
@@ -37,10 +37,10 @@ pub fn make_erlang() -> NativeModule {
     });
 
     native.add_simple(Atom::try_from_str("spawn_opt").unwrap(), 4, |proc, args| {
-        match args[3].to_typed_term().unwrap() {
+        match args[3].decode().unwrap() {
             TypedTerm::List(cons) => {
                 let mut iter = cons.into_iter();
-                assert!(iter.next() == Some(Ok(atom_unchecked("link").into())));
+                assert!(iter.next() == Some(Ok(Atom::str_to_term("link").into())));
                 assert!(iter.next() == None);
             }
             t => panic!("{:?}", t),
@@ -187,7 +187,7 @@ pub fn make_erlang() -> NativeModule {
         Ok(erlang::node_0::native())
     });
     native.add_simple(Atom::try_from_str("node").unwrap(), 1, |_proc, _args| {
-        Ok(atom_unchecked("nonode@nohost"))
+        Ok(Atom::str_to_term("nonode@nohost"))
     });
     native.add_simple(Atom::try_from_str("whereis").unwrap(), 1, |_proc, args| {
         erlang::whereis_1::native(args[0])

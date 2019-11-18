@@ -2,9 +2,9 @@ use std::convert::TryFrom;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::{self, runtime};
+use liblumen_alloc::erts::exception::{self, RuntimeException};
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Term, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::scheduler::Scheduler;
 
@@ -21,7 +21,7 @@ use crate::scheduler::Scheduler;
 /// more than 584 years. That is, for the foreseeable future they are unique enough.
 ///
 /// - http://erlang.org/doc/efficiency_guide/advanced.html#unique_integers
-pub fn unique_integer(process: &Process, options: Options) -> exception::Result {
+pub fn unique_integer(process: &Process, options: Options) -> exception::Result<Term> {
     if options.monotonic {
         let u = MONOTONIC.fetch_add(1, Ordering::SeqCst);
 
@@ -80,8 +80,8 @@ impl Default for Options {
 }
 
 impl Options {
-    fn put_option_term(&mut self, option: Term) -> Result<&Self, runtime::Exception> {
-        match option.to_typed_term().unwrap() {
+    fn put_option_term(&mut self, option: Term) -> Result<&Self, RuntimeException> {
+        match option.decode().unwrap() {
             TypedTerm::Atom(atom) => match atom.name() {
                 "monotonic" => {
                     self.monotonic = true;
@@ -101,14 +101,14 @@ impl Options {
 }
 
 impl TryFrom<Term> for Options {
-    type Error = runtime::Exception;
+    type Error = RuntimeException;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         let mut options: Options = Default::default();
         let mut options_term = term;
 
         loop {
-            match options_term.to_typed_term().unwrap() {
+            match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
                     options.put_option_term(cons.head)?;

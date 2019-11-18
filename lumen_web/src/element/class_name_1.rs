@@ -4,14 +4,14 @@
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::Term;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 use crate::element;
 
 #[native_implemented_function(class_name/1)]
-fn native(process: &Process, element_term: Term) -> exception::Result {
+fn native(process: &Process, element_term: Term) -> exception::Result<Term> {
     let element = element::from_term(element_term)?;
     let class_name_binary = process.binary_from_str(&element.class_name())?;
 

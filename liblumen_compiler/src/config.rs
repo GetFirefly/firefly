@@ -1,10 +1,10 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::convert::Into;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use failure::{format_err, Error};
+use super::errors::{self, CompilerError};
 
 use libeir_diagnostics::{CodeMap, ColorChoice};
 use libeir_syntax_erl::ParseConfig;
@@ -13,16 +13,16 @@ use libeir_syntax_erl::ParseConfig;
 /// either parsing modules from BEAM files, or by
 /// parsing modules from Erlang source code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
-pub enum CompilerMode {
+pub enum FileType {
     Erlang,
 }
-impl FromStr for CompilerMode {
-    type Err = Error;
+impl FromStr for FileType {
+    type Err = errors::CompilerError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "erl" => Ok(CompilerMode::Erlang),
-            _ => Err(format_err!("invalid file type {}", s)),
+            "erl" => Ok(FileType::Erlang),
+            _ => Err(CompilerError::FileType(s.to_owned())),
         }
     }
 }
@@ -54,7 +54,7 @@ impl Verbosity {
 /// of compilation
 #[derive(Debug, Clone)]
 pub struct CompilerSettings {
-    pub mode: CompilerMode,
+    pub file_type: FileType,
     pub color: ColorChoice,
     pub source_dir: PathBuf,
     pub output_dir: PathBuf,

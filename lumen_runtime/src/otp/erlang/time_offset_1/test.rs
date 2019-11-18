@@ -1,4 +1,4 @@
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::atom;
 
 use crate::otp::erlang::{
     convert_time_unit_3, monotonic_time_1, subtract_2, system_time_1, time_offset_1,
@@ -39,7 +39,7 @@ fn approximately_system_time_minus_monotonic_time_in_perf_counter_ticks() {
 
 fn approximately_system_time_minus_monotonic_time_in_unit(unit_str: &str) {
     with_process(|process| {
-        let unit = atom_unchecked(unit_str);
+        let unit = atom!(unit_str);
         let monotonic_time = monotonic_time_1::native(process, unit).unwrap();
         let system_time = system_time_1::native(process, unit).unwrap();
         let time_offset = time_offset_1::native(process, unit).unwrap();
@@ -52,7 +52,7 @@ fn approximately_system_time_minus_monotonic_time_in_unit(unit_str: &str) {
         let time_offset_delta_limit = convert_time_unit_3::native(
             process,
             time_offset_delta_limit_seconds,
-            atom_unchecked("seconds"),
+            atom!("seconds"),
             unit,
         )
         .unwrap();

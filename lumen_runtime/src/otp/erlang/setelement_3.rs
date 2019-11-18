@@ -10,16 +10,15 @@ use std::convert::TryInto;
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{Boxed, Term, Tuple};
+use liblumen_alloc::erts::term::index::OneBasedIndex;
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::tuple::ZeroBasedIndex;
-
 #[native_implemented_function(setelement/3)]
-pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result {
+pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let ZeroBasedIndex(index_zero_based): ZeroBasedIndex = index.try_into()?;
+    let index_zero_based: OneBasedIndex = index.try_into()?;
 
     let length = initial_inner_tuple.len();
 

@@ -9,7 +9,7 @@ use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -23,7 +23,7 @@ pub fn native(
     destination: Term,
     message: Term,
     options: Term,
-) -> exception::Result {
+) -> exception::Result<Term> {
     let send_options: send::Options = options.try_into()?;
 
     send(destination, message, send_options, process)
@@ -32,5 +32,5 @@ pub fn native(
             Sent::ConnectRequired => "noconnect",
             Sent::SuspendRequired => "nosuspend",
         })
-        .map(|s| atom_unchecked(s))
+        .map(Atom::str_to_term)
 }

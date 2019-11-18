@@ -38,7 +38,7 @@ fn with_integer_multiplicand_returns_big_integer() {
 
                     let product = result.unwrap();
 
-                    prop_assert!(product.is_bigint());
+                    prop_assert!(product.is_boxed_bigint());
 
                     Ok(())
                 },
@@ -58,7 +58,7 @@ fn with_float_multiplicand_without_underflow_or_overflow_returns_float() {
 
         let product = result.unwrap();
 
-        assert!(product.is_float());
+        assert!(product.is_boxed_float());
     })
 }
 
@@ -93,7 +93,7 @@ where
     with_process(|process| {
         let multiplier: Term = process.integer(SmallInteger::MAX_VALUE + 1).unwrap();
 
-        assert!(multiplier.is_bigint());
+        assert!(multiplier.is_boxed_bigint());
 
         f(multiplier, &process)
     })

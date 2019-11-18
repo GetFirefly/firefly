@@ -1,6 +1,6 @@
 use super::*;
 
-use liblumen_alloc::erts::term::{Boxed, Tuple};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang;
 use crate::test::has_message;
@@ -16,10 +16,10 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
     erlang::number_or_badarith_1::export();
 
     let module_atom = erlang::module();
-    let module = unsafe { module_atom.as_term() };
+    let module: Term = module_atom.encode().unwrap();
 
     let function_atom = erlang::number_or_badarith_1::function();
-    let function = unsafe { function_atom.as_term() };
+    let function: Term = function_atom.encode().unwrap();
 
     let number = parent_arc_process.integer(0).unwrap();
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
@@ -58,7 +58,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
     assert_eq!(child_arc_process.code_stack_len(), 0);
     assert_eq!(child_arc_process.current_module_function_arity(), None);
 
-    let reason = atom_unchecked("normal");
+    let reason = atom!("normal");
 
     match *child_arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
@@ -69,7 +69,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
+    let tag = atom!("DOWN");
 
     assert!(has_message(
         &parent_arc_process,
@@ -77,7 +77,7 @@ fn with_valid_arguments_when_run_exits_normal_and_sends_exit_message_to_parent()
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                atom!("process"),
                 child_pid_term,
                 reason
             ])
@@ -96,13 +96,13 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
     erlang::number_or_badarith_1::export();
 
     let module_atom = erlang::module();
-    let module = unsafe { module_atom.as_term() };
+    let module: Term = module_atom.encode().unwrap();
 
     let function_atom = erlang::number_or_badarith_1::function();
-    let function = unsafe { function_atom.as_term() };
+    let function: Term = function_atom.encode().unwrap();
 
     // not a number
-    let number = atom_unchecked("zero");
+    let number = atom!("zero");
     let arguments = parent_arc_process.cons(number, Term::NIL).unwrap();
 
     let result = native(&parent_arc_process, module, function, arguments);
@@ -140,8 +140,8 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
     assert_eq!(
         child_arc_process.current_module_function_arity(),
         Some(Arc::new(ModuleFunctionArity {
-            module: module_atom,
-            function: function_atom,
+            module: atom_from!(module),
+            function: atom_from!(function),
             arity: 1
         }))
     );
@@ -155,8 +155,8 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
 
     assert!(!parent_arc_process.is_exiting());
 
-    let tag = atom_unchecked("DOWN");
-    let reason = atom_unchecked("badarith");
+    let tag = atom!("DOWN");
+    let reason = atom!("badarith");
 
     assert!(has_message(
         &parent_arc_process,
@@ -164,7 +164,7 @@ fn without_valid_arguments_when_run_exits_and_sends_parent_exit_message() {
             .tuple_from_slice(&[
                 tag,
                 monitor_reference,
-                atom_unchecked("process"),
+                atom!("process"),
                 child_pid_term,
                 reason
             ])

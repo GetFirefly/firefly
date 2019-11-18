@@ -9,14 +9,13 @@ use hashbrown::HashMap;
 
 use liblumen_core::locks::RwLockWriteGuard;
 
-use liblumen_alloc::erts::exception::runtime;
-use liblumen_alloc::erts::exception::system::Alloc;
-use liblumen_alloc::erts::process::alloc::heap_alloc::HeapAlloc;
+use liblumen_alloc::erts::exception::{self, AllocResult, RuntimeException};
+use liblumen_alloc::erts::process::alloc::{Heap, TermAlloc};
 use liblumen_alloc::erts::process::code::stack::frame::Frame;
 use liblumen_alloc::erts::process::{self, Process, ProcessHeap};
-use liblumen_alloc::erts::term::{atom_unchecked, Atom, Boxed, Reference, Term, Tuple, TypedTerm};
+use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::ModuleFunctionArity;
-use liblumen_alloc::{CloneToProcess, HeapFragment, Monitor};
+use liblumen_alloc::{atom, CloneToProcess, HeapFragment, Monitor};
 
 use crate::code;
 #[cfg(test)]
@@ -29,38 +28,37 @@ use crate::system;
 #[cfg(test)]
 use crate::test;
 
-fn is_expected_exception(exception: &runtime::Exception) -> bool {
-    match exception.class {
-        runtime::Class::Exit => is_expected_exit_reason(exception.reason),
+fn is_expected_exception(exception: &RuntimeException) -> bool {
+    use exception::Class;
+    match exception.class() {
+        Some(Class::Exit) => is_expected_exit_reason(exception.reason().unwrap()),
         _ => false,
     }
 }
 
 fn is_expected_exit_reason(reason: Term) -> bool {
-    match reason.to_typed_term().unwrap() {
+    match reason.decode().unwrap() {
         TypedTerm::Atom(atom) => match atom.name() {
             "normal" | "shutdown" => true,
             _ => false,
         },
-        TypedTerm::Boxed(boxed) => match boxed.to_typed_term().unwrap() {
-            TypedTerm::Tuple(tuple) => {
-                tuple.len() == 2 && {
-                    match tuple[0].to_typed_term().unwrap() {
-                        TypedTerm::Atom(atom) => atom.name() == "shutdown",
-                        _ => false,
-                    }
+        TypedTerm::Tuple(tuple) => {
+            tuple.len() == 2 && {
+                match tuple[0].decode().unwrap() {
+                    TypedTerm::Atom(atom) => atom.name() == "shutdown",
+                    _ => false,
                 }
             }
-            _ => false,
-        },
+        }
         _ => false,
     }
 }
 
-pub fn log_exit(process: &Process, exception: &runtime::Exception) {
-    match exception.class {
-        runtime::Class::Exit => {
-            let reason = exception.reason;
+pub fn log_exit(process: &Process, exception: &RuntimeException) {
+    use exception::Class;
+    match exception.class() {
+        Some(Class::Exit) => {
+            let reason = exception.reason().unwrap();
 
             if !is_expected_exit_reason(reason) {
                 system::io::puts(&format!(
@@ -69,39 +67,42 @@ pub fn log_exit(process: &Process, exception: &runtime::Exception) {
                 ));
             }
         }
-        runtime::Class::Error { .. } => system::io::puts(&format!(
+        Some(Class::Error { .. }) => system::io::puts(&format!(
             "** (EXIT from {}) exited with reason: an exception was raised: {}\n{}",
             process,
-            exception.reason,
+            exception.reason().unwrap(),
             process.stacktrace()
         )),
         _ => unimplemented!("{:?}", exception),
     }
 }
 
-pub fn monitor(process: &Process, monitored_process: &Process) -> Result<Term, Alloc> {
+pub fn monitor(process: &Process, monitored_process: &Process) -> AllocResult<Term> {
     let reference = process.next_reference()?;
 
     let reference_reference: Boxed<Reference> = reference.try_into().unwrap();
     let monitor = Monitor::Pid {
         monitoring_pid: process.pid(),
     };
-    process.monitor(reference_reference.clone(), monitored_process.pid());
-    monitored_process.monitored(reference_reference.clone(), monitor);
+    process.monitor(
+        reference_reference.as_ref().clone(),
+        monitored_process.pid(),
+    );
+    monitored_process.monitored(reference_reference.as_ref().clone(), monitor);
 
     Ok(reference)
 }
 
-pub fn propagate_exit(process: &Process, exception: &runtime::Exception) {
+pub fn propagate_exit(process: &Process, exception: &RuntimeException) {
     monitor::propagate_exit(process, exception);
     propagate_exit_to_links(process, exception);
 }
 
-pub fn propagate_exit_to_links(process: &Process, exception: &runtime::Exception) {
+pub fn propagate_exit_to_links(process: &Process, exception: &RuntimeException) {
     if !is_expected_exception(exception) {
-        let tag = atom_unchecked("EXIT");
+        let tag = atom!("EXIT");
         let from = process.pid_term();
-        let reason = exception.reason;
+        let reason = exception.reason().unwrap_or_else(|| atom!("system_error"));
         let reason_word_size = reason.size_in_words();
         let exit_message_elements: &[Term] = &[tag, from, reason];
         let exit_message_word_size = Tuple::need_in_words_from_elements(exit_message_elements);
@@ -154,16 +155,24 @@ fn send_self_exit_message(
     heap: &mut ProcessHeap,
     exit_message_elements: &[Term],
 ) {
-    let data = heap.tuple_from_slice(exit_message_elements).unwrap();
+    let data = heap
+        .tuple_from_slice(exit_message_elements)
+        .unwrap()
+        .encode()
+        .unwrap();
 
     process.send_from_self(data);
 }
 
 fn send_heap_exit_message(process: &Process, exit_message_elements: &[Term]) {
-    let (heap_fragment_data, heap_fragment) =
-        HeapFragment::tuple_from_slice(exit_message_elements).unwrap();
+    let (layout, _) = Tuple::layout_for(exit_message_elements);
+    let mut heap_fragment = HeapFragment::new(layout).unwrap();
+    let heap_fragment_ref = unsafe { heap_fragment.as_mut() };
 
-    process.send_heap_message(heap_fragment, heap_fragment_data);
+    let ptr = heap_fragment_ref
+        .tuple_from_slice(exit_message_elements)
+        .unwrap();
+    process.send_heap_message(heap_fragment, ptr.into());
 }
 
 fn exit_in_heap(process: &Process, heap: &mut ProcessHeap, reason: Term) {
@@ -197,7 +206,7 @@ pub fn register_in(
     }
 }
 
-pub fn init(minimum_heap_size: usize) -> Result<Process, Alloc> {
+pub fn init(minimum_heap_size: usize) -> AllocResult<Process> {
     let init = Atom::try_from_str("init").unwrap();
     let module_function_arity = Arc::new(ModuleFunctionArity {
         module: init,
@@ -205,8 +214,8 @@ pub fn init(minimum_heap_size: usize) -> Result<Process, Alloc> {
         arity: 0,
     });
 
-    let heap_size = process::next_heap_size(minimum_heap_size);
-    let heap = process::heap(heap_size)?;
+    let heap_size = process::alloc::next_heap_size(minimum_heap_size);
+    let heap = process::alloc::heap(heap_size)?;
 
     let process = Process::new(
         Default::default(),
@@ -223,11 +232,11 @@ pub fn init(minimum_heap_size: usize) -> Result<Process, Alloc> {
 }
 
 pub trait SchedulerDependentAlloc {
-    fn next_reference(&self) -> Result<Term, Alloc>;
+    fn next_reference(&self) -> AllocResult<Term>;
 }
 
 impl SchedulerDependentAlloc for Process {
-    fn next_reference(&self) -> Result<Term, Alloc> {
+    fn next_reference(&self) -> AllocResult<Term> {
         let scheduler_id = self.scheduler_id().unwrap();
         let arc_scheduler = Scheduler::from_id(&scheduler_id).unwrap();
         let number = arc_scheduler.next_reference_number();

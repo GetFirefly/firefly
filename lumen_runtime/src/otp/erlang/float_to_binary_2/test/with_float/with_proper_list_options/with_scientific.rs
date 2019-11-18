@@ -5,7 +5,7 @@ use std::sync::Arc;
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 
 use liblumen_alloc::erts::process::Process;
-use liblumen_alloc::erts::term::{atom_unchecked, Term};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::binary_to_string::binary_to_string;
 use crate::otp::erlang::float_to_binary_1;
@@ -263,5 +263,5 @@ fn options(process: &Process, digits: u8) -> Term {
 }
 
 fn tag() -> Term {
-    atom_unchecked("scientific")
+    Atom::str_to_term("scientific")
 }

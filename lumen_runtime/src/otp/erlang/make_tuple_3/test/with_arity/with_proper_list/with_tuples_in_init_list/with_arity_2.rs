@@ -16,7 +16,7 @@ fn without_positive_index_errors_badarg_because_indexes_are_one_based() {
                         strategy::term(arc_process.clone()),
                     )
                         .prop_filter("Index must not be a positive index", |(_, index)| {
-                            !index.is_integer() || index <= &Term::make_smallint(0)
+                            !index.is_integer() || index <= &fixnum!(0)
                         })
                         .prop_flat_map(|(arc_process, index)| {
                             (

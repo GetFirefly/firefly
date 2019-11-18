@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use liblumen_core::locks::Mutex;
 
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::exception::system::Alloc;
+use liblumen_alloc::erts::exception::{self, Exception};
 use liblumen_alloc::erts::process::code;
 use liblumen_alloc::erts::process::{Process, Status};
-use liblumen_alloc::erts::term::{resource, Atom};
+use liblumen_alloc::erts::term::prelude::*;
 
 use crate::process;
 use crate::process::spawn;
@@ -23,7 +22,7 @@ pub fn run_until_ready<PlaceFrameWithArguments>(
     timeout: Milliseconds,
 ) -> Result<Ready, NotReady>
 where
-    PlaceFrameWithArguments: Fn(&Process) -> Result<(), Alloc>,
+    PlaceFrameWithArguments: Fn(&Process) -> exception::Result<()>,
 {
     assert!(!options.link);
     assert!(!options.monitor);
@@ -60,7 +59,7 @@ where
 
 pub struct Ready {
     pub arc_process: Arc<Process>,
-    pub result: exception::Result,
+    pub result: exception::Result<Term>,
 }
 
 impl Clone for Ready {
@@ -78,12 +77,12 @@ impl Clone for Ready {
 #[derive(Debug)]
 pub enum NotReady {
     Timeout { duration: Milliseconds },
-    Alloc(Alloc),
+    Failed(Exception),
 }
 
-impl From<Alloc> for NotReady {
-    fn from(alloc: Alloc) -> Self {
-        NotReady::Alloc(alloc)
+impl From<Exception> for NotReady {
+    fn from(err: Exception) -> Self {
+        NotReady::Failed(err)
     }
 }
 
@@ -92,10 +91,10 @@ impl From<Alloc> for NotReady {
 fn code(arc_process: &Arc<Process>) -> code::Result {
     let return_term = arc_process.stack_pop().unwrap();
     let future_term = arc_process.stack_pop().unwrap();
-    assert!(future_term.is_resource_reference());
 
-    let future_resource_reference: resource::Reference = future_term.try_into().unwrap();
-    let future_mutex: &Arc<Mutex<Future>> = future_resource_reference.downcast_ref().unwrap();
+    let future_resource_box: Boxed<Resource> = future_term.try_into().unwrap();
+    let future_resource: Resource = future_resource_box.into();
+    let future_mutex: &Arc<Mutex<Future>> = future_resource.downcast_ref().unwrap();
 
     future_mutex.lock().ready(Ready {
         arc_process: arc_process.clone(),
@@ -118,9 +117,9 @@ fn module() -> Atom {
 fn spawn<PlaceFrameWithArguments>(
     options: Options,
     place_frame_with_arguments: PlaceFrameWithArguments,
-) -> Result<Spawned, Alloc>
+) -> exception::Result<Spawned>
 where
-    PlaceFrameWithArguments: Fn(&Process) -> Result<(), Alloc>,
+    PlaceFrameWithArguments: Fn(&Process) -> exception::Result<()>,
 {
     let (
         spawn::Spawned {
@@ -142,7 +141,7 @@ where
     })
 }
 
-fn spawn_unscheduled(options: Options) -> Result<(spawn::Spawned, Arc<Mutex<Future>>), Alloc> {
+fn spawn_unscheduled(options: Options) -> exception::Result<(spawn::Spawned, Arc<Mutex<Future>>)> {
     let parent_process = None;
     let arguments = &[];
     let spawned = process::spawn::code(

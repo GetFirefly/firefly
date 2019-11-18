@@ -7,7 +7,7 @@ pub mod label_3;
 
 use super::*;
 
-use liblumen_alloc::erts::term::Atom;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 use lumen_web::window;
 

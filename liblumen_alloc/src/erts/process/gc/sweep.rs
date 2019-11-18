@@ -82,6 +82,10 @@ where
         // Copy object to the destination, byte-wise
         ptr::copy_nonoverlapping(self as *const u8, dst as *mut u8, size);
 
+        // Write move marker to previous location
+        let marker: Term = dst.into();
+        self.write(marker);
+
         (dst, total_size)
     }
 }

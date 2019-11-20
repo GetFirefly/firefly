@@ -15,7 +15,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
-use crate::binary::ToTermOptions;
+use crate::binary::to_term::Options;
 use crate::distribution::external_term_format::{term, VERSION_NUMBER};
 
 macro_rules! maybe_aligned_maybe_binary_try_into_term {
@@ -37,7 +37,7 @@ macro_rules! maybe_aligned_maybe_binary_try_into_term {
 
 #[native_implemented_function(binary_to_term/2)]
 pub fn native(process: &Process, binary: Term, options: Term) -> exception::Result<Term> {
-    let options: ToTermOptions = options.try_into()?;
+    let options: Options = options.try_into().map_err(|_| badarg!())?;
 
     match binary.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => {
@@ -58,7 +58,7 @@ pub fn native(process: &Process, binary: Term, options: Term) -> exception::Resu
 
 fn versioned_tagged_bytes_try_into_term(
     process: &Process,
-    options: &ToTermOptions,
+    options: &Options,
     bytes: &[u8],
 ) -> exception::Result<Term> {
     if 1 <= bytes.len() && bytes[0] == VERSION_NUMBER {

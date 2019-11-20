@@ -7,6 +7,7 @@ mod test;
 
 use std::convert::TryInto;
 
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
@@ -17,7 +18,7 @@ use crate::time::{monotonic, Unit};
 
 #[native_implemented_function(monotonic_time/1)]
 pub fn native(process: &Process, unit: Term) -> exception::Result<Term> {
-    let unit_unit: Unit = unit.try_into()?;
+    let unit_unit: Unit = unit.try_into().map_err(|_| badarg!())?;
     let big_int = monotonic::time(unit_unit);
     let term = process.integer(big_int)?;
 

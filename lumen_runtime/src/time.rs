@@ -1,15 +1,12 @@
-use core::convert::{TryFrom, TryInto};
-
 use num_bigint::BigInt;
 use num_traits::Zero;
-
-use liblumen_alloc::erts::exception::{AllocResult, Exception};
-use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, Process};
 
 pub mod datetime;
 pub mod monotonic;
 pub mod system;
+mod unit;
+
+pub use unit::*;
 
 // Must be at least a `u64` because `u32` is only ~49 days (`(1 << 32)`)
 pub type Milliseconds = u64;
@@ -55,119 +52,6 @@ pub fn convert(time: BigInt, from_unit: Unit, to_unit: Unit) -> BigInt {
             } else {
                 (time - (denominator.clone() - 1)) / denominator
             }
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(test, derive(Debug))]
-pub enum Unit {
-    Hertz(usize),
-    Second,
-    Millisecond,
-    Microsecond,
-    Nanosecond,
-    Native,
-    PerformanceCounter,
-}
-
-impl Unit {
-    const MILLISECOND_HERTZ: usize = 1_000;
-
-    pub fn hertz(&self) -> usize {
-        match self {
-            Unit::Hertz(hertz) => *hertz,
-            Unit::Second => 1,
-            Unit::Millisecond => Self::MILLISECOND_HERTZ,
-            Unit::Microsecond => 1_000_000,
-            Unit::Nanosecond => 1_000_000_000,
-            // As a side-channel protection browsers limit most counters to 1 millisecond resolution
-            Unit::Native => Self::MILLISECOND_HERTZ,
-            Unit::PerformanceCounter => Self::MILLISECOND_HERTZ,
-        }
-    }
-
-    pub fn to_term(&self, process: &Process) -> AllocResult<Term> {
-        match self {
-            Unit::Hertz(hertz) => process.integer(*hertz),
-            Unit::Second => Ok(Atom::str_to_term("second")),
-            Unit::Millisecond => Ok(Atom::str_to_term("millisecond")),
-            Unit::Microsecond => Ok(Atom::str_to_term("microsecond")),
-            Unit::Nanosecond => Ok(Atom::str_to_term("nanosecond")),
-            Unit::Native => Ok(Atom::str_to_term("native")),
-            Unit::PerformanceCounter => Ok(Atom::str_to_term("perf_counter")),
-        }
-    }
-}
-
-impl TryFrom<Term> for Unit {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Unit, Self::Error> {
-        match term.decode()? {
-            TypedTerm::SmallInteger(small_integer) => {
-                let hertz: usize = small_integer.try_into()?;
-
-                if 0 < hertz {
-                    Ok(Unit::Hertz(hertz))
-                } else {
-                    Err(badarg!().into())
-                }
-            }
-            TypedTerm::BigInteger(big_integer) => {
-                let big_integer_usize: usize = big_integer.try_into()?;
-
-                Ok(Unit::Hertz(big_integer_usize))
-            }
-            TypedTerm::Atom(atom) => {
-                let term_string = atom.name();
-                let mut result = Err(badarg!().into());
-
-                for (s, unit) in [
-                    ("second", Unit::Second),
-                    ("seconds", Unit::Second),
-                    ("millisecond", Unit::Millisecond),
-                    ("milli_seconds", Unit::Millisecond),
-                    ("microsecond", Unit::Microsecond),
-                    ("micro_seconds", Unit::Microsecond),
-                    ("nanosecond", Unit::Nanosecond),
-                    ("nano_seconds", Unit::Nanosecond),
-                    ("native", Unit::Native),
-                    ("perf_counter", Unit::PerformanceCounter),
-                ]
-                .iter()
-                {
-                    if &term_string == s {
-                        result = Ok(*unit);
-                        break;
-                    }
-                }
-
-                result
-            }
-            _ => Err(badarg!().into()),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod unit {
-        use super::*;
-
-        use crate::scheduler::with_process;
-
-        #[test]
-        fn zero_errors_badarg() {
-            with_process(|process| {
-                let term: Term = process.integer(0).unwrap();
-
-                let result: Result<Unit, Exception> = term.try_into();
-
-                assert_badarg!(result);
-            });
         }
     }
 }

@@ -37,7 +37,7 @@ pub mod prelude {
     // Export the typed term wrapper
     pub use super::typed_term::TypedTerm;
     // Export the primary term types
-    pub use super::atom::{Atom, AtomError};
+    pub use super::atom::{Atom, AtomError, TryAtomFromTermError};
     pub use super::closure::Closure;
     pub use super::float::Float;
     pub use super::integer::{BigInteger, Integer, SmallInteger};

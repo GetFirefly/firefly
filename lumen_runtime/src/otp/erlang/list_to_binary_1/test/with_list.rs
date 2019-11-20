@@ -14,7 +14,10 @@ fn without_byte_binary_or_list_element_errors_badarg() {
                 &is_not_byte_binary_nor_list(arc_process.clone())
                     .prop_map(|element| arc_process.cons(element, Term::NIL).unwrap()),
                 |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -43,7 +46,10 @@ fn with_subbinary_with_bit_count_errors_badarg() {
                 &strategy::term::binary::sub::is_not_binary(arc_process.clone())
                     .prop_map(|element| arc_process.cons(element, Term::NIL).unwrap()),
                 |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

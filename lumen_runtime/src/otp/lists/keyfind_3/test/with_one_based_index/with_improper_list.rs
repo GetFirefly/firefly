@@ -10,8 +10,8 @@ fn without_found_errors_badarg() {
         let tuple_list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
         assert_eq!(
-            native(key, one_based_index, tuple_list),
-            Err(badarg!().into())
+            native(&arc_process, key, one_based_index, tuple_list),
+            Err(badarg!(&arc_process).into())
         );
     });
 }
@@ -43,12 +43,21 @@ fn with_non_tuple_in_list_with_found_returns_tuple() {
                                 .improper_list_from_slice(&[non_tuple, tuple_with_key], tail)
                                 .unwrap();
 
-                            (key, index_one_based_term, tuple_list, tuple_with_key)
+                            (
+                                arc_process,
+                                key,
+                                index_one_based_term,
+                                tuple_list,
+                                tuple_with_key,
+                            )
                         },
                     )
             }),
-            |(key, one_based_index, tuple_list, tuple_with_key)| {
-                prop_assert_eq!(native(key, one_based_index, tuple_list), Ok(tuple_with_key));
+            |(arc_process, key, one_based_index, tuple_list, tuple_with_key)| {
+                prop_assert_eq!(
+                    native(&arc_process, key, one_based_index, tuple_list),
+                    Ok(tuple_with_key)
+                );
 
                 Ok(())
             },
@@ -98,12 +107,21 @@ fn with_shorter_tuple_in_list_with_found_returns_tuple() {
                                 .improper_list_from_slice(&[short_tuple, tuple_with_key], tail)
                                 .unwrap();
 
-                            (key, index_one_based_term, tuple_list, tuple_with_key)
+                            (
+                                arc_process,
+                                key,
+                                index_one_based_term,
+                                tuple_list,
+                                tuple_with_key,
+                            )
                         },
                     )
             }),
-            |(key, one_based_index, tuple_list, tuple_with_key)| {
-                prop_assert_eq!(native(key, one_based_index, tuple_list), Ok(tuple_with_key));
+            |(arc_process, key, one_based_index, tuple_list, tuple_with_key)| {
+                prop_assert_eq!(
+                    native(&arc_process, key, one_based_index, tuple_list),
+                    Ok(tuple_with_key)
+                );
 
                 Ok(())
             },
@@ -121,6 +139,9 @@ fn with_found_returns_tuple() {
         let tail = Atom::str_to_term("tail");
         let tuple_list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
-        assert_eq!(native(key, one_based_index, tuple_list), Ok(element));
+        assert_eq!(
+            native(&arc_process, key, one_based_index, tuple_list),
+            Ok(element)
+        );
     });
 }

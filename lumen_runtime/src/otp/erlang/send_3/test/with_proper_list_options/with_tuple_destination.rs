@@ -25,7 +25,7 @@ fn without_arity_2_errors_badarg() {
                 |(destination, message, options)| {
                     prop_assert_eq!(
                         native(&arc_process, destination, message, options),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

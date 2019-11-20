@@ -17,7 +17,10 @@ fn without_reference_errors_badarg() {
             .run(
                 &strategy::term::is_not_reference(arc_process.clone()),
                 |reference| {
-                    prop_assert_eq!(native(&arc_process, reference), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, reference),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

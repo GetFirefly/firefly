@@ -30,14 +30,14 @@ macro_rules! maybe_aligned_maybe_binary_try_into_term {
                 versioned_tagged_bytes_try_into_term($process, $options, &byte_vec)
             }
         } else {
-            Err(badarg!().into())
+            Err(badarg!($process).into())
         }
     };
 }
 
 #[native_implemented_function(binary_to_term/2)]
 pub fn native(process: &Process, binary: Term, options: Term) -> exception::Result<Term> {
-    let options: Options = options.try_into().map_err(|_| badarg!())?;
+    let options: Options = options.try_into().map_err(|_| badarg!(process))?;
 
     match binary.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => {
@@ -52,7 +52,7 @@ pub fn native(process: &Process, binary: Term, options: Term) -> exception::Resu
         TypedTerm::SubBinary(subbinary) => {
             maybe_aligned_maybe_binary_try_into_term!(process, &options, subbinary)
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }
 
@@ -75,6 +75,6 @@ fn versioned_tagged_bytes_try_into_term(
             Ok(term)
         }
     } else {
-        Err(badarg!().into())
+        Err(badarg!(process).into())
     }
 }

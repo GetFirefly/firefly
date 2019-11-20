@@ -8,7 +8,10 @@ fn without_found_returns_false() {
         let slice = &[arc_process.tuple_from_slice(&[]).unwrap()];
         let tuple_list = arc_process.list_from_slice(slice).unwrap();
 
-        assert_eq!(native(key, one_based_index, tuple_list), Ok(false.into()));
+        assert_eq!(
+            native(&arc_process, key, one_based_index, tuple_list),
+            Ok(false.into())
+        );
     });
 }
 
@@ -38,12 +41,15 @@ fn with_non_tuple_in_list_with_found_returns_true() {
                                 .list_from_slice(&[non_tuple, tuple_with_key])
                                 .unwrap();
 
-                            (key, index_one_based_term, tuple_list)
+                            (arc_process, key, index_one_based_term, tuple_list)
                         },
                     )
             }),
-            |(key, one_based_index, tuple_list)| {
-                prop_assert_eq!(native(key, one_based_index, tuple_list), Ok(true.into()));
+            |(arc_process, key, one_based_index, tuple_list)| {
+                prop_assert_eq!(
+                    native(&arc_process, key, one_based_index, tuple_list),
+                    Ok(true.into())
+                );
 
                 Ok(())
             },
@@ -92,12 +98,15 @@ fn with_shorter_tuple_in_list_with_found_returns_true() {
                                 .list_from_slice(&[short_tuple, tuple_with_key])
                                 .unwrap();
 
-                            (key, index_one_based_term, tuple_list)
+                            (arc_process, key, index_one_based_term, tuple_list)
                         },
                     )
             }),
-            |(key, one_based_index, tuple_list)| {
-                prop_assert_eq!(native(key, one_based_index, tuple_list), Ok(true.into()));
+            |(arc_process, key, one_based_index, tuple_list)| {
+                prop_assert_eq!(
+                    native(&arc_process, key, one_based_index, tuple_list),
+                    Ok(true.into())
+                );
 
                 Ok(())
             },
@@ -114,6 +123,9 @@ fn with_found_returns_true() {
         let slice = &[element];
         let tuple_list = arc_process.list_from_slice(slice).unwrap();
 
-        assert_eq!(native(key, one_based_index, tuple_list), Ok(true.into()));
+        assert_eq!(
+            native(&arc_process, key, one_based_index, tuple_list),
+            Ok(true.into())
+        );
     });
 }

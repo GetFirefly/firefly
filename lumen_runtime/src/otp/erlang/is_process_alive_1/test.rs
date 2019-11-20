@@ -15,7 +15,10 @@ fn without_pid_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_pid(arc_process.clone()), |term| {
-                prop_assert_eq!(native(&arc_process, term), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, term),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             })

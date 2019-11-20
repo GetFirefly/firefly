@@ -16,7 +16,10 @@ fn without_binary_errors_badarg() {
             .run(
                 &strategy::term::is_not_binary(arc_process.clone()),
                 |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -37,7 +40,10 @@ fn with_binary_with_integer_errors_badarg() {
                     )
                 }),
                 |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -81,7 +87,7 @@ fn with_binary_with_less_than_min_f64_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         native(&arc_process, binary),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -100,7 +106,7 @@ fn with_binary_with_greater_than_max_f64_errors_badarg() {
                 |binary| {
                     prop_assert_eq!(
                         native(&arc_process, binary),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

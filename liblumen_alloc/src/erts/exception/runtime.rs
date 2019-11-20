@@ -5,6 +5,7 @@ use thiserror::Error;
 use crate::erts::term::prelude::*;
 
 use super::location::Location;
+use super::stacktrace::Stacktrace;
 use super::{Exception, SystemException, UnexpectedExceptionError};
 
 #[derive(Error, Debug, Clone)]
@@ -59,10 +60,10 @@ impl RuntimeException {
         }
     }
 
-    pub fn stacktrace(&self) -> Option<Term> {
+    pub fn stacktrace(&self) -> Option<Stacktrace> {
         match self {
-            RuntimeException::Throw(e) => e.stacktrace(),
-            RuntimeException::Exit(e) => e.stacktrace(),
+            RuntimeException::Throw(e) => e.stacktrace().map(|term| Stacktrace::Term(term)),
+            RuntimeException::Exit(e) => e.stacktrace().map(|term| Stacktrace::Term(term)),
             RuntimeException::Error(e) => e.stacktrace(),
             RuntimeException::Unknown(_err) => None,
         }

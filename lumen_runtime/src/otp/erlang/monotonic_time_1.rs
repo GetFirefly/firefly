@@ -18,9 +18,9 @@ use crate::time::{monotonic, Unit};
 
 #[native_implemented_function(monotonic_time/1)]
 pub fn native(process: &Process, unit: Term) -> exception::Result<Term> {
-    let unit_unit: Unit = unit.try_into().map_err(|_| badarg!())?;
+    let unit_unit: Unit = unit.try_into().map_err(|_| badarg!(process))?;
     let big_int = monotonic::time(unit_unit);
-    let term = process.integer(big_int)?;
+    let term = process.integer(big_int).map_err(|_| badarg!(process))?;
 
     Ok(term)
 }

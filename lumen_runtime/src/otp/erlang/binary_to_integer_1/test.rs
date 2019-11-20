@@ -17,7 +17,10 @@ fn without_binary_errors_badarg() {
             .run(
                 &strategy::term::is_not_binary(arc_process.clone()),
                 |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

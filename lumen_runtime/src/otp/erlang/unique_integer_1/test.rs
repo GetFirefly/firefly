@@ -44,7 +44,10 @@ fn without_proper_list_of_options_errors_badargs() {
                     },
                 ),
                 |options| {
-                    prop_assert_eq!(native(&arc_process, options), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, options),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

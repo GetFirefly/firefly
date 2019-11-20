@@ -29,7 +29,7 @@ fn without_atom_or_pid_destination_errors_badarg() {
                             destination,
                             message
                         ),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

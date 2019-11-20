@@ -15,7 +15,7 @@ fn without_atom_registered_name_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, r#type(), identifier),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

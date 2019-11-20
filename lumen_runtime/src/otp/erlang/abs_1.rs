@@ -65,6 +65,6 @@ pub fn native(process: &Process, number: Term) -> exception::Result<Term> {
 
     match option_abs {
         Some(abs) => Ok(abs),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }

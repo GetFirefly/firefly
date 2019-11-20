@@ -26,6 +26,6 @@ pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
 
             process.tuple_from_slice(&vec).map_err(|error| error.into())
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

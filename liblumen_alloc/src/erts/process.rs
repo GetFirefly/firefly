@@ -27,7 +27,7 @@ use liblumen_core::locks::{Mutex, MutexGuard, RwLock, SpinLock};
 
 use crate::borrow::CloneToProcess;
 use crate::erts;
-use crate::erts::exception::{self, AllocResult, RuntimeException};
+use crate::erts::exception::{self, AllocResult, RuntimeException, Stacktrace};
 use crate::erts::module_function_arity::Arity;
 use crate::erts::term::closure::{Creator, Definition, Index, OldUnique, Unique};
 use crate::erts::term::prelude::*;
@@ -520,9 +520,10 @@ impl Process {
         number: usize,
         serial: usize,
     ) -> exception::Result<Term> {
-        self.acquire_heap()
-            .external_pid(node, number, serial)
-            .map(|pid| pid.into())
+        match self.acquire_heap().external_pid(node, number, serial) {
+            Ok(pid) => Ok(pid.into()),
+            Err(_) => Err(badarg!(Stacktrace::Trace(self.stacktrace())).into()),
+        }
     }
 
     pub fn float(&self, f: f64) -> AllocResult<Term> {

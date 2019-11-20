@@ -15,7 +15,7 @@ fn unregistered_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, destination, message),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
                     assert_badarg!(native(&arc_process, destination, message));
 

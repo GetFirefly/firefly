@@ -13,7 +13,10 @@ fn without_proper_list_errors_badarg() {
                 )
             }),
             |(arc_process, list)| {
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, list),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             },
@@ -33,7 +36,10 @@ fn without_tuple_list_errors_badarg() {
             }),
             |(arc_process, term)| {
                 let list = arc_process.list_from_slice(&[term]).unwrap();
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, list),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             },

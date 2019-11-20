@@ -14,7 +14,7 @@ use crate::document::document_from_term;
 
 #[native_implemented_function(create_text_node/2)]
 pub fn native(process: &Process, document: Term, data: Term) -> exception::Result<Term> {
-    let document_document = document_from_term(document)?;
+    let document_document = document_from_term(process, document)?;
     let data_string: String = binary_to_string(data)?;
 
     let text = document_document.create_text_node(&data_string);

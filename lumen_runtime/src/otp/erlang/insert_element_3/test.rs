@@ -28,7 +28,7 @@ fn without_tuple_errors_badarg() {
             |(arc_process, tuple, index, element)| {
                 prop_assert_eq!(
                     native(&arc_process, index, tuple, element),
-                    Err(badarg!().into())
+                    Err(badarg!(&arc_process).into())
                 );
 
                 Ok(())
@@ -66,7 +66,7 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
                 |(arc_process, tuple, index, element)| {
                     prop_assert_eq!(
                         native(&arc_process, index, tuple, element),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

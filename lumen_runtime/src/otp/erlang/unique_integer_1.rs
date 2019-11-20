@@ -18,7 +18,7 @@ use crate::otp::erlang::unique_integer::{unique_integer, Options};
 
 #[native_implemented_function(unique_integer/1)]
 pub fn native(process: &Process, options: Term) -> exception::Result<Term> {
-    let options_options: Options = options.try_into().map_err(|_| badarg!())?;
+    let options_options: Options = options.try_into().map_err(|_| badarg!(process))?;
 
     unique_integer(process, options_options)
 }

@@ -18,7 +18,7 @@ fn without_atom_node_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, r#type(), identifier),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

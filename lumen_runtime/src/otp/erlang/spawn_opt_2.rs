@@ -19,7 +19,7 @@ use crate::process::spawn::options::Options;
 
 #[native_implemented_function(spawn_opt/2)]
 pub fn native(process: &Process, function: Term, options: Term) -> exception::Result<Term> {
-    let options: Options = options.try_into().map_err(|_| badarg!())?;
+    let options: Options = options.try_into().map_err(|_| badarg!(process))?;
 
     spawn_apply_1::native(process, options, function)
 }

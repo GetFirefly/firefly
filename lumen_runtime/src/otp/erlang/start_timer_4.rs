@@ -26,7 +26,8 @@ pub fn native(
     message: Term,
     options: Term,
 ) -> exception::Result<Term> {
-    let timer_start_options: timer::start::Options = options.try_into().map_err(|_| badarg!())?;
+    let timer_start_options: timer::start::Options =
+        options.try_into().map_err(|_| badarg!(&arc_process))?;
 
     start_timer(
         time,

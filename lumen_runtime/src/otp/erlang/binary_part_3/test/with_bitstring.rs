@@ -18,7 +18,7 @@ fn without_integer_start_without_integer_length_errors_badarg() {
                 |(binary, start, length)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, start, length),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -41,7 +41,7 @@ fn without_integer_start_with_integer_length_errors_badarg() {
                 |(binary, start, length)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, start, length),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -64,7 +64,7 @@ fn with_integer_start_without_integer_length_errors_badarg() {
                 |(binary, start, length)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, start, length),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -94,7 +94,7 @@ fn with_negative_start_with_valid_length_errors_badarg() {
                 |(binary, start, length)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, start, length),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -120,7 +120,7 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
                 |(binary, start, length)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, start, length),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -152,7 +152,7 @@ fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
                 |(binary, start, length)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, start, length),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -184,7 +184,7 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
                 |(binary, start, length)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, start, length),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

@@ -32,7 +32,7 @@ fn without_atom_module_errors_badarg() {
                 |(module, function, arguments)| {
                     prop_assert_eq!(
                         spawn_3::native(&arc_process, module, function, arguments),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

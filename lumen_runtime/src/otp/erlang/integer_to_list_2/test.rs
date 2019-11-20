@@ -20,7 +20,10 @@ fn without_integer_integer_errors_badarg() {
                     strategy::term::is_base(arc_process.clone()),
                 ),
                 |(integer, base)| {
-                    prop_assert_eq!(native(&arc_process, integer, base), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, integer, base),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

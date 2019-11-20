@@ -81,7 +81,10 @@ fn with_non_decimal_errors_badarg() {
                     arc_process.clone(),
                 ),
                 |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

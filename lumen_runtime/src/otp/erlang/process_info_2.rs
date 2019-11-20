@@ -74,7 +74,7 @@ fn process_info(process: &Process, item: Atom) -> exception::Result<Term> {
         "total_heap_size" => unimplemented!(),
         "trace" => unimplemented!(),
         "trap_exit" => unimplemented!(),
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }
 

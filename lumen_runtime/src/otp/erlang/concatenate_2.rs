@@ -24,8 +24,8 @@ pub fn native(process: &Process, list: Term, term: Term) -> exception::Result<Te
             Ok(vec) => process
                 .improper_list_from_slice(&vec, term)
                 .map_err(|error| error.into()),
-            Err(ImproperList { .. }) => Err(badarg!().into()),
+            Err(ImproperList { .. }) => Err(badarg!(process).into()),
         },
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

@@ -19,7 +19,7 @@ fn without_pid_or_port_errors_badarg() {
                 |(name, pid_or_port)| {
                     prop_assert_eq!(
                         erlang::register_2::native(arc_process.clone(), name, pid_or_port),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

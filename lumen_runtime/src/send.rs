@@ -43,13 +43,13 @@ pub fn send(
                                     }
                                 }
                             },
-                            _ => Err(badarg!().into()),
+                            _ => Err(badarg!(process).into()),
                         }
                     }
-                    _ => Err(badarg!().into()),
+                    _ => Err(badarg!(process).into()),
                 }
             } else {
-                Err(badarg!().into())
+                Err(badarg!(process).into())
             }
         }
         TypedTerm::Pid(destination_pid) => {
@@ -72,7 +72,7 @@ pub fn send(
                 }
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }
 
@@ -106,7 +106,7 @@ fn send_to_name(
 
                 Ok(Sent::Sent)
             }
-            None => Err(badarg!().into()),
+            None => Err(badarg!(process).into()),
         }
     }
 }

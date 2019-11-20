@@ -11,7 +11,10 @@ fn without_byte_binary_or_list_element_errors_badarg() {
                 )
                     .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -48,7 +51,10 @@ fn with_byte_errors_badarg() {
                 )
                     .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
                 |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

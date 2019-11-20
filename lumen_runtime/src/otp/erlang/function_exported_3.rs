@@ -32,6 +32,7 @@ use std::convert::TryInto;
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 use liblumen_alloc::Arity;
 

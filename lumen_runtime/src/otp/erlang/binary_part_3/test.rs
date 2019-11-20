@@ -26,7 +26,7 @@ fn without_bitstring_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, binary, start, length),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

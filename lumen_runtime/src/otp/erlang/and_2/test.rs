@@ -20,7 +20,10 @@ fn without_boolean_left_errors_badarg() {
                     strategy::term::is_boolean(),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, left, right),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

@@ -20,7 +20,10 @@ fn without_proper_list_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(list, tail)| {
-                    prop_assert_eq!(native(&arc_process, list, tail), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list, tail),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

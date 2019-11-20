@@ -14,7 +14,10 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, list),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             })
@@ -31,7 +34,10 @@ fn with_list_with_integer_errors_badarg() {
                     arc_process.charlist_from_str(&integer.to_string()).unwrap()
                 }),
                 |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -68,7 +74,10 @@ fn with_list_with_less_than_min_f64_errors_badarg() {
     with_process_arc(|arc_process| {
         let list = arc_process.charlist_from_str("-1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0").unwrap();
 
-        assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+        assert_eq!(
+            native(&arc_process, list),
+            Err(badarg!(&arc_process).into())
+        );
     });
 }
 
@@ -77,6 +86,9 @@ fn with_list_with_greater_than_max_f64_errors_badarg() {
     with_process_arc(|arc_process| {
         let list = arc_process.charlist_from_str("1797693134862315700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0").unwrap();
 
-        assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+        assert_eq!(
+            native(&arc_process, list),
+            Err(badarg!(&arc_process).into())
+        );
     });
 }

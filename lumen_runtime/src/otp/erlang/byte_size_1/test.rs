@@ -15,7 +15,10 @@ fn without_bitstring_errors_badarg() {
             .run(
                 &strategy::term::is_not_bitstring(arc_process.clone()),
                 |bitstring| {
-                    prop_assert_eq!(native(&arc_process, bitstring), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, bitstring),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

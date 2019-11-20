@@ -52,15 +52,15 @@ pub fn native(
                             let element = init_boxed_tuple[1];
                             tuple.set_element(index, element).map_err(|_| badarg!())?;
                         } else {
-                            return Err(badarg!().into());
+                            return Err(badarg!(process).into());
                         }
                     }
-                    Err(_) => return Err(badarg!().into()),
+                    Err(_) => return Err(badarg!(process).into()),
                 }
             }
 
             Ok(tuple.encode()?)
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

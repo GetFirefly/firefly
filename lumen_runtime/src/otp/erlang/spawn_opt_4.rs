@@ -25,7 +25,7 @@ pub fn native(
     arguments: Term,
     options: Term,
 ) -> exception::Result<Term> {
-    let options_options: Options = options.try_into().map_err(|_| badarg!())?;
+    let options_options: Options = options.try_into().map_err(|_| badarg!(process))?;
 
     spawn_apply_3::native(process, options_options, module, function, arguments)
 }

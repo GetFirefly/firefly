@@ -21,7 +21,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
 
                     prop_assert_eq!(
                         native(arc_process.clone(), time, destination, message, OPTIONS,),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

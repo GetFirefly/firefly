@@ -20,7 +20,10 @@ fn without_atom_flag_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(flag, value)| {
-                    prop_assert_eq!(native(&arc_process, flag, value), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, flag, value),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

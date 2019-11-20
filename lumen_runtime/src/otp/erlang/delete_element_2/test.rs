@@ -20,7 +20,10 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple, index)| {
-                prop_assert_eq!(native(&arc_process, index, tuple,), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, index, tuple,),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             },
@@ -35,7 +38,10 @@ fn with_tuple_without_integer_between_1_and_the_length_inclusive_errors_badarg()
             .run(
                 &strategy::term::tuple::without_index(arc_process.clone()),
                 |(tuple, index)| {
-                    prop_assert_eq!(native(&arc_process, index, tuple), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, index, tuple),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

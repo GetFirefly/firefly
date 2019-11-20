@@ -15,6 +15,6 @@ pub fn new(first: Term, last: Term, process: &Process) -> exception::Result<Term
             ])
             .map_err(|alloc_err| alloc_err.into())
     } else {
-        Err(liblumen_alloc::badarg!().into())
+        Err(liblumen_alloc::badarg!(process).into())
     }
 }

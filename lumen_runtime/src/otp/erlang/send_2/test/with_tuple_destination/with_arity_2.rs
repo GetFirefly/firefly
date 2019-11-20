@@ -20,7 +20,7 @@ fn without_atom_name_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, destination, message),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

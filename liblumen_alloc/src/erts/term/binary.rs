@@ -4,7 +4,7 @@ mod heap;
 mod iter;
 mod literal;
 mod match_context;
-mod maybe_aligned_maybe_binary;
+pub(in crate::erts::term) mod maybe_aligned_maybe_binary;
 mod primitives;
 mod process;
 mod sub;

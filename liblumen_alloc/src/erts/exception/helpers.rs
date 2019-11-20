@@ -1,11 +1,11 @@
 use crate::erts::process::Process;
 use crate::erts::term::prelude::Term;
 
-use super::{Exception, Location, RuntimeException};
+use super::{Exception, Location, RuntimeException, Stacktrace};
 
 #[inline]
-pub fn badarg(location: Location) -> RuntimeException {
-    self::error(atom("badarg"), None, location, None)
+pub fn badarg<S: Into<Stacktrace>>(stacktrace: S, location: Location) -> RuntimeException {
+    self::error(atom("badarg"), None, location, Some(stacktrace.into()))
 }
 
 #[inline]
@@ -81,7 +81,12 @@ pub fn raise(
     match class {
         Class::Exit => self::exit(reason, location, stacktrace),
         Class::Throw => self::throw(reason, location, stacktrace),
-        Class::Error { arguments } => self::error(reason, arguments, location, stacktrace),
+        Class::Error { arguments } => self::error(
+            reason,
+            arguments,
+            location,
+            stacktrace.map(|term| Stacktrace::Term(term)),
+        ),
     }
 }
 
@@ -97,7 +102,7 @@ pub fn error(
     reason: Term,
     args: Option<Term>,
     location: Location,
-    stacktrace: Option<Term>,
+    stacktrace: Option<Stacktrace>,
 ) -> RuntimeException {
     use super::Error;
 

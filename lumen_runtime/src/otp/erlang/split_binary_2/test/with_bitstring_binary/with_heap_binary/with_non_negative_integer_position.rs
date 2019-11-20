@@ -73,7 +73,7 @@ fn with_greater_than_byte_len_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, binary, position),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

@@ -29,7 +29,7 @@ fn without_list_options_errors_badarg() {
                 |(message, options)| {
                     prop_assert_eq!(
                         native(&arc_process, arc_process.pid_term(), message, options),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

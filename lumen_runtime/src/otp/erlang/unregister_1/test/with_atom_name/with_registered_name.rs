@@ -21,7 +21,7 @@ fn with_same_process_returns_true() {
             Some(process_arc.clone())
         );
 
-        assert_eq!(native(name), Ok(true.into()));
+        assert_eq!(native(&process_arc, name), Ok(true.into()));
 
         assert_eq!(*process_arc.registered_name.read(), None);
         assert_eq!(registry::atom_to_process(&name_atom), None);
@@ -52,7 +52,7 @@ fn with_different_process_returns_true() {
             Some(another_process_arc.clone())
         );
 
-        assert_eq!(native(name), Ok(true.into()));
+        assert_eq!(native(&process_arc, name), Ok(true.into()));
 
         assert_eq!(*another_process_arc.registered_name.read(), None);
         assert_eq!(registry::atom_to_process(&name_atom), None);

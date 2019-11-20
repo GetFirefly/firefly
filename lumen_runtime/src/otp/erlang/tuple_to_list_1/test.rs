@@ -19,7 +19,10 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple)| {
-                prop_assert_eq!(native(&arc_process, tuple), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, tuple),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             },

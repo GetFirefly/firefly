@@ -33,13 +33,13 @@ fn native(
     new_child: Term,
     reference_child: Term,
 ) -> exception::Result<Term> {
-    let parent_node = node_from_term(parent)?;
-    let new_child_node = node_from_term(new_child)?;
+    let parent_node = node_from_term(process, parent)?;
+    let new_child_node = node_from_term(process, new_child)?;
 
     let option_reference_child_node = if reference_child == Atom::str_to_term("nil") {
         None
     } else {
-        Some(node_from_term(reference_child)?)
+        Some(node_from_term(process, reference_child)?)
     };
 
     match parent_node.insert_before(new_child_node, option_reference_child_node) {

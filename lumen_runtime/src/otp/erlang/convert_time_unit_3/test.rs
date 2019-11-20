@@ -30,7 +30,7 @@ fn without_integer_time_returns_badarg() {
                 |(time, from_unit, to_unit)| {
                     prop_assert_eq!(
                         native(&arc_process, time, from_unit, to_unit),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -53,7 +53,7 @@ fn with_integer_time_without_unit_from_unit_errors_badarg() {
                 |(time, from_unit, to_unit)| {
                     prop_assert_eq!(
                         native(&arc_process, time, from_unit, to_unit),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -76,7 +76,7 @@ fn with_integer_time_with_unit_from_unit_without_unit_to_unit_errors_badarg() {
                 |(time, from_unit, to_unit)| {
                     prop_assert_eq!(
                         native(&arc_process, time, from_unit, to_unit),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

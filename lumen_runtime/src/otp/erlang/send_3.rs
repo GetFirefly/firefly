@@ -25,7 +25,7 @@ pub fn native(
     message: Term,
     options: Term,
 ) -> exception::Result<Term> {
-    let send_options: send::Options = options.try_into().map_err(|_| badarg!())?;
+    let send_options: send::Options = options.try_into().map_err(|_| badarg!(process))?;
 
     send(destination, message, send_options, process)
         .map(|sent| match sent {

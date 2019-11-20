@@ -18,7 +18,7 @@ fn with_empty_list_returns_false() {
             .run(&strategy::term(arc_process.clone()), |element| {
                 let list = Term::NIL;
 
-                prop_assert_eq!(native(element, list), Ok(false.into()));
+                prop_assert_eq!(native(&arc_process, element, list), Ok(false.into()));
 
                 Ok(())
             })

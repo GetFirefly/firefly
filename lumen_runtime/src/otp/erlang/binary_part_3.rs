@@ -36,7 +36,12 @@ pub fn native(
             let PartRange {
                 byte_offset,
                 byte_len,
-            } = start_length_to_part_range(start_usize, length_isize, available_byte_count)?;
+            } = start_length_to_part_range(
+                process,
+                start_usize,
+                length_isize,
+                available_byte_count,
+            )?;
 
             if (byte_offset == 0) && (byte_len == available_byte_count) {
                 Ok(binary)
@@ -51,7 +56,12 @@ pub fn native(
             let PartRange {
                 byte_offset,
                 byte_len,
-            } = start_length_to_part_range(start_usize, length_isize, available_byte_count)?;
+            } = start_length_to_part_range(
+                process,
+                start_usize,
+                length_isize,
+                available_byte_count,
+            )?;
 
             if (byte_offset == 0) && (byte_len == available_byte_count) {
                 Ok(binary)
@@ -65,7 +75,12 @@ pub fn native(
             let PartRange {
                 byte_offset,
                 byte_len,
-            } = start_length_to_part_range(start_usize, length_isize, subbinary.full_byte_len())?;
+            } = start_length_to_part_range(
+                process,
+                start_usize,
+                length_isize,
+                subbinary.full_byte_len(),
+            )?;
 
             // new subbinary is entire subbinary
             if (subbinary.is_binary())
@@ -85,6 +100,6 @@ pub fn native(
                     .map_err(|error| error.into())
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

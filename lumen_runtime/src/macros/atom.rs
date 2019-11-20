@@ -1,5 +1,5 @@
 macro_rules! boolean_infix_operator {
-    ($left:ident, $right:ident, $operator:tt) => {{
+    ($process: ident, $left:ident, $right:ident, $operator:tt) => {{
         use std::convert::TryInto;
 
         use anyhow::*;

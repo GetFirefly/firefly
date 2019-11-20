@@ -15,7 +15,7 @@ fn without_atom_function_errors_badarg() {
                 |(module, function, arguments)| {
                     prop_assert_eq!(
                         native(&arc_process, module, function, arguments, OPTIONS),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

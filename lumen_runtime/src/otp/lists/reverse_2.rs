@@ -24,12 +24,12 @@ pub fn native(process: &Process, list: Term, tail: Term) -> exception::Result<Te
                     Ok(element) => {
                         reversed = process.cons(element, reversed)?;
                     }
-                    Err(_) => return Err(badarg!().into()),
+                    Err(_) => return Err(badarg!(process).into()),
                 }
             }
 
             Ok(reversed)
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

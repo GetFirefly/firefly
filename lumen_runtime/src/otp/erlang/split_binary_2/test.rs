@@ -22,7 +22,7 @@ fn without_bitstring_binary_errors_badarg() {
                 |(binary, position)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, position),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

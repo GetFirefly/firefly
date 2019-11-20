@@ -69,14 +69,14 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                         Process::call_code(arc_process)
                     } else {
                         arc_process.reduce();
-                        arc_process.exception(liblumen_alloc::badarg!());
+                        arc_process.exception(liblumen_alloc::badarg!(arc_process));
 
                         Ok(())
                     }
                 }
                 None => {
                     arc_process.reduce();
-                    arc_process.exception(liblumen_alloc::badarg!());
+                    arc_process.exception(liblumen_alloc::badarg!(arc_process));
 
                     Ok(())
                 }
@@ -84,7 +84,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         }
         _ => {
             arc_process.reduce();
-            arc_process.exception(liblumen_alloc::badarg!());
+            arc_process.exception(liblumen_alloc::badarg!(arc_process));
 
             Ok(())
         }

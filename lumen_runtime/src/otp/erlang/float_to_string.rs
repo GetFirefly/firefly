@@ -7,6 +7,7 @@ use anyhow::{bail, Context};
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::proplist::TryPropListFromTermError;
@@ -14,9 +15,13 @@ use crate::proplist::TryPropListFromTermError;
 use decimal_digits::DecimalDigits;
 use scientific_digits::ScientificDigits;
 
-pub fn float_to_string(float: Term, options: Options) -> exception::Result<String> {
+pub fn float_to_string(
+    process: &Process,
+    float: Term,
+    options: Options,
+) -> exception::Result<String> {
     // `TryInto<f64> for Term` will convert integer terms to f64 too, which we don't want
-    let float_f64: f64 = float_term_to_f64(float)?;
+    let float_f64: f64 = float_term_to_f64(process, float)?;
 
     let string = match options {
         // https://github.com/erlang/otp/blob/d293c3ff700c1a0992a32dc3da9ae18964893c23/erts/emulator/beam/bif.c#L3130-L3131
@@ -79,10 +84,10 @@ impl TryFrom<Term> for Options {
 
 // Private
 
-fn float_term_to_f64(float_term: Term) -> exception::Result<f64> {
+fn float_term_to_f64(process: &Process, float_term: Term) -> exception::Result<f64> {
     match float_term.decode().unwrap() {
         TypedTerm::Float(float) => Ok(float.into()),
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }
 

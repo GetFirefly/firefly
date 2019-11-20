@@ -12,6 +12,7 @@ use anyhow::*;
 use web_sys::{Document, Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node, Text};
 
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 fn module() -> Atom {

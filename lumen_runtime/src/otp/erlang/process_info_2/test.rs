@@ -19,7 +19,10 @@ fn without_local_pid_errors_badarg() {
                 |pid| {
                     let item = Atom::str_to_term("registered_name");
 
-                    prop_assert_eq!(native(&arc_process, pid, item), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, pid, item),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

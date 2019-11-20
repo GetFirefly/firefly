@@ -27,7 +27,7 @@ fn without_arity_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, arity, default_value, init_list),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

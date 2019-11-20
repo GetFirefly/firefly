@@ -279,18 +279,6 @@ pub trait TermAlloc: Heap {
         Ok(ptr)
     }
 
-    #[inline]
-    fn local_pid_with_node_id(
-        &mut self,
-        node_id: usize,
-        number: usize,
-        serial: usize,
-    ) -> exception::Result<Pid> {
-        assert_eq!(node_id, 0);
-
-        Ok(Pid::new(number, serial)?)
-    }
-
     fn external_pid(
         &mut self,
         arc_node: Arc<Node>,

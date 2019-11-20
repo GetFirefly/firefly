@@ -21,7 +21,7 @@ fn without_atom_function_errors_badarg() {
                             arguments,
                             options(&arc_process)
                         ),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

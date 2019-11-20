@@ -7,6 +7,7 @@ use anyhow::*;
 use web_sys::Event;
 
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 // Private

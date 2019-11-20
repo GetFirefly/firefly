@@ -5,6 +5,7 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
@@ -16,7 +17,7 @@ use crate::otp::erlang::string_to_integer::base_string_to_integer;
 
 #[native_implemented_function(binary_to_integer/2)]
 pub fn native(process: &Process, binary: Term, base: Term) -> exception::Result<Term> {
-    let string: String = binary_to_string(binary)?;
+    let string: String = binary_to_string(binary).map_err(|_| badarg!(process))?;
 
     base_string_to_integer(process, base, &string)
 }

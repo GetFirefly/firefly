@@ -12,7 +12,7 @@ use crate::element;
 
 #[native_implemented_function(class_name/1)]
 fn native(process: &Process, element_term: Term) -> exception::Result<Term> {
-    let element = element::from_term(element_term)?;
+    let element = element::from_term(process, element_term)?;
     let class_name_binary = process.binary_from_str(&element.class_name())?;
 
     Ok(class_name_binary)

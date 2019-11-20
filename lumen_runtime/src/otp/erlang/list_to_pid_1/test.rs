@@ -17,7 +17,10 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, list),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             })

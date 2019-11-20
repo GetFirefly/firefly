@@ -21,14 +21,14 @@ pub fn native(process: &Process, minuend: Term, subtrahend: Term) -> exception::
             if subtrahend_cons.is_proper() {
                 Ok(minuend)
             } else {
-                Err(badarg!().into())
+                Err(badarg!(process).into())
             }
         }
         (TypedTerm::List(minuend_cons), TypedTerm::Nil) => {
             if minuend_cons.is_proper() {
                 Ok(minuend)
             } else {
-                Err(badarg!().into())
+                Err(badarg!(process).into())
             }
         }
         (TypedTerm::List(minuend_cons), TypedTerm::List(subtrahend_cons)) => {
@@ -40,7 +40,7 @@ pub fn native(process: &Process, minuend: Term, subtrahend: Term) -> exception::
                     for result in subtrahend_cons.into_iter() {
                         match result {
                             Ok(subtrahend_element) => minuend_vec.remove_item(&subtrahend_element),
-                            Err(ImproperList { .. }) => return Err(badarg!().into()),
+                            Err(ImproperList { .. }) => return Err(badarg!(process).into()),
                         };
                     }
 
@@ -48,9 +48,9 @@ pub fn native(process: &Process, minuend: Term, subtrahend: Term) -> exception::
                         .list_from_slice(&minuend_vec)
                         .map_err(|error| error.into())
                 }
-                Err(ImproperList { .. }) => Err(badarg!().into()),
+                Err(ImproperList { .. }) => Err(badarg!(process).into()),
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

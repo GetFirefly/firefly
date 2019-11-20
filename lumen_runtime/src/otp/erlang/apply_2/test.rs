@@ -44,7 +44,7 @@ fn without_function_errors_badarg() {
                     )
                     .unwrap();
 
-                    prop_assert_eq!(result, Err(badarg!().into()));
+                    prop_assert_eq!(result, Err(badarg!(&arc_process).into()));
 
                     mem::drop(child_arc_proces);
 

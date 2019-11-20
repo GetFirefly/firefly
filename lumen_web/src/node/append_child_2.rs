@@ -19,6 +19,7 @@
 //! ```
 
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{atom, badarg};
 
@@ -27,15 +28,15 @@ use lumen_runtime_macros::native_implemented_function;
 use crate::node::node_from_term;
 
 #[native_implemented_function(append_child/2)]
-pub fn native(parent: Term, child: Term) -> exception::Result<Term> {
-    let parent_node = node_from_term(parent)?;
-    let child_node = node_from_term(child)?;
+pub fn native(process: &Process, parent: Term, child: Term) -> exception::Result<Term> {
+    let parent_node = node_from_term(process, parent)?;
+    let child_node = node_from_term(process, child)?;
 
     // not sure how this could fail from `web-sys` or MDN docs.
     match parent_node.append_child(child_node) {
         Ok(_) => Ok(atom!("ok")),
         // JsValue(HierarchyRequestError: Failed to execute 'appendChild' on 'Node': The new child
         // element contains the parent.
-        Err(_) => Err(badarg!().into()),
+        Err(_) => Err(badarg!(process).into()),
     }
 }

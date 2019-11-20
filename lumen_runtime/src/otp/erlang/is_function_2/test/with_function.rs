@@ -12,7 +12,10 @@ fn without_non_negative_arity_errors_badarg() {
                     strategy::term::integer::negative(arc_process.clone()),
                 ),
                 |(function, arity)| {
-                    prop_assert_eq!(native(function, arity), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, function, arity),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

@@ -31,6 +31,6 @@ pub fn native(process: &Process, binary: Term, start_length: Term) -> exception:
 
     match option_result {
         Some(result) => result,
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }

@@ -31,7 +31,9 @@ pub fn native(
         .context("from_must must be a time unit")?;
     let to_unit_unit: time::Unit = to_unit.try_into().context("to_unit must be a time unit")?;
     let converted_big_int = time::convert(time_big_int, from_unit_unit, to_unit_unit);
-    let converted_term = process.integer(converted_big_int)?;
+    let converted_term = process
+        .integer(converted_big_int)
+        .map_err(|_| badarg!(process))?;
 
     Ok(converted_term)
 }

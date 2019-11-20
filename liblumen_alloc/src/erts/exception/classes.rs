@@ -5,8 +5,8 @@ use thiserror::Error;
 
 use crate::erts::term::prelude::{Encoded, Term, TypedTerm};
 
+use super::stacktrace::Stacktrace;
 use super::Location;
-use super::RuntimeException;
 
 #[derive(Error, Clone)]
 #[error("** throw: {reason} at {location}")]
@@ -59,7 +59,7 @@ impl fmt::Debug for Throw {
 pub struct Error {
     reason: Term,
     arguments: Option<Term>,
-    stacktrace: Option<Term>,
+    stacktrace: Option<Stacktrace>,
     location: Location,
 }
 impl Error {
@@ -70,7 +70,7 @@ impl Error {
         reason: Term,
         arguments: Option<Term>,
         location: Location,
-        trace: Option<Term>,
+        trace: Option<Stacktrace>,
     ) -> Self {
         Self {
             reason,
@@ -87,8 +87,8 @@ impl Error {
     pub fn reason(&self) -> Term {
         self.reason
     }
-    pub fn stacktrace(&self) -> Option<Term> {
-        self.stacktrace
+    pub fn stacktrace(&self) -> Option<Stacktrace> {
+        self.stacktrace.clone()
     }
     pub fn location(&self) -> Location {
         self.location
@@ -104,7 +104,7 @@ impl fmt::Debug for Error {
         f.debug_struct("Error")
             .field("reason", &self.reason.decode())
             .field("arguments", &self.arguments.map(|t| t.decode()))
-            .field("stacktrace", &self.stacktrace.map(|t| t.decode()))
+            .field("stacktrace", &self.stacktrace)
             .field("location", &self.location)
             .finish()
     }
@@ -172,9 +172,9 @@ impl fmt::Display for Class {
     }
 }
 impl TryFrom<Term> for Class {
-    type Error = RuntimeException;
+    type Error = TryFromTermError;
 
-    fn try_from(term: Term) -> Result<Class, RuntimeException> {
+    fn try_from(term: Term) -> Result<Class, TryFromTermError> {
         use self::Class::*;
 
         match term.decode().unwrap() {
@@ -182,9 +182,17 @@ impl TryFrom<Term> for Class {
                 "error" => Ok(Error { arguments: None }),
                 "exit" => Ok(Exit),
                 "throw" => Ok(Throw),
-                _ => Err(super::badarg(location!())),
+                name => Err(TryFromTermError::AtomName(name)),
             },
-            _ => Err(super::badarg(location!())),
+            _ => Err(TryFromTermError::Type),
         }
     }
+}
+
+#[derive(Debug, Error)]
+pub enum TryFromTermError {
+    #[error("atom ({0}) is not in class names (error, exit, or throw)")]
+    AtomName(&'static str),
+    #[error("class is not an atom")]
+    Type,
 }

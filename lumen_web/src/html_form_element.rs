@@ -8,6 +8,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{EventTarget, HtmlFormElement};
 
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 // Private

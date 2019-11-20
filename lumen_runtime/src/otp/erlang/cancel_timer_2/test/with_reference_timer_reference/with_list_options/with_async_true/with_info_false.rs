@@ -11,7 +11,7 @@ fn without_local_reference_errors_badarg() {
                 |timer_reference| {
                     prop_assert_eq!(
                         native(&arc_process, timer_reference, options(&arc_process)),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

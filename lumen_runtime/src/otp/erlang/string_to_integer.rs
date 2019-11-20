@@ -14,18 +14,18 @@ pub fn base_string_to_integer(
     base: Term,
     string: &str,
 ) -> exception::Result<Term> {
-    let base: Base = base.try_into()?;
+    let base: Base = base.try_into().map_err(|_| badarg!(process))?;
     let bytes = string.as_bytes();
 
     match BigInt::parse_bytes(bytes, base.radix()) {
         Some(big_int) => process.integer(big_int).map_err(|error| error.into()),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }
 
 pub fn decimal_string_to_integer(process: &Process, string: &str) -> exception::Result<Term> {
     match BigInt::parse_bytes(string.as_bytes(), 10) {
         Some(big_int) => process.integer(big_int).map_err(|error| error.into()),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }

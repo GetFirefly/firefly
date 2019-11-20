@@ -15,7 +15,7 @@ use crate::otp::erlang::integer_to_string::decimal_integer_to_string;
 
 #[native_implemented_function(integer_to_binary/1)]
 pub fn native(process: &Process, integer: Term) -> exception::Result<Term> {
-    decimal_integer_to_string(integer).and_then(|string| {
+    decimal_integer_to_string(process, integer).and_then(|string| {
         process
             .binary_from_str(&string)
             .map_err(|alloc| alloc.into())

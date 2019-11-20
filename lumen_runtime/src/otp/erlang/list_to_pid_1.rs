@@ -59,11 +59,12 @@ pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
         .try_into()
         .with_context(|| format!("{} must be a non-empty list", serial_tail))?;
 
-    let suffix_tail = skip_char(serial_tail_cons, '>').context("last character must be '>'")?;
+    let suffix_tail =
+        skip_char(process, serial_tail_cons, '>').context("last character must be '>'")?;
 
     if suffix_tail.is_nil() {
         if node_id == nodes::node::id() {
-            Pid::make_term(number, serial).map_err(|error| error.into())
+            Pid::make_term(number, serial).map_err(|_| badarg!(process).into())
         } else {
             let arc_node = nodes::try_id_to_arc_node(&node_id)?;
 
@@ -83,9 +84,9 @@ pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
 
 // Private
 
-fn next_decimal(cons: Boxed<Cons>) -> exception::Result<(usize, Term)> {
-    next_decimal_digit(cons)
-        .and_then(|(first_digit, first_tail)| rest_decimal_digits(first_digit, first_tail))
+fn next_decimal(process: &Process, cons: Boxed<Cons>) -> exception::Result<(usize, Term)> {
+    next_decimal_digit(process, cons)
+        .and_then(|(first_digit, first_tail)| rest_decimal_digits(process, first_digit, first_tail))
 }
 
 fn next_decimal_digit(cons: Boxed<Cons>) -> exception::Result<(u8, Term)> {
@@ -96,18 +97,22 @@ fn next_decimal_digit(cons: Boxed<Cons>) -> exception::Result<(u8, Term)> {
 
     match head_char.to_digit(10) {
         Some(digit) => Ok((digit as u8, cons.tail)),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }
 
-fn rest_decimal_digits(first_digit: u8, first_tail: Term) -> exception::Result<(usize, Term)> {
+fn rest_decimal_digits(
+    process: &Process,
+    first_digit: u8,
+    first_tail: Term,
+) -> exception::Result<(usize, Term)> {
     match first_tail.try_into() {
         Ok(first_tail_cons) => {
             let mut acc_decimal: usize = first_digit as usize;
             let mut acc_tail = first_tail;
             let mut acc_cons: Boxed<Cons> = first_tail_cons;
 
-            while let Ok((digit, tail)) = next_decimal_digit(acc_cons) {
+            while let Ok((digit, tail)) = next_decimal_digit(process, acc_cons) {
                 acc_decimal = 10 * acc_decimal + (digit as usize);
                 acc_tail = tail;
 

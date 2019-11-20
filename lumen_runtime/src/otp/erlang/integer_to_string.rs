@@ -6,12 +6,17 @@ use radix_fmt::radix;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::base::Base;
 
-pub fn base_integer_to_string(base: Term, integer: Term) -> exception::Result<String> {
-    let base: Base = base.try_into()?;
+pub fn base_integer_to_string(
+    process: &Process,
+    base: Term,
+    integer: Term,
+) -> exception::Result<String> {
+    let base: Base = base.try_into().map_err(|_| badarg!(process))?;
 
     let option_string: Option<String> = match integer.decode()? {
         TypedTerm::SmallInteger(small_integer) => {
@@ -38,11 +43,11 @@ pub fn base_integer_to_string(base: Term, integer: Term) -> exception::Result<St
 
     match option_string {
         Some(string) => Ok(string),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }
 
-pub fn decimal_integer_to_string(integer: Term) -> exception::Result<String> {
+pub fn decimal_integer_to_string(process: &Process, integer: Term) -> exception::Result<String> {
     let option_string: Option<String> = match integer.decode()? {
         TypedTerm::SmallInteger(small_integer) => Some(small_integer.to_string()),
         TypedTerm::BigInteger(big_integer) => Some(big_integer.to_string()),
@@ -51,6 +56,6 @@ pub fn decimal_integer_to_string(integer: Term) -> exception::Result<String> {
 
     match option_string {
         Some(string) => Ok(string),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }

@@ -23,7 +23,10 @@ fn without_list_left_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(&arc_process, left, right,), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, left, right,),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -42,7 +45,10 @@ fn with_improper_list_left_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(&arc_process, left, right,), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, left, right,),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

@@ -20,7 +20,7 @@ fn without_function_returns_false() {
                     strategy::term::function::arity(arc_process.clone()),
                 ),
                 |(function, arity)| {
-                    prop_assert_eq!(native(function, arity), Ok(false.into()));
+                    prop_assert_eq!(native(&arc_process, function, arity), Ok(false.into()));
 
                     Ok(())
                 },

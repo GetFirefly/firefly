@@ -17,7 +17,10 @@ fn without_boolean_left_errors_badarg() {
                     strategy::term::is_boolean(),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(left, right), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, left, right),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -31,7 +34,7 @@ fn with_false_left_returns_false() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |right| {
-                prop_assert_eq!(native(false.into(), right), Ok(false.into()));
+                prop_assert_eq!(native(&arc_process, false.into(), right), Ok(false.into()));
 
                 Ok(())
             })
@@ -44,7 +47,7 @@ fn with_true_left_returns_right() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term(arc_process.clone()), |right| {
-                prop_assert_eq!(native(true.into(), right), Ok(right));
+                prop_assert_eq!(native(&arc_process, true.into(), right), Ok(right));
 
                 Ok(())
             })

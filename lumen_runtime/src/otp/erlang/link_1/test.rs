@@ -22,7 +22,10 @@ fn without_pid_or_port_errors_badarg() {
                         !(pid_or_port.is_pid() || pid_or_port.is_port())
                     }),
                 |pid_or_port| {
-                    prop_assert_eq!(native(&arc_process, pid_or_port), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, pid_or_port),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

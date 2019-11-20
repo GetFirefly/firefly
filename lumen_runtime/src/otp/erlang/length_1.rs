@@ -18,8 +18,8 @@ pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
         TypedTerm::Nil => Ok(0.into()),
         TypedTerm::List(cons) => match cons.count() {
             Some(count) => Ok(process.integer(count)?),
-            None => Err(badarg!().into()),
+            None => Err(badarg!(process).into()),
         },
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

@@ -34,6 +34,6 @@ fn native(process: &Process, pid_or_port: Term) -> exception::Result<Term> {
         TypedTerm::Port(_) => unimplemented!(),
         TypedTerm::ExternalPid(_) => unimplemented!(),
         TypedTerm::ExternalPort(_) => unimplemented!(),
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

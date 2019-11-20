@@ -22,7 +22,10 @@ fn without_atom_class_errors_badarg() {
                     strategy::term::list::proper(arc_process.clone()),
                 ),
                 |(class, reason, stacktrace)| {
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, class, reason, stacktrace),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

@@ -21,7 +21,7 @@ fn without_supported_type_errors_badarg() {
             .run(&unsupported_type(arc_process.clone()), |r#type| {
                 prop_assert_eq!(
                     native(&arc_process, r#type, arc_process.pid_term()),
-                    Err(badarg!().into())
+                    Err(badarg!(&arc_process).into())
                 );
 
                 Ok(())

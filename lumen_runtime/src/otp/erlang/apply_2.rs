@@ -36,7 +36,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                         match result {
                             Ok(element) => argument_vec.push(element),
                             Err(_) => {
-                                arc_process.exception(badarg!());
+                                arc_process.exception(badarg!(arc_process));
 
                                 return Ok(());
                             }
@@ -44,7 +44,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
                     }
                 }
                 _ => {
-                    arc_process.exception(badarg!());
+                    arc_process.exception(badarg!(arc_process));
 
                     return Ok(());
                 }
@@ -64,7 +64,7 @@ pub fn code(arc_process: &Arc<Process>) -> code::Result {
             }
         }
         Err(_) => {
-            arc_process.exception(badarg!());
+            arc_process.exception(badarg!(arc_process));
 
             Ok(())
         }

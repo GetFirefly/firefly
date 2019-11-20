@@ -60,7 +60,8 @@ impl Debug for Stack {
     }
 }
 
-pub struct Trace(Vec<Arc<ModuleFunctionArity>>);
+#[derive(Clone, PartialEq)]
+pub struct Trace(pub Vec<Arc<ModuleFunctionArity>>);
 
 impl Debug for Trace {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

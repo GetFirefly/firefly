@@ -68,7 +68,7 @@ pub fn native(process: &Process, binary: Term, position: Term) -> exception::Res
                         .map_err(|e| e.into())
                         .and_then(|t| t.encode())
                 } else {
-                    Err(badarg!().into())
+                    Err(badarg!(process).into())
                 }
             }
         }
@@ -133,10 +133,10 @@ pub fn native(process: &Process, binary: Term, position: Term) -> exception::Res
                         .map_err(|e| e.into())
                         .and_then(|t| t.encode())
                 } else {
-                    Err(badarg!().into())
+                    Err(badarg!(process).into())
                 }
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

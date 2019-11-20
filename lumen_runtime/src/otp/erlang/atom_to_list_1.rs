@@ -20,6 +20,6 @@ pub fn native(process: &Process, atom: Term) -> exception::Result<Term> {
 
             process.list_from_chars(chars).map_err(|error| error.into())
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

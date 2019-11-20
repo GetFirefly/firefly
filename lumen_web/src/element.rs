@@ -9,6 +9,7 @@ use anyhow::*;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use wasm_bindgen::JsCast;
@@ -60,9 +61,9 @@ fn from_term(term: Term) -> Result<&'static Element, exception::Exception> {
 
                 Ok(static_element)
             }
-            None => Err(badarg!().into()),
+            None => Err(badarg!(process).into()),
         }
     } else {
-        Err(badarg!().into())
+        Err(badarg!(process).into())
     }
 }

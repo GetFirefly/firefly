@@ -17,7 +17,7 @@ fn without_proper_list_options_errors_badarg() {
                 |(function, options)| {
                     prop_assert_eq!(
                         native(&arc_process, function, options),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

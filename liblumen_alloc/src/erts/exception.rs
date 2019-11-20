@@ -29,6 +29,9 @@ pub use self::runtime::RuntimeException;
 mod system;
 pub use self::system::SystemException;
 
+mod stacktrace;
+pub use self::stacktrace::Stacktrace;
+
 use core::any::type_name;
 use core::convert::Into;
 use core::marker::PhantomData;
@@ -77,30 +80,9 @@ impl From<TermEncodingError> for Exception {
 }
 
 // Runtime exception type conversions
-impl From<BytesFromBinaryError> for Exception {
-    fn from(err: BytesFromBinaryError) -> Self {
-        use BytesFromBinaryError::*;
-
-        match err {
-            NotABinary | Type => Self::Runtime(badarg(location!())),
-            Alloc(e) => Self::System(e.into()),
-        }
-    }
-}
 impl From<InvalidPidError> for Exception {
-    fn from(_err: InvalidPidError) -> Self {
-        Self::Runtime(badarg(location!()))
-    }
-}
-
-impl From<StrFromBinaryError> for Exception {
-    fn from(err: StrFromBinaryError) -> Self {
-        use StrFromBinaryError::*;
-
-        match err {
-            NotABinary | Type | Utf8Error(_) => Self::Runtime(badarg(location!())),
-            Alloc(e) => Self::System(e.into()),
-        }
+    fn from(err: InvalidPidError) -> Self {
+        RuntimeException::from(ArcError::from_err(err)).into()
     }
 }
 

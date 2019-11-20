@@ -18,9 +18,9 @@ use crate::otp::erlang::float_to_string::{float_to_string, Options};
 
 #[native_implemented_function(float_to_binary/2)]
 pub fn native(process: &Process, float: Term, options: Term) -> exception::Result<Term> {
-    let options_options: Options = options.try_into().map_err(|_| badarg!())?;
+    let options_options: Options = options.try_into().map_err(|_| badarg!(process))?;
 
-    float_to_string(float, options_options)
+    float_to_string(process, float, options_options)
         .map_err(|error| error.into())
         .and_then(|string| {
             process

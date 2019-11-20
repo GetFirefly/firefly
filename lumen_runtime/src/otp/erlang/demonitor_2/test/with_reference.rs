@@ -27,7 +27,7 @@ fn without_proper_list_for_options_errors_badarg() {
                 |(reference, options)| {
                     prop_assert_eq!(
                         native(&arc_process, reference, options),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -51,7 +51,7 @@ fn with_unknown_option_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, reference, options),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

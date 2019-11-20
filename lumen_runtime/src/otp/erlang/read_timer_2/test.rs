@@ -34,7 +34,7 @@ fn without_reference_errors_badarg() {
                 |(timer_reference, options)| {
                     prop_assert_eq!(
                         native(&arc_process, timer_reference, options),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -56,7 +56,7 @@ fn with_reference_without_list_options_errors_badarg() {
                 |(timer_reference, options)| {
                     prop_assert_eq!(
                         native(&arc_process, timer_reference, options),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

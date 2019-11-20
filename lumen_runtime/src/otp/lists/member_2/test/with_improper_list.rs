@@ -9,7 +9,10 @@ fn without_found_errors_badarg() {
         let tail = Atom::str_to_term("tail");
         let list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
-        assert_eq!(native(element, list), Err(badarg!().into()));
+        assert_eq!(
+            native(&arc_process, element, list),
+            Err(badarg!(&arc_process).into())
+        );
     });
 }
 
@@ -21,6 +24,6 @@ fn with_found_returns_true() {
         let tail = Atom::str_to_term("tail");
         let list = arc_process.improper_list_from_slice(slice, tail).unwrap();
 
-        assert_eq!(native(element, list), Ok(true.into()));
+        assert_eq!(native(&arc_process, element, list), Ok(true.into()));
     });
 }

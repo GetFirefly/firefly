@@ -5,7 +5,6 @@ use core::str;
 
 use anyhow::*;
 
-use crate::erts::exception::Exception;
 use crate::erts::term::prelude::Boxed;
 
 use super::prelude::{Binary, BinaryLiteral, HeapBin, IndexByte, MaybePartialByte, ProcBin};
@@ -160,21 +159,17 @@ macro_rules! impl_aligned_binary {
             }
         }
 
-        impl TryInto<Vec<u8>> for &$t {
-            type Error = Exception;
-
+        impl Into<Vec<u8>> for &$t {
             #[inline]
-            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-                Ok(self.as_bytes().to_vec())
+            fn into(self) -> Vec<u8> {
+                self.as_bytes().to_vec()
             }
         }
 
-        impl TryInto<Vec<u8>> for Boxed<$t> {
-            type Error = Exception;
-
+        impl Into<Vec<u8>> for Boxed<$t> {
             #[inline]
-            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-                self.as_ref().try_into()
+            fn into(self) -> Vec<u8> {
+                self.as_ref().into()
             }
         }
     };
@@ -200,12 +195,9 @@ macro_rules! impl_aligned_try_into {
             }
         }
 
-        impl TryInto<Vec<u8>> for $t {
-            type Error = Exception;
-
-            #[inline]
-            fn try_into(self) -> Result<Vec<u8>, Self::Error> {
-                Ok(self.as_bytes().to_vec())
+        impl Into<Vec<u8>> for $t {
+            fn into(self) -> Vec<u8> {
+                self.as_bytes().to_vec()
             }
         }
     };

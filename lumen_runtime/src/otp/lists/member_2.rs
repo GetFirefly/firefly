@@ -7,12 +7,13 @@ mod test;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(member/2)]
-pub fn native(element: Term, list: Term) -> exception::Result<Term> {
+pub fn native(process: &Process, element: Term, list: Term) -> exception::Result<Term> {
     match list.decode()? {
         TypedTerm::Nil => Ok(false.into()),
         TypedTerm::List(cons) => {
@@ -23,12 +24,12 @@ pub fn native(element: Term, list: Term) -> exception::Result<Term> {
                             return Ok(true.into());
                         }
                     }
-                    Err(_) => return Err(badarg!().into()),
+                    Err(_) => return Err(badarg!(process).into()),
                 };
             }
 
             Ok(false.into())
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

@@ -23,7 +23,10 @@ fn without_atom_or_integer_errors_badarg() {
                         !(unit.is_integer() || unit.is_atom())
                     }),
                 |unit| {
-                    prop_assert_eq!(native(&arc_process, unit,), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, unit,),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

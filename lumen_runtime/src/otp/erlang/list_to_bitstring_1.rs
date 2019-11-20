@@ -51,7 +51,7 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                         let tail = boxed_cons.tail;
 
                         if tail.is_smallint() {
-                            return Err(badarg!().into());
+                            return Err(badarg!(process).into());
                         } else {
                             stack.push(tail);
                         }
@@ -100,7 +100,7 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                             }
                         }
                     }
-                    _ => return Err(badarg!().into()),
+                    _ => return Err(badarg!(process).into()),
                 }
             }
 
@@ -116,6 +116,6 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                     .unwrap())
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

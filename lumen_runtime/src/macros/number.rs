@@ -117,7 +117,7 @@ macro_rules! number_to_integer {
 
                     f64_to_integer(process, ceiling)
                 }
-                NumberToInteger::NotANumber => Err(badarg!().into()),
+                NumberToInteger::NotANumber => Err(badarg!(process).into()),
             }
         }
     };

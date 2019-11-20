@@ -24,7 +24,7 @@ fn without_atom_or_pid_destination_errors_badarg() {
 
                     prop_assert_eq!(
                         native(arc_process.clone(), time, destination, message),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

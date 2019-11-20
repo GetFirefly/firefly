@@ -21,7 +21,10 @@ fn without_list_errors_badarg() {
                     strategy::term::is_base(arc_process.clone()),
                 ),
                 |(list, base)| {
-                    prop_assert_eq!(native(&arc_process, list, base), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list, base),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -40,7 +43,10 @@ fn with_list_without_base_errors_badarg() {
                     strategy::term::is_not_base(arc_process.clone()),
                 ),
                 |(list, base)| {
-                    prop_assert_eq!(native(&arc_process, list, base), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list, base),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -101,7 +107,10 @@ fn with_list_without_integer_in_base_errors_badarg() {
                     )
                 }),
                 |(list, base)| {
-                    prop_assert_eq!(native(&arc_process, list, base), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list, base),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

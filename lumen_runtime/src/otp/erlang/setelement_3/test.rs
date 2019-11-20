@@ -23,7 +23,7 @@ fn without_tuple_errors_badarg() {
             |(arc_process, tuple, index, element)| {
                 prop_assert_eq!(
                     native(&arc_process, index, tuple, element),
-                    Err(badarg!().into())
+                    Err(badarg!(&arc_process).into())
                 );
 
                 Ok(())
@@ -44,7 +44,7 @@ fn with_tuple_without_valid_index_errors_badarg() {
                 |((tuple, index), element)| {
                     prop_assert_eq!(
                         native(&arc_process, index, tuple, element),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

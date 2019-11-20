@@ -15,13 +15,17 @@ fn without_tuple_returns_false() {
         .run(
             &strategy::process().prop_flat_map(|arc_process| {
                 (
+                    Just(arc_process.clone()),
                     strategy::term::is_not_tuple(arc_process.clone()),
                     strategy::term::atom(),
                     strategy::term::is_integer(arc_process),
                 )
             }),
-            |(tuple, record_tag, size)| {
-                prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
+            |(arc_process, tuple, record_tag, size)| {
+                prop_assert_eq!(
+                    native(&arc_process, tuple, record_tag, size),
+                    Ok(false.into())
+                );
 
                 Ok(())
             },
@@ -40,7 +44,10 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(native(tuple, record_tag, size), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, tuple, record_tag, size),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -64,7 +71,10 @@ fn with_empty_tuple_with_atom_without_non_negative_size_errors_badarg() {
                 |(record_tag, size)| {
                     let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
-                    prop_assert_eq!(native(tuple, record_tag, size), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, tuple, record_tag, size),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -85,7 +95,10 @@ fn with_empty_tuple_with_atom_with_non_negative_size_returns_false() {
                 |(record_tag, size)| {
                     let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
-                    prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
+                    prop_assert_eq!(
+                        native(&arc_process, tuple, record_tag, size),
+                        Ok(false.into())
+                    );
 
                     Ok(())
                 },
@@ -130,7 +143,10 @@ fn with_non_empty_tuple_without_record_tag_with_size_returns_false() {
                         },
                     ),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
+                    prop_assert_eq!(
+                        native(&arc_process, tuple, record_tag, size),
+                        Ok(false.into())
+                    );
 
                     Ok(())
                 },
@@ -165,7 +181,10 @@ fn with_non_empty_tuple_with_record_tag_without_size_returns_false() {
                         )
                     }),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(native(tuple, record_tag, size), Ok(false.into()));
+                    prop_assert_eq!(
+                        native(&arc_process, tuple, record_tag, size),
+                        Ok(false.into())
+                    );
 
                     Ok(())
                 },
@@ -197,7 +216,10 @@ fn with_non_empty_tuple_with_record_tag_with_size_returns_true() {
                         )
                     }),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(native(tuple, record_tag, size), Ok(true.into()));
+                    prop_assert_eq!(
+                        native(&arc_process, tuple, record_tag, size),
+                        Ok(true.into())
+                    );
 
                     Ok(())
                 },

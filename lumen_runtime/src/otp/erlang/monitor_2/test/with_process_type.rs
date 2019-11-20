@@ -23,7 +23,7 @@ fn without_process_identifier_errors_badarg() {
                 |process_identifier| {
                     prop_assert_eq!(
                         native(&arc_process, r#type(), process_identifier),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

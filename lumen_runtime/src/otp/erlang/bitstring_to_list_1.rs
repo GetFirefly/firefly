@@ -55,6 +55,6 @@ pub fn native<'process>(process: &'process Process, bitstring: Term) -> exceptio
                 .improper_list_from_iter(byte_term_iter, last)
                 .map_err(|error| error.into())
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

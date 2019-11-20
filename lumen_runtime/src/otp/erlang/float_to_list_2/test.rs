@@ -19,7 +19,10 @@ fn without_float_errors_badarg() {
                 |binary| {
                     let options = Term::NIL;
 
-                    prop_assert_eq!(native(&arc_process, binary, options), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary, options),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

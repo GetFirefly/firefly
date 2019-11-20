@@ -8,6 +8,6 @@ use crate::scheduler::with_process;
 #[test]
 fn without_exception_returns_empty_list() {
     with_process(|process| {
-        assert_eq!(native(process), Term::NIL);
+        assert_eq!(native(process), Ok(Term::NIL));
     });
 }

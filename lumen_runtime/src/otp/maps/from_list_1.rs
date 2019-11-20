@@ -16,6 +16,6 @@ use lumen_runtime_macros::native_implemented_function;
 pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
     match Map::from_list(list) {
         Some(hash_map) => Ok(process.map_from_hash_map(hash_map)?),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }

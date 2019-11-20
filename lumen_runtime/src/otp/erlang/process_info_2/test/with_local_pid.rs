@@ -15,7 +15,10 @@ fn without_supported_item_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&unsupported_item(arc_process.clone()), |item| {
                 let pid = arc_process.pid_term();
-                prop_assert_eq!(native(&arc_process, pid, item), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, pid, item),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             })

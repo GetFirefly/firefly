@@ -23,7 +23,7 @@ fn without_binary_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, binary, start, stop),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -47,7 +47,7 @@ fn with_binary_without_integer_start_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, binary, start, stop),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -70,7 +70,7 @@ fn with_binary_with_integer_start_without_integer_stop_errors_badarg() {
                 |(binary, start, stop)| {
                     prop_assert_eq!(
                         native(&arc_process, binary, start, stop),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())
@@ -197,7 +197,7 @@ fn with_binary_with_start_greater_than_stop_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, binary, start_term, stop_term),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

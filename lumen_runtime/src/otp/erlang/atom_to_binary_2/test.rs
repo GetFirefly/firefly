@@ -20,7 +20,10 @@ fn without_atom_errors_badarg() {
                     strategy::term::is_encoding(),
                 ),
                 |(atom, encoding)| {
-                    prop_assert_eq!(native(&arc_process, atom, encoding), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, atom, encoding),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -39,7 +42,10 @@ fn with_atom_without_encoding_errors_badarg() {
                     strategy::term::is_not_encoding(arc_process.clone()),
                 ),
                 |(atom, encoding)| {
-                    prop_assert_eq!(native(&arc_process, atom, encoding), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, atom, encoding),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

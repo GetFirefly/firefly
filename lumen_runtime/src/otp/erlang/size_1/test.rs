@@ -23,7 +23,10 @@ fn without_tuple_or_bitstring_errors_badarg() {
                 )
             }),
             |(arc_process, term)| {
-                prop_assert_eq!(native(&arc_process, term), Err(badarg!().into()));
+                prop_assert_eq!(
+                    native(&arc_process, term),
+                    Err(badarg!(&arc_process).into())
+                );
 
                 Ok(())
             },

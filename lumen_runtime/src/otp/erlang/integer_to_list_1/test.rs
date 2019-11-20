@@ -17,7 +17,10 @@ fn without_integer_errors_badarg() {
             .run(
                 &strategy::term::is_not_integer(arc_process.clone()),
                 |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

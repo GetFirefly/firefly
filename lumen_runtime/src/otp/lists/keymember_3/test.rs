@@ -23,8 +23,8 @@ fn without_one_based_index_errors_badarg() {
                 ),
                 |(key, one_based_index, tuple_list)| {
                     prop_assert_eq!(
-                        native(key, one_based_index, tuple_list),
-                        Err(badarg!().into())
+                        native(&arc_process, key, one_based_index, tuple_list),
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

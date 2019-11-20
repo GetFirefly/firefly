@@ -17,7 +17,10 @@ fn without_float_errors_badarg() {
             .run(
                 &strategy::term::is_not_float(arc_process.clone()),
                 |float| {
-                    prop_assert_eq!(native(&arc_process, float), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, float),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

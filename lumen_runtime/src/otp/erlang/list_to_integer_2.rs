@@ -16,7 +16,7 @@ use crate::otp::erlang::string_to_integer::base_string_to_integer;
 
 #[native_implemented_function(list_to_integer/2)]
 pub fn native(process: &Process, list: Term, base: Term) -> exception::Result<Term> {
-    let string: String = list_to_string(list)?;
+    let string: String = list_to_string(process, list)?;
 
     base_string_to_integer(process, base, &string)
 }

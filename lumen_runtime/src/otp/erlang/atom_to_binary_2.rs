@@ -24,6 +24,6 @@ pub fn native(process: &Process, atom: Term, encoding: Term) -> exception::Resul
 
             Ok(binary)
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

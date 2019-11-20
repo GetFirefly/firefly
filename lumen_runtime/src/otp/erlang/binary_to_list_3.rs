@@ -37,13 +37,14 @@ pub fn native(process: &Process, binary: Term, start: Term, stop: Term) -> excep
             let zero_based_stop_usize = one_based_stop_usize - 1;
 
             let length_usize = zero_based_stop_usize - zero_based_start_usize + 1;
+            let position = process
+                .integer(zero_based_start_usize)
+                .map_err(|_| badarg!(process))?;
+            let length = process
+                .integer(length_usize)
+                .map_err(|_| badarg!(process))?;
 
-            otp::binary::bin_to_list(
-                binary,
-                process.integer(zero_based_start_usize)?,
-                process.integer(length_usize)?,
-                process,
-            )
+            otp::binary::bin_to_list(binary, position, length, process)
         } else {
             Err(TryIntoIntegerError::OutOfRange)
                 .context("start must be less than or equal to stop")

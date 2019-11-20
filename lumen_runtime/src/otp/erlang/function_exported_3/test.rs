@@ -1,6 +1,7 @@
 use liblumen_alloc::atom;
 
 use crate::otp::erlang::function_exported_3::native;
+use crate::scheduler::with_process;
 
 #[test]
 fn without_exported_function_returns_false() {
@@ -8,7 +9,9 @@ fn without_exported_function_returns_false() {
     let function = atom!("unexported_function");
     let arity = 0.into();
 
-    assert_eq!(native(module, function, arity), Ok(false.into()));
+    with_process(|process| {
+        assert_eq!(native(process, module, function, arity), Ok(false.into()));
+    });
 }
 
 #[test]
@@ -19,5 +22,7 @@ fn with_exported_function_return_true() {
 
     crate::otp::erlang::self_0::export();
 
-    assert_eq!(native(module, function, arity), Ok(true.into()));
+    with_process(|process| {
+        assert_eq!(native(process, module, function, arity), Ok(true.into()));
+    });
 }

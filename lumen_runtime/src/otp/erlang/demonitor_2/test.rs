@@ -23,7 +23,7 @@ fn without_reference_errors_badarg() {
 
                     prop_assert_eq!(
                         native(&arc_process, reference, options),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

@@ -17,7 +17,10 @@ fn without_proper_list_errors_badarg() {
             .run(
                 &strategy::term::is_not_proper_list(arc_process.clone()),
                 |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, list),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

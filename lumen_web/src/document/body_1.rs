@@ -16,7 +16,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(body/1)]
 pub fn native(process: &Process, document: Term) -> exception::Result<Term> {
-    let document_document = document_from_term(document)?;
+    let document_document = document_from_term(process, document)?;
 
     option_to_ok_tuple_or_error(process, document_document.body()).map_err(|error| error.into())
 }

@@ -4,6 +4,7 @@ use core::ops::Range;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 
 pub(crate) struct PartRange {
     pub byte_offset: usize,
@@ -17,6 +18,7 @@ impl From<PartRange> for Range<usize> {
 }
 
 pub(crate) fn start_length_to_part_range(
+    process: &Process,
     start: usize,
     length: isize,
     available_byte_count: usize,
@@ -31,7 +33,7 @@ pub(crate) fn start_length_to_part_range(
                 byte_len: non_negative_length,
             })
         } else {
-            Err(badarg!().into())
+            Err(badarg!(process).into())
         }
     } else {
         let start_isize = start as isize;
@@ -45,7 +47,7 @@ pub(crate) fn start_length_to_part_range(
                 byte_len,
             })
         } else {
-            Err(badarg!().into())
+            Err(badarg!(process).into())
         }
     }
 }

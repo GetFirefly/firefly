@@ -4,9 +4,10 @@ use anyhow::*;
 
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
-pub fn list_to_string(list: Term) -> exception::Result<String> {
+pub fn list_to_string(process: &Process, list: Term) -> exception::Result<String> {
     match list.decode().unwrap() {
         TypedTerm::Nil => Ok("".to_owned()),
         TypedTerm::List(cons) => cons
@@ -19,9 +20,9 @@ pub fn list_to_string(list: Term) -> exception::Result<String> {
 
                     Ok(c)
                 }
-                Err(_) => Err(badarg!().into()),
+                Err(_) => Err(badarg!(process).into()),
             })
             .collect::<exception::Result<String>>(),
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

@@ -18,7 +18,7 @@ use crate::option_to_ok_tuple_or_error;
 
 #[native_implemented_function(get_element_by_id/2)]
 pub fn native(process: &Process, document: Term, id: Term) -> exception::Result<Term> {
-    let document_document = document_from_term(document)?;
+    let document_document = document_from_term(process, document)?;
     let id_string: String = binary_to_string(id)?;
 
     option_to_ok_tuple_or_error(process, document_document.get_element_by_id(&id_string))

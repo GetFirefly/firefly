@@ -28,6 +28,6 @@ pub(in crate::otp::erlang) fn native(
         .and_then(|spawned| spawned.to_term(process))
         .map_err(|e| e.into())
     } else {
-        Err(badarg!().into())
+        Err(badarg!(process).into())
     }
 }

@@ -16,7 +16,7 @@ use crate::otp::erlang::string_to_integer::decimal_string_to_integer;
 
 #[native_implemented_function(list_to_integer/1)]
 pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
-    let string: String = list_to_string(list)?;
+    let string: String = list_to_string(process, list)?;
 
     decimal_string_to_integer(process, &string)
 }

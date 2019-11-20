@@ -33,9 +33,9 @@ fn native(
     old_child: Term,
     new_child: Term,
 ) -> exception::Result<Term> {
-    let parent_node = node_from_term(parent)?;
-    let old_child_node = node_from_term(old_child)?;
-    let new_child_node = node_from_term(new_child)?;
+    let parent_node = node_from_term(process, parent)?;
+    let old_child_node = node_from_term(process, old_child)?;
+    let new_child_node = node_from_term(process, new_child)?;
 
     match parent_node.replace_child(old_child_node, new_child_node) {
         Ok(replaced_child_node) => {

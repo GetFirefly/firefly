@@ -41,7 +41,7 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                         let tail = boxed_cons.tail;
 
                         if tail.is_smallint() {
-                            return Err(badarg!().into());
+                            return Err(badarg!(process).into());
                         } else {
                             stack.push(tail);
                         }
@@ -59,15 +59,15 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                                 byte_vec.extend(subbinary.full_byte_iter());
                             }
                         } else {
-                            return Err(badarg!().into());
+                            return Err(badarg!(process).into());
                         }
                     }
-                    _ => return Err(badarg!().into()),
+                    _ => return Err(badarg!(process).into()),
                 }
             }
 
             Ok(process.binary_from_bytes(byte_vec.as_slice()).unwrap())
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }

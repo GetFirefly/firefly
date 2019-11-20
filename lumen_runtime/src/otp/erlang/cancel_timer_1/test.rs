@@ -24,7 +24,7 @@ fn without_reference_errors_badarg() {
                 |timer_reference| {
                     prop_assert_eq!(
                         native(&arc_process, timer_reference,),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

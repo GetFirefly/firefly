@@ -21,7 +21,10 @@ fn without_number_errors_badarg() {
             .run(
                 &strategy::term::is_not_number(arc_process.clone()),
                 |number| {
-                    prop_assert_eq!(native(&arc_process, number), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, number),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

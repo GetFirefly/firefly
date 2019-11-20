@@ -1,13 +1,13 @@
 use super::*;
 
-use liblumen_alloc::{atom, exit};
+use liblumen_alloc::{atom, badarg, exit};
 
 #[test]
 fn without_stacktrace_returns_empty_list() {
     with_process(|process| {
         process.exception(exit!(atom!("reason")));
 
-        assert_eq!(native(process), Term::NIL);
+        assert_eq!(native(process), Ok(Term::NIL));
     });
 }
 
@@ -36,6 +36,22 @@ fn with_stacktrace_returns_stacktrace() {
 
         process.exception(exit!(atom!("reason"), stacktrace));
 
-        assert_eq!(native(process), stacktrace);
+        assert_eq!(native(process), Ok(stacktrace));
+    })
+}
+
+#[test]
+fn badarg_includes_stacktrace() {
+    with_process(|process| {
+        process.exception(badarg!(process));
+
+        assert_eq!(
+            native(process),
+            Ok(process
+                .list_from_slice(&[process
+                    .tuple_from_slice(&[atom!("test"), atom!("loop"), 0.into()])
+                    .unwrap()])
+                .unwrap())
+        );
     })
 }

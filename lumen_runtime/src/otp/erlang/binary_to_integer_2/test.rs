@@ -21,7 +21,10 @@ fn without_binary_errors_badarg() {
                     strategy::term::is_base(arc_process.clone()),
                 ),
                 |(binary, base)| {
-                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary, base),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -40,7 +43,10 @@ fn with_binary_without_base_errors_badarg() {
                     strategy::term::is_not_base(arc_process.clone()),
                 ),
                 |(binary, base)| {
-                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary, base),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -103,7 +109,10 @@ fn with_binary_without_integer_in_base_errors_badarg() {
                     )
                 }),
                 |(binary, base)| {
-                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary, base),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

@@ -15,7 +15,7 @@ use crate::event;
 
 #[native_implemented_function(target/1)]
 fn native(process: &Process, event_term: Term) -> exception::Result<Term> {
-    let event = event::from_term(event_term)?;
+    let event = event::from_term(process, event_term)?;
 
     match event.target() {
         Some(event_target) => {

@@ -239,13 +239,18 @@ fn cancel_timer(
 
             Ok(term)
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }
 
 const POSITIVE_SIZE_CONTEXT: &str = "size must be a positive integer";
 
-fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Result<Term> {
+fn is_record(
+    process: &Process,
+    term: Term,
+    record_tag: Term,
+    size: Option<Term>,
+) -> exception::Result<Term> {
     match term.decode()? {
         TypedTerm::Tuple(tuple) => {
             let _: Atom = record_tag
@@ -312,7 +317,7 @@ fn read_timer(
 
             Ok(term)
         }
-        _ => Err(badarg!().into()),
+        _ => Err(badarg!(process).into()),
     }
 }
 
@@ -361,9 +366,9 @@ fn start_timer(
                     None => make_ref_0::native(&arc_process),
                 }
             }
-            _ => Err(badarg!().into()),
+            _ => Err(badarg!(&arc_process).into()),
         }
     } else {
-        Err(badarg!().into())
+        Err(badarg!(&arc_process).into())
     }
 }

@@ -20,7 +20,7 @@ fn errors_badarg() {
 
                 prop_assert_eq!(
                     native(arc_process.clone(), time, destination, message, options),
-                    Err(badarg!().into())
+                    Err(badarg!(&arc_process).into())
                 );
 
                 Ok(())

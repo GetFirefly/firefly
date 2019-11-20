@@ -21,7 +21,10 @@ fn without_valid_option_errors_badarg() {
                         .prop_map(|option| arc_process.list_from_slice(&[option]).unwrap()),
                 ),
                 |(float, options)| {
-                    prop_assert_eq!(native(&arc_process, float, options), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, float, options),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

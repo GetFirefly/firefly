@@ -12,7 +12,7 @@ fn without_proper_list_subtrahend_errors_badarg() {
                 |(minuend, subtrahend)| {
                     prop_assert_eq!(
                         native(&arc_process, minuend, subtrahend),
-                        Err(badarg!().into())
+                        Err(badarg!(&arc_process).into())
                     );
 
                     Ok(())

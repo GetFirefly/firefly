@@ -24,6 +24,6 @@ pub fn native(process: &Process, binary_or_tuple: Term) -> exception::Result<Ter
 
     match option_size {
         Some(size) => Ok(process.integer(size)?),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }

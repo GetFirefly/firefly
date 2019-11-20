@@ -19,7 +19,7 @@ fn without_function_arity_returns_false() {
                     )
                 }),
                 |(function, arity)| {
-                    prop_assert_eq!(native(function, arity), Ok(false.into()));
+                    prop_assert_eq!(native(&arc_process, function, arity), Ok(false.into()));
 
                     Ok(())
                 },
@@ -43,7 +43,7 @@ fn with_function_arity_returns_true() {
                     )
                 }),
                 |(function, arity)| {
-                    prop_assert_eq!(native(function, arity), Ok(true.into()));
+                    prop_assert_eq!(native(&arc_process, function, arity), Ok(true.into()));
 
                     Ok(())
                 },

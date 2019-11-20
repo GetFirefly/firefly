@@ -43,7 +43,7 @@ fn without_positive_index_errors_badarg_because_indexes_are_one_based() {
 
                 prop_assert_eq!(
                     native(&arc_process, arity, default_value, init_list),
-                    Err(badarg!().into())
+                    Err(badarg!(&arc_process).into())
                 );
 
                 Ok(())

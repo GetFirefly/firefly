@@ -32,7 +32,7 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
             |(arc_process, destination, message)| {
                 prop_assert_eq!(
                     native(&arc_process, destination, message),
-                    Err(badarg!().into())
+                    Err(badarg!(&arc_process).into())
                 );
 
                 Ok(())

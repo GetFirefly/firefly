@@ -21,7 +21,10 @@ fn without_function_errors_badarg() {
             .run(
                 &strategy::term::is_not_function(arc_process.clone()),
                 |function| {
-                    prop_assert_eq!(native(&arc_process, function), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, function),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },

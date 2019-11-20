@@ -23,6 +23,6 @@ pub fn native(process: &Process, bitstring: Term) -> exception::Result<Term> {
 
     match option_total_byte_len {
         Some(total_byte_len) => Ok(process.integer(total_byte_len)?),
-        None => Err(badarg!().into()),
+        None => Err(badarg!(process).into()),
     }
 }

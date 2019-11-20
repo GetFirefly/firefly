@@ -189,8 +189,8 @@ pub fn make_erlang() -> NativeModule {
     native.add_simple(Atom::try_from_str("node").unwrap(), 1, |_proc, _args| {
         Ok(Atom::str_to_term("nonode@nohost"))
     });
-    native.add_simple(Atom::try_from_str("whereis").unwrap(), 1, |_proc, args| {
-        erlang::whereis_1::native(args[0])
+    native.add_simple(Atom::try_from_str("whereis").unwrap(), 1, |proc, args| {
+        erlang::whereis_1::native(proc, args[0])
     });
 
     native.add_simple(
@@ -212,8 +212,8 @@ pub fn make_erlang() -> NativeModule {
         |proc, args| erlang::convert_time_unit_3::native(proc, args[0], args[1], args[2]),
     );
 
-    native.add_simple(Atom::try_from_str("element").unwrap(), 2, |_proc, args| {
-        erlang::element_2::native(args[0], args[1])
+    native.add_simple(Atom::try_from_str("element").unwrap(), 2, |proc, args| {
+        erlang::element_2::native(proc, args[0], args[1])
     });
 
     native

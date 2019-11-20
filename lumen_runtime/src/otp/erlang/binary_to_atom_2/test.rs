@@ -18,7 +18,10 @@ fn without_binary_errors_badarg() {
                     strategy::term::is_encoding(),
                 ),
                 |(binary, encoding)| {
-                    prop_assert_eq!(native(binary, encoding), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary, encoding),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -34,10 +37,13 @@ fn with_binary_without_encoding_errors_badarg() {
             .run(
                 &(
                     strategy::term::is_binary(arc_process.clone()),
-                    strategy::term::is_not_encoding(arc_process),
+                    strategy::term::is_not_encoding(arc_process.clone()),
                 ),
                 |(binary, encoding)| {
-                    prop_assert_eq!(native(binary, encoding), Err(badarg!().into()));
+                    prop_assert_eq!(
+                        native(&arc_process, binary, encoding),
+                        Err(badarg!(&arc_process).into())
+                    );
 
                     Ok(())
                 },
@@ -68,7 +74,10 @@ fn with_utf8_binary_with_encoding_returns_atom_with_binary_name() {
 
                     let s = std::str::from_utf8(&byte_vec).unwrap();
 
-                    prop_assert_eq!(native(binary, encoding), Ok(Atom::str_to_term(s)));
+                    prop_assert_eq!(
+                        native(&arc_process, binary, encoding),
+                        Ok(Atom::str_to_term(s))
+                    );
 
                     Ok(())
                 },

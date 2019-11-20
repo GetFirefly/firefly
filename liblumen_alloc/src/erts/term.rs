@@ -42,7 +42,8 @@ pub mod prelude {
     pub use super::float::Float;
     pub use super::integer::{BigInteger, Integer, SmallInteger};
     pub use super::list::{
-        Cons, HeaplessListBuilder, ImproperList, List, ListBuilder, MaybeImproper,
+        Cons, HeaplessListBuilder, ImproperList, ImproperListError, List, ListBuilder,
+        MaybeImproper,
     };
     pub use super::map::Map;
     pub use super::pid::{AnyPid, ExternalPid, InvalidPidError, Pid};

@@ -7,6 +7,7 @@ mod test;
 
 use std::convert::TryInto;
 
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -24,7 +25,7 @@ pub fn native(
     message: Term,
     options: Term,
 ) -> exception::Result<Term> {
-    let send_options: send::Options = options.try_into()?;
+    let send_options: send::Options = options.try_into().map_err(|_| badarg!())?;
 
     send(destination, message, send_options, process)
         .map(|sent| match sent {

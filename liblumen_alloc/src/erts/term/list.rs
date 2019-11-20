@@ -6,6 +6,9 @@ use core::iter::FusedIterator;
 use core::mem;
 use core::ptr;
 
+use anyhow::*;
+use thiserror::Error;
+
 use crate::borrow::CloneToProcess;
 use crate::erts::exception::{self, AllocResult, Exception};
 use crate::erts::process::alloc::{StackAlloc, TermAlloc};
@@ -354,6 +357,10 @@ impl Iterator for Iter {
         next
     }
 }
+
+#[derive(Debug, Error)]
+#[error("improper list")]
+pub struct ImproperListError;
 
 impl TryFrom<TypedTerm> for Boxed<Cons> {
     type Error = TypeError;

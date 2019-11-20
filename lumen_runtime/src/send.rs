@@ -1,13 +1,14 @@
-use core::convert::{TryFrom, TryInto};
-use core::result::Result;
+mod options;
 
-use liblumen_alloc::erts::exception::{self, Exception};
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
 
 use crate::distribution::nodes::node;
 use crate::registry::{self, pid_to_process};
 use crate::scheduler::Scheduler;
+
+pub use options::*;
 
 pub fn send(
     destination: Term,
@@ -72,65 +73,6 @@ pub fn send(
             }
         }
         _ => Err(badarg!().into()),
-    }
-}
-
-pub struct Options {
-    // Send only suspends for some sends to ports and for remote (`ExternalPid` or
-    // `{name, remote_node}`) sends, so it does not apply at this time.
-    suspend: bool,
-    // Connect only applies when there is distribution, which isn't implemented yet.
-    connect: bool,
-}
-
-impl Options {
-    fn put_option_term(&mut self, option: Term) -> exception::Result<&Options> {
-        let atom: Atom = option.try_into()?;
-
-        match atom.name() {
-            "noconnect" => {
-                self.connect = false;
-
-                Ok(self)
-            }
-            "nosuspend" => {
-                self.suspend = false;
-
-                Ok(self)
-            }
-            _ => Err(badarg!().into()),
-        }
-    }
-}
-
-impl Default for Options {
-    fn default() -> Options {
-        Options {
-            suspend: true,
-            connect: true,
-        }
-    }
-}
-
-impl TryFrom<Term> for Options {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Options, Self::Error> {
-        let mut options: Options = Default::default();
-        let mut options_term = term;
-
-        loop {
-            match options_term.decode()? {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
-
-                    continue;
-                }
-                _ => return Err(badarg!().into()),
-            }
-        }
     }
 }
 

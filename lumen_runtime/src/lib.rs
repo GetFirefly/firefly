@@ -49,6 +49,7 @@ mod logging;
 mod number;
 pub mod otp;
 pub mod process;
+mod proplist;
 // `pub` or `examples/spawn-chain`
 pub mod registry;
 mod run;

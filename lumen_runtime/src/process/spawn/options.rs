@@ -1,13 +1,21 @@
+mod message_queue_data;
+
 use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 
-use liblumen_alloc::erts::exception::{AllocResult, Exception};
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::alloc::{default_heap_size, heap, next_heap_size};
-use liblumen_alloc::erts::process::{Priority, Process};
+use liblumen_alloc::erts::process::priority::Priority;
+use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, ModuleFunctionArity};
+use liblumen_alloc::ModuleFunctionArity;
 
 use crate::process;
+use crate::proplist::TryPropListFromTermError;
+
+use message_queue_data::*;
 
 #[must_use]
 pub struct Connection {
@@ -21,32 +29,6 @@ pub struct MaxHeapSize {
     size: Option<usize>,
     kill: Option<bool>,
     error_logger: Option<bool>,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum MessageQueueData {
-    OnHeap,
-    OffHeap,
-}
-
-impl Default for MessageQueueData {
-    fn default() -> Self {
-        MessageQueueData::OnHeap
-    }
-}
-
-impl TryFrom<Term> for MessageQueueData {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let atom: Atom = term.try_into()?;
-
-        match atom.name() {
-            "off_heap" => Ok(Self::OffHeap),
-            "on_heap" => Ok(Self::OnHeap),
-            _ => Err(badarg!().into()),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -68,7 +50,7 @@ impl Options {
         &self,
         parent_process: Option<&Process>,
         child_process: &Process,
-    ) -> AllocResult<Connection> {
+    ) -> Result<Connection, Alloc> {
         let linked = if self.link {
             parent_process.unwrap().link(child_process);
 
@@ -101,7 +83,7 @@ impl Options {
         module: Atom,
         function: Atom,
         arity: u8,
-    ) -> AllocResult<Process> {
+    ) -> Result<Process, Alloc> {
         let priority = self.cascaded_priority(parent_process);
         let module_function_arity = Arc::new(ModuleFunctionArity {
             module,
@@ -141,87 +123,80 @@ impl Options {
         }
     }
 
-    fn sized_heap(&self) -> AllocResult<(*mut Term, usize)> {
-        let heap_size = self.heap_size();
-        let heap = heap(self.heap_size())?;
-
-        Ok((heap, heap_size))
-    }
-
-    fn try_put_option_from_atom(&mut self, atom: Atom) -> bool {
+    fn put_option_atom(&mut self, atom: Atom) -> Result<&Self, anyhow::Error> {
         match atom.name() {
             "link" => {
                 self.link = true;
 
-                true
+                Ok(self)
             }
             "monitor" => {
                 self.monitor = true;
 
-                true
+                Ok(self)
             }
-            _ => false,
+            name => Err(TryPropListFromTermError::AtomName(name).into()),
         }
     }
 
-    fn try_put_option_from_term(&mut self, term: Term) -> bool {
+    fn put_option_term(&mut self, term: Term) -> Result<&Self, anyhow::Error> {
         match term.decode().unwrap() {
-            TypedTerm::Atom(atom) => self.try_put_option_from_atom(atom),
-            TypedTerm::Tuple(tuple) => self.try_put_option_from_tuple(&tuple),
-            _ => false,
+            TypedTerm::Atom(atom) => self.put_option_atom(atom),
+            TypedTerm::Tuple(tuple) => self.put_option_tuple(&tuple),
+            _ => Err(TryPropListFromTermError::PropertyType.into()),
         }
     }
 
-    fn try_put_option_from_tuple(&mut self, tuple: &Tuple) -> bool {
-        tuple.len() == 2 && {
-            match tuple[0].decode().unwrap() {
-                TypedTerm::Atom(atom) => match atom.name() {
-                    "fullsweep_after" => match tuple[1].try_into() {
-                        Ok(fullsweep_after) => {
-                            self.fullsweep_after = Some(fullsweep_after);
+    fn put_option_tuple(&mut self, tuple: &Tuple) -> Result<&Self, anyhow::Error> {
+        if tuple.len() == 2 {
+            let atom: Atom = tuple[0]
+                .try_into()
+                .map_err(|_| TryPropListFromTermError::KeywordKeyType)?;
 
-                            true
-                        }
-                        Err(_) => false,
-                    },
-                    "max_heap_size" => unimplemented!(),
-                    "message_queue_data" => match tuple[1].try_into() {
-                        Ok(message_queue_data) => {
-                            self.message_queue_data = message_queue_data;
+            match atom.name() {
+                "fullsweep_after" => {
+                    let fullsweep_after = tuple[1].try_into().context("fullsweep_after")?;
+                    self.fullsweep_after = Some(fullsweep_after);
 
-                            true
-                        }
-                        Err(_) => false,
-                    },
-                    "min_bin_vheap_size" => match tuple[1].try_into() {
-                        Ok(min_bin_vheap_size) => {
-                            self.min_bin_vheap_size = Some(min_bin_vheap_size);
+                    Ok(self)
+                }
+                "max_heap_size" => unimplemented!(),
+                "message_queue_data" => {
+                    let message_queue_data = tuple[1].try_into().context("message_queue_data")?;
+                    self.message_queue_data = message_queue_data;
 
-                            true
-                        }
-                        Err(_) => false,
-                    },
-                    "min_heap_size" => match tuple[1].try_into() {
-                        Ok(min_heap_size) => {
-                            self.min_heap_size = Some(min_heap_size);
+                    Ok(self)
+                }
+                "min_bin_vheap_size" => {
+                    let min_bin_vheap_size = tuple[1].try_into().context("min_bin_vheap_size")?;
+                    self.min_bin_vheap_size = Some(min_bin_vheap_size);
 
-                            true
-                        }
-                        Err(_) => false,
-                    },
-                    "priority" => match tuple[1].try_into() {
-                        Ok(priority) => {
-                            self.priority = Some(priority);
+                    Ok(self)
+                }
+                "min_heap_size" => {
+                    let min_heap_size = tuple[1].try_into().context("min_heap_size")?;
+                    self.min_heap_size = Some(min_heap_size);
 
-                            true
-                        }
-                        Err(_) => false,
-                    },
-                    _ => false,
-                },
-                _ => false,
+                    Ok(self)
+                }
+                "priority" => {
+                    let priority = tuple[1].try_into().context("priority")?;
+                    self.priority = Some(priority);
+
+                    Ok(self)
+                }
+                name => Err(TryPropListFromTermError::KeywordKeyName(name).into()),
             }
+        } else {
+            Err(TryPropListFromTermError::TupleNotPair.into())
         }
+    }
+
+    fn sized_heap(&self) -> Result<(*mut Term, usize), Alloc> {
+        let heap_size = self.heap_size();
+        let heap = heap(self.heap_size())?;
+
+        Ok((heap, heap_size))
     }
 }
 
@@ -240,40 +215,24 @@ impl Default for Options {
     }
 }
 
-impl TryFrom<Boxed<Cons>> for Options {
-    type Error = Exception;
-
-    fn try_from(boxed_cons: Boxed<Cons>) -> Result<Self, Self::Error> {
-        let mut options: Self = Default::default();
-        let mut valid = true;
-
-        for result in boxed_cons.into_iter() {
-            valid = match result {
-                Ok(element) => options.try_put_option_from_term(element),
-                Err(_) => false,
-            };
-
-            if !valid {
-                break;
-            }
-        }
-
-        if valid {
-            Ok(options)
-        } else {
-            Err(badarg!().into())
-        }
-    }
-}
-
 impl TryFrom<Term> for Options {
-    type Error = Exception;
+    type Error = anyhow::Error;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        match term.decode().unwrap() {
-            TypedTerm::Nil => Ok(Default::default()),
-            TypedTerm::List(cons) => cons.try_into(),
-            _ => Err(badarg!().into()),
+        let mut options: Options = Default::default();
+        let mut options_term = term;
+
+        loop {
+            match options_term.decode().unwrap() {
+                TypedTerm::Nil => return Ok(options),
+                TypedTerm::List(cons) => {
+                    options.put_option_term(cons.head)?;
+                    options_term = cons.tail;
+
+                    continue;
+                }
+                _ => bail!(ImproperListError),
+            };
         }
     }
 }

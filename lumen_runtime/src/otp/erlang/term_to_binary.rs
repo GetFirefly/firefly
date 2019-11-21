@@ -1,13 +1,13 @@
+mod options;
+
 use std::collections::VecDeque;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 use std::mem;
 use std::sync::Arc;
 
 use num_bigint::{BigInt, Sign};
 
-use liblumen_alloc::badarg;
-
-use liblumen_alloc::erts::exception::{self, Exception};
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::closure::{Creator, Definition};
 use liblumen_alloc::erts::term::prelude::*;
@@ -16,6 +16,8 @@ use liblumen_alloc::erts::Node;
 use crate::distribution::external_term_format::{Tag, VERSION_NUMBER};
 use crate::distribution::nodes::node;
 use crate::distribution::nodes::node::arc_node;
+
+use options::*;
 
 pub fn term_to_binary(process: &Process, term: Term, options: Options) -> exception::Result<Term> {
     let byte_vec = term_to_byte_vec(process, &options, term);
@@ -480,133 +482,4 @@ fn try_cons_to_string_ext_byte_vec(cons: &Cons) -> Result<Vec<u8>, TypeError> {
     byte_vec.extend_from_slice(&character_byte_vec);
 
     Ok(byte_vec)
-}
-
-pub struct Compression(u8);
-
-impl Compression {
-    const MIN_U8: u8 = 0;
-    const MAX_U8: u8 = 9;
-}
-
-impl Default for Compression {
-    fn default() -> Self {
-        // Default level when option compressed is provided.
-        Self(6)
-    }
-}
-
-impl TryFrom<Term> for Compression {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let term_u8: u8 = term.try_into()?;
-
-        if Self::MIN_U8 <= term_u8 && term_u8 <= Self::MAX_U8 {
-            Ok(Self(term_u8))
-        } else {
-            Err(badarg!().into())
-        }
-    }
-}
-
-pub struct MinorVersion(u8);
-
-impl MinorVersion {
-    const MIN_U8: u8 = 0;
-    const MAX_U8: u8 = 2;
-}
-
-impl Default for MinorVersion {
-    fn default() -> Self {
-        Self(1)
-    }
-}
-
-impl TryFrom<Term> for MinorVersion {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let term_u8: u8 = term.try_into()?;
-
-        if Self::MIN_U8 <= term_u8 && term_u8 <= Self::MAX_U8 {
-            Ok(Self(term_u8))
-        } else {
-            Err(badarg!().into())
-        }
-    }
-}
-
-pub struct Options {
-    compression: Compression,
-    minor_version: MinorVersion,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            // No compression is done (it is the same as giving no compressed option)
-            compression: Compression(0),
-            minor_version: Default::default(),
-        }
-    }
-}
-
-impl Options {
-    fn put_option_term(&mut self, option: Term) -> exception::Result<&Self> {
-        match option.decode()? {
-            TypedTerm::Atom(atom) => match atom.name() {
-                "compressed" => {
-                    self.compression = Default::default();
-
-                    Ok(self)
-                }
-                _ => Err(badarg!().into()),
-            },
-            TypedTerm::Tuple(tuple) => {
-                if tuple.len() == 2 {
-                    let atom: Atom = tuple[0].try_into()?;
-
-                    match atom.name() {
-                        "compressed" => {
-                            self.compression = tuple[1].try_into()?;
-
-                            Ok(self)
-                        }
-                        "minor_version" => {
-                            self.minor_version = tuple[1].try_into()?;
-
-                            Ok(self)
-                        }
-                        _ => Err(badarg!().into()),
-                    }
-                } else {
-                    Err(badarg!().into())
-                }
-            }
-            _ => Err(badarg!().into()),
-        }
-    }
-}
-
-impl TryFrom<Term> for Options {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let mut options: Options = Default::default();
-        let mut options_term = term;
-
-        loop {
-            match options_term.decode()? {
-                TypedTerm::Nil => return Ok(options),
-                TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
-                    options_term = cons.tail;
-
-                    continue;
-                }
-                _ => return Err(badarg!().into()),
-            };
-        }
-    }
 }

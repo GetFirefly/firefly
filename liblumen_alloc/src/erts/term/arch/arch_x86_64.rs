@@ -1220,7 +1220,11 @@ mod tests {
         assert_eq!(&sub, sub_box.as_ref());
         assert!(sub_box.is_aligned());
         assert!(sub_box.is_binary());
-        assert_eq!(sub_box.try_into(), Ok("world!".to_owned()));
+
+        let result_string: Result<String, _> = sub_box.try_into();
+        assert!(result_string.is_ok());
+
+        assert_eq!(result_string.unwrap(), "world!".to_owned());
     }
 
     #[test]
@@ -1248,7 +1252,11 @@ mod tests {
         assert_eq!(&match_ctx, match_ctx_box.as_ref());
         assert!(match_ctx_box.is_aligned());
         assert!(match_ctx_box.is_binary());
-        assert_eq!(match_ctx_box.try_into(), Ok("hello world!".to_owned()));
+
+        let result_string: Result<String, _> = match_ctx_box.try_into();
+        assert!(result_string.is_ok());
+
+        assert_eq!(result_string.unwrap(), "hello world!".to_owned());
     }
 
     #[test]

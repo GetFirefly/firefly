@@ -6,6 +6,8 @@ use core::str;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use thiserror::Error;
+
 use crate::erts::exception::Exception;
 use crate::erts::term::prelude::Boxed;
 
@@ -175,7 +177,7 @@ ord!(MatchContext);
 macro_rules! impl_maybe_aligned_try_into {
     ($t:ty) => {
         impl TryInto<String> for $t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<String, Self::Error> {
@@ -184,28 +186,29 @@ macro_rules! impl_maybe_aligned_try_into {
         }
 
         impl TryInto<String> for &$t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             fn try_into(self) -> Result<String, Self::Error> {
                 if self.is_binary() {
                     if self.is_aligned() {
                         match str::from_utf8(unsafe { self.as_bytes_unchecked() }) {
                             Ok(s) => Ok(s.to_owned()),
-                            Err(_) => Err(badarg!().into()),
+                            Err(utf8_error) => Err(utf8_error.into()),
                         }
                     } else {
                         let byte_vec: Vec<u8> = self.full_byte_iter().collect();
 
-                        String::from_utf8(byte_vec).map_err(|_| badarg!().into())
+                        String::from_utf8(byte_vec)
+                            .map_err(|from_utf8_error| from_utf8_error.into())
                     }
                 } else {
-                    Err(badarg!().into())
+                    Err(NotABinary.into())
                 }
             }
         }
 
         impl TryInto<String> for Boxed<$t> {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<String, Self::Error> {
@@ -252,3 +255,7 @@ macro_rules! impl_maybe_aligned_try_into {
 
 impl_maybe_aligned_try_into!(MatchContext);
 impl_maybe_aligned_try_into!(SubBinary);
+
+#[derive(Debug, Error)]
+#[error("bitstring is not a binary")]
+pub struct NotABinary;

@@ -3,6 +3,8 @@ use core::fmt;
 use core::hash;
 use core::str;
 
+use anyhow::*;
+
 use crate::erts::exception::Exception;
 use crate::erts::term::prelude::Boxed;
 
@@ -140,18 +142,18 @@ macro_rules! impl_aligned_binary {
         }
 
         impl TryInto<String> for &$t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             fn try_into(self) -> Result<String, Self::Error> {
-                match str::from_utf8(self.as_bytes()) {
-                    Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!().into()),
-                }
+                let s = str::from_utf8(self.as_bytes())
+                    .context("binary cannot be converted to String")?;
+
+                Ok(s.to_owned())
             }
         }
 
         impl TryInto<String> for Boxed<$t> {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             fn try_into(self) -> Result<String, Self::Error> {
                 self.as_ref().try_into()
@@ -188,13 +190,13 @@ impl_aligned_binary!(BinaryLiteral);
 macro_rules! impl_aligned_try_into {
     ($t:ty) => {
         impl TryInto<String> for $t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             fn try_into(self) -> Result<String, Self::Error> {
-                match str::from_utf8(self.as_bytes()) {
-                    Ok(s) => Ok(s.to_owned()),
-                    Err(_) => Err(badarg!().into()),
-                }
+                let s = str::from_utf8(self.as_bytes())
+                    .context("binary cannot be converted to String")?;
+
+                Ok(s.to_owned())
             }
         }
 

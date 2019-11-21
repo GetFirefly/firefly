@@ -7,6 +7,7 @@ mod test;
 
 use std::convert::TryInto;
 
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
@@ -17,7 +18,7 @@ use crate::otp::erlang::float_to_string::{float_to_string, Options};
 
 #[native_implemented_function(float_to_binary/2)]
 pub fn native(process: &Process, float: Term, options: Term) -> exception::Result<Term> {
-    let options_options: Options = options.try_into()?;
+    let options_options: Options = options.try_into().map_err(|_| badarg!())?;
 
     float_to_string(float, options_options)
         .map_err(|error| error.into())

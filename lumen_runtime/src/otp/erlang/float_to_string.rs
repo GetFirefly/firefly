@@ -1,8 +1,18 @@
+mod decimal_digits;
+mod scientific_digits;
+
 use std::convert::{TryFrom, TryInto};
 
+use anyhow::{bail, Context};
+
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception::{self, Exception};
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
+
+use crate::proplist::TryPropListFromTermError;
+
+use decimal_digits::DecimalDigits;
+use scientific_digits::ScientificDigits;
 
 pub fn float_to_string(float: Term, options: Options) -> exception::Result<String> {
     // `TryInto<f64> for Term` will convert integer terms to f64 too, which we don't want
@@ -22,33 +32,6 @@ pub fn float_to_string(float: Term, options: Options) -> exception::Result<Strin
     };
 
     Ok(string)
-}
-
-// > {decimals, Decimals :: 0..253}
-pub struct DecimalDigits(u8);
-
-impl DecimalDigits {
-    const MAX_U8: u8 = 253;
-}
-
-impl Into<usize> for DecimalDigits {
-    fn into(self) -> usize {
-        self.0 as usize
-    }
-}
-
-impl TryFrom<Term> for DecimalDigits {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let decimal_digits_u8: u8 = term.try_into()?;
-
-        if decimal_digits_u8 <= Self::MAX_U8 {
-            Ok(Self(decimal_digits_u8))
-        } else {
-            Err(badarg!().into())
-        }
-    }
 }
 
 pub enum Options {
@@ -85,46 +68,12 @@ impl From<OptionsBuilder> for Options {
 }
 
 impl TryFrom<Term> for Options {
-    type Error = Exception;
+    type Error = anyhow::Error;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         let options_builder: OptionsBuilder = term.try_into()?;
 
         Ok(options_builder.into())
-    }
-}
-
-pub struct ScientificDigits(u8);
-
-impl ScientificDigits {
-    // > {scientific, Decimals :: 0..249}
-    const MAX_U8: u8 = 249;
-}
-
-impl Default for ScientificDigits {
-    fn default() -> Self {
-        // > [float_binary(float) is the] same as float_to_binary(Float,[{scientific,20}]).
-        Self(20)
-    }
-}
-
-impl Into<usize> for ScientificDigits {
-    fn into(self) -> usize {
-        self.0 as usize
-    }
-}
-
-impl TryFrom<Term> for ScientificDigits {
-    type Error = Exception;
-
-    fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let scientific_digits_u8: u8 = term.try_into()?;
-
-        if scientific_digits_u8 <= Self::MAX_U8 {
-            Ok(Self(scientific_digits_u8))
-        } else {
-            Err(badarg!().into())
-        }
     }
 }
 
@@ -192,7 +141,7 @@ struct OptionsBuilder {
 }
 
 impl OptionsBuilder {
-    fn put_option_term(&mut self, option: Term) -> exception::Result<&OptionsBuilder> {
+    fn put_option_term(&mut self, option: Term) -> Result<&OptionsBuilder, anyhow::Error> {
         match option.decode().unwrap() {
             TypedTerm::Atom(atom) => match atom.name() {
                 "compact" => {
@@ -200,30 +149,38 @@ impl OptionsBuilder {
 
                     Ok(self)
                 }
-                _ => Err(badarg!().into()),
+                name => Err(TryAtomFromTermError(name)).context("supported atom option is compact"),
             },
             TypedTerm::Tuple(tuple) => {
                 if tuple.len() == 2 {
-                    let atom: Atom = tuple[0].try_into()?;
+                    let atom: Atom = tuple[0]
+                        .try_into()
+                        .map_err(|_| TryPropListFromTermError::KeywordKeyType)?;
 
                     match atom.name() {
                         "decimals" => {
-                            self.digits = Digits::Decimal(tuple[1].try_into()?);
+                            let decimal_digits = tuple[1]
+                                .try_into()
+                                .context("decimals keyword option value")?;
+                            self.digits = Digits::Decimal(decimal_digits);
 
                             Ok(self)
                         }
                         "scientific" => {
-                            self.digits = Digits::Scientific(tuple[1].try_into()?);
+                            let scientific_digits = tuple[1]
+                                .try_into()
+                                .context("scientific keyword option value")?;
+                            self.digits = Digits::Scientific(scientific_digits);
 
                             Ok(self)
                         }
-                        _ => Err(badarg!().into()),
+                        name => Err(TryPropListFromTermError::KeywordKeyName(name).into()),
                     }
                 } else {
-                    Err(badarg!().into())
+                    Err(TryPropListFromTermError::TupleNotPair.into())
                 }
             }
-            _ => Err(badarg!().into()),
+            _ => Err(TryPropListFromTermError::PropertyType.into()),
         }
     }
 }
@@ -238,7 +195,7 @@ impl Default for OptionsBuilder {
 }
 
 impl TryFrom<Term> for OptionsBuilder {
-    type Error = Exception;
+    type Error = anyhow::Error;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
         let mut options_builder: OptionsBuilder = Default::default();
@@ -253,7 +210,7 @@ impl TryFrom<Term> for OptionsBuilder {
 
                     continue;
                 }
-                _ => return Err(badarg!().into()),
+                _ => bail!(ImproperListError),
             }
         }
 

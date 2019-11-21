@@ -4,7 +4,7 @@ use liblumen_alloc::erts::term::prelude::*;
 use super::atom::{atom_bytes_to_term_bytes, bytes_len_try_into_atom};
 use super::u8;
 
-pub fn decode_atom<'a>(safe: bool, bytes: &'a [u8]) -> Result<(Atom, &'a [u8]), Exception> {
+pub fn decode_atom(safe: bool, bytes: &[u8]) -> Result<(Atom, &[u8]), Exception> {
     let (len_u8, after_len_bytes) = u8::decode(bytes)?;
     let len_usize = len_u8 as usize;
 

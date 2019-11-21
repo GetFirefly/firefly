@@ -4,6 +4,7 @@
 #![allow(intra_doc_link_resolution_failure)]
 // For allocating multiple contiguous terms, like for Tuples.
 #![feature(allocator_api)]
+#![feature(backtrace)]
 #![feature(bind_by_move_pattern_guards)]
 #![feature(exact_size_is_empty)]
 // For `lumen_runtime::otp::erlang::term_to_binary`

@@ -1,7 +1,10 @@
-use liblumen_alloc::badarg;
+use std::backtrace::Backtrace;
+
+use anyhow::*;
+
 use liblumen_alloc::erts::exception::Exception;
 
-use super::{i32, u8, Tag};
+use super::{i32, u8, DecodeError, Tag};
 
 pub fn decode(bytes: &[u8]) -> Result<(isize, &[u8]), Exception> {
     let (tag, after_tag_bytes) = Tag::decode(bytes)?;
@@ -17,6 +20,11 @@ pub fn decode(bytes: &[u8]) -> Result<(isize, &[u8]), Exception> {
 
             Ok((u as isize, after_u8_bytes))
         }
-        _ => Err(badarg!().into()),
+        _ => Err(DecodeError::UnexpectedTag {
+            tag,
+            backtrace: Backtrace::capture(),
+        })
+        .with_context(|| format!("Expected {} or {} tag", Tag::Integer, Tag::SmallInteger))
+        .map_err(|error| error.into()),
     }
 }

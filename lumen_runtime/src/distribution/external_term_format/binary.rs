@@ -1,20 +1,17 @@
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
 use super::u32;
+use crate::distribution::external_term_format::try_split_at;
 
 pub fn decode<'a>(process: &Process, bytes: &'a [u8]) -> Result<(Term, &'a [u8]), Exception> {
     let (len_u32, after_len_bytes) = u32::decode(bytes)?;
     let len_usize = len_u32 as usize;
 
-    if len_usize <= after_len_bytes.len() {
-        let (data_bytes, after_data_bytes) = after_len_bytes.split_at(len_usize);
+    try_split_at(after_len_bytes, len_usize).and_then(|(data_bytes, after_data_bytes)| {
         let binary_term = process.binary_from_bytes(data_bytes)?;
 
         Ok((binary_term, after_data_bytes))
-    } else {
-        Err(badarg!().into())
-    }
+    })
 }

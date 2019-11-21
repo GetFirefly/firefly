@@ -4,7 +4,7 @@ use liblumen_alloc::erts::Process;
 
 use super::{arc_node, u32, u8, Pid};
 
-pub fn decode_pid<'a>(safe: bool, bytes: &'a [u8]) -> Result<(Pid, &'a [u8]), Exception> {
+pub fn decode_pid(safe: bool, bytes: &[u8]) -> Result<(Pid, &[u8]), Exception> {
     let (arc_node, after_node_bytes) = arc_node::decode(safe, bytes)?;
     let (id, after_id_bytes) = u32::decode(after_node_bytes)?;
     let (serial, after_serial_bytes) = u32::decode(after_id_bytes)?;

@@ -1,6 +1,5 @@
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::term::closure::OldUnique;
 use liblumen_alloc::erts::term::prelude::*;
@@ -9,6 +8,7 @@ use liblumen_alloc::erts::Process;
 use crate::code;
 
 use super::{atom, decode_vec_term, isize, u32, u8, Pid};
+use crate::distribution::external_term_format::try_split_at;
 
 pub fn decode<'a>(
     process: &Process,
@@ -58,12 +58,9 @@ pub fn decode<'a>(
 const UNIQ_LEN: usize = 16;
 
 fn decode_uniq(bytes: &[u8]) -> Result<([u8; UNIQ_LEN], &[u8]), Exception> {
-    if UNIQ_LEN <= bytes.len() {
-        let (uniq_bytes, after_uniq_bytes) = bytes.split_at(UNIQ_LEN);
+    try_split_at(bytes, UNIQ_LEN).map(|(uniq_bytes, after_uniq_bytes)| {
         let uniq_array = uniq_bytes.try_into().unwrap();
 
-        Ok((uniq_array, after_uniq_bytes))
-    } else {
-        Err(badarg!().into())
-    }
+        (uniq_array, after_uniq_bytes)
+    })
 }

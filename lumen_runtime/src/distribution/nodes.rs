@@ -1,11 +1,14 @@
 pub mod node;
 
+use std::backtrace::Backtrace;
 use std::sync::Arc;
 
 use hashbrown::HashMap;
+use thiserror::Error;
 
 use liblumen_core::locks::RwLock;
 
+use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
@@ -14,6 +17,16 @@ pub fn atom_to_arc_node(atom: &Atom) -> Option<Arc<Node>> {
         .read()
         .get(atom)
         .map(|ref_arc_node| ref_arc_node.clone())
+}
+
+pub fn try_atom_to_arc_node(atom: &Atom) -> Result<Arc<Node>, NodeNotFound> {
+    match atom_to_arc_node(atom) {
+        Some(arc_node) => Ok(arc_node),
+        None => Err(NodeNotFound::Name {
+            name: atom.clone(),
+            backtrace: Backtrace::capture(),
+        }),
+    }
 }
 
 pub fn id_to_arc_node(id: &usize) -> Option<Arc<Node>> {
@@ -50,6 +63,20 @@ pub fn insert(arc_node: Arc<Node>) {
     arc_node_by_name
         .insert(arc_node.name(), arc_node)
         .unwrap_none();
+}
+
+#[derive(Debug, Error)]
+pub enum NodeNotFound {
+    #[error("No node with name ({name})")]
+    Name { name: Atom, backtrace: Backtrace },
+    #[error("No node with id ({id})")]
+    ID { id: usize, backtrace: Backtrace },
+}
+
+impl From<NodeNotFound> for Exception {
+    fn from(node_not_found: NodeNotFound) -> Exception {
+        anyhow::Error::from(node_not_found).into()
+    }
 }
 
 lazy_static! {

@@ -66,6 +66,11 @@ impl From<Alloc> for Exception {
         Self::System(alloc.into())
     }
 }
+impl From<AtomError> for Exception {
+    fn from(err: AtomError) -> Self {
+        RuntimeException::from(ArcError::from_err(err)).into()
+    }
+}
 impl From<TermDecodingError> for Exception {
     fn from(err: TermDecodingError) -> Self {
         Self::System(err.into())
@@ -78,11 +83,6 @@ impl From<TermEncodingError> for Exception {
 }
 
 // Runtime exception type conversions
-impl From<AtomError> for Exception {
-    fn from(atom_error: AtomError) -> Self {
-        Self::Runtime(atom_error.into())
-    }
-}
 impl From<BoolError> for Exception {
     fn from(bool_error: BoolError) -> Self {
         Self::Runtime(bool_error.into())
@@ -143,6 +143,11 @@ impl From<TryIntoIntegerError> for Exception {
 impl From<TypeError> for Exception {
     fn from(type_error: TypeError) -> Self {
         Self::Runtime(type_error.into())
+    }
+}
+impl From<anyhow::Error> for Exception {
+    fn from(err: anyhow::Error) -> Self {
+        RuntimeException::from(ArcError::new(err)).into()
     }
 }
 

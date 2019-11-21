@@ -1,7 +1,8 @@
+use anyhow::*;
 use num_bigint::Sign;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::term::prelude::*;
 
 use super::u8;
 
@@ -16,6 +17,8 @@ fn byte_try_into_sign(byte: u8) -> Result<Sign, Exception> {
     match byte {
         0 => Ok(Sign::Plus),
         1 => Ok(Sign::Minus),
-        _ => Err(badarg!().into()),
+        _ => Err(TryIntoIntegerError::OutOfRange)
+            .context("sign byte can only be 0 for positive and 1 for minus")
+            .map_err(|error| error.into()),
     }
 }

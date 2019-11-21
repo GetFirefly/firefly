@@ -5,7 +5,7 @@ pub mod gc;
 mod heap;
 mod mailbox;
 mod monitor;
-mod priority;
+pub mod priority;
 
 use core::alloc::Layout;
 use core::any::Any;

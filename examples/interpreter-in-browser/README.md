@@ -24,7 +24,7 @@ npm link
 popd
 
 pushd www
-npm link spawn-chain
+npm link interpreter-in-browser
 popd 
 ```
 

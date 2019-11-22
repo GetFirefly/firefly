@@ -28,7 +28,7 @@ pub fn native(
     let start_usize: usize = start
         .try_into()
         .context("start must be a non-negative integer")?;
-    let length_isize: isize = length.try_into()?;
+    let length_isize: isize = length.try_into().context("length must be an integer")?;
 
     match binary.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => {

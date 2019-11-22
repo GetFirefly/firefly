@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
@@ -16,7 +18,9 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(tuple_to_list/1)]
 pub fn native(process: &Process, tuple: Term) -> exception::Result<Term> {
-    let tuple: Boxed<Tuple> = tuple.try_into()?;
+    let tuple: Boxed<Tuple> = tuple
+        .try_into()
+        .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
     let mut heap = process.acquire_heap();
     let mut acc = Term::NIL;
 

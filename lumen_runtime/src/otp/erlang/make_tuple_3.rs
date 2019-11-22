@@ -42,7 +42,9 @@ pub fn native(
             for result in boxed_cons.into_iter() {
                 match result {
                     Ok(init) => {
-                        let init_boxed_tuple: Boxed<Tuple> = init.try_into()?;
+                        let init_boxed_tuple: Boxed<Tuple> = init.try_into().context(
+                            "init list elements must be {position :: pos_integer(), term()}",
+                        )?;
 
                         if init_boxed_tuple.len() == 2 {
                             let index: OneBasedIndex =

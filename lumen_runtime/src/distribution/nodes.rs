@@ -36,6 +36,16 @@ pub fn id_to_arc_node(id: &usize) -> Option<Arc<Node>> {
         .map(|ref_arc_node| ref_arc_node.clone())
 }
 
+pub fn try_id_to_arc_node(id: &usize) -> Result<Arc<Node>, NodeNotFound> {
+    match id_to_arc_node(id) {
+        Some(arc_node) => Ok(arc_node),
+        None => Err(NodeNotFound::ID {
+            id: *id,
+            backtrace: Backtrace::capture(),
+        }),
+    }
+}
+
 // TODO make non-test-only once distribution connection is implemented
 #[cfg(all(not(target_arch = "wasm32"), test))]
 pub fn insert(arc_node: Arc<Node>) {

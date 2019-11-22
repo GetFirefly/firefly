@@ -3,16 +3,18 @@ pub mod value_1;
 use std::convert::TryInto;
 use std::mem;
 
+use anyhow::*;
 use web_sys::HtmlInputElement;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
 // Private
 
 fn from_term(term: Term) -> Result<&'static HtmlInputElement, exception::Exception> {
-    let boxed: Boxed<Resource> = term.try_into()?;
+    let boxed: Boxed<Resource> = term
+        .try_into()
+        .with_context(|| format!("{} must be HTML input element resource", term))?;
     let html_input_element_reference: Resource = boxed.into();
 
     match html_input_element_reference.downcast_ref() {
@@ -22,7 +24,9 @@ fn from_term(term: Term) -> Result<&'static HtmlInputElement, exception::Excepti
 
             Ok(static_html_input_element)
         }
-        None => Err(badarg!().into()),
+        None => Err(TypeError)
+            .with_context(|| format!("{} is a resource, but not an HTML input element", term))
+            .map_err(From::from),
     }
 }
 

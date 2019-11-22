@@ -7,7 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -17,11 +18,13 @@ use crate::registry;
 
 #[native_implemented_function(unregister/1)]
 pub fn native(name: Term) -> exception::Result<Term> {
-    let atom: Atom = name.try_into()?;
+    let atom: Atom = name
+        .try_into()
+        .with_context(|| format!("name ({}) must be an atom", name))?;
 
     if registry::unregister(&atom) {
         Ok(true.into())
     } else {
-        Err(badarg!().into())
+        Err(anyhow!("name ({}) was not registered", name).into())
     }
 }

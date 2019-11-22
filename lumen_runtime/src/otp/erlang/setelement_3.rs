@@ -7,7 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::index::OneBasedIndex;
@@ -17,10 +18,13 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(setelement/3)]
 pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
-    let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let index_zero_based: OneBasedIndex = index.try_into().map_err(|_| badarg!())?;
-
+    let initial_inner_tuple: Boxed<Tuple> = tuple
+        .try_into()
+        .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
     let length = initial_inner_tuple.len();
+    let index_zero_based: OneBasedIndex = index
+        .try_into()
+        .with_context(|| format!("index ({}) must be a 1-based index in 1-{}", index, length))?;
 
     if index_zero_based < length {
         if index_zero_based == 0 {
@@ -40,6 +44,8 @@ pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> excep
         }
         .map_err(|error| error.into())
     } else {
-        Err(badarg!().into())
+        Err(TryIntoIntegerError::OutOfRange)
+            .with_context(|| format!("index ({}) must be a 1-based index in 1-{}", index, length))
+            .map_err(From::from)
     }
 }

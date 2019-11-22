@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -15,8 +16,12 @@ pub(in crate::otp::erlang) fn native(
     function: Term,
     arguments: Term,
 ) -> exception::Result<Term> {
-    let module_atom: Atom = module.try_into()?;
-    let function_atom: Atom = function.try_into()?;
+    let module_atom: Atom = module
+        .try_into()
+        .with_context(|| format!("module ({}) must be an atom", module))?;
+    let function_atom: Atom = function
+        .try_into()
+        .with_context(|| format!("function ({}) must be an atom", function))?;
 
     let args = arguments.decode()?;
     if args.is_proper_list() {
@@ -24,6 +29,8 @@ pub(in crate::otp::erlang) fn native(
             .and_then(|spawned| spawned.to_term(process))
             .map_err(|e| e.into())
     } else {
-        Err(badarg!().into())
+        Err(TypeError)
+            .with_context(|| format!("arguments ({}) must be a proper list", arguments))
+            .map_err(From::from)
     }
 }

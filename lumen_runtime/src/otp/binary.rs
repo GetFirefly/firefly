@@ -32,7 +32,7 @@ pub fn bin_to_list(
     let position_usize: usize = position
         .try_into()
         .context("position must be non-negative")?;
-    let length_isize: isize = length.try_into()?;
+    let length_isize: isize = length.try_into().context("length must be an integer")?;
 
     match binary.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => {

@@ -109,11 +109,6 @@ impl From<StrFromBinaryError> for Exception {
     }
 }
 
-impl From<TypeError> for Exception {
-    fn from(type_error: TypeError) -> Self {
-        Self::Runtime(type_error.into())
-    }
-}
 impl From<anyhow::Error> for Exception {
     fn from(err: anyhow::Error) -> Self {
         RuntimeException::from(ArcError::new(err)).into()

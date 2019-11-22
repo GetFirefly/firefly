@@ -72,12 +72,6 @@ impl RuntimeException {
     }
 }
 
-impl From<ImproperList> for RuntimeException {
-    fn from(_: ImproperList) -> Self {
-        super::badarg(location!())
-    }
-}
-
 impl From<IndexError> for RuntimeException {
     fn from(_: IndexError) -> Self {
         super::badarg(location!())

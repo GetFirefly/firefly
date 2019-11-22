@@ -92,11 +92,6 @@ impl From<BytesFromBinaryError> for Exception {
         }
     }
 }
-impl From<ImproperList> for Exception {
-    fn from(improper_list: ImproperList) -> Self {
-        Self::Runtime(improper_list.into())
-    }
-}
 impl From<IndexError> for Exception {
     fn from(index_error: IndexError) -> Self {
         Self::Runtime(index_error.into())

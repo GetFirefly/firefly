@@ -92,11 +92,6 @@ impl From<BytesFromBinaryError> for Exception {
         }
     }
 }
-impl From<IndexError> for Exception {
-    fn from(index_error: IndexError) -> Self {
-        Self::Runtime(index_error.into())
-    }
-}
 impl From<InvalidPidError> for Exception {
     fn from(_err: InvalidPidError) -> Self {
         Self::Runtime(badarg(location!()))

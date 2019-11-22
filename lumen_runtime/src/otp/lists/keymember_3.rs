@@ -15,7 +15,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(keymember/3)]
 pub fn native(key: Term, index: Term, tuple_list: Term) -> exception::Result<Term> {
-    let index: OneBasedIndex = index.try_into()?;
+    let index: OneBasedIndex = index.try_into().map_err(|_| badarg!())?;
 
     match tuple_list.decode()? {
         TypedTerm::Nil => Ok(false.into()),

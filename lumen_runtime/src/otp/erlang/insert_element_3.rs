@@ -23,7 +23,7 @@ pub fn native(
     element: Term,
 ) -> exception::Result<Term> {
     let initial_inner_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let index_one_based: OneBasedIndex = index.try_into()?;
+    let index_one_based: OneBasedIndex = index.try_into().map_err(|_| badarg!())?;
 
     let length = initial_inner_tuple.len();
 

@@ -7,6 +7,7 @@ mod test;
 
 use std::convert::TryInto;
 
+use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -16,7 +17,7 @@ use lumen_runtime_macros::native_implemented_function;
 #[native_implemented_function(element/2)]
 pub fn native(index: Term, tuple: Term) -> exception::Result<Term> {
     let tuple_tuple: Boxed<Tuple> = tuple.try_into()?;
-    let index: OneBasedIndex = index.try_into()?;
+    let index: OneBasedIndex = index.try_into().map_err(|_| badarg!())?;
 
-    tuple_tuple.get_element(index).map_err(|error| error.into())
+    tuple_tuple.get_element(index).map_err(|_| badarg!().into())
 }

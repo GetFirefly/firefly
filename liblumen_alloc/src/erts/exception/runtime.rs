@@ -4,7 +4,6 @@ use core::num::TryFromIntError;
 
 use thiserror::Error;
 
-use crate::erts::term::index::IndexError;
 use crate::erts::term::prelude::*;
 
 use super::location::Location;
@@ -69,12 +68,6 @@ impl RuntimeException {
             RuntimeException::Error(e) => e.stacktrace(),
             RuntimeException::Unknown(_err) => None,
         }
-    }
-}
-
-impl From<IndexError> for RuntimeException {
-    fn from(_: IndexError) -> Self {
-        super::badarg(location!())
     }
 }
 

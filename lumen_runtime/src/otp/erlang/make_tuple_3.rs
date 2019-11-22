@@ -43,9 +43,10 @@ pub fn native(
                         let init_boxed_tuple: Boxed<Tuple> = init.try_into()?;
 
                         if init_boxed_tuple.len() == 2 {
-                            let index: OneBasedIndex = init_boxed_tuple[0].try_into()?;
+                            let index: OneBasedIndex =
+                                init_boxed_tuple[0].try_into().map_err(|_| badarg!())?;
                             let element = init_boxed_tuple[1];
-                            tuple.set_element(index, element)?;
+                            tuple.set_element(index, element).map_err(|_| badarg!())?;
                         } else {
                             return Err(badarg!().into());
                         }

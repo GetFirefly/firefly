@@ -29,6 +29,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 use liblumen_alloc::Arity;
@@ -39,7 +41,7 @@ use lumen_runtime_macros::native_implemented_function;
 pub fn native(module: Term, function: Term, arity: Term) -> exception::Result<Term> {
     let module_atom: Atom = module.try_into()?;
     let function_atom: Atom = function.try_into()?;
-    let arity_arity: Arity = arity.try_into()?;
+    let arity_arity: Arity = arity.try_into().context("arity must be in 0-255")?;
 
     let exported =
         crate::code::export::contains_key(&module_atom, &function_atom, arity_arity).into();

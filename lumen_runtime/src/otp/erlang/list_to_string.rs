@@ -1,5 +1,7 @@
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
@@ -11,7 +13,9 @@ pub fn list_to_string(list: Term) -> exception::Result<String> {
             .into_iter()
             .map(|result| match result {
                 Ok(term) => {
-                    let c: char = term.try_into()?;
+                    let c: char = term
+                        .try_into()
+                        .context("string list elements must be a unicode scalar value")?;
 
                     Ok(c)
                 }

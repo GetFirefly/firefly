@@ -13,6 +13,7 @@ default = ["time_web_sys"]
 time_web_sys = ["lumen_runtime/time_web_sys"]
 
 [dependencies]
+anyhow = "1.0.11"
 js-sys = "0.3.25"
 liblumen_alloc = { path = "../liblumen_alloc" }
 liblumen_core = { path = "../liblumen_core" }

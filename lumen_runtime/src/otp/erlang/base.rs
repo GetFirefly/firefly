@@ -1,5 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 
+use anyhow::*;
+
 use liblumen_alloc::erts::term::prelude::*;
 
 // 2-36
@@ -18,16 +20,18 @@ impl Base {
     const MAX: u8 = 36;
 }
 
+const CONTEXT: &str = "base must be an integer in 2-36";
+
 impl TryFrom<Term> for Base {
-    type Error = TryIntoIntegerError;
+    type Error = anyhow::Error;
 
     fn try_from(term: Term) -> Result<Self, Self::Error> {
-        let base_u8: u8 = term.try_into()?;
+        let base_u8: u8 = term.try_into().context(CONTEXT)?;
 
         if (Self::MIN <= base_u8) && (base_u8 <= Self::MAX) {
             Ok(Self(base_u8))
         } else {
-            Err(TryIntoIntegerError::OutOfRange)
+            Err(TryIntoIntegerError::OutOfRange).context(CONTEXT)
         }
     }
 }

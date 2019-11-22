@@ -108,11 +108,6 @@ impl From<StrFromBinaryError> for Exception {
         }
     }
 }
-impl From<TryIntoIntegerError> for Exception {
-    fn from(try_into_integer_error: TryIntoIntegerError) -> Self {
-        Self::Runtime(try_into_integer_error.into())
-    }
-}
 
 impl From<TypeError> for Exception {
     fn from(type_error: TypeError) -> Self {

@@ -17,7 +17,12 @@ pub fn native(process: &Process, list: Term) -> exception::Result<Term> {
     match list.decode().unwrap() {
         TypedTerm::Nil => process.tuple_from_slices(&[]).map_err(|error| error.into()),
         TypedTerm::List(cons) => {
-            let vec: Vec<Term> = cons.into_iter().collect::<std::result::Result<_, _>>()?;
+            let vec: Vec<Term> = cons
+                .into_iter()
+                .collect::<std::result::Result<_, _>>()
+                .map_err(|_| ImproperListError)
+                // TODO use `ImproperListError` as `source`
+                .map_err(|_| badarg!())?;
 
             process.tuple_from_slice(&vec).map_err(|error| error.into())
         }

@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
@@ -24,7 +26,9 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
             while let Some(top) = stack.pop() {
                 match top.decode().unwrap() {
                     TypedTerm::SmallInteger(small_integer) => {
-                        let top_byte = small_integer.try_into()?;
+                        let top_byte = small_integer
+                            .try_into()
+                            .context("list element doesn't fit in a byte")?;
 
                         byte_vec.push(top_byte);
                     }

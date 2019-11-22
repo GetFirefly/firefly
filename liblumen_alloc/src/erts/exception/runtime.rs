@@ -73,12 +73,6 @@ impl RuntimeException {
     }
 }
 
-impl From<core::convert::Infallible> for RuntimeException {
-    fn from(_: core::convert::Infallible) -> Self {
-        unreachable!()
-    }
-}
-
 impl From<BoolError> for RuntimeException {
     fn from(_: BoolError) -> Self {
         super::badarg(location!())

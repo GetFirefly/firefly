@@ -73,12 +73,6 @@ impl RuntimeException {
     }
 }
 
-impl From<BoolError> for RuntimeException {
-    fn from(_: BoolError) -> Self {
-        super::badarg(location!())
-    }
-}
-
 impl From<InvalidEncodingNameError> for RuntimeException {
     fn from(_: InvalidEncodingNameError) -> Self {
         super::badarg(location!())

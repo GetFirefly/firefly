@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
@@ -17,7 +19,9 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(split_binary/2)]
 pub fn native(process: &Process, binary: Term, position: Term) -> exception::Result<Term> {
-    let index: usize = position.try_into()?;
+    let index: usize = position
+        .try_into()
+        .context("positive must be in 0..byte_size(binary)")?;
 
     match binary.decode().unwrap() {
         binary_box @ TypedTerm::HeapBinary(_) | binary_box @ TypedTerm::ProcBin(_) => {

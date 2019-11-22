@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
@@ -23,7 +25,9 @@ pub fn native(
     start: Term,
     length: Term,
 ) -> exception::Result<Term> {
-    let start_usize: usize = start.try_into()?;
+    let start_usize: usize = start
+        .try_into()
+        .context("start must be a non-negative integer")?;
     let length_isize: isize = length.try_into()?;
 
     match binary.decode().unwrap() {

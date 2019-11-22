@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
@@ -64,7 +66,10 @@ fn next_decimal(cons: Boxed<Cons>) -> exception::Result<(usize, Term)> {
 }
 
 fn next_decimal_digit(cons: Boxed<Cons>) -> exception::Result<(u8, Term)> {
-    let head_char: char = cons.head.try_into()?;
+    let head_char: char = cons
+        .head
+        .try_into()
+        .context("list element is not a decimal digit")?;
 
     match head_char.to_digit(10) {
         Some(digit) => Ok((digit as u8, cons.tail)),
@@ -98,11 +103,16 @@ fn rest_decimal_digits(first_digit: u8, first_tail: Term) -> exception::Result<(
 }
 
 fn skip_char(cons: Boxed<Cons>, skip: char) -> exception::Result<Term> {
-    let c: char = cons.head.try_into()?;
+    let c: char = cons
+        .head
+        .try_into()
+        .with_context(|| format!("skipped character must be {}", skip))?;
 
     if c == skip {
         Ok(cons.tail)
     } else {
-        Err(badarg!().into())
+        Err(TryIntoIntegerError::OutOfRange)
+            .with_context(|| format!("skipped character must be {}", skip))
+            .map_err(From::from)
     }
 }

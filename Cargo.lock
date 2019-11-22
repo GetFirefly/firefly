@@ -984,6 +984,7 @@ dependencies = [
 name = "lumen_web"
 version = "0.1.0"
 dependencies = [
+ "anyhow 1.0.19 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "js-sys 0.3.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "liblumen_alloc 0.1.0",

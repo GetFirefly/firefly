@@ -1,6 +1,8 @@
 use core::convert::TryInto;
 use core::ops::Range;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::{badarg, Process};
@@ -27,7 +29,9 @@ pub fn bin_to_list(
     length: Term,
     process: &Process,
 ) -> exception::Result<Term> {
-    let position_usize: usize = position.try_into()?;
+    let position_usize: usize = position
+        .try_into()
+        .context("position must be non-negative")?;
     let length_isize: isize = length.try_into()?;
 
     match binary.decode().unwrap() {

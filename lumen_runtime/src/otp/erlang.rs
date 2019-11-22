@@ -185,6 +185,8 @@ use core::convert::TryInto;
 
 use alloc::sync::Arc;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -241,38 +243,44 @@ fn cancel_timer(
     }
 }
 
+const POSITIVE_SIZE_CONTEXT: &str = "size must be a positive integer";
+
 fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Result<Term> {
     match term.decode()? {
         TypedTerm::Tuple(tuple) => {
-            match record_tag.decode()? {
-                TypedTerm::Atom(_) => {
-                    let len = tuple.len();
+            let _: Atom = record_tag
+                .try_into()
+                .context("record tag must be an atom")?;
 
-                    let tagged = if 0 < len {
-                        let element = tuple[0];
+            let len = tuple.len();
 
-                        match size {
-                            Some(size_term) => {
-                                let size_usize: usize = size_term.try_into()?;
+            let tagged = if 0 < len {
+                let element = tuple[0];
 
-                                (element == record_tag) & (len == size_usize)
-                            }
-                            None => element == record_tag,
-                        }
-                    } else {
-                        // even if the `record_tag` cannot be checked, the `size` is still type
-                        // checked
-                        if let Some(size_term) = size {
-                            let _: usize = size_term.try_into()?;
-                        }
+                match size {
+                    Some(size_term) => {
+                        let size_usize: usize = size_term
+                            .try_into()
+                            // `usize` is non-negative, but to get here the `len` had to be greater
+                            // than `0`.
+                            .context(POSITIVE_SIZE_CONTEXT)?;
 
-                        false
-                    };
-
-                    Ok(tagged.into())
+                        (element == record_tag) & (len == size_usize)
+                    }
+                    None => element == record_tag,
                 }
-                _ => Err(badarg!().into()),
-            }
+            } else {
+                // even if the `record_tag` cannot be checked, the `size` is still type
+                // checked
+                if let Some(size_term) = size {
+                    // error should bee consistent with above to preserve behavior exhibited by BEAM
+                    let _: usize = size_term.try_into().context(POSITIVE_SIZE_CONTEXT)?;
+                }
+
+                false
+            };
+
+            Ok(tagged.into())
         }
         _ => Ok(false.into()),
     }
@@ -317,7 +325,9 @@ fn start_timer(
     arc_process: Arc<Process>,
 ) -> exception::Result<Term> {
     if time.is_integer() {
-        let reference_frame_milliseconds: Milliseconds = time.try_into()?;
+        let reference_frame_milliseconds: Milliseconds = time
+            .try_into()
+            .context("time must be a non-negative integer")?;
 
         let absolute_milliseconds = match options.reference_frame {
             ReferenceFrame::Relative => {

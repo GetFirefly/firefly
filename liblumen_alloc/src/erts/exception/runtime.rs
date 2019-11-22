@@ -4,7 +4,6 @@ use core::num::TryFromIntError;
 
 use thiserror::Error;
 
-use crate::erts::string::InvalidEncodingNameError;
 use crate::erts::term::index::IndexError;
 use crate::erts::term::prelude::*;
 
@@ -70,12 +69,6 @@ impl RuntimeException {
             RuntimeException::Error(e) => e.stacktrace(),
             RuntimeException::Unknown(_err) => None,
         }
-    }
-}
-
-impl From<InvalidEncodingNameError> for RuntimeException {
-    fn from(_: InvalidEncodingNameError) -> Self {
-        super::badarg(location!())
     }
 }
 

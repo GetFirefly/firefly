@@ -16,7 +16,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(binary_to_atom/2)]
 pub fn native(binary: Term, encoding: Term) -> exception::Result<Term> {
-    let _: Encoding = encoding.try_into()?;
+    let _: Encoding = encoding.try_into().map_err(|_| badarg!())?;
 
     match binary.decode()? {
         TypedTerm::HeapBinary(heap_binary) => {

@@ -35,7 +35,6 @@ use core::marker::PhantomData;
 
 use thiserror::Error;
 
-use super::string::InvalidEncodingNameError;
 use super::term::prelude::*;
 
 /// A convenience type alias for results which fail with `Exception`
@@ -91,11 +90,6 @@ impl From<BytesFromBinaryError> for Exception {
             NotABinary | Type => Self::Runtime(badarg(location!())),
             Alloc(e) => Self::System(e.into()),
         }
-    }
-}
-impl From<InvalidEncodingNameError> for Exception {
-    fn from(encoding_error: InvalidEncodingNameError) -> Self {
-        Self::Runtime(encoding_error.into())
     }
 }
 impl From<ImproperList> for Exception {

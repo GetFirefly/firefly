@@ -69,11 +69,6 @@ impl RuntimeException {
     }
 }
 
-impl From<TypeError> for RuntimeException {
-    fn from(_: TypeError) -> Self {
-        super::badarg(location!())
-    }
-}
 impl TryFrom<Exception> for RuntimeException {
     type Error = UnexpectedExceptionError<RuntimeException, SystemException>;
 

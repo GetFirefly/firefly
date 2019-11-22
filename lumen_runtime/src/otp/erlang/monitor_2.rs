@@ -7,10 +7,12 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception::{self, AllocResult};
 use liblumen_alloc::erts::process::{Monitor, Process};
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{atom, badarg};
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -18,15 +20,19 @@ use crate::otp::erlang::node_0;
 use crate::process::{self, SchedulerDependentAlloc};
 use crate::registry;
 
+const TYPE_CONTEXT: &str = "supported types are :port, :process, or :time_offset";
+
 #[native_implemented_function(monitor/2)]
 pub fn native(process: &Process, r#type: Term, item: Term) -> exception::Result<Term> {
-    let type_atom: Atom = r#type.try_into()?;
+    let type_atom: Atom = r#type.try_into().context(TYPE_CONTEXT)?;
 
     match type_atom.name() {
         "port" => unimplemented!(),
         "process" => monitor_process_identifier(process, item),
         "time_offset" => unimplemented!(),
-        _ => Err(badarg!().into()),
+        name => Err(TryAtomFromTermError(name))
+            .context(TYPE_CONTEXT)
+            .map_err(From::from),
     }
 }
 
@@ -36,12 +42,14 @@ fn monitor_process_identifier(
     process: &Process,
     process_identifier: Term,
 ) -> exception::Result<Term> {
-    match process_identifier.decode().unwrap() {
+    match process_identifier.decode()? {
         TypedTerm::Atom(atom) => monitor_process_registered_name(process, process_identifier, atom),
         TypedTerm::Pid(pid) => monitor_process_pid(process, process_identifier, pid),
         TypedTerm::ExternalPid(_) => unimplemented!(),
         TypedTerm::Tuple(tuple) => monitor_process_tuple(process, process_identifier, &tuple),
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(PROCESS_IDENTIFIER_CONTEXT)
+            .map_err(From::from),
     }
 }
 
@@ -99,6 +107,9 @@ fn monitor_process_registered_name(
     }
 }
 
+const PROCESS_IDENTIFIER_CONTEXT: &str =
+    "process identifier must be `pid | registered_name() | {registered_name(), node()}`";
+
 fn monitor_process_tuple(
     process: &Process,
     _process_identifier: Term,
@@ -106,14 +117,18 @@ fn monitor_process_tuple(
 ) -> exception::Result<Term> {
     if tuple.len() == 2 {
         let registered_name = tuple[0];
-        let registered_name_atom: Atom = registered_name.try_into()?;
+        let registered_name_atom: Atom = registered_name
+            .try_into()
+            .with_context(|| format!("registered name ({}) must be an atom", registered_name))?;
 
         let node = tuple[1];
 
         if node == node_0::native() {
             monitor_process_registered_name(process, registered_name, registered_name_atom)
         } else {
-            let _node_atom: Atom = node.try_into()?;
+            let _node_atom: Atom = node
+                .try_into()
+                .with_context(|| format!("node ({}) must be an atom", node))?;
 
             unimplemented!(
                 "node ({:?}) is not the local node ({:?})",
@@ -122,7 +137,7 @@ fn monitor_process_tuple(
             );
         }
     } else {
-        Err(badarg!().into())
+        Err(anyhow!(PROCESS_IDENTIFIER_CONTEXT).into())
     }
 }
 

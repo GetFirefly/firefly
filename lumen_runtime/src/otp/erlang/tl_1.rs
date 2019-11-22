@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -14,7 +16,9 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(tl/1)]
 pub fn native(list: Term) -> exception::Result<Term> {
-    let cons: Boxed<Cons> = list.try_into()?;
+    let cons: Boxed<Cons> = list
+        .try_into()
+        .with_context(|| format!("list ({}) must be a non-empty list", list))?;
 
     Ok(cons.tail)
 }

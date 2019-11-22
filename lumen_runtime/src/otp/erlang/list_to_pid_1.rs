@@ -20,41 +20,64 @@ use crate::distribution::nodes;
 
 #[native_implemented_function(list_to_pid/1)]
 pub fn native(process: &Process, string: Term) -> exception::Result<Term> {
-    let cons: Boxed<Cons> = string.try_into()?;
+    let cons: Boxed<Cons> = string
+        .try_into()
+        .context("string must be a non-empty list")?;
 
-    let prefix_tail = skip_char(cons, '<')?;
-    let prefix_tail_cons: Boxed<Cons> = prefix_tail.try_into()?;
+    let prefix_tail = skip_char(cons, '<').context("first character must be '<'")?;
+    let prefix_tail_cons: Boxed<Cons> = prefix_tail
+        .try_into()
+        .with_context(|| format!("{} must be a non-empty list", prefix_tail))?;
 
-    let (node_id, node_tail) = next_decimal(prefix_tail_cons)?;
-    let node_tail_cons: Boxed<Cons> = node_tail.try_into()?;
+    let (node_id, node_tail) =
+        next_decimal(prefix_tail_cons).context("node id must be a decimal integer")?;
+    let node_tail_cons: Boxed<Cons> = node_tail
+        .try_into()
+        .with_context(|| format!("{} must be a non-empty list", node_tail))?;
 
-    let first_separator_tail = skip_char(node_tail_cons, '.')?;
-    let first_separator_tail_cons: Boxed<Cons> = first_separator_tail.try_into()?;
+    let first_separator_tail =
+        skip_char(node_tail_cons, '.').context("a '.' must separate the node id and number")?;
+    let first_separator_tail_cons: Boxed<Cons> = first_separator_tail
+        .try_into()
+        .with_context(|| format!("{} must be a non-empty list", first_separator_tail))?;
 
-    let (number, number_tail) = next_decimal(first_separator_tail_cons)?;
-    let number_tail_cons: Boxed<Cons> = number_tail.try_into()?;
+    let (number, number_tail) =
+        next_decimal(first_separator_tail_cons).context("number must be a decimal integer")?;
+    let number_tail_cons: Boxed<Cons> = number_tail
+        .try_into()
+        .with_context(|| format!("{} must be a non-empty list", number_tail))?;
 
-    let second_separator_tail = skip_char(number_tail_cons, '.')?;
-    let second_separator_tail_cons: Boxed<Cons> = second_separator_tail.try_into()?;
+    let second_separator_tail =
+        skip_char(number_tail_cons, '.').context("a '.' must seperate the number and serial")?;
+    let second_separator_tail_cons: Boxed<Cons> = second_separator_tail
+        .try_into()
+        .with_context(|| format!("{} must be a non-empty list", second_separator_tail))?;
 
-    let (serial, serial_tail) = next_decimal(second_separator_tail_cons)?;
-    let serial_tail_cons: Boxed<Cons> = serial_tail.try_into()?;
+    let (serial, serial_tail) =
+        next_decimal(second_separator_tail_cons).context("serial must be a decimal integer")?;
+    let serial_tail_cons: Boxed<Cons> = serial_tail
+        .try_into()
+        .with_context(|| format!("{} must be a non-empty list", serial_tail))?;
 
-    let suffix_tail = skip_char(serial_tail_cons, '>')?;
+    let suffix_tail = skip_char(serial_tail_cons, '>').context("last character must be '>'")?;
 
     if suffix_tail.is_nil() {
         if node_id == nodes::node::id() {
             Pid::make_term(number, serial).map_err(|error| error.into())
         } else {
-            match nodes::id_to_arc_node(&node_id) {
-                Some(arc_node) => process
-                    .external_pid(arc_node, number, serial)
-                    .map_err(|error| error.into()),
-                None => Err(badarg!().into()),
-            }
+            let arc_node = nodes::try_id_to_arc_node(&node_id)?;
+
+            process.external_pid(arc_node, number, serial)
         }
     } else {
-        Err(badarg!().into())
+        Err(TypeError)
+            .with_context(|| {
+                format!(
+                    "extra characters ({}) beyond end of formatted pid",
+                    suffix_tail
+                )
+            })
+            .map_err(From::from)
     }
 }
 

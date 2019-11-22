@@ -7,7 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
-use crate::registry::pid_to_process;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -15,10 +16,16 @@ use liblumen_alloc::{atom, badarg};
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::registry::pid_to_process;
+
 #[native_implemented_function(process_info/2)]
 pub fn native(process: &Process, pid: Term, item: Term) -> exception::Result<Term> {
-    let pid_pid: Pid = pid.try_into()?;
-    let item_atom: Atom = item.try_into()?;
+    let pid_pid: Pid = pid
+        .try_into()
+        .with_context(|| format!("pid ({}) must be a pid", pid))?;
+    let item_atom: Atom = item
+        .try_into()
+        .with_context(|| format!("item ({}) must be an atom", item))?;
 
     if process.pid() == pid_pid {
         process_info(process, item_atom)

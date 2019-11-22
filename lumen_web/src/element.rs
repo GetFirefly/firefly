@@ -5,6 +5,8 @@ pub mod set_attribute_3;
 use std::convert::TryInto;
 use std::mem;
 
+use anyhow::*;
+
 use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
@@ -20,7 +22,9 @@ pub fn module() -> Atom {
 // Private
 
 fn from_term(term: Term) -> Result<&'static Element, exception::Exception> {
-    let boxed: Boxed<Resource> = term.try_into()?;
+    let boxed: Boxed<Resource> = term
+        .try_into()
+        .with_context(|| format!("{} is not a resource", term))?;
     let resource_reference: Resource = boxed.into();
 
     if resource_reference.is::<Element>() {

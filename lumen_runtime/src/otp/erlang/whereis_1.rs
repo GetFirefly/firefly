@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
@@ -17,7 +19,9 @@ use crate::registry;
 
 #[native_implemented_function(whereis/1)]
 pub fn native(name: Term) -> exception::Result<Term> {
-    let atom: Atom = name.try_into()?;
+    let atom: Atom = name
+        .try_into()
+        .with_context(|| format!("name ({}) must be an atom", name))?;
 
     let option = registry::atom_to_process(&atom).map(|arc_process| arc_process.pid());
 

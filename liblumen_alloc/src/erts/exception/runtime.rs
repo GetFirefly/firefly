@@ -79,12 +79,6 @@ impl From<core::convert::Infallible> for RuntimeException {
     }
 }
 
-impl From<AtomError> for RuntimeException {
-    fn from(_: AtomError) -> Self {
-        super::badarg(location!())
-    }
-}
-
 impl From<BoolError> for RuntimeException {
     fn from(_: BoolError) -> Self {
         super::badarg(location!())

@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::Term;
 
@@ -15,7 +17,7 @@ use lumen_runtime_macros::native_implemented_function;
 /// `not/1` prefix operator.
 #[native_implemented_function(not/1)]
 pub fn native(boolean: Term) -> exception::Result<Term> {
-    let boolean_bool: bool = boolean.try_into()?;
+    let boolean_bool: bool = boolean.try_into().context("value must be a bool")?;
     let output = !boolean_bool;
 
     Ok(output.into())

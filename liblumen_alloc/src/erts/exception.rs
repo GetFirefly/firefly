@@ -83,11 +83,6 @@ impl From<TermEncodingError> for Exception {
 }
 
 // Runtime exception type conversions
-impl From<BoolError> for Exception {
-    fn from(bool_error: BoolError) -> Self {
-        Self::Runtime(bool_error.into())
-    }
-}
 impl From<BytesFromBinaryError> for Exception {
     fn from(err: BytesFromBinaryError) -> Self {
         use BytesFromBinaryError::*;

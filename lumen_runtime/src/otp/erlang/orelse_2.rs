@@ -7,6 +7,8 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::Term;
 
@@ -18,7 +20,7 @@ use lumen_runtime_macros::native_implemented_function;
 /// both operands, use `or_2`.
 #[native_implemented_function(and/2)]
 pub fn native(boolean: Term, term: Term) -> exception::Result<Term> {
-    let boolean_bool: bool = boolean.try_into()?;
+    let boolean_bool: bool = boolean.try_into().context("left must be a bool")?;
 
     if boolean_bool {
         // always `true.into()`, but this is faster

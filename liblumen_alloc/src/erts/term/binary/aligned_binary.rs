@@ -186,7 +186,7 @@ impl_aligned_binary!(BinaryLiteral);
 
 // We can't make this part of `impl_aligned_binary` because
 // we can't implement TryInto directly for dynamically-sized types,
-// only through references, so we implement them seperately.
+// only through references, so we implement them separately.
 macro_rules! impl_aligned_try_into {
     ($t:ty) => {
         impl TryInto<String> for $t {

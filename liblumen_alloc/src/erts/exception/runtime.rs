@@ -1,6 +1,5 @@
 use core::array::TryFromSliceError;
 use core::convert::TryFrom;
-use core::num::TryFromIntError;
 
 use thiserror::Error;
 
@@ -68,12 +67,6 @@ impl RuntimeException {
             RuntimeException::Error(e) => e.stacktrace(),
             RuntimeException::Unknown(_err) => None,
         }
-    }
-}
-
-impl From<TryFromIntError> for RuntimeException {
-    fn from(_: TryFromIntError) -> Self {
-        super::badarg(location!())
     }
 }
 

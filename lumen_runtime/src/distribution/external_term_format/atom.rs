@@ -15,11 +15,11 @@ pub fn atom_bytes_to_term_bytes((atom, bytes): (Atom, &[u8])) -> (Term, &[u8]) {
     (term, bytes)
 }
 
-pub fn bytes_len_try_into_atom<'a>(
+pub fn bytes_len_try_into_atom(
     safe: bool,
-    bytes: &'a [u8],
+    bytes: &[u8],
     len: usize,
-) -> Result<(Atom, &'a [u8]), Exception> {
+) -> Result<(Atom, &[u8]), Exception> {
     try_split_at(bytes, len).and_then(|(atom_name_bytes, after_atom_name_bytes)| {
         let atom_name = str::from_utf8(atom_name_bytes).context("atom bytes are not UTF-8")?;
 
@@ -27,7 +27,8 @@ pub fn bytes_len_try_into_atom<'a>(
             Atom::try_from_str_existing(atom_name)
         } else {
             Atom::try_from_str(atom_name)
-        }?;
+        }
+        .context("Could not create atom from bytes")?;
 
         Ok((atom, after_atom_name_bytes))
     })

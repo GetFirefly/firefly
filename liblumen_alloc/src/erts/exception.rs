@@ -65,11 +65,6 @@ impl From<Alloc> for Exception {
         Self::System(alloc.into())
     }
 }
-impl From<AtomError> for Exception {
-    fn from(err: AtomError) -> Self {
-        RuntimeException::from(ArcError::from_err(err)).into()
-    }
-}
 impl From<TermDecodingError> for Exception {
     fn from(err: TermDecodingError) -> Self {
         Self::System(err.into())

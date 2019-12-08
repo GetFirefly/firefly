@@ -121,8 +121,8 @@ fn with_procbin_returns_size() {
     with_process(|process| {
         let bytes = [7; 65];
         let procbin = process.binary_from_bytes(&bytes).unwrap();
-        // TODO: figure out how to assert that this is actually a procbin
-        // assert!(procbin.is_procbin());
+        // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
+        assert!(procbin.is_boxed_procbin());
         let iolist = process
             .list_from_slice(&[
                 procbin

@@ -1,7 +1,7 @@
 use crate::otp;
 use crate::scheduler::with_process;
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::atom_unchecked;
+use liblumen_alloc::erts::term::prelude::Atom;
 
 #[test]
 fn with_binary_returns_binary_in_list() {
@@ -130,7 +130,9 @@ fn with_improper_list_smallint_tail_errors_badarg() {
 #[test]
 fn with_atom_in_iolist_errors_badarg() {
     with_process(|process| {
-        let iolist = process.list_from_slice(&[atom_unchecked("foo")]).unwrap();
+        let iolist = process
+            .list_from_slice(&[Atom::str_to_term("foo")])
+            .unwrap();
 
         assert_eq!(
             otp::erlang::iolist_to_iovec_1::native(process, iolist),

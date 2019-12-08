@@ -58,7 +58,10 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                             return Err(badarg!().into());
                         }
                     }
-                    _ => return Err(badarg!().into()),
+                    TypedTerm::ProcBin(procbin) => {
+                        byte_vec.extend_from_slice(procbin.as_bytes());
+                    }
+                    _ => return Err(badarg!().into())
                 }
             }
 

@@ -1,7 +1,7 @@
 use crate::otp;
 use crate::scheduler::with_process;
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::Atom;
+use liblumen_alloc::erts::term::prelude::*;
 
 #[test]
 fn with_binary_returns_binary_in_list() {
@@ -58,6 +58,27 @@ fn with_mixed_iolists_returns_iovec() {
                     process.binary_from_bytes(&[60, 61]).unwrap(),
                     process.binary_from_bytes(&[42, 43]).unwrap()
                 ])
+                .unwrap())
+        )
+    });
+}
+
+#[test]
+fn with_procbin_in_list_returns_list() {
+    with_process(|process| {
+        let bytes = [7; 65];
+        let procbin = process.binary_from_bytes(&bytes).unwrap();
+        // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
+        assert!(procbin.is_boxed_procbin());
+        let iolist = process
+            .list_from_slice(&[
+                procbin
+            ]).unwrap();
+
+        assert_eq!(
+            otp::erlang::iolist_to_iovec_1::native(process, iolist),
+            Ok(process
+                .list_from_slice(&[process.binary_from_bytes(&bytes).unwrap()])
                 .unwrap())
         )
     });

@@ -96,6 +96,27 @@ fn with_recursive_lists_of_binaries_and_bytes_ending_in_binary_or_empty_list_ret
     });
 }
 
+#[test]
+fn with_procbin_in_list_returns_binary() {
+    with_process(|process| {
+        let bytes = [7; 65];
+        let procbin = process.binary_from_bytes(&bytes).unwrap();
+        // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
+        assert!(procbin.is_boxed_procbin());
+        let list = process
+            .list_from_slice(&[
+                procbin
+            ]).unwrap();
+
+        assert_eq!(
+            native(process, list),
+            Ok(process
+                .binary_from_bytes(&bytes)
+                .unwrap())
+        )
+    });
+}
+
 fn byte(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
     any::<u8>()
         .prop_map(move |byte| arc_process.integer(byte).unwrap())

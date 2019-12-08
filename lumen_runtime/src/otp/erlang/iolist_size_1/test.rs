@@ -1,7 +1,7 @@
 use crate::otp;
 use crate::scheduler::with_process;
 use liblumen_alloc::badarg;
-use liblumen_alloc::erts::term::prelude::Atom;
+use liblumen_alloc::erts::term::prelude::*;
 
 // > iolist_size([1,2|<<3,4>>]).
 // 4
@@ -112,6 +112,25 @@ fn with_subbinary_returns_size() {
         assert_eq!(
             otp::erlang::iolist_size_1::native(process, iolist),
             Ok(process.integer(3).unwrap())
+        )
+    });
+}
+
+#[test]
+fn with_procbin_returns_size() {
+    with_process(|process| {
+        let bytes = [7; 65];
+        let procbin = process.binary_from_bytes(&bytes).unwrap();
+        // TODO: figure out how to assert that this is actually a procbin
+        // assert!(procbin.is_procbin());
+        let iolist = process
+            .list_from_slice(&[
+                procbin
+            ]).unwrap();
+
+        assert_eq!(
+            otp::erlang::iolist_size_1::native(process, iolist),
+            Ok(process.integer(65).unwrap())
         )
     });
 }

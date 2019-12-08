@@ -103,16 +103,11 @@ fn with_procbin_in_list_returns_binary() {
         let procbin = process.binary_from_bytes(&bytes).unwrap();
         // We expect this to be a procbin, since it's > 64 bytes. Make sure it is.
         assert!(procbin.is_boxed_procbin());
-        let list = process
-            .list_from_slice(&[
-                procbin
-            ]).unwrap();
+        let list = process.list_from_slice(&[procbin]).unwrap();
 
         assert_eq!(
             native(process, list),
-            Ok(process
-                .binary_from_bytes(&bytes)
-                .unwrap())
+            Ok(process.binary_from_bytes(&bytes).unwrap())
         )
     });
 }

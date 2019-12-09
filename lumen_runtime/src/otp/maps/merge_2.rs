@@ -7,10 +7,10 @@ mod test;
 
 use std::convert::TryInto;
 
+use anyhow::*;
 use hashbrown::HashMap;
 
-use liblumen_alloc::badmap;
-use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -18,32 +18,25 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(merge/2)]
 pub fn native(process: &Process, map1: Term, map2: Term) -> exception::Result<Term> {
-    let result_map1: Result<Boxed<Map>, _> = map1.try_into();
+    let boxed_map1: Boxed<Map> = map1
+        .try_into()
+        .with_context(|| format!("map1 ({}) is not a map", map1))
+        .map_err(|source| badmap(process, map1, source.into()))?;
+    let boxed_map2: Boxed<Map> = map2
+        .try_into()
+        .with_context(|| format!("map2 ({}) is not a map", map2))
+        .map_err(|source| badmap(process, map2, source.into()))?;
 
-    match result_map1 {
-        Ok(map1) => {
-            let result_map2: Result<Boxed<Map>, _> = map2.try_into();
+    let mut merged: HashMap<Term, Term> =
+        HashMap::with_capacity(boxed_map1.len() + boxed_map2.len());
 
-            match result_map2 {
-                Ok(map2) => {
-                    let mut merged: HashMap<Term, Term> =
-                        HashMap::with_capacity(map1.len() + map2.len());
-
-                    for (key, value) in map1.iter() {
-                        merged.insert(*key, *value);
-                    }
-
-                    for (key, value) in map2.iter() {
-                        merged.insert(*key, *value);
-                    }
-
-                    process
-                        .map_from_hash_map(merged)
-                        .map_err(|error| error.into())
-                }
-                Err(_) => Err(badmap!(process, map2)),
-            }
-        }
-        Err(_) => Err(badmap!(process, map1)),
+    for (key, value) in boxed_map1.iter() {
+        merged.insert(*key, *value);
     }
+
+    for (key, value) in boxed_map2.iter() {
+        merged.insert(*key, *value);
+    }
+
+    process.map_from_hash_map(merged).map_err(From::from)
 }

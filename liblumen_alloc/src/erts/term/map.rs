@@ -1,16 +1,17 @@
 use core::alloc::Layout;
 use core::cmp;
-use core::convert::TryFrom;
-use core::fmt::{self, Debug, Display};
+use core::convert::{TryFrom, TryInto};
+use core::fmt::{self, Debug, Display, Write};
 use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 
 use alloc::vec::Vec;
 
+use anyhow::*;
 use hashbrown::HashMap;
 
-use crate::erts::exception::AllocResult;
+use crate::erts::exception::{AllocResult, InternalResult};
 use crate::erts::process::alloc::TermAlloc;
 
 use super::prelude::*;
@@ -40,29 +41,44 @@ impl Map {
         Self::from_hash_map(value)
     }
 
-    pub fn from_list(list: Term) -> Option<HashMap<Term, Term>> {
-        match list.decode().unwrap() {
-            TypedTerm::Nil => Some(HashMap::new()),
+    pub fn from_list(list: Term) -> InternalResult<HashMap<Term, Term>> {
+        match list.decode()? {
+            TypedTerm::Nil => Ok(HashMap::new()),
             TypedTerm::List(cons_ptr) => {
                 let cons = cons_ptr.as_ref();
                 let mut map = HashMap::new();
 
-                for term_result in cons.into_iter() {
-                    if let Ok(term) = term_result {
-                        if let Ok(TypedTerm::Tuple(tuple)) = term.decode() {
+                for result_element in cons.into_iter() {
+                    match result_element {
+                        Ok(element) => {
+                            let tuple: Boxed<Tuple> = element.try_into().with_context(|| {
+                                format!("element ({}) of list ({}) is not a tuple", element, list)
+                            })?;
+
                             if tuple.len() == 2 {
                                 map.insert(tuple[0], tuple[1]);
-                                continue;
+                            } else {
+                                return Err(anyhow!(
+                                    "element ({}) of list ({}) is not a 2-arity tuple",
+                                    element,
+                                    list
+                                )
+                                .into());
                             }
                         }
+                        Err(_) => {
+                            return Err(ImproperListError)
+                                .context(format!("list ({}) is improper", list))
+                                .map_err(From::from)
+                        }
                     }
-
-                    return None;
                 }
 
-                Some(map)
+                Ok(map)
             }
-            _ => None,
+            _ => Err(TypeError)
+                .context(format!("list ({}) is not a list", list))
+                .map_err(From::from),
         }
     }
 
@@ -207,7 +223,19 @@ impl Debug for Map {
 
 impl Display for Map {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.value)
+        write!(f, "%{{")?;
+
+        let mut iter = self.iter();
+
+        if let Some((first_key, first_value)) = iter.next() {
+            write!(f, "{} => {}", first_key, first_value)?;
+
+            for (key, value) in iter {
+                write!(f, ", {} => {}", key, value)?;
+            }
+        }
+
+        f.write_char('}')
     }
 }
 

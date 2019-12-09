@@ -21,7 +21,7 @@ use crate::otp::erlang::demonitor_2::demonitor;
 pub fn native(process: &Process, reference: Term) -> exception::Result<Term> {
     let reference_reference: Boxed<Reference> = reference
         .try_into()
-        .context("reference must be a reference")?;
+        .with_context(|| format!("reference ({}) must be a reference", reference))?;
 
     demonitor(process, &reference_reference, Default::default())
 }

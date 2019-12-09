@@ -17,7 +17,9 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(append_element/2)]
 pub fn native(process: &Process, tuple: Term, element: Term) -> exception::Result<Term> {
-    let internal: Boxed<Tuple> = tuple.try_into().context("tuple must be a tuple")?;
+    let internal: Boxed<Tuple> = tuple
+        .try_into()
+        .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
     let new_tuple = process.tuple_from_slices(&[&internal[..], &[element]])?;
 
     Ok(new_tuple)

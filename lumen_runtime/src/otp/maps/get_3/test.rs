@@ -4,7 +4,7 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::{atom, badmap};
+use liblumen_alloc::atom;
 
 use crate::otp::maps::get_3::native;
 use crate::scheduler::with_process_arc;
@@ -21,9 +21,11 @@ fn without_map_errors_badmap() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(key, map, default)| {
-                    prop_assert_eq!(
+                    prop_assert_badmap!(
                         native(&arc_process, key, map, default),
-                        Err(badmap!(&arc_process, map))
+                        &arc_process,
+                        map,
+                        format!("map ({}) is not a map", map)
                     );
 
                     Ok(())

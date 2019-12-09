@@ -6,9 +6,9 @@ use core::str;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+use anyhow::*;
 use thiserror::Error;
 
-use crate::erts::exception::Exception;
 use crate::erts::term::prelude::Boxed;
 
 use super::aligned_binary;
@@ -217,7 +217,7 @@ macro_rules! impl_maybe_aligned_try_into {
         }
 
         impl TryInto<Vec<u8>> for $t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
@@ -226,7 +226,7 @@ macro_rules! impl_maybe_aligned_try_into {
         }
 
         impl TryInto<Vec<u8>> for &$t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
@@ -237,13 +237,15 @@ macro_rules! impl_maybe_aligned_try_into {
                         Ok(self.full_byte_iter().collect())
                     }
                 } else {
-                    Err(badarg!().into())
+                    Err(NotABinary)
+                        .context(format!("{} is a bitstring, but not a binary", self))
+                        .map_err(From::from)
                 }
             }
         }
 
         impl TryInto<Vec<u8>> for Boxed<$t> {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {

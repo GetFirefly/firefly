@@ -37,9 +37,7 @@ macro_rules! maybe_aligned_maybe_binary_to_atom {
 
 #[native_implemented_function(binary_to_atom / 2)]
 pub fn native(binary: Term, encoding: Term) -> exception::Result<Term> {
-    let _: Encoding = encoding
-        .try_into()
-        .with_context(|| format!("{} must be an atom encoding", encoding))?;
+    let _: Encoding = encoding.try_into()?;
 
     match binary.decode()? {
         TypedTerm::HeapBinary(heap_binary) => bytes_to_atom(binary, heap_binary.as_bytes()),
@@ -61,4 +59,5 @@ fn bytes_to_atom(binary: Term, bytes: &[u8]) -> exception::Result<Term> {
     Atom::try_from_latin1_bytes(bytes)
         .with_context(|| format!("binary ({}) could not be converted to atom", binary))?
         .encode()
+        .map_err(From::from)
 }

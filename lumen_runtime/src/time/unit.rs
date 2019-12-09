@@ -98,11 +98,11 @@ impl TryFrom<Term> for Unit {
 
                 match option {
                     Some(unit) => Ok(unit),
-                    None => Err(TryAtomFromTermError(atom_name)).context("supported units are second, seconds, millisecond, milli_seconds, microsecond, micro_seconds, nanosecond, nano_seconds, native, or perf_counter")
+                    None => Err(TryAtomFromTermError(atom_name).into())
                 }
             }
             _ => Err(TypeError.into()),
-        }
+        }.context("supported units are :second, :seconds, :millisecond, :milli_seconds, :microsecond, :micro_seconds, :nanosecond, :nano_seconds, :native, :perf_counter, or hertz (positive integer)")
     }
 }
 
@@ -120,10 +120,11 @@ mod tests {
             let result: Result<Unit, _> = term.try_into();
 
             assert!(result.is_err());
-            assert_eq!(
-                format!("{:#}", result.unwrap_err()),
-                "hertz must be positive"
-            );
+
+            let formatted = format!("{:?}", result.unwrap_err());
+
+            assert!(formatted.contains("hertz must be positive"));
+            assert!(formatted.contains("supported units are :second, :seconds, :millisecond, :milli_seconds, :microsecond, :micro_seconds, :nanosecond, :nano_seconds, :native, :perf_counter, or hertz (positive integer)"));
         });
     }
 }

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use anyhow::*;
+
 use liblumen_alloc::erts::exception::Alloc;
 use liblumen_alloc::erts::process::code::stack::frame::{Frame, Placement};
 use liblumen_alloc::erts::process::{code, Process};
@@ -69,14 +71,19 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
                         Process::call_code(arc_process)
                     } else {
                         arc_process.reduce();
-                        arc_process.exception(liblumen_alloc::badarg!());
+                        arc_process.exception(
+                            anyhow!("enumerable ({}) is a struct, but not a Range", enumerable)
+                                .into(),
+                        );
 
                         Ok(())
                     }
                 }
                 None => {
                     arc_process.reduce();
-                    arc_process.exception(liblumen_alloc::badarg!());
+                    arc_process.exception(
+                        anyhow!("enumerable ({}) is a map, but not a struct", enumerable).into(),
+                    );
 
                     Ok(())
                 }
@@ -84,7 +91,7 @@ fn code(arc_process: &Arc<Process>) -> code::Result {
         }
         _ => {
             arc_process.reduce();
-            arc_process.exception(liblumen_alloc::badarg!());
+            arc_process.exception(anyhow!("enumerable ({}) is not a map", enumerable).into());
 
             Ok(())
         }

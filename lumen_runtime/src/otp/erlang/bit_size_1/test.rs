@@ -3,7 +3,6 @@ use std::convert::TryInto;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::bit_size_1::native;
@@ -16,8 +15,11 @@ fn without_bitstring_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term::is_not_bitstring(arc_process.clone()),
-                |binary| {
-                    prop_assert_eq!(native(&arc_process, binary), Err(badarg!().into()));
+                |bitstring| {
+                    prop_assert_badarg!(
+                        native(&arc_process, bitstring),
+                        format!("bitstring ({}) is not a bitstring", bitstring)
+                    );
 
                     Ok(())
                 },

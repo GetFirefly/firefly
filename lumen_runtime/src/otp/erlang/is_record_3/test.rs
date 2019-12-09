@@ -2,7 +2,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::is_record_3::native;
@@ -40,7 +39,10 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(tuple, record_tag, size)| {
-                    prop_assert_eq!(native(tuple, record_tag, size), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(tuple, record_tag, size),
+                        format!("record tag ({}) must be an atom", record_tag)
+                    );
 
                     Ok(())
                 },
@@ -64,7 +66,10 @@ fn with_empty_tuple_with_atom_without_non_negative_size_errors_badarg() {
                 |(record_tag, size)| {
                     let tuple = arc_process.tuple_from_slice(&[]).unwrap();
 
-                    prop_assert_eq!(native(tuple, record_tag, size), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(tuple, record_tag, size),
+                        format!("size ({}) must be a positive integer", size)
+                    );
 
                     Ok(())
                 },

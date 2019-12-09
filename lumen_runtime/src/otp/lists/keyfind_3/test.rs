@@ -4,7 +4,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::lists::keyfind_3::native;
@@ -22,9 +21,9 @@ fn without_one_based_index_errors_badarg() {
                     strategy::term::list::proper(arc_process.clone()),
                 ),
                 |(key, one_based_index, tuple_list)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(key, one_based_index, tuple_list),
-                        Err(badarg!().into())
+                        format!("index ({}) is not 1-based index", one_based_index)
                     );
 
                     Ok(())

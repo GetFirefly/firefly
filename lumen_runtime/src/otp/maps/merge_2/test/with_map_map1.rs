@@ -14,9 +14,11 @@ fn without_map_map2_errors_badmap() {
                 )
             }),
             |(arc_process, map1, map2)| {
-                prop_assert_eq!(
+                prop_assert_badmap!(
                     native(&arc_process, map1, map2),
-                    Err(badmap!(&arc_process, map2))
+                    &arc_process,
+                    map2,
+                    format!("map2 ({}) is not a map", map2)
                 );
 
                 Ok(())

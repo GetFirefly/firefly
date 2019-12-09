@@ -1,10 +1,8 @@
 mod with_reference;
 
-use proptest::prop_assert_eq;
 use proptest::strategy::{BoxedStrategy, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -21,9 +19,9 @@ fn without_reference_errors_badarg() {
                 |reference| {
                     let options = Term::NIL;
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, reference, options),
-                        Err(badarg!().into())
+                        format!("reference ({}) must be a reference", reference)
                     );
 
                     Ok(())

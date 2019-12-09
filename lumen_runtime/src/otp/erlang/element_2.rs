@@ -17,13 +17,15 @@ use lumen_runtime_macros::native_implemented_function;
 /// `element/2`
 #[native_implemented_function(element/2)]
 pub fn native(index: Term, tuple: Term) -> exception::Result<Term> {
-    let tuple_tuple: Boxed<Tuple> = tuple.try_into().context("tuple must be a tuple")?;
-    let index: OneBasedIndex = index
+    let tuple_tuple: Boxed<Tuple> = tuple
         .try_into()
-        .context("index must be a non-negative integer")?;
+        .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
+    let one_based_index: OneBasedIndex = index
+        .try_into()
+        .with_context(|| format!("index ({})", index))?;
 
     tuple_tuple
-        .get_element(index)
-        .context("index out of bounds")
+        .get_element(one_based_index)
+        .with_context(|| format!("index ({})", index))
         .map_err(From::from)
 }

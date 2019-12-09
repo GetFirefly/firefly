@@ -3,10 +3,9 @@ mod scientific_digits;
 
 use std::convert::{TryFrom, TryInto};
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception;
+use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::proplist::TryPropListFromTermError;
@@ -79,10 +78,12 @@ impl TryFrom<Term> for Options {
 
 // Private
 
-fn float_term_to_f64(float_term: Term) -> exception::Result<f64> {
-    match float_term.decode().unwrap() {
+fn float_term_to_f64(float_term: Term) -> InternalResult<f64> {
+    match float_term.decode()? {
         TypedTerm::Float(float) => Ok(float.into()),
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!("float ({}) is not a float", float_term))
+            .map_err(From::from),
     }
 }
 
@@ -194,6 +195,9 @@ impl Default for OptionsBuilder {
     }
 }
 
+const SUPPORTED_OPTIONS_CONTEXT: &str =
+    "supported options are compact, {:decimal, 0..253}, or {:scientific, 0..249}";
+
 impl TryFrom<Term> for OptionsBuilder {
     type Error = anyhow::Error;
 
@@ -205,12 +209,14 @@ impl TryFrom<Term> for OptionsBuilder {
             match options_term.decode().unwrap() {
                 TypedTerm::Nil => break,
                 TypedTerm::List(cons) => {
-                    options_builder.put_option_term(cons.head)?;
+                    options_builder
+                        .put_option_term(cons.head)
+                        .context(SUPPORTED_OPTIONS_CONTEXT)?;
                     options_term = cons.tail;
 
                     continue;
                 }
-                _ => bail!(ImproperListError),
+                _ => return Err(ImproperListError).context(SUPPORTED_OPTIONS_CONTEXT),
             }
         }
 

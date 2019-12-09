@@ -3,7 +3,7 @@ use super::*;
 mod registered;
 
 #[test]
-fn unregistered_sends_nothing_when_timer_expires() {
+fn unregistered_errors_badarg() {
     TestRunner::new(Config::with_source_file(file!()))
         .run(
             &(milliseconds(), strategy::process()).prop_flat_map(|(milliseconds, arc_process)| {
@@ -11,17 +11,17 @@ fn unregistered_sends_nothing_when_timer_expires() {
                     Just(milliseconds),
                     Just(arc_process.clone()),
                     strategy::term(arc_process.clone()),
-                    options(arc_process),
+                    abs_value(arc_process),
                 )
             }),
-            |(milliseconds, arc_process, message, options)| {
+            |(milliseconds, arc_process, message, abs_value)| {
                 let destination = registered_name();
-
                 let time = arc_process.integer(milliseconds).unwrap();
+                let options = options(abs_value, &arc_process);
 
-                prop_assert_eq!(
+                prop_assert_badarg!(
                     native(arc_process.clone(), time, destination, message, options),
-                    Err(badarg!().into())
+                    format!("abs value ({}) must be boolean", abs_value)
                 );
 
                 Ok(())

@@ -1,12 +1,10 @@
 mod with_atom;
 mod with_small_integer;
 
-use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::process::Process;
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::system_time_1::native;
@@ -23,18 +21,11 @@ fn without_atom_or_integer_errors_badarg() {
                         !(unit.is_integer() || unit.is_atom())
                     }),
                 |unit| {
-                    prop_assert_eq!(native(&arc_process, unit,), Err(badarg!().into()));
+                    prop_assert_badarg!(native(&arc_process, unit,), "supported units are :second, :seconds, :millisecond, :milli_seconds, :microsecond, :micro_seconds, :nanosecond, :nano_seconds, :native, :perf_counter, or hertz (positive integer)");
 
                     Ok(())
                 },
             )
             .unwrap();
     });
-}
-
-fn errors_badarg<U>(unit: U)
-where
-    U: FnOnce(&Process) -> Term,
-{
-    crate::test::errors_badarg(|process| native(process, unit(process)));
 }

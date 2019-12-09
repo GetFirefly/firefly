@@ -18,9 +18,11 @@ use lumen_runtime_macros::native_implemented_function;
 ///
 /// Short-circuiting, but doesn't enforce `right` is boolean.  If you need to enforce `boolean` for
 /// both operands, use `or_2`.
-#[native_implemented_function(and/2)]
+#[native_implemented_function(orelse/2)]
 pub fn native(boolean: Term, term: Term) -> exception::Result<Term> {
-    let boolean_bool: bool = boolean.try_into().context("left must be a bool")?;
+    let boolean_bool: bool = boolean
+        .try_into()
+        .with_context(|| format!("boolean ({}) must be a boolean", boolean))?;
 
     if boolean_bool {
         // always `true.into()`, but this is faster

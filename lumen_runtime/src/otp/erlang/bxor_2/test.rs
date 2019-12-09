@@ -6,7 +6,6 @@ use num_bigint::BigInt;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarith;
 use liblumen_alloc::erts::term::prelude::Encoded;
 
 use crate::otp::erlang::bxor_2::native;
@@ -23,7 +22,13 @@ fn without_integer_left_errors_badarith() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(&arc_process, left, right), Err(badarith!().into()));
+                    prop_assert_badarith!(
+                        native(&arc_process, left, right),
+                        format!(
+                            "left_integer ({}) and right_integer ({}) are not both integers",
+                            left, right
+                        )
+                    );
 
                     Ok(())
                 },
@@ -42,7 +47,13 @@ fn without_integer_left_without_integer_right_errors_badarith() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(&arc_process, left, right), Err(badarith!().into()));
+                    prop_assert_badarith!(
+                        native(&arc_process, left, right),
+                        format!(
+                            "left_integer ({}) and right_integer ({}) are not both integers",
+                            left, right
+                        )
+                    );
 
                     Ok(())
                 },

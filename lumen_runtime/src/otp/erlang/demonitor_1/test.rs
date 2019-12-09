@@ -1,9 +1,7 @@
 mod with_reference;
 
-use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::demonitor_1::native;
@@ -17,7 +15,10 @@ fn without_reference_errors_badarg() {
             .run(
                 &strategy::term::is_not_reference(arc_process.clone()),
                 |reference| {
-                    prop_assert_eq!(native(&arc_process, reference), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, reference),
+                        format!("reference ({}) must be a reference", reference)
+                    );
 
                     Ok(())
                 },

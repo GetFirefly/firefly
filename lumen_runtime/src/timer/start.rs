@@ -24,7 +24,10 @@ impl Options {
 
             match atom.name() {
                 "abs" => {
-                    let absolute: bool = tuple[1].try_into().context("abs must be boolean")?;
+                    let value = tuple[1];
+                    let absolute: bool = value
+                        .try_into()
+                        .with_context(|| format!("abs value ({}) must be boolean", value))?;
 
                     self.reference_frame = if absolute {
                         ReferenceFrame::Absolute

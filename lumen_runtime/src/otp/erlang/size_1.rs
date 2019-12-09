@@ -5,7 +5,8 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -24,6 +25,11 @@ pub fn native(process: &Process, binary_or_tuple: Term) -> exception::Result<Ter
 
     match option_size {
         Some(size) => Ok(process.integer(size)?),
-        None => Err(badarg!().into()),
+        None => Err(TypeError)
+            .context(format!(
+                "binary_or_tuple ({}) is neither a binary nor a tuple",
+                binary_or_tuple
+            ))
+            .map_err(From::from),
     }
 }

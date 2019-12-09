@@ -18,9 +18,9 @@ fn without_integer_start_without_integer_length_errors_badarg() {
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_length),
-                        Err(badarg!().into())
+                        format!("start ({}) must be a non-negative integer", start)
                     );
 
                     Ok(())
@@ -43,9 +43,9 @@ fn without_integer_start_with_integer_length_errors_badarg() {
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_length),
-                        Err(badarg!().into())
+                        format!("start ({}) must be a non-negative integer", start)
                     );
 
                     Ok(())
@@ -56,21 +56,21 @@ fn without_integer_start_with_integer_length_errors_badarg() {
 }
 
 #[test]
-fn with_integer_start_without_integer_length_errors_badarg() {
+fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
                     strategy::term::is_bitstring(arc_process.clone()),
-                    strategy::term::is_integer(arc_process.clone()),
+                    strategy::term::integer::non_negative(arc_process.clone()),
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_length),
-                        Err(badarg!().into())
+                        format!("length ({}) must be an integer", length)
                     );
 
                     Ok(())
@@ -100,9 +100,9 @@ fn with_negative_start_with_valid_length_errors_badarg() {
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_length),
-                        Err(badarg!().into())
+                        format!("start ({}) must be a non-negative integer", start)
                     );
 
                     Ok(())
@@ -128,9 +128,9 @@ fn with_start_greater_than_size_with_non_negative_length_errors_badarg() {
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_length),
-                        Err(badarg!().into())
+                        format!("start ({}) exceeds available_byte_count", start)
                     );
 
                     Ok(())
@@ -151,18 +151,22 @@ fn with_start_less_than_size_with_negative_length_past_start_errors_badarg() {
                 )
                 .prop_flat_map(|binary| (Just(binary), 0..total_byte_len(binary)))
                 .prop_map(|(binary, start)| {
+                    let length = -((start as isize) + 1);
+                    let end = (start as isize) + length;
+
                     (
                         binary,
                         arc_process.integer(start).unwrap(),
-                        arc_process.integer(-((start as isize) + 1)).unwrap(),
+                        arc_process.integer(length).unwrap(),
+                        end,
                     )
                 }),
-                |(binary, start, length)| {
+                |(binary, start, length, end)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_length),
-                        Err(badarg!().into())
+                        format!("end ({}) is less than or equal to 0", end)
                     );
 
                     Ok(())
@@ -184,19 +188,22 @@ fn with_start_less_than_size_with_positive_length_past_end_errors_badarg() {
                 .prop_flat_map(|binary| (Just(binary), 0..total_byte_len(binary)))
                 .prop_map(|(binary, start)| {
                     let mut heap = arc_process.acquire_heap();
+                    let length = total_byte_len(binary) - start + 1;
+                    let end = start + length;
 
                     (
                         binary,
                         heap.integer(start).unwrap(),
-                        heap.integer(total_byte_len(binary) - start + 1).unwrap(),
+                        heap.integer(length).unwrap(),
+                        end,
                     )
                 }),
-                |(binary, start, length)| {
+                |(binary, start, length, end)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_length),
-                        Err(badarg!().into())
+                        format!("end ({}) exceeds available_byte_count", end)
                     );
 
                     Ok(())

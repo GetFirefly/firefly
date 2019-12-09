@@ -9,10 +9,10 @@ use std::convert::TryInto;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
+use liblumen_alloc::atom;
+use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{atom, badarg};
 
 use lumen_runtime_macros::native_implemented_function;
 
@@ -35,11 +35,12 @@ pub fn native(process: &Process, pid: Term, item: Term) -> exception::Result<Ter
             None => Ok(atom!("undefined")),
         }
     }
+    .map_err(From::from)
 }
 
 // Private
 
-fn process_info(process: &Process, item: Atom) -> exception::Result<Term> {
+fn process_info(process: &Process, item: Atom) -> InternalResult<Term> {
     match item.name() {
         "backtrace" => unimplemented!(),
         "binary" => unimplemented!(),
@@ -74,11 +75,22 @@ fn process_info(process: &Process, item: Atom) -> exception::Result<Term> {
         "total_heap_size" => unimplemented!(),
         "trace" => unimplemented!(),
         "trap_exit" => unimplemented!(),
-        _ => Err(badarg!().into()),
+        name => Err(TryAtomFromTermError(name))
+            .context(
+                "supported items are backtrace, binary, catchlevel, current_function, \
+                 current_location, current_stacktrace, dictionary, error_handler, \
+                 garbage_collection, garbage_collection_info, group_leader, heap_size, \
+                 initial_call, links, last_calls, memory, message_queue_len, messages, \
+                 min_heap_size, min_bin_vheap_size, monitored_by, monitors, \
+                 message_queue_data, priority, reductions, registered_name, \
+                 sequential_trace_token, stack_size, status, suspending, \
+                 total_heap_size, trace, trap_exit",
+            )
+            .map_err(From::from),
     }
 }
 
-fn registered_name(process: &Process) -> exception::Result<Term> {
+fn registered_name(process: &Process) -> InternalResult<Term> {
     match *process.registered_name.read() {
         Some(registered_name) => {
             let tag = atom!("registered_name");

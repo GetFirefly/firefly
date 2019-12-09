@@ -6,14 +6,11 @@ use std::convert::TryInto;
 use std::mem;
 
 use anyhow::*;
-
-use liblumen_alloc::badarg;
-use liblumen_alloc::erts::exception;
-use liblumen_alloc::erts::term::prelude::*;
-
 use wasm_bindgen::JsCast;
-
 use web_sys::{Element, HtmlBodyElement, HtmlElement, HtmlTableElement, Node};
+
+use liblumen_alloc::erts::exception::InternalResult;
+use liblumen_alloc::erts::term::prelude::*;
 
 pub fn module() -> Atom {
     Atom::try_from_str("Elixir.Lumen.Web.Element").unwrap()
@@ -21,7 +18,7 @@ pub fn module() -> Atom {
 
 // Private
 
-fn from_term(term: Term) -> Result<&'static Element, exception::Exception> {
+fn from_term(term: Term) -> InternalResult<&'static Element> {
     let boxed: Boxed<Resource> = term
         .try_into()
         .with_context(|| format!("{} is not a resource", term))?;
@@ -60,9 +57,11 @@ fn from_term(term: Term) -> Result<&'static Element, exception::Exception> {
 
                 Ok(static_element)
             }
-            None => Err(badarg!().into()),
+            None => Err(anyhow!("{} is a Node, but not an Element", term).into()),
         }
     } else {
-        Err(badarg!().into())
+        Err(anyhow!(
+            "{} is a resource, but not an Element, HTMLBodyElement, HTMLElement, HTMLTableElement, or Node", term
+        ).into())
     }
 }

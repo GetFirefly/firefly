@@ -1,6 +1,6 @@
 use std::mem;
 
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
@@ -13,7 +13,7 @@ pub fn decode<'a>(
     process: &Process,
     safe: bool,
     bytes: &'a [u8],
-) -> Result<(Term, &'a [u8]), Exception> {
+) -> InternalResult<(Term, &'a [u8])> {
     let (u32_len_u16, after_len_bytes) = u16::decode(bytes)?;
     let len_usize = (u32_len_u16 as usize) * mem::size_of::<u32>();
 

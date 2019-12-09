@@ -20,9 +20,9 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                     let time = arc_process.integer(milliseconds).unwrap();
                     let options = options(&arc_process);
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        "supported option is {:abs, bool}"
                     );
 
                     Ok(())

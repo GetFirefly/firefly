@@ -25,7 +25,7 @@ use crate::registry::pid_to_process;
 pub fn native(process: &Process, reference: Term, options: Term) -> exception::Result<Term> {
     let reference_reference: Boxed<Reference> = reference
         .try_into()
-        .context("reference must be a reference")?;
+        .with_context(|| format!("reference ({}) must be a reference", reference))?;
     let options_options: Options = options.try_into()?;
 
     demonitor(process, &reference_reference, options_options)

@@ -16,7 +16,9 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(hd/1)]
 pub fn native(list: Term) -> exception::Result<Term> {
-    let cons: Boxed<Cons> = list.try_into().context("list must be a list")?;
+    let cons: Boxed<Cons> = list
+        .try_into()
+        .with_context(|| format!("list ({}) must be a non-empty list", list))?;
 
     Ok(cons.head)
 }

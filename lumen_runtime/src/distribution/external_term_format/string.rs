@@ -2,14 +2,14 @@ use std::str;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
 
 use super::u16;
 use crate::distribution::external_term_format::try_split_at;
 
-pub fn decode<'a>(process: &Process, bytes: &'a [u8]) -> Result<(Term, &'a [u8]), Exception> {
+pub fn decode<'a>(process: &Process, bytes: &'a [u8]) -> InternalResult<(Term, &'a [u8])> {
     let (len_u16, after_len_bytes) = u16::decode(bytes)?;
     let len_usize = len_u16 as usize;
 

@@ -1,9 +1,7 @@
 mod with_local_pid;
 
-use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::*;
 
 use crate::otp::erlang::process_info_2::native;
@@ -19,7 +17,10 @@ fn without_local_pid_errors_badarg() {
                 |pid| {
                     let item = Atom::str_to_term("registered_name");
 
-                    prop_assert_eq!(native(&arc_process, pid, item), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, pid, item),
+                        format!("pid ({}) must be a pid", pid)
+                    );
 
                     Ok(())
                 },

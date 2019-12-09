@@ -7,7 +7,10 @@ fn without_boolean_right_errors_badarg() {
             .run(
                 &strategy::term::is_not_boolean(arc_process.clone()),
                 |right| {
-                    prop_assert_eq!(native(true.into(), right), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(true.into(), right),
+                        format!("right ({}) must be a bool", right)
+                    );
 
                     Ok(())
                 },

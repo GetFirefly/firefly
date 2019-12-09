@@ -8,7 +8,8 @@ use thiserror::Error;
 
 use liblumen_core::locks::RwLock;
 
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::badarg;
+use liblumen_alloc::erts::exception::{ArcError, Exception, InternalException, RuntimeException};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
@@ -84,8 +85,18 @@ pub enum NodeNotFound {
 }
 
 impl From<NodeNotFound> for Exception {
-    fn from(node_not_found: NodeNotFound) -> Exception {
-        anyhow::Error::from(node_not_found).into()
+    fn from(node_not_found: NodeNotFound) -> Self {
+        RuntimeException::from(node_not_found).into()
+    }
+}
+impl From<NodeNotFound> for InternalException {
+    fn from(node_not_found: NodeNotFound) -> Self {
+        ArcError::from_err(node_not_found).into()
+    }
+}
+impl From<NodeNotFound> for RuntimeException {
+    fn from(node_not_found: NodeNotFound) -> Self {
+        badarg!(ArcError::from_err(node_not_found))
     }
 }
 

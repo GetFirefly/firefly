@@ -1,7 +1,5 @@
 use super::*;
 
-use proptest::strategy::Strategy;
-
 mod with_small_integer_time;
 
 // BigInt is not tested because it would take too long and would always count as `long_term` for the
@@ -15,14 +13,15 @@ fn without_non_negative_integer_time_error_badarg() {
                 &(
                     strategy::term::is_not_non_negative_integer(arc_process.clone()),
                     strategy::term(arc_process.clone()),
-                    options(arc_process.clone()),
+                    abs_value(arc_process.clone()),
                 ),
-                |(time, message, options)| {
+                |(time, message, abs_value)| {
                     let destination = arc_process.pid_term();
+                    let options = options(abs_value, &arc_process);
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(arc_process.clone(), time, destination, message, options),
-                        Err(badarg!().into())
+                        format!("abs value ({}) must be boolean", abs_value)
                     );
 
                     Ok(())
@@ -32,8 +31,6 @@ fn without_non_negative_integer_time_error_badarg() {
     });
 }
 
-fn options(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    strategy::term(arc_process.clone())
-        .prop_map(move |value| super::options(value, &arc_process))
-        .boxed()
+fn abs_value(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
+    strategy::term(arc_process)
 }

@@ -1,7 +1,5 @@
 use super::*;
 
-use liblumen_alloc::badkey;
-
 #[test]
 fn without_key_errors_badkey() {
     with_process_arc(|arc_process| {
@@ -13,9 +11,12 @@ fn without_key_errors_badkey() {
                 ),
                 |(key, value)| {
                     let empty_map = arc_process.map_from_slice(&[]).unwrap();
-                    prop_assert_eq!(
+
+                    prop_assert_badkey!(
                         native(&arc_process, key, value, empty_map),
-                        Err(badkey!(&arc_process, key).into())
+                        &arc_process,
+                        key,
+                        format!("key ({}) does not exist in map ({})", key, empty_map)
                     );
 
                     Ok(())

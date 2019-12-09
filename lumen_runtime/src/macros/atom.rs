@@ -4,10 +4,8 @@ macro_rules! boolean_infix_operator {
 
         use anyhow::*;
 
-        use liblumen_alloc::erts::term::prelude::Encoded;
-
-        let left_bool: bool = $left.decode()?.try_into().context("left must be a bool")?;
-        let right_bool: bool = $right.decode()?.try_into().context("right must be a bool")?;
+        let left_bool: bool = $left.try_into().with_context(|| format!("left ({}) must be a bool", $left))?;
+        let right_bool: bool = $right.try_into().with_context(|| format!("right ({}) must be a bool", $right))?;
         let output_bool = left_bool $operator right_bool;
 
         Ok(output_bool.into())

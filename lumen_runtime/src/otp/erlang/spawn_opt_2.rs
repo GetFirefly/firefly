@@ -7,7 +7,6 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
@@ -19,7 +18,7 @@ use crate::process::spawn::options::Options;
 
 #[native_implemented_function(spawn_opt/2)]
 pub fn native(process: &Process, function: Term, options: Term) -> exception::Result<Term> {
-    let options: Options = options.try_into().map_err(|_| badarg!())?;
+    let options: Options = options.try_into()?;
 
     spawn_apply_1::native(process, options, function)
 }

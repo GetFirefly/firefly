@@ -14,9 +14,9 @@ fn without_proper_list_arguments_errors_badarg() {
                     strategy::term::is_not_proper_list(arc_process.clone()),
                 ),
                 |(module, function, arguments)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, module, function, arguments),
-                        Err(badarg!().into())
+                        format!("arguments ({}) must be a proper list", arguments)
                     );
 
                     Ok(())

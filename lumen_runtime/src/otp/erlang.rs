@@ -187,11 +187,12 @@ use alloc::sync::Arc;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception;
+use liblumen_alloc::atom;
+use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{atom, badarg};
 
+use crate::process::SchedulerDependentAlloc;
 use crate::registry::pid_to_self_or_process;
 use crate::time::monotonic;
 use crate::time::Milliseconds;
@@ -210,47 +211,47 @@ fn cancel_timer(
     timer_reference: Term,
     options: timer::cancel::Options,
     process: &Process,
-) -> exception::Result<Term> {
-    match timer_reference.decode()? {
-        TypedTerm::Reference(ref reference) => {
-            let canceled = timer::cancel(reference);
+) -> InternalResult<Term> {
+    let boxed_timer_reference: Boxed<Reference> =
+        timer_reference.try_into().with_context(|| {
+            format!(
+                "timer_reference ({}) is not a local reference",
+                timer_reference
+            )
+        })?;
+    let canceled = timer::cancel(&boxed_timer_reference);
 
-            let term = if options.info {
-                let canceled_term = match canceled {
-                    Some(milliseconds_remaining) => process.integer(milliseconds_remaining)?,
-                    None => false.into(),
-                };
+    let term = if options.info {
+        let canceled_term = match canceled {
+            Some(milliseconds_remaining) => process.integer(milliseconds_remaining)?,
+            None => false.into(),
+        };
 
-                if options.r#async {
-                    let cancel_timer_message = process.tuple_from_slice(&[
-                        atom!("cancel_timer"),
-                        timer_reference,
-                        canceled_term,
-                    ])?;
-                    process.send_from_self(cancel_timer_message);
+        if options.r#async {
+            let cancel_timer_message = process.tuple_from_slice(&[
+                atom!("cancel_timer"),
+                timer_reference,
+                canceled_term,
+            ])?;
+            process.send_from_self(cancel_timer_message);
 
-                    atom!("ok")
-                } else {
-                    canceled_term
-                }
-            } else {
-                atom!("ok")
-            };
-
-            Ok(term)
+            atom!("ok")
+        } else {
+            canceled_term
         }
-        _ => Err(badarg!().into()),
-    }
-}
+    } else {
+        atom!("ok")
+    };
 
-const POSITIVE_SIZE_CONTEXT: &str = "size must be a positive integer";
+    Ok(term)
+}
 
 fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Result<Term> {
     match term.decode()? {
         TypedTerm::Tuple(tuple) => {
             let _: Atom = record_tag
                 .try_into()
-                .context("record tag must be an atom")?;
+                .with_context(|| format!("record tag ({}) must be an atom", record_tag))?;
 
             let len = tuple.len();
 
@@ -259,11 +260,7 @@ fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Res
 
                 match size {
                     Some(size_term) => {
-                        let size_usize: usize = size_term
-                            .try_into()
-                            // `usize` is non-negative, but to get here the `len` had to be greater
-                            // than `0`.
-                            .context(POSITIVE_SIZE_CONTEXT)?;
+                        let size_usize: usize = size_try_to_usize(size_term)?;
 
                         (element == record_tag) & (len == size_usize)
                     }
@@ -274,7 +271,7 @@ fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Res
                 // checked
                 if let Some(size_term) = size {
                     // error should bee consistent with above to preserve behavior exhibited by BEAM
-                    let _: usize = size_term.try_into().context(POSITIVE_SIZE_CONTEXT)?;
+                    let _: usize = size_try_to_usize(size_term)?;
                 }
 
                 false
@@ -286,34 +283,42 @@ fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Res
     }
 }
 
+fn size_try_to_usize(size: Term) -> exception::Result<usize> {
+    size.try_into()
+        .with_context(|| format!("size ({}) must be a positive integer", size))
+        .map_err(From::from)
+}
+
 fn read_timer(
     timer_reference: Term,
     options: timer::read::Options,
     process: &Process,
-) -> exception::Result<Term> {
-    match timer_reference.decode()? {
-        TypedTerm::Reference(ref local_reference) => {
-            let read = timer::read(local_reference);
+) -> InternalResult<Term> {
+    let local_reference: Boxed<Reference> = timer_reference.try_into().with_context(|| {
+        format!(
+            "timer_reference ({}) is not a local reference",
+            timer_reference
+        )
+    })?;
 
-            let read_term = match read {
-                Some(milliseconds_remaining) => process.integer(milliseconds_remaining)?,
-                None => false.into(),
-            };
+    let read = timer::read(&local_reference);
 
-            let term = if options.r#async {
-                let read_timer_message =
-                    process.tuple_from_slice(&[atom!("read_timer"), timer_reference, read_term])?;
-                process.send_from_self(read_timer_message);
+    let read_term = match read {
+        Some(milliseconds_remaining) => process.integer(milliseconds_remaining)?,
+        None => false.into(),
+    };
 
-                atom!("ok")
-            } else {
-                read_term
-            };
+    let term = if options.r#async {
+        let read_timer_message =
+            process.tuple_from_slice(&[atom!("read_timer"), timer_reference, read_term])?;
+        process.send_from_self(read_timer_message);
 
-            Ok(term)
-        }
-        _ => Err(badarg!().into()),
-    }
+        atom!("ok")
+    } else {
+        read_term
+    };
+
+    Ok(term)
 }
 
 fn start_timer(
@@ -323,11 +328,11 @@ fn start_timer(
     message: Term,
     options: timer::start::Options,
     arc_process: Arc<Process>,
-) -> exception::Result<Term> {
+) -> InternalResult<Term> {
     if time.is_integer() {
         let reference_frame_milliseconds: Milliseconds = time
             .try_into()
-            .context("time must be a non-negative integer")?;
+            .with_context(|| format!("time ({}) is not a non-negative integer", time))?;
 
         let absolute_milliseconds = match options.reference_frame {
             ReferenceFrame::Relative => {
@@ -336,7 +341,7 @@ fn start_timer(
             ReferenceFrame::Absolute => reference_frame_milliseconds,
         };
 
-        match destination.decode().unwrap() {
+        match destination.decode()? {
             // Registered names are looked up at time of send
             TypedTerm::Atom(destination_atom) => timer::start(
                 absolute_milliseconds,
@@ -356,14 +361,21 @@ fn start_timer(
                         timeout,
                         message,
                         &arc_process,
-                    )
-                    .map_err(|error| error.into()),
-                    None => make_ref_0::native(&arc_process),
+                    ),
+                    None => arc_process.next_reference(),
                 }
+                .map_err(From::from)
             }
-            _ => Err(badarg!().into()),
+            _ => Err(TypeError)
+                .context(format!(
+                    "destination ({}) is neither a registered name (atom) nor a local pid",
+                    destination
+                ))
+                .map_err(From::from),
         }
     } else {
-        Err(badarg!().into())
+        Err(TypeError)
+            .context(format!("time ({}) is not a non-negative integer", time))
+            .map_err(From::from)
     }
 }

@@ -10,7 +10,7 @@ use anyhow::*;
 use thiserror::Error;
 
 use crate::borrow::CloneToProcess;
-use crate::erts::exception::{self, AllocResult};
+use crate::erts::exception::AllocResult;
 use crate::erts::process::alloc::{StackAlloc, TermAlloc};
 use crate::erts::term::prelude::*;
 use crate::erts::to_word_size;
@@ -159,7 +159,7 @@ impl Cons {
     /// at the given index.
     ///
     /// If no key is found, returns 'badarg'
-    pub fn keyfind(&self, index: OneBasedIndex, key: Term) -> exception::Result<Option<Term>> {
+    pub fn keyfind(&self, index: OneBasedIndex, key: Term) -> anyhow::Result<Option<Term>> {
         for result in self.into_iter() {
             if let Ok(item) = result {
                 let tuple_item: Result<Boxed<Tuple>, _> = item.try_into();
@@ -171,7 +171,7 @@ impl Cons {
                     }
                 }
             } else {
-                return Err(badarg!().into());
+                return Err(ImproperListError.into());
             }
         }
 

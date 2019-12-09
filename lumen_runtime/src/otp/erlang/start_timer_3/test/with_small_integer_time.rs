@@ -22,14 +22,17 @@ fn without_atom_or_pid_destination_errors_badarg() {
                 |(milliseconds, destination, message)| {
                     let time = arc_process.integer(milliseconds).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         erlang::start_timer_3::native(
                             arc_process.clone(),
                             time,
                             destination,
                             message
                         ),
-                        Err(badarg!().into())
+                        format!(
+                            "destination ({}) is neither a registered name (atom) nor a local pid",
+                            destination
+                        )
                     );
 
                     Ok(())

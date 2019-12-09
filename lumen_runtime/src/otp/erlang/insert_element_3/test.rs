@@ -6,7 +6,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::{Boxed, Tuple};
 
 use crate::otp::erlang::insert_element_3::native;
@@ -26,9 +25,9 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple, index, element)| {
-                prop_assert_eq!(
+                prop_assert_badarg!(
                     native(&arc_process, index, tuple, element),
-                    Err(badarg!().into())
+                    format!("tuple ({}) must be a tuple", tuple)
                 );
 
                 Ok(())
@@ -64,9 +63,11 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
                         })
                 }),
                 |(arc_process, tuple, index, element)| {
-                    prop_assert_eq!(
+                    let boxed_tuple: Boxed<Tuple> = tuple.try_into().unwrap();
+
+                    prop_assert_badarg!(
                         native(&arc_process, index, tuple, element),
-                        Err(badarg!().into())
+                        format!("index ({}) must be between 1-{}", index, boxed_tuple.len())
                     );
 
                     Ok(())

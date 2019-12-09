@@ -7,7 +7,6 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Term;
@@ -19,7 +18,7 @@ use crate::timer;
 
 #[native_implemented_function(cancel_timer/2)]
 pub fn native(process: &Process, timer_reference: Term, options: Term) -> exception::Result<Term> {
-    let cancel_timer_options: timer::cancel::Options = options.try_into().map_err(|_| badarg!())?;
+    let cancel_timer_options: timer::cancel::Options = options.try_into()?;
 
-    cancel_timer(timer_reference, cancel_timer_options, process)
+    cancel_timer(timer_reference, cancel_timer_options, process).map_err(From::from)
 }

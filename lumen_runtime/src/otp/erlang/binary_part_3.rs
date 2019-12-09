@@ -9,7 +9,6 @@ use std::convert::TryInto;
 
 use anyhow::*;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -27,8 +26,10 @@ pub fn native(
 ) -> exception::Result<Term> {
     let start_usize: usize = start
         .try_into()
-        .context("start must be a non-negative integer")?;
-    let length_isize: isize = length.try_into().context("length must be an integer")?;
+        .with_context(|| format!("start ({}) must be a non-negative integer", start))?;
+    let length_isize: isize = length
+        .try_into()
+        .with_context(|| format!("length ({}) must be an integer", length))?;
 
     match binary.decode().unwrap() {
         TypedTerm::HeapBinary(heap_binary) => {
@@ -85,6 +86,11 @@ pub fn native(
                     .map_err(|error| error.into())
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!(
+                "binary ({}) must be a binary or bitstring with at least 1 full byte",
+                binary
+            ))
+            .map_err(From::from),
     }
 }

@@ -62,12 +62,14 @@ impl TryFrom<Term> for Options {
             match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
+                    options
+                        .put_option_term(cons.head)
+                        .with_context(|| SUPPORTED_OPTIONS_CONTEXT)?;
                     options_term = cons.tail;
 
                     continue;
                 }
-                _ => bail!(ImproperListError),
+                _ => return Err(ImproperListError).context(SUPPORTED_OPTIONS_CONTEXT),
             }
         }
     }

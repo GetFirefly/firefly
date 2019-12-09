@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use proptest::strategy::{Just, Strategy};
 
-use liblumen_alloc::badarity;
 use liblumen_alloc::erts::process::code::Code;
 use liblumen_alloc::erts::process::Process;
 
@@ -57,7 +56,16 @@ fn without_arity_errors_badarg() {
                 )
                 .unwrap();
 
-                prop_assert_eq!(result, Err(badarity!(&arc_process, function, arguments)));
+                prop_assert_badarity!(
+                    result,
+                    &arc_process,
+                    function,
+                    arguments,
+                    format!(
+                        "arguments ({}) length (2) does not match arity (1) of function ({})",
+                        arguments, function
+                    )
+                );
 
                 mem::drop(child_arc_process);
 

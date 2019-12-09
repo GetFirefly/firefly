@@ -7,8 +7,9 @@ mod test;
 
 use std::convert::TryInto;
 
-use liblumen_alloc::badmap;
-use liblumen_alloc::erts::exception;
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::{self, *};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -16,16 +17,12 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(values/1)]
 pub fn native(process: &Process, map: Term) -> exception::Result<Term> {
-    let result_map: Result<Boxed<Map>, _> = map.try_into();
+    let boxed_map: Boxed<Map> = map
+        .try_into()
+        .with_context(|| format!("map ({}) is not a map", map))
+        .map_err(|source| badmap(process, map, source.into()))?;
+    let values = boxed_map.values();
+    let list = process.list_from_slice(&values)?;
 
-    match result_map {
-        Ok(map) => {
-            let values = map.values();
-            let list = process.list_from_slice(&values)?;
-
-            Ok(list)
-        }
-
-        Err(_) => Err(badmap!(process, map)),
-    }
+    Ok(list)
 }

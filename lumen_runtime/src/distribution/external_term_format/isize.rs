@@ -2,11 +2,11 @@ use std::backtrace::Backtrace;
 
 use anyhow::*;
 
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::InternalResult;
 
 use super::{i32, u8, DecodeError, Tag};
 
-pub fn decode(bytes: &[u8]) -> Result<(isize, &[u8]), Exception> {
+pub fn decode(bytes: &[u8]) -> InternalResult<(isize, &[u8])> {
     let (tag, after_tag_bytes) = Tag::decode(bytes)?;
 
     match tag {

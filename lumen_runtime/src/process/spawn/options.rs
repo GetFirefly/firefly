@@ -215,6 +215,15 @@ impl Default for Options {
     }
 }
 
+const SUPPORTED_OPTIONS_CONTEXT: &str =
+    "supported options are :link, :monitor, \
+     {:fullsweep_after, generational_collections :: pos_integer()}, \
+     {:max_heap_size, words :: pos_integer()}, \
+     {:message_queue_data, :off_heap | :on_heap}, \
+     {:min_bin_vheap_size, words :: pos_integer()}, \
+     {:min_heap_size, words :: pos_integer()}, and \
+     {:priority, level :: :low | :normal | :high | :max}";
+
 impl TryFrom<Term> for Options {
     type Error = anyhow::Error;
 
@@ -226,12 +235,14 @@ impl TryFrom<Term> for Options {
             match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
+                    options
+                        .put_option_term(cons.head)
+                        .context(SUPPORTED_OPTIONS_CONTEXT)?;
                     options_term = cons.tail;
 
                     continue;
                 }
-                _ => bail!(ImproperListError),
+                _ => return Err(ImproperListError).context(SUPPORTED_OPTIONS_CONTEXT),
             };
         }
     }

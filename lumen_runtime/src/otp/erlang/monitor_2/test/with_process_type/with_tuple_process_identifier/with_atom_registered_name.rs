@@ -16,9 +16,9 @@ fn without_atom_node_errors_badarg() {
                         .tuple_from_slice(&[registered_name, node])
                         .unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, r#type(), identifier),
-                        Err(badarg!().into())
+                        format!("node ({}) must be an atom", node)
                     );
 
                     Ok(())

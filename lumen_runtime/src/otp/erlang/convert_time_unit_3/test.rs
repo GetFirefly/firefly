@@ -8,7 +8,6 @@ use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert_eq, prop_oneof};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -28,9 +27,9 @@ fn without_integer_time_returns_badarg() {
                     unit_term(arc_process.clone()),
                 ),
                 |(time, from_unit, to_unit)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, time, from_unit, to_unit),
-                        Err(badarg!().into())
+                        format!("time ({}) must be an integer", time)
                     );
 
                     Ok(())
@@ -51,9 +50,9 @@ fn with_integer_time_without_unit_from_unit_errors_badarg() {
                     unit_term(arc_process.clone()),
                 ),
                 |(time, from_unit, to_unit)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, time, from_unit, to_unit),
-                        Err(badarg!().into())
+                        format!("from_unit ({}) must be a time unit", from_unit)
                     );
 
                     Ok(())
@@ -74,9 +73,9 @@ fn with_integer_time_with_unit_from_unit_without_unit_to_unit_errors_badarg() {
                     is_not_unit_term(arc_process.clone()),
                 ),
                 |(time, from_unit, to_unit)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, time, from_unit, to_unit),
-                        Err(badarg!().into())
+                        format!("to_unit ({}) must be a time unit", to_unit)
                     );
 
                     Ok(())

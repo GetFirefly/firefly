@@ -2,10 +2,9 @@ mod with_big_integer_multiplier;
 mod with_float_multiplier;
 mod with_small_integer_multiplier;
 
+use proptest::prop_assert;
 use proptest::test_runner::{Config, TestRunner};
-use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarith;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -23,9 +22,12 @@ fn without_number_multiplier_errors_badarith() {
                     strategy::term::is_number(arc_process.clone()),
                 ),
                 |(multiplier, multiplicand)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, multiplier, multiplicand),
-                        Err(badarith!().into())
+                        format!(
+                            "multiplier ({}) and multiplicand ({}) aren't both numbers",
+                            multiplier, multiplicand
+                        )
                     );
 
                     Ok(())

@@ -23,9 +23,9 @@ fn without_atom_pid_or_tuple_destination_errors_badarg() {
                 )
             }),
             |(arc_process, destination, message, options)| {
-                prop_assert_eq!(
+                prop_assert_badarg!(
                     native(&arc_process, destination, message, options),
-                    Err(badarg!().into())
+                    format!("destination ({}) is not registered_name (atom), {{registered_name, node}}, or pid", destination)
                 );
 
                 Ok(())

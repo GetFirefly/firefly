@@ -23,11 +23,13 @@ pub fn native(
     tuple: Term,
     element: Term,
 ) -> exception::Result<Term> {
-    let initial_inner_tuple: Boxed<Tuple> = tuple.try_into().context("tuple must be a tuple")?;
+    let initial_inner_tuple: Boxed<Tuple> = tuple
+        .try_into()
+        .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
     let length = initial_inner_tuple.len();
     let index_one_based: OneBasedIndex = index
         .try_into()
-        .with_context(|| format!("index must be between 1-{}", length))?;
+        .with_context(|| format!("index ({}) must be between 1-{}", index, length))?;
 
     // can be equal to arity when insertion is at the end
     if index_one_based <= length {
@@ -45,7 +47,7 @@ pub fn native(
         .map_err(From::from)
     } else {
         Err(TryIntoIntegerError::OutOfRange)
-            .with_context(|| format!("index must be between 1-{}", length))
+            .with_context(|| format!("index ({}) must be between 1-{}", index, length))
             .map_err(From::from)
     }
 }

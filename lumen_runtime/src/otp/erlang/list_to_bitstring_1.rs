@@ -9,7 +9,6 @@ use std::convert::TryInto;
 
 use anyhow::*;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
@@ -17,20 +16,20 @@ use liblumen_alloc::erts::term::prelude::*;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(list_to_bitstring/1)]
-pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
-    match iolist.decode().unwrap() {
+pub fn native(process: &Process, bitstring_list: Term) -> exception::Result<Term> {
+    match bitstring_list.decode()? {
         TypedTerm::Nil | TypedTerm::List(_) => {
             let mut byte_vec: Vec<u8> = Vec::new();
             let mut partial_byte_bit_count = 0;
             let mut partial_byte = 0;
-            let mut stack: Vec<Term> = vec![iolist];
+            let mut stack: Vec<Term> = vec![bitstring_list];
 
             while let Some(top) = stack.pop() {
-                match top.decode().unwrap() {
+                match top.decode()? {
                     TypedTerm::SmallInteger(small_integer) => {
                         let top_byte = small_integer
                             .try_into()
-                            .context("list element does not fit in a byte")?;
+                            .context(element_context(bitstring_list, top))?;
 
                         if partial_byte_bit_count == 0 {
                             byte_vec.push(top_byte);
@@ -49,12 +48,19 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                         // means that `byte()` isn't allowed for `tail`s unlike `head`.
 
                         let tail = boxed_cons.tail;
+                        let result_u8: Result<u8, _> = tail.try_into();
 
-                        if tail.is_smallint() {
-                            return Err(badarg!().into());
-                        } else {
-                            stack.push(tail);
-                        }
+                        match result_u8 {
+                            Ok(_) => {
+                                return Err(TypeError)
+                                    .context(format!(
+                                        "bitstring_list ({}) tail ({}) cannot be a byte",
+                                        bitstring_list, tail
+                                    ))
+                                    .map_err(From::from)
+                            }
+                            Err(_) => stack.push(tail),
+                        };
 
                         stack.push(boxed_cons.head);
                     }
@@ -100,7 +106,11 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                             }
                         }
                     }
-                    _ => return Err(badarg!().into()),
+                    _ => {
+                        return Err(TypeError)
+                            .context(element_context(bitstring_list, top))
+                            .map_err(From::from)
+                    }
                 }
             }
 
@@ -116,6 +126,15 @@ pub fn native(process: &Process, iolist: Term) -> exception::Result<Term> {
                     .unwrap())
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!("bitstring_list ({}) is not a list", bitstring_list))
+            .map_err(From::from),
     }
+}
+
+fn element_context(bitstring_list: Term, element: Term) -> String {
+    format!(
+        "bitstring_list ({}) element ({}) is not a byte, bitstring, or nested bitstring_list",
+        bitstring_list, element
+    )
 }

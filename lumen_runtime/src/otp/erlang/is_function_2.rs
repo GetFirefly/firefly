@@ -19,7 +19,7 @@ use lumen_runtime_macros::native_implemented_function;
 fn native(term: Term, arity: Term) -> exception::Result<Term> {
     let arity_arity: Arity = arity
         .try_into()
-        .context("arity must be an integer in 0-255")?;
+        .with_context(|| format!("arity ({}) must be an integer in 0-255", arity))?;
 
     Ok(term.decode()?.is_function_with_arity(arity_arity).into())
 }

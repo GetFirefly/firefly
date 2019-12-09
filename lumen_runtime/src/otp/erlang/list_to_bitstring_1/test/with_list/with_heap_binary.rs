@@ -9,9 +9,12 @@ fn without_byte_bitstring_or_list_element_errors_badarg() {
                     strategy::term::binary::heap(arc_process.clone()),
                     is_not_byte_bitstring_nor_list(arc_process.clone()),
                 )
-                    .prop_map(|(head, tail)| arc_process.cons(head, tail).unwrap()),
-                |list| {
-                    prop_assert_eq!(native(&arc_process, list), Err(badarg!().into()));
+                    .prop_map(|(head, tail)| (arc_process.cons(head, tail).unwrap(), tail)),
+                |(bitstring_list, element)| {
+                    prop_assert_badarg!(
+                        native(&arc_process, bitstring_list),
+                        element_context(bitstring_list, element)
+                    );
 
                     Ok(())
                 },
@@ -34,13 +37,8 @@ fn with_empty_list_returns_binary() {
 }
 
 #[test]
-fn with_improper_list_returns_binary() {
-    with_tail_errors_badarg(|process| {
-        let tail_head = process.integer(1).unwrap();
-        let tail_tail = process.integer(2).unwrap();
-
-        process.cons(tail_head, tail_tail).unwrap()
-    });
+fn with_byte_tail_errors_badarg() {
+    with_tail_errors_badarg(|process| process.integer(2).unwrap());
 }
 
 #[test]
@@ -189,9 +187,16 @@ where
     T: FnOnce(&Process) -> Term,
 {
     with(|head, process| {
-        let iolist = process.cons(head, tail(&process)).unwrap();
+        let tail = tail(&process);
+        let bitstring_list = process.cons(head, tail).unwrap();
 
-        assert_badarg!(native(process, iolist));
+        assert_badarg!(
+            native(process, bitstring_list),
+            format!(
+                "bitstring_list ({}) tail ({}) cannot be a byte",
+                bitstring_list, tail
+            )
+        );
     });
 }
 

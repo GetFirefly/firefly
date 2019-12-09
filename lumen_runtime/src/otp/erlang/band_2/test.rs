@@ -4,7 +4,6 @@ mod with_small_integer_left;
 use proptest::test_runner::{Config, TestRunner};
 use proptest::{prop_assert, prop_assert_eq};
 
-use liblumen_alloc::badarith;
 use liblumen_alloc::erts::term::prelude::Encoded;
 
 use crate::otp::erlang::band_2::native;
@@ -21,7 +20,13 @@ fn without_integer_right_errors_badarith() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(left, right)| {
-                    prop_assert_eq!(native(&arc_process, left, right), Err(badarith!().into()));
+                    prop_assert_badarith!(
+                        native(&arc_process, left, right),
+                        format!(
+                            "left_integer ({}) and right_integer ({}) are not both integers",
+                            left, right
+                        )
+                    );
 
                     Ok(())
                 },

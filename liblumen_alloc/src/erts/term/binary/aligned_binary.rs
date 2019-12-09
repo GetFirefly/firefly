@@ -5,7 +5,6 @@ use core::str;
 
 use anyhow::*;
 
-use crate::erts::exception::Exception;
 use crate::erts::term::prelude::Boxed;
 
 use super::prelude::{Binary, BinaryLiteral, HeapBin, IndexByte, MaybePartialByte, ProcBin};
@@ -146,7 +145,7 @@ macro_rules! impl_aligned_binary {
 
             fn try_into(self) -> Result<String, Self::Error> {
                 let s = str::from_utf8(self.as_bytes())
-                    .context("binary cannot be converted to String")?;
+                    .with_context(|| format!("binary ({}) cannot be converted to String", self))?;
 
                 Ok(s.to_owned())
             }
@@ -161,7 +160,7 @@ macro_rules! impl_aligned_binary {
         }
 
         impl TryInto<Vec<u8>> for &$t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
@@ -170,7 +169,7 @@ macro_rules! impl_aligned_binary {
         }
 
         impl TryInto<Vec<u8>> for Boxed<$t> {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {
@@ -194,14 +193,14 @@ macro_rules! impl_aligned_try_into {
 
             fn try_into(self) -> Result<String, Self::Error> {
                 let s = str::from_utf8(self.as_bytes())
-                    .context("binary cannot be converted to String")?;
+                    .with_context(|| format!("binary ({}) cannot be converted to String", self))?;
 
                 Ok(s.to_owned())
             }
         }
 
         impl TryInto<Vec<u8>> for $t {
-            type Error = Exception;
+            type Error = anyhow::Error;
 
             #[inline]
             fn try_into(self) -> Result<Vec<u8>, Self::Error> {

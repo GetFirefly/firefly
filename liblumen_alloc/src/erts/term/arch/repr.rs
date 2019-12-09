@@ -1,7 +1,10 @@
 use core::fmt::{self, Debug, Display};
 use core::hash::Hash;
 
-use crate::erts::exception;
+use alloc::sync::Arc;
+
+use std::backtrace::Backtrace;
+
 use crate::erts::term::prelude::*;
 
 use super::Tag;
@@ -51,12 +54,15 @@ pub trait Repr:
         &self,
         tag: Tag<Self::Word>,
         literal: Option<bool>,
-    ) -> exception::Result<TypedTerm>
+    ) -> Result<TypedTerm, TermDecodingError>
     where
         Self: Encoded,
     {
-        let ptr =
-            Boxed::new(self as *const _ as *mut u64).ok_or_else(|| TermDecodingError::NoneValue)?;
+        let ptr = Boxed::new(self as *const _ as *mut u64).ok_or_else(|| {
+            TermDecodingError::NoneValue {
+                backtrace: Arc::new(Backtrace::capture()),
+            }
+        })?;
         match tag {
             // Tuple cannot be constructed directly, as it is a dynamically-sized type,
             // instead we construct a fat pointer which requires the length of the tuple;
@@ -107,8 +113,12 @@ pub trait Repr:
                 ptr.cast::<ExternalReference>(),
             )),
             Tag::Map => Ok(TypedTerm::Map(ptr.cast::<Map>())),
-            Tag::None => Err(TermDecodingError::NoneValue.into()),
-            _ => Err(TermDecodingError::InvalidTag.into()),
+            Tag::None => Err(TermDecodingError::NoneValue {
+                backtrace: Arc::new(Backtrace::capture()),
+            }),
+            _ => Err(TermDecodingError::InvalidTag {
+                backtrace: Arc::new(Backtrace::capture()),
+            }),
         }
     }
 

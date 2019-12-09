@@ -53,26 +53,18 @@ fn without_loaded_module_when_run_exits_undef_and_sends_exit_message_to_parent()
         child_arc_process.current_module_function_arity(),
         Some(apply_3::module_function_arity())
     );
-
-    match *child_arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
-            let runtime_undef: RuntimeException =
-                undef!(&child_arc_process, module, function, arguments)
-                    .try_into()
-                    .unwrap();
-
-            assert_eq!(runtime_exception, &runtime_undef);
-        }
-        ref status => panic!("Process status ({:?}) is not exiting.", status),
-    };
+    assert_exits_undef(
+        &child_arc_process,
+        module,
+        function,
+        arguments,
+        ":erlan.self/0 is not exported",
+    );
 
     assert!(!parent_arc_process.is_exiting());
 
     let tag = atom!("DOWN");
-    let reason = match undef!(&parent_arc_process, module, function, arguments) {
-        Exception::Runtime(runtime_exception) => runtime_exception.reason().unwrap(),
-        _ => unreachable!("parent process out-of-memory"),
-    };
+    let reason = atom!("undef");
 
     assert!(has_message(
         &parent_arc_process,

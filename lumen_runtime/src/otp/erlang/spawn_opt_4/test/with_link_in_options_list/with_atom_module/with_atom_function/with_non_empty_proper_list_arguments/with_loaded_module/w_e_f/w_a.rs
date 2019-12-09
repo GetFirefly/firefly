@@ -52,7 +52,10 @@ fn with_valid_arguments_when_run_exits_normal_and_parent_does_not_exit() {
 
     match *arc_process.status.read() {
         Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &exit!(atom!("normal")));
+            assert_eq!(
+                runtime_exception,
+                &exit!(atom!("normal"), anyhow!("Test").into())
+            );
         }
         ref status => panic!("Process status ({:?}) is not exiting.", status),
     };
@@ -113,13 +116,10 @@ fn without_valid_arguments_when_run_exits_and_parent_exits() {
             arity: 1
         }))
     );
-
-    match *child_arc_process.status.read() {
-        Status::Exiting(ref runtime_exception) => {
-            assert_eq!(runtime_exception, &badarith!());
-        }
-        ref status => panic!("Process status ({:?}) is not exiting.", status),
-    };
+    assert_exits_badarith(
+        &child_arc_process,
+        "number (:'zero') is not an integer or a float",
+    );
 
     assert!(parent_arc_process.is_exiting())
 }

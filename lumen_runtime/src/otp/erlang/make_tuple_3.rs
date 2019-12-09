@@ -9,7 +9,6 @@ use std::convert::TryInto;
 
 use anyhow::*;
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::process::Process;
@@ -25,7 +24,9 @@ pub fn native(
     init_list: Term,
 ) -> exception::Result<Term> {
     // arity by definition is only 0-225, so `u8`, but ...
-    let arity_u8: u8 = arity.try_into().context("arity must be in 0-255")?;
+    let arity_u8: u8 = arity
+        .try_into()
+        .with_context(|| format!("arity ({}) must be in 0-255", arity))?;
     // ... everything else uses `usize`, so cast it back up
     let arity_usize: usize = arity_u8 as usize;
 
@@ -42,25 +43,39 @@ pub fn native(
             for result in boxed_cons.into_iter() {
                 match result {
                     Ok(init) => {
-                        let init_boxed_tuple: Boxed<Tuple> = init.try_into().context(
-                            "init list elements must be {position :: pos_integer(), term()}",
-                        )?;
+                        let init_boxed_tuple: Boxed<Tuple> = init.try_into().with_context(|| format!("init list ({}) element ({}) is not {{position :: pos_integer(), term()}}", init_list, init))?;
 
                         if init_boxed_tuple.len() == 2 {
-                            let index: OneBasedIndex =
-                                init_boxed_tuple[0].try_into().map_err(|_| badarg!())?;
+                            let position = init_boxed_tuple[0];
+                            let index: OneBasedIndex = position.try_into().with_context(|| {
+                                format!("init list ({}) element ({}) position ({}) is not a positive integer", init_list, init, position)
+                            })?;
+
                             let element = init_boxed_tuple[1];
-                            tuple.set_element(index, element).map_err(|_| badarg!())?;
+                            tuple.set_element(index, element).with_context(|| {
+                                format!("position ({}) cannot be set", position)
+                            })?;
                         } else {
-                            return Err(badarg!().into());
+                            return Err(anyhow!(
+                                "init list ({}) element ({}) is a tuple, but not 2-arity",
+                                init_list,
+                                init
+                            )
+                            .into());
                         }
                     }
-                    Err(_) => return Err(badarg!().into()),
+                    Err(_) => {
+                        return Err(ImproperListError)
+                            .context(format!("init_list ({}) is improper", init_list))
+                            .map_err(From::from)
+                    }
                 }
             }
 
             Ok(tuple.encode()?)
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!("init_list ({}) is not a list", init_list))
+            .map_err(From::from),
     }
 }

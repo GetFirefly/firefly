@@ -17,13 +17,15 @@ use crate::registry::pid_to_process;
 use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(is_process_alive/1)]
-pub fn native(process: &Process, term: Term) -> exception::Result<Term> {
-    if term == process.pid_term() {
+pub fn native(process: &Process, pid: Term) -> exception::Result<Term> {
+    if pid == process.pid_term() {
         Ok((!process.is_exiting()).into())
     } else {
-        let pid: Pid = term.try_into().context("pid must be a pid")?;
+        let pid_pid: Pid = pid
+            .try_into()
+            .with_context(|| format!("pid ({}) must be a pid", pid))?;
 
-        match pid_to_process(&pid) {
+        match pid_to_process(&pid_pid) {
             Some(arc_process) => Ok((!arc_process.is_exiting()).into()),
             None => Ok(false.into()),
         }

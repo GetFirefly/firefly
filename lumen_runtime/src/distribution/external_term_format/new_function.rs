@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use liblumen_alloc::erts::exception::Exception;
+use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::erts::term::closure::OldUnique;
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Process;
@@ -14,7 +14,7 @@ pub fn decode<'a>(
     process: &Process,
     safe: bool,
     bytes: &'a [u8],
-) -> Result<(Term, &'a [u8]), Exception> {
+) -> InternalResult<(Term, &'a [u8])> {
     let (total_byte_len, after_size_bytes) = u32::decode(bytes)?;
     let (arity, after_arity_bytes) = u8::decode(after_size_bytes)?;
     let (uniq, after_uniq_bytes) = decode_uniq(after_arity_bytes)?;
@@ -57,7 +57,7 @@ pub fn decode<'a>(
 
 const UNIQ_LEN: usize = 16;
 
-fn decode_uniq(bytes: &[u8]) -> Result<([u8; UNIQ_LEN], &[u8]), Exception> {
+fn decode_uniq(bytes: &[u8]) -> InternalResult<([u8; UNIQ_LEN], &[u8])> {
     try_split_at(bytes, UNIQ_LEN).map(|(uniq_bytes, after_uniq_bytes)| {
         let uniq_array = uniq_bytes.try_into().unwrap();
 

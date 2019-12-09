@@ -5,8 +5,6 @@ use proptest::test_runner::{Config, TestRunner};
 
 use radix_fmt::radix;
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::binary_to_integer_2::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -21,7 +19,10 @@ fn without_binary_errors_badarg() {
                     strategy::term::is_base(arc_process.clone()),
                 ),
                 |(binary, base)| {
-                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, binary, base),
+                        format!("binary ({}) must be a binary", binary)
+                    );
 
                     Ok(())
                 },
@@ -31,16 +32,19 @@ fn without_binary_errors_badarg() {
 }
 
 #[test]
-fn with_binary_without_base_errors_badarg() {
+fn with_utf8_binary_without_base_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
-                    strategy::term::is_binary(arc_process.clone()),
+                    strategy::term::binary::is_utf8(arc_process.clone()),
                     strategy::term::is_not_base(arc_process.clone()),
                 ),
                 |(binary, base)| {
-                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, binary, base),
+                        format!("base must be an integer in 2-36")
+                    );
 
                     Ok(())
                 },
@@ -103,7 +107,10 @@ fn with_binary_without_integer_in_base_errors_badarg() {
                     )
                 }),
                 |(binary, base)| {
-                    prop_assert_eq!(native(&arc_process, binary, base), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(&arc_process, binary, base),
+                        format!("string ({}) is not in base ({})", binary, base)
+                    );
 
                     Ok(())
                 },

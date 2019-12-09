@@ -1,7 +1,6 @@
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use crate::otp::erlang::tl_1::native;
@@ -13,7 +12,10 @@ fn without_list_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_list(arc_process.clone()), |list| {
-                prop_assert_eq!(native(list), Err(badarg!().into()));
+                prop_assert_badarg!(
+                    native(list),
+                    format!("list ({}) must be a non-empty list", list)
+                );
 
                 Ok(())
             })
@@ -23,7 +25,7 @@ fn without_list_errors_badarg() {
 
 #[test]
 fn with_empty_list_errors_badarg() {
-    assert_eq!(native(Term::NIL), Err(badarg!().into()));
+    assert_badarg!(native(Term::NIL), "list ([]) must be a non-empty list");
 }
 
 #[test]

@@ -13,7 +13,7 @@ use liblumen_alloc::erts::term::closure::{Creator, Definition};
 use liblumen_alloc::erts::term::prelude::*;
 use liblumen_alloc::erts::Node;
 
-use crate::distribution::external_term_format::{Tag, VERSION_NUMBER};
+use crate::distribution::external_term_format::{version, Tag};
 use crate::distribution::nodes::node;
 use crate::distribution::nodes::node::arc_node;
 
@@ -176,7 +176,7 @@ fn term_to_byte_vec(process: &Process, options: &Options, term: Term) -> Vec<u8>
     let mut stack = VecDeque::new();
     stack.push_front(term);
 
-    let mut byte_vec: Vec<u8> = vec![VERSION_NUMBER];
+    let mut byte_vec: Vec<u8> = vec![version::NUMBER];
 
     while let Some(front_term) = stack.pop_front() {
         match front_term.decode().unwrap() {

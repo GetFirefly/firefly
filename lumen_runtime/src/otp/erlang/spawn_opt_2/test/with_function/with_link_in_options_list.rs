@@ -5,10 +5,8 @@ use super::*;
 use proptest::prop_assert;
 use proptest::strategy::Strategy;
 
-use liblumen_alloc::erts::exception::Exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::Atom;
-use liblumen_alloc::{badarity, exit};
 
 use crate::process;
 use crate::scheduler::Scheduler;
@@ -45,41 +43,15 @@ fn without_arity_zero_returns_pid_to_parent_and_child_process_exits_badarity_whi
                 prop_assert!(scheduler.run_once());
                 prop_assert!(scheduler.run_once());
 
-                match *child_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
-                        prop_assert_eq!(
-                            Exception::Runtime(exception.clone()),
-                            badarity!(&child_arc_process, function, Term::NIL)
-                        );
-                    }
-                    ref status => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Child process did not exit.  Status is {:?}",
-                            status
-                        )))
-                    }
-                }
+                let source_substring = format!(
+                    "arguments ([]) length (0) does not match arity ({}) of function ({})",
+                    arity, function
+                );
+                let args = Term::NIL;
 
-                match *parent_arc_process.status.read() {
-                    Status::Exiting(ref exception) => {
-                        let reason = match badarity!(&parent_arc_process, function, Term::NIL) {
-                            Exception::Runtime(badarity_runtime_exception) => {
-                                (badarity_runtime_exception.reason().unwrap())
-                            }
-                            _ => unreachable!("parent process out-of-memory"),
-                        };
+                prop_assert_exits_badarity(&child_arc_process, function, args, &source_substring)?;
 
-                        prop_assert_eq!(exception, &exit!(reason));
-                    }
-                    ref status => {
-                        return Err(proptest::test_runner::TestCaseError::fail(format!(
-                            "Parent process did not exit.  Status is {:?}",
-                            status
-                        )))
-                    }
-                }
-
-                Ok(())
+                prop_assert_exits_badarity(&parent_arc_process, function, args, &source_substring)
             },
         )
         .unwrap();

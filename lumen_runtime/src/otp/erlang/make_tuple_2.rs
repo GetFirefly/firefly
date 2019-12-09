@@ -18,7 +18,9 @@ use lumen_runtime_macros::native_implemented_function;
 #[native_implemented_function(make_tuple/2)]
 pub fn native(process: &Process, arity: Term, initial_value: Term) -> exception::Result<Term> {
     // arity by definition is only 0-225, so `u8`, but ...
-    let arity_u8: u8 = arity.try_into().context("arity must be in 0-255")?;
+    let arity_u8: u8 = arity
+        .try_into()
+        .with_context(|| format!("arity ({}) must be in 0-255", arity))?;
     // ... everything else uses `usize`, so cast it back up
     let arity_usize: usize = arity_u8 as usize;
 

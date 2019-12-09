@@ -18,7 +18,10 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
                     let arc_process = process::test_init();
                     let arity = 0;
                     let code = |arc_process: &Arc<Process>| {
-                        arc_process.exception(exit!(Atom::str_to_term("not_normal")));
+                        arc_process.exception(exit!(
+                            Atom::str_to_term("not_normal"),
+                            anyhow!("Test").into()
+                        ));
 
                         Ok(())
                     };
@@ -50,7 +53,10 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(Atom::str_to_term("not_normal")));
+                        prop_assert_eq!(
+                            exception,
+                            &exit!(Atom::str_to_term("not_normal"), anyhow!("Test").into())
+                        );
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -62,7 +68,10 @@ fn without_expected_exit_in_child_process_exits_linked_parent_process() {
 
                 match *parent_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(Atom::str_to_term("not_normal")));
+                        prop_assert_eq!(
+                            exception,
+                            &exit!(Atom::str_to_term("not_normal"), anyhow!("Test").into())
+                        );
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -122,7 +131,10 @@ fn with_expected_exit_in_child_process_does_not_exit_linked_parent_process() {
 
                 match *child_arc_process.status.read() {
                     Status::Exiting(ref exception) => {
-                        prop_assert_eq!(exception, &exit!(Atom::str_to_term("normal")));
+                        prop_assert_eq!(
+                            exception,
+                            &exit!(Atom::str_to_term("normal"), anyhow!("Test").into())
+                        );
                     }
                     ref status => {
                         return Err(proptest::test_runner::TestCaseError::fail(format!(

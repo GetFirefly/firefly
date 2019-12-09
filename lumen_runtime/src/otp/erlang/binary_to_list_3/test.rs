@@ -2,7 +2,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::process::alloc::TermAlloc;
 use liblumen_alloc::erts::term::prelude::Term;
 
@@ -21,9 +20,9 @@ fn without_binary_errors_badarg() {
                     let start = arc_process.integer(1).unwrap();
                     let stop = arc_process.integer(1).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start, stop),
-                        Err(badarg!().into())
+                        format!("binary ({}) must be a binary", binary)
                     );
 
                     Ok(())
@@ -45,9 +44,9 @@ fn with_binary_without_integer_start_errors_badarg() {
                 |(binary, start)| {
                     let stop = arc_process.integer(1).unwrap();
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start, stop),
-                        Err(badarg!().into())
+                        format!("start ({}) must be a one-based integer index between 1 and the byte size of the binary", start)
                     );
 
                     Ok(())
@@ -58,19 +57,19 @@ fn with_binary_without_integer_start_errors_badarg() {
 }
 
 #[test]
-fn with_binary_with_integer_start_without_integer_stop_errors_badarg() {
+fn with_binary_with_positive_integer_start_without_integer_stop_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &(
                     strategy::term::is_binary(arc_process.clone()),
-                    strategy::term::is_integer(arc_process.clone()),
+                    strategy::term::integer::positive(arc_process.clone()),
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(binary, start, stop)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start, stop),
-                        Err(badarg!().into())
+                        format!("stop ({}) must be a one-based integer index between 1 and the byte size of the binary", stop)
                     );
 
                     Ok(())
@@ -195,9 +194,12 @@ fn with_binary_with_start_greater_than_stop_errors_badarg() {
                         (start_term, stop_term)
                     };
 
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, start_term, stop_term),
-                        Err(badarg!().into())
+                        format!(
+                            "start ({}) must be less than or equal to stop ({})",
+                            start, stop
+                        )
                     );
 
                     Ok(())

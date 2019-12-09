@@ -13,9 +13,9 @@ fn without_non_negative_integer_position_errors_badarg() {
                     strategy::term::is_not_non_negative_integer(arc_process.clone()),
                 ),
                 |(binary, position)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(&arc_process, binary, position),
-                        Err(badarg!().into())
+                        format!("position ({}) must be in 0..byte_size(binary)", position)
                     );
 
                     Ok(())

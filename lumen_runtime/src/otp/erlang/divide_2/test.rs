@@ -4,9 +4,8 @@ use std::sync::Arc;
 
 use proptest::strategy::{BoxedStrategy, Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
-use proptest::{prop_assert, prop_assert_eq, prop_oneof};
+use proptest::{prop_assert, prop_oneof};
 
-use liblumen_alloc::badarith;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -24,9 +23,9 @@ fn without_number_dividend_errors_badarith() {
                     strategy::term::is_number(arc_process.clone()),
                 ),
                 |(dividend, divisor)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        format!("dividend ({}) cannot be promoted to a float", dividend)
                     );
 
                     Ok(())
@@ -46,9 +45,9 @@ fn with_number_dividend_without_number_divisor_errors_badarith() {
                     strategy::term::is_not_number(arc_process.clone()),
                 ),
                 |(dividend, divisor)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        format!("divisor ({}) cannot be promoted to a float", divisor)
                     );
 
                     Ok(())
@@ -68,9 +67,9 @@ fn with_number_dividend_with_zero_divisor_errors_badarith() {
                     zero(arc_process.clone()),
                 ),
                 |(dividend, divisor)| {
-                    prop_assert_eq!(
+                    prop_assert_badarith!(
                         native(&arc_process, dividend, divisor),
-                        Err(badarith!().into())
+                        format!("divisor ({}) cannot be zero", divisor)
                     );
 
                     Ok(())

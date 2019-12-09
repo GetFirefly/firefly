@@ -1,9 +1,8 @@
-use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{atom, badarg};
 
 use crate::otp::erlang::unique_integer_1::native;
 use crate::scheduler::{with_process, with_process_arc};
@@ -44,7 +43,7 @@ fn without_proper_list_of_options_errors_badargs() {
                     },
                 ),
                 |options| {
-                    prop_assert_eq!(native(&arc_process, options), Err(badarg!().into()));
+                    prop_assert_badarg!(native(&arc_process, options), "improper list");
 
                     Ok(())
                 },

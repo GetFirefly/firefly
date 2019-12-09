@@ -7,7 +7,8 @@ mod test;
 
 use core::convert::TryInto;
 
-use liblumen_alloc::badarg;
+use anyhow::*;
+
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -15,7 +16,9 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(keymember/3)]
 pub fn native(key: Term, index: Term, tuple_list: Term) -> exception::Result<Term> {
-    let index: OneBasedIndex = index.try_into().map_err(|_| badarg!())?;
+    let index: OneBasedIndex = index
+        .try_into()
+        .with_context(|| format!("index ({}) is not a 1-based integer", index))?;
 
     match tuple_list.decode()? {
         TypedTerm::Nil => Ok(false.into()),
@@ -23,6 +26,8 @@ pub fn native(key: Term, index: Term, tuple_list: Term) -> exception::Result<Ter
             Some(_) => Ok(true.into()),
             None => Ok(false.into()),
         },
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!("tuple_list ({}) is not a proper list", tuple_list))
+            .map_err(From::from),
     }
 }

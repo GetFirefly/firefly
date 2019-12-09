@@ -13,7 +13,7 @@ fn without_atom_function_errors_badarg() {
                     strategy::term::list::proper(arc_process.clone()),
                 ),
                 |(module, function, arguments)| {
-                    prop_assert_eq!(
+                    prop_assert_badarg!(
                         native(
                             &arc_process,
                             module,
@@ -21,7 +21,7 @@ fn without_atom_function_errors_badarg() {
                             arguments,
                             options(&arc_process)
                         ),
-                        Err(badarg!().into())
+                        format!("function ({}) must be an atom", function)
                     );
 
                     Ok(())

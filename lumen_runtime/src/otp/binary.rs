@@ -5,7 +5,7 @@ use anyhow::*;
 
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{badarg, Process};
+use liblumen_alloc::Process;
 
 use crate::binary::start_length_to_part_range;
 
@@ -108,6 +108,8 @@ pub fn bin_to_list(
                 Err(error) => Err(error.into()),
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!("binary ({}) must be a binary", binary))
+            .map_err(From::from),
     }
 }

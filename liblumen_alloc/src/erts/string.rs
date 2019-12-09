@@ -67,7 +67,7 @@ impl TryFrom<Atom> for Encoding {
 /// Represents an error that occurs when converting an atom encoding name to an `Encoding`
 #[derive(Error, Debug)]
 pub enum InvalidEncodingNameError {
-    #[error("invalid encoding name value: `{0:?}` is not an atom")]
+    #[error("invalid encoding name value: `{0}` is not an atom")]
     InvalidType(Term),
     #[error("invalid atom encoding name: '{0}' is not one of the supported values (latin1, unicode, or utf8)")]
     InvalidEncoding(&'static str),

@@ -3,7 +3,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
 use liblumen_alloc::erts::term::prelude::{Atom, Term};
 
 use crate::otp::erlang::atom_to_list_1::native;
@@ -15,7 +14,10 @@ fn without_atom_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_atom(arc_process.clone()), |atom| {
-                prop_assert_eq!(native(&arc_process, atom), Err(badarg!().into()));
+                prop_assert_badarg!(
+                    native(&arc_process, atom),
+                    format!("atom ({}) is not an atom", atom)
+                );
 
                 Ok(())
             })

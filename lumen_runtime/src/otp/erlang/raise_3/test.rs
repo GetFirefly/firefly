@@ -3,9 +3,9 @@ mod with_atom_class;
 use proptest::prop_assert_eq;
 use proptest::test_runner::{Config, TestRunner};
 
+use liblumen_alloc::atom;
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::{atom, badarg, raise};
 
 use crate::otp::erlang::raise_3::native;
 use crate::scheduler::with_process_arc;
@@ -22,7 +22,10 @@ fn without_atom_class_errors_badarg() {
                     strategy::term::list::proper(arc_process.clone()),
                 ),
                 |(class, reason, stacktrace)| {
-                    prop_assert_eq!(native(class, reason, stacktrace), Err(badarg!().into()));
+                    prop_assert_badarg!(
+                        native(class, reason, stacktrace),
+                        format!("class ({}) is not an atom", class)
+                    );
 
                     Ok(())
                 },

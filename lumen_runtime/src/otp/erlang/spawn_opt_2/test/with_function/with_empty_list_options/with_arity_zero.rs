@@ -48,7 +48,10 @@ fn without_environment_runs_function_in_child_process() {
 
                     match *child_arc_process.status.read() {
                         Status::Exiting(ref exception) => {
-                            prop_assert_eq!(exception, &exit!(Atom::str_to_term("normal")));
+                            prop_assert_eq!(
+                                exception,
+                                &exit!(Atom::str_to_term("normal"), anyhow!("Test").into())
+                            );
                         }
                         ref status => {
                             return Err(proptest::test_runner::TestCaseError::fail(format!(
@@ -84,7 +87,7 @@ fn with_environment_runs_function_in_child_process() {
                             let second = arc_process.stack_pop().unwrap();
                             let reason = arc_process.list_from_slice(&[first, second])?;
 
-                            arc_process.exception(exit!(reason));
+                            arc_process.exception(exit!(reason, anyhow!("Test").into()));
 
                             Ok(())
                         };
@@ -125,12 +128,15 @@ fn with_environment_runs_function_in_child_process() {
                         Status::Exiting(ref exception) => {
                             prop_assert_eq!(
                                 exception,
-                                &exit!(child_arc_process
-                                    .list_from_slice(&[
-                                        Atom::str_to_term("first"),
-                                        Atom::str_to_term("second")
-                                    ])
-                                    .unwrap())
+                                &exit!(
+                                    child_arc_process
+                                        .list_from_slice(&[
+                                            Atom::str_to_term("first"),
+                                            Atom::str_to_term("second")
+                                        ])
+                                        .unwrap(),
+                                    anyhow!("Test").into()
+                                )
                             );
                         }
                         ref status => {

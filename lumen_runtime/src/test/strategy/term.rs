@@ -15,6 +15,7 @@ use liblumen_alloc::{atom, fixnum_from};
 
 use super::size_range;
 
+pub mod atom;
 pub mod binary;
 pub mod function;
 pub mod index;
@@ -269,21 +270,6 @@ pub fn is_not_destination(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
             "Destination must not be an atom, pid, or tuple",
             |destination| {
                 !(destination.is_atom() || destination.is_pid() || destination.is_boxed_tuple())
-            },
-        )
-        .boxed()
-}
-
-pub fn is_not_encoding(arc_process: Arc<Process>) -> BoxedStrategy<Term> {
-    super::term(arc_process)
-        .prop_filter(
-            "Must either not be an atom or not be an atom encoding atom",
-            |term| match term.decode().unwrap() {
-                TypedTerm::Atom(atom) => match atom.name() {
-                    "latin1" | "unicode" | "utf8" => false,
-                    _ => true,
-                },
-                _ => true,
             },
         )
         .boxed()

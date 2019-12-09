@@ -15,9 +15,8 @@ use crate::otp::erlang::integer_to_string::decimal_integer_to_string;
 
 #[native_implemented_function(integer_to_list/1)]
 pub fn native(process: &Process, integer: Term) -> exception::Result<Term> {
-    decimal_integer_to_string(integer).and_then(|string| {
-        process
-            .list_from_chars(string.chars())
-            .map_err(|alloc| alloc.into())
-    })
+    let string = decimal_integer_to_string(integer)?;
+    let charlist = process.charlist_from_str(&string)?;
+
+    Ok(charlist)
 }

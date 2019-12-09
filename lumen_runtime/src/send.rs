@@ -1,8 +1,12 @@
 mod options;
 
-use liblumen_alloc::erts::exception;
+use std::convert::TryInto;
+
+use anyhow::*;
+
+use liblumen_alloc::erts::exception::InternalResult;
 use liblumen_alloc::term::prelude::*;
-use liblumen_alloc::{badarg, Process};
+use liblumen_alloc::Process;
 
 use crate::distribution::nodes::node;
 use crate::registry::{self, pid_to_process};
@@ -15,41 +19,38 @@ pub fn send(
     message: Term,
     options: Options,
     process: &Process,
-) -> exception::Result<Sent> {
-    match destination.decode().unwrap() {
+) -> InternalResult<Sent> {
+    match destination.decode()? {
         TypedTerm::Atom(destination_atom) => {
             send_to_name(destination_atom, message, options, process)
         }
         TypedTerm::Tuple(tuple_box) => {
             if tuple_box.len() == 2 {
                 let name = tuple_box[0];
+                let name_atom: Atom = name.try_into().with_context(|| format!("registered_name ({}) in {{registered_name, node}} ({}) destination is not an atom", name, destination))?;
 
-                match name.decode()? {
-                    TypedTerm::Atom(name_atom) => {
-                        let node = tuple_box[1];
+                let node = tuple_box[1];
+                let node_atom: Atom = node.try_into().with_context(|| {
+                    format!(
+                        "node ({}) in {{registered_name, node}} ({}) destination is not an atom",
+                        node, destination
+                    )
+                })?;
 
-                        match node.decode().unwrap() {
-                            TypedTerm::Atom(node_atom) => match node_atom.name() {
-                                node::DEAD_ATOM_NAME => {
-                                    send_to_name(name_atom, message, options, process)
-                                }
-                                _ => {
-                                    if !options.connect {
-                                        Ok(Sent::ConnectRequired)
-                                    } else if !options.suspend {
-                                        Ok(Sent::SuspendRequired)
-                                    } else {
-                                        unimplemented!("distribution")
-                                    }
-                                }
-                            },
-                            _ => Err(badarg!().into()),
+                match node_atom.name() {
+                    node::DEAD_ATOM_NAME => send_to_name(name_atom, message, options, process),
+                    _ => {
+                        if !options.connect {
+                            Ok(Sent::ConnectRequired)
+                        } else if !options.suspend {
+                            Ok(Sent::SuspendRequired)
+                        } else {
+                            unimplemented!("distribution")
                         }
                     }
-                    _ => Err(badarg!().into()),
                 }
             } else {
-                Err(badarg!().into())
+                Err(anyhow!("destination ({}) is a tuple, but not 2-arity", destination).into())
             }
         }
         TypedTerm::Pid(destination_pid) => {
@@ -72,7 +73,12 @@ pub fn send(
                 }
             }
         }
-        _ => Err(badarg!().into()),
+        _ => Err(TypeError)
+            .context(format!(
+                "destination ({}) is not registered_name (atom), {{registered_name, node}}, or pid",
+                destination
+            ))
+            .map_err(From::from),
     }
 }
 
@@ -90,7 +96,7 @@ fn send_to_name(
     message: Term,
     _options: Options,
     process: &Process,
-) -> exception::Result<Sent> {
+) -> InternalResult<Sent> {
     if *process.registered_name.read() == Some(destination) {
         process.send_from_self(message);
 
@@ -106,7 +112,7 @@ fn send_to_name(
 
                 Ok(Sent::Sent)
             }
-            None => Err(badarg!().into()),
+            None => Err(anyhow!("name ({}) not registered", destination).into()),
         }
     }
 }

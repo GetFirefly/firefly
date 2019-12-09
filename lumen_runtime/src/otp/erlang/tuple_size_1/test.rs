@@ -2,8 +2,6 @@ use proptest::prop_assert_eq;
 use proptest::strategy::{Just, Strategy};
 use proptest::test_runner::{Config, TestRunner};
 
-use liblumen_alloc::badarg;
-
 use crate::otp::erlang::tuple_size_1::native;
 use crate::scheduler::with_process_arc;
 use crate::test::strategy;
@@ -19,7 +17,10 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple)| {
-                prop_assert_eq!(native(&arc_process, tuple), Err(badarg!().into()));
+                prop_assert_badarg!(
+                    native(&arc_process, tuple),
+                    format!("tuple ({}) must be a tuple", tuple)
+                );
 
                 Ok(())
             },

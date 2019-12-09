@@ -11,6 +11,8 @@ pub struct Options {
     pub info: bool,
 }
 
+const SUPPORTED_OPTIONS_CONTEXT: &str = "supported options are :flush or :info";
+
 impl Options {
     fn put_option_term(&mut self, term: Term) -> Result<&Self, anyhow::Error> {
         let option_atom: Atom = term
@@ -53,12 +55,14 @@ impl TryFrom<Term> for Options {
             match options_term.decode().unwrap() {
                 TypedTerm::Nil => return Ok(options),
                 TypedTerm::List(cons) => {
-                    options.put_option_term(cons.head)?;
+                    options
+                        .put_option_term(cons.head)
+                        .context(SUPPORTED_OPTIONS_CONTEXT)?;
                     options_term = cons.tail;
 
                     continue;
                 }
-                _ => bail!(ImproperListError),
+                _ => return Err(ImproperListError).context(SUPPORTED_OPTIONS_CONTEXT),
             };
         }
     }

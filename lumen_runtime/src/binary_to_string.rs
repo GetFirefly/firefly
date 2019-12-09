@@ -15,7 +15,7 @@ pub fn binary_to_string(binary: Term) -> exception::Result<String> {
             binary_literal.try_into().map_err(Exception::from)
         }
         _ => Err(TypeError)
-            .context("Must be a binary")
+            .context(format!("binary ({}) must be a binary", binary))
             .map_err(Exception::from),
     }
 }

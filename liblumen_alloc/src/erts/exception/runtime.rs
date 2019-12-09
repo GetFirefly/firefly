@@ -4,8 +4,7 @@ use thiserror::Error;
 
 use crate::erts::term::prelude::*;
 
-use super::location::Location;
-use super::{Exception, SystemException, UnexpectedExceptionError};
+use super::{ArcError, Exception, SystemException, UnexpectedExceptionError};
 
 #[derive(Error, Debug, Clone)]
 pub enum RuntimeException {
@@ -15,8 +14,6 @@ pub enum RuntimeException {
     Error(#[from] super::Error),
     #[error("{0}")]
     Exit(#[from] super::Exit),
-    #[error("{0}")]
-    Unknown(#[from] super::ArcError),
 }
 impl Eq for RuntimeException {}
 impl PartialEq for RuntimeException {
@@ -26,7 +23,6 @@ impl PartialEq for RuntimeException {
             (Throw(ref lhs), Throw(ref rhs)) => lhs.eq(rhs),
             (Error(ref lhs), Error(ref rhs)) => lhs.eq(rhs),
             (Exit(ref lhs), Exit(ref rhs)) => lhs.eq(rhs),
-            (Unknown(_), Unknown(_)) => true,
             _ => false,
         }
     }
@@ -37,7 +33,6 @@ impl RuntimeException {
             RuntimeException::Throw(e) => Some(e.class()),
             RuntimeException::Exit(e) => Some(e.class()),
             RuntimeException::Error(e) => Some(e.class()),
-            RuntimeException::Unknown(_) => None,
         }
     }
 
@@ -46,16 +41,6 @@ impl RuntimeException {
             RuntimeException::Throw(e) => Some(e.reason()),
             RuntimeException::Exit(e) => Some(e.reason()),
             RuntimeException::Error(e) => Some(e.reason()),
-            RuntimeException::Unknown(_err) => None,
-        }
-    }
-
-    pub fn location(&self) -> Option<Location> {
-        match self {
-            RuntimeException::Throw(e) => Some(e.location()),
-            RuntimeException::Exit(e) => Some(e.location()),
-            RuntimeException::Error(e) => Some(e.location()),
-            RuntimeException::Unknown(_err) => None,
         }
     }
 
@@ -64,8 +49,21 @@ impl RuntimeException {
             RuntimeException::Throw(e) => e.stacktrace(),
             RuntimeException::Exit(e) => e.stacktrace(),
             RuntimeException::Error(e) => e.stacktrace(),
-            RuntimeException::Unknown(_err) => None,
         }
+    }
+
+    pub fn source(&self) -> ArcError {
+        match self {
+            RuntimeException::Throw(e) => e.source(),
+            RuntimeException::Exit(e) => e.source(),
+            RuntimeException::Error(e) => e.source(),
+        }
+    }
+}
+
+impl From<anyhow::Error> for RuntimeException {
+    fn from(err: anyhow::Error) -> Self {
+        badarg!(ArcError::new(err))
     }
 }
 
@@ -89,10 +87,12 @@ mod tests {
     mod error {
         use super::*;
 
+        use anyhow::*;
+
         #[test]
         fn without_arguments_stores_none() {
             let reason = atom!("badarg");
-            let error = error!(reason);
+            let error = error!(reason, anyhow!("source").into());
 
             assert_eq!(error.reason(), Some(reason));
             assert_eq!(error.class(), Some(Class::Error { arguments: None }));
@@ -102,7 +102,7 @@ mod tests {
         fn with_arguments_stores_some() {
             let reason = atom!("badarg");
             let arguments = Term::NIL;
-            let error = error!(reason, arguments);
+            let error = error!(reason, arguments, anyhow!("source").into());
 
             assert_eq!(error.reason(), Some(reason));
             assert_eq!(

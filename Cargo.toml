@@ -13,6 +13,7 @@ members = [
   "liblumen_compiler",
   "liblumen_core",
   "liblumen_eir_interpreter",
+  "liblumen_target",
   "liblumen_util",
   "lumen_web",
 ]

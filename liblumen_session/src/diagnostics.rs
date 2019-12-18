@@ -1,0 +1,141 @@
+use std::error::Error;
+use std::fmt::Display;
+use std::ops::Deref;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
+use libeir_diagnostics::emitter::{cyan, white, yellow, yellow_bold};
+use libeir_diagnostics::{ColorSpec, Diagnostic, Emitter, Severity};
+use liblumen_util::error::{FatalError, Verbosity};
+
+#[derive(Clone)]
+pub struct DiagnosticsHandler {
+    emitter: Arc<dyn Emitter>,
+    warnings_as_errors: bool,
+    no_warn: bool,
+    err_count: Arc<AtomicUsize>,
+}
+impl DiagnosticsHandler {
+    pub fn new(emitter: Arc<dyn Emitter>) -> Self {
+        Self {
+            emitter,
+            warnings_as_errors: false,
+            no_warn: false,
+            err_count: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    pub fn warnings_as_errors(mut self, flag: bool) -> Self {
+        self.warnings_as_errors = flag;
+        self
+    }
+
+    pub fn no_warn(mut self, flag: bool) -> Self {
+        self.no_warn = flag;
+        self
+    }
+
+    fn has_errors(&self) -> bool {
+        self.err_count.load(Ordering::Relaxed) > 0
+    }
+
+    pub fn abort_if_errors(&self) {
+        if self.has_errors() {
+            FatalError.raise();
+        }
+    }
+
+    pub fn fatal<E>(&self, err: E) -> FatalError
+    where
+        E: Deref<Target = (dyn Error + Send + Sync + 'static)>,
+    {
+        self.write_error(err);
+        FatalError
+    }
+
+    pub fn fatal_str(&self, err: &str) -> FatalError {
+        self.emitter
+            .diagnostic(&Diagnostic::new(Severity::Error, err.to_string()))
+            .unwrap();
+        FatalError
+    }
+
+    pub fn error<E>(&self, err: E)
+    where
+        E: Deref<Target = (dyn Error + Send + Sync + 'static)>,
+    {
+        self.err_count.fetch_add(1, Ordering::Relaxed);
+        self.write_error(err);
+    }
+
+    pub fn io_error(&self, err: std::io::Error) {
+        self.err_count.fetch_add(1, Ordering::Relaxed);
+        let e: &(dyn std::error::Error + Send + Sync + 'static) = &err;
+        self.write_error(e);
+    }
+
+    pub fn error_str(&self, err: &str) {
+        self.err_count.fetch_add(1, Ordering::Relaxed);
+        self.emitter
+            .diagnostic(&Diagnostic::new(Severity::Error, err.to_string()))
+            .unwrap();
+    }
+
+    pub fn warn<M: Display>(&self, message: M) {
+        if self.warnings_as_errors {
+            self.emitter
+                .diagnostic(&Diagnostic::new(Severity::Error, message.to_string()))
+                .unwrap();
+        } else if !self.no_warn {
+            self.write_warning(yellow_bold(), "WARN: ");
+            self.write_warning(yellow(), &message.to_string());
+        }
+    }
+
+    pub fn info<M: Display>(&self, message: M) {
+        self.write_info(cyan(), &message.to_string());
+    }
+
+    pub fn debug<M: Display>(&self, message: M) {
+        self.write_debug(white(), &message.to_string());
+    }
+
+    pub fn diagnostic(&self, diagnostic: &Diagnostic) {
+        self.emitter.diagnostic(diagnostic).unwrap();
+    }
+
+    fn write_error<E>(&self, err: E)
+    where
+        E: Deref<Target = (dyn Error + Send + Sync + 'static)>,
+    {
+        self.emitter.error(err.deref()).unwrap();
+    }
+
+    fn write_warning<M: Display>(&self, color: ColorSpec, message: M) {
+        self.emitter
+            .warn(Some(color), &message.to_string())
+            .unwrap();
+    }
+
+    fn write_info<M: Display>(&self, color: ColorSpec, message: M) {
+        self.emitter
+            .emit(Some(color), &message.to_string())
+            .unwrap();
+    }
+
+    fn write_debug<M: Display>(&self, color: ColorSpec, message: M) {
+        self.emitter
+            .debug(Some(color), &message.to_string())
+            .unwrap();
+    }
+}
+
+pub fn verbosity_to_severity(v: Verbosity) -> Severity {
+    match v {
+        Verbosity::Silent => Severity::Bug,
+        Verbosity::Error => Severity::Error,
+        Verbosity::Warning => Severity::Warning,
+        Verbosity::Info => Severity::Note,
+        Verbosity::Debug => Severity::Note,
+    }
+}

@@ -1,0 +1,7 @@
+%compile_commands.json
+%c -std=c11
+%cpp -std=c++17
+%h -x
+%h c++-header
+-I~/.local/share/llvm/lumen/include
+-Iinclude

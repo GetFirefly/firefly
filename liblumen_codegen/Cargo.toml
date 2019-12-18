@@ -1,0 +1,36 @@
+[package]
+name = "liblumen_codegen"
+version = "0.1.0"
+authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+edition = "2018"
+publish = false
+
+
+[dependencies]
+libc = "0.2"
+cc = "1.0.32"
+anyhow = "1.0"
+thiserror = "1.0"
+tempfile = "3.1"
+num-bigint = "0.2"
+log = "0.4"
+
+liblumen_session = { path = "../liblumen_session" }
+liblumen_target = { path = "../liblumen_target" }
+liblumen_util = { path = "../liblumen_util" }
+
+# eirproject/eir crates
+libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
+libeir_intern = { git = "https://github.com/eirproject/eir.git" }
+libeir_ir = { git = "https://github.com/eirproject/eir.git" }
+libeir_lowerutils = { git = "https://github.com/eirproject/eir.git" }
+libeir_passes = { git = "https://github.com/eirproject/eir.git" }
+libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
+
+# llvm crates
+llvm-sys = { git = "https://github.com/lumen/llvm-sys.rs", branch = "llvm-9.0" }
+
+[build-dependencies]
+cc = "1.0.32"
+cmake = "0.1"
+which = "2.0.1"

@@ -665,7 +665,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "libeir_diagnostics"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -676,7 +676,7 @@ dependencies = [
 [[package]]
 name = "libeir_intern"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git)",
@@ -686,7 +686,7 @@ dependencies = [
 [[package]]
 name = "libeir_ir"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "bumpalo 2.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -711,7 +711,7 @@ dependencies = [
 [[package]]
 name = "libeir_passes"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "bumpalo 2.6.0 (git+https://github.com/hansihe/bumpalo.git)",
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -726,7 +726,7 @@ dependencies = [
 [[package]]
 name = "libeir_syntax_erl"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "bumpalo 2.6.0 (git+https://github.com/hansihe/bumpalo.git)",
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -751,7 +751,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_datastructures"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "cranelift-entity 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashbrown 0.6.3 (git+https://github.com/hansihe/hashbrown.git)",
@@ -760,7 +760,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_number"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "num-bigint 0.2.2 (git+https://github.com/hansihe/num-bigint.git)",
  "num-traits 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -769,7 +769,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "libeir_diagnostics 0.1.0 (git+https://github.com/eirproject/eir.git)",
  "snafu 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -778,7 +778,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_parse_listing"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "lalrpop 0.17.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "lalrpop-util 0.17.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -791,7 +791,7 @@ dependencies = [
 [[package]]
 name = "libeir_util_pattern_compiler"
 version = "0.1.0"
-source = "git+https://github.com/eirproject/eir.git#aa178900f82b631ac138fb26c6a2a6a6e7b61d27"
+source = "git+https://github.com/eirproject/eir.git#795f6bb1c335322603e850ff498db47cee1783c4"
 dependencies = [
  "derivative 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",

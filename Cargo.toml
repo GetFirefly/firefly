@@ -14,6 +14,7 @@ members = [
   "liblumen_compiler_macros",
   "liblumen_core",
   "liblumen_eir_interpreter",
+  "liblumen_incremental",
   "liblumen_session",
   "liblumen_target",
   "liblumen_util",

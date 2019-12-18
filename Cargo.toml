@@ -11,6 +11,7 @@ members = [
   "liblumen_alloc_macros",
   "liblumen_beam",
   "liblumen_compiler",
+  "liblumen_compiler_macros",
   "liblumen_core",
   "liblumen_eir_interpreter",
   "liblumen_target",

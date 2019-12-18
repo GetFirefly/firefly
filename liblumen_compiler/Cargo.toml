@@ -2,15 +2,29 @@
 name = "liblumen_compiler"
 version = "0.1.0"
 authors = ["Paul Schoenfelder <paulschoenfelder@gmail.com>"]
+homepage = "https://github.com/lumen/lumen"
+repository = "https://github.com/lumen/lumen"
+license = "Apache-2.0"
 edition = "2018"
 publish = false
 
 [dependencies]
-anyhow = "1.0.11"
-thiserror = "1.0.1"
+anyhow = "1.0"
+thiserror = "1.0"
+clap = "2.33.0"
 walkdir = "2.2"
+salsa = "0.14"
+salsa-macros = "0.14"
+
+liblumen_session = { path = "../liblumen_session" }
+liblumen_target = { path = "../liblumen_target" }
+liblumen_incremental = { path = "../liblumen_incremental" }
+liblumen_codegen = { path = "../liblumen_codegen" }
+liblumen_util = { path = "../liblumen_util" }
+
 libeir_diagnostics = { git = "https://github.com/eirproject/eir.git" }
-libeir_intern = { git = "https://github.com/eirproject/eir.git" }
 libeir_ir = { git = "https://github.com/eirproject/eir.git" }
-libeir_passes = { git = "https://github.com/eirproject/eir.git" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
+
+[build-dependencies]
+which = "2.0"

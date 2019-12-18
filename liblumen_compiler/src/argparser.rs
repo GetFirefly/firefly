@@ -1,0 +1,293 @@
+use std::error::Error;
+use std::ffi::OsString;
+
+use clap::crate_description;
+use clap::{App, AppSettings, Arg, ArgMatches};
+
+use liblumen_session::{CodegenOptions, DebuggingOptions, OptionGroup, OutputType};
+use liblumen_target::Target;
+
+/// Parses the provided arguments
+pub fn parse<'a>(args: impl Iterator<Item = OsString>) -> clap::Result<ArgMatches<'a>> {
+    parser().get_matches_from_safe(args)
+}
+
+pub fn parser<'a, 'b>() -> App<'a, 'b> {
+    App::new("lumen")
+        .version(crate::LUMEN_RELEASE)
+        .about(crate_description!())
+        .setting(AppSettings::UnifiedHelpMessage)
+        .setting(AppSettings::GlobalVersion)
+        .setting(AppSettings::VersionlessSubcommands)
+        .arg(
+            CodegenOptions::option_group_arg()
+                .help("Set a codegen option. See 'lumen -C help' for details"),
+        )
+        .arg(
+            DebuggingOptions::option_group_arg()
+                .help("Set a debugging option. See 'lumen -Z help' for details"),
+        )
+        .subcommand(print_command())
+        .subcommand(compile_command())
+        .subcommand(parse_command())
+}
+
+pub fn print_print_help() {
+    print_command().print_help().expect("unable to print help");
+}
+
+pub fn print_compile_help() {
+    compile_command()
+        .print_help()
+        .expect("unable to print help");
+}
+
+fn print_command<'a, 'b>() -> App<'a, 'b> {
+    let target = self::target_arg();
+    App::new("print")
+        .about("Prints compiler information to standard out")
+        .setting(AppSettings::SubcommandRequired)
+        .subcommand(
+            App::new("version")
+                .about("Prints version information for the compiler")
+                .arg(
+                    Arg::with_name("verbose")
+                        .help("Print extra version details, such as commit hash")
+                        .short("v")
+                        .long("verbose"),
+                ),
+        )
+        .subcommand(App::new("targets").about("The list of supported targets"))
+        .subcommand(
+            App::new("target-features")
+                .about("Prints the available target features for the current target")
+                .arg(target.clone().help("The target to list features for")),
+        )
+        .subcommand(
+            App::new("target-cpus")
+                .about("Prints the available architectures for the current target")
+                .arg(target.clone().help("The target to list architectures for")),
+        )
+        .subcommand(App::new("project-name").about("Prints the current project name"))
+        .subcommand(
+            App::new("passes").about("Prints the LLVM passes registered with the pass manager"),
+        )
+}
+
+fn parse_command<'a, 'b>() -> App<'a, 'b> {
+    let target = self::target_arg();
+    App::new("parse")
+        .about("Parses the given MLIR and emits LLVM IR")
+        .arg(
+            Arg::with_name("input")
+                .index(1)
+                .help("Path to the source file to parse")
+                .takes_value(true)
+                .value_name("FILE"),
+        )
+        .arg(
+            Arg::with_name("raw")
+                .last(true)
+                .hidden(true)
+                .help(
+                    "Extra arguments that will be passed unmodified to the LLVM argument processor",
+                )
+                .multiple(true)
+                .value_name("ARGS"),
+        )
+        .arg(
+            Arg::with_name("emit")
+                .help(OutputType::help())
+                .next_line_help(true)
+                .long("emit")
+                .takes_value(true)
+                .value_name("TYPE[=GLOB],..")
+                .multiple(true)
+                .require_delimiter(true),
+        )
+        .arg(
+            Arg::with_name("output-dir")
+                .help("Write output to file(s) in DIR")
+                .short("o")
+                .long("output-dir")
+                .value_name("DIR"),
+        )
+        .arg(
+            Arg::with_name("debug")
+                .help("Generate source level debug information (same as -C debuginfo=2)")
+                .short("g")
+                .long("debug"),
+        )
+        .arg(
+            Arg::with_name("optimize")
+                .help("Apply optimizations (equivalent to -C opt-level=2)")
+                .short("O")
+                .long("optimize"),
+        )
+        .arg(
+            target
+                .clone()
+                .help("The target triple to compile against (e.g. x86_64-linux-gnu)"),
+        )
+}
+
+fn compile_command<'a, 'b>() -> App<'a, 'b> {
+    let target = self::target_arg();
+    App::new("compile")
+        .about("Compiles Erlang sources to an executable or shared library")
+        .arg(
+            Arg::with_name("input")
+                .index(1)
+                .help(
+                    "Path to the source file to compile (or `-` to read from stdin).\n\
+                     If not provided, the project in the current directory is compiled.",
+                )
+                .next_line_help(true)
+                .takes_value(true)
+                .value_name("FILE"),
+        )
+        .arg(
+            Arg::with_name("raw")
+                .last(true)
+                .hidden(true)
+                .help(
+                    "Extra arguments that will be passed unmodified to the LLVM argument processor",
+                )
+                .multiple(true)
+                .value_name("ARGS"),
+        )
+        .arg(
+            Arg::with_name("name")
+                .help("Specify the name of the project being built")
+                .short("n")
+                .long("name")
+                .takes_value(true)
+                .value_name("NAME"),
+        )
+        .arg(
+            Arg::with_name("emit")
+                .help(OutputType::help())
+                .next_line_help(true)
+                .long("emit")
+                .takes_value(true)
+                .value_name("TYPE[=GLOB],..")
+                .multiple(true)
+                .require_delimiter(true),
+        )
+        .arg(
+            Arg::with_name("output")
+                .help("Write output to FILE")
+                .long("output")
+                .value_name("FILE"),
+        )
+        .arg(
+            Arg::with_name("output-dir")
+                .help("Write output to file(s) in DIR")
+                .short("o")
+                .long("output-dir")
+                .value_name("DIR"),
+        )
+        .arg(
+            Arg::with_name("debug")
+                .help("Generate source level debug information (same as -C debuginfo=2)")
+                .short("g")
+                .long("debug"),
+        )
+        .arg(
+            Arg::with_name("optimize")
+                .help("Apply optimizations (equivalent to -C opt-level=2)")
+                .short("O")
+                .long("optimize"),
+        )
+        .arg(
+            target
+                .clone()
+                .help("The target triple to compile against (e.g. x86_64-linux-gnu)"),
+        )
+        .arg(
+            Arg::with_name("color")
+                .help("Configure coloring of output")
+                .long("color")
+                .possible_values(&["never", "always", "auto"])
+                .default_value("auto"),
+        )
+        .arg(
+            Arg::with_name("source-map-prefix")
+                .help("Remap source paths in all output (i.e. FROM/foo => TO/foo)")
+                .long("source-map-prefix")
+                .takes_value(true)
+                .value_name("FROM=TO"),
+        )
+        .arg(
+            Arg::with_name("define")
+                .help("Define a macro, e.g. -D TEST or -D FOO=BAR")
+                .short("D")
+                .long("define")
+                .takes_value(true)
+                .value_name("NAME[=VALUE]")
+                .multiple(true)
+                .number_of_values(1),
+        )
+        .arg(
+            Arg::with_name("warnings-as-errors")
+                .help("Causes the compiler to treat all warnings as errors")
+                .long("warnings-as-errors"),
+        )
+        .arg(
+            Arg::with_name("no-warn")
+                .help("Disable warnings")
+                .long("no-warn")
+                .conflicts_with("warnings-as-errors"),
+        )
+        .arg(
+            Arg::with_name("verbose")
+                .help("Set verbosity level")
+                .short("v")
+                .multiple(true),
+        )
+        .arg(
+            Arg::with_name("library")
+                .help(
+                    "Add a directory to the library search path. \
+                     The optional KIND can be one of: dependency,\
+                     native, framework, or all (default)",
+                )
+                .short("L")
+                .takes_value(true)
+                .value_name("[KIND=]PATH")
+                .multiple(true)
+                .number_of_values(1),
+        )
+        .arg(
+            Arg::with_name("append-path")
+                .help("Appends a path to the Erlang code path")
+                .long("pz")
+                //.long("append-path")
+                .value_name("PATH")
+                .takes_value(true)
+                .multiple(true)
+                .number_of_values(1),
+        )
+        .arg(
+            Arg::with_name("prepend-path")
+                .help("Prepends a path to the Erlang code path")
+                .long("pa")
+                //.long("prepend-path")
+                .value_name("PATH")
+                .takes_value(true)
+                .multiple(true)
+                .number_of_values(1),
+        )
+}
+
+fn target_arg<'a, 'b>() -> Arg<'a, 'b> {
+    Arg::with_name("target")
+        .short("t")
+        .long("target")
+        .takes_value(true)
+        .value_name("TRIPLE")
+        .validator(|triple| match Target::search(&triple) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err.description().to_string()),
+        })
+}

@@ -1,123 +1,64 @@
-mod compiler;
+extern crate log;
 
+use std::env;
 use std::process;
+use std::time::Instant;
 
-use clap::{crate_description, crate_name, crate_version};
-use clap::{App, Arg, ArgMatches, SubCommand};
+use anyhow::anyhow;
 
-use libeir_diagnostics::{ColorChoice, Emitter, StandardStreamEmitter};
-use liblumen_compiler::CompilerError;
+use liblumen_compiler::{self as driver, argparser};
+use liblumen_session::ShowOptionGroupHelp;
+use liblumen_util::error::HelpRequested;
+use liblumen_util::time;
 
-fn main() -> anyhow::Result<()> {
-    human_panic::setup_panic!();
+pub fn main() -> anyhow::Result<()> {
+    // Handle unexpected panics by presenting a user-friendly bug report prompt
+    //human_panic::setup_panic!();
 
-    let emitter = StandardStreamEmitter::new(ColorChoice::Auto);
+    // Initialize logger
+    env_logger::init_from_env("LUMEN_LOG");
+
+    // Get the current instant, in case needed for timing later
+    let start = Instant::now();
 
     // Get current working directory
-    let cwd = std::env::current_dir()?;
-    let output_dir = cwd.join("_build/target");
+    let cwd = env::current_dir().map_err(|e| anyhow!("Current directory is invalid: {}", e))?;
 
-    // Build argument parser
-    let matches = App::new(crate_name!())
-        .version(crate_version!())
-        .about(crate_description!())
-        .subcommand(
-            SubCommand::with_name("compile")
-                .about("Compiles Erlang to an executable or shared library")
-                .arg(
-                    Arg::with_name("path")
-                        .help("The path to the file or directory of files you wish to compile")
-                        .index(1)
-                        .takes_value(true)
-                        .value_name("FILE_OR_DIR")
-                        .default_value_os(cwd.as_os_str())
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("compiler")
-                        .help("The type of compiler to use")
-                        .takes_value(true)
-                        .value_name("TYPE")
-                        .possible_values(&["beam", "erl"])
-                        .default_value("erl")
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("output")
-                        .help("The directory to place compiler output")
-                        .short("o")
-                        .long("output")
-                        .value_name("DIR")
-                        .default_value_os(output_dir.as_os_str()),
-                )
-                .arg(
-                    Arg::with_name("define")
-                        .help("Define a macro, e.g. -DTEST")
-                        .short("D")
-                        .long("define")
-                        .value_name("NAME")
-                        .takes_value(true)
-                        .multiple(true),
-                )
-                .arg(
-                    Arg::with_name("warnings-as-errors")
-                        .help("Causes the compiler to treat all warnings as errors")
-                        .long("warnings-as-errors"),
-                )
-                .arg(
-                    Arg::with_name("no-warnings")
-                        .help("Disable warnings")
-                        .long("no-warnings")
-                        .conflicts_with("warnings-as-errors"),
-                )
-                .arg(
-                    Arg::with_name("verbose")
-                        .help("Set verbosity level")
-                        .short("v")
-                        .multiple(true),
-                )
-                .arg(
-                    Arg::with_name("append-path")
-                        .help("Appends a path to the code path")
-                        .short("pz")
-                        .long("append-path")
-                        .value_name("PATH")
-                        .takes_value(true)
-                        .multiple(true),
-                )
-                .arg(
-                    Arg::with_name("prepend-path")
-                        .help("Prepends a path to the code path")
-                        .short("pa")
-                        .long("prepend-path")
-                        .value_name("PATH")
-                        .takes_value(true)
-                        .multiple(true),
-                ),
-        )
-        .get_matches();
-
-    // Handle success/failure
-    if let Err(err) = self::dispatch(matches) {
-        match err.downcast_ref::<CompilerError>() {
-            Some(CompilerError::Parser { codemap, errs }) => {
-                let emitter = emitter.set_codemap(codemap.clone());
-                for err in errs.iter() {
-                    emitter.diagnostic(&err).expect("stdout failed");
-                }
-                process::exit(2);
-            }
-            _ => return Err(err),
+    // Run compiler
+    if let Err(err) = driver::run_compiler(cwd, env::args_os()) {
+        if let Some(err) = err.downcast_ref::<HelpRequested>() {
+            handle_help(err);
         }
+        if let Some(err) = err.downcast_ref::<ShowOptionGroupHelp>() {
+            handle_option_group_help(err);
+        }
+        if let Some(err) = err.downcast_ref::<clap::Error>() {
+            handle_clap_err(err);
+        }
+        eprintln!("{}", err);
+        process::exit(1);
     }
+
+    let print_timings = env::var("LUMEN_TIMING").is_ok();
+    time::print_time_passes_entry(print_timings, "\ttotal", start.elapsed());
 
     Ok(())
 }
 
-#[inline]
-fn dispatch(matches: ArgMatches) -> anyhow::Result<()> {
-    match matches.subcommand() {
-        ("compile", Some(args)) => compiler::dispatch(&args),
-        _ => Ok(()),
+fn handle_help(err: &HelpRequested) -> ! {
+    match err.primary() {
+        "compile" => argparser::print_compile_help(),
+        "print" => argparser::print_print_help(),
+        _ => unimplemented!(),
     }
+    process::exit(1);
+}
+
+fn handle_option_group_help(err: &ShowOptionGroupHelp) -> ! {
+    err.print_help();
+    process::exit(0);
+}
+
+fn handle_clap_err(err: &clap::Error) -> ! {
+    err.exit()
 }

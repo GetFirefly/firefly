@@ -39,9 +39,10 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_integer(arc_process.clone()),
                 ),
                 |(tuple, record_tag, size)| {
-                    prop_assert_badarg!(
+                    prop_assert_is_not_atom!(
                         native(tuple, record_tag, size),
-                        format!("record tag ({}) must be an atom", record_tag)
+                        "record tag",
+                        record_tag
                     );
 
                     Ok(())

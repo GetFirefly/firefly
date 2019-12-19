@@ -29,9 +29,9 @@ fn without_atom_module_errors_badarg() {
                     strategy::term::list::proper(arc_process.clone()),
                 ),
                 |(module, function, arguments)| {
-                    prop_assert_badarg!(
+                    prop_assert_is_not_atom!(
                         spawn_3::native(&arc_process, module, function, arguments),
-                        format!("module ({}) must be an atom", module)
+                        module
                     );
 
                     Ok(())

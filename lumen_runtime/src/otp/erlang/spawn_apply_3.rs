@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
@@ -16,12 +14,8 @@ pub(in crate::otp::erlang) fn native(
     function: Term,
     arguments: Term,
 ) -> exception::Result<Term> {
-    let module_atom: Atom = module
-        .try_into()
-        .with_context(|| format!("module ({}) must be an atom", module))?;
-    let function_atom: Atom = function
-        .try_into()
-        .with_context(|| format!("function ({}) must be an atom", function))?;
+    let module_atom = term_try_into_atom!(module)?;
+    let function_atom = term_try_into_atom!(function)?;
 
     let args = arguments.decode()?;
     if args.is_proper_list() {

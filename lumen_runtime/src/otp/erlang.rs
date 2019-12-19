@@ -192,6 +192,7 @@ use liblumen_alloc::erts::exception::{self, InternalResult};
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
+use crate::context::*;
 use crate::process::SchedulerDependentAlloc;
 use crate::registry::pid_to_self_or_process;
 use crate::time::monotonic;
@@ -249,9 +250,7 @@ fn cancel_timer(
 fn is_record(term: Term, record_tag: Term, size: Option<Term>) -> exception::Result<Term> {
     match term.decode()? {
         TypedTerm::Tuple(tuple) => {
-            let _: Atom = record_tag
-                .try_into()
-                .with_context(|| format!("record tag ({}) must be an atom", record_tag))?;
+            let _: Atom = term_try_into_atom("record tag", record_tag)?;
 
             let len = tuple.len();
 

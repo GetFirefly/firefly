@@ -109,6 +109,19 @@ macro_rules! prop_assert_badarg {
 }
 
 #[cfg(test)]
+macro_rules! prop_assert_is_not_atom {
+    ($actual:expr, $name:ident) => {
+        prop_assert_badarg!(
+            $actual,
+            format!("{} ({}) is not atom", stringify!($name), $name)
+        )
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_badarg!($actual, format!("{} ({}) is not atom", $name, $value))
+    };
+}
+
+#[cfg(test)]
 macro_rules! prop_assert_is_not_boolean {
     ($actual:expr, $name:ident) => {
         prop_assert_badarg!(

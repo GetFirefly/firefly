@@ -17,7 +17,7 @@ fn without_atom_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_atom(arc_process.clone()), |name| {
-                prop_assert_badarg!(native(name), format!("name ({}) must be an atom", name));
+                prop_assert_is_not_atom!(native(name), name);
 
                 Ok(())
             })

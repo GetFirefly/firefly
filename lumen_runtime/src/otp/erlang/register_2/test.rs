@@ -23,10 +23,7 @@ fn without_atom_name_errors_badarg() {
                     strategy::term::pid_or_port(arc_process.clone()),
                 ),
                 |(name, pid_or_port)| {
-                    prop_assert_badarg!(
-                        native(arc_process.clone(), name, pid_or_port),
-                        format!("name ({}) must be an atom", name)
-                    );
+                    prop_assert_is_not_atom!(native(arc_process.clone(), name, pid_or_port), name);
 
                     Ok(())
                 },

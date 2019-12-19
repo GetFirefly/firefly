@@ -21,10 +21,7 @@ fn without_atom_errors_badarg() {
                     strategy::term::is_encoding(),
                 ),
                 |(atom, encoding)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, atom, encoding),
-                        format!("atom ({}) is not an atom", atom)
-                    );
+                    prop_assert_is_not_atom!(native(&arc_process, atom, encoding), atom);
 
                     Ok(())
                 },

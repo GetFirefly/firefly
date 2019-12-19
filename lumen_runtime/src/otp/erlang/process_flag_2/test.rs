@@ -18,10 +18,7 @@ fn without_atom_flag_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(flag, value)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, flag, value),
-                        format!("flag ({}) must be an atom", flag)
-                    );
+                    prop_assert_is_not_atom!(native(&arc_process, flag, value), flag);
 
                     Ok(())
                 },

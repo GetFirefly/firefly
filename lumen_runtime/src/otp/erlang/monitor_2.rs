@@ -16,6 +16,7 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
 use crate::otp::erlang::node_0;
 use crate::process::{self, SchedulerDependentAlloc};
 use crate::registry;
@@ -117,18 +118,14 @@ fn monitor_process_tuple(
 ) -> exception::Result<Term> {
     if tuple.len() == 2 {
         let registered_name = tuple[0];
-        let registered_name_atom: Atom = registered_name
-            .try_into()
-            .with_context(|| format!("registered name ({}) must be an atom", registered_name))?;
+        let registered_name_atom = term_try_into_atom("registered name", registered_name)?;
 
         let node = tuple[1];
 
         if node == node_0::native() {
             monitor_process_registered_name(process, registered_name, registered_name_atom)
         } else {
-            let _node_atom: Atom = node
-                .try_into()
-                .with_context(|| format!("node ({}) must be an atom", node))?;
+            let _: Atom = term_try_into_atom!(node)?;
 
             unimplemented!(
                 "node ({:?}) is not the local node ({:?})",

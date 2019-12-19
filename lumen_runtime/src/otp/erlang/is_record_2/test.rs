@@ -35,10 +35,7 @@ fn with_tuple_without_atom_errors_badarg() {
                     strategy::term::is_not_atom(arc_process.clone()),
                 ),
                 |(tuple, record_tag)| {
-                    prop_assert_badarg!(
-                        native(tuple, record_tag),
-                        format!("record tag ({}) must be an atom", record_tag)
-                    );
+                    prop_assert_is_not_atom!(native(tuple, record_tag), "record tag", record_tag);
 
                     Ok(())
                 },
@@ -83,10 +80,7 @@ fn with_non_empty_tuple_without_atom_with_first_element_errors_badarg() {
                         )
                     }),
                 |(tuple, record_tag)| {
-                    prop_assert_badarg!(
-                        native(tuple, record_tag),
-                        format!("record tag ({}) must be an atom", record_tag)
-                    );
+                    prop_assert_is_not_atom!(native(tuple, record_tag), "record tag", record_tag);
 
                     Ok(())
                 },

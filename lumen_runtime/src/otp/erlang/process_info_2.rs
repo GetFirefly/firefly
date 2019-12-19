@@ -23,9 +23,7 @@ pub fn native(process: &Process, pid: Term, item: Term) -> exception::Result<Ter
     let pid_pid: Pid = pid
         .try_into()
         .with_context(|| format!("pid ({}) must be a pid", pid))?;
-    let item_atom: Atom = item
-        .try_into()
-        .with_context(|| format!("item ({}) must be an atom", item))?;
+    let item_atom: Atom = term_try_into_atom!(item)?;
 
     if process.pid() == pid_pid {
         process_info(process, item_atom)

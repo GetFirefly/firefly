@@ -5,8 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
@@ -19,9 +17,7 @@ use crate::context::*;
 
 #[native_implemented_function(process_flag/2)]
 pub fn native(process: &Process, flag: Term, value: Term) -> exception::Result<Term> {
-    let flag_atom: Atom = flag
-        .try_into()
-        .with_context(|| format!("flag ({}) must be an atom", flag))?;
+    let flag_atom = term_try_into_atom!(flag)?;
 
     match flag_atom.name() {
         "error_handler" => unimplemented!(),

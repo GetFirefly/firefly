@@ -5,8 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
@@ -18,9 +16,7 @@ use crate::registry;
 
 #[native_implemented_function(unregister/1)]
 pub fn native(name: Term) -> exception::Result<Term> {
-    let atom: Atom = name
-        .try_into()
-        .with_context(|| format!("name ({}) must be an atom", name))?;
+    let atom = term_try_into_atom!(name)?;
 
     if registry::unregister(&atom) {
         Ok(true.into())

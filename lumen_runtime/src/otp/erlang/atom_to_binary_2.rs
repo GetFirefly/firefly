@@ -5,8 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use anyhow::*;
-
 use std::convert::TryInto;
 
 use liblumen_alloc::erts::exception;
@@ -18,9 +16,7 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(atom_to_binary/2)]
 pub fn native(process: &Process, atom: Term, encoding: Term) -> exception::Result<Term> {
-    let atom_atom: Atom = atom
-        .try_into()
-        .with_context(|| format!("atom ({}) is not an atom", atom))?;
+    let atom_atom = term_try_into_atom!(atom)?;
     let _: Encoding = encoding.try_into()?;
     let binary = process.binary_from_str(atom_atom.name())?;
 

@@ -5,7 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
 use std::sync::Arc;
 
 use anyhow::*;
@@ -20,9 +19,7 @@ use crate::registry;
 
 #[native_implemented_function(register/2)]
 pub fn native(arc_process: Arc<Process>, name: Term, pid_or_port: Term) -> exception::Result<Term> {
-    let atom: Atom = name
-        .try_into()
-        .with_context(|| format!("name ({}) must be an atom", name))?;
+    let atom = term_try_into_atom!(name)?;
 
     match atom.name() {
         "undefined" => Err(anyhow!("undefined is not an allowed registered name").into()),

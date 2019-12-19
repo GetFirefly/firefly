@@ -4,6 +4,7 @@ use anyhow::*;
 
 use liblumen_alloc::erts::term::prelude::*;
 
+use crate::context::*;
 use crate::proplist::*;
 
 pub struct Options {
@@ -25,9 +26,7 @@ impl Options {
             match atom.name() {
                 "abs" => {
                     let value = tuple[1];
-                    let absolute: bool = value
-                        .try_into()
-                        .with_context(|| format!("abs value ({}) must be boolean", value))?;
+                    let absolute: bool = term_try_into_bool("abs value", value)?;
 
                     self.reference_frame = if absolute {
                         ReferenceFrame::Absolute

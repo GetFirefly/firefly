@@ -17,11 +17,8 @@ fn without_boolean_left_errors_badarg() {
                     strategy::term::is_not_boolean(arc_process.clone()),
                     strategy::term::is_boolean(),
                 ),
-                |(left, right)| {
-                    prop_assert_badarg!(
-                        native(left, right),
-                        format!("left ({}) must be a bool", left)
-                    );
+                |(left_boolean, right_boolean)| {
+                    prop_assert_is_not_boolean!(native(left_boolean, right_boolean), left_boolean);
 
                     Ok(())
                 },

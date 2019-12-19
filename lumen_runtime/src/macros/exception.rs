@@ -109,6 +109,19 @@ macro_rules! prop_assert_badarg {
 }
 
 #[cfg(test)]
+macro_rules! prop_assert_is_not_boolean {
+    ($actual:expr, $name:ident) => {
+        prop_assert_badarg!(
+            $actual,
+            format!("{} ({}) is not boolean", stringify!($name), $name)
+        )
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_badarg!($actual, format!("{} ({}) is not boolean", $name, $value))
+    };
+}
+
+#[cfg(test)]
 macro_rules! prop_assert_badarith {
     ($actual:expr, $expected_substring:expr) => {{
         prop_assert_error!(

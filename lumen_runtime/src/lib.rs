@@ -44,6 +44,7 @@ pub mod binary_to_string;
 // `pub` or `examples/spawn-chain`
 pub mod code;
 mod config;
+mod context;
 mod distribution;
 pub mod future;
 mod logging;

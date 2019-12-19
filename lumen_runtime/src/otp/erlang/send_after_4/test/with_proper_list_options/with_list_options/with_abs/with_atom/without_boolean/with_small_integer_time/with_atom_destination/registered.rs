@@ -29,9 +29,10 @@ fn with_different_process_errors_badarg() {
 
                     let options = options(abs_value, &arc_process);
 
-                    prop_assert_badarg!(
+                    prop_assert_is_not_boolean!(
                         native(arc_process.clone(), time, destination, message, options),
-                        format!("abs value ({}) must be boolean", abs_value)
+                        "abs value",
+                        abs_value
                     );
 
                     Ok(())
@@ -68,9 +69,10 @@ fn with_same_process_errors_badarg() {
                 let time = arc_process.integer(milliseconds).unwrap();
                 let options = options(abs_value, &arc_process);
 
-                prop_assert_badarg!(
+                prop_assert_is_not_boolean!(
                     native(arc_process.clone(), time, destination, message, options),
-                    format!("abs value ({}) must be boolean", abs_value)
+                    "abs value",
+                    abs_value
                 );
 
                 Ok(())

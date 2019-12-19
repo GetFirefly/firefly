@@ -6,11 +6,8 @@ fn without_boolean_right_errors_badarg() {
         TestRunner::new(Config::with_source_file(file!()))
             .run(
                 &strategy::term::is_not_boolean(arc_process.clone()),
-                |right| {
-                    prop_assert_badarg!(
-                        native(false.into(), right),
-                        format!("right ({}) must be a bool", right)
-                    );
+                |right_boolean| {
+                    prop_assert_is_not_boolean!(native(false.into(), right_boolean), right_boolean);
 
                     Ok(())
                 },

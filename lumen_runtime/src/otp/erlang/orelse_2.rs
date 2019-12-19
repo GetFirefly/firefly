@@ -5,14 +5,12 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
-use anyhow::*;
-
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::Term;
 
 use lumen_runtime_macros::native_implemented_function;
+
+use crate::context::*;
 
 /// `orelse/2` infix operator.
 ///
@@ -20,9 +18,7 @@ use lumen_runtime_macros::native_implemented_function;
 /// both operands, use `or_2`.
 #[native_implemented_function(orelse/2)]
 pub fn native(boolean: Term, term: Term) -> exception::Result<Term> {
-    let boolean_bool: bool = boolean
-        .try_into()
-        .with_context(|| format!("boolean ({}) must be a boolean", boolean))?;
+    let boolean_bool: bool = term_try_into_bool("boolean", boolean)?;
 
     if boolean_bool {
         // always `true.into()`, but this is faster

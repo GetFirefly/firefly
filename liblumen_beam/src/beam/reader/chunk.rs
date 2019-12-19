@@ -114,8 +114,7 @@ impl Chunk for RawChunk {
 
     /// ## Alternative Implementations
     ///
-    /// - [`org.elixir_lang.beam.chunk.Chunk.from` in IntelliJ
-    ///   ELixir](https://github.com/KronicDeth/intellij-elixir/blob/
+    /// - [`org.elixir_lang.beam.chunk.Chunk.from` in IntelliJ ELixir](https://github.com/KronicDeth/intellij-elixir/blob/
     ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Chunk.java#
     ///   L34-L52) in Kotlin
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
@@ -212,11 +211,9 @@ impl Chunk for AtomChunk {
 /// - [StrTChunk](StrTChunk) for strings from the string pool used in `bs_*` operations.
 ///
 /// ## Alternative Implementations
-/// - [`org.elixir_lang.beam.chunk.Code` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.Code` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Code.kt) in Kotlin
-/// - [`org.elixir_lang.beam.chunk.code.Operation#assembly` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.code.Operation#assembly` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/code/Operation.kt#
 ///   L23-L164) in Kotlin for an example of how to disassemble the individual byte code operations
 ///   back to BEAM Assembly.
@@ -246,8 +243,7 @@ impl Chunk for CodeChunk {
     }
 
     /// ## Alternative Implementations
-    /// - [`org.elixir_lang.beam.chunk.Code.Companion.from` in IntelliJ
-    ///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+    /// - [`org.elixir_lang.beam.chunk.Code.Companion.from` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
     ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Code.kt#L171-L216)
     ///   in Kotlin
     /// NOTE: This implementation decodes the operations as it loads the data instead of storing it
@@ -286,8 +282,7 @@ impl Chunk for CodeChunk {
 /// `'static str`.
 ///
 /// ## Alternative Implementations
-/// - [`org.elixir_lang.beam.chunk.Strings` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.Strings` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Strings.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct StrTChunk {
@@ -329,8 +324,7 @@ impl Chunk for StrTChunk {
 /// operands for the MFA.
 ///
 /// ## Alternative Implementations
-/// - [`org.elixir_lang.beam.chunk.Imports` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.Imports` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Imports.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct ImpTChunk {
@@ -384,8 +378,7 @@ impl Chunk for ImpTChunk {
 /// The format is the same as [LocTChunk](LocTChunk).
 ///
 /// ## Alternative Implementations
-/// - [`org.elixir_lang.beam.chunk.CallDefinitions` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.CallDefinitions` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/CallDefinitions.java)
 ///   in Java
 #[derive(Debug, PartialEq, Eq)]
@@ -399,8 +392,7 @@ impl Chunk for ExpTChunk {
     }
 
     /// ## Alternative Implementations
-    /// - [`org.elixir_lang.beam.chunk.CallDefinitions.from(Chunk, Chunk.TypeID.EXPT,
-    ///   Atoms)`](https://github.com/KronicDeth/intellij-elixir/blob/
+    /// - [`org.elixir_lang.beam.chunk.CallDefinitions.from(Chunk, Chunk.TypeID.EXPT, Atoms)`](https://github.com/KronicDeth/intellij-elixir/blob/
     ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/CallDefinitions.
     ///   java#L52-L76) in Java
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
@@ -436,8 +428,7 @@ impl Chunk for ExpTChunk {
 /// `term_to_binary`.
 ///
 /// ## Alternative Implementations
-/// - [`org.elixir_lang.beam.chunk.Literals` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.Literals` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Literals.kt) in Kotlin
 #[derive(Debug, PartialEq, Eq)]
 pub struct LitTChunk {
@@ -505,8 +496,7 @@ impl Chunk for LitTChunk {
 /// The format is the same as [ExpTChunk](ExpTChunk).
 ///
 /// ## Alternative Implementations
-/// - [`org.elixir_lang.beam.chunk.CallDefinitions` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.CallDefinitions` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/CallDefinitions.java)
 ///   in Java
 #[derive(Debug, PartialEq, Eq)]
@@ -520,8 +510,7 @@ impl Chunk for LocTChunk {
     }
 
     /// ## Alternative Implementations
-    /// - [`org.elixir_lang.beam.chunk.CallDefinitions.from(Chunk, Chunk.TypeID.LOCT,
-    ///   Atoms)`](https://github.com/KronicDeth/intellij-elixir/blob/
+    /// - [`org.elixir_lang.beam.chunk.CallDefinitions.from(Chunk, Chunk.TypeID.LOCT, Atoms)`](https://github.com/KronicDeth/intellij-elixir/blob/
     ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/CallDefinitions.
     ///   java#L52-L76) in Java
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>
@@ -564,8 +553,7 @@ impl Chunk for LocTChunk {
 /// 6. Old Unique - a number that _was_ used to uniquely identify the anonymous function
 ///
 /// ## Alternative Implementations
-/// - [`org.elixir_lang.beam.chunk.Functions` in IntelliJ
-///   Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
+/// - [`org.elixir_lang.beam.chunk.Functions` in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/blob/
 ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/Functions.kt) in
 ///   Kotlin
 #[derive(Debug, PartialEq, Eq)]
@@ -736,8 +724,7 @@ impl Chunk for DbgiChunk {
     }
 
     /// ## Alternative Implementations
-    /// - [`org.elixir_lang.beam.chunk.debug_info` namespace in IntelliJ
-    ///   Elixir](https://github.com/KronicDeth/intellij-elixir/tree/
+    /// - [`org.elixir_lang.beam.chunk.debug_info` namespace in IntelliJ Elixir](https://github.com/KronicDeth/intellij-elixir/tree/
     ///   2f5c826040681e258e98c3e2f02b25985cd0766b/src/org/elixir_lang/beam/chunk/debug_info)
     ///   handles all current variants, both Erlang and Elixir and invalid forms thereof.
     fn decode_data<R: Read>(id: &Id, mut reader: R) -> Result<Self>

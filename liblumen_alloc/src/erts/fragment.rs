@@ -123,7 +123,7 @@ impl HeapAlloc for HeapFragment {
         use liblumen_core::sys::sysconf::MIN_ALIGN;
 
         // Ensure layout has alignment padding
-        let layout = layout.align_to(MIN_ALIGN).unwrap().pad_to_align().unwrap();
+        let layout = layout.align_to(MIN_ALIGN).unwrap().pad_to_align();
         // Capture the base pointer for this allocation
         let top = self.heap_top() as *mut u8;
         // Calculate available space and fail if not enough is free

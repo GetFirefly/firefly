@@ -72,8 +72,7 @@ where
 
         let layout = Layout::from_size_align(words * mem::size_of::<Term>(), MIN_ALIGN)
             .unwrap()
-            .pad_to_align()
-            .unwrap();
+            .pad_to_align();
         let total_size = layout.size();
 
         // Allocate space for move

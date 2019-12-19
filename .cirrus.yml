@@ -1,7 +1,7 @@
 task:
   name: Check Formatted
   container:
-    image: kronicdeth/lumen-development@sha256:6b71e10a3dc14f655a891a7e53c69a1024554acc195cef33860fba0cc523df83
+    image: kronicdeth/lumen-development@sha256:2d6eaba839218d6180f06a102cfb7424b02d177820ca980344174328df0c0fc3
   script: cargo fmt -- --check
 
 x86_64_task_template: &x86_64_TASK_TEMPLATE
@@ -23,7 +23,7 @@ x86_64_task_template: &x86_64_TASK_TEMPLATE
 task:
   name: Linux x86_64
   container:
-    image: kronicdeth/lumen-development@sha256:6b71e10a3dc14f655a891a7e53c69a1024554acc195cef33860fba0cc523df83
+    image: kronicdeth/lumen-development@sha256:2d6eaba839218d6180f06a102cfb7424b02d177820ca980344174328df0c0fc3
     cpu: 4
     memory: 12
   linux_x86_64_cargo_cache:
@@ -51,6 +51,7 @@ task:
   windows_container:
     image: cirrusci/windowsservercore:cmake
     os_version: 2019
+    memory: 12
   env:
     CIRRUS_SHELL: powershell
     CARGO_HOME: $USERPROFILE\.cargo
@@ -92,7 +93,7 @@ task:
 task:
   name: Linux wasm32
   container:
-    image: kronicdeth/lumen-development@sha256:6b71e10a3dc14f655a891a7e53c69a1024554acc195cef33860fba0cc523df83
+    image: kronicdeth/lumen-development@sha256:2d6eaba839218d6180f06a102cfb7424b02d177820ca980344174328df0c0fc3
     memory: 6
   linux_wasm32_cargo_cache:
     folder: $CARGO_HOME/registry
@@ -136,6 +137,8 @@ task:
   install_wasm32_target_script: rustup target add wasm32-unknown-unknown --toolchain nightly
   install_wasm_bindgen_cli_script: cargo +nightly install wasm-bindgen-cli
   install_wasm_pack_script: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+  update_homebrew_script: |
+    brew update
   install_chrome_script: |
     brew cask install google-chrome
     brew cask info google-chrome

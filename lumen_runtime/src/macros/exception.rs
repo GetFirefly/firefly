@@ -195,7 +195,19 @@ macro_rules! prop_assert_badkey {
 
 #[cfg(test)]
 macro_rules! prop_assert_badmap {
-    ($actual:expr, $process:expr, $expected_map:expr, $expected_substring:expr) => {{
+    ($actual:expr, $process:expr, $expected_map:ident) => {{
+        prop_assert_badmap!(
+            $actual,
+            $process,
+            $expected_map,
+            format!(
+                "{} ({}) is not a map",
+                stringify!($expected_map),
+                $expected_map
+            ),
+        )
+    }};
+    ($actual:expr, $process:expr, $expected_map:expr, $expected_substring:expr $(,)?) => {{
         prop_assert_error!(
             $actual,
             "badmap",

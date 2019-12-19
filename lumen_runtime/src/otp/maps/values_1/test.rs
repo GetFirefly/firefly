@@ -15,19 +15,11 @@ use crate::test::strategy;
 fn without_map_errors_badmap() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
-            .run(
-                &(strategy::term::is_not_map(arc_process.clone())),
-                |non_map| {
-                    prop_assert_badmap!(
-                        native(&arc_process, non_map),
-                        &arc_process,
-                        non_map,
-                        format!("map ({}) is not a map", non_map)
-                    );
+            .run(&(strategy::term::is_not_map(arc_process.clone())), |map| {
+                prop_assert_badmap!(native(&arc_process, map), &arc_process, map);
 
-                    Ok(())
-                },
-            )
+                Ok(())
+            })
             .unwrap();
     });
 }

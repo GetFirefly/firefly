@@ -20,12 +20,7 @@ fn without_map_errors_badmap() {
                     strategy::term::is_not_map(arc_process.clone()),
                 ),
                 |(key, map)| {
-                    prop_assert_badmap!(
-                        native(&arc_process, key, map),
-                        &arc_process,
-                        map,
-                        format!("map ({}) is not a map", map)
-                    );
+                    prop_assert_badmap!(native(&arc_process, key, map), &arc_process, map);
 
                     Ok(())
                 },

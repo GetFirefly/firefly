@@ -5,12 +5,9 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
-use anyhow::*;
 use hashbrown::HashMap;
 
-use liblumen_alloc::erts::exception::{self, *};
+use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::process::Process;
 use liblumen_alloc::erts::term::prelude::*;
 
@@ -18,14 +15,8 @@ use lumen_runtime_macros::native_implemented_function;
 
 #[native_implemented_function(merge/2)]
 pub fn native(process: &Process, map1: Term, map2: Term) -> exception::Result<Term> {
-    let boxed_map1: Boxed<Map> = map1
-        .try_into()
-        .with_context(|| format!("map1 ({}) is not a map", map1))
-        .map_err(|source| badmap(process, map1, source.into()))?;
-    let boxed_map2: Boxed<Map> = map2
-        .try_into()
-        .with_context(|| format!("map2 ({}) is not a map", map2))
-        .map_err(|source| badmap(process, map2, source.into()))?;
+    let boxed_map1 = term_try_into_map_or_badmap!(process, map1)?;
+    let boxed_map2 = term_try_into_map_or_badmap!(process, map2)?;
 
     let mut merged: HashMap<Term, Term> =
         HashMap::with_capacity(boxed_map1.len() + boxed_map2.len());

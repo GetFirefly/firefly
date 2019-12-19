@@ -9,3 +9,9 @@ macro_rules! term_try_into_isize {
         crate::context::term_try_into_isize(stringify!($name), $name)
     };
 }
+
+macro_rules! term_try_into_map_or_badmap {
+    ($process:expr, $name:ident) => {
+        crate::context::term_try_into_map_or_badmap($process, stringify!($name), $name)
+    };
+}

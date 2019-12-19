@@ -62,9 +62,9 @@ fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
                     strategy::term::is_not_integer(arc_process.clone()),
                 ),
                 |(binary, start, length)| {
-                    prop_assert_badarg!(
+                    prop_assert_is_not_integer!(
                         native(&arc_process, binary, start, length),
-                        format!("length ({}) must be an integer", length)
+                        length
                     );
 
                     Ok(())

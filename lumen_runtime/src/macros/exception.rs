@@ -111,26 +111,40 @@ macro_rules! prop_assert_badarg {
 #[cfg(test)]
 macro_rules! prop_assert_is_not_atom {
     ($actual:expr, $name:ident) => {
-        prop_assert_badarg!(
-            $actual,
-            format!("{} ({}) is not atom", stringify!($name), $name)
-        )
+        prop_assert_is_not_atom!($actual, stringify!($name), $name)
     };
     ($actual:expr, $name:expr, $value:expr) => {
-        prop_assert_badarg!($actual, format!("{} ({}) is not atom", $name, $value))
+        prop_assert_is_not_type!($actual, $name, $value, "an atom")
     };
 }
 
 #[cfg(test)]
 macro_rules! prop_assert_is_not_boolean {
     ($actual:expr, $name:ident) => {
-        prop_assert_badarg!(
-            $actual,
-            format!("{} ({}) is not boolean", stringify!($name), $name)
-        )
+        prop_assert_is_not_boolean!($actual, stringify!($name), $name)
     };
     ($actual:expr, $name:expr, $value:expr) => {
-        prop_assert_badarg!($actual, format!("{} ({}) is not boolean", $name, $value))
+        prop_assert_is_not_type!($actual, $name, $value, "a boolean")
+    };
+}
+
+#[cfg(test)]
+macro_rules! prop_assert_is_not_integer {
+    ($actual:expr, $name:ident) => {
+        prop_assert_is_not_integer!($actual, stringify!($name), $name)
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_is_not_type!($actual, $name, $value, "an integer")
+    };
+}
+
+#[cfg(test)]
+macro_rules! prop_assert_is_not_type {
+    ($actual:expr, $name:ident, $type:expr) => {
+        prop_assert_is_not_integer!($actual, stringify!($name), $name, $type)
+    };
+    ($actual:expr, $name:expr, $value:expr, $type:expr) => {
+        prop_assert_badarg!($actual, format!("{} ({}) is not {}", $name, $value, $type))
     };
 }
 

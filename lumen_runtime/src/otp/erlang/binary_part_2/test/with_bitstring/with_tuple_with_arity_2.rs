@@ -68,10 +68,7 @@ fn with_non_negative_integer_start_without_integer_length_errors_badarg() {
                 |(binary, start, length)| {
                     let start_length = arc_process.tuple_from_slice(&[start, length]).unwrap();
 
-                    prop_assert_badarg!(
-                        native(&arc_process, binary, start_length),
-                        format!("length ({}) must be an integer", length)
-                    );
+                    prop_assert_is_not_integer!(native(&arc_process, binary, start_length), length);
 
                     Ok(())
                 },

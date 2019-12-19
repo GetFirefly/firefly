@@ -9,11 +9,15 @@ pub fn term_is_not_type(name: &str, value: Term, r#type: &str) -> String {
 }
 
 pub fn term_is_not_atom(name: &str, value: Term) -> String {
-    term_is_not_type(name, value, "atom")
+    term_is_not_type(name, value, "an atom")
 }
 
 pub fn term_is_not_boolean(name: &str, value: Term) -> String {
-    term_is_not_type(name, value, "boolean")
+    term_is_not_type(name, value, "a boolean")
+}
+
+pub fn term_is_not_integer(name: &str, value: Term) -> String {
+    term_is_not_type(name, value, "an integer")
 }
 
 pub fn term_try_into_atom(name: &str, value: Term) -> anyhow::Result<Atom> {
@@ -38,4 +42,10 @@ pub fn terms_try_into_bools(
     let right_bool = term_try_into_bool(right_name, right_value)?;
 
     Ok((left_bool, right_bool))
+}
+
+pub fn term_try_into_isize(name: &str, value: Term) -> anyhow::Result<isize> {
+    value
+        .try_into()
+        .with_context(|| term_is_not_integer(name, value))
 }

@@ -3,3 +3,9 @@ macro_rules! term_try_into_atom {
         crate::context::term_try_into_atom(stringify!($name), $name)
     };
 }
+
+macro_rules! term_try_into_isize {
+    ($name:ident) => {
+        crate::context::term_try_into_isize(stringify!($name), $name)
+    };
+}

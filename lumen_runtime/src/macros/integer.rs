@@ -70,8 +70,6 @@ macro_rules! bitwise_infix_operator {
 
 macro_rules! bitshift_infix_operator {
     ($integer:ident, $shift:ident, $process:ident, $positive:tt, $negative:tt) => {{
-        use std::convert::TryInto;
-
         use anyhow::*;
         use num_bigint::BigInt;
 
@@ -83,7 +81,7 @@ macro_rules! bitshift_infix_operator {
         let option_shifted = match $integer.decode().unwrap() {
             TypedTerm::SmallInteger(integer_small_integer) => {
                 let integer_isize: isize = integer_small_integer.into();
-                let shift_isize: isize = $shift.try_into().with_context(|| format!("shift ({}) is not an integer", $shift)).map_err(ArcError::new).map_err(badarith)?;
+                let shift_isize: isize = term_try_into_isize!($shift).map_err(ArcError::new).map_err(badarith)?;
 
                 // Rust doesn't support negative shift, so negative left shifts need to be right shifts
                 if 0 <= shift_isize {
@@ -120,7 +118,7 @@ macro_rules! bitshift_infix_operator {
             }
             TypedTerm::BigInteger(integer_big_integer) => {
                 let big_int = integer_big_integer.as_ref();
-                let shift_isize: isize = $shift.try_into().with_context(|| format!("shift ({}) is not an integer", $shift)).map_err(ArcError::new).map_err(badarith)?;
+                let shift_isize: isize = term_try_into_isize!($shift).map_err(ArcError::new).map_err(badarith)?;
 
                 // Rust doesn't support negative shift, so negative left shifts need to be right
                 // shifts

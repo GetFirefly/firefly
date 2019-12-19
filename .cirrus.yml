@@ -51,6 +51,7 @@ task:
   windows_container:
     image: cirrusci/windowsservercore:cmake
     os_version: 2019
+    memory: 12
   env:
     CIRRUS_SHELL: powershell
     CARGO_HOME: $USERPROFILE\.cargo

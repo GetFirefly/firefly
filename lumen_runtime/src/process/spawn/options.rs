@@ -215,8 +215,7 @@ impl Default for Options {
     }
 }
 
-const SUPPORTED_OPTIONS_CONTEXT: &str =
-    "supported options are :link, :monitor, \
+const SUPPORTED_OPTIONS_CONTEXT: &str = "supported options are :link, :monitor, \
      {:fullsweep_after, generational_collections :: pos_integer()}, \
      {:max_heap_size, words :: pos_integer()}, \
      {:message_queue_data, :off_heap | :on_heap}, \

@@ -59,7 +59,7 @@ impl ClosureLayout {
         let (layout, code_offset) = layout.extend(Layout::new::<Option<Code>>()).unwrap();
         let (layout, env_offset) = layout.extend(Layout::for_value(env)).unwrap();
 
-        let layout = layout.pad_to_align().unwrap();
+        let layout = layout.pad_to_align();
 
         Self {
             layout,

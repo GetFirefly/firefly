@@ -54,7 +54,7 @@ impl FreeBlocks {
         let mut cursor = self.addr_tree.front();
         let mut result = None;
 
-        let aligned = layout.pad_to_align().unwrap();
+        let aligned = layout.pad_to_align();
         let requested = aligned.size();
 
         while let Some(block) = cursor.get() {
@@ -77,7 +77,7 @@ impl FreeBlocks {
         let mut result = None;
         let mut best_size = 0;
 
-        let aligned = layout.pad_to_align().unwrap();
+        let aligned = layout.pad_to_align();
         let requested = aligned.size();
 
         match self.order {

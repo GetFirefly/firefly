@@ -313,7 +313,7 @@ impl CallExecutor {
 
         let mut exec = self;
         // Outer loop for optimized execution within the current function
-        'outer: loop {
+        loop {
             // Insert block argument into environment
             let block_arg_vals = fun.fun.block_args(block);
             //trace!("{:?} {:?}", &block_arg_vals, &exec.next_args);

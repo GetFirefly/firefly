@@ -30,6 +30,14 @@ pub fn term_is_not_one_based_index(index: Term) -> String {
     format!("index ({}) is not a 1-based integer", index)
 }
 
+pub fn term_is_not_in_one_based_range(index: Term, max: usize) -> String {
+    term_is_not_type(
+        "index",
+        index,
+        &format!("1-based integer between 1-{}", max),
+    )
+}
+
 pub fn term_try_into_atom(name: &str, value: Term) -> anyhow::Result<Atom> {
     value
         .try_into()

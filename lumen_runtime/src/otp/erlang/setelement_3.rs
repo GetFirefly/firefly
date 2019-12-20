@@ -16,6 +16,8 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 #[native_implemented_function(setelement/3)]
 pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> exception::Result<Term> {
     let initial_inner_tuple: Boxed<Tuple> = tuple
@@ -24,7 +26,7 @@ pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> excep
     let length = initial_inner_tuple.len();
     let index_zero_based: OneBasedIndex = index
         .try_into()
-        .with_context(|| format!("index ({}) must be a 1-based index in 1-{}", index, length))?;
+        .with_context(|| term_is_not_in_one_based_range(index, length))?;
 
     if index_zero_based < length {
         if index_zero_based == 0 {
@@ -45,7 +47,7 @@ pub fn native(process: &Process, index: Term, tuple: Term, value: Term) -> excep
         .map_err(|error| error.into())
     } else {
         Err(TryIntoIntegerError::OutOfRange)
-            .with_context(|| format!("index ({}) must be a 1-based index in 1-{}", index, length))
+            .with_context(|| term_is_not_in_one_based_range(index, length))
             .map_err(From::from)
     }
 }

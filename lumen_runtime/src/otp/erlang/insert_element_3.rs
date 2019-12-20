@@ -16,6 +16,8 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 #[native_implemented_function(insert_element/3)]
 pub fn native(
     process: &Process,
@@ -29,7 +31,7 @@ pub fn native(
     let length = initial_inner_tuple.len();
     let index_one_based: OneBasedIndex = index
         .try_into()
-        .with_context(|| format!("index ({}) must be between 1-{}", index, length))?;
+        .with_context(|| term_is_not_in_one_based_range(index, length + 1))?;
 
     // can be equal to arity when insertion is at the end
     if index_one_based <= length {
@@ -47,7 +49,7 @@ pub fn native(
         .map_err(From::from)
     } else {
         Err(TryIntoIntegerError::OutOfRange)
-            .with_context(|| format!("index ({}) must be between 1-{}", index, length))
+            .with_context(|| term_is_not_in_one_based_range(index, length + 1))
             .map_err(From::from)
     }
 }

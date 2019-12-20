@@ -26,6 +26,10 @@ pub fn term_is_not_map(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "a map")
 }
 
+pub fn term_is_not_one_based_index(index: Term) -> String {
+    format!("index ({}) is not a 1-based integer", index)
+}
+
 pub fn term_try_into_atom(name: &str, value: Term) -> anyhow::Result<Atom> {
     value
         .try_into()
@@ -68,4 +72,10 @@ pub fn term_try_into_map_or_badmap(
     value: Term,
 ) -> exception::Result<Boxed<Map>> {
     term_try_into_map(name, value).map_err(|source| badmap(process, value, source.into()))
+}
+
+pub fn term_try_into_one_based_index(index: Term) -> anyhow::Result<OneBasedIndex> {
+    index
+        .try_into()
+        .with_context(|| term_is_not_one_based_index(index))
 }

@@ -14,15 +14,15 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 /// `element/2`
 #[native_implemented_function(element/2)]
 pub fn native(index: Term, tuple: Term) -> exception::Result<Term> {
     let tuple_tuple: Boxed<Tuple> = tuple
         .try_into()
         .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
-    let one_based_index: OneBasedIndex = index
-        .try_into()
-        .with_context(|| format!("index ({})", index))?;
+    let one_based_index = term_try_into_one_based_index(index)?;
 
     tuple_tuple
         .get_element(one_based_index)

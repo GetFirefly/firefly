@@ -5,8 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use core::convert::TryInto;
-
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
@@ -14,11 +12,11 @@ use liblumen_alloc::erts::term::prelude::*;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 #[native_implemented_function(keymember/3)]
 pub fn native(key: Term, index: Term, tuple_list: Term) -> exception::Result<Term> {
-    let index: OneBasedIndex = index
-        .try_into()
-        .with_context(|| format!("index ({}) is not a 1-based integer", index))?;
+    let index = term_try_into_one_based_index(index)?;
 
     match tuple_list.decode()? {
         TypedTerm::Nil => Ok(false.into()),

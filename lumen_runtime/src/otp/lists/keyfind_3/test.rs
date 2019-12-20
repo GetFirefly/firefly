@@ -23,7 +23,7 @@ fn without_one_based_index_errors_badarg() {
                 |(key, one_based_index, tuple_list)| {
                     prop_assert_badarg!(
                         native(key, one_based_index, tuple_list),
-                        format!("index ({}) is not 1-based index", one_based_index)
+                        format!("index ({}) is not a 1-based integer", one_based_index)
                     );
 
                     Ok(())

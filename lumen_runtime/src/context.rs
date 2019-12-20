@@ -10,6 +10,10 @@ pub fn term_is_not_type(name: &str, value: Term, r#type: &str) -> String {
     format!("{} ({}) is not {}", name, value, r#type)
 }
 
+pub fn term_is_not_arity(value: Term) -> String {
+    term_is_not_type("arity", value, "an arity (an integer in 0-255)")
+}
+
 pub fn term_is_not_atom(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "an atom")
 }
@@ -40,6 +44,10 @@ pub fn term_is_not_in_one_based_range(index: Term, max: usize) -> String {
 
 pub fn term_is_not_tuple(name: &str, value: Term) -> String {
     term_is_not_type(name, value, "a tuple")
+}
+
+pub fn term_try_into_arity(value: Term) -> anyhow::Result<u8> {
+    value.try_into().with_context(|| term_is_not_arity(value))
 }
 
 pub fn term_try_into_atom(name: &str, value: Term) -> anyhow::Result<Atom> {

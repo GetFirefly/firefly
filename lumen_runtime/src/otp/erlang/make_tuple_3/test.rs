@@ -25,9 +25,9 @@ fn without_arity_errors_badarg() {
                 |(arity, default_value)| {
                     let init_list = Term::NIL;
 
-                    prop_assert_badarg!(
+                    prop_assert_is_not_arity!(
                         native(&arc_process, arity, default_value, init_list),
-                        format!("arity ({}) must be in 0-255", arity)
+                        arity
                     );
 
                     Ok(())

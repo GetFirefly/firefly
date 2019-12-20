@@ -5,21 +5,16 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
-use anyhow::*;
-
 use liblumen_alloc::erts::exception;
 use liblumen_alloc::erts::term::prelude::*;
-use liblumen_alloc::Arity;
 
 use lumen_runtime_macros::native_implemented_function;
 
+use crate::context::*;
+
 #[native_implemented_function(is_function/2)]
 fn native(term: Term, arity: Term) -> exception::Result<Term> {
-    let arity_arity: Arity = arity
-        .try_into()
-        .with_context(|| format!("arity ({}) must be an integer in 0-255", arity))?;
+    let arity_arity = term_try_into_arity(arity)?;
 
     Ok(term.decode()?.is_function_with_arity(arity_arity).into())
 }

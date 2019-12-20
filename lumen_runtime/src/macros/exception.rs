@@ -109,6 +109,13 @@ macro_rules! prop_assert_badarg {
 }
 
 #[cfg(test)]
+macro_rules! prop_assert_is_not_arity {
+    ($actual:expr, $value:expr) => {
+        prop_assert_is_not_type!($actual, "arity", $value, "an arity (an integer in 0-255)")
+    };
+}
+
+#[cfg(test)]
 macro_rules! prop_assert_is_not_atom {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_atom!($actual, stringify!($name), $name)

@@ -12,10 +12,7 @@ fn without_non_negative_arity_errors_badarg() {
                     strategy::term::integer::negative(arc_process.clone()),
                 ),
                 |(function, arity)| {
-                    prop_assert_badarg!(
-                        native(function, arity),
-                        format!("arity ({}) must be an integer in 0-255", arity)
-                    );
+                    prop_assert_is_not_arity!(native(function, arity), arity);
 
                     Ok(())
                 },

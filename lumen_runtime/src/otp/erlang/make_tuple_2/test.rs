@@ -20,10 +20,7 @@ fn without_arity_errors_badarg() {
                     strategy::term(arc_process.clone()),
                 ),
                 |(arity, initial_value)| {
-                    prop_assert_badarg!(
-                        native(&arc_process, arity, initial_value),
-                        format!("arity ({}) must be in 0-255", arity)
-                    );
+                    prop_assert_is_not_arity!(native(&arc_process, arity, initial_value), arity);
 
                     Ok(())
                 },

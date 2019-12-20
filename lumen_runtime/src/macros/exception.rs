@@ -139,6 +139,16 @@ macro_rules! prop_assert_is_not_integer {
 }
 
 #[cfg(test)]
+macro_rules! prop_assert_is_not_tuple {
+    ($actual:expr, $name:ident) => {
+        prop_assert_is_not_tuple!($actual, stringify!($name), $name)
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_is_not_type!($actual, $name, $value, "a tuple")
+    };
+}
+
+#[cfg(test)]
 macro_rules! prop_assert_is_not_type {
     ($actual:expr, $name:ident, $type:expr) => {
         prop_assert_is_not_integer!($actual, stringify!($name), $name, $type)

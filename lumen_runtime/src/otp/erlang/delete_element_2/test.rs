@@ -22,10 +22,7 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple, index)| {
-                prop_assert_badarg!(
-                    native(&arc_process, index, tuple,),
-                    format!("tuple ({}) must be a tuple", tuple)
-                );
+                prop_assert_is_not_tuple!(native(&arc_process, index, tuple), tuple);
 
                 Ok(())
             },
@@ -45,7 +42,8 @@ fn with_tuple_without_integer_between_1_and_the_length_inclusive_errors_badarg()
                     prop_assert_badarg!(
                         native(&arc_process, index, tuple),
                         format!(
-                            "index must be 1-based index between 1-{}",
+                            "index ({}) is not a 1-based integer between 1-{}",
+                            index,
                             tuple_tuple.len()
                         )
                     );

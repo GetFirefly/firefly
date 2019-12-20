@@ -34,8 +34,12 @@ pub fn term_is_not_in_one_based_range(index: Term, max: usize) -> String {
     term_is_not_type(
         "index",
         index,
-        &format!("1-based integer between 1-{}", max),
+        &format!("a 1-based integer between 1-{}", max),
     )
+}
+
+pub fn term_is_not_tuple(name: &str, value: Term) -> String {
+    term_is_not_type(name, value, "a tuple")
 }
 
 pub fn term_try_into_atom(name: &str, value: Term) -> anyhow::Result<Atom> {
@@ -86,4 +90,10 @@ pub fn term_try_into_one_based_index(index: Term) -> anyhow::Result<OneBasedInde
     index
         .try_into()
         .with_context(|| term_is_not_one_based_index(index))
+}
+
+pub fn term_try_into_tuple(name: &str, value: Term) -> anyhow::Result<Boxed<Tuple>> {
+    value
+        .try_into()
+        .with_context(|| term_is_not_tuple(name, value))
 }

@@ -5,8 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
@@ -19,9 +17,7 @@ use crate::otp::erlang;
 
 #[native_implemented_function(binary_part/2)]
 pub fn native(process: &Process, binary: Term, start_length: Term) -> exception::Result<Term> {
-    let start_length_tuple: Boxed<Tuple> = start_length
-        .try_into()
-        .with_context(|| format!("start_length ({}) is not a tuple", start_length))?;
+    let start_length_tuple = term_try_into_tuple!(start_length)?;
 
     if start_length_tuple.len() == 2 {
         erlang::binary_part_3::native(

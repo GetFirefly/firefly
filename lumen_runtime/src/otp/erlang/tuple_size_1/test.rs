@@ -17,10 +17,7 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple)| {
-                prop_assert_badarg!(
-                    native(&arc_process, tuple),
-                    format!("tuple ({}) must be a tuple", tuple)
-                );
+                prop_assert_is_not_tuple!(native(&arc_process, tuple), tuple);
 
                 Ok(())
             },

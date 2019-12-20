@@ -25,9 +25,7 @@ pub fn native(
     tuple: Term,
     element: Term,
 ) -> exception::Result<Term> {
-    let initial_inner_tuple: Boxed<Tuple> = tuple
-        .try_into()
-        .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
+    let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let length = initial_inner_tuple.len();
     let index_one_based: OneBasedIndex = index
         .try_into()

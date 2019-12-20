@@ -20,33 +20,36 @@ use crate::context::*;
 /// `delete_element/2`
 #[native_implemented_function(delete_element/2)]
 pub fn native(process: &Process, index: Term, tuple: Term) -> exception::Result<Term> {
-    let initial_inner_tuple: Boxed<Tuple> = tuple
-        .try_into()
-        .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
+    let initial_inner_tuple = term_try_into_tuple!(tuple)?;
     let initial_len = initial_inner_tuple.len();
-    let index_zero_based: OneBasedIndex = index
-        .try_into()
-        .with_context(|| term_is_not_in_one_based_range(index, initial_len))?;
 
-    if index_zero_based < initial_len {
-        let smaller_len = initial_len - 1;
-        let smaller_element_iterator =
-            initial_inner_tuple
-                .iter()
-                .enumerate()
-                .filter_map(|(old_index, old_term)| {
-                    if index_zero_based == old_index {
-                        None
-                    } else {
-                        Some(*old_term)
-                    }
-                });
-        let smaller_tuple = process.tuple_from_iter(smaller_element_iterator, smaller_len)?;
+    if initial_len > 0 {
+        let index_zero_based: OneBasedIndex = index
+            .try_into()
+            .with_context(|| term_is_not_in_one_based_range(index, initial_len))?;
 
-        Ok(smaller_tuple)
+        if index_zero_based < initial_len {
+            let smaller_len = initial_len - 1;
+            let smaller_element_iterator =
+                initial_inner_tuple
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(old_index, old_term)| {
+                        if index_zero_based == old_index {
+                            None
+                        } else {
+                            Some(*old_term)
+                        }
+                    });
+            let smaller_tuple = process.tuple_from_iter(smaller_element_iterator, smaller_len)?;
+
+            Ok(smaller_tuple)
+        } else {
+            Err(TryIntoIntegerError::OutOfRange)
+                .with_context(|| term_is_not_in_one_based_range(index, initial_len))
+                .map_err(From::from)
+        }
     } else {
-        Err(TryIntoIntegerError::OutOfRange)
-            .with_context(|| term_is_not_in_one_based_range(index, initial_len))
-            .map_err(From::from)
+        Err(anyhow!("tuple ({}) is empty", tuple).into())
     }
 }

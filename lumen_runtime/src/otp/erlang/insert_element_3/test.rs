@@ -25,10 +25,7 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(arc_process, tuple, index, element)| {
-                prop_assert_badarg!(
-                    native(&arc_process, index, tuple, element),
-                    format!("tuple ({}) must be a tuple", tuple)
-                );
+                prop_assert_is_not_tuple!(native(&arc_process, index, tuple, element), tuple);
 
                 Ok(())
             },
@@ -43,7 +40,7 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
                 &strategy::process().prop_flat_map(|arc_process| {
                     (
                         Just(arc_process.clone()),
-                        strategy::term::tuple(arc_process.clone()),
+                        strategy::term::tuple::non_empty(arc_process.clone()),
                         strategy::term(arc_process.clone()),
                         strategy::term(arc_process)
                     )
@@ -67,7 +64,7 @@ fn with_tuple_without_integer_between_1_and_the_length_plus_1_inclusive_errors_b
 
                     prop_assert_badarg!(
                         native(&arc_process, index, tuple, element),
-                        format!("index ({}) must be between 1-{}", index, boxed_tuple.len())
+                        format!("index ({}) is not a 1-based integer between 1-{}", index, boxed_tuple.len() + 1)
                     );
 
                     Ok(())

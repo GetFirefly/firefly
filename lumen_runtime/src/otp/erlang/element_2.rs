@@ -5,8 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
 use anyhow::*;
 
 use liblumen_alloc::erts::exception;
@@ -19,9 +17,7 @@ use crate::context::*;
 /// `element/2`
 #[native_implemented_function(element/2)]
 pub fn native(index: Term, tuple: Term) -> exception::Result<Term> {
-    let tuple_tuple: Boxed<Tuple> = tuple
-        .try_into()
-        .with_context(|| format!("tuple ({}) must be a tuple", tuple))?;
+    let tuple_tuple = term_try_into_tuple!(tuple)?;
     let one_based_index = term_try_into_one_based_index(index)?;
 
     tuple_tuple

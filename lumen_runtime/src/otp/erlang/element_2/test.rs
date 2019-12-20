@@ -17,10 +17,7 @@ fn without_tuple_errors_badarg() {
                 )
             }),
             |(tuple, index)| {
-                prop_assert_badarg!(
-                    native(index, tuple),
-                    format!("tuple ({}) must be a tuple", tuple)
-                );
+                prop_assert_is_not_tuple!(native(index, tuple), tuple);
 
                 Ok(())
             },

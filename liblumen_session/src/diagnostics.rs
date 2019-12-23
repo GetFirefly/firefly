@@ -4,9 +4,15 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use libeir_diagnostics::emitter::{cyan, white, yellow, yellow_bold};
+use libeir_diagnostics::emitter::{cyan, white, green_bold, yellow, yellow_bold};
 use libeir_diagnostics::{ColorSpec, Diagnostic, Emitter, Severity};
 use liblumen_util::error::{FatalError, Verbosity};
+
+#[derive(Debug, Copy, Clone)]
+pub struct DiagnosticsConfig {
+    pub warnings_as_errors: bool,
+    pub no_warn: bool,
+}
 
 #[derive(Clone)]
 pub struct DiagnosticsHandler {
@@ -15,27 +21,21 @@ pub struct DiagnosticsHandler {
     no_warn: bool,
     err_count: Arc<AtomicUsize>,
 }
+// We can safely implement these traits for DiagnosticsHandler,
+// as the only two non-atomic fields are read-only after creation
+unsafe impl Send for DiagnosticsHandler {}
+unsafe impl Sync for DiagnosticsHandler {}
 impl DiagnosticsHandler {
-    pub fn new(emitter: Arc<dyn Emitter>) -> Self {
+    pub fn new(emitter: Arc<dyn Emitter>, config: DiagnosticsConfig) -> Self {
         Self {
             emitter,
-            warnings_as_errors: false,
-            no_warn: false,
+            warnings_as_errors: config.warnings_as_errors,
+            no_warn: config.no_warn,
             err_count: Arc::new(AtomicUsize::new(0)),
         }
     }
 
-    pub fn warnings_as_errors(mut self, flag: bool) -> Self {
-        self.warnings_as_errors = flag;
-        self
-    }
-
-    pub fn no_warn(mut self, flag: bool) -> Self {
-        self.no_warn = flag;
-        self
-    }
-
-    fn has_errors(&self) -> bool {
+    pub fn has_errors(&self) -> bool {
         self.err_count.load(Ordering::Relaxed) > 0
     }
 
@@ -88,16 +88,20 @@ impl DiagnosticsHandler {
                 .unwrap();
         } else if !self.no_warn {
             self.write_warning(yellow_bold(), "WARN: ");
-            self.write_warning(yellow(), &message.to_string());
+            self.write_warning(yellow(), message);
         }
     }
 
+    pub fn success<M: Display>(&self, prefix: &str, message: M) {
+        self.write_success(green_bold(), prefix, message);
+    }
+
     pub fn info<M: Display>(&self, message: M) {
-        self.write_info(cyan(), &message.to_string());
+        self.write_info(cyan(), message);
     }
 
     pub fn debug<M: Display>(&self, message: M) {
-        self.write_debug(white(), &message.to_string());
+        self.write_debug(white(), message);
     }
 
     pub fn diagnostic(&self, diagnostic: &Diagnostic) {
@@ -115,6 +119,15 @@ impl DiagnosticsHandler {
         self.emitter
             .warn(Some(color), &message.to_string())
             .unwrap();
+    }
+
+    fn write_success<M: Display>(&self, color: ColorSpec, prefix: &str, message: M) {
+        self.emitter
+            .emit(Some(color), &format!("{:>12} ", prefix))
+            .unwrap();
+        self.emitter
+            .emit(None, &format!("{}\n", message))
+            .unwrap()
     }
 
     fn write_info<M: Display>(&self, color: ColorSpec, message: M) {

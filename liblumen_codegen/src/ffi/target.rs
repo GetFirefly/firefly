@@ -9,12 +9,12 @@ use liblumen_session::{Options, DiagnosticsHandler, OptLevel, ProjectType};
 use liblumen_target::{CodeModel, RelocMode, ThreadLocalMode};
 
 use crate::ffi::{self, util, diagnostics};
-use crate::llvm::{TargetMachine, TargetMachineRef, ModuleImpl};
+use crate::llvm::{TargetMachine, TargetMachineRef, ModuleRef};
 
 extern "C" {
-    pub fn PrintTargetCPUs(TM: &TargetMachine);
+    pub fn PrintTargetCPUs(TM: TargetMachineRef);
 
-    pub fn PrintTargetFeatures(TM: &TargetMachine);
+    pub fn PrintTargetFeatures(TM: TargetMachineRef);
 
     pub fn LLVMLumenCreateTargetMachine(
         triple: *const libc::c_char,
@@ -32,14 +32,14 @@ extern "C" {
         asm_comments: bool,
         emit_stack_size_section: bool,
         relax_elf_relocations: bool,
-    ) -> Option<&'static mut TargetMachine>;
+    ) -> TargetMachineRef;
 
-    pub fn LLVMLumenDisposeTargetMachine(T: &mut TargetMachine);
+    pub fn LLVMLumenDisposeTargetMachine(T: TargetMachineRef);
 
     #[cfg(not(windows))]
     pub fn LLVMTargetMachineEmitToFileDescriptor(
         T: TargetMachineRef,
-        M: &ModuleImpl,
+        M: ModuleRef,
         fd: os::unix::io::RawFd,
         codegen: LLVMCodeGenFileType,
         error_message: *mut *mut libc::c_char
@@ -48,7 +48,7 @@ extern "C" {
     #[cfg(windows)]
     pub fn LLVMTargetMachineEmitToFileDescriptor(
         T: TargetMachineRef,
-        M: &ModuleImpl,
+        M: ModuleRef,
         fd: os::windows::io::RawHandle,
         codegen: LLVMCodeGenFileType,
         error_message: *mut *mut libc::c_char
@@ -58,20 +58,20 @@ extern "C" {
 pub fn print_target_cpus(options: &Options, diagnostics: &DiagnosticsHandler) {
     util::require_inited();
     let tm = create_informational_target_machine(options, diagnostics, true);
-    unsafe { PrintTargetCPUs(tm) };
+    unsafe { PrintTargetCPUs(tm.as_ref()) };
 }
 
 pub fn print_target_features(options: &Options, diagnostics: &DiagnosticsHandler) {
     util::require_inited();
     let tm = create_informational_target_machine(options, diagnostics, true);
-    unsafe { PrintTargetFeatures(tm) };
+    unsafe { PrintTargetFeatures(tm.as_ref()) };
 }
 
 pub fn create_informational_target_machine(
     options: &Options,
     diagnostics: &DiagnosticsHandler,
     find_features: bool,
-) -> &'static mut TargetMachine {
+) -> TargetMachine {
     target_machine_factory(options, OptLevel::No, find_features)()
         .unwrap_or_else(|err| { diagnostics::llvm_err(diagnostics, &err).raise() })
 }
@@ -80,7 +80,7 @@ pub fn create_target_machine(
     options: &Options,
     diagnostics: &DiagnosticsHandler,
     find_features: bool,
-) -> &'static mut TargetMachine {
+) -> TargetMachine {
     let opt_level = options.codegen_opts.opt_level.unwrap_or(OptLevel::No);
     target_machine_factory(options, opt_level, find_features)()
         .unwrap_or_else(|err| { diagnostics::llvm_err(diagnostics, &err).raise() })
@@ -90,7 +90,7 @@ fn target_machine_factory(
     options: &Options,
     opt_level: OptLevel,
     find_features: bool
-) -> Arc<dyn Fn() -> Result<&'static mut TargetMachine, String> + Send + Sync>
+) -> Arc<dyn Fn() -> Result<TargetMachine, String> + Send + Sync>
 {
     let reloc_mode = get_reloc_mode(options);
 
@@ -153,10 +153,12 @@ fn target_machine_factory(
             )
         };
 
-        tm.ok_or_else(|| {
-            format!("Could not create LLVM TargetMachine for triple: {}",
-                    triple.to_str().unwrap())
-        })
+        if tm.is_null() {
+            return Err(format!("Could not create LLVM TargetMachine for triple: {}",
+                               triple.to_str().unwrap()));
+        }
+
+        Ok(TargetMachine::new(tm))
     })
 }
 

@@ -15,10 +15,28 @@ help:
 test: ## Run tests
 	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo test
 
-build: ## Build all
-	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo build -p lumen
+install: ## Install the Lumen compiler
+	LLVM_BUILD_STATIC=1 LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo install -p lumen
 
-check: ## Check all
+build: ## Build the Lumen compiler
+	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		cargo rustc -p lumen -- -C link-args="-Wl,-rpath,$(LLVM_SYS_90_PREFIX)/lib"
+
+build-noopt:
+	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) \
+		cargo rustc -p lumen -- \
+			-C opt-level=0 \
+			-C lto=no \
+			-C debuginfo=2 \
+			-C link-args="-Wl,-rpath,$(LLVM_SYS_90_PREFIX)/lib"
+
+build-static: ## Build a statically linked Lumen compiler
+	LLVM_BUILD_STATIC=1 LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo build -p lumen
+
+clean-codegen:
+	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo clean -p liblumen_codegen
+
+check: ## Check the Lumen compiler
 	LLVM_SYS_90_PREFIX=$(LLVM_SYS_90_PREFIX) cargo check -p lumen
 
 clippy: ## Lint all

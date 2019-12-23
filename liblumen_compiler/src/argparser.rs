@@ -74,63 +74,6 @@ fn print_command<'a, 'b>() -> App<'a, 'b> {
         )
 }
 
-fn parse_command<'a, 'b>() -> App<'a, 'b> {
-    let target = self::target_arg();
-    App::new("parse")
-        .about("Parses the given MLIR and emits LLVM IR")
-        .arg(
-            Arg::with_name("input")
-                .index(1)
-                .help("Path to the source file to parse")
-                .takes_value(true)
-                .value_name("FILE"),
-        )
-        .arg(
-            Arg::with_name("raw")
-                .last(true)
-                .hidden(true)
-                .help(
-                    "Extra arguments that will be passed unmodified to the LLVM argument processor",
-                )
-                .multiple(true)
-                .value_name("ARGS"),
-        )
-        .arg(
-            Arg::with_name("emit")
-                .help(OutputType::help())
-                .next_line_help(true)
-                .long("emit")
-                .takes_value(true)
-                .value_name("TYPE[=GLOB],..")
-                .multiple(true)
-                .require_delimiter(true),
-        )
-        .arg(
-            Arg::with_name("output-dir")
-                .help("Write output to file(s) in DIR")
-                .short("o")
-                .long("output-dir")
-                .value_name("DIR"),
-        )
-        .arg(
-            Arg::with_name("debug")
-                .help("Generate source level debug information (same as -C debuginfo=2)")
-                .short("g")
-                .long("debug"),
-        )
-        .arg(
-            Arg::with_name("optimize")
-                .help("Apply optimizations (equivalent to -C opt-level=2)")
-                .short("O")
-                .long("optimize"),
-        )
-        .arg(
-            target
-                .clone()
-                .help("The target triple to compile against (e.g. x86_64-linux-gnu)"),
-        )
-}
-
 fn compile_command<'a, 'b>() -> App<'a, 'b> {
     let target = self::target_arg();
     App::new("compile")

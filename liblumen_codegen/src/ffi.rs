@@ -8,6 +8,8 @@ pub use self::util::init;
 
 pub type Value = llvm_sys::LLVMValue;
 
+use std::fmt;
+
 #[derive(Copy, Clone, PartialEq)]
 #[repr(C)]
 #[allow(dead_code)] // Variants constructed by C++.
@@ -35,22 +37,42 @@ pub enum FileType {
 }
 
 /// LLVMCodeGenOptLevel
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(C)]
 pub enum CodeGenOptLevel {
-    #[allow(dead_code)]
     Other,
     None,
     Less,
     Default,
     Aggressive,
 }
+impl fmt::Display for CodeGenOptLevel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Other => f.write_str("other"),
+            Self::None => f.write_str("none"),
+            Self::Less => f.write_str("less"),
+            Self::Default => f.write_str("default"),
+            Self::Aggressive => f.write_str("aggressive"),
+        }
+    }
+}
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(C)]
 pub enum CodeGenOptSize {
     Other,
     None,
     Default,
     Aggressive,
+}
+impl fmt::Display for CodeGenOptSize {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Other => f.write_str("other"),
+            Self::None => f.write_str("none"),
+            Self::Default => f.write_str("default"),
+            Self::Aggressive => f.write_str("aggressive"),
+        }
+    }
 }

@@ -9,6 +9,8 @@
 
 using namespace mlir;
 
+namespace M = mlir;
+
 using llvm::ArrayRef;
 using llvm::StringRef;
 

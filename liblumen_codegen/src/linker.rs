@@ -2,9 +2,12 @@ mod command;
 mod archive;
 mod link;
 mod rpath;
+mod builtin;
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+
+use log::warn;
 
 use liblumen_session::{ProjectType, LinkerPluginLto, OptLevel, DebugInfo, DiagnosticsHandler, Options};
 use liblumen_target::{LinkerFlavor, LldFlavor};
@@ -197,6 +200,13 @@ impl<'a> GccLinker<'a> {
     }
 
     fn push_linker_plugin_lto_args(&mut self, plugin_path: Option<&OsStr>) {
+        // TODO: Figure out why this isn't a problem for Rust;
+        // ld64 doesn't support the -plugin or -plugin-opt flags as far
+        // as I can tell
+        if self.options.target.options.is_like_osx {
+            return;
+        }
+
         if let Some(plugin_path) = plugin_path {
             let mut arg = OsString::from("-plugin=");
             arg.push(plugin_path);
@@ -229,7 +239,17 @@ impl<'a> Linker for GccLinker<'a> {
         self.cmd.arg(format!("-l{}", lib));
     }
     fn link_rlib(&mut self, lib: &Path) { self.hint_static(); self.cmd.arg(lib); }
-    fn include_path(&mut self, path: &Path) { self.cmd.arg("-L").arg(path); }
+    fn include_path(&mut self, path: &Path) {
+        if !path.exists() {
+            warn!("invalid include path, not found: {}", path.to_string_lossy());
+            return;
+        }
+        if !path.is_dir() {
+            warn!("invalid include path, not a directory: {}", path.to_string_lossy());
+            return;
+        }
+        self.cmd.arg("-L").arg(path);
+    }
     fn framework_path(&mut self, path: &Path) { self.cmd.arg("-F").arg(path); }
     fn output_filename(&mut self, path: &Path) { self.cmd.arg("-o").arg(path); }
     fn add_object(&mut self, path: &Path) { self.cmd.arg(path); }

@@ -72,6 +72,9 @@ DEFINE_SIMPLE_CONVERSION_FUNCTIONS(eir::MLIRModuleBuilder,
 extern "C" MLIRModuleRef MLIRParseFile(MLIRContextRef context,
                                        const char *filename);
 
+extern "C" MLIRModuleRef MLIRParseBuffer(MLIRContextRef context,
+                                         LLVMMemoryBufferRef buffer);
+
 extern "C" MLIRModuleRef MLIRLowerModule(MLIRContextRef context,
                                          MLIRModuleRef mod,
                                          eir::TargetDialect dialect,

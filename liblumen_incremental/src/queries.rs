@@ -1,17 +1,16 @@
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use liblumen_session::{IRModule, Input, ParsedModule};
+use liblumen_session::{IRModule, Input, InputType, ParsedModule};
 use liblumen_util::{seq, seq::Seq};
 
-use libeir_diagnostics::{Diagnostic, FileName};
+use libeir_diagnostics::FileName;
 use libeir_syntax_erl::{self as syntax, ParseConfig};
 
 use crate::intern::InternedInput;
 use crate::query_groups::ParserDatabase;
 use crate::QueryResult;
-
-const ERL_EXT: &'static str = "erl";
 
 pub(crate) fn output_dir<P>(db: &P) -> PathBuf
 where
@@ -20,7 +19,7 @@ where
     db.options().output_dir()
 }
 
-pub(crate) fn calculate_inputs<P>(db: &P) -> QueryResult<Seq<InternedInput>>
+pub(crate) fn inputs<P>(db: &P) -> QueryResult<Arc<Seq<InternedInput>>>
 where
     P: ParserDatabase,
 {
@@ -52,16 +51,18 @@ where
             }
             let input = Input::new(name.clone(), source);
             let interned = db.intern_input(input);
-            Ok(seq![interned])
+            Ok(Arc::new(seq![interned]))
         }
         // Read from a single file
         &FileName::Real(ref path) if path.exists() && path.is_file() => {
             let input = Input::File(path.clone());
             let interned = db.intern_input(input);
-            Ok(seq![interned])
+            Ok(Arc::new(seq![interned]))
         }
         // Read all files in a directory
-        &FileName::Real(ref path) if path.exists() && path.is_dir() => find_sources(db, path),
+        &FileName::Real(ref path) if path.exists() && path.is_dir() => {
+            find_sources(db, path)
+        }
         // Invalid virtual file
         &FileName::Virtual(_) => {
             db.diagnostics().io_error(IoError::new(
@@ -79,6 +80,14 @@ where
             Err(())
         }
     }
+}
+
+pub(crate) fn input_type<P>(db: &P, input: InternedInput) -> InputType
+where
+    P: ParserDatabase,
+{
+    let input_info = db.lookup_intern_input(input);
+    input_info.get_type()
 }
 
 pub(crate) fn parse_config<P>(db: &P) -> ParseConfig
@@ -142,7 +151,7 @@ where
     }
 }
 
-pub fn find_sources<D, P>(db: &D, dir: P) -> QueryResult<Seq<InternedInput>>
+pub fn find_sources<D, P>(db: &D, dir: P) -> QueryResult<Arc<Seq<InternedInput>>>
 where
     D: ParserDatabase,
     P: AsRef<Path>,
@@ -158,15 +167,15 @@ where
             .unwrap_or(false)
     }
 
-    fn is_source_file(entry: &DirEntry, extension: &str) -> bool {
-        let path = entry.path();
-        if !path.is_file() {
+    fn is_valid_entry(entry: &DirEntry) -> bool {
+        // Recursively enter subdirectories
+        if entry.path().is_dir() {
+            return true;
+        }
+        if is_hidden(entry) {
             return false;
         }
-        match path.extension() {
-            None => false,
-            Some(ext) => ext == extension,
-        }
+        InputType::is_valid(entry.path())
     }
 
     let walker = WalkDir::new(dir.as_ref()).follow_links(false).into_iter();
@@ -174,24 +183,23 @@ where
     let mut inputs = Vec::new();
 
     let mut has_errors = false;
-    for maybe_entry in walker.filter_entry(|e| !is_hidden(e) && is_source_file(e, ERL_EXT)) {
+    for maybe_entry in walker.filter_entry(is_valid_entry) {
         match maybe_entry {
-            Ok(entry) if !has_errors => {
+            Ok(entry) if !has_errors && entry.path().is_file() => {
                 let input = Input::from(entry.path());
                 let interned = db.intern_input(input);
                 inputs.push(interned);
             }
             Ok(_) => continue,
             Err(err) => {
-                let diagnostic = Diagnostic::new_error(err.to_string());
-                db.diagnostic(&diagnostic);
+                db.diagnostics().error_str(&err.to_string());
                 has_errors = true;
             }
         }
     }
 
     if !has_errors {
-        Ok(inputs.into())
+        Ok(Arc::new(inputs.into()))
     } else {
         Err(())
     }

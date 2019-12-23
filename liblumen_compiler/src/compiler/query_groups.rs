@@ -1,5 +1,9 @@
+use std::sync::Arc;
+use std::thread::ThreadId;
+
 use liblumen_codegen::llvm;
 use liblumen_codegen::mlir;
+use liblumen_codegen::codegen::CompiledModule;
 use liblumen_incremental::ParserDatabase;
 use liblumen_incremental::{InternedInput, QueryResult};
 
@@ -8,20 +12,49 @@ use crate::compiler::queries;
 
 #[salsa::query_group(CodegenStorage)]
 pub trait CodegenDatabase: CodegenDatabaseBase {
+    #[salsa::invoke(queries::mlir_context)]
+    fn mlir_context(&self, thread_id: ThreadId) -> Arc<mlir::Context>;
+
+    #[salsa::invoke(queries::parse_mlir_module)]
+    fn parse_mlir_module(
+        &self,
+        thread_id: ThreadId,
+        input: InternedInput,
+    ) -> QueryResult<Arc<mlir::Module>>;
+
     #[salsa::invoke(queries::generate_mlir)]
-    fn input_mlir(&self, input: InternedInput) -> QueryResult<mlir::Module<'static>>;
+    fn generate_mlir(&self, thread_id: ThreadId, input: InternedInput) -> QueryResult<Arc<mlir::Module>>;
 
-    #[salsa::invoke(queries::lower_eir_dialect)]
-    fn input_standard_mlir(&self, input: InternedInput) -> QueryResult<mlir::Module<'static>>;
+    #[salsa::invoke(queries::get_eir_dialect_module)]
+    fn get_eir_dialect_module(
+        &self,
+        thread_id: ThreadId,
+        input: InternedInput,
+    ) -> QueryResult<Arc<mlir::Module>>;
 
-    #[salsa::invoke(queries::lower_standard_dialect)]
-    fn input_llvm_mlir(&self, input: InternedInput) -> QueryResult<mlir::Module<'static>>;
+    #[salsa::invoke(queries::get_llvm_dialect_module)]
+    fn get_llvm_dialect_module(
+        &self,
+        thread_id: ThreadId,
+        input: InternedInput,
+    ) -> QueryResult<Arc<mlir::Module>>;
 
-    #[salsa::invoke(queries::generate_llvm_assembly)]
-    fn input_llvm_ir(&self, input: InternedInput) -> QueryResult<llvm::Module<'static>>;
+    #[salsa::invoke(queries::llvm_context)]
+    fn llvm_context(&self, thread_id: ThreadId) -> Arc<llvm::Context>;
 
-    #[salsa::invoke(queries::link)]
-    fn link(&self) -> QueryResult<()>;
+    #[salsa::invoke(queries::get_target_machine)]
+    fn get_target_machine(&self, thread_id: ThreadId) -> Arc<llvm::TargetMachine>;
+
+    #[salsa::invoke(queries::get_llvm_module)]
+    fn get_llvm_module(
+        &self,
+        thread_id: ThreadId,
+        input: InternedInput,
+    ) -> QueryResult<Arc<llvm::Module>>;
+
+
+    #[salsa::invoke(queries::compile)]
+    fn compile(&self, input: InternedInput) -> QueryResult<Arc<CompiledModule>>;
 }
 
 #[salsa::query_group(StringInternerStorage)]
@@ -31,4 +64,3 @@ pub trait StringInternerDatabase: salsa::Database {
 }
 
 pub trait CodegenDatabaseBase: ParserDatabase + StringInternerDatabase {}
-impl<T> CodegenDatabaseBase for T where T: ParserDatabase + StringInternerDatabase {}

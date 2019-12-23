@@ -15,4 +15,12 @@ extern "C" bool LLVMEmitToFileDescriptor(LLVMModuleRef m,
 #endif
                                          char **errorMessage);
 
+extern "C" bool LLVMEmitBitcodeToFileDescriptor(LLVMModuleRef m,
+#if defined(_WIN32)
+                                                HANDLE handle,
+#else
+                                                int fd,
+#endif
+                                                char **errorMessage);
+
 #endif

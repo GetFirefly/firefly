@@ -100,6 +100,25 @@ impl Command {
                 c.arg("/c").arg(p);
                 c
             }
+            Program::Lld(ref p, _flavor) => process::Command::new(p),
+        };
+        ret.args(&self.args);
+        ret.envs(self.env.clone());
+        for k in &self.env_remove {
+            ret.env_remove(k);
+        }
+        return ret
+    }
+
+    #[allow(unused)]
+    pub fn command_with_flavor(&self) -> process::Command {
+        let mut ret = match self.program {
+            Program::Normal(ref p) => process::Command::new(p),
+            Program::CmdBatScript(ref p) => {
+                let mut c = process::Command::new("cmd");
+                c.arg("/c").arg(p);
+                c
+            }
             Program::Lld(ref p, flavor) => {
                 let mut c = process::Command::new(p);
                 c.arg("-flavor").arg(match flavor {
@@ -120,6 +139,31 @@ impl Command {
     }
 
     // extensions
+    pub fn as_vec(&self) -> Vec<OsString> {
+        let mut vec = Vec::new();
+        match self.program {
+            Program::Normal(ref p) => vec.push(OsString::from(p.as_os_str())),
+            Program::CmdBatScript(ref p) => {
+                vec.push(OsString::from("cmd"));
+                vec.push(OsString::from("/c"));
+                vec.push(OsString::from(p.as_os_str()));
+            }
+            Program::Lld(ref p, flavor) => {
+                vec.push(OsString::from(p));
+                vec.push(OsString::from("-flavor"));
+                vec.push(OsString::from(match flavor {
+                    LldFlavor::Wasm => "wasm",
+                    LldFlavor::Ld => "gnu",
+                    LldFlavor::Link => "link",
+                    LldFlavor::Ld64 => "darwin",
+                }));
+            }
+        };
+        for arg in &self.args {
+            vec.push(arg.clone());
+        }
+        vec
+    }
 
     pub fn get_args(&self) -> &[OsString] {
         &self.args

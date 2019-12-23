@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use liblumen_session::Options;
@@ -6,17 +6,39 @@ use liblumen_util::fs::NativeLibraryKind;
 
 use crate::linker::LinkerInfo;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledModule {
-    pub name: String,
-    pub object: Option<PathBuf>,
-    pub bytecode: Option<PathBuf>,
+    name: String,
+    object: Option<PathBuf>,
+    bytecode: Option<PathBuf>,
 }
+impl CompiledModule {
+    pub fn new(name: String, object: Option<PathBuf>, bytecode: Option<PathBuf>) -> Self {
+        Self {
+            name,
+            object,
+            bytecode,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn object(&self) -> Option<&Path> {
+        self.object.as_deref()
+    }
+
+    pub fn bytecode(&self) -> Option<&Path> {
+        self.bytecode.as_deref()
+    }
+}
+
 
 #[derive(Debug)]
 pub struct CodegenResults {
     pub project_name: String,
-    pub modules: Vec<CompiledModule>,
+    pub modules: Vec<Arc<CompiledModule>>,
     pub windows_subsystem: Option<String>,
     pub linker_info: LinkerInfo,
     pub project_info: ProjectInfo,
@@ -29,8 +51,16 @@ pub struct ProjectInfo {
     pub link_args: Vec<String>,
 }
 impl ProjectInfo {
-    pub fn new(_options: &Options) -> Self {
-        Self::default()
+    pub fn new(options: &Options) -> Self {
+        let mut info = Self::default();
+        for (name, _, kind) in options.link_libraries.iter() {
+            info.native_libraries.push(NativeLibrary {
+                kind: kind.unwrap_or(NativeLibraryKind::NativeUnknown),
+                name: Some(name.clone()),
+                wasm_import_module: None,
+            });
+        }
+        info
     }
 }
 impl Default for ProjectInfo {

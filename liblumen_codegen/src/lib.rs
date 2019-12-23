@@ -11,14 +11,9 @@ pub use self::ffi::passes::print_passes;
 pub use self::ffi::util::llvm_version;
 pub use self::mlir::generate_mlir;
 
-use thiserror::Error;
 use liblumen_session::Options;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
-
-#[derive(Error, Clone, Debug)]
-#[error("codegen failed")]
-pub struct CodegenError;
 
 /// Perform initialization of MLIR/LLVM for code generation
 pub fn init(options: &Options) {

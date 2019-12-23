@@ -3,15 +3,25 @@ mod queries;
 mod query_groups;
 
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
+
+use log::debug;
+
+use salsa::Snapshot;
+pub use salsa::ParallelDatabase;
 
 use libeir_diagnostics::{CodeMap, Diagnostic};
 
+pub use liblumen_incremental::{ParserDatabase, ParserDatabaseBase};
 use liblumen_incremental::{InternedInput, InternerStorage};
-use liblumen_incremental::{ParserDatabase, ParserDatabaseBase, ParserStorage, QueryResult};
-use liblumen_session::{DiagnosticsHandler, Emit, Options};
+use liblumen_incremental::{ParserStorage, QueryResult};
+use liblumen_session::{DiagnosticsHandler, Emit, Options, OutputType};
 
-use self::query_groups::CodegenStorage;
-pub use self::query_groups::{CodegenDatabase, StringInternerDatabase, StringInternerStorage};
+pub(crate) mod prelude {
+    pub use super::query_groups::*;
+}
+
+use self::prelude::*;
 
 #[salsa::database(CodegenStorage, ParserStorage, InternerStorage, StringInternerStorage)]
 pub struct CompilerDatabase {
@@ -37,6 +47,17 @@ impl salsa::Database for CompilerDatabase {
         &mut self.runtime
     }
 }
+impl salsa::ParallelDatabase for CompilerDatabase {
+    fn snapshot(&self) -> Snapshot<Self> {
+        Snapshot::new(
+            CompilerDatabase {
+                runtime: self.runtime.snapshot(self),
+                codemap: self.codemap.clone(),
+                diagnostics: self.diagnostics.clone(),
+            }
+        )
+    }
+}
 
 impl ParserDatabaseBase for CompilerDatabase {
     fn diagnostics(&self) -> &DiagnosticsHandler {
@@ -51,7 +72,7 @@ impl ParserDatabaseBase for CompilerDatabase {
         &self.codemap
     }
 
-    fn maybe_emit_file<E>(&self, input: InternedInput, output: &E) -> QueryResult<()>
+    fn maybe_emit_file<E>(&self, input: InternedInput, output: &E) -> QueryResult<Option<PathBuf>>
     where
         E: Emit,
     {
@@ -64,7 +85,7 @@ impl ParserDatabaseBase for CompilerDatabase {
         options: &Options,
         input: InternedInput,
         output: &E,
-    ) -> QueryResult<()>
+    ) -> QueryResult<Option<PathBuf>>
     where
         E: Emit,
     {
@@ -72,11 +93,50 @@ impl ParserDatabaseBase for CompilerDatabase {
 
         let input = self.lookup_intern_input(input);
         if let Some(filename) = options.output_types.maybe_emit(&input, E::TYPE) {
+            debug!("emitting {} for {:?}", E::TYPE, input);
             let output_dir = self.output_dir();
             let outfile = output_dir.join(filename);
-            self.emit_file(outfile, output)
+            Ok(Some(self.emit_file(outfile, output)?))
         } else {
-            Ok(())
+            Ok(None)
+        }
+    }
+
+    fn maybe_emit_file_with_callback<F>(
+        &self,
+        input: InternedInput,
+        output_type: OutputType,
+        callback: F,
+    ) -> QueryResult<Option<PathBuf>>
+    where
+        F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
+    {
+        let options = self.options();
+        self.maybe_emit_file_with_callback_and_opts(&options, input, output_type, callback)
+    }
+
+    fn maybe_emit_file_with_callback_and_opts<F>(
+        &self,
+        options: &Options,
+        input: InternedInput,
+        output_type: OutputType,
+        callback: F,
+    ) -> QueryResult<Option<PathBuf>>
+    where
+        F: FnOnce(&mut std::fs::File) -> anyhow::Result<()>,
+    {
+        use liblumen_incremental::InternerDatabase;
+
+        let input = self.lookup_intern_input(input);
+        if let Some(filename) = options.output_types.maybe_emit(&input, output_type) {
+            debug!("emitting {} for {:?}", output_type, input);
+            let output_dir = self.output_dir();
+            let outfile = output_dir.join(filename);
+            Ok(Some(self.emit_file_with_callback(outfile, callback)?))
+        } else {
+            Ok(None)
         }
     }
 }
+
+impl CodegenDatabaseBase for CompilerDatabase {}

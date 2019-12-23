@@ -9,12 +9,15 @@ edition = "2018"
 publish = false
 
 [dependencies]
+log = "0.4"
 anyhow = "1.0"
 thiserror = "1.0"
 clap = "2.33.0"
 walkdir = "2.2"
 salsa = "0.14"
 salsa-macros = "0.14"
+executors = "0.5.3"
+num_cpus = "1.0"
 
 liblumen_session = { path = "../liblumen_session" }
 liblumen_target = { path = "../liblumen_target" }

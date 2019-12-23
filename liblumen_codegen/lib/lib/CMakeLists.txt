@@ -2,23 +2,27 @@ llvm_map_components_to_libnames(Lumen_llvm_libs
   all
 )
 
-file(GLOB globbed *.cpp EIR/*.cpp)
+file(GLOB globbed *.cpp Support/*.cpp EIR/*.cpp)
 
-
-set(Lumen_libs
+set(Lumen_mlir_libs
+  MLIRAnalysis
   MLIRAffineOps
   MLIRAffineToStandard
-  MLIRAnalysis
   MLIRDialect
   MLIREDSC
   MLIREDSCInterface
   MLIRExecutionEngine
+  MLIRFxpMathOps
+  MLIRLinalg
+  MLIRLinalgToLLVM
   MLIRIR
   MLIRLLVMIR
   MLIRLoopOps
   MLIRLoopToStandard
   MLIRParser
   MLIRPass
+  MLIRQuantOps
+  MLIRSDBM
   MLIRStandardOps
   MLIRStandardToLLVM
   MLIRSupport
@@ -28,12 +32,29 @@ set(Lumen_libs
   MLIRTransforms
   MLIRTranslateClParser
   MLIRTranslation
+  MLIRVectorConversions
+  MLIRVectorOps
+  MLIRVectorToLoops
+  MLIRVectorToLLVM
+)
+
+set(Lumen_libs
+  ${Lumen_mlir_libs}
   ${Lumen_llvm_libs}
+  lldCore
+  lldCommon
+  lldYaml
+  lldReaderWriter
+  lldELF
+  lldWasm
+  lldCOFF
+  lldMachO
+  lldMinGW
+  lldDriver
 )
 
 add_llvm_library(Lumen
   ${globbed}
-  Support/raw_win32_handle_ostream.cpp
 
   DEPENDS
   OpsIncGen
@@ -42,12 +63,7 @@ add_llvm_library(Lumen
   ${Lumen_libs}
 )
 
-#target_link_libraries(Lumen PUBLIC EIR)
-
-#target_include_directories(Lumen PUBLIC include/)
-#target_include_directories(Lumen PRIVATE ${LLVM_INCLUDE_DIRS})
-#target_compile_definitions(Lumen PRIVATE ${LLVM_DEFINITIONS})
-#target_compile_options(Lumen PUBLIC -g -fno-rtti)
+llvm_update_compile_flags(Lumen)
 
 whole_archive_link(Lumen ${Lumen_libs})
 

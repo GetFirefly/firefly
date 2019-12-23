@@ -25,6 +25,7 @@
 #include "llvm-c/Core.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -39,6 +40,8 @@ using namespace eir;
 namespace M = mlir;
 namespace L = llvm;
 
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(L::MemoryBuffer, LLVMMemoryBufferRef);
+
 MLIRModuleRef MLIRParseFile(MLIRContextRef context, const char *filename) {
   M::MLIRContext *ctx = unwrap(context);
   assert(ctx != nullptr && "invalid MLIRContext pointer");
@@ -47,7 +50,24 @@ MLIRModuleRef MLIRParseFile(MLIRContextRef context, const char *filename) {
   // Parse the input mlir.
   auto mod = M::parseSourceFile(inputFilePath, ctx);
   if (!mod) {
-    L::errs() << "Error can't load file " << inputFilePath << "\n";
+    return nullptr;
+  }
+
+  // We're doing our own memory management, so extract the module from
+  // its owning reference
+  return wrap(new M::ModuleOp(mod.release()));
+}
+
+MLIRModuleRef MLIRParseBuffer(MLIRContextRef context, LLVMMemoryBufferRef buffer) {
+  M::MLIRContext *ctx = unwrap(context);
+  assert(ctx != nullptr && "invalid MLIRContext pointer");
+  L::SourceMgr sourceMgr;
+  auto buffer_ptr = std::unique_ptr<L::MemoryBuffer>(unwrap(buffer));
+  sourceMgr.AddNewSourceBuffer(std::move(buffer_ptr), L::SMLoc());
+
+  // Parse the input mlir.
+  auto mod = M::parseSourceFile(sourceMgr, ctx);
+  if (!mod) {
     return nullptr;
   }
 
@@ -131,13 +151,15 @@ LLVMModuleRef MLIRLowerToLLVMIR(MLIRModuleRef m, LLVMLumenCodeGenOptLevel opt,
 
   M::ExecutionEngine::setupTargetTriple(llvmModPtr.get());
 
+  //L::outs() << L::format("Making optimizing transformer with %p", targetMachine) << "\n";
   // Optionally run an optimization pipeline
-  auto optPipeline =
-      M::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
-  if (auto err = optPipeline(llvmModPtr.get())) {
-    L::errs() << "Failed to optimize LLVM IR " << err << "\n";
-    return nullptr;
-  }
+  //auto optPipeline =
+      //M::makeOptimizingTransformer(optLevel, sizeLevel, targetMachine);
+  //if (auto err = optPipeline(llvmModPtr.get())) {
+    //L::errs() << "Failed to optimize LLVM IR " << err << "\n";
+    //return nullptr;
+  //}
+
 
   return wrap(llvmModPtr.release());
 }

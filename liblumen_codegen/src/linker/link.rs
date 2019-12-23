@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio, ExitStatus};
 use std::str;
 use std::env;
-use std::ffi::OsString;
+use std::ffi::{CString, OsString};
 
 use log::{info, warn};
 use cc::windows_registry;
@@ -39,7 +39,7 @@ pub fn link_binary(
         panic!("invalid output type `{:?}` for target os `{}`", project_type, options.target.triple());
     }
 
-    for obj in codegen_results.modules.iter().filter_map(|m| m.object.as_ref()) {
+    for obj in codegen_results.modules.iter().filter_map(|m| m.object()) {
         check_file_is_writeable(obj)?;
     }
 
@@ -77,7 +77,7 @@ pub fn link_binary(
     }
 
     // Remove the temporary object file and metadata if we aren't saving temps
-    for obj in codegen_results.modules.iter().filter_map(|m| m.object.as_ref()) {
+    for obj in codegen_results.modules.iter().filter_map(|m| m.object()) {
         if let Err(e) = remove(obj) {
             diagnostics.error(e);
         }
@@ -192,8 +192,76 @@ fn link_natively(
     // May have not found libraries in the right formats.
     diagnostics.abort_if_errors();
 
+    if options.target.options.is_like_osx {
+        use_system_linker(options, diagnostics, pname, cmd, flavor, output_file, tmpdir)
+    } else {
+        // For non-Darwin targets, try to use LLD if possible
+        match flavor {
+            LinkerFlavor::Gcc
+            | LinkerFlavor::Msvc
+            | LinkerFlavor::Lld(_) => use_builtin_linker(options, diagnostics, cmd, output_file),
+            _ => use_system_linker(options, diagnostics, pname, cmd, flavor, output_file, tmpdir),
+        }
+    }
+}
+
+fn use_builtin_linker(
+    options: &Options,
+    diagnostics: &DiagnosticsHandler,
+    cmd: Command,
+    output_file: &Path,
+) -> anyhow::Result<()>
+{
+    let result = time(options.debugging_opts.time_passes, "running linker", || {
+        // Convert args to a vector of C strings, compatible with our FFI interface
+        let argv = cmd.as_vec()
+            .iter()
+            .map(|os| CString::new(os.to_str().unwrap()).unwrap())
+            .collect::<Vec<_>>();
+        info!("invoking builtin linker: {:?}", argv.iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>());
+        crate::linker::builtin::link(argv.as_slice())
+    });
+
+    #[cfg(unix)]
+    fn flush_linked_file(_: &Path) -> io::Result<()> {
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    fn flush_linked_file(output_file: &Path) -> io::Result<()> {
+        // See the note in `exec_linker`
+        if let Ok(of) = fs::OpenOptions::new().write(true).open(output_file) {
+            of.sync_all()?;
+        }
+
+        Ok(())
+    }
+
+    if result.is_ok() {
+        flush_linked_file(output_file)?;
+        return Ok(());
+    }
+
+    diagnostics.error_str(&format!("linking with the builtin linker failed\n\
+                                    \n\
+                                    {:?}", &cmd));
+    diagnostics.abort_if_errors();
+
+    Ok(())
+}
+
+fn use_system_linker(
+    options: &Options,
+    diagnostics: &DiagnosticsHandler,
+    pname: PathBuf,
+    mut cmd: Command,
+    flavor: LinkerFlavor,
+    output_file: &Path,
+    tmpdir: &Path
+) -> anyhow::Result<()>
+{
     // Invoke the system linker
-    info!("{:?}", &cmd);
+    info!("invoking system linker: {:?}", &cmd);
     let retry_on_segfault = env::var("LUMEN_RETRY_LINKER_ON_SEGFAULT").is_ok();
     let mut prog;
     let mut i = 0;
@@ -457,16 +525,20 @@ pub fn linker_and_flavor(options: &Options) -> anyhow::Result<(PathBuf, LinkerFl
         flavor: Option<LinkerFlavor>,
     ) -> anyhow::Result<Option<(PathBuf, LinkerFlavor)>> {
         match (linker, flavor) {
+            // Explicit linker+flavor
             (Some(linker), Some(flavor)) => Ok(Some((linker, flavor))),
-            // only the linker flavor is known; use the default linker for the selected flavor
-            (None, Some(flavor)) => Ok(Some((PathBuf::from(match flavor {
-                LinkerFlavor::Em  => if cfg!(windows) { "emcc.bat" } else { "emcc" },
-                LinkerFlavor::Gcc => "cc",
-                LinkerFlavor::Ld => "ld",
-                LinkerFlavor::Msvc => "link.exe",
-                LinkerFlavor::Lld(_) => "lld",
-                LinkerFlavor::PtxLinker => "rust-ptx-linker",
-            }), flavor))),
+            // Only the linker flavor is known; use the default linker for the selected flavor
+            (None, Some(flavor)) => {
+                let prog = match flavor {
+                    LinkerFlavor::Em  => if cfg!(windows) { "emcc.bat" } else { "emcc" },
+                    LinkerFlavor::Gcc => "cc",
+                    LinkerFlavor::Ld => "ld",
+                    LinkerFlavor::Msvc => "link.exe",
+                    LinkerFlavor::Lld(_) => "lld",
+                    f => return Err(anyhow!("invalid linker flavor '{}': flavor is unimplemented", f)),
+                };
+                Ok(Some((PathBuf::from(prog), flavor)))
+            }
             (Some(linker), None) => {
                 let stem = linker
                     .file_stem()
@@ -487,7 +559,7 @@ pub fn linker_and_flavor(options: &Options) -> anyhow::Result<(PathBuf, LinkerFl
                     LinkerFlavor::Ld
                 } else if stem == "link" || stem == "lld-link" {
                     LinkerFlavor::Msvc
-                } else if stem == "lld" || stem == "rust-lld" {
+                } else if stem == "lld" || stem == "lumen-lld" {
                     LinkerFlavor::Lld(options.target.options.lld_flavor)
                 } else {
                     // fall back to the value in the target spec
@@ -743,7 +815,7 @@ fn link_args(cmd: &mut dyn Linker,
 
     cmd.include_path(&fix_windows_verbatim_for_gcc(&lib_path));
 
-    for obj in codegen_results.modules.iter().filter_map(|m| m.object.as_ref()) {
+    for obj in codegen_results.modules.iter().filter_map(|m| m.object()) {
         cmd.add_object(obj);
     }
     cmd.output_filename(output_file);
@@ -940,9 +1012,27 @@ pub fn add_local_native_libraries(
         }
     }
 
+    let search_path = archive_search_paths(options);
+
+    for lib in codegen_results.project_info.native_libraries.iter() {
+        let name = match lib.name {
+            Some(ref l) => l,
+            None => continue,
+        };
+        match lib.kind {
+            NativeLibraryKind::NativeUnknown => cmd.link_dylib(name.as_str()),
+            NativeLibraryKind::NativeFramework => cmd.link_framework(name.as_str()),
+            NativeLibraryKind::NativeStaticNobundle => cmd.link_staticlib(name.as_str()),
+            NativeLibraryKind::NativeStatic => cmd.link_whole_staticlib(name.as_str(), &search_path),
+            NativeLibraryKind::NativeRawDylib => {
+                // FIXME(#58713): Proper handling for raw dylibs.
+                return Err(anyhow!("raw_dylib feature not yet implemented"));
+            },
+        }
+    }
+
     let relevant_libs = &codegen_results.project_info.used_libraries;
 
-    let search_path = archive_search_paths(options);
     for lib in relevant_libs.iter() {
         let name = match lib.name {
             Some(ref l) => l,

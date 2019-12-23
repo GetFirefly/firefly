@@ -28,7 +28,10 @@ libeir_passes = { git = "https://github.com/eirproject/eir.git" }
 libeir_syntax_erl = { git = "https://github.com/eirproject/eir.git" }
 
 # llvm crates
-llvm-sys = { git = "https://github.com/lumen/llvm-sys.rs", branch = "llvm-9.0" }
+[dependencies.llvm-sys]
+git = "https://github.com/lumen/llvm-sys.rs"
+branch = "llvm-9.0"
+features= ["no-llvm-linking"]
 
 [build-dependencies]
 cc = "1.0.32"

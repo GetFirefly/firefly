@@ -20,7 +20,7 @@ namespace M = mlir;
 
 using L::SmallVector;
 using OperandType = M::OpAsmParser::OperandType;
-using OperandIterator = M::OperandIterator;
+using OperandIterator = M::Operation::operand_iterator;
 using Delimiter = M::OpAsmParser::Delimiter;
 
 template <typename Iterator, typename F, typename K>

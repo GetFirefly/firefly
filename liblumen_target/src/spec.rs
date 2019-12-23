@@ -48,6 +48,18 @@ pub enum LinkerFlavor {
     Lld(LldFlavor),
     PtxLinker,
 }
+impl fmt::Display for LinkerFlavor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Em => f.write_str("emcc"),
+            Self::Gcc => f.write_str("cc"),
+            Self::Ld => f.write_str("ld"),
+            Self::Msvc => f.write_str("link.exe"),
+            Self::Lld(_) => f.write_str("lld"),
+            Self::PtxLinker => f.write_str("ptx-linker"),
+        }
+    }
+}
 
 pub type LinkArgs = BTreeMap<LinkerFlavor, Vec<String>>;
 
@@ -59,15 +71,25 @@ pub enum LldFlavor {
     Ld,
     Link,
 }
+impl fmt::Display for LldFlavor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Wasm => f.write_str("wasm-ld"),
+            Self::Ld64 => f.write_str("ld64.lld"),
+            Self::Ld => f.write_str("ld.lld"),
+            Self::Link => f.write_str("link"),
+        }
+    }
+}
 impl FromStr for LldFlavor {
     type Err = InvalidLinkerFlavorError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "darwin" => Ok(LldFlavor::Ld64),
-            "gnu" => Ok(LldFlavor::Ld),
-            "link" => Ok(LldFlavor::Link),
-            "wasm" => Ok(LldFlavor::Wasm),
+            "darwin" | "ld64.lld" => Ok(LldFlavor::Ld64),
+            "gnu" | "ld" | "ld.lld" => Ok(LldFlavor::Ld),
+            "link" | "link.exe" => Ok(LldFlavor::Link),
+            "wasm" | "wasm-ld" => Ok(LldFlavor::Wasm),
             _ => Err(InvalidLinkerFlavorError(s.to_string())),
         }
     }

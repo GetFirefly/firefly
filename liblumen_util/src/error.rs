@@ -91,11 +91,6 @@ impl FatalError {
 impl !Send for FatalError {}
 impl fmt::Display for FatalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "fatal error")
-    }
-}
-impl std::error::Error for FatalError {
-    fn description(&self) -> &str {
-        "The compiler has encountered a fatal error"
+        write!(f, "The compiler has encountered a fatal error")
     }
 }

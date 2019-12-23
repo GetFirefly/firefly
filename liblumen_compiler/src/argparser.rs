@@ -306,6 +306,6 @@ fn target_arg<'a, 'b>() -> Arg<'a, 'b> {
         .value_name("TRIPLE")
         .validator(|triple| match Target::search(&triple) {
             Ok(_) => Ok(()),
-            Err(err) => Err(err.description().to_string()),
+            Err(err) => Err(err.to_string()),
         })
 }

@@ -202,10 +202,9 @@ impl From<fs::PatternError> for OutputTypeError {
 }
 impl Into<clap::Error> for OutputTypeError {
     fn into(self) -> clap::Error {
-        use std::error::Error;
         clap::Error {
             kind: clap::ErrorKind::InvalidValue,
-            message: self.description().to_string(),
+            message: self.to_string(),
             info: None,
         }
     }

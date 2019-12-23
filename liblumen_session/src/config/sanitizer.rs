@@ -39,10 +39,9 @@ impl FromStr for Sanitizer {
 }
 impl ParseOption for Sanitizer {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
-        use std::error::Error;
         match matches.value_of(info.name) {
             None => Err(required_option_missing(info)),
-            Some(s) => Self::from_str(s).map_err(|e| invalid_value(info, e.description())),
+            Some(s) => Self::from_str(s).map_err(|e| invalid_value(info, &e.to_string())),
         }
     }
 }

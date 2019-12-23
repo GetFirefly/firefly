@@ -45,7 +45,7 @@ where
                         Err(err) => {
                             return Err(clap::Error {
                                 kind: ErrorKind::ValueValidation,
-                                message: err.description().to_string(),
+                                message: err.to_string(),
                                 info: Some(vec![info.name.to_string()]),
                             });
                         }
@@ -75,7 +75,7 @@ impl ParseOption for u64 {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
         match matches.value_of(info.name) {
             None => Err(required_option_missing(info)),
-            Some(s) => u64::from_str(s).map_err(|e| invalid_value(info, e.description())),
+            Some(s) => u64::from_str(s).map_err(|e| invalid_value(info, &e.to_string())),
         }
     }
 }
@@ -91,7 +91,7 @@ impl ParseOption for LinkerFlavor {
     fn parse_option<'a>(info: &OptionInfo, matches: &ArgMatches<'a>) -> clap::Result<Self> {
         match matches.value_of(info.name) {
             None => Err(required_option_missing(info)),
-            Some(s) => LinkerFlavor::from_str(s).map_err(|e| invalid_value(info, e.description())),
+            Some(s) => LinkerFlavor::from_str(s).map_err(|e| invalid_value(info, &e.to_string())),
         }
     }
 }
@@ -137,7 +137,7 @@ impl ParseOption for Target {
             Ok(target) => Ok(target),
             Err(err @ TargetError::Unsupported(_)) => Err(clap::Error {
                 kind: ErrorKind::ValueValidation,
-                message: err.description().to_string(),
+                message: err.to_string(),
                 info: Some(vec![info.name.to_string()]),
             }),
             Err(TargetError::Other(desc)) => Err(clap::Error {

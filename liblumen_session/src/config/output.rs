@@ -335,6 +335,7 @@ impl ParseOption for OutputTypes {
         }
 
         if output_types.is_empty() {
+            output_types.push((OutputType::Object, None));
             output_types.push((OutputType::Exe, None));
         }
         Self::new(output_types.as_slice()).map_err(|err| {

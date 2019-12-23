@@ -127,8 +127,6 @@ impl Options {
             None => filesearch::get_or_default_sysroot(),
         };
 
-        println!("using sysroot: {}", sysroot.display());
-
         let target: Target = ParseOption::parse_option(&option!("target"), &args)?;
         match &target.target_pointer_width {
             32 | 64 => (),
@@ -146,13 +144,11 @@ impl Options {
         let host_triple = target::host_triple();
         let target_triple = target.triple();
         let host_tlib_path = SearchPath::from_sysroot_and_triple(&sysroot, host_triple);
-        println!("using host_tlib_path: {:?}", &host_tlib_path);
         let target_tlib_path = if host_triple == target_triple {
             None
         } else {
             Some(SearchPath::from_sysroot_and_triple(&sysroot, target_triple))
         };
-        println!("using target_tlib_path: {:?}", &target_tlib_path);
 
         let mut defines = default_configuration(&target);
 

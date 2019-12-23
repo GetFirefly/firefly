@@ -140,23 +140,23 @@ impl OutputType {
 
     pub const fn help() -> &'static str {
         "Comma-separated list of output types for the compiler to generate.
-         You may specify one or more types (comma-separated), and each type
-         may also include a glob pattern, which filters the inputs for which
-         that output type should apply.
+You may specify one or more types (comma-separated), and each type
+may also include a glob pattern, which filters the inputs for which
+that output type should apply.
 
-         Supported output types:
-         - ast:       Abstract Syntax Tree
-         - eir:       Erlang Intermediate Representation
-         - mlir-eir:  MLIR (Erlang Dialect)
-         - mlir-std:  MLIR (Standard Dialect)
-         - mlir-llvm: MLIR (LLVM Dialect)
-         - llvm-ir:   LLVM IR
-         - llvm-bc:   LLVM Bitcode (*)
-         - asm:       Assembly (*)
-         - obj:       Object File (*)
-         - link:      Executable (*)
+Supported output types:
+- ast:       Abstract Syntax Tree
+- eir:       Erlang Intermediate Representation
+- mlir-eir:  MLIR (Erlang Dialect)
+- mlir-std:  MLIR (Standard Dialect)
+- mlir-llvm: MLIR (LLVM Dialect)
+- llvm-ir:   LLVM IR
+- llvm-bc:   LLVM Bitcode (*)
+- asm:       Assembly (*)
+- obj:       Object File (*)
+- link:      Executable (*)
 
-         (*) Indicates that globs cannot be applied to this output type"
+(*) Indicates that globs cannot be applied to this output type"
     }
 
     pub fn extension(&self) -> &'static str {

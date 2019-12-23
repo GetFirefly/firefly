@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::ffi::OsString;
 
 use clap::crate_description;
@@ -21,15 +20,16 @@ pub fn parser<'a, 'b>() -> App<'a, 'b> {
         .setting(AppSettings::VersionlessSubcommands)
         .arg(
             CodegenOptions::option_group_arg()
-                .help("Set a codegen option. See 'lumen -C help' for details"),
+                .global(true)
+                .help("Set a codegen option. Use '-C help' for details"),
         )
         .arg(
             DebuggingOptions::option_group_arg()
-                .help("Set a debugging option. See 'lumen -Z help' for details"),
+                .global(true)
+                .help("Set a debugging option. Use '-Z help' for details"),
         )
         .subcommand(print_command())
         .subcommand(compile_command())
-        .subcommand(parse_command())
 }
 
 pub fn print_print_help() {
@@ -135,24 +135,26 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
     let target = self::target_arg();
     App::new("compile")
         .about("Compiles Erlang sources to an executable or shared library")
+        .setting(AppSettings::DeriveDisplayOrder)
         .arg(
             Arg::with_name("input")
                 .index(1)
                 .help(
-                    "Path to the source file to compile (or `-` to read from stdin).\n\
-                     If not provided, the project in the current directory is compiled.",
+                    "Path to the source file or directory to compile.\n\
+                     You may also use `-` as a file name to read a file from stdin.\n\
+                     If not provided, the compiler will use the current directory as input.",
                 )
                 .next_line_help(true)
                 .takes_value(true)
-                .value_name("FILE"),
+                .value_name("PATH"),
         )
         .arg(
             Arg::with_name("raw")
                 .last(true)
-                .hidden(true)
                 .help(
                     "Extra arguments that will be passed unmodified to the LLVM argument processor",
                 )
+                .next_line_help(true)
                 .multiple(true)
                 .value_name("ARGS"),
         )
@@ -165,25 +167,15 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .value_name("NAME"),
         )
         .arg(
-            Arg::with_name("emit")
-                .help(OutputType::help())
-                .next_line_help(true)
-                .long("emit")
-                .takes_value(true)
-                .value_name("TYPE[=GLOB],..")
-                .multiple(true)
-                .require_delimiter(true),
-        )
-        .arg(
             Arg::with_name("output")
                 .help("Write output to FILE")
                 .long("output")
+                .short("o")
                 .value_name("FILE"),
         )
         .arg(
             Arg::with_name("output-dir")
                 .help("Write output to file(s) in DIR")
-                .short("o")
                 .long("output-dir")
                 .value_name("DIR"),
         )
@@ -207,6 +199,7 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("color")
                 .help("Configure coloring of output")
+                .next_line_help(true)
                 .long("color")
                 .possible_values(&["never", "always", "auto"])
                 .default_value("auto"),
@@ -215,6 +208,7 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
             Arg::with_name("source-map-prefix")
                 .help("Remap source paths in all output (i.e. FROM/foo => TO/foo)")
                 .long("source-map-prefix")
+                .hidden(true)
                 .takes_value(true)
                 .value_name("FROM=TO"),
         )
@@ -246,12 +240,26 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
                 .multiple(true),
         )
         .arg(
-            Arg::with_name("library")
+            Arg::with_name("link-library")
+                .help("Link the generated binary to the specified native library NAME.\n\
+                       The optional KIND can be one of: static, dylib (default), or framework.\n\
+                       \n\
+                       Example: `lumen compile -lc ...` will link against the system libc")
+                .next_line_help(true)
+                .short("l")
+                .takes_value(true)
+                .value_name("[KIND=]NAME")
+                .multiple(true)
+                .number_of_values(1),
+        )
+        .arg(
+            Arg::with_name("search-path")
                 .help(
-                    "Add a directory to the library search path. \
-                     The optional KIND can be one of: dependency,\
+                    "Add a directory to the library search path.\n\
+                     The optional KIND can be one of: dependency, \
                      native, framework, or all (default)",
                 )
+                .next_line_help(true)
                 .short("L")
                 .takes_value(true)
                 .value_name("[KIND=]PATH")
@@ -261,8 +269,8 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("append-path")
                 .help("Appends a path to the Erlang code path")
-                .long("pz")
-                //.long("append-path")
+                .long("append-path")
+                .short("p")
                 .value_name("PATH")
                 .takes_value(true)
                 .multiple(true)
@@ -271,12 +279,22 @@ fn compile_command<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name("prepend-path")
                 .help("Prepends a path to the Erlang code path")
-                .long("pa")
-                //.long("prepend-path")
+                .long("prepend-path")
+                .short("P")
                 .value_name("PATH")
                 .takes_value(true)
                 .multiple(true)
                 .number_of_values(1),
+        )
+        .arg(
+            Arg::with_name("emit")
+                .help(OutputType::help())
+                .next_line_help(true)
+                .long("emit")
+                .takes_value(true)
+                .value_name("TYPE[=GLOB],..")
+                .multiple(true)
+                .require_delimiter(true),
         )
 }
 

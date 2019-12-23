@@ -192,13 +192,13 @@ impl Options {
         }
 
         let mut search_paths = vec![];
-        match args.values_of("library") {
+        match args.values_of("search-path") {
             None => (),
             Some(values) => {
                 for value in values {
                     search_paths.push(
                         SearchPath::from_cli_opt(value)
-                            .map_err(|e| str_to_clap_err("library", e))?,
+                            .map_err(|e| str_to_clap_err("search-path", e))?,
                     );
                 }
             }
@@ -466,7 +466,7 @@ fn parse_key_value(value: &str) -> Result<Define, clap::Error> {
 fn parse_link_libraries<'a>(
     matches: &ArgMatches<'a>,
 ) -> Result<Vec<(String, Option<String>, Option<NativeLibraryKind>)>, clap::Error> {
-    match matches.values_of("link-libraries") {
+    match matches.values_of("link-library") {
         None => return Ok(Vec::new()),
         Some(values) => {
             let mut link_libraries = Vec::new();
@@ -485,7 +485,7 @@ fn parse_link_libraries<'a>(
                     }
                     (_, s) => {
                         return Err(str_to_clap_err(
-                            "link-libraries",
+                            "link-library",
                             &format!(
                                 "unknown library kind `{}`, expected \
                                  one of dylib, framework, or static",

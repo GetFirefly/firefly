@@ -1,8 +1,48 @@
+use std::fmt;
 use std::borrow::Cow;
 use std::convert::{From, TryFrom, TryInto};
 use std::path::{Path, PathBuf};
 
 use libeir_diagnostics::FileName;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum InputType {
+    Erlang,
+    MLIR,
+    Unknown(Option<String>),
+}
+impl InputType {
+    const TYPES: &'static [InputType] = &[
+        InputType::Erlang,
+        InputType::MLIR,
+    ];
+
+    pub fn is_valid(path: &Path) -> bool {
+        if !path.exists() || !path.is_file() {
+            return false;
+        }
+        match path.extension().and_then(|s| s.to_str()) {
+            None => false,
+            Some("erl") => true,
+            Some("mlir") => true,
+            Some(_) => false,
+        }
+    }
+
+    pub fn list() -> String {
+        Self::TYPES.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(", ")
+    }
+}
+impl fmt::Display for InputType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Erlang => f.write_str("erl"),
+            Self::MLIR => f.write_str("mlir"),
+            Self::Unknown(None) => f.write_str("unknown (no extension)"),
+            Self::Unknown(Some(ref ext)) => write!(f, "unknown ({})", ext),
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Input {
@@ -22,6 +62,31 @@ impl Input {
         Self::Str {
             name: name.into(),
             input: input.into(),
+        }
+    }
+
+    pub fn get_type(&self) -> InputType {
+        match self {
+            Input::File(ref file) => match file.extension().and_then(|ext| ext.to_str()) {
+                Some("erl") => InputType::Erlang,
+                Some("mlir") => InputType::MLIR,
+                Some(t) => InputType::Unknown(Some(t.to_string())),
+                None => InputType::Unknown(None),
+            }
+            Input::Str { ref name, .. } => {
+                if name.ends_with(".erl") {
+                    InputType::Erlang
+                } else if name.ends_with(".mlir") {
+                    InputType::MLIR
+                } else {
+                    let mut parts = name.rsplitn(2, '.');
+                    let ext = parts.next().unwrap();
+                    match parts.next() {
+                        Some(_) => InputType::Unknown(Some(ext.to_string())),
+                        None => InputType::Unknown(None),
+                    }
+                }
+            }
         }
     }
 

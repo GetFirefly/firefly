@@ -16,10 +16,7 @@ fn without_pid_errors_badarg() {
     with_process_arc(|arc_process| {
         TestRunner::new(Config::with_source_file(file!()))
             .run(&strategy::term::is_not_pid(arc_process.clone()), |pid| {
-                prop_assert_badarg!(
-                    native(&arc_process, pid),
-                    format!("pid ({}) must be a pid", pid)
-                );
+                prop_assert_is_not_local_pid!(native(&arc_process, pid), pid);
 
                 Ok(())
             })

@@ -17,10 +17,7 @@ fn without_local_pid_errors_badarg() {
                 |pid| {
                     let item = Atom::str_to_term("registered_name");
 
-                    prop_assert_badarg!(
-                        native(&arc_process, pid, item),
-                        format!("pid ({}) must be a pid", pid)
-                    );
+                    prop_assert_is_not_local_pid!(native(&arc_process, pid, item), pid);
 
                     Ok(())
                 },

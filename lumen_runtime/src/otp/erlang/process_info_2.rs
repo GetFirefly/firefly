@@ -5,8 +5,6 @@
 #[cfg(all(not(target_arch = "wasm32"), test))]
 mod test;
 
-use std::convert::TryInto;
-
 use anyhow::*;
 
 use liblumen_alloc::atom;
@@ -20,9 +18,7 @@ use crate::registry::pid_to_process;
 
 #[native_implemented_function(process_info/2)]
 pub fn native(process: &Process, pid: Term, item: Term) -> exception::Result<Term> {
-    let pid_pid: Pid = pid
-        .try_into()
-        .with_context(|| format!("pid ({}) must be a pid", pid))?;
+    let pid_pid = term_try_into_local_pid!(pid)?;
     let item_atom: Atom = term_try_into_atom!(item)?;
 
     if process.pid() == pid_pid {

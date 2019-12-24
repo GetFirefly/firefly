@@ -173,6 +173,16 @@ macro_rules! prop_assert_is_not_integer {
 }
 
 #[cfg(test)]
+macro_rules! prop_assert_is_not_local_pid {
+    ($actual:expr, $name:ident) => {
+        prop_assert_is_not_local_pid!($actual, stringify!($name), $name)
+    };
+    ($actual:expr, $name:expr, $value:expr) => {
+        prop_assert_is_not_type!($actual, $name, $value, "a pid")
+    };
+}
+
+#[cfg(test)]
 macro_rules! prop_assert_is_not_local_reference {
     ($actual:expr, $name:ident) => {
         prop_assert_is_not_local_reference!($actual, stringify!($name), $name)

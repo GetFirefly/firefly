@@ -5,6 +5,16 @@ use std::io;
 use std::os;
 use std::path::{Path, PathBuf};
 
+use cfg_if::cfg_if;
+
+cfg_if! {
+    if #[cfg(windows)] {
+        use std::os::windows::io::AsRawHandle;
+    } else {
+        use std::os::unix::io::AsRawFd;
+    }
+}
+
 pub use glob::{GlobError, Pattern, PatternError};
 
 /// Compiles a glob pattern, to a `Pattern`
@@ -18,15 +28,13 @@ pub fn glob<S: AsRef<str>>(pattern: S) -> Result<Pattern, PatternError> {
 
 /// Get the underlying raw file descriptor for a File
 #[cfg(windows)]
-pub fn get_file_descriptor(f: &mut fs::File) -> os::windows::io::RawHandle {
-    use os::windows::io::AsRawHandle;
+pub fn get_file_descriptor<F: AsRawHandle>(f: &F) -> os::windows::io::RawHandle {
     f.as_raw_handle()
 }
 
 /// Get the underlying raw file descriptor for a File
 #[cfg(not(windows))]
-pub fn get_file_descriptor(f: &mut fs::File) -> os::unix::io::RawFd {
-    use os::unix::io::AsRawFd;
+pub fn get_file_descriptor<F: AsRawFd>(f: &F) -> os::unix::io::RawFd {
     f.as_raw_fd()
 }
 

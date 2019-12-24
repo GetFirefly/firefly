@@ -217,7 +217,7 @@ fn link_natively(
     } else {
         // For non-Darwin targets, try to use LLD if possible
         match flavor {
-            LinkerFlavor::Gcc | LinkerFlavor::Msvc | LinkerFlavor::Lld(_) => {
+            LinkerFlavor::Lld(_) => {
                 use_builtin_linker(options, diagnostics, cmd, output_file)
             }
             _ => use_system_linker(

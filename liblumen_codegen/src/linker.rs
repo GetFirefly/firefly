@@ -573,6 +573,20 @@ impl<'a> Linker for WasmLd<'a> {
     }
 
     fn include_path(&mut self, path: &Path) {
+        if !path.exists() {
+            warn!(
+                "invalid include path, not found: {}",
+                path.to_string_lossy()
+            );
+            return;
+        }
+        if !path.is_dir() {
+            warn!(
+                "invalid include path, not a directory: {}",
+                path.to_string_lossy()
+            );
+            return;
+        }
         self.cmd.arg("-L").arg(path);
     }
 

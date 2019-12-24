@@ -19,6 +19,7 @@
 
 #include "lld/Common/Driver.h"
 #include "lld/Common/Memory.h"
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -28,6 +29,13 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
+
+// On Windows we have a custom output stream type that
+// can wrap the raw file handle we get from Rust
+#if defined(_WIN32)
+#include "lumen/Support/raw_win32_handle_ostream.h"
+#endif
+
 #include <cstdlib>
 
 using namespace lld;
@@ -101,17 +109,17 @@ static Flavor parseProgname(StringRef progname) {
   return Invalid;
 }
 
-static Flavor parseFlavor(std::vector<const char *> &v) {
+static Flavor parseFlavor(std::vector<const char *> &v, llvm::raw_ostream &stderrs) {
   // Parse -flavor option.
   if (v.size() > 1 && v[1] == StringRef("-flavor")) {
     if (v.size() <= 2) {
-      llvm::errs() << "missing linker arg value for '-flavor'"
-                   << "\n";
+      stderrs << "missing linker arg value for '-flavor'"
+              << "\n";
       return Flavor::Invalid;
     }
     Flavor f = getFlavor(v[2]);
     if (f == Invalid) {
-      llvm::errs() << "unknown linker flavor: " + StringRef(v[2]) << "\n";
+      stderrs << "unknown linker flavor: " + StringRef(v[2]) << "\n";
       return f;
     }
     v.erase(v.begin() + 1, v.begin() + 3);
@@ -131,22 +139,34 @@ static bool canExitEarly() { return false; }
 
 /// Universal linker main(). This linker emulates the gnu, darwin, or
 /// windows linker based on the argv[0] or -flavor option.
-extern "C" int LLVMLumenLink(int argc, const char **argv) {
+#if defined(_WIN32)
+extern "C" int LLVMLumenLink(int argc, const char **argv, HANDLE outFd, HANDLE errFd) {
+  llvm::raw_win32_handle_ostream stdouts(outFd,
+                                         /*shouldClose=*/false,
+                                         /*unbuffered=*/false);
+  llvm::raw_win32_handle_ostream stderrs(errFd,
+                                         /*shouldClose=*/false,
+                                         /*unbuffered=*/false);
+#else
+extern "C" bool LLVMLumenLink(int argc, const char **argv, int outFd, int errFd) {
+  llvm::raw_fd_ostream stdouts(outFd, /*shouldClose=*/false, /*unbuffered=*/false);
+  llvm::raw_fd_ostream stderrs(errFd, /*shouldClose=*/false, /*unbuffered=*/false);
+#endif
   std::vector<const char *> args(argv, argv + argc);
-  switch (parseFlavor(args)) {
+  switch (parseFlavor(args, stderrs)) {
   case Gnu:
     if (isPETarget(args))
-      return !mingw::link(args, canExitEarly(), llvm::outs(), llvm::errs());
-    return !elf::link(args, canExitEarly(), llvm::outs(), llvm::errs());
+      return mingw::link(args, canExitEarly(), stdouts, stderrs);
+    return elf::link(args, canExitEarly(), stdouts, stderrs);
   case WinLink:
-    return !coff::link(args, canExitEarly(), llvm::outs(), llvm::errs());
+    return coff::link(args, canExitEarly(), stdouts, stderrs);
   case Darwin:
-    return !mach_o::link(args, canExitEarly(), llvm::outs(), llvm::errs());
+    return mach_o::link(args, canExitEarly(), stdouts, stderrs);
   case Wasm:
-    return !wasm::link(args, canExitEarly(), llvm::outs(), llvm::errs());
+    return wasm::link(args, canExitEarly(), stdouts, stderrs);
   default:
-    llvm::errs() << "Compiler provided invalid linker name. This is a bug!"
-                 << "\n";
-    return 1;
+    stderrs << "Compiler provided invalid linker name. This is a bug!"
+            << "\n";
+    return false;
   }
 }

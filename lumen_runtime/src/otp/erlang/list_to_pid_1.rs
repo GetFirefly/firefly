@@ -127,13 +127,17 @@ fn skip_char(cons: Boxed<Cons>, skip: char) -> InternalResult<Term> {
     let c: char = cons
         .head
         .try_into()
-        .with_context(|| format!("skipped character must be {}", skip))?;
+        .with_context(|| skipped_character(skip))?;
 
     if c == skip {
         Ok(cons.tail)
     } else {
         Err(TryIntoIntegerError::OutOfRange)
-            .with_context(|| format!("skipped character must be {}", skip))
+            .with_context(|| skipped_character(skip))
             .map_err(From::from)
     }
+}
+
+fn skipped_character(skip: char) -> String {
+    format!("skipped character must be {}", skip)
 }
